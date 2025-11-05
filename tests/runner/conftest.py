@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import difflib
+import os
+import subprocess
 
 import pytest
 
@@ -12,6 +14,9 @@ from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
 # Global set to track collected test node IDs
 _collected_nodeids = set()
+_RESET_ENABLED = False
+_FORKED_MODE = False
+_MASTER_PID_ENV = "PYTEST_MASTER_PID"
 
 # Allowed architecture identifiers for arch_overrides and --arch option
 ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
@@ -31,6 +36,15 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="Fail if test_config files and collected test IDs are out of sync",
+    )
+    parser.addoption(
+        "--tt-smi-reset-per-test",
+        action="store_true",
+        default=False,
+        help=(
+            "Run 'tt-smi -r <devices>' per test (requires --forked). Devices are discovered from "
+            "'/dev/tenstorrent'. Times out after 120s to avoid hangs."
+        ),
     )
 
 
@@ -200,3 +214,127 @@ def pytest_sessionfinish(session, exitstatus):
         raise pytest.UsageError(msg)
     else:
         session.exitstatus = 0
+
+
+def pytest_configure(config):
+    """Initialize globals and record master PID for forked detection."""
+    global _RESET_ENABLED, _FORKED_MODE
+    _RESET_ENABLED = bool(config.getoption("--tt-smi-reset-per-test"))
+    # pytest-forked exposes --forked option on config.option
+    _FORKED_MODE = bool(getattr(config.option, "forked", False))
+    # Record the controller PID once; children inherit this env var after fork
+    os.environ.setdefault(_MASTER_PID_ENV, str(os.getpid()))
+    if _RESET_ENABLED and not _FORKED_MODE:
+        # Warn in non-forked runs; resets are skipped.
+        print(
+            "[tt-smi-reset] --tt-smi-reset-per-test requires --forked; skipping resets",
+            flush=True,
+        )
+
+
+def _discover_tenstorrent_devices(dev_dir: str = "/dev/tenstorrent") -> list[str]:
+    """Return sorted list of devices (as strings) present under /dev/tenstorrent.
+
+    Only directory entries that are purely numeric are considered valid indices.
+    """
+    try:
+        entries = os.listdir(dev_dir)
+    except FileNotFoundError:
+        return []
+
+    indices_numeric = []
+    for name in entries:
+        if name.isdigit():
+            try:
+                indices_numeric.append(int(name))
+            except ValueError:
+                continue
+
+    indices_numeric.sort()
+    return [str(i) for i in indices_numeric]
+
+
+def _reset_tenstorrent_boards(timeout_seconds: int = 120) -> None:
+    """Run 'tt-smi -r <devices>' with a timeout to reset boards per test.
+
+    Logs outcome to stdout and returns. Intentionally does not raise on failure
+    to avoid masking test execution unless the user opts to handle it externally.
+    """
+    devices = _discover_tenstorrent_devices()
+
+    if not devices:
+        return
+
+    cmd = ["tt-smi", "-r", ",".join(devices)]
+    print(f"\n[tt-smi-reset] Starting for devices {','.join(devices)}", flush=True)
+
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"[tt-smi-reset] Timeout after {timeout_seconds}s while running: {' '.join(cmd)}",
+            flush=True,
+        )
+        return
+    except FileNotFoundError:
+        print("[tt-smi-reset] 'tt-smi' not found in PATH; skipping reset", flush=True)
+        return
+
+    if result.returncode != 0:
+        print(
+            (
+                f"[tt-smi-reset] Reset failed (exit {result.returncode}). Command: {' '.join(cmd)}\n\n"
+                f"stdout:\n{(result.stdout or '').rstrip()}\n\n"
+                f"stderr:\n{(result.stderr or '').rstrip()}"
+            ),
+            flush=True,
+        )
+    else:
+        print(f"[tt-smi-reset] Success for devices {','.join(devices)}", flush=True)
+
+
+def _is_controller_process() -> bool:
+    try:
+        master_pid = int(os.environ.get(_MASTER_PID_ENV, "0"))
+    except ValueError:
+        return False
+    return master_pid != 0 and os.getpid() == master_pid
+
+
+def pytest_runtest_logreport(report):
+    """In forked mode, run reset in the controller after each test completes.
+
+    This more closely mimics running `tt-smi` between separate pytest invocations.
+    """
+    if not _RESET_ENABLED or not _FORKED_MODE:
+        return
+    if not _is_controller_process():
+        return
+    if getattr(report, "when", None) != "teardown":
+        return
+    _reset_tenstorrent_boards()
+
+
+@pytest.fixture(autouse=True)
+def _maybe_reset_board_per_test(request):
+    """If enabled via --tt-smi-reset-per-test, reset boards after each test.
+
+    In --forked mode, do NOT reset in the child (can race with process teardown).
+    The controller process will reset between tests via pytest_runtest_logreport.
+    """
+    enabled = _RESET_ENABLED
+    if _FORKED_MODE:
+        # In forked mode, let the controller handle resets between tests.
+        yield
+        return
+    # Always yield so this remains a generator fixture; perform reset in teardown.
+    yield
+    # In non-forked mode we only warn (once in pytest_configure) and skip resets entirely.
+    return
