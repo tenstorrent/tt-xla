@@ -79,7 +79,9 @@ class XLAExecutor:
         signature: torch.export.ExportGraphSignature,
         node_info: list[str],
     ):
-        self.module = module
+        from torch._dynamo import disable
+
+        self.module = disable(module)
         self.signature = signature
         self.node_info = node_info
         # Inject metadata if xla debug is enabled and node_info is not empty
