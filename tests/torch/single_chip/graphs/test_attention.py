@@ -890,9 +890,6 @@ def test_qwen3_attention(variant, variant_config, seq_len, request):
     dropout = 0.0
     scaling = attention.scaling
 
-    print(f"mesh: {mesh}")
-    print(f"get_shard_spec: {get_shard_spec}")
-
     run_graph_test(
         sdpa,
         [
@@ -1084,6 +1081,11 @@ def test_bert_create_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
+    if not is_llmbox(request) and (
+        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+    ):
+        pytest.xfail("Variant doesn't fit on device")
+
     xr.set_device_type("TT")
 
     loader = Qwen2_5ModelLoader(variant=variant)
@@ -1256,6 +1258,11 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_attention_decode(variant, variant_config, request):
+    if not is_llmbox(request) and (
+        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+    ):
+        pytest.xfail("Variant doesn't fit on device")
+
     xr.set_device_type("TT")
 
     loader = Qwen2_5ModelLoader(variant=variant)
@@ -1348,6 +1355,11 @@ def test_qwen2_5_attention_decode(variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_attention(variant, variant_config, seq_len, request):
+    if not is_llmbox(request) and (
+        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+    ):
+        pytest.xfail("Variant doesn't fit on device")
+
     xr.set_device_type("TT")
 
     def sdpa(
