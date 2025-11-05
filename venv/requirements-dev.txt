@@ -36,6 +36,9 @@ torchvision==0.22.1
 torchxrayvision
 transformers>=4.50.0,<4.53.0
 
+# For ability to reset between tests
+tt-smi
+
 # vgg model
 vgg_pytorch
 
