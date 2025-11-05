@@ -16,7 +16,77 @@ test_config:
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "ValueError: Node arity mismatch; expected 291, but got 290. failed in Comparator"
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-t5-small-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-t5-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-t5-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-google/flan-t5-small-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-google/flan-t5-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-google/flan-t5-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  qwen_2_5/causal_lm/pytorch-0_5b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  qwen_2_5/causal_lm/pytorch-1_5b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  qwen_2_5/causal_lm/pytorch-1_5b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  llama/causal_lm/pytorch-llama_3_2_1b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  qwen_2_5_coder/pytorch-0_5b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   clip/pytorch-base_patch32-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
@@ -26,23 +96,53 @@ test_config:
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: INCORRECT_RESULT
-    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.869604229927063. Required: pcc=0.99."
+    reason: "PCC comparison failed."
     markers: [large]
 
   nbeats/pytorch-generic_basis-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: INCORRECT_RESULT
-    reason: "Calculated: pcc=0.9751636385917664. Required: pcc=0.99."
+    reason: "PCC comparison failed."
 
   nbeats/pytorch-seasonality_basis-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: INCORRECT_RESULT
-    reason: "Calculated: pcc=0.38206756114959717. Required: pcc=0.99."
+    reason: "PCC comparison failed."
 
   nbeats/pytorch-trend_basis-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: INCORRECT_RESULT
-    reason: "Calculated: pcc=0.8649696707725525. Required: pcc=0.99."
+    reason: "PCC comparison failed."
+
+  qwen_3/embedding/pytorch-embedding_0_6b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
+
+  phi1_5/token_classification/pytorch-microsoft/phi-1_5-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
+
+  phi1/token_classification/pytorch-microsoft/phi-1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
+
+  nanogpt/pytorch-FinancialSupport/NanoGPT-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
+
+  dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
+
+  dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   musicgen_small/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -83,6 +183,66 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space in L1"
+
+  stable_diffusion_unet/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
+
+  centernet/pytorch-resnet18_coco-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+
+  centernet/pytorch-resnet101_coco-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+
+  centernet/pytorch-dla1x_coco-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+
+  centernet/pytorch-dla2x_coco-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+
+  vadv2/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: Only Tensors created explicitly by the user (graph leaves) support the deepcopy protocol at the moment."
+
+  monodle/pytorch-dla34-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
+
+  uniad/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: list indices must be integers or slices, not tuple"
+
+  mobilenetv1/pytorch-google/mobilenet_v1_0.75_192-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
+
+  mobilenetv1/pytorch-google/mobilenet_v1_1.0_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
+
+  speecht5/pytorch-tts-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: mat1 and mat2 must have the same dtype, but got Float and BFloat16"
+
+  rmbg/pytorch-2_0-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ImportError: kornia"
 
   ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -424,6 +584,121 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
+  centernet/pytorch-hourglass_coco-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov6/pytorch-yolov6l-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  maptr/pytorch-tiny_r50_24e_bevformer-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  maptr/pytorch-tiny_r50_24e_bevformer_t4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  maptr/pytorch-tiny_r50_24e-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  maptr/pytorch-tiny_r50_110e-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  maptr/pytorch-tiny_r50_24e_t4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  maptr/pytorch-nano_r18_110e-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  maptr/pytorch-tiny_r50_24e_bevpool-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  maptr/pytorch-tiny_fusion_24e-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov3/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  transfuser/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yoloworld/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  segformer/semantic_segmentation/pytorch-b1_finetuned_ade_512_512-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  detr3d/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov8/pytorch-yolov8n-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov4/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  detr/object_detection/pytorch-resnet_50-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  detr/segmentation/pytorch-resnet_50_panoptic-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
   dla/pytorch-dla34-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
@@ -683,6 +958,56 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+
+  roberta/masked_lm/pytorch-xlm_base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.gather'"
+
+  unet/pytorch-unet_cityscapes-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.gather'"
+
+  vilt/masked_lm/pytorch-mlm-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1"
+
+  vilt/question_answering/pytorch-vqa-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1"
+
+  llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter'"
+
+  llama/sequence_classification/pytorch-llama_3_2_1b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter'"
+
+  opt/sequence_classification/pytorch-facebook/opt-125m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter'"
+
+  opt/sequence_classification/pytorch-facebook/opt-350m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter'"
+
+  opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter'"
+
+  gpt2/pytorch-gpt2_sequence_classification-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter'"
 
   resnext/pytorch-resnext50_32x4d-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1259,512 +1584,567 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  deepcogito/pytorch-v1_preview_llama_3b-single_device-full-training:
+  openpose/v2/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5/causal_lm/pytorch-3b-single_device-full-training:
+  hrnet/pytorch-hrnet_w18_small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5/causal_lm/pytorch-3b_instruct-single_device-full-training:
+  hrnet/pytorch-hrnet_w18_small_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5/causal_lm/pytorch-7b-single_device-full-training:
+  hrnet/pytorch-hrnet_w18-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5/causal_lm/pytorch-7b_instruct-single_device-full-training:
+  hrnet/pytorch-hrnet_w30-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5/causal_lm/pytorch-7b_instruct_1m-single_device-full-training:
+  hrnet/pytorch-hrnet_w32-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5/causal_lm/pytorch-14b-single_device-full-training:
+  hrnet/pytorch-hrnet_w40-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5/causal_lm/pytorch-14b_instruct-single_device-full-training:
+  hrnet/pytorch-hrnet_w44-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5/causal_lm/pytorch-14b_instruct_1m-single_device-full-training:
+  hrnet/pytorch-hrnet_w48-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5/causal_lm/pytorch-32b_instruct-single_device-full-training:
+  hrnet/pytorch-hrnet_w64-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5/causal_lm/pytorch-72b_instruct-single_device-full-training:
+  hrnet/pytorch-hrnet_w18.ms_aug_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5/causal_lm/pytorch-math_7b-single_device-full-training:
+  hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  seamless_m4t/pytorch-large-single_device-full-training:
+  hrnet/pytorch-hrnet_w18_small_v2_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  mistral/pixtral/pytorch-single_device-full-training:
+  hrnet/pytorch-hrnetv2_w18_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  mistral/pytorch-7b-single_device-full-training:
+  hrnet/pytorch-hrnetv2_w30_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  mistral/pytorch-7b_instruct_v03-single_device-full-training:
+  hrnet/pytorch-hrnetv2_w32_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  mistral/pytorch-ministral_3b_instruct-single_device-full-training:
+  hrnet/pytorch-hrnetv2_w40_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  mistral/pytorch-ministral_8b_instruct-single_device-full-training:
+  hrnet/pytorch-hrnetv2_w44_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/causal_lm/pytorch-llama_3_8b-single_device-full-training:
+  hrnet/pytorch-hrnetv2_w48_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/causal_lm/pytorch-llama_3_8b_instruct-single_device-full-training:
+  hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/causal_lm/pytorch-llama_3_1_8b-single_device-full-training:
+  glpn_kitti/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/causal_lm/pytorch-llama_3_1_8b_instruct-single_device-full-training:
+  albert/masked_lm/pytorch-large_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/causal_lm/pytorch-llama_3_1_70b-single_device-full-training:
+  segformer/pytorch-mit_b0-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/causal_lm/pytorch-llama_3_1_70b_instruct-single_device-full-training:
+  segformer/pytorch-mit_b1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/causal_lm/pytorch-llama_3_2_3b-single_device-full-training:
+  segformer/pytorch-mit_b2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-full-training:
+  segformer/pytorch-mit_b3-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/causal_lm/pytorch-llama_3_3_70b_instruct-single_device-full-training:
+  segformer/pytorch-mit_b4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/causal_lm/pytorch-huggyllama_7b-single_device-full-training:
+  segformer/pytorch-mit_b5-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/sequence_classification/pytorch-llama_3_8b-single_device-full-training:
+  ghostnet/pytorch-ghostnet_100-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/sequence_classification/pytorch-llama_3_8b_instruct-single_device-full-training:
+  ghostnet/pytorch-ghostnet_100.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/sequence_classification/pytorch-llama_3_1_8b-single_device-full-training:
+  ghostnet/pytorch-ghostnetv2_100.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/sequence_classification/pytorch-llama_3_1_8b_instruct-single_device-full-training:
+  efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/sequence_classification/pytorch-llama_3_1_70b-single_device-full-training:
+  efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/sequence_classification/pytorch-llama_3_1_70b_instruct-single_device-full-training:
+  efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/sequence_classification/pytorch-llama_3_2_3b-single_device-full-training:
+  efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/sequence_classification/pytorch-llama_3_2_3b_instruct-single_device-full-training:
+  efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/sequence_classification/pytorch-llama_3_3_70b_instruct-single_device-full-training:
+  monodepth2/pytorch-mono_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llama/sequence_classification/pytorch-huggyllama_7b-single_device-full-training:
+  monodepth2/pytorch-stereo_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2/causal_lm/pytorch-qwq_32b-single_device-full-training:
+  monodepth2/pytorch-mono+stereo_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_3/causal_lm/pytorch-4b-single_device-full-training:
+  monodepth2/pytorch-mono_no_pt_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_3/causal_lm/pytorch-8b-single_device-full-training:
+  monodepth2/pytorch-stereo_no_pt_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_3/causal_lm/pytorch-14b-single_device-full-training:
+  monodepth2/pytorch-mono+stereo_no_pt_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_3/causal_lm/pytorch-32b-single_device-full-training:
+  monodepth2/pytorch-mono_1024x320-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_3/causal_lm/pytorch-30b_a3b-single_device-full-training:
+  monodepth2/pytorch-stereo_1024x320-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_3/embedding/pytorch-embedding_4b-single_device-full-training:
+  monodepth2/pytorch-mono+stereo_1024x320-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_3/embedding/pytorch-embedding_8b-single_device-full-training:
+  efficientnet/pytorch-efficientnet_b0-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi4/seq_cls/pytorch-microsoft/phi-4-single_device-full-training:
+  efficientnet/pytorch-efficientnet_b1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi4/causal_lm/pytorch-microsoft/phi-4-single_device-full-training:
+  efficientnet/pytorch-efficientnet_b2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi4/token_cls/pytorch-microsoft/phi-4-single_device-full-training:
+  efficientnet/pytorch-efficientnet_b3-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  gpt_neo/causal_lm/pytorch-gpt_neo_1_3B-single_device-full-training:
+  efficientnet/pytorch-efficientnet_b4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-single_device-full-training:
+  efficientnet/pytorch-efficientnet_b5-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  gpt_neo/sequence_classification/pytorch-gpt_neo_1_3B-single_device-full-training:
+  efficientnet/pytorch-efficientnet_b6-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-single_device-full-training:
+  efficientnet/pytorch-efficientnet_b7-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  llava/pytorch-1_5_7b-single_device-full-training:
+  efficientnet/pytorch-timm_efficientnet_b0-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  mplug_owl2/pytorch-llama2_7b-single_device-full-training:
+  efficientnet/pytorch-timm_efficientnet_b4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  huggyllama/pytorch-llama_7b-single_device-full-training:
+  efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  openvla/pytorch-openvla_7b-single_device-full-training:
+  efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  openvla/pytorch-openvla_v01_7b-single_device-full-training:
+  efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  openvla/pytorch-openvla_7b_finetuned_libero_10-single_device-full-training:
+  efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  openvla/pytorch-openvla_7b_finetuned_libero_goal-single_device-full-training:
+  efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  openvla/pytorch-openvla_7b_finetuned_libero_object-single_device-full-training:
+  efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  openvla/pytorch-openvla_7b_finetuned_libero_spatial-single_device-full-training:
+  mobilenetv1/pytorch-mobilenet_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  gemma/pytorch-google/gemma-1.1-7b-it-single_device-full-training:
+  mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  gemma/pytorch-google/gemma-2-9b-it-single_device-full-training:
+  unet_for_conditional_generation/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  gemma/pytorch-google/gemma-2-27b-it-single_device-full-training:
+  whisper/pytorch-openai/whisper-tiny-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5_vl/pytorch-3b_instruct-single_device-full-training:
+  whisper/pytorch-openai/whisper-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5_vl/pytorch-7b_instruct-single_device-full-training:
+  whisper/pytorch-openai/whisper-small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5_vl/pytorch-3b_instruct_awq-single_device-full-training:
+  whisper/pytorch-openai/whisper-medium-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5_vl/pytorch-7b_instruct_awq-single_device-full-training:
+  whisper/pytorch-openai/whisper-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  deepseek/qwen/pytorch-single_device-full-training:
+  whisper/pytorch-openai/whisper-large-v3-turbo-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  deepseek/deepseek_math/pytorch-7b_instruct-single_device-full-training:
+  mobilenetv3/pytorch-mobilenet_v3_large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  deepseek/pytorch-single_device-full-training:
+  mobilenetv3/pytorch-mobilenet_v3_small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  deepseek/deepseek_coder/pytorch-1_3b_instruct-single_device-full-training:
+  mobilenetv3/pytorch-mobilenetv3_large_100-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  flux/pytorch-schnell-single_device-full-training:
+  mobilenetv3/pytorch-mobilenetv3_small_100-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  flux/pytorch-dev-single_device-full-training:
+  xception/pytorch-xception41-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  fuyu/pytorch-adept/fuyu-8b-single_device-full-training:
+  xception/pytorch-xception65-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  falcon/pytorch-tiiuae/Falcon3-3B-Base-single_device-full-training:
+  xception/pytorch-xception71-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-training:
+  xception/pytorch-xception71.tf_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-training:
+  regnet/pytorch-regnet_y_040-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-full-training:
+  regnet/pytorch-regnet_y_064-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  falcon/pytorch-tiiuae/falcon-7b-instruct-single_device-full-training:
+  regnet/pytorch-regnet_y_080-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  bloom/pytorch-single_device-full-training:
+  regnet/pytorch-regnet_y_120-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-full-training:
+  regnet/pytorch-regnet_y_160-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  stable_diffusion/pytorch-stable-diffusion-3.5-medium-single_device-full-training:
+  regnet/pytorch-regnet_y_320-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  stable_diffusion/pytorch-stable-diffusion-3.5-large-single_device-full-training:
+  regnet/pytorch-regnet_y_400mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  stable_diffusion/pytorch-stable-diffusion-3.5-large-turbo-single_device-full-training:
+  regnet/pytorch-regnet_y_800mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-training:
+  regnet/pytorch-regnet_y_1_6gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-training:
+  regnet/pytorch-regnet_y_3_2gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi3/phi_3_5/pytorch-mini_instruct-single_device-full-training:
+  regnet/pytorch-regnet_y_8gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi3/phi_3_5/pytorch-microsoft/Phi-3.5-MoE-instruct-single_device-full-training:
+  regnet/pytorch-regnet_y_16gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-training:
+  regnet/pytorch-regnet_y_32gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-training:
+  regnet/pytorch-regnet_y_128gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-training:
+  regnet/pytorch-regnet_x_400mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-training:
+  regnet/pytorch-regnet_x_800mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi3/phi_3_5_vision/pytorch-instruct-single_device-full-training:
+  regnet/pytorch-regnet_x_1_6gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5_coder/pytorch-3b-single_device-full-training:
+  regnet/pytorch-regnet_x_3_2gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5_coder/pytorch-3b_instruct-single_device-full-training:
+  regnet/pytorch-regnet_x_8gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5_coder/pytorch-7b-single_device-full-training:
+  regnet/pytorch-regnet_x_16gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5_coder/pytorch-7b_instruct-single_device-full-training:
+  regnet/pytorch-regnet_x_32gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2_5_coder/pytorch-32b_instruct-single_device-full-training:
+  mobilenetv2/pytorch-mobilenet_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  qwen_2/token_classification/pytorch-single_device-full-training:
+  mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
-  phi2/token_classification/pytorch-microsoft/phi-2-single_device-full-training:
+  mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv2/pytorch-mobilenetv2_100-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  qwen_3/causal_lm/pytorch-1_7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM"
+
+  phi2/token_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM"
+
+  gemma/pytorch-google/gemma-1.1-2b-it-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM"
+
+  gemma/pytorch-google/gemma-2b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM"
+
+  gemma/pytorch-google/gemma-2-2b-it-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM"
+
+  mamba/pytorch-mamba-2.8b-hf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM"
+
+  qwen_2_5_coder/pytorch-1_5b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM"
+
+  qwen_2_5_coder/pytorch-1_5b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM"
