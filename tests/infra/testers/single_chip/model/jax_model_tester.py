@@ -310,8 +310,10 @@ class JaxModelTester(ModelTester):
         grads_tt = self._run_on_tt_device(pullback_workload_tt)
 
         # Compare forward results and gradients
-        self._compare(tt_forward_out, cpu_forward_out)
-        self._compare(grads_tt, grads_cpu)
+        forward_comparison = self._compare(tt_forward_out, cpu_forward_out)
+        gradients_comparison = self._compare(grads_tt, grads_cpu)
+
+        return (gradients_comparison, forward_comparison)
 
     # @override
     def _apply_model_dtype(self) -> None:

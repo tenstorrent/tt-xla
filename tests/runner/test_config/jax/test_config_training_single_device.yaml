@@ -74,47 +74,47 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
 
   blenderbot/summarization/jax-1B-distill-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   blenderbot/summarization/jax-3B-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   blenderbot/summarization/jax-400M-distill-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   blenderbot/summarization/jax-small-90M-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   bloom/causal_lm/jax-1b1-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   bloom/causal_lm/jax-1b7-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   bloom/causal_lm/jax-3b-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   bloom/causal_lm/jax-560m-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   bloom/causal_lm/jax-7b-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
@@ -199,7 +199,7 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
 
   gpt_j/causal_lm/jax-6b-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
@@ -219,12 +219,12 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
 
   gpt_sw3/causal_lm/jax-1_3b_instruct-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   llama/causal_lm/jax-3b-v2-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
@@ -254,22 +254,22 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
 
   mistral/causal_lm/jax-v0_1-single_device-full-training:
-    status: KNOWN_FAILURE
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   mistral/causal_lm/jax-v0_1_tiny-single_device-full-training:
-    status: KNOWN_FAILURE
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   mistral/causal_lm/jax-v0_2_instruct-single_device-full-training:
-    status: KNOWN_FAILURE
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   mistral/causal_lm/jax-v0_3_instruct-single_device-full-training:
-    status: KNOWN_FAILURE
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
@@ -308,7 +308,7 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
 
   opt/causal_lm/jax-1.3B-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
@@ -318,7 +318,7 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
 
   opt/causal_lm/jax-2.7B-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
@@ -328,17 +328,17 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
 
   opt/causal_lm/jax-6.7B-single_device-full-training:
-    status: KNOWN_FAILURE
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   pegasus/summarization/jax-large-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
   pegasus/summarization/jax-xsum-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
@@ -383,7 +383,7 @@ test_config:
     reason: "Skip until mixed-precision is supported in MLIR. https://github.com/tenstorrent/tt-mlir/issues/5252"
 
   resnet/image_classification/jax-resnet-50-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
@@ -508,7 +508,7 @@ test_config:
     reason: "TorchCodec issue in front-end compilation"
 
   xglm/causal_lm/jax-564M-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
 
