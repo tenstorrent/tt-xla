@@ -352,10 +352,14 @@ test_config:
     status: EXPECTED_PASSING
 
   mamba/pytorch-mamba-1.4b-hf-single_device-full-inference:
+    assert_pcc: false # -0.0130 WH / -0.0888 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
     status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT
 
   mamba/pytorch-mamba-370m-hf-single_device-full-inference:
+    assert_pcc: false # -0.0327 WH / 0.3821 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
     status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT
 
   mgp_str_base/pytorch-single_device-full-inference:
     status: EXPECTED_PASSING
