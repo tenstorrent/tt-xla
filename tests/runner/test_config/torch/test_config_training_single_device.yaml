@@ -189,6 +189,61 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space in L1"
 
+  centernet/pytorch-resnet18_coco-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+
+  centernet/pytorch-resnet101_coco-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+
+  centernet/pytorch-dla1x_coco-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+
+  centernet/pytorch-dla2x_coco-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+
+  vadv2/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: Only Tensors created explicitly by the user (graph leaves) support the deepcopy protocol at the moment."
+
+  monodle/pytorch-dla34-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
+
+  uniad/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "TypeError: list indices must be integers or slices, not tuple"
+
+  mobilenetv1/pytorch-google/mobilenet_v1_0.75_192-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
+
+  mobilenetv1/pytorch-google/mobilenet_v1_1.0_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
+
+  speecht5/pytorch-tts-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: mat1 and mat2 must have the same dtype, but got Float and BFloat16"
+
+  rmbg/pytorch-2_0-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ImportError: kornia"
+
   ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
