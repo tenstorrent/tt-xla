@@ -302,6 +302,25 @@ jobs:
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
+    # Hack for now to only look at tests/runner tests
+    - name: Prepare test list for wrapper
+      shell: bash
+      run: |
+        # Use previously computed failed tests if present (rerun attempt), otherwise derive from collection
+        if [ -f .pytest_tests_to_run ]; then
+          echo "Using existing .pytest_tests_to_run (from rerun detection)."
+        else
+          echo "Creating .pytest_tests_to_run from collected tests"
+          # Prefer exact nodeids printed by -q collect; restrict to tests/runner per request
+          grep -E '^tests/runner/.*::' collected_tests.txt > .pytest_tests_to_run || true
+          # Fallback in case output format differs
+          if [ ! -s .pytest_tests_to_run ]; then
+            grep -E 'tests/runner/.*::' collected_tests.txt | sed -E 's/^[ ]*//; s/[ ]+$//' > .pytest_tests_to_run || true
+          fi
+        fi
+        echo "Test list to run:" || true
+        cat .pytest_tests_to_run || true
+
     - name: Run tests
       timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
       env:
@@ -315,7 +334,8 @@ jobs:
           $(pwd)/venv/bin/pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
           pip freeze
         fi
-        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
+        python .github/scripts/test_runner.py ${{ matrix.build.args }} \
+               ${{ env.VERBOSITY }} $ARCH --durations=0 --log-memory \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
 
