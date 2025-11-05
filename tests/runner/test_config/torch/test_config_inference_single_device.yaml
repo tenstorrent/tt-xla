@@ -2170,6 +2170,18 @@ test_config:
   yolov11/pytorch-yolo11x-single_device-full-inference:
     status: EXPECTED_PASSING
 
+  yolov12/pytorch-yolo12s-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  yolov12/pytorch-yolo12m-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  yolov12/pytorch-yolo12l-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  yolov12/pytorch-yolo12x-single_device-full-inference:
+    status: EXPECTED_PASSING
+
   vgg19_unet/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2162688 B L1_SMALL buffer across 64 banks, where each bank needs to store 33792 B, but bank size is only 32768 B - https://github.com/tenstorrent/tt-xla/issues/1722"
