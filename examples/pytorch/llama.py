@@ -337,6 +337,10 @@ def run_generate(
     output_tokens: List[List[str]] = [[] for _ in range(num_users)]
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
+            if step == 0:
+                print("RUNNING PREFILL")
+            else:
+                print(f"RUNNING DECODE ITER: {step}")
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
             output_logits: torch.Tensor = output.logits.to("cpu")
