@@ -17,13 +17,7 @@ from ..tester import BigBirdCLMTester
 VARIANT_NAME = ModelVariant.LARGE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> BigBirdCLMTester:
-    return BigBirdCLMTester(VARIANT_NAME)
 
 
 @pytest.fixture
@@ -34,25 +28,7 @@ def training_tester() -> BigBirdCLMTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' "
-        "https://github.com/tenstorrent/tt-xla/issues/318"
-    )
-)
-def test_bigbird_roberta_large_inference(inference_tester: BigBirdCLMTester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
@@ -64,7 +40,7 @@ def test_bigbird_roberta_large_inference(inference_tester: BigBirdCLMTester):
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
-        "https://github.com/tenstorrent/tt-mlir/issues/4795"
+        "https://github.com/tenstorrent/tt-mlir/issues/5660"
     )
 )
 def test_bigbird_roberta_large_training(training_tester: BigBirdCLMTester):

@@ -18,11 +18,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> LLamaTester:
-    return LLamaTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> LLamaTester:
     return LLamaTester(VARIANT_NAME, RunMode.TRAINING)
 
@@ -30,25 +25,7 @@ def training_tester() -> LLamaTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.large
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
-    )
-)
-def test_openllama3b_inference(inference_tester: LLamaTester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

@@ -17,13 +17,7 @@ from ..tester import BigBirdQATester
 VARIANT_NAME = ModelVariant.LARGE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> BigBirdQATester:
-    return BigBirdQATester(VARIANT_NAME)
 
 
 @pytest.fixture
@@ -34,25 +28,7 @@ def training_tester() -> BigBirdQATester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "Failed to legalize operation 'ttir.scatter' "
-        "https://github.com/tenstorrent/tt-xla/issues/911"
-    )
-)
-def test_bigbird_roberta_large_inference(inference_tester: BigBirdQATester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

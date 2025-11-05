@@ -22,11 +22,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> LongT5Tester:
-    return LongT5Tester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> LongT5Tester:
     return LongT5Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
@@ -34,25 +29,7 @@ def training_tester() -> LongT5Tester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1 "
-        "https://github.com/tenstorrent/tt-xla/issues/580"
-    )
-)
-def test_longt5_base_tglobal_inference(inference_tester: LongT5Tester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

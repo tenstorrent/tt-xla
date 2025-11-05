@@ -18,6 +18,7 @@ from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
     eager_attention_forward,
 )
+from utils import failed_runtime
 
 from tests.utils import is_llmbox
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
@@ -75,6 +76,10 @@ def test_llama_attention_prefill(seq_len, variant, variant_config):
     # Xfail 70B models that don't fit on device
     if "70b" in str(variant):
         pytest.xfail("70B models don't fit on device")
+
+    # Will download huge amount of data and run out of disk space.
+    if "405b" in str(variant):
+        pytest.skip("405B variants too large for device and disk space")
 
     loader = LlamaModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
@@ -142,6 +147,9 @@ def test_llama_attention_decode(variant, variant_config):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_concat_heads(variant, variant_config, seq_len):
+
+    if str(variant) == "llama_3_1_405b" or str(variant) == "llama_3_1_405b_instruct":
+        pytest.xfail("Variant doesn't fit on device")
 
     def concat_heads(attn_output, input_shape):
         attn_output = attn_output.transpose(1, 2).contiguous()
@@ -637,6 +645,11 @@ def test_qwen3_sdpa(variant, variant_config, seq_len):
     "variant,variant_config",
     get_available_variants("bge_m3").items(),
     ids=[str(k) for k in get_available_variants("bge_m3").keys()],
+)
+@pytest.mark.skip(
+    reason=failed_runtime(
+        "Test hangs - https://github.com/tenstorrent/tt-xla/issues/1830"
+    )
 )
 def test_bge_m3_attention_prefill(seq_len, variant, variant_config):
     xr.set_device_type("TT")

@@ -93,12 +93,13 @@ result = jitted_forward(graphdef, state, x)
 
 ## Configuration Options
 
-### Required Options
+### Codegen Options
 
 | Option | Type | Description |
 |--------|------|-------------|
 | `backend` | `string` | Code generation target:<br>• `"codegen_py"` - Generate Python code<br>• `"codegen_cpp"` - Generate C++ code |
 | `export_path` | `string` | Directory for generated code (created if doesn't exist) |
+| `dump_inputs` | `bool` | Whether to dump model input and parameter tensors to disk (**False** by default) |
 
 ### Example Configurations
 
@@ -107,6 +108,7 @@ result = jitted_forward(graphdef, state, x)
 options = {
     "backend": "codegen_py",
     "export_path": "./generated_python"
+    "dump_inputs": True
 }
 ```
 
@@ -115,6 +117,7 @@ options = {
 options = {
     "backend": "codegen_cpp",
     "export_path": "./generated_cpp"
+    #dump_inputs -> default False
 }
 ```
 
@@ -130,7 +133,8 @@ After code generation completes, your `export_path` directory contains:
 <export_path>/
 ├── ttir.mlir          # TTIR intermediate representation (debugging)
 ├── main.py/cpp        # Generated Python/C++ code
-└── run                # Execution script
+├── run                # Execution script
+└── input_tensors/     # Directory with dumped tensors if specified by dump_inputs option
 ```
 
 ### File Descriptions
@@ -151,6 +155,9 @@ After code generation completes, your `export_path` directory contains:
 - Human-readable and modifiable
 - **Fully standalone** - only requires TT-NN library
 - Can be integrated into existing C++ projects
+
+**input_tensors/** - Serialized model inputs and parameters (created when `dump_inputs: True`)
+- Used by the generated code to load real model inputs and weights instead of random values
 
 ---
 
@@ -254,8 +261,8 @@ You can also invoke code generation by hooking into the serialization infrastruc
 - Automated pipeline generation
 
 **Examples:**
-- PyTorch: [`examples/pytorch/codegen_via_serialize_example.py`](../../examples/pytorch/codegen_via_serialize_example.py)
-- JAX: [`examples/jax/codegen_via_serialize_example.py`](../../examples/jax/codegen_via_serialize_example.py)
+- PyTorch: [`examples/pytorch/custom_module.py`](../../examples/pytorch/codegen/custom_module.py
+- JAX: [`examples/jax/custom_module.py`](../../examples/jax/codegen/custom_module.py)
 
 ---
 

@@ -67,6 +67,3 @@ qwen-vl-utils[decord]==0.0.8
 # whisper and wav2vec2 models
 torchcodec
 
-# Qwen2.5 VL AWQ variants
-intel_extension_for_pytorch==2.7.0
-autoawq[cpu]==0.2.9

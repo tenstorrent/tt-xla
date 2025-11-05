@@ -1,12 +1,7 @@
 [
-    { "runs-on": "n150",        "name": "run_jax",              "dir": "./tests/jax/single_chip", "test-mark": "model_test and not large", "parallel-groups": 3 },
+    { "runs-on": "n150",        "name": "run_jax",              "dir": "./tests/jax/single_chip", "test-mark": "model_test and not large", "parallel-groups": 1 },
     { "runs-on": "n150",        "name": "run_torch",            "dir": "./tests/torch/single_chip", "test-mark": "model_test", "parallel-groups": 3 },
-    { "runs-on": "n150",        "name": "run_large_jax_models", "dir": "./tests/jax/single_chip", "test-mark": "model_test and large", "shared-runners": "true", "parallel-groups": 3 },
-    { "runs-on": "p150",        "name": "run_jax",              "dir": "./tests/jax/single_chip", "test-mark": "model_test and not large", "parallel-groups": 3 },
+    { "runs-on": "p150",        "name": "run_jax",              "dir": "./tests/jax/single_chip", "test-mark": "model_test and not large", "parallel-groups": 1 },
     { "runs-on": "p150",        "name": "run_torch",            "dir": "./tests/torch/single_chip", "test-mark": "model_test", "parallel-groups": 3 },
-    { "runs-on": "p150",        "name": "run_large_jax_models", "dir": "./tests/jax/single_chip", "test-mark": "model_test and large", "shared-runners": "true", "parallel-groups": 3 },
-    { "runs-on": "n300",        "name": "run_jax",              "dir": "./tests/jax/multi_chip/n300", "test-mark": "model_test" },
-    { "runs-on": "n300",        "name": "torch_multichip",      "dir": "./tests/torch/multi_chip/n300", "test-mark": "model_test" },
-    { "runs-on": "n300-llmbox", "name": "run_jax_4_devices",    "dir": "./tests/jax/multi_chip/llmbox/4_devices", "test-mark": "model_test", "shared-runners": "true" },
-    { "runs-on": "n300-llmbox", "name": "run_jax_8_devices",    "dir": "./tests/jax/multi_chip/llmbox/8_devices", "test-mark": "model_test", "shared-runners": "true" }
+    { "runs-on": "n300",        "name": "torch_multichip",      "dir": "./tests/torch/multi_chip/n300", "test-mark": "model_test" }
 ]

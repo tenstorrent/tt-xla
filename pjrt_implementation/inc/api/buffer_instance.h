@@ -9,6 +9,7 @@
 // https://llvm.org/LICENSE.txt
 
 // c++ standard library includes
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -108,6 +109,9 @@ public:
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
 
+  // Returns the unique identifier for this buffer instance.
+  uint64_t getUID() const { return m_uid; }
+
   // Returns the size of the tensor in the data type that the host expects.
   // This is since some PJRT_Buffer_Type's do not have a supported equivalent in
   // runtime/ttnn. And so, the true data type of the runtime tensor may be
@@ -176,6 +180,16 @@ private:
   static std::vector<std::uint32_t>
   calculateStrides(size_t num_dims, const std::int64_t *byte_strides,
                    size_t num_byte_strides, std::uint32_t element_size);
+
+  // Gets next UID for buffer instances, used in buffer instance constructor
+  // to assign unique identifier to each buffer instance.
+  static uint64_t nextUID() {
+    static std::atomic<uint64_t> uid{0};
+    return uid.fetch_add(1, std::memory_order_relaxed);
+  }
+
+  // Unique identifier for this buffer instance.
+  const uint64_t m_uid;
 
   // Buffer's data type.
   PJRT_Buffer_Type m_data_type;

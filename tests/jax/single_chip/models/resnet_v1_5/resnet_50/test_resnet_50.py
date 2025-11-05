@@ -4,6 +4,7 @@
 
 import pytest
 from infra import RunMode
+from infra.comparators import ComparisonConfig, PccConfig
 from pytest import MonkeyPatch
 from utils import (
     BringupStatus,
@@ -29,14 +30,8 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def trace_tester(monkeypatch: MonkeyPatch) -> ResNetTester:
     # These need to be set before the tester is created
-    monkeypatch.setenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE", "1")
     monkeypatch.setenv("TT_RUNTIME_TRACE_REGION_SIZE", "10000000")
 
     cc = CompilerConfig(enable_optimizer=True, enable_trace=True)
@@ -45,24 +40,13 @@ def trace_tester(monkeypatch: MonkeyPatch) -> ResNetTester:
 
 @pytest.fixture
 def training_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
+    return ResNetTester(
+        VARIANT_NAME,
+        run_mode=RunMode.TRAINING,
+    )
 
 
 # ----- Tests -----
-
-
-@pytest.mark.push
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.PASSED,
-)
-@pytest.mark.large
-def test_resnet_v1_5_50_inference(inference_tester: ResNetTester):
-    inference_tester.test()
 
 
 @pytest.mark.push
@@ -83,7 +67,7 @@ def test_resnet_v1_5_50_inference_trace(
 
 
 @pytest.mark.push
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
@@ -95,8 +79,8 @@ def test_resnet_v1_5_50_inference_trace(
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.pad' "
-        "https://github.com/tenstorrent/tt-mlir/issues/5305"
+        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4687"
     )
 )
 def test_resnet_v1_5_50_training(training_tester: ResNetTester):

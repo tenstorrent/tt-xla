@@ -11,10 +11,9 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
 )
 
-from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch import ModelVariant
+from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch import ModelVariant
 
 from .tester import Qwen2_5Tester
 
@@ -51,13 +50,7 @@ def training_tester() -> Qwen2_5Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        " Error: torch_xla/csrc/aten_xla_bridge.cpp:110 : Check failed: xtensor "
-        "https://github.com/tenstorrent/tt-xla/issues/795"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_torch_qwen_2_5_inference(inference_tester: Qwen2_5Tester):
     inference_tester.test()

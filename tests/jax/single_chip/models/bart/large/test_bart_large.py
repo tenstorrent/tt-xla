@@ -25,11 +25,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> FlaxBartForCausalLMTester:
-    return FlaxBartForCausalLMTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> FlaxBartForCausalLMTester:
     return FlaxBartForCausalLMTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
@@ -37,25 +32,7 @@ def training_tester() -> FlaxBartForCausalLMTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.9883341789245605. Required: pcc=0.99."
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
-def test_flax_bart_large_inference(inference_tester: FlaxBartForCausalLMTester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

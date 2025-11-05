@@ -22,11 +22,6 @@ MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> Dinov2Tester:
-    return Dinov2Tester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> Dinov2Tester:
     return Dinov2Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
@@ -34,19 +29,7 @@ def training_tester() -> Dinov2Tester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_dinov2_large_inference(inference_tester: Dinov2Tester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

@@ -27,11 +27,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> RegNetTester:
-    return RegNetTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> RegNetTester:
     return RegNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
@@ -39,25 +34,7 @@ def training_tester() -> RegNetTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.3722558617591858. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
-def test_regnet_y_040_inference(inference_tester: RegNetTester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
@@ -68,8 +45,8 @@ def test_regnet_y_040_inference(inference_tester: RegNetTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.pad' "
-        "https://github.com/tenstorrent/tt-mlir/issues/5305"
+        "error: failed to legalize operation 'ttir.reverse' that was explicitly marked illegal "
+        "https://github.com/tenstorrent/tt-mlir/issues/5663"
     )
 )
 def test_regnet_y_040_training(training_tester: RegNetTester):

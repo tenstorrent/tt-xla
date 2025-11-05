@@ -4,7 +4,7 @@
 
 import collections
 import os
-from typing import Any, Dict, Mapping, Sequence, Tuple
+from typing import Any, Dict, Mapping, Sequence, Set, Tuple
 
 import torch
 import torch_xla
@@ -12,6 +12,7 @@ import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.utilities import Framework
 from infra.workloads import TorchWorkload, Workload
+from loguru import logger
 
 from tests.infra.comparators.comparator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -141,13 +142,42 @@ class TorchModelTester(ModelTester):
         """JIT-compiles model into optimized kernels."""
         assert workload.is_torch and workload.model is not None
 
-        workload.model.compile(backend=backend)
+        workload.compiled_executable = torch.compile(workload.model, backend=backend)
+
+    def _unpack_forward_output(self, output: Any) -> torch.Tensor:
+        """
+        Unwraps model output to a single tensor.
+        In base case, we assume the output is a single tensor.
+        """
+        return output
+
+    def _extract_grads(
+        self, model: torch.nn.Module
+    ) -> Tuple[Dict[str, torch.Tensor], Set[str]]:
+        """
+        Extracts gradients from a model and returns a dictionary of gradients and a dictionary of None gradients.
+        """
+        # TODO: Right now, we only extract gradients for parameters that have a gradient.
+        # In the future, we should extract gradients for all parameters that require grad is True.
+        #
+        existing_grads = {
+            name: p.grad.clone()
+            for name, p in model.named_parameters()
+            if p.requires_grad and p.grad is not None
+        }
+        none_grads = set(
+            name
+            for name, p in model.named_parameters()
+            if p.requires_grad and p.grad is None
+        )
+        return existing_grads, none_grads
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         # Run forward on CPU
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
+        cpu_res = self._unpack_forward_output(cpu_res)
 
         # Generate random gradient
         random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
@@ -161,13 +191,15 @@ class TorchModelTester(ModelTester):
         )
         self._run_on_cpu(cpu_backward_workload)
 
-        cpu_grads = {name: p.grad.clone() for name, p in self._model.named_parameters()}
+        cpu_grads, cpu_none_grads = self._extract_grads(self._model)
         self._workload.model.zero_grad()
 
         # Run forward on TT
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
+        tt_res = self._unpack_forward_output(tt_res)
+
         # Force graph break so we can differentiate between forward and backward
         torch_xla.sync(wait=True)
 
@@ -179,11 +211,20 @@ class TorchModelTester(ModelTester):
             kwargs={"gradient": random_grad},
         )
         self._run_on_tt_device(tt_backward_workload)
-        torch_xla.sync(wait=True)
+        # TODO: Adding explicit sync to ensure view of gradients are not computed without reason
+        # https://github.com/tenstorrent/tt-xla/issues/1466
+        wanted_grads = [p.grad for p in self._model.parameters() if p.grad is not None]
+        torch_xla._XLAC._xla_sync_multi(
+            wanted_grads,
+            list(set([p.device.type for p in wanted_grads])),
+            wait=True,
+        )
+        tt_grads, tt_none_grads = self._extract_grads(self._model)
 
-        tt_grads = {
-            name: p.grad.cpu().clone() for name, p in self._model.named_parameters()
-        }
+        assert (
+            cpu_none_grads == tt_none_grads
+        ), f"CPU and TT have different None grad parameters: {cpu_none_grads} != {tt_none_grads}"
+        logger.warning(f"Grads: {cpu_none_grads} are None")
 
         forward_result = self._compare(tt_res, cpu_res)
         backward_result = self._compare(tt_grads, cpu_grads)

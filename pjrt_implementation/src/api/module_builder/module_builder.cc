@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <cassert>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -74,6 +75,14 @@
 namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
+
+// Helper function to get current timestamp in milliseconds.
+static std::string getCurrentTimeStamp() {
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch())
+                .count();
+  return std::to_string(ms);
+}
 
 // TTAlchemistHandler implementation
 
@@ -974,7 +983,7 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       std::filesystem::path(export_path.value()) / "irs";
   std::filesystem::create_directories(ir_dump_dir);
 
-  std::string filename = stage_name + ".mlir";
+  std::string filename = stage_name + "_" + getCurrentTimeStamp() + ".mlir";
   std::filesystem::path ir_file_path = ir_dump_dir / filename;
 
   std::error_code err_code;
@@ -1067,6 +1076,13 @@ ModuleBuilder::buildModuleForTTNNRuntime(
     return {status, nullptr};
   }
 
+  if (compile_options.export_path.has_value()) {
+    std::string filename = "fb_" + getCurrentTimeStamp() + ".ttnn";
+    std::filesystem::path output_path =
+        std::filesystem::path(compile_options.export_path.value()) / filename;
+    flatbuffer.store(output_path.string().c_str());
+  }
+
   auto executable_image = FlatbufferExecutableImage::createInstance(
       flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
       std::move(ttnn_mlir), std::move(executable_name),
@@ -1145,7 +1161,8 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
   bool is_local = false;
   // Long term solution is for alchemist to ingest TTNN, that will unify passing
   // options to alchemist. For now, hardcode to load input tensors from disk.
-  std::string pipeline_options = "load-input-tensors-from-disk=true";
+  std::string pipeline_options = "load-input-tensors-from-disk=true "
+                                 "tensor-load-directory='./input_tensors'";
   bool result;
 
   if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {

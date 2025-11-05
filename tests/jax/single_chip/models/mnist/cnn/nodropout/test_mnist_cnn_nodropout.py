@@ -32,11 +32,6 @@ MODEL_NAME = build_model_name(
 
 
 @pytest.fixture
-def inference_tester() -> MNISTCNNTester:
-    return MNISTCNNTester(ModelVariant.CNN_BATCHNORM)
-
-
-@pytest.fixture
 def training_tester() -> MNISTCNNTester:
     return MNISTCNNTester(ModelVariant.CNN_BATCHNORM, run_mode=RunMode.TRAINING)
 
@@ -45,20 +40,7 @@ def training_tester() -> MNISTCNNTester:
 
 
 @pytest.mark.push
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_mnist_cnn_nodropout_inference(inference_tester: MNISTCNNTester):
-    inference_tester.test()
-
-
-@pytest.mark.push
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,

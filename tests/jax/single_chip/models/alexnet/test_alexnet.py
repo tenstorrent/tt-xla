@@ -25,11 +25,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> AlexNetTester:
-    return AlexNetTester(VARIANT)
-
-
-@pytest.fixture
 def training_tester() -> AlexNetTester:
     return AlexNetTester(VARIANT, run_mode=RunMode.TRAINING)
 
@@ -37,25 +32,7 @@ def training_tester() -> AlexNetTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.gather' "
-        "https://github.com/tenstorrent/tt-xla/issues/318"
-    )
-)
-def test_alexnet_inference(inference_tester: AlexNetTester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
@@ -66,8 +43,8 @@ def test_alexnet_inference(inference_tester: AlexNetTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal "
-        "https://github.com/tenstorrent/tt-mlir/issues/4795"
+        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4687"
     )
 )
 def test_alexnet_training(training_tester: AlexNetTester):

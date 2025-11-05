@@ -47,7 +47,6 @@ Inside your Docker container, clone the repository:
 ```bash
 git clone https://github.com/tenstorrent/tt-xla.git
 cd tt-xla
-git checkout sdjordjevic/tt_xla_codegen
 ```
 
 Initialize submodules (required for dependencies):
@@ -56,16 +55,13 @@ Initialize submodules (required for dependencies):
 git submodule update --init --recursive
 ```
 
-**Expected output:** Git will download all third-party dependencies. This may take a few minutes.
+**Expected output:** Git will download all third-party dependencies.
 
 ### Step 3: Build TT-XLA
 
 Set up the build environment and compile the project:
 
 ```bash
-# Set the toolchain directory (pre-installed in Docker image)
-export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/
-
 # Activate the Python virtual environment
 source venv/activate
 
@@ -84,12 +80,12 @@ Choose your framework and run the example:
 
 **PyTorch:**
 ```bash
-python examples/pytorch/codegen_via_options_example.py
+python examples/pytorch/codegen/codegen_via_options_example.py
 ```
 
 **JAX:**
 ```bash
-python examples/jax/codegen_via_options_example.py
+python examples/jax/codegen/codegen_via_options_example.py
 ```
 
 #### What Happens During Code Generation
@@ -98,8 +94,10 @@ Both examples configure TT-XLA with these options:
 
 ```python
 options = {
-    "backend": "codegen_py",  # Generate Python code
-    "export_path": "model",   # Output directory name
+    # Code generation options
+    "backend": "codegen_py",
+    # Export path
+    "export_path": "model",
 }
 ```
 
@@ -133,7 +131,63 @@ You should see:
 - **`run`** - Executable shell script to run the generated code
 - **`ttir.mlir`** - TTIR intermediate representation (for debugging)
 
-### Step 5: Execute the Generated Code
+### Step 5: Generate the optimized code
+We can specify different optimization options in order to produce the more performant code. For example, we can supply following set of options to produce the optimized code.
+```python
+options = {
+    # Code generation options
+    "backend": "codegen_py",
+
+    # Optimizer options
+    "enable_optimizer": True,
+    "enable_memory_layout_analysis": True,
+    "enable_l1_interleaved": False,
+
+    # Export path
+    "export_path": "model",
+}
+```
+
+Link to other optimizer options to be added here. [\[#1849\] TT-XLA Optimizer Docs](https://github.com/tenstorrent/tt-xla/issues/1849)
+
+### Step 6: Dump model inputs
+
+By default, the generated code loads random inputs and parameters. To dump actual model inputs and parameters to disk for use during code execution, you need to run a separate command.
+
+> **Note:** Due to a current limitation ([#1851](https://github.com/tenstorrent/tt-xla/issues/1851)), you must dump tensors and generate code in two separate runs. Once resolved, both can be done together.
+
+#### First Run: Dump Inputs
+
+```python
+options = {
+    # Tensor dumping options
+    "dump_inputs": True,
+
+    # Export path
+    "export_path": "model",
+}
+```
+
+#### Second Run: Generate Code (with or without optimizer)
+
+```python
+options = {
+    # Code generation options
+    "backend": "codegen_py",
+
+    # Optimizer options (optional)
+    #"enable_optimizer": True,
+    #"enable_memory_layout_analysis": True,
+    #"enable_l1_interleaved": False,
+
+    # Export path
+    "export_path": "model",
+}
+```
+
+You can run these in either order. The generated code will automatically load the dumped tensors if they exist in the `model/` directory.
+
+### Step 7: Execute the Generated Code
 
 Navigate to the model directory and run the execution script:
 
@@ -192,14 +246,14 @@ options = {
 The generated C++ code is **fully standalone** and can be integrated into existing C++ projects.
 
 ### Generate resnet TTNN code using following example:
-- [PyTorch Resnet example](../../examples/pytorch/codegen_resnet.py)
-- [Jax Resnet example](../../examples/jax/codegen_resnet.py)
+- [PyTorch Resnet example](../../examples/pytorch/codegen/resnet.py)
+- [Jax Resnet example](../../examples/jax/codegen/resnet.py)
 
 ### Learn More
 
 - **[Code Generation Guide](./getting_started_codegen.md)** - Complete reference for all options and use cases
-- **[PyTorch Example Source](../../examples/pytorch/codegen_via_options_example.py)** - Full example code
-- **[JAX Example Source](../../examples/jax/codegen_via_options_example.py)** - Full example code
+- **[PyTorch Example Source](../../examples/pytorch/codegen/custom_module.py)** - Full example code
+- **[JAX Example Source](../../examples/jax/codegen/custom_module.py)** - Full example code
 
 ---
 

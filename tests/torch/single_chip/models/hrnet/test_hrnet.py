@@ -11,7 +11,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from third_party.tt_forge_models.hrnet.pytorch import ModelVariant
@@ -52,13 +51,7 @@ def training_tester() -> HRNetTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed on Blackhole. Calculated: pcc=0.03922387957572937. Required: pcc=0.99."
-        "https://github.com/tenstorrent/tt-xla/issues/1038"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_torch_hrnet_inference(inference_tester: HRNetTester):
     inference_tester.test()

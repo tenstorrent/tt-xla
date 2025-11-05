@@ -58,7 +58,7 @@ def expand_parallel_entry(entry, expanded_matrix):
         expanded_matrix.append(entry)
 
 
-def read_preset_test_entries(file_path):
+def read_preset_test_entries(file_path: str):
     """
     Read JSON preset file and return only test entries (excluding metadata).
     """
@@ -91,9 +91,9 @@ def map_shared_runners_field(entry):
         )
 
 
-def process_test_matrix(matrix_file_path):
+def process_test_matrix_list(matrix_file_paths: list[str]):
     """
-    Process test matrix by expanding parallel groups and mapping shared runners.
+    Process a list of test matrices by expanding parallel groups and mapping shared runners.
 
     For each entry with 'parallel-groups': n, creates n total entries
     (including the original) where each has a 'group-id' starting from 1.
@@ -102,11 +102,13 @@ def process_test_matrix(matrix_file_path):
     corresponding shared runner equivalents.
     """
 
-    matrix = read_preset_test_entries(matrix_file_path)
+    test_entry_list = []
+    for matrix_file_path in matrix_file_paths:
+        test_entry_list.extend(read_preset_test_entries(matrix_file_path))
 
     expanded_matrix = []
 
-    for entry in matrix:
+    for entry in test_entry_list:
         map_shared_runners_field(entry)
 
         map_runner_name(entry)
@@ -117,23 +119,42 @@ def process_test_matrix(matrix_file_path):
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python script.py <test-matrix-json-file>", file=sys.stderr)
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print(
+            "Usage: python generate_test_matrix.py <file.json[:file2.json:...]> [path_prefix]",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    matrix_file_path = sys.argv[1]
+    matrix_file_paths = sys.argv[1]
+    path_prefix = sys.argv[2] if len(sys.argv) == 3 else ""
 
-    if not Path(matrix_file_path).exists():
-        print(f"Error: File '{matrix_file_path}' not found", file=sys.stderr)
-        sys.exit(1)
+    matrix_file_path_list = matrix_file_paths.split(":")
+
+    # Apply path prefix to each file if provided
+    if path_prefix:
+        matrix_file_path_list = [
+            str(Path(path_prefix) / path) for path in matrix_file_path_list
+        ]
+
+    for i, path in enumerate(matrix_file_path_list):
+        if not Path(path).exists():
+            print(
+                f"Error: File '{path}' not found ({i+1} of {len(matrix_file_path_list)})",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     try:
-        expanded_matrix = process_test_matrix(matrix_file_path)
+        expanded_matrix = process_test_matrix_list(matrix_file_path_list)
 
         print(json.dumps(expanded_matrix, indent=2))
 
     except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON in '{matrix_file_path}': {e}", file=sys.stderr)
+        print(
+            f"Error: Invalid JSON in one of '{matrix_file_path_list}': {e}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

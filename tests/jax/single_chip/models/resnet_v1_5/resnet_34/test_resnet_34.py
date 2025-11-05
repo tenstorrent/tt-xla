@@ -21,11 +21,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> ResNetTester:
     return ResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
@@ -33,19 +28,7 @@ def training_tester() -> ResNetTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_resnet_v1_5_34_inference(inference_tester: ResNetTester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
@@ -56,8 +39,8 @@ def test_resnet_v1_5_34_inference(inference_tester: ResNetTester):
 )
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.pad' "
-        "https://github.com/tenstorrent/tt-mlir/issues/5305"
+        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4687"
     )
 )
 def test_resnet_v1_5_34_training(training_tester: ResNetTester):

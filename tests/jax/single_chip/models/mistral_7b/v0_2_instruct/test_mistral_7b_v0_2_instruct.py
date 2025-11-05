@@ -29,42 +29,18 @@ MODEL_NAME = build_model_name(
     ModelSource.HUGGING_FACE,
 )
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> Mistral7BTester:
-    return Mistral7BTester(VARIANT_NAME)
-
-
-def training_tester() -> Mistral7BTester:
-    return Mistral7BTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
-
 
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=MODEL_GROUP,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.large
 @pytest.mark.skip(
     reason=failed_runtime(
         "Not enough space to allocate 117440512 B DRAM buffer across 12 banks, where each bank needs to store 9805824 B "
         "(https://github.com/tenstorrent/tt-xla/issues/917)"
     )
 )
-def test_mistral_7b_v0_2_instruct_inference(inference_tester: Mistral7BTester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
