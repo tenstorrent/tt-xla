@@ -1,4 +1,4 @@
 [
-  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "tensor_parallel and n300-llmbox and expected_passing and not large_device_dram", "parallel-groups": 6 },
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "tensor_parallel and n300-llmbox and expected_passing and not large_device_dram", "parallel-groups": 8 },
   { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "tensor_parallel and n300-llmbox and expected_passing and large_device_dram", "parallel-groups": 5 }
 ]
