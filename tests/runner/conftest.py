@@ -42,8 +42,7 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help=(
-            "Run 'tt-smi -r <devices>' per test (requires --forked). Devices are discovered from "
-            "'/dev/tenstorrent'. Times out after 120s to avoid hangs."
+            "Run 'tt-smi -r' per test (requires --forked). Times out after 120s to avoid hangs."
         ),
     )
 
@@ -216,6 +215,12 @@ def pytest_sessionfinish(session, exitstatus):
         session.exitstatus = 0
 
 
+#######################################################################################
+# TODO (kmabee): Temporary Workaround. Functions needed to reset boards between tests #
+# due to 2 related issues (multichip device hangs, and DRAM leak between tests).      #
+#######################################################################################
+
+
 def pytest_configure(config):
     """Initialize globals and record master PID for forked detection."""
     global _RESET_ENABLED, _FORKED_MODE
@@ -232,41 +237,14 @@ def pytest_configure(config):
         )
 
 
-def _discover_tenstorrent_devices(dev_dir: str = "/dev/tenstorrent") -> list[str]:
-    """Return sorted list of devices (as strings) present under /dev/tenstorrent.
-
-    Only directory entries that are purely numeric are considered valid indices.
-    """
-    try:
-        entries = os.listdir(dev_dir)
-    except FileNotFoundError:
-        return []
-
-    indices_numeric = []
-    for name in entries:
-        if name.isdigit():
-            try:
-                indices_numeric.append(int(name))
-            except ValueError:
-                continue
-
-    indices_numeric.sort()
-    return [str(i) for i in indices_numeric]
-
-
 def _reset_tenstorrent_boards(timeout_seconds: int = 120) -> None:
-    """Run 'tt-smi -r <devices>' with a timeout to reset boards per test.
+    """Run 'tt-smi -r' with a timeout to reset boards per test.
 
     Logs outcome to stdout and returns. Intentionally does not raise on failure
     to avoid masking test execution unless the user opts to handle it externally.
     """
-    devices = _discover_tenstorrent_devices()
-
-    if not devices:
-        return
-
-    cmd = ["tt-smi", "-r", ",".join(devices)]
-    print(f"\n[tt-smi-reset] Starting for devices {','.join(devices)}", flush=True)
+    cmd = ["tt-smi", "-r"]
+    print(f"\n[tt-smi-reset] Starting reset", flush=True)
 
     try:
         result = subprocess.run(
@@ -297,7 +275,7 @@ def _reset_tenstorrent_boards(timeout_seconds: int = 120) -> None:
             flush=True,
         )
     else:
-        print(f"[tt-smi-reset] Success for devices {','.join(devices)}", flush=True)
+        print(f"[tt-smi-reset] Success", flush=True)
 
 
 def _is_controller_process() -> bool:
@@ -322,19 +300,6 @@ def pytest_runtest_logreport(report):
     _reset_tenstorrent_boards()
 
 
-@pytest.fixture(autouse=True)
-def _maybe_reset_board_per_test(request):
-    """If enabled via --tt-smi-reset-per-test, reset boards after each test.
-
-    In --forked mode, do NOT reset in the child (can race with process teardown).
-    The controller process will reset between tests via pytest_runtest_logreport.
-    """
-    enabled = _RESET_ENABLED
-    if _FORKED_MODE:
-        # In forked mode, let the controller handle resets between tests.
-        yield
-        return
-    # Always yield so this remains a generator fixture; perform reset in teardown.
-    yield
-    # In non-forked mode we only warn (once in pytest_configure) and skip resets entirely.
-    return
+#######################################################################################
+# End of Temporary Workaround. Functions needed to reset boards between tests         #
+#######################################################################################
