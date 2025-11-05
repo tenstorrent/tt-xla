@@ -22,16 +22,8 @@ from utils import Category, incorrect_result
 @pytest.mark.parametrize(
     "approximate",
     [
-        pytest.param(
-            False,
-            marks=pytest.mark.xfail(
-                reason=incorrect_result(
-                    "PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99. "
-                    "https://github.com/tenstorrent/tt-xla/issues/379"
-                )
-            ),
-        ),
-        pytest.param(True),
+        False,
+        True,
     ],
 )
 def test_gelu(x_shape, approximate):
