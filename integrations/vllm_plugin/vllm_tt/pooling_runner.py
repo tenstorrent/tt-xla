@@ -529,8 +529,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.requests[req_id] = CachedRequestState(
                 req_id=req_id,
                 prompt_token_ids=new_req_data.prompt_token_ids,
-                mm_kwargs=new_req_data.mm_kwargs,
-                mm_positions=new_req_data.mm_positions,
+                prompt_embeds=new_req_data.prompt_embeds,
+                mm_features=new_req_data.mm_features,
                 sampling_params=sampling_params,
                 pooling_params=pooling_params,
                 generator=None,
@@ -652,7 +652,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         head_size=attn_module.head_size,
                         dtype=self.kv_cache_dtype,
                         sliding_window=attn_module.sliding_window,
-                        use_mla=False,
                     )
                 else:
                     kv_cache_spec[layer_name] = FullAttentionSpec(
@@ -660,7 +659,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         num_kv_heads=attn_module.num_kv_heads,
                         head_size=attn_module.head_size,
                         dtype=self.kv_cache_dtype,
-                        use_mla=False,
                     )
             elif attn_module.attn_type in (
                 AttentionType.ENCODER,
@@ -1045,6 +1043,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 getattr(self.model, "pooler")
             ):
                 pooling_metadata = self.input_batch.pooling_metadata
+                pooling_metadata.build_pooling_cursor(
+                    num_scheduled_tokens_per_req, device=hidden_states.device
+                )
                 pooler_batch = self.model.pooler(hidden_states, pooling_metadata)
             else:
                 # fallback: use the last token’s hidden state
@@ -1077,7 +1078,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             prompt_logprobs_dict={},  # empty
             pooler_output=pooler_output,
             kv_connector_output=None,
-            spec_token_ids=None,
         )
 
         # Check there are no new graphs compiled - all the graphs should be

@@ -73,9 +73,12 @@ class TTPlatform(Platform):
         use_v1: bool,
         use_mla: bool,
         has_sink,
+        use_sparse,
     ) -> str:
         if not use_v1:
             raise ValueError("TT backend only supports V1.")
+        if use_sparse:
+            raise NotImplementedError("Sparse Attention is not supported.")
         logger.info("Using Pallas V1 backend.")
         return "vllm_tt.attention.TTAttentionBackend"
 

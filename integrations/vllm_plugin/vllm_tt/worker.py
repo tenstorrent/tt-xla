@@ -336,3 +336,7 @@ class TTWorker:
         )
 
         ensure_kv_transfer_initialized(vllm_config)
+
+    def shutdown(self) -> None:
+        if runner := getattr(self, "model_runner", None):
+            runner.ensure_kv_transfer_shutdown()
