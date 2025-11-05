@@ -684,6 +684,36 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
+  llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+
+  llama/sequence_classification/pytorch-llama_3_2_1b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+
+  opt/sequence_classification/pytorch-facebook/opt-125m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+
+  opt/sequence_classification/pytorch-facebook/opt-350m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+
+  opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+
+  gpt2/pytorch-gpt2_sequence_classification-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' PLACEHOLDER_SCATTER_ISSUE"
+
   resnext/pytorch-resnext50_32x4d-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
