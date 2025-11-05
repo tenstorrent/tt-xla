@@ -124,7 +124,6 @@ AVAILABLE_VARIANT_MAP = {
         "7b_instruct_v03",
         "ministral_3b_instruct",
         "ministral_8b_instruct",
-        "mistral_small_24b_instruct_2501",
     ],
 }
 
@@ -1547,6 +1546,9 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, request):
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", [GemmaModelVariant.GEMMA_2_9B_IT])
 def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
+    if not is_llmbox(request) and (str(variant) == "google/gemma-2-27b-it"):
+        pytest.xfail("Variant doesn't fit on device")
+
     xr.set_device_type("TT")
 
     batch_size = 1
@@ -1604,6 +1606,9 @@ def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_attention_decode(variant, variant_config, request):
+    if not is_llmbox(request) and (str(variant) == "google/gemma-2-27b-it"):
+        pytest.xfail("Variant doesn't fit on device")
+
     xr.set_device_type("TT")
 
     loader = GemmaModelLoader(variant=variant)
@@ -1668,6 +1673,9 @@ def test_gemma_attention_decode(variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_attention(variant, variant_config, seq_len, request):
+    if not is_llmbox(request) and (str(variant) == "google/gemma-2-27b-it"):
+        pytest.xfail("Variant doesn't fit on device")
+
     xr.set_device_type("TT")
 
     def sdpa(

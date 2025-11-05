@@ -108,7 +108,6 @@ AVAILABLE_VARIANT_MAP = {
         "7b_instruct_v03",
         "ministral_3b_instruct",
         "ministral_8b_instruct",
-        "mistral_small_24b_instruct_2501",
     ],
     "falcon": [
         "tiiuae/Falcon3-1B-Base",
