@@ -2169,6 +2169,18 @@ test_config:
 
   yolov11/pytorch-yolo11x-single_device-full-inference:
     status: EXPECTED_PASSING
+  
+  yolov12/pytorch-yolo12s-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  yolov12/pytorch-yolo12m-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  yolov12/pytorch-yolo12l-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  yolov12/pytorch-yolo12x-single_device-full-inference:
+    status: EXPECTED_PASSING
 
   vgg19_unet/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
