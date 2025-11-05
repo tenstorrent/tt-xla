@@ -1259,6 +1259,531 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
+  openpose/v2/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w18_small-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w18_small_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w18-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w30-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w32-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w40-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w44-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w48-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w64-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w18.ms_aug_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnet_w18_small_v2_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnetv2_w18_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnetv2_w30_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnetv2_w32_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnetv2_w40_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnetv2_w44_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnetv2_w48_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  glpn_kitti/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  albert/masked_lm/pytorch-large_v1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  segformer/pytorch-mit_b0-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  segformer/pytorch-mit_b1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  segformer/pytorch-mit_b2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  segformer/pytorch-mit_b3-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  segformer/pytorch-mit_b4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  segformer/pytorch-mit_b5-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  ghostnet/pytorch-ghostnet_100-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  ghostnet/pytorch-ghostnet_100.in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  ghostnet/pytorch-ghostnetv2_100.in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  monodepth2/pytorch-mono_640x192-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  monodepth2/pytorch-stereo_640x192-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  monodepth2/pytorch-mono+stereo_640x192-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  monodepth2/pytorch-mono_no_pt_640x192-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  monodepth2/pytorch-stereo_no_pt_640x192-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  monodepth2/pytorch-mono+stereo_no_pt_640x192-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  monodepth2/pytorch-mono_1024x320-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  monodepth2/pytorch-stereo_1024x320-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  monodepth2/pytorch-mono+stereo_1024x320-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-efficientnet_b0-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-efficientnet_b1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-efficientnet_b2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-efficientnet_b3-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-efficientnet_b4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-efficientnet_b5-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-efficientnet_b6-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-efficientnet_b7-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-timm_efficientnet_b0-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-timm_efficientnet_b4-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv1/pytorch-mobilenet_v1-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  unet_for_conditional_generation/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  whisper/pytorch-openai/whisper-tiny-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  whisper/pytorch-openai/whisper-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  whisper/pytorch-openai/whisper-small-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  whisper/pytorch-openai/whisper-medium-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  whisper/pytorch-openai/whisper-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  whisper/pytorch-openai/whisper-large-v3-turbo-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv3/pytorch-mobilenet_v3_large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv3/pytorch-mobilenet_v3_small-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv3/pytorch-mobilenetv3_large_100-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv3/pytorch-mobilenetv3_small_100-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  xception/pytorch-xception41-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  xception/pytorch-xception65-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  xception/pytorch-xception71-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  xception/pytorch-xception71.tf_in1k-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_040-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_064-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_080-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_120-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_160-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_320-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_400mf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_800mf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_1_6gf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_3_2gf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_8gf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_16gf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_32gf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_y_128gf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_x_400mf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_x_800mf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_x_1_6gf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_x_3_2gf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_x_8gf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_x_16gf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  regnet/pytorch-regnet_x_32gf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv2/pytorch-mobilenet_v2-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv2/pytorch-mobilenetv2_100-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
+  mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+
   deepcogito/pytorch-v1_preview_llama_3b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
