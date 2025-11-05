@@ -184,6 +184,11 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space in L1"
 
+  stable_diffusion_unet/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
+
   ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
