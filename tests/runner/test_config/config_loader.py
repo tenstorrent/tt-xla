@@ -91,6 +91,8 @@ _ALLOWED_FIELDS = {
     "batch_size",
     # Nested arch overrides
     "arch_overrides",
+    # Needed for training statuses
+    "execution_pass",
 }
 
 
