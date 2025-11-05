@@ -98,6 +98,20 @@ def test_embed_qwen3_perf():
     # Precompile of model backbone done here
     model = vllm.LLM(**llm_args)
 
+    # Test actual token counts
+    print("Verifying token counts:")
+    for seq_len, prompts in prompts_list:
+        prompt = prompts[0]  # Get the actual prompt string
+        # Use vLLM's tokenizer to get actual token count
+        token_ids = model.llm_engine.tokenizer.encode(prompt)
+        actual_tokens = len(token_ids)
+        print(f"Target: {seq_len}, Actual: {actual_tokens}, Prompt: '{prompt[:50]}...'")
+
+        # Optional: Assert that we're within reasonable bounds
+        assert (
+            actual_tokens <= max_seq_len
+        ), f"Prompt too long: {actual_tokens} > {max_seq_len}"
+
     # Precompile pre/post processing graphs which are part of the actual user flow
     for seq_len, prompts in prompts_list:
         output_embedding = model.embed(prompts)
