@@ -217,6 +217,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    markers: [large]
 
   gpt_sw3/causal_lm/jax-1_3b_instruct-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -242,6 +243,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    markers: [large]
 
   marian_mt/text_classification/jax-opus-mt-en-de-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
@@ -301,11 +303,13 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    markers: [large]
 
   mt5/nlp_summarization/jax-xl-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    markers: [large]
 
   opt/causal_lm/jax-1.3B-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -493,17 +497,18 @@ test_config:
     reason: "TorchCodec issue in front-end compilation"
 
   whisper/audio_classification/jax-base-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "TorchCodec issue in front-end compilation"
 
   whisper/audio_classification/jax-large_v3-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "TorchCodec issue in front-end compilation"
+    markers: [large]
 
   whisper/audio_classification/jax-medium-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "TorchCodec issue in front-end compilation"
 
