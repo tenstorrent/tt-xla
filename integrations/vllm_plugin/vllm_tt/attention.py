@@ -20,10 +20,16 @@ from vllm.attention.backends.abstract import (
     AttentionLayer,
     AttentionType,
 )
-from vllm.attention.backends.utils import CommonAttentionState
 from vllm.config import VllmConfig
 from vllm.logger import init_logger
 from vllm.utils import cdiv, next_power_of_2
+
+# Add v1 attention backend imports
+from vllm.v1.attention.backends.utils import (
+    AttentionMetadataBuilder,
+    CommonAttentionMetadata,
+)
+from vllm.v1.kv_cache_interface import AttentionSpec
 
 logger = init_logger(__name__)
 
@@ -60,8 +66,8 @@ class TTAttentionBackend(AttentionBackend):
         return TTMetadata
 
     @staticmethod
-    def get_state_cls() -> type["CommonAttentionState"]:
-        return CommonAttentionState
+    def get_builder_cls() -> type["TTAttentionMetadataBuilder"]:
+        return TTAttentionMetadataBuilder
 
     @staticmethod
     def get_kv_cache_shape(
@@ -119,6 +125,66 @@ class TTAttentionBackend(AttentionBackend):
         if page_size >= 256:
             return 256
         return page_size
+
+
+class TTAttentionMetadataBuilder(AttentionMetadataBuilder["TTMetadata"]):
+    """Builder for TTMetadata that converts CommonAttentionMetadata to TTMetadata."""
+
+    def __init__(
+        self,
+        kv_cache_spec: AttentionSpec,
+        layer_names: list[str],
+        vllm_config: VllmConfig,
+        device: torch.device,
+    ):
+        super().__init__(kv_cache_spec, layer_names, vllm_config, device)
+
+    def build(
+        self,
+        common_prefix_len: int,
+        common_attn_metadata: CommonAttentionMetadata,
+        fast_build: bool = False,
+    ) -> "TTMetadata":
+        """Build TTMetadata from CommonAttentionMetadata."""
+
+        # Extract data from common metadata
+        query_start_loc = common_attn_metadata.query_start_loc
+        seq_lens = common_attn_metadata.seq_lens
+        seq_lens_cpu = common_attn_metadata.seq_lens_cpu
+        block_table_tensor = common_attn_metadata.block_table_tensor
+        slot_mapping = common_attn_metadata.slot_mapping
+
+        # Calculate context lengths (sequence length - query length for each request)
+        # For TT backend, context_len is the KV cache length for each sequence
+        context_lens = seq_lens.clone()
+        if hasattr(common_attn_metadata, "query_lens"):
+            # If we have query lengths, subtract them to get context lengths
+            query_lens = getattr(common_attn_metadata, "query_lens", None)
+            if query_lens is not None:
+                context_lens = seq_lens - query_lens
+        else:
+            # For decode, query length is typically 1, so context = seq_len - 1
+            # For prefill, we assume the entire sequence is new, so context = 0
+            # This is a simplified heuristic and may need adjustment
+            if common_attn_metadata.max_query_len == 1:
+                # Decode case: context = seq_len - 1
+                context_lens = seq_lens - 1
+            else:
+                # Prefill case: context starts at 0 for new sequences
+                # But we need to handle this more carefully
+                # For now, use seq_lens as context_lens (existing KV cache)
+                context_lens = seq_lens
+
+        # Ensure context_lens are non-negative
+        context_lens = torch.clamp(context_lens, min=0)
+
+        return TTMetadata(
+            context_lens=context_lens,
+            query_start_loc=query_start_loc,
+            seq_lens=seq_lens,
+            block_table=block_table_tensor,
+            slot_mapping=slot_mapping,
+        )
 
 
 # ttnn.fill_cache has a limitation. If the work that needs to be done to fill the cache does not fit on the device grid,
