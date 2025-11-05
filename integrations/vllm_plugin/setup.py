@@ -45,7 +45,7 @@ setup(
     },
     version="0.1",
     packages=["vllm_tt"],
-    install_requires=["vllm==0.10.1.1", "transformers==4.55.0"],
+    install_requires=["vllm @ git+https://github.com/tenstorrent/vllm.git@aknezevic/v0.10.1.1_patched", "transformers==4.55.0"],
     python_requires=">=3.11, <3.12",
     license="Apache-2.0",
     entry_points={"vllm.platform_plugins": ["tt = vllm_tt:register"]},
