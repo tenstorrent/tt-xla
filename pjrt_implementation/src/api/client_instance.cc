@@ -37,7 +37,7 @@
 
 namespace tt::pjrt {
 
-PJRT_Error *GlobalClientInstanceSingleton::init_client() {
+PJRT_Error *GlobalClientInstanceSingleton::initClient() {
   std::unique_ptr<ClientInstance> client = std::make_unique<ClientInstance>();
   PJRT_Error *error = client->initialize();
   if (error) {
@@ -50,9 +50,9 @@ PJRT_Error *GlobalClientInstanceSingleton::init_client() {
   return nullptr;
 }
 
-void GlobalClientInstanceSingleton::destroy_client() {
+void GlobalClientInstanceSingleton::destroyClient() {
   GlobalClientInstanceSingleton &singleton_instance = getInstance();
-  if (singleton_instance.is_initialized()) {
+  if (singleton_instance.isInitialized()) {
     singleton_instance.m_client_instance.reset();
   }
 }
@@ -89,9 +89,7 @@ ClientInstance::ClientInstance()
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
 
-  if (m_optimizer_submesh.has_value()) {
-    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
-  }
+  closeOptimizerSubmesh();
 
   if (m_parent_mesh.has_value()) {
     tt::runtime::closeMeshDevice(*m_parent_mesh);
@@ -525,7 +523,7 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
            args->create_options[i].name);
   }
 
-  PJRT_Error *error = GlobalClientInstanceSingleton::init_client();
+  PJRT_Error *error = GlobalClientInstanceSingleton::initClient();
 
   if (error) {
     DLOG_F(ERROR, "Failed to initialize PJRT client instance");
@@ -547,7 +545,7 @@ PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
   ClientInstance *global_client_instance =
       GlobalClientInstanceSingleton::getClientInstance();
   assert(client_instance == global_client_instance);
-  GlobalClientInstanceSingleton::destroy_client();
+  GlobalClientInstanceSingleton::destroyClient();
   return nullptr;
 }
 
