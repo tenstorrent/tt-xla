@@ -47,14 +47,14 @@ class ModuleBuilder;
 class GlobalClientInstanceSingleton {
 public:
   static ClientInstance *getClientInstance();
-  static PJRT_Error *init_client();
-  static void destroy_client();
+  static PJRT_Error *initClient();
+  static void destroyClient();
 
 private:
   GlobalClientInstanceSingleton(std::unique_ptr<ClientInstance> client_instance)
       : m_client_instance(std::move(client_instance)) {}
 
-  bool is_initialized() const { return m_client_instance != nullptr; }
+  bool isInitialized() const { return m_client_instance != nullptr; }
 
   static GlobalClientInstanceSingleton &getInstance();
   std::unique_ptr<ClientInstance> m_client_instance;
