@@ -172,9 +172,17 @@ def test_qwen3_mlp(seq_len, variant, variant_config, request):
 
         def get_shard_spec(mlp, args, kwargs):
             shard_specs = {}
-            shard_specs[mlp.gate_proj.weight] = ("model", None)
-            shard_specs[mlp.up_proj.weight] = ("model", None)
-            shard_specs[mlp.down_proj.weight] = (None, "model")
+            # check if model is a MoE model (Qwen3-30B-A3B)
+            if hasattr(mlp.config, "num_experts"):
+                for expert in mlp.experts:
+                    shard_specs[expert.gate_proj.weight] = ("model", None)
+                    shard_specs[expert.up_proj.weight] = ("model", None)
+                    shard_specs[expert.down_proj.weight] = (None, "model")
+            else:
+                shard_specs[mlp.gate_proj.weight] = ("model", None)
+                shard_specs[mlp.up_proj.weight] = ("model", None)
+                shard_specs[mlp.down_proj.weight] = (None, "model")
+
             return shard_specs
 
     else:

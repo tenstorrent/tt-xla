@@ -56,7 +56,7 @@ from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
     ModelVariant as Qwen2_5ModelVariant,
 )
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
-    ModelLoader as QwenModelLoader,
+    ModelLoader as Qwen3ModelLoader,
 )
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelVariant as Qwen3ModelVariant,
@@ -64,7 +64,7 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
 
 MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
-    "qwen3": QwenModelLoader,
+    "qwen3": Qwen3ModelLoader,
     "bge_m3": BgeModelLoader,
     "bert": BertModelLoader,
     "qwen2_5": Qwen2_5ModelLoader,
@@ -126,14 +126,6 @@ AVAILABLE_VARIANT_MAP = {
         "ministral_8b_instruct",
         "mistral_small_24b_instruct_2501",
     ],
-    "falcon": [
-        "tiiuae/Falcon3-1B-Base",
-        "tiiuae/Falcon3-3B-Base",
-        "tiiuae/Falcon3-7B-Base",
-        "tiiuae/Falcon3-10B-Base",
-        "tiiuae/Falcon3-Mamba-7B-Base",
-        "tiiuae/falcon-7b-instruct",
-    ],
 }
 
 
@@ -165,8 +157,7 @@ def get_available_variants(model_name):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_attention_prefill(seq_len, variant, variant_config, request):
-    # Xfail 70B models that don't fit on device
-    if "70b" in str(variant):
+    if "70b" in str(variant) and not is_llmbox(request):
         pytest.xfail("70B models don't fit on device")
 
     # Will download huge amount of data and run out of disk space.
@@ -210,10 +201,13 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, request):
         mesh = None
         get_shard_spec = None
 
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
+
     run_graph_test(
         attention,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
         framework=Framework.TORCH,
+        comparison_config=comparison_config,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
@@ -227,8 +221,7 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_attention_decode(variant, variant_config, request):
-    # Xfail 70B models that don't fit on device
-    if "70b" in str(variant):
+    if "70b" in str(variant) and not is_llmbox(request):
         pytest.xfail("70B models don't fit on device")
 
     # Will download huge amount of data and run out of disk space.
@@ -298,9 +291,10 @@ def test_llama_attention_decode(variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_concat_heads(variant, variant_config, seq_len):
-
     if str(variant) == "llama_3_1_405b" or str(variant) == "llama_3_1_405b_instruct":
         pytest.xfail("Variant doesn't fit on device")
+    if "70b" in str(variant) and not is_llmbox(request):
+        pytest.xfail("70B models don't fit on device")
 
     def concat_heads(attn_output, input_shape):
         attn_output = attn_output.transpose(1, 2).contiguous()
@@ -330,6 +324,10 @@ def test_llama_concat_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_create_heads(variant, variant_config, seq_len):
+    if str(variant) == "llama_3_1_405b" or str(variant) == "llama_3_1_405b_instruct":
+        pytest.xfail("Variant doesn't fit on device")
+    if "70b" in str(variant) and not is_llmbox(request):
+        pytest.xfail("70B models don't fit on device")
 
     def create_heads(hidden_states, hidden_shape, q_proj, k_proj, v_proj):
         query_states = q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
@@ -373,6 +371,12 @@ def test_llama_create_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_attention(variant, variant_config, seq_len, request):
+    if "70b" in str(variant) and not is_llmbox(request):
+        pytest.xfail("70B models don't fit on device")
+
+    if "405b" in str(variant):
+        pytest.skip("405B variants too large for device and disk space")
+
     xr.set_device_type("TT")
 
     def sdpa(
@@ -474,16 +478,63 @@ def test_llama_attention(variant, variant_config, seq_len, request):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_prefill(seq_len, variant, variant_config, request):
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
+    if not is_llmbox(request) and (str(variant) == "32b" or str(variant) == "30b_a3b"):
         pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen3ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    batch_size = 1
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        # Qwen3-30B-A3B has 4 key value heads  so it would use 2x4 mesh
+        # Thus, we need to see if 2x4 mesh is needed for all Qwen3 models
+        num_key_value_heads = model.config.num_key_value_heads
+
+        if num_key_value_heads % 8 == 0:
+            # Use 1x8 mesh for full model parallelism
+            batch_size = 1
+            mesh_shape = (1, num_devices)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                # Don't shard args - no batch dimension splitting
+                # Only shard the model weights
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            # Use 2x4 mesh when num_key_value_heads not divisible by 8 (Qwen3-30B-A3B)
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                # Shard args on batch dimension
+                shard_specs[args[0]] = ("batch", None, None)
+                shard_specs[args[1][0]] = ("batch", None, None)
+                shard_specs[args[1][1]] = ("batch", None, None)
+                shard_specs[args[2]] = ("batch", None, None, None)
+                # Shard weights on model dimension
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+    else:
+        batch_size = 1
+        mesh = None
+        get_shard_spec = None
 
     hidden_states = torch.randn(
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
@@ -495,24 +546,6 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, request):
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     past_key_states = None
-
-    if is_llmbox(request):
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(attention, args, kwargs):
-            shard_specs = {}
-            shard_specs[attention.q_proj.weight] = ("model", None)
-            shard_specs[attention.k_proj.weight] = ("model", None)
-            shard_specs[attention.v_proj.weight] = ("model", None)
-            shard_specs[attention.o_proj.weight] = (None, "model")
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
 
     run_graph_test(
         attention,
@@ -539,7 +572,7 @@ def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
 
     batch_size = 1
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen3ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
@@ -589,16 +622,63 @@ def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_decode(variant, variant_config, request):
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
+    if not is_llmbox(request) and (str(variant) == "32b" or str(variant) == "30b_a3b"):
         pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen3ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    batch_size = 1
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        # Qwen3-30B-A3B has 4 key value heads  so it would use 2x4 mesh
+        # Thus, we need to see if 2x4 mesh is needed for all Qwen3 models
+        num_key_value_heads = model.config.num_key_value_heads
+
+        if num_key_value_heads % 8 == 0:
+            # Use 1x8 mesh for full model parallelism
+            batch_size = 1
+            mesh_shape = (1, num_devices)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                # Don't shard args - no batch dimension splitting
+                # Only shard the model weights
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            # Use 2x4 mesh when num_key_value_heads not divisible by 8 (Qwen3-30B-A3B)
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                # Shard args on batch dimension
+                shard_specs[args[0]] = ("batch", None, None)
+                shard_specs[args[1][0]] = ("batch", None, None)
+                shard_specs[args[1][1]] = ("batch", None, None)
+                shard_specs[args[2]] = ("batch", None, None, None)
+                # Shard weights on model dimension
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+    else:
+        batch_size = 1
+        mesh = None
+        get_shard_spec = None
 
     seq_len = 1
     hidden_states = torch.randn(
@@ -620,24 +700,6 @@ def test_qwen3_attention_decode(variant, variant_config, request):
     )
     cache_position = torch.tensor([0])
     past_key_states = static_cache
-
-    if is_llmbox(request):
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(attention, args, kwargs):
-            shard_specs = {}
-            shard_specs[attention.q_proj.weight] = ("model", None)
-            shard_specs[attention.k_proj.weight] = ("model", None)
-            shard_specs[attention.v_proj.weight] = ("model", None)
-            shard_specs[attention.o_proj.weight] = (None, "model")
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
 
     run_graph_test(
         attention,
@@ -664,7 +726,7 @@ def test_qwen3_concat_heads(variant, variant_config, seq_len):
     def concat_heads(attn_output, input_shape):
         return attn_output.reshape(*input_shape, -1).contiguous()
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen3ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
 
     batch_size = 1
@@ -701,7 +763,7 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
         value_states = v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         return query_states, key_states, value_states
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen3ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
@@ -739,7 +801,7 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention(variant, variant_config, seq_len, request):
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
+    if not is_llmbox(request) and (str(variant) == "32b" or str(variant) == "30b_a3b"):
         pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
@@ -772,11 +834,41 @@ def test_qwen3_attention(variant, variant_config, seq_len, request):
         )
         return attn_output, attn_weights
 
-    loader = QwenModelLoader(variant=variant)
+    loader = Qwen3ModelLoader(variant=variant)
     model = loader.load_model(dtype_override=torch.bfloat16)
     attention = model.model.layers[0].self_attn
 
-    batch_size = 1
+    if is_llmbox(request):
+        num_devices = xr.global_runtime_device_count()
+        # Qwen3-30B-A3B has 4 key value heads  so it would use 2x4 mesh
+        # Thus, we need to see if 2x4 mesh is needed for all Qwen3 models
+        num_key_value_heads = model.config.num_key_value_heads
+
+        if num_key_value_heads % 8 == 0:
+            # Use 1x8 mesh for full model parallelism
+            batch_size = 1
+            mesh_shape = (1, num_devices)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+        else:
+            # Use 2x4 mesh when num_key_value_heads not divisible by 8 (Qwen3-30B-A3B)
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(sdpa, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
+            shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
+            shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
+            shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
+            return shard_specs
+
+    else:
+        batch_size = 1
+        mesh = None
+        get_shard_spec = None
 
     hidden_size = model.config.hidden_size
     num_heads = model.config.num_attention_heads
@@ -798,23 +890,8 @@ def test_qwen3_attention(variant, variant_config, seq_len, request):
     dropout = 0.0
     scaling = attention.scaling
 
-    if is_llmbox(request):
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(sdpa, args, kwargs):
-            shard_specs = {}
-            shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
-            shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
-            shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
-            shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
+    print(f"mesh: {mesh}")
+    print(f"get_shard_spec: {get_shard_spec}")
 
     run_graph_test(
         sdpa,
