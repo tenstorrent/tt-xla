@@ -520,8 +520,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.requests[req_id] = CachedRequestState(
                 req_id=req_id,
                 prompt_token_ids=new_req_data.prompt_token_ids,
-                mm_kwargs=new_req_data.mm_kwargs,
-                mm_positions=new_req_data.mm_positions,
+                prompt_embeds=new_req_data.prompt_embeds,
+                mm_features=new_req_data.mm_features,
                 sampling_params=sampling_params,
                 pooling_params=None,
                 generator=None,
@@ -1270,7 +1270,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             prompt_logprobs_dict=prompt_logprobs_dict,
             pooler_output=[],
             kv_connector_output=kv_connector_output,
-            spec_token_ids=None,
         )
 
         # Check there are no new graphs compiled - all the graphs should be
@@ -1874,7 +1873,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
-        return self.model.compute_logits(sample_hidden_states, None)
+        return self.model.compute_logits(sample_hidden_states)
 
     # TODO: Under SPMD mode, sample_from_logits has correctness issue.
     #       Re-enable the torch.compile once the issue is fixed in torchxla.
