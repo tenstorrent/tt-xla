@@ -18,6 +18,76 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: Node arity mismatch; expected 291, but got 290. failed in Comparator"
 
+  qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-t5-small-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-t5-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-t5-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-google/flan-t5-small-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-google/flan-t5-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  t5/pytorch-google/flan-t5-large-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  qwen_2_5/causal_lm/pytorch-0_5b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  qwen_2_5/causal_lm/pytorch-1_5b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  qwen_2_5/causal_lm/pytorch-1_5b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  llama/causal_lm/pytorch-llama_3_2_1b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
+  qwen_2_5_coder/pytorch-0_5b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
+
   clip/pytorch-base_patch32-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
