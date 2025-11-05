@@ -223,9 +223,6 @@ def test_multiply():
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.skip(
-    reason="fmax, fmin and nextafter compile to identical mangled no-op programs that produce segfault/pcc drop race conditions when executed. Related to xla CPU execution hoisting, program cache, and changes in #1657 which alter timing of return to host. See issue #https://github.com/tenstorrent/tt-xla/issues/1969"
-)
 def test_nextafter():
     class Nextafter(torch.nn.Module):
         def forward(self, x, y):
@@ -386,9 +383,6 @@ def test_minimum():
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.skip(
-    reason="fmax, fmin and nextafter compile to identical mangled no-op programs that produce segfault/pcc drop race conditions when executed. Related to xla CPU execution hoisting, program cache, and changes in #1657 which alter timing of return to host. See issue #https://github.com/tenstorrent/tt-xla/issues/1969"
-)
 def test_fmax():
     class Fmax(torch.nn.Module):
         def forward(self, x, y):
@@ -400,9 +394,6 @@ def test_fmax():
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.skip(
-    reason="fmax, fmin and nextafter compile to identical mangled no-op programs that produce segfault/pcc drop race conditions when executed. Related to xla CPU execution hoisting, program cache, and changes in #1657 which alter timing of return to host. See issue #https://github.com/tenstorrent/tt-xla/issues/1969"
-)
 def test_fmin():
     class Fmin(torch.nn.Module):
         def forward(self, x, y):
