@@ -2049,6 +2049,46 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
 
+  qwen_3/causal_lm/pytorch-1_7b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+
+  phi2/token_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+
+  gemma/pytorch-google/gemma-1.1-2b-it-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+
+  gemma/pytorch-google/gemma-2b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+
+  gemma/pytorch-google/gemma-2-2b-it-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+
+  mamba/pytorch-mamba-2.8b-hf-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+
+  qwen_2_5_coder/pytorch-1_5b-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+
+  qwen_2_5_coder/pytorch-1_5b_instruct-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM PLACEHOLDER_DRAM_ISSUE"
+
   deepcogito/pytorch-v1_preview_llama_3b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
