@@ -489,4 +489,30 @@ rm -rf /localdev/ddilbaz/cache/*
 LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_jax[blenderbot/summarization/jax-400M-distill-single_device-full-inference] 2>&1 | tee test_logs/blenderbot_summarization_jax_400M_distill_single_device_full_inference.log
 rm -rf /localdev/ddilbaz/cache/*
 
+# # LLaMA MHA (Multi-Head Attention) models without bias
+echo "=== LLaMA MHA Models (No Bias) ==="
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[llama/causal_lm/pytorch-TinyLlama_v1.1-single_device-full-inference] 2>&1 | tee test_logs/llama_causal_lm_pytorch_TinyLlama_v1.1_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[llama/causal_lm/pytorch-huggyllama_7b-single_device-full-inference] 2>&1 | tee test_logs/llama_causal_lm_pytorch_huggyllama_7b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[llama/sequence_classification/pytorch-huggyllama_7b-single_device-full-inference] 2>&1 | tee test_logs/llama_sequence_classification_pytorch_huggyllama_7b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[huggyllama/pytorch-llama_7b-single_device-full-inference] 2>&1 | tee test_logs/huggyllama_pytorch_llama_7b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_jax[llama/causal_lm/jax-3b-v2-single_device-full-inference] 2>&1 | tee test_logs/llama_causal_lm_jax_3b_v2_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
+# Falcon MHA models without bias
+echo "=== Falcon MHA Models (No Bias) ==="
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference] 2>&1 | tee test_logs/falcon_pytorch_tiiuae_Falcon3_1B_Base_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-tiiuae/Falcon3-3B-Base-single_device-full-inference] 2>&1 | tee test_logs/falcon_pytorch_tiiuae_Falcon3_3B_Base_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-inference] 2>&1 | tee test_logs/falcon_pytorch_tiiuae_Falcon3_7B_Base_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-inference] 2>&1 | tee test_logs/falcon_pytorch_tiiuae_Falcon3_10B_Base_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-tiiuae/falcon-7b-instruct-single_device-full-inference] 2>&1 | tee test_logs/falcon_pytorch_tiiuae_falcon_7b_instruct_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
 echo "=== All tests completed ==="
