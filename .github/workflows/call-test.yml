@@ -335,7 +335,7 @@ jobs:
           pip freeze
         fi
         python .github/scripts/test_runner.py ${{ matrix.build.args }} \
-               ${{ env.VERBOSITY }} $ARCH --durations=0 --log-memory \
+               ${{ env.VERBOSITY }} $ARCH --durations=0 --log-memory --separate-tests \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                2>&1 | tee pytest.log
 
