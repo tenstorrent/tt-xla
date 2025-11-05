@@ -71,6 +71,7 @@
 #include "api/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
+#include "utils/stage_tracker.h"
 
 namespace tt::pjrt::module_builder {
 
@@ -227,6 +228,7 @@ ModuleBuilder::buildModule(
     const std::unordered_map<std::string, std::string> &compile_options_map,
     ClientInstance *client_instance) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
+  tt::pjrt::utils::StageTracker::getInstance().setStage("FE_COMPILATION_START");
 
   auto compile_options = CompileOptions::parse(compile_options_map);
 
@@ -276,6 +278,7 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
+  tt::pjrt::utils::StageTracker::getInstance().setStage("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
   status = convertFromSHLOToTTIR(mlir_module, ttir_mlir,
                                  compile_options.export_path);

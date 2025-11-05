@@ -8,7 +8,7 @@ import pytest
 
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
-from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
+from tests.runner.test_utils import ModelTestConfig, ModelTestStatus, parse_last_bringup_stage
 
 # Global set to track collected test node IDs
 _collected_nodeids = set()
@@ -110,6 +110,21 @@ def pytest_collection_modifyitems(config, items):
     if validate_config:
         items.clear()
 
+def pytest_runtest_logreport(report):
+    """Hook called after each test phase to detect and record bringup status from temp file."""
+    # Only process during the "call" phase (actual test execution), not "setup" or "teardown"
+    if report.when != "call":
+        return
+
+    # Attempt to detect bringup status from temp file written by C++ pipeline
+    status = parse_last_bringup_stage()
+
+    # Update the bringup_status field inside the existing "tags" property
+    if hasattr(report, 'user_properties'):
+        for i, (key, value) in enumerate(report.user_properties):
+            if key == "tags" and isinstance(value, dict):
+                value["bringup_status"] = str(status)
+                break
 
 def pytest_sessionfinish(session, exitstatus):
     """At session end, validate test_config entries and arch_overrides against collected tests."""

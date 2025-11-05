@@ -25,4 +25,42 @@ void bindUndefineds(PJRT_Api *api);
 
 } // namespace tt::pjrt
 
+// C API for accessing pipeline stage information from Python
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * Get the current pipeline stage as a string.
+ * Returns a static string representing the current stage.
+ * Thread-safe operation.
+ *
+ * The returned string is one of:
+ * - "NOT_STARTED"
+ * - "FE_COMPILATION_START"
+ * - "TTMLIR_COMPILATION_START"
+ * - "RUNTIME_EXECUTION_START"
+ * - "PCC_COMPARISON_START"
+ * - "PCC_COMPARISON_PASSED"
+ * - "UNKNOWN"
+ */
+const char *PJRT_TT_GetCurrentPipelineStage();
+
+/**
+ * Set the current pipeline stage by name (for Python-side stage tracking).
+ * Thread-safe operation.
+ *
+ * Accepts stage name strings:
+ * - "FE_COMPILATION_START"
+ * - "TTMLIR_COMPILATION_START"
+ * - "RUNTIME_EXECUTION_START"
+ * - "PCC_COMPARISON_START"
+ * - "PCC_COMPARISON_PASSED"
+ */
+void PJRT_TT_SetPipelineStageByName(const char *stage_name);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif // TT_XLA_PJRT_IMPLEMENTATION_INC_API_BINDINGS_H_

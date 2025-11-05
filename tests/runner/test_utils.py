@@ -159,6 +159,126 @@ class ModelTestConfig:
             return []
 
 
+def _get_pjrt_plugin_lib():
+    """
+    Load the PJRT plugin shared library.
+    Returns the ctypes CDLL handle or None if not available.
+    """
+    import ctypes
+    import ctypes.util
+
+    # Try to find the library using common methods
+    lib_name = "pjrt_plugin_tt.so"
+
+    # Try direct load first (if in LD_LIBRARY_PATH or standard locations)
+    try:
+        return ctypes.CDLL(lib_name)
+    except OSError:
+        pass
+
+    # Try ctypes.util.find_library
+    lib_path = ctypes.util.find_library("pjrt_plugin_tt")
+    if lib_path:
+        try:
+            return ctypes.CDLL(lib_path)
+        except OSError:
+            pass
+
+    # Try looking in the build directory
+    import pathlib
+    repo_root = pathlib.Path(__file__).parent.parent.parent
+    build_lib = repo_root / "build" / "pjrt_implementation" / lib_name
+    if build_lib.exists():
+        try:
+            return ctypes.CDLL(str(build_lib))
+        except OSError:
+            pass
+
+    return None
+
+
+def log_bringup_stage(stage_name: str) -> None:
+    """
+    Set the current bringup stage using the C++ StageTracker via C API.
+
+    This function calls PJRT_TT_SetPipelineStageByName() through ctypes
+    to update the stage in the C++ StageTracker singleton.
+
+    Args:
+        stage_name: The name of the stage (e.g., "PCC_COMPARISON_START")
+    """
+    import ctypes
+
+    # Check environment variable to enable bringup stage logging
+    enable_logging = os.environ.get("ENABLE_BRINGUP_STAGE_LOGGING")
+    if enable_logging != "1":
+        return
+
+    # Try to load the PJRT plugin library
+    lib = _get_pjrt_plugin_lib()
+    if lib is None:
+        return
+
+    try:
+        # Get the C API function
+        set_stage_fn = lib.PJRT_TT_SetPipelineStageByName
+        set_stage_fn.restype = None
+        set_stage_fn.argtypes = [ctypes.c_char_p]
+
+        # Call the function to set current stage
+        set_stage_fn(stage_name.encode('utf-8'))
+
+    except (AttributeError, OSError):
+        # Silently fail if C API is not available
+        pass
+
+
+def parse_last_bringup_stage() -> BringupStatus | None:
+    """
+    Get the current pipeline stage from C++ StageTracker via C API.
+
+    This function calls PJRT_TT_GetCurrentPipelineStage() through ctypes
+    to query the current stage from the C++ StageTracker singleton.
+
+    Returns:
+        BringupStatus: The bringup status based on the last stage reached.
+        None: If the C API is not available or stage is NOT_STARTED/UNKNOWN.
+    """
+    import ctypes
+
+    # Try to load the PJRT plugin library
+    lib = _get_pjrt_plugin_lib()
+    if lib is None:
+        return None
+
+    try:
+        # Get the C API function
+        get_stage_fn = lib.PJRT_TT_GetCurrentPipelineStage
+        get_stage_fn.restype = ctypes.c_char_p
+        get_stage_fn.argtypes = []
+
+        # Call the function to get current stage
+        stage_bytes = get_stage_fn()
+        if stage_bytes is None:
+            return None
+
+        stage_name = stage_bytes.decode('utf-8')
+
+    except (AttributeError, OSError, UnicodeDecodeError):
+        return None
+
+    # Map stage to BringupStatus
+    stage_to_status = {
+        "FE_COMPILATION_START": BringupStatus.FAILED_FE_COMPILATION,
+        "TTMLIR_COMPILATION_START": BringupStatus.FAILED_TTMLIR_COMPILATION,
+        "RUNTIME_EXECUTION_START": BringupStatus.FAILED_RUNTIME,
+        "PCC_COMPARISON_START": BringupStatus.INCORRECT_RESULT,
+        "PCC_COMPARISON_PASSED": BringupStatus.PASSED,
+    }
+
+    return stage_to_status.get(stage_name)
+
+
 # This attempts to classify various exception types but is not robust at all.
 # Soon https://github.com/tenstorrent/tt-xla/issues/1052 will improve bringup_status reporting
 # and this would be updated to use actual bringup_status achieved by a model.

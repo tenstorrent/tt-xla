@@ -21,6 +21,7 @@
 #include "api/memory_instance.h"
 #include "api/plugin_attributes.h"
 #include "utils/logging.h"
+#include "utils/stage_tracker.h"
 
 namespace tt::pjrt {
 
@@ -60,3 +61,16 @@ void bindUndefineds(PJRT_Api *api) {
 }
 
 } // namespace tt::pjrt
+
+// C API implementation for stage tracking
+extern "C" {
+
+const char *PJRT_TT_GetCurrentPipelineStage() {
+  return tt::pjrt::utils::StageTracker::getInstance().getCurrentStageString();
+}
+
+void PJRT_TT_SetPipelineStageByName(const char *stage_name) {
+  tt::pjrt::utils::StageTracker::getInstance().setStage(stage_name);
+}
+
+}

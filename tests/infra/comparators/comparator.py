@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import math
+import os
+import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Tuple
@@ -16,6 +18,14 @@ from .comparison_config import (
     EqualConfig,
     PccConfig,
 )
+
+# Import log_bringup_stage if available (for bringup status tracking)
+try:
+    from tests.runner.test_utils import log_bringup_stage
+except ImportError:
+    # Fallback if import fails (e.g., during unit tests or when runner is not available)
+    def log_bringup_stage(stage_name: str) -> None:
+        pass
 
 
 @dataclass
@@ -47,6 +57,9 @@ class Comparator(ABC):
         Returns ComparisonResult with computed metrics.
         If config.assert_on_failure=True (default), also asserts on failure.
         """
+        # Log that we're starting PCC comparison (runtime has passed successfully)
+        log_bringup_stage("PCC_COMPARISON_START")
+
         # Pack args in an iterable to simulate a pytree.
         device_output, golden_output = self._match_data_types((device_out, golden_out))
         _comparison_result = ComparisonResult(
@@ -73,6 +86,10 @@ class Comparator(ABC):
         _comparison_result.passed, _comparison_result.error_message = (
             self._evaluate_results(_comparison_result)
         )
+
+        # Log if PCC comparison passed (model fully passed)
+        if _comparison_result.passed:
+            log_bringup_stage("PCC_COMPARISON_PASSED")
 
         # Check if any comparison failed and optionally assert
         if self._comparison_config.assert_on_failure:

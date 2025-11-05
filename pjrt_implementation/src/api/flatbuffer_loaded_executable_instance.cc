@@ -23,6 +23,7 @@
 #include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "utils/logging.h"
+#include "utils/stage_tracker.h"
 
 namespace tt::pjrt {
 
@@ -410,6 +411,7 @@ void FlatbufferLoadedExecutableInstance::releaseResources() {
 tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute");
+  tt::pjrt::utils::StageTracker::getInstance().setStage("RUNTIME_EXECUTION_START");
 
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
     DLOG_F(ERROR,
