@@ -732,6 +732,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         total_num_scheduled_tokens = sum(num_scheduled_tokens_per_req)
         assert max_num_scheduled_tokens_all_reqs > 0
         # print(f"total_num_scheduled_tokens: {total_num_scheduled_tokens}", flush=True)
+        print(
+            f"num_scheduled_tokens_per_req: {num_scheduled_tokens_per_req}", flush=True
+        )
+        print(f"total_num_scheduled_tokens: {total_num_scheduled_tokens}", flush=True)
+        print(
+            f"max_num_scheduled_tokens_all_reqs: {max_num_scheduled_tokens_all_reqs}",
+            flush=True,
+        )
 
         num_reqs = len(num_scheduled_tokens_per_req)
         # print(f"num_reqs: {num_reqs}", flush=True)
@@ -741,14 +749,23 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.is_data_parallel_model
             else total_num_scheduled_tokens
         )
+        print(
+            f"num_scheduled_tokens_padding: {num_scheduled_tokens_padding}", flush=True
+        )
+        print(f"self.num_tokens_paddings: {self.num_tokens_paddings}", flush=True)
 
         # Do the padding and copy the tensors to the TPU.
         padded_total_num_scheduled_tokens = _get_padded_token_len(
             self.num_tokens_paddings, num_scheduled_tokens_padding
         )
+        print(
+            f"padded_total_num_scheduled_tokens: {padded_total_num_scheduled_tokens}",
+            flush=True,
+        )
         # print(f"self.num_tokens_paddings: {self.num_tokens_paddings}", flush=True)
         # print(f"total_num_scheduled_tokens: {total_num_scheduled_tokens}", flush=True)
         # print(f"padded_total_num_scheduled_tokens: {padded_total_num_scheduled_tokens}", flush=True)
+        print(f"self.is_data_parallel_model: {self.is_data_parallel_model}", flush=True)
 
         if not self.is_data_parallel_model:
             # Get request indices.
@@ -811,12 +828,24 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.input_ids_cpu[
                 total_num_scheduled_tokens:padded_total_num_scheduled_tokens
             ] = 0
-            self.input_ids = self.input_ids_cpu[:padded_total_num_scheduled_tokens].to(
-                self.device
+            # print(f"self.input_ids: {self.input_ids.shape}", flush=True)
+            print(
+                f"self.input_ids_cpu[:padded_total_num_scheduled_tokens]: {self.input_ids_cpu[:padded_total_num_scheduled_tokens].shape}",
+                flush=True,
             )
-            self.position_ids = self.positions_cpu[
-                :padded_total_num_scheduled_tokens
+            print(
+                f"padded_total_num_scheduled_tokens: {padded_total_num_scheduled_tokens}",
+                flush=True,
+            )
+            print(f"self.input_ids_cpu: {self.input_ids_cpu.shape}", flush=True)
+            self.input_ids = self.input_ids_cpu[
+                :, :padded_total_num_scheduled_tokens
             ].to(self.device)
+            print(f"self.input_ids: {self.input_ids.shape}", flush=True)
+            self.position_ids = self.positions_cpu[
+                :, :padded_total_num_scheduled_tokens
+            ].to(self.device)
+            print(f"self.position_ids: {self.position_ids.shape}", flush=True)
         else:
             # --- Create 2D req_indices (each row = one request) ---
             # print(f"data parallel model input prepration", flush=True)
