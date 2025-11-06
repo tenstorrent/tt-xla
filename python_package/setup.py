@@ -211,7 +211,6 @@ class BdistWheel(bdist_wheel):
             )
 
         config.build_type = self.build_type
-        # Automatically enable explorer features for explorer build type
         config.enable_explorer = (self.build_type == "explorer")
 
         bdist_wheel.finalize_options(self)
