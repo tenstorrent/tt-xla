@@ -1098,22 +1098,20 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
                 hidden_states = hidden_states.to("cpu")
 
-            # Split hidden states and remove extra dim (batch dim)
-            hidden_states_list = torch.split(hidden_states, 1, dim=0)
-            hidden_states_list = [t.squeeze(0) for t in hidden_states_list]
+            # Split along batch dimension and remove the extra dimension
+            hidden_states_list = [
+                t.squeeze(0) for t in torch.split(hidden_states, 1, dim=0)
+            ]
 
-            # Select states according to indices
-            for i in range(len(hidden_states_list)):
-                hidden_states_list[i] = hidden_states_list[i][
-                    : num_scheduled_tokens_per_req[i]
+            if self.batch_size > 1:
+                # Truncate each tensor according to number of input tokens per request.
+                hidden_states_list = [
+                    hidden_states_list[i][: num_scheduled_tokens_per_req[i]]
+                    for i in range(len(hidden_states_list))
                 ]
-            """if self.batch_size > 1:
-                for i, (hs, n) in enumerate(
-                    zip(hidden_states_list, num_scheduled_tokens_per_req)
-                ):
-                    hidden_states_list[i] = hs[:n]
             else:
-                hidden_states_list = hidden_states_list[0][:num_scheduled_tokens]"""
+                # Truncate the output according to total lenght of fused input(s).
+                hidden_states_list = hidden_states_list[0][:num_scheduled_tokens]
 
             # Pooling
             if hasattr(self.model, "pooler") and callable(
