@@ -17,9 +17,7 @@ _collected_nodeids = set()
 # Allowed architecture identifiers for arch_overrides and --arch option
 ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
 
-# Path to bringup stage file at repo root
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_BRINGUP_STAGE_FILE = os.path.join(_REPO_ROOT, "._bringup_stage.txt")
+_BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
 def pytest_addoption(parser):
@@ -41,14 +39,12 @@ def pytest_addoption(parser):
 
 def pytest_runtest_setup(item):
     """Open and truncate bringup stage file before each test to ensure a fresh start."""
-    # Open the file in write mode (truncates existing content) and immediately close it
     with open(_BRINGUP_STAGE_FILE, "w") as f:
         pass
 
 
 def pytest_runtest_teardown(item, nextitem):
     """Close/cleanup bringup stage file after each test."""
-    # Remove the file after each test to ensure clean state
     if os.path.exists(_BRINGUP_STAGE_FILE):
         os.remove(_BRINGUP_STAGE_FILE)
 

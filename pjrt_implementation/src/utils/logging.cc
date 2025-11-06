@@ -55,14 +55,9 @@ bool isBringupStageLoggingEnabled() {
 }
 
 void logBringupStage(const char *stage_name) {
-  if (isBringupStageLoggingEnabled()) {
-    // Construct path to ._bringup_stage.txt at repo root (current working directory)
-    std::filesystem::path stage_file_path = std::filesystem::current_path() / "._bringup_stage.txt";
-    std::ofstream stage_file(stage_file_path, std::ios::trunc);
-    if (stage_file.is_open()) {
-      stage_file << stage_name << "\n";
-      stage_file.close();
-    }
+  if (!isBringupStageLoggingEnabled()) return;
+  if (std::ofstream f{"._bringup_stage.txt"}) {
+    f << stage_name << '\n';
   }
 }
 
