@@ -20,14 +20,10 @@ IRD_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ird-ubuntu-22-04
 DOCKER_TAG=$(./.github/get-docker-tag.sh)
 echo "Docker tag: $DOCKER_TAG"
 
-# Are we on main branch
-ON_MAIN=$(git branch --show-current | grep -q main && echo "true" || echo "false")
-
 build_and_push() {
     local image_name=$1
     local dockerfile=$2
-    local on_main=$3
-    local target_image=$4
+    local target_image=$3
 
     IMAGE_EXISTS=false
     if docker manifest inspect $image_name:$DOCKER_TAG > /dev/null; then
@@ -59,15 +55,11 @@ build_and_push() {
         docker push $image_name:$DOCKER_TAG
     fi
 
-    if [ "$on_main" = "true" ]; then
-        echo "Pushing latest tag for $image_name"
-        docker buildx imagetools create $image_name:$DOCKER_TAG --tag $image_name:latest --tag $image_name:$DOCKER_TAG
-    fi
 }
 
-build_and_push $BASE_IMAGE_NAME .github/Dockerfile.base $ON_MAIN
-build_and_push $CI_IMAGE_NAME .github/Dockerfile.ci $ON_MAIN ci
-build_and_push $IRD_IMAGE_NAME .github/Dockerfile.ci $ON_MAIN ird
+build_and_push $BASE_IMAGE_NAME .github/Dockerfile.base
+build_and_push $CI_IMAGE_NAME .github/Dockerfile.ci ci
+build_and_push $IRD_IMAGE_NAME .github/Dockerfile.ci ird
 
 echo "All images built and pushed successfully"
 echo "CI_IMAGE_NAME:"
