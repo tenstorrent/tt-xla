@@ -5,7 +5,7 @@
 """A TT worker class."""
 
 import os
-from typing import Any, Optional
+from typing import Any, Callable, Optional, TypeVar
 
 import torch
 import torch.distributed
@@ -41,6 +41,8 @@ from .model_runner import TTModelRunner
 from .pooling_runner import TTPoolingModelRunner
 
 logger = init_logger(__name__)
+
+_R = TypeVar("_R")
 
 
 class TTWorker:
@@ -341,3 +343,7 @@ class TTWorker:
     def shutdown(self) -> None:
         if runner := getattr(self, "model_runner", None):
             runner.ensure_kv_transfer_shutdown()
+
+    def apply_model(self, fn: Callable[[nn.Module], _R]) -> _R:
+        """Apply a function on the model inside this worker."""
+        return fn(self.get_model())

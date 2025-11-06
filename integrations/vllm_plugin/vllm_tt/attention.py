@@ -71,7 +71,10 @@ class TTAttentionBackend(AttentionBackend):
 
     @staticmethod
     def get_kv_cache_shape(
-        batch_size: int, num_heads: int, max_seq_len: int, head_size: int
+        batch_size: int,
+        num_heads: int,
+        max_seq_len: int,
+        head_size: int,
     ) -> tuple[int, ...]:
         # [2, batch_size, num_heads, max_cache_len), head_dim]
         padded_head_size = (
@@ -273,6 +276,9 @@ class TTAttentionBackendImpl(AttentionImpl):
         attn_metadata: TTMetadata,
         output: Optional[torch.Tensor] = None,
         output_scale: Optional[torch.Tensor] = None,
+        output_block_scale: Optional[
+            torch.Tensor
+        ] = None,  # don't think we need to add this, we don't even use output_scale
     ) -> torch.Tensor:
         """Forward pass with TT attention.
 
@@ -391,6 +397,7 @@ def write_to_kv_cache(
         key: shape = [num_tokens, num_kv_heads, head_size]
         value: shape = [num_tokens, num_kv_heads, head_size]
         kv_cache: shape = [num_blocks, block_size, num_kv_heads * 2, head_size]
+                    - now [2, batch_size, max_seq_len, num_kv_heads, head_size]
         num_slices_per_kv_cache_update_block: int
     """
     _, page_size, num_combined_kv_heads, head_size = kv_cache.shape
