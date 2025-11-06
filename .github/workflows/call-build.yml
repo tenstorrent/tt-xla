@@ -15,10 +15,11 @@ on:
             description: 'Docker image to use for the build'
             required: true
             type: string
-        debug_build:
-            description: 'Is this debug build (or release)'
+        build_type:
+            description: 'Build type for the wheel'
+            default: release
+            type: string
             required: false
-            type: boolean
     outputs:
         wheel_artifact_name:
             description: 'Name of the wheel artifact'
@@ -49,7 +50,7 @@ jobs:
         id: generate-name
         shell: bash
         run: |
-          build_name=$(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo 'codecov'; else echo 'release'; fi)
+          build_name=${{ inputs.build_type }}
 
           # Add commit SHA to artifact name only when all conditions are met:
           # - Not a pull request event
@@ -133,7 +134,7 @@ jobs:
         run: |
             echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
             echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-            echo "build-name=$(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo 'codecov'; else echo 'release'; fi)" >> "$GITHUB_OUTPUT"
+            echo "build-name=${{ inputs.build_type }}" >> "$GITHUB_OUTPUT"
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -146,7 +147,21 @@ jobs:
         run: |
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/python_package
-            python setup.py bdist_wheel $(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo '--code-coverage'; fi)
+            python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
+
+      - name: Validate build type of wheel build
+        shell: bash
+        run: |
+            source venv/activate
+            #Inspect the wheel build type on wheel file without installing the wheel
+            pip install wheel-inspect
+            wheel_summary=$(wheel2json ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl | jq -r '.dist_info.metadata.summary')
+            match=$(echo "$wheel_summary" | grep -oP "build-type=${{ inputs.build_type }}" || true)
+            echo "Wheel summary: $wheel_summary"
+            if [ -z "$match" ]; then
+                echo "Wheel summary does not match build type: ${{ inputs.build_type }}"
+                exit 1
+            fi
 
       - name: Upload the wheel
         id: upload-wheel
@@ -170,19 +185,19 @@ jobs:
             path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl
 
       - name: Archive Build Directory
-        if: inputs.debug_build
+        if: inputs.build_type == 'codecov'
         shell: bash
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: tar cf artifact.tar .
 
       - name: Upload Build Folder
-        if: inputs.debug_build
+        if: inputs.build_type == 'codecov'
         uses: actions/upload-artifact@v4
         with:
             name: ${{ needs.check-existing-artifact.outputs.build_artifact_name }}
             path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
 
       - name: Remove tar archive
-        if: inputs.debug_build
+        if: inputs.build_type == 'codecov'
         shell: bash
         run: rm -f ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
