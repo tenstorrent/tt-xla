@@ -24,11 +24,7 @@ from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
-# Path to bringup stage file at repo root
-_REPO_ROOT = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-)
-BRINGUP_STAGE_FILE = os.path.join(_REPO_ROOT, "._bringup_stage.txt")
+BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
 def fix_venv_isolation():
