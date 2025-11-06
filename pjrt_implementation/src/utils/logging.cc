@@ -11,7 +11,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
-#include <filesystem>
 #include "utils/logging.h"
 
 namespace tt::pjrt {

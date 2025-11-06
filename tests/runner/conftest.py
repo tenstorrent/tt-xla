@@ -16,7 +16,6 @@ _collected_nodeids = set()
 
 # Allowed architecture identifiers for arch_overrides and --arch option
 ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
-
 _BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
