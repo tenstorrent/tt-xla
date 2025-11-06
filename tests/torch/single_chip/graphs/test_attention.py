@@ -2050,6 +2050,13 @@ def test_mistral_attention(variant, variant_config, seq_len, request):
 
 
 """Falcon attention tests"""
+"""
+    Things to note:
+    Tests are buggy for Tensor Parallel because Falcon 7B Instruct has 71 attention heads which is a prime number and doesn't shard properly.
+    You could shard the head_dim as it's 64.
+    You could also shard by seq len if divisible by 8. Pad if needed.
+    Better solution would be to pad attention heads 71->72. This is not supported yet.
+"""
 
 
 @pytest.mark.nightly
