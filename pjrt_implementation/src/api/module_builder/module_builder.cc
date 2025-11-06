@@ -227,6 +227,7 @@ ModuleBuilder::buildModule(
     const std::unordered_map<std::string, std::string> &compile_options_map,
     ClientInstance *client_instance) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
+  LOG_BRINGUP_STAGE("FE_COMPILATION_START");
 
   auto compile_options = CompileOptions::parse(compile_options_map);
 
@@ -276,6 +277,7 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
+  LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
   status = convertFromSHLOToTTIR(mlir_module, ttir_mlir,
                                  compile_options.export_path);

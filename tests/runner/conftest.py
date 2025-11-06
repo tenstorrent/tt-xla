@@ -3,18 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import difflib
+import os
 
 import pytest
 
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
-from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
+from tests.runner.test_utils import ModelTestConfig, ModelTestStatus, parse_last_bringup_stage
 
 # Global set to track collected test node IDs
 _collected_nodeids = set()
 
 # Allowed architecture identifiers for arch_overrides and --arch option
 ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
+
+# Path to bringup stage file at repo root
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_BRINGUP_STAGE_FILE = os.path.join(_REPO_ROOT, "._bringup_stage.txt")
 
 
 def pytest_addoption(parser):
@@ -32,6 +37,20 @@ def pytest_addoption(parser):
         default=False,
         help="Fail if test_config files and collected test IDs are out of sync",
     )
+
+
+def pytest_runtest_setup(item):
+    """Open and truncate bringup stage file before each test to ensure a fresh start."""
+    # Open the file in write mode (truncates existing content) and immediately close it
+    with open(_BRINGUP_STAGE_FILE, "w") as f:
+        pass
+
+
+def pytest_runtest_teardown(item, nextitem):
+    """Close/cleanup bringup stage file after each test."""
+    # Remove the file after each test to ensure clean state
+    if os.path.exists(_BRINGUP_STAGE_FILE):
+        os.remove(_BRINGUP_STAGE_FILE)
 
 
 @pytest.fixture
@@ -109,7 +128,6 @@ def pytest_collection_modifyitems(config, items):
     # If validating config, clear all items so no tests run
     if validate_config:
         items.clear()
-
 
 def pytest_sessionfinish(session, exitstatus):
     """At session end, validate test_config entries and arch_overrides against collected tests."""
