@@ -272,9 +272,8 @@ def record_model_test_properties(
             required_pcc = comparison_config.pcc.required_pcc
             pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"
             reason = f"Test marked w/ INCORRECT_RESULT. PCC check {pcc_check_str}. Calculated: pcc={pcc}. Required: pcc={required_pcc}."
-
-    elif test_passed:
-        bringup_status = BringupStatus.PASSED
+        elif test_passed:
+            bringup_status = BringupStatus.PASSED
 
     else:
         # If test fails, use the bringup status from the last stage reached before failure.
