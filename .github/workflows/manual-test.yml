@@ -30,17 +30,12 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
-      build_type:
-        description: 'Build type for tt-xla: release, codecov, debug, explorer'
-        required: false
-        type: string
-        default: release
 
 permissions:
   packages: write
   checks: write
 
-run-name: 'Test ( Suite: ${{ inputs.test_suite }}, Build: ${{ inputs.build_type }} )'
+run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
 
 jobs:
   build-image:
@@ -56,17 +51,6 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
-      build_type: ${{ inputs.build_type }}
-
-  build-ttxla-explorer:
-    if: ${{ inputs.build_type == 'explorer' }}
-    needs: build-image
-    uses: ./.github/workflows/call-build.yml
-    secrets: inherit
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      mlir_override: ${{ inputs.mlir_override }}
-      build_type: explorer
 
   test:
     if: success() && !cancelled() && inputs.preset != 'tt_forge_models'

@@ -147,7 +147,6 @@ jobs:
         run: |
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/python_package
-
             python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
 
       - name: Validate build type of wheel build
