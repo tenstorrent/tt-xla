@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import subprocess
 import sys
 
 import pytest
@@ -27,7 +28,10 @@ if __name__ == "__main__":
                     f.write(test)
             except Exception:
                 pass
-            rc = pytest.main([test] + args)
+            # Run each test in a fresh Python process to avoid cross-test leaks
+            rc = subprocess.run(
+                [sys.executable, "-m", "pytest", test] + args, check=False
+            ).returncode
             if rc != 0 and exit_code == 0:
                 exit_code = rc
         sys.exit(exit_code)
