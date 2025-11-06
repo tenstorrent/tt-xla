@@ -12,20 +12,22 @@ from dataclasses import dataclass
 from enum import Enum
 
 import numpy as np
+import pytest
 import torch
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
 from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
-import pytest
 
 from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
 # Path to bringup stage file at repo root
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 BRINGUP_STAGE_FILE = os.path.join(_REPO_ROOT, "._bringup_stage.txt")
 
 
@@ -258,14 +260,14 @@ def record_model_test_properties(
     - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status and reason from config and call pytest.skip(reason).
     - If test_metadata.status is KNOWN_FAILURE_XFAIL, call pytest.xfail(reason) at the end.
     """
-    
+
     reason = None
     arch = getattr(test_metadata, "arch", None)
-        
+
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
         bringup_status = getattr(test_metadata, "bringup_status", None)
         reason = getattr(test_metadata, "reason", None)
-    
+
     elif comparison_result is not None:
         pcc = comparison_result.pcc
         required_pcc = comparison_config.pcc.required_pcc
@@ -274,23 +276,23 @@ def record_model_test_properties(
             required_pcc = comparison_config.pcc.required_pcc
             pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"
             reason = f"Test marked w/ INCORRECT_RESULT. PCC check {pcc_check_str}. Calculated: pcc={pcc}. Required: pcc={required_pcc}."
-            
+
     elif test_passed:
         bringup_status = BringupStatus.PASSED
-        
+
     else:
         # If test fails, use the bringup status from the last stage reached before failure.
         # TODO: add better way to set the reason dynamically.
         static_reason = getattr(test_metadata, "reason", None)
         runtime_reason = getattr(test_metadata, "runtime_reason", None)
-        
+
         if comparison_result is None:
             bringup_status = parse_last_bringup_stage()
             if bringup_status is None:
                 bringup_status = BringupStatus.UNKNOWN
         else:
             bringup_status = BringupStatus.INCORRECT_RESULT
-            
+
         reason = static_reason or runtime_reason or "Not specified"
 
     tags = {
