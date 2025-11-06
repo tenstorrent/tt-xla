@@ -21,6 +21,7 @@ jobs:
     needs: build-image
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      uplift_cached_release_wheel: true
 
   nightly_tests:
     uses: ./.github/workflows/call-test.yml

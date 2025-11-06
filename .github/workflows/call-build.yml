@@ -20,6 +20,11 @@ on:
             default: release
             type: string
             required: false
+        uplift_cached_release_wheel:
+            description: 'Uplift cached release wheel from previous run for release workflow pickup'
+            default: false
+            type: boolean
+            required: false
     outputs:
         wheel_artifact_name:
             description: 'Name of the wheel artifact'
@@ -43,6 +48,8 @@ jobs:
       wheel_artifact_name: ${{ steps.generate-name.outputs.wheel_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ steps.generate-name.outputs.wheel_release_vllm_tt_artifact_name }}
       build_artifact_name: ${{ steps.generate-name.outputs.build_artifact_name }}
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
@@ -98,6 +105,22 @@ jobs:
             echo "artifacts_run_id=" >> "$GITHUB_OUTPUT"
             echo "No existing artifact found for: ${{ steps.generate-name.outputs.wheel_artifact_name }}"
           fi
+      - name: Download artifacts to workflow run
+        if: ${{ inputs.uplift_cached_release_wheel && steps.check-artifact.outputs.artifacts_run_id && inputs.build_type == 'release' }}
+        shell: bash
+        run: |
+            # Download the artifact by artifacts_run_id
+            gh run download ${{ steps.check-artifact.outputs.artifacts_run_id }} \
+              --repo ${{ github.repository }} \
+              --dir artifacts \
+              --name ${{ steps.generate-name.outputs.wheel_artifact_name }}
+      - name: Upload artifacts to workflow run
+        if: ${{ inputs.uplift_cached_release_wheel && steps.check-artifact.outputs.artifacts_run_id && inputs.build_type == 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.generate-name.outputs.wheel_artifact_name }}
+          path: artifacts/*.whl
+    
 
   build-ttxla:
     needs: check-existing-artifact
