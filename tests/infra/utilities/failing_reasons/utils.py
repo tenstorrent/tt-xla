@@ -13,7 +13,7 @@ from pytest import ExceptionInfo
 
 if TYPE_CHECKING:
     # ComponentChecker is only imported for type checking to avoid circular imports
-    from .checks_xla_torch import ComponentChecker
+    from .checks_xla import ComponentChecker
 
 
 @dataclass

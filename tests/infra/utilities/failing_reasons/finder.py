@@ -8,7 +8,7 @@ from typing import Generator, Optional
 
 from loguru import logger
 
-from .checks_xla_torch import FailingReasons
+from .checks_xla import FailingReasons
 from .utils import ExceptionData, PyTestUtils
 
 
