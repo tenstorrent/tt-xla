@@ -32,5 +32,5 @@ export TTMLIR_ENV_ACTIVATED=1
 export TT_METAL_LOGGER_LEVEL="ERROR"
 export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
 
-export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$(pwd)/third_party/tt-mlir/src/tt-mlir/build/bin:$PATH
 export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
+export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:${TT_MLIR_HOME}/build/bin:$PATH
