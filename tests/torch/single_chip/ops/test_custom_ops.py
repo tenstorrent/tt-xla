@@ -163,3 +163,38 @@ def test_paged_update_cache(
         [cache, fill_value, cache_idxs, page_table, False],
         framework=Framework.TORCH,
     )
+
+
+@pytest.mark.parametrize("num_users", [8, 16])
+@pytest.mark.parametrize("max_num_blocks_per_seq", [16, 32])
+@pytest.mark.parametrize("num_heads", [1, 8, 32])
+@pytest.mark.parametrize("block_size", [32, 64])
+@pytest.mark.parametrize("head_dim", [128])
+@pytest.mark.parametrize("seq_len_to_fill", [10, 20, 32, 50, 70])
+def test_paged_fill_cache(
+    num_users, max_num_blocks_per_seq, num_heads, block_size, head_dim, seq_len_to_fill
+):
+    max_num_blocks = max_num_blocks_per_seq * num_users
+    max_seq_len = max_num_blocks_per_seq * block_size
+
+    cache = torch.zeros(
+        max_num_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
+    )
+    fill_value = torch.randn(
+        1, num_heads, seq_len_to_fill, head_dim, dtype=torch.bfloat16
+    )
+
+    # Create arbitrary page table
+    permutation = torch.randperm(max_num_blocks)
+    reverse_permutation = torch.argsort(permutation)
+    page_table = reverse_permutation.reshape(num_users, max_num_blocks_per_seq).to(
+        torch.int32
+    )
+
+    batch_idx = torch.randint(0, num_users, (1,), dtype=torch.int32)
+
+    run_op_test(
+        torch.ops.tt.paged_fill_cache,
+        [cache, fill_value, page_table, batch_idx],
+        framework=Framework.TORCH,
+    )
