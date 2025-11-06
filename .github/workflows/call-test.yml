@@ -321,7 +321,7 @@ jobs:
                2>&1 | tee pytest.log
 
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
-          $(pwd)/venv/bin/pip uninstall -y vllm transformers
+          $(pwd)/venv/bin/pip uninstall -y vllm transformers torch
           $(pwd)/venv/bin/pip install -r $(pwd)/venv/requirements-dev.txt
         fi
 

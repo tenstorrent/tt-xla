@@ -276,9 +276,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         attn_metadata: TTMetadata,
         output: Optional[torch.Tensor] = None,
         output_scale: Optional[torch.Tensor] = None,
-        output_block_scale: Optional[
-            torch.Tensor
-        ] = None,  # don't think we need to add this, we don't even use output_scale
+        output_block_scale: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Forward pass with TT attention.
 
