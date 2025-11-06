@@ -18,10 +18,15 @@ from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
 from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
+import pytest
 
 from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
+
+# Path to bringup stage file at repo root
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BRINGUP_STAGE_FILE = os.path.join(_REPO_ROOT, "._bringup_stage.txt")
 
 
 def fix_venv_isolation():
@@ -162,47 +167,34 @@ class ModelTestConfig:
             return []
 
 
-# This attempts to classify various exception types but is not robust at all.
-# Soon https://github.com/tenstorrent/tt-xla/issues/1052 will improve bringup_status reporting
-# and this would be updated to use actual bringup_status achieved by a model.
-def update_test_metadata_for_exception(
-    test_metadata, exc: Exception, stderr: str
-) -> None:
+def parse_last_bringup_stage() -> BringupStatus | None:
     """
-    Inspect exception message, stderr and set `runtime_bringup_status` and `runtime_reason` on `test_metadata`.
+    Read the current stage from file and map to BringupStatus.
+
+    This function reads the structured logging marker written to ._bringup_stage.txt (at repo root)
+    by the C++ compilation/execution pipeline when ENABLE_BRINGUP_STAGE_LOGGING=1 is set.
+
+    Returns:
+        BringupStatus: The bringup status based on the last stage reached before failure.
+        None: If the file doesn't exist or cannot be read.
     """
     try:
-        message = str(exc)
-    except Exception:
-        message = repr(exc)
+        with open(BRINGUP_STAGE_FILE, "r") as f:
+            stage_name = f.read().strip()
+    except (FileNotFoundError, IOError):
+        return None
 
-    msg = message.lower() if message else ""
-    err = (stderr or "").lower()
-    # print(f"Found exception: {repr(exc)} message: {msg} stderr: {err}")
+    if not stage_name:
+        return None
 
-    # Find failing reason by raised exception
-    failing_reason = FailingReasonsFinder.find_reason_by_exception(exc)
+    # Map stage to BringupStatus
+    stage_to_status = {
+        "FE_COMPILATION_START": BringupStatus.FAILED_FE_COMPILATION,
+        "TTMLIR_COMPILATION_START": BringupStatus.FAILED_TTMLIR_COMPILATION,
+        "RUNTIME_EXECUTION_START": BringupStatus.FAILED_RUNTIME,
+    }
 
-    if isinstance(exc, AssertionError) and "comparison failed" in msg:
-        status = BringupStatus.INCORRECT_RESULT
-    elif isinstance(exc, RuntimeError):
-        if (
-            "failed to legalize" in err
-            or "stablehlo" in err
-            or "mhlo" in err
-            or "mlir" in err
-        ):
-            status = BringupStatus.FAILED_TTMLIR_COMPILATION
-        elif "bad statusor access" in msg or "internal: error code: 13" in msg:
-            status = BringupStatus.FAILED_RUNTIME
-        else:
-            status = BringupStatus.FAILED_RUNTIME
-    else:
-        status = BringupStatus.UNKNOWN
-
-    setattr(test_metadata, "runtime_bringup_status", status)
-    setattr(test_metadata, "runtime_reason", message)
-    setattr(test_metadata, "failing_reason", failing_reason)
+    return stage_to_status.get(stage_name)
 
 
 # This is needed for combination of pytest-forked and using ruamel.yaml
@@ -261,51 +253,43 @@ def record_model_test_properties(
 
     - Always records tags (including test_name, specific_test_case, category, model_name, run_mode, bringup_status),
       plus owner and group properties.
-    - Passing tests (test_passed=True) always record bringup_status=PASSED, ignoring configured/static values.
-    - Failing tests classify bringup info in this order:
-      1) Static: use test_metadata.bringup_status/reason from config when both are present
-      2) Runtime: else use test_metadata.runtime_bringup_status/runtime_reason when both are present
-      3) Default: else use UNKNOWN/"Not specified"
-    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status from static/default logic and call pytest.skip(reason).
-    - If test_metadata.status is KNOWN_FAILURE_XFAIL, leave execution to xfail via marker; properties still reflect runtime/static/default classification.
+    - Passing tests (test_passed=True) set bringup_status based on PCC comparison.
+    - Failing tests classify bringup info based on the last stage reached before failure.
+    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status and reason from config and call pytest.skip(reason).
+    - If test_metadata.status is KNOWN_FAILURE_XFAIL, call pytest.xfail(reason) at the end.
     """
-
-    # Determine bringup status and reason based on runtime/test outcome
+    
     reason = None
-    static_bringup_status = getattr(test_metadata, "bringup_status", None)
-    static_reason = getattr(test_metadata, "reason", None)
     arch = getattr(test_metadata, "arch", None)
-    failing_reason = getattr(test_metadata, "failing_reason", None)
-
-    if test_passed:
-        # If custom bringup_status and reason are provided, use them.
-        reason = static_reason or None
-        bringup_status = static_bringup_status or BringupStatus.PASSED
-
-        # Handle common case where test passes but is statically marked as INCORRECT_RESULT and doesn't contain a reason.
-        # In this case, report PCC check enablement and results for superset dashboard visibility on latest results.
-        if (
-            static_reason is None
-            and static_bringup_status == BringupStatus.INCORRECT_RESULT
-        ):
-            pcc = comparison_result.pcc
+        
+    if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
+        bringup_status = getattr(test_metadata, "bringup_status", None)
+        reason = getattr(test_metadata, "reason", None)
+    
+    elif comparison_result is not None:
+        pcc = comparison_result.pcc
+        required_pcc = comparison_config.pcc.required_pcc
+        if pcc < required_pcc:
+            bringup_status = BringupStatus.INCORRECT_RESULT
             required_pcc = comparison_config.pcc.required_pcc
             pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"
             reason = f"Test marked w/ INCORRECT_RESULT. PCC check {pcc_check_str}. Calculated: pcc={pcc}. Required: pcc={required_pcc}."
-
+            
+    elif test_passed:
+        bringup_status = BringupStatus.PASSED
+        
     else:
-        runtime_bringup_status = getattr(test_metadata, "runtime_bringup_status", None)
+        # If test fails, use the bringup status from the last stage reached before failure.
+        # TODO: add better way to set the reason dynamically.
+        static_reason = getattr(test_metadata, "reason", None)
         runtime_reason = getattr(test_metadata, "runtime_reason", None)
-
-        if static_bringup_status and static_reason:
-            bringup_status = static_bringup_status
-            reason = static_reason
-        elif runtime_bringup_status and runtime_reason:
-            bringup_status = runtime_bringup_status
-            reason = runtime_reason or "Runtime failure"
+        
+        if comparison_result is None:
+            bringup_status = parse_last_bringup_stage()
         else:
-            bringup_status = BringupStatus.UNKNOWN
-            reason = "Not specified"
+            bringup_status = BringupStatus.INCORRECT_RESULT
+            
+        reason = static_reason or runtime_reason or "Not specified"
 
     tags = {
         "test_name": str(request.node.originalname),
@@ -365,10 +349,6 @@ def record_model_test_properties(
 
     # Control flow for skipped and xfailed tests is handled by pytest.
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
-        import pytest
-
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
-        import pytest
-
         pytest.xfail(reason)

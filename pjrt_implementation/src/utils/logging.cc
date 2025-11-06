@@ -10,7 +10,8 @@
 
 #include <cstdlib>
 #include <cstring>
-
+#include <fstream>
+#include <filesystem>
 #include "utils/logging.h"
 
 namespace tt::pjrt {
@@ -44,6 +45,24 @@ void initializeLogging() {
   if (log_file_path) {
     // Add file output using the same verbosity level as stderr
     loguru::add_file(log_file_path, loguru::Append, loguru::g_stderr_verbosity);
+  }
+}
+
+bool isBringupStageLoggingEnabled() {
+  // Check environment variable to enable bringup stage logging
+  const char *enable_logging = std::getenv("ENABLE_BRINGUP_STAGE_LOGGING");
+  return enable_logging != nullptr && strcmp(enable_logging, "1") == 0;
+}
+
+void logBringupStage(const char *stage_name) {
+  if (isBringupStageLoggingEnabled()) {
+    // Construct path to ._bringup_stage.txt at repo root (current working directory)
+    std::filesystem::path stage_file_path = std::filesystem::current_path() / "._bringup_stage.txt";
+    std::ofstream stage_file(stage_file_path, std::ios::trunc);
+    if (stage_file.is_open()) {
+      stage_file << stage_name << "\n";
+      stage_file.close();
+    }
   }
 }
 
