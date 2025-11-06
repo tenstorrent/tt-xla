@@ -92,6 +92,16 @@ def pytest_collection_modifyitems(config, items):
         for marker_name in getattr(meta, "markers", []) or []:
             item.add_marker(getattr(pytest.mark, marker_name))
 
+        # Apply marker based on bringup_status to enable filtering like: -m incorrect_result
+        bringup_status = getattr(meta, "bringup_status", None)
+        if bringup_status:
+            # Normalize enum or string to a pytest-safe, lowercase marker name
+            status_str = str(bringup_status)
+            # In case string includes enum class name, keep the last segment
+            status_str = status_str.split(".")[-1]
+            normalized_marker = status_str.lower()
+            item.add_marker(getattr(pytest.mark, normalized_marker))
+
         # Define default set of supported archs, which can be optionally overridden in test_config files
         # by a model (ie. n300, n300-llmbox), and are applied as markers for filtering tests on CI.
         default_archs = ["n150", "p150"]
