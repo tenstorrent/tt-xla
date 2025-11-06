@@ -128,7 +128,7 @@ class LocalResponseNormalization(nn.Module):
             window_sq_sum = (
                 jnp.einsum("bhwc->bhw", window_sq) * self.alpha + self.k
             ) ** self.beta
-            return x[:, :, :, num_channels] / window_sq_sum
+            return x[:, :, :, c] / window_sq_sum
 
         return jax.vmap(_apply_per_channel, in_axes=0, out_axes=3)(
             jnp.arange(num_channels)

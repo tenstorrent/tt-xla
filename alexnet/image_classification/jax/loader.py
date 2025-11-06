@@ -315,6 +315,17 @@ class ModelLoader(ForgeModel):
 
         return PartitionSpec(axis_name)
 
+    def get_input_parameters(self):
+        """Get input parameters for the model.
+
+        This method provides compatibility with DynamicJaxModelTester which expects
+        a get_input_parameters method. Simply delegates to load_parameters.
+
+        Returns:
+            PyTree: Model parameters initialized with random weights
+        """
+        return self.load_parameters()
+
     def get_forward_method_name(self):
         """Get the name of the forward method for the model.
 
