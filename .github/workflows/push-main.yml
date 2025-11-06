@@ -47,7 +47,7 @@ jobs:
     needs: [ build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      enable_explorer: true
+      build_type: explorer
 
   test:
     needs: [ build-image, build-ttxla, build-ttxla-codecov ]

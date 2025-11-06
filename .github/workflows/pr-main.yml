@@ -66,7 +66,7 @@ jobs:
     needs: [ inspect-changes, build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      enable_explorer: true
+      build_type: explorer
 
   test:
     needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]

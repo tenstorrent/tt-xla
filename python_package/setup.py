@@ -195,25 +195,24 @@ class BdistWheel(bdist_wheel):
     """
 
     user_options = bdist_wheel.user_options + [
-        ("build-type=", None, "Build type: release, codecov, or debug"),
-        ("enable-explorer", None, "Enable tt-explorer build"),
+        ("build-type=", None, "Build type: release, codecov, debug, or explorer"),
     ]
 
     def initialize_options(self):
         super().initialize_options()
         # Default build type is release
         self.build_type = "release"
-        self.enable_explorer = False  # Default value for explorer
 
     def finalize_options(self):
-        build_types = ["release", "codecov", "debug"]
+        build_types = ["release", "codecov", "debug", "explorer"]
         if self.build_type not in build_types:
             raise ValueError(
                 f"Invalid build type: {self.build_type}. Valid options are: {', '.join(build_types)}"
             )
 
         config.build_type = self.build_type
-        config.enable_explorer = self.enable_explorer
+        # Automatically enable explorer features for explorer build type
+        config.enable_explorer = (self.build_type == "explorer")
 
         bdist_wheel.finalize_options(self)
         self.root_is_pure = False

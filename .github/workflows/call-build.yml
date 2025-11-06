@@ -16,15 +16,10 @@ on:
             required: true
             type: string
         build_type:
-            description: 'Build type for the wheel'
+            description: 'Build type for the wheel: release, codecov, debug, explorer'
             default: release
             type: string
             required: false
-        enable_explorer:
-            description: 'Enable tt-explorer build'
-            required: false
-            type: boolean
-            default: false
     outputs:
         wheel_artifact_name:
             description: 'Name of the wheel artifact'
@@ -55,11 +50,7 @@ jobs:
         id: generate-name
         shell: bash
         run: |
-          if [ '${{ inputs.enable_explorer }}' == 'true' ]; then
-            build_name='explorer'
-          else
-            build_name=${{ inputs.build_type }}
-          fi
+          build_name=${{ inputs.build_type }}
 
           # Add commit SHA to artifact name only when all conditions are met:
           # - Not a pull request event
@@ -143,11 +134,7 @@ jobs:
         run: |
             echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
             echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-            if [ '${{ inputs.enable_explorer }}' == 'true' ]; then
-              echo "build-name=explorer" >> "$GITHUB_OUTPUT"
-            else
-              echo "build-name=${{ inputs.build_type }}" >> "$GITHUB_OUTPUT"
-            fi
+            echo "build-name=${{ inputs.build_type }}" >> "$GITHUB_OUTPUT"
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -161,12 +148,7 @@ jobs:
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/python_package
 
-            build_flags="--build-type ${{ inputs.build_type }}"
-            if [[ "${{ inputs.enable_explorer }}" == "true" ]]; then
-              build_flags="$build_flags --enable-explorer"
-            fi
-
-            python setup.py bdist_wheel $build_flags
+            python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
 
       - name: Validate build type of wheel build
         shell: bash
@@ -175,15 +157,10 @@ jobs:
             #Inspect the wheel build type on wheel file without installing the wheel
             pip install wheel-inspect
             wheel_summary=$(wheel2json ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl | jq -r '.dist_info.metadata.summary')
-            if [[ "${{ inputs.enable_explorer }}" == "true" ]]; then
-              expected_type="explorer"
-            else
-              expected_type="${{ inputs.build_type }}"
-            fi
-            match=$(echo "$wheel_summary" | grep -oP "build-type=$expected_type" || true)
+            match=$(echo "$wheel_summary" | grep -oP "build-type=${{ inputs.build_type }}" || true)
             echo "Wheel summary: $wheel_summary"
             if [ -z "$match" ]; then
-                echo "Wheel summary does not match build type: $expected_type"
+                echo "Wheel summary does not match build type: ${{ inputs.build_type }}"
                 exit 1
             fi
 
