@@ -385,13 +385,15 @@ def fill_cache_fake(
     return torch.zeros_like(cache)
 
 
-@torch.library.custom_op("tt::paged_update_cache", mutates_args=[], device_types=["xla", "cpu"])
+@torch.library.custom_op(
+    "tt::paged_update_cache", mutates_args=[], device_types=["xla", "cpu"]
+)
 def paged_update_cache(
     cache: torch.Tensor,
     fill_value: torch.Tensor,
     update_indices: torch.Tensor,
     page_table: torch.Tensor,
-    share_cache: bool = False
+    share_cache: bool = False,
 ) -> torch.Tensor:
     device = cache.device
     if device.type == "xla":
@@ -407,18 +409,21 @@ def paged_update_cache(
         num_users = update_indices.shape[0]
         block_size = cache.shape[-2]
         num_heads = cache.shape[-3]
-        
+
         block_indices = update_indices // block_size
         block_offsets = update_indices % block_size
 
         user_range = torch.arange(num_users)
 
         fill_values_view = fill_value[0, :, :num_heads, :]
-        cache[page_table[user_range, block_indices], :, block_offsets, :] = fill_values_view
+        cache[page_table[user_range, block_indices], :, block_offsets, :] = (
+            fill_values_view
+        )
 
         return cache
     else:
         raise ValueError(f"Unsupported device type: {device.type}")
+
 
 @paged_update_cache.register_fake
 def paged_update_cache_fake(
@@ -426,9 +431,10 @@ def paged_update_cache_fake(
     fill_value: torch.Tensor,
     update_indices: torch.Tensor,
     page_table: torch.Tensor,
-    share_cache = False
+    share_cache=False,
 ) -> torch.Tensor:
     return torch.zeros_like(cache)
+
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
