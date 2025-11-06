@@ -180,6 +180,7 @@ class SetupConfig:
 
     enable_explorer: bool = False
 
+
 # Instantiate config.
 config = SetupConfig()
 
@@ -211,7 +212,7 @@ class BdistWheel(bdist_wheel):
             )
 
         config.build_type = self.build_type
-        config.enable_explorer = (self.build_type == "explorer")
+        config.enable_explorer = self.build_type == "explorer"
 
         bdist_wheel.finalize_options(self)
         self.root_is_pure = False
