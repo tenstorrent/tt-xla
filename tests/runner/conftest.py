@@ -9,7 +9,7 @@ import pytest
 
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
-from tests.runner.test_utils import ModelTestConfig, ModelTestStatus, parse_last_bringup_stage
+from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
 # Global set to track collected test node IDs
 _collected_nodeids = set()
@@ -45,7 +45,9 @@ def pytest_runtest_setup(item):
 
 def pytest_runtest_teardown(item, nextitem):
     """Close/cleanup bringup stage file after each test."""
-    if os.environ.get("ENABLE_BRINGUP_STAGE_LOGGING") == "1" and os.path.exists(_BRINGUP_STAGE_FILE):
+    if os.environ.get("ENABLE_BRINGUP_STAGE_LOGGING") == "1" and os.path.exists(
+        _BRINGUP_STAGE_FILE
+    ):
         os.remove(_BRINGUP_STAGE_FILE)
 
 
@@ -124,6 +126,7 @@ def pytest_collection_modifyitems(config, items):
     # If validating config, clear all items so no tests run
     if validate_config:
         items.clear()
+
 
 def pytest_sessionfinish(session, exitstatus):
     """At session end, validate test_config entries and arch_overrides against collected tests."""
