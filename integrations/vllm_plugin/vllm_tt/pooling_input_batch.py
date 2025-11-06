@@ -220,7 +220,9 @@ class InputBatch:
         self.num_tokens_no_spec[req_index] = request.num_tokens
 
         self.num_computed_tokens_cpu[req_index] = request.num_computed_tokens
-        self.block_table.add_row(request.block_ids, req_index)
+        # Only manage block tables for models that actually need KV cache
+        if len(self.block_table.block_tables) > 0:
+            self.block_table.add_row(request.block_ids, req_index)
 
         if sampling_params := request.sampling_params:
             # assert sampling_params is not None, "pooling requests not supported yet"
@@ -454,7 +456,9 @@ class InputBatch:
                 self.allowed_token_ids_mask_cpu_tensor[i2],
                 self.allowed_token_ids_mask_cpu_tensor[i1],
             )
-        self.block_table.swap_row(i1, i2)
+        # Only manage block tables for models that need KV cache
+        if len(self.block_table.block_tables) > 0:
+            self.block_table.swap_row(i1, i2)
 
     def condense(self, empty_req_indices: list[int]) -> None:
         """Move non-empty requests down into lower, empty indices.
@@ -504,7 +508,9 @@ class InputBatch:
             self.num_computed_tokens_cpu[empty_index] = self.num_computed_tokens_cpu[
                 last_req_index
             ]
-            self.block_table.move_row(last_req_index, empty_index)
+            # Only manage block tables for models that need KV cache
+            if len(self.block_table.block_tables) > 0:
+                self.block_table.move_row(last_req_index, empty_index)
             self.temperature_cpu[empty_index] = self.temperature_cpu[last_req_index]
             self.top_p_cpu[empty_index] = self.top_p_cpu[last_req_index]
             self.top_k_cpu[empty_index] = self.top_k_cpu[last_req_index]
