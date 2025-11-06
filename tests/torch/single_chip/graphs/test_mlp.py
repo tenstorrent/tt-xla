@@ -148,8 +148,10 @@ def get_available_variants(model_name):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_mlp(seq_len, variant, variant_config, request):
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
+    if not is_llmbox(request) and str(variant) == "32b":
         pytest.xfail("Variant doesn't fit on device")
+    if str(variant) == "30b_a3b":
+        pytest.xfail("30B-A3B model is an MoE model and is not supported yet")
 
     xr.set_device_type("TT")
 
@@ -172,7 +174,7 @@ def test_qwen3_mlp(seq_len, variant, variant_config, request):
         def get_shard_spec(mlp, args, kwargs):
             shard_specs = {}
             # check if model is a MoE model (Qwen3-30B-A3B)
-            if hasattr(mlp.config, "num_experts"):
+            if hasattr(mlp, "num_experts"):
                 for expert in mlp.experts:
                     shard_specs[expert.gate_proj.weight] = ("model", None)
                     shard_specs[expert.up_proj.weight] = ("model", None)
@@ -209,11 +211,9 @@ def test_qwen3_mlp(seq_len, variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_mlp(seq_len, variant, variant_config, request):
-    # Xfail 70B models that don't fit on device
-    if "70b" in str(variant):
+    if "70b" in str(variant) and not is_llmbox(request):
         pytest.xfail("70B models don't fit on device")
 
-    # Will download huge amount of data and run out of disk space.
     if "405b" in str(variant):
         pytest.skip("405B variants too large for device and disk space")
 
@@ -267,6 +267,9 @@ def test_llama_mlp(seq_len, variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_mlp(seq_len, variant, variant_config, request):
+    if not is_llmbox(request) and (str(variant) == "google/gemma-2-27b-it"):
+        pytest.xfail("Variant doesn't fit on device")
+
     xr.set_device_type("TT")
 
     loader = GemmaModelLoader(variant=variant)
@@ -368,6 +371,11 @@ def test_mistral_mlp(seq_len, variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_mlp(seq_len, variant, variant_config, request):
+    if not is_llmbox(request) and (
+        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+    ):
+        pytest.xfail("Variant doesn't fit on device")
+
     xr.set_device_type("TT")
 
     loader = Qwen2_5ModelLoader(variant=variant)
