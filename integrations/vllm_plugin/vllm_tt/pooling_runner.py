@@ -360,11 +360,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.max_num_tokens, dtype=torch.int32, device="cpu"
         )
         self.positions_np = self.positions_cpu.numpy()
-        self.block_table_cpu = torch.zeros(
-            (self.max_num_reqs, self.max_num_blocks_per_req),
-            dtype=torch.int32,
-            device="cpu",
-        )
         # adjust num_reqs to avoid SMEM OOM.
         self.num_reqs_most_model_len = (
             min(
@@ -552,21 +547,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for i, req_id in enumerate(req_data.req_ids):
             req_state = self.requests[req_id]
             num_computed_tokens = req_data.num_computed_tokens[i]
-            new_block_ids = req_data.new_block_ids[i]
-            resumed_from_preemption = req_data.resumed_from_preemption[i]
 
             # Update the cached states.
             req_state.num_computed_tokens = num_computed_tokens
-            if not resumed_from_preemption:
-                if new_block_ids is not None:
-                    # Append the new blocks to the existing block IDs.
-                    for block_ids, new_ids in zip(req_state.block_ids, new_block_ids):
-                        block_ids.extend(new_ids)
-            else:
-                assert new_block_ids is not None
-                # The request is resumed from preemption.
-                # Replace the existing block IDs with the new ones.
-                req_state.block_ids = new_block_ids
 
             req_index = self.input_batch.req_id_to_index.get(req_id)
             if req_index is None:
@@ -578,8 +561,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Update the persistent batch.
             self.input_batch.num_computed_tokens_cpu[req_index] = num_computed_tokens
-            if new_block_ids is not None:
-                self.input_batch.block_table.append_row(new_block_ids, req_index)
 
         # Add the new or resumed requests to the persistent batch.
         # The smaller empty indices are filled first.
@@ -694,74 +675,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         return kv_cache_spec
 
-    def _get_slot_mapping_metadata(
-        self, num_reqs, num_scheduled_tokens_per_req
-    ) -> np.ndarray:
-        """
-        Computes metadata for mapping slots to blocks in the key-value (KV)
-        cache for a batch of requests.
-
-        This function determines, for each request in the batch, how the
-        scheduled tokens are distributed across memory blocks, and generates
-        metadata needed to map slices of tokens to their corresponding positions
-        in the KV cache.
-
-        Args:
-            num_reqs (int): Number of requests in the current batch.
-            num_scheduled_tokens_per_req (int or np.ndarray): Number of tokens
-                to be scheduled for each request.
-
-        Returns:
-            np.ndarray: A 2D array of shape (total_block_len, 3), where each row
-                contains:
-                - kv_cache_start_index (int): The starting index in the KV cache
-                  for the corresponding slice.
-                - new_kv_start_index (int): The starting index in the new KV
-                  cache for the corresponding slice.
-                - slice_len (int): The length of the slice.
-        """
-        slices_start = self.input_batch.num_computed_tokens_cpu[:num_reqs]
-        slices_end = (
-            self.input_batch.num_computed_tokens_cpu[:num_reqs]
-            + num_scheduled_tokens_per_req
-        )
-        local_block_start_idx = slices_start // self.block_size
-        local_block_end_idx = (slices_end - 1) // self.block_size
-        no_repeat_req_indices = self.arange_np[:num_reqs]
-        global_block_start_idx = (
-            no_repeat_req_indices * self.max_num_blocks_per_req + local_block_start_idx
-        )
-        block_lens = local_block_end_idx - local_block_start_idx + 1
-        global_block_start_idx = np.repeat(global_block_start_idx, block_lens)
-        slice_arange = np.concatenate([self.arange_np[:n] for n in block_lens])
-        global_block_indices = global_block_start_idx + slice_arange
-        block_table_cpu = self.input_batch.block_table[0].get_cpu_tensor()
-        block_numbers = block_table_cpu.flatten()[global_block_indices].numpy()
-        total_block_len = np.sum(block_lens)
-        slot_mapping_slices = np.repeat(
-            np.array([[0, self.block_size]], dtype=np.int32), total_block_len, axis=0
-        )
-        cu_block_lens = np.zeros(len(block_lens) + 1, dtype=np.int32)
-        np.cumsum(block_lens, out=cu_block_lens[1:])
-        for req_idx in range(num_reqs):
-            slot_mapping_slices[cu_block_lens[req_idx]][0] = (
-                slices_start[req_idx] % self.block_size
-            )
-            slot_mapping_slices[cu_block_lens[req_idx + 1] - 1][1] = (
-                slices_end[req_idx] - 1
-            ) % self.block_size + 1
-        slice_lens = slot_mapping_slices[:, 1] - slot_mapping_slices[:, 0]
-        cu_slices_lens = np.zeros(len(slice_lens) + 1, dtype=np.int32)
-        np.cumsum(slice_lens, out=cu_slices_lens[1:])
-        kv_cache_start_indices = slot_mapping_slices[:, 0] + (
-            block_numbers * self.block_size
-        )
-        new_kv_start_indices = cu_slices_lens[:-1]
-        slot_mapping_metadata = np.stack(
-            [kv_cache_start_indices, new_kv_start_indices, slice_lens], axis=1
-        )
-        return slot_mapping_metadata
-
     def _prepare_inputs(self, scheduler_output: "SchedulerOutput", start_index: int):
         assert scheduler_output.total_num_scheduled_tokens > 0
         num_reqs = self.input_batch.num_reqs
@@ -872,30 +785,15 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.device
         )
         if use_max_model_len:
-            block_tables = self.block_table_cpu[
-                : self.num_reqs_max_model_len, : self.max_num_blocks_per_req
-            ]
-            block_tables[:num_reqs, : self.max_num_blocks_per_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[:num_reqs]
-            )
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_max_model_len + 1
             ].to(self.device)
             seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
-            block_tables = self.block_table_cpu[
-                : self.num_reqs_most_model_len, : self.num_blocks_per_most_len_req
-            ]
-            block_tables[:num_reqs, : self.num_blocks_per_most_len_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[
-                    :num_reqs, : self.num_blocks_per_most_len_req
-                ]
-            )
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_most_model_len + 1
             ].to(self.device)
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
-        block_tables = block_tables.to(self.device)
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -926,8 +824,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         attn_metadata = TTMetadata(
             context_lens=seq_lens,
-            query_start_loc=query_start_loc,
-            num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
+            query_start_loc=None,  # Required for paged attention.
+            num_seqs=None,  # Required for paged attention.
             attn_mask=attn_mask,
             is_causal=is_causal,
         )
@@ -1282,14 +1180,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             input_ids = torch.zeros((num_tokens), dtype=torch.int32).to(self.device)
             inputs_embeds = None
-        actual_num_reqs = min(num_tokens, num_reqs)
         position_ids = torch.zeros(num_tokens, dtype=torch.int32).to(self.device)
-        query_lens = [1] * num_reqs
-        query_start_loc = torch.cumsum(
-            torch.tensor([0] + query_lens, dtype=torch.int32), dim=0, dtype=torch.int32
-        ).to(self.device)
         context_lens = torch.ones((num_reqs,), dtype=torch.int32)
-        num_seqs = torch.tensor([actual_num_reqs], dtype=torch.int32).to(self.device)
 
         # Default options: only valid for single input per batch.
         attn_mask = None
@@ -1309,8 +1201,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         attn_metadata = TTMetadata(
             context_lens=context_lens,
-            query_start_loc=query_start_loc,
-            num_seqs=num_seqs,
+            query_start_loc=None,  # Required for paged attention.
+            num_seqs=None,  # Required for paged attention.
             attn_mask=attn_mask,
             is_causal=is_causal,
         )
