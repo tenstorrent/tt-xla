@@ -178,6 +178,7 @@ class SetupConfig:
 
         return json.dumps(result, indent=4)
 
+    enable_explorer: bool = False
 
 # Instantiate config.
 config = SetupConfig()
@@ -194,13 +195,15 @@ class BdistWheel(bdist_wheel):
     """
 
     user_options = bdist_wheel.user_options + [
-        ("build-type=", None, "Build type: release, codecov, or debug")
+        ("build-type=", None, "Build type: release, codecov, or debug"),
+        ("enable-explorer", None, "Enable tt-explorer build"),
     ]
 
     def initialize_options(self):
         super().initialize_options()
         # Default build type is release
         self.build_type = "release"
+        self.enable_explorer = False  # Default value for explorer
 
     def finalize_options(self):
         build_types = ["release", "codecov", "debug"]
@@ -210,6 +213,7 @@ class BdistWheel(bdist_wheel):
             )
 
         config.build_type = self.build_type
+        config.enable_explorer = self.enable_explorer
 
         bdist_wheel.finalize_options(self)
         self.root_is_pure = False
@@ -267,9 +271,12 @@ class CMakeBuildPy(build_py):
         )
 
         code_coverage = "OFF"
+        enable_explorer = "OFF"
 
         if config.build_type == "codecov":
             code_coverage = "ON"
+        if config.enable_explorer:
+            enable_explorer = "ON"
 
         cmake_args = [
             "-G",
@@ -277,6 +284,7 @@ class CMakeBuildPy(build_py):
             "-B",
             "build",
             "-DCODE_COVERAGE=" + code_coverage,
+            "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
         ]
         build_command = ["--build", "build"]
