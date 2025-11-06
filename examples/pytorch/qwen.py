@@ -21,14 +21,9 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 
 
 # --------------------------------
-# Llama Generation Loop Example
+# Qwen Generation Loop Example
 # --------------------------------
-def llama(interactive: bool = False, debug: bool = False):
-
-    # options = {
-    #     "enable_optimizer": True,
-    # }
-    # torch_xla.set_custom_compile_options(options)
+def qwen(interactive: bool = False, debug: bool = False):
 
     # Check transformers version
     check_transformers_version()
@@ -47,7 +42,7 @@ def llama(interactive: bool = False, debug: bool = False):
     model_name: str = "Qwen/Qwen3-32B"
 
     # Determine if SPMD mode should be enabled, if more than 1 device is available.
-    # SPMD must be turned off for llama generate on 1x1 mesh - See https://github.com/tenstorrent/tt-xla/issues/1639
+    # SPMD must be turned off for LLM generation on 1x1 mesh - See https://github.com/tenstorrent/tt-xla/issues/1639
     num_devices = xr.global_runtime_device_count()
     is_spmd: bool = num_devices > 1
     if is_spmd:
@@ -96,7 +91,7 @@ def llama(interactive: bool = False, debug: bool = False):
             device,
             mesh,
             is_spmd,
-            1,
+            max_tokens_to_generate,
             user_prompt,
         )
 
@@ -319,8 +314,12 @@ def run_generate(
         is_spmd: Whether SPMD mode is enabled
         max_tokens_to_generate: Maximum number of tokens to generate
     """
+    import sys
+
     num_users = input_args["input_ids"].shape[0]
     output_tokens: List[List[str]] = [[] for _ in range(num_users)]
+    step_times: List[float] = []
+
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             # Run forward pass
@@ -329,14 +328,17 @@ def run_generate(
             output_logits: torch.Tensor = output.logits.to("cpu")
             next_token_id = output_logits[:, -1].argmax(dim=-1)
             end_time = time.time()
-            print(f"Time taken for step {step}: {end_time - start_time} seconds")
-            # breakpoint()
+
+            # Capture timing for summary
+            step_times.append(end_time - start_time)
+
+            # Decode and stream tokens directly
             output_text = [tokenizer.decode(next_token_id[i]) for i in range(num_users)]
             for i, output_tokens_list in enumerate(output_tokens):
                 output_tokens_list.append(output_text[i])
-                # for token in output_tokens_list:
-                #     print(token, end="", flush=True)
-                # print()
+
+            # Stream first user's token directly to stdout
+            print(output_text[0], end='', flush=True)
 
             # Check for EOS token and early exit
             if torch.all(next_token_id == tokenizer.eos_token_id):
@@ -362,9 +364,15 @@ def run_generate(
                     xs.mark_sharding(key, mesh, (None, "model", None, None))
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
 
+    # Print timing summary
+    print(f"\n\n=== Generation Summary ===")
+    print(f"Total steps: {len(step_times)}")
+    print(f"Average time per step: {sum(step_times) / len(step_times):.4f} seconds")
+    print(f"Total generation time: {sum(step_times):.4f} seconds")
+    print(f"Tokens/second: {len(step_times) / sum(step_times):.2f}")
+
     for i in range(num_users):
-        print(f"Result for user {i}: {input_prompt[i]} {''.join(output_tokens[i])}")
-    # print("Result:", input_prompt + "".join(output_tokens))
+        print(f"Result for user {i}: {input_prompt}{''.join(output_tokens[i])}")
 
 
 def check_transformers_version():
@@ -408,4 +416,4 @@ if __name__ == "__main__":
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
 
-    llama(interactive=args.interactive, debug=args.debug)
+    qwen(interactive=args.interactive, debug=args.debug)
