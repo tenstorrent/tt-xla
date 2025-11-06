@@ -19,7 +19,6 @@ from tests.runner.test_utils import (
     ModelTestStatus,
     fix_venv_isolation,
     record_model_test_properties,
-    update_test_metadata_for_exception,
 )
 from tests.runner.testers import (
     DynamicJaxModelTester,
