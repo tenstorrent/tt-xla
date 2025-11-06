@@ -30,7 +30,7 @@ def qwen(interactive: bool = False, debug: bool = False):
 
     # Set up config variables.
     batch_size: int = 1
-    max_cache_len: int = 64
+    max_cache_len: int = 128 # note - lpad input to 32, so can only generate max_cache_len - 32 tokens
     default_prompt: str = "I like taking walks in the"
     default_prompts: List[str] = [
         "I like taking walks in the",
