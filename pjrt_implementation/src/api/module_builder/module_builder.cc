@@ -829,6 +829,14 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
+  // Optimizer passes are not supported in distributed runtime.
+  if (tt::runtime::getCurrentHostRuntime() ==
+          tt::runtime::HostRuntime::Distributed &&
+      compile_options.enable_optimizer) {
+    DLOG_F(ERROR, "Optimizer passes are not supported in distributed runtime");
+    return tt_pjrt_status::kInternal;
+  }
+
   options.optimizerPassEnabled = compile_options.enable_optimizer;
   options.memoryLayoutAnalysisEnabled =
       compile_options.enable_memory_layout_analysis;
@@ -852,11 +860,13 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   // Use the `options.devicePtr` to pass the device pointer to the optimizer in
   // order to avoid closing and reopening the device afterwards.
-  tt::runtime::Device submesh_for_optim =
-      client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
-  options.devicePtr =
-      std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
-          submesh_for_optim.handle);
+  if (compile_options.enable_optimizer) {
+    tt::runtime::Device submesh_for_optim =
+        client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
+    options.devicePtr =
+        std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
+            submesh_for_optim.handle);
+  }
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);

@@ -15,6 +15,37 @@ from pathlib import Path
 TT_PJRT_PLUGIN_NAME = "pjrt_plugin_tt.so"
 
 
+def setup_tt_pjrt_plugin_dir():
+    """
+    Setup the `TT_PJRT_PLUGIN_DIR` environment variable by looking for the `pjrt_plugin_tt.so` file.
+    If user already has set the `TT_PJRT_PLUGIN_DIR` environment variable, we will not override it - we
+    will only verify that the path exists and raise an error if it does not.
+    """
+    user_override = os.getenv("TT_PJRT_PLUGIN_DIR")
+    if user_override is not None:
+        if Path(user_override).exists():
+            print(
+                f"Using PJRT plugin directory from environment variable: {user_override}"
+            )
+            return
+        raise FileNotFoundError(
+            f"ERROR: PJRT plugin directory not found at {user_override}. "
+            f"This location was specified by the TT_PJRT_PLUGIN_DIR environment variable, "
+            f"please check that the path is correct."
+        )
+
+    plugin_dir = Path(__file__).resolve().parent
+    if plugin_dir.exists():
+        os.environ["TT_PJRT_PLUGIN_DIR"] = str(plugin_dir)
+        print(f"Using PJRT plugin directory: {plugin_dir}")
+        return
+
+    raise FileNotFoundError(
+        f"ERROR: PJRT plugin directory could not be found. This most likely indicates an issue with how {__package__} "
+        f"was built or installed."
+    )
+
+
 def setup_tt_metal_home():
     """
     Setup the `TT_METAL_RUNTIME_ROOT` environment variable by looking for the `tt-metal` installation.
