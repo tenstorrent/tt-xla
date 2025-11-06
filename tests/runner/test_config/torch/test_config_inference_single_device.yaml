@@ -1414,10 +1414,8 @@ test_config:
     status: EXPECTED_PASSING
 
   resnet/pytorch-resnet50_high_res-single_device-full-inference:
+    required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9867953658103943. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1916
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9867953658103943. Required: pcc=0.99."
-    assert_pcc: false
-    bringup_status: INCORRECT_RESULT
 
   hrnet/pytorch-hrnetv2_w44_osmr-single_device-full-inference:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9663628935813904. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -2304,6 +2302,35 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1472
     bringup_status: INCORRECT_RESULT
+
+  maskformer_swin_b/pytorch-swin_base_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Out of Memory: Not enough space to allocate 61231104 B L1 buffer across 72 banks, where each bank needs to store 850432 B, but bank size is only 1331936 B"
+
+  maskformer_swin_b/pytorch-swin_base_ade-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  yolos_small/pytorch-small-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+
+  yolos_small/pytorch-small_dwr-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+
+  yolos_small/pytorch-small_300-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+
+  yolop/pytorch-yolop-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 12. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+
 
   owl_vit/pytorch-base_patch32-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
