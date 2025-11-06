@@ -1563,7 +1563,7 @@ def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
 
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
