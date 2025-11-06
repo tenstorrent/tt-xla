@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from vllm.lora.request import LoRARequest
 from vllm.sampling_params import SamplingType
-from vllm.utils import swap_dict_values
+from vllm.utils import length_from_prompt_token_ids_or_embeds, swap_dict_values
 from vllm.v1.outputs import LogprobsTensors
 from vllm.v1.pool.metadata import PoolingMetadata
 from vllm.v1.sample.logits_processor import LogitsProcessors
@@ -207,7 +207,10 @@ class InputBatch:
         self.req_id_to_index[req_id] = req_index
 
         # Copy the prompt token ids and output token ids.
-        num_prompt_tokens = len(request.prompt_token_ids)
+        num_prompt_tokens = length_from_prompt_token_ids_or_embeds(
+            request.prompt_token_ids, request.prompt_embeds
+        )
+        # TODO: copy prompt_embeds
         self.num_prompt_tokens[req_index] = num_prompt_tokens
         self.token_ids_cpu[req_index, :num_prompt_tokens] = request.prompt_token_ids
         start_idx = num_prompt_tokens
