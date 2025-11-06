@@ -286,6 +286,8 @@ def record_model_test_properties(
         
         if comparison_result is None:
             bringup_status = parse_last_bringup_stage()
+            if bringup_status is None:
+                bringup_status = BringupStatus.UNKNOWN
         else:
             bringup_status = BringupStatus.INCORRECT_RESULT
             
