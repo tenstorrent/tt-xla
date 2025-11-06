@@ -37,6 +37,85 @@
 
 namespace tt::pjrt {
 
+static std::string getRankBindingPath(const std::string &metal_home) {
+  static std::unordered_map<std::string, std::string> rank_binding_paths = {
+      {"2x4_multiprocess",
+       "tests/tt_metal/distributed/config/2x4_multiprocess_rank_bindings.yaml"},
+  };
+
+  const char *rank_binding = std::getenv("TT_DISTRIBUTED_RANK_BINDING");
+  if (!rank_binding) {
+    std::cout << "TT_DISTRIBUTED_RANK_BINDING environment variable is not set"
+              << std::endl;
+    return "";
+  }
+  if (rank_binding_paths.find(rank_binding) == rank_binding_paths.end()) {
+    std::cout << "Invalid rank binding: " << rank_binding << std::endl;
+    return "";
+  }
+
+  std::filesystem::path rank_binding_path =
+      std::filesystem::path(metal_home) / rank_binding_paths.at(rank_binding);
+
+  if (std::filesystem::exists(rank_binding_path) == false) {
+    std::cout << "Rank binding file does not exist at path: "
+              << rank_binding_path.c_str() << std::endl;
+    return "";
+  }
+
+  return rank_binding_path.string();
+}
+
+static std::string getDistributedWorkerPath() {
+  const char *distributed_worker_path =
+      std::getenv("TT_DISTRIBUTED_WORKER_PATH");
+  if (!distributed_worker_path) {
+    std::cout << "TT_DISTRIBUTED_WORKER_PATH environment variable is not set"
+              << std::endl;
+    return "";
+  }
+
+  if (std::filesystem::exists(distributed_worker_path) == false) {
+    std::cout << "Distributed worker file does not exist at path: "
+              << distributed_worker_path << std::endl;
+    return "";
+  }
+
+  return distributed_worker_path;
+}
+
+static tt_pjrt_status launchDistributedRuntime() {
+  const char *metal_home = std::getenv("TT_METAL_RUNTIME_ROOT");
+  if (!metal_home) {
+    std::cout << "TT_METAL_RUNTIME_ROOT environment variable is not set"
+              << std::endl;
+    return tt_pjrt_status::kInternal;
+  }
+  tt::runtime::setMetalHome(metal_home);
+
+  std::string rank_binding_path = getRankBindingPath(metal_home);
+  if (rank_binding_path.empty()) {
+    return tt_pjrt_status::kInternal;
+  }
+
+  std::string distributed_worker_path = getDistributedWorkerPath();
+  if (distributed_worker_path.empty()) {
+    return tt_pjrt_status::kInternal;
+  }
+
+  tt::runtime::DistributedOptions distributed_options;
+  distributed_options.mode = tt::runtime::DistributedMode::MultiProcess;
+  distributed_options.workerPath = distributed_worker_path;
+  distributed_options.multiProcessArgs =
+      tt::runtime::MultiProcessArgs::create(rank_binding_path)
+          .withAllowRunAsRoot(true);
+
+  tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
+  tt::runtime::launchDistributedRuntime(distributed_options);
+
+  return tt_pjrt_status::kSuccess;
+}
+
 PJRT_Error *GlobalClientInstanceSingleton::initClient() {
   std::unique_ptr<ClientInstance> client = std::make_unique<ClientInstance>();
   PJRT_Error *error = client->initialize();
@@ -100,6 +179,18 @@ ClientInstance::~ClientInstance() {
 
 PJRT_Error *ClientInstance::initialize() {
   DLOG_F(LOG_DEBUG, "ClientInstance::Initialize");
+
+  bool distributed_runtime =
+      std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
+      std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0";
+
+  if (distributed_runtime) {
+    tt_pjrt_status launch_result = launchDistributedRuntime();
+    if (!tt_pjrt_status_is_ok(launch_result)) {
+      return *ErrorInstance::makeError(launch_result).release();
+    }
+  }
+
   tt_pjrt_status device_status = populateDevices();
   if (!tt_pjrt_status_is_ok(device_status)) {
     return *ErrorInstance::makeError(device_status).release();
@@ -132,7 +223,9 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
+
   m_system_descriptor = tt::runtime::getCurrentSystemDesc();
+
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
   if (std::filesystem::exists(m_cached_system_descriptor_path) == false) {
     DLOG_F(ERROR,

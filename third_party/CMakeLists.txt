@@ -88,6 +88,7 @@ else()
         COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist
 
         INSTALL_COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component SharedLib
+        COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component DistributedRuntime
 
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=${TTMLIR_BUILD_TYPE}

@@ -8,7 +8,11 @@ from logging import Logger
 import torch
 import torch_xla
 import tt_torch  # registers "tt" backend for torch.compile
-from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
+from pjrt_plugin_tt import (
+    get_library_path,
+    setup_tt_metal_home,
+    setup_tt_pjrt_plugin_dir,
+)
 from torch_xla.experimental.plugins import DevicePlugin
 
 
@@ -23,6 +27,7 @@ class TTPlugin(DevicePlugin):
 
     def __init__(self):
         super().__init__()
+        setup_tt_pjrt_plugin_dir()
         setup_tt_metal_home()
 
         # For using the PJRT plugin with `torch_xla` we need to set
