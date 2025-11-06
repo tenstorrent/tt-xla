@@ -212,10 +212,12 @@ def _is_on_CIv2() -> bool:
     """
     Check if we are on CIv2.
     """
-    is_on_civ1 = bool(os.environ.get("DOCKER_CACHE_ROOT"))
-    is_user_ird = bool(os.environ.get("IRD_ARCH_NAME"))
-    is_on_civ2 = not is_on_civ1 and not is_user_ird
-    return is_on_civ2
+    if bool(os.environ.get("TT_XLA_CI")):
+        is_on_civ1 = bool(os.environ.get("DOCKER_CACHE_ROOT"))
+        return not is_on_civ1
+
+    # We are not running in CI environment.
+    return False
 
 
 @contextmanager
@@ -407,18 +409,16 @@ def cleanup_cache():
     """
     Cleans up cache directories if we are running on CIv2.
     """
-    if not _is_on_CIv2():
-        return
+    if _is_on_CIv2():
+        for cache_dir in CACHE_DIRECTORIES:
+            if not cache_dir.exists():
+                continue
 
-    for cache_dir in CACHE_DIRECTORIES:
-        if not cache_dir.exists():
-            continue
-
-        try:
-            shutil.rmtree(cache_dir)
-            logger.debug(f"Cleaned up cache directory: {cache_dir}")
-        except Exception as e:
-            logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
+            try:
+                shutil.rmtree(cache_dir)
+                logger.debug(f"Cleaned up cache directory: {cache_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
 
 
 @pytest.fixture(autouse=True)
