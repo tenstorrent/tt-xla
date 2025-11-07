@@ -143,3 +143,59 @@ def test_embed_qwen3_reduced_dims():
     assert (
         len(output_embedding[0].outputs.embedding) == 128
     ), f"vLLM generated incorrect number of embedding dimensions; Expected dims=128 but got {len(output_embedding[0].outputs.embedding)}"
+
+
+@pytest.mark.push
+def test_embed_qwen3_8K():
+    # Enable program cache for better performance
+    seq_len = 2**13  # 8192
+    prompt = ["hello " * (seq_len - 2)]
+
+    llm_args = {
+        "model": "Qwen/Qwen3-Embedding-4B",
+        "task": "embed",
+        "dtype": "bfloat16",
+        "max_model_len": seq_len,
+        "disable_sliding_window": True,
+        "max_num_batched_tokens": seq_len,
+        "max_num_seqs": 1,
+        "enable_prefix_caching": False,
+        "additional_config": {
+            "enable_const_eval": False,
+            "min_context_len": seq_len,
+        },
+    }
+
+    # Precompile of model backbone done here
+    model = vllm.LLM(**llm_args)
+
+    output_embedding = model.embed(prompt)
+    print(f"Finished precompile for seq_len: {seq_len}")
+
+
+@pytest.mark.push
+def test_embed_qwen3_16K():
+    # Enable program cache for better performance
+    seq_len = 2**14  # 16384
+    prompt = ["hello " * (seq_len - 2)]
+
+    llm_args = {
+        "model": "Qwen/Qwen3-Embedding-4B",
+        "task": "embed",
+        "dtype": "bfloat16",
+        "max_model_len": seq_len,
+        "disable_sliding_window": True,
+        "max_num_batched_tokens": seq_len,
+        "max_num_seqs": 1,
+        "enable_prefix_caching": False,
+        "additional_config": {
+            "enable_const_eval": False,
+            "min_context_len": seq_len,
+        },
+    }
+
+    # Precompile of model backbone done here
+    model = vllm.LLM(**llm_args)
+
+    output_embedding = model.embed(prompt)
+    print(f"Finished precompile for seq_len: {seq_len}")

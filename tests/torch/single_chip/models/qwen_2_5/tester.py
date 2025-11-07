@@ -6,7 +6,7 @@ from typing import Any, Dict, Sequence
 
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
 
-from third_party.tt_forge_models.qwen_2_5.casual_lm.pytorch import (
+from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch import (
     ModelLoader,
     ModelVariant,
 )

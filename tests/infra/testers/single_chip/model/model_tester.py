@@ -90,15 +90,13 @@ class ModelTester(BaseTester, ABC):
         else:
             self._configure_model_for_training()
 
-    @staticmethod
     @abstractmethod
-    def _configure_model_for_inference(model: Model) -> None:
+    def _configure_model_for_inference(self) -> None:
         """Configures `model` for inference."""
         raise NotImplementedError("Subclasses must implement this method")
 
-    @staticmethod
     @abstractmethod
-    def _configure_model_for_training(model: Model) -> None:
+    def _configure_model_for_training(self) -> None:
         """Configures `model` for training."""
         raise NotImplementedError("Subclasses must implement this method")
 

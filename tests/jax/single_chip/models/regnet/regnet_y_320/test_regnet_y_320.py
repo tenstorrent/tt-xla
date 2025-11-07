@@ -21,11 +21,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> RegNetTester:
-    return RegNetTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> RegNetTester:
     return RegNetTester(VARIANT_NAME, RunMode.TRAINING)
 
@@ -33,27 +28,7 @@ def training_tester() -> RegNetTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.large
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "Out of Memory: Not enough space to allocate 56438554624 B L1 buffer "
-        "across 1 banks, where each bank needs to store 4703215616 B "
-        "(https://github.com/tenstorrent/tt-xla/issues/187)"
-    )
-)
-def test_regnet_y_320_inference(inference_tester: RegNetTester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

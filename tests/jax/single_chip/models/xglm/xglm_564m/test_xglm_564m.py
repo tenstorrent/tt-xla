@@ -4,7 +4,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, ExecutionPass, failed_runtime
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.xglm.causal_lm.jax import ModelLoader, ModelVariant
@@ -14,13 +14,7 @@ from ..tester import XGLMTester
 VARIANT_NAME = ModelVariant._564M
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> XGLMTester:
-    return XGLMTester(VARIANT_NAME)
 
 
 @pytest.fixture
@@ -31,37 +25,19 @@ def training_tester() -> XGLMTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "Invalid data size. numElements * elementSize == data->size(). "
-        "Issue: https://github.com/tenstorrent/tt-xla/issues/1313"
-    )
-)
-def test_xglm_564m_inference(inference_tester: XGLMTester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     run_mode=RunMode.TRAINING,
     parallelism=Parallelism.SINGLE_DEVICE,
     execution_pass=ExecutionPass.FORWARD,
-    bringup_status=BringupStatus.FAILED_RUNTIME,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_runtime(
-        "Invalid data size. numElements * elementSize == data->size(). "
-        "Issue: https://github.com/tenstorrent/tt-xla/issues/1313"
+    reason=failed_ttmlir_compilation(
+        "Invalid data size. numElements * elementSize == data->size() "
+        "https://github.com/tenstorrent/tt-mlir/issues/5665"
     )
 )
 def test_xglm_564m_training(training_tester: XGLMTester):

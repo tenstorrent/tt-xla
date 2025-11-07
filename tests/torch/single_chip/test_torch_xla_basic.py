@@ -226,20 +226,8 @@ eltwise_binary_ops = [
     torch.bitwise_xor,
     torch.bitwise_left_shift,
     torch.bitwise_right_shift,
-    pytest.param(
-        torch.div,
-        marks=pytest.mark.xfail(
-            strict=True,
-            reason="PCC comparison failed see issue https://github.com/tenstorrent/tt-xla/issues/1555",
-        ),
-    ),
-    pytest.param(
-        torch.divide,
-        marks=pytest.mark.xfail(
-            strict=True,
-            reason="PCC comparison failed see issue https://github.com/tenstorrent/tt-xla/issues/1555",
-        ),
-    ),
+    torch.div,
+    torch.divide,
     pytest.param(
         torch.floor_divide,
         marks=pytest.mark.xfail(
@@ -268,13 +256,7 @@ eltwise_binary_ops = [
     ),
     torch.sub,
     torch.subtract,
-    pytest.param(
-        torch.true_divide,
-        marks=pytest.mark.xfail(
-            strict=True,
-            reason="PCC comparison failed see issue https://github.com/tenstorrent/tt-xla/issues/1555",
-        ),
-    ),
+    torch.true_divide,
     torch.eq,
     torch.ne,
     torch.le,

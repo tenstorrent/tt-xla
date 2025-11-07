@@ -30,22 +30,65 @@ runs:
         only_run_forge_models=false
         if [ "${{ github.event_name }}" = "pull_request" ]; then
           CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
-          only_run_forge_models=true
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # Define patterns for files that can skip build/test
+          # Only allow docs, markdown, gitignore, LICENSE, CODEOWNERS, and test config files
+          skip_patterns=(
+            "*.md"
+            "*.gitignore"
+            "*LICENSE*"
+            "docs/*"
+            "*CODEOWNERS*"
+            ".github/workflows/test-matrix-presets/basic-test-nightly.json"
+            ".github/workflows/test-matrix-presets/model-test-experimental.json"
+            ".github/workflows/test-matrix-presets/model-test-passing.json"
+            ".github/workflows/test-matrix-presets/model-test-xfail.json"
+            ".github/workflows/test-matrix-presets/model-test-passing-weekly.json"
+            ".github/workflows/test-matrix-presets/model-test-xfail-weekly.json"
+            ".github/workflows/schedule-*"
+            ".github/workflows/manual-test.yml"
+            ".github/workflows/manual-test-single.yml"
+            ".github/workflows/push-main.yml"
+            "tests/runner/*" # This goes with custom logic below.
+          )
+
           for file in $CHANGED_FILES; do
-            # Only allow docs, markdown, gitignore, LICENSE, CODEOWNERS to skip build/test
-            if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* && $file != docs/* && $file != *"CODEOWNERS"* ]]; then
+            # Check if file matches any skip pattern
+            file_can_skip=false
+            for pattern in "${skip_patterns[@]}"; do
+              if [[ $file == $pattern ]]; then
+                file_can_skip=true
+                break
+              fi
+            done
+
+            # If ANY file doesn't match skip patterns, we cannot skip build/test
+            if [[ $file_can_skip == false ]]; then
+              echo "Cannot skip test because of change to file: $file"
               skip_build_and_test=false
               run_pr_tests=true
             fi
-            # Detect if all changes are strictly under tests/runner/
-            if [[ ! $file =~ ^tests/runner/.* ]]; then
-              only_run_forge_models=false
-            fi
+
             # Example: detect perf uplift (customize as needed)
             if [[ $file == *"perf"* ]]; then
               run_perf_tests=true
             fi
           done
+
+          # Just run forge tests if everything else is skipped but we detect changes under tests/runner/.
+          if [[ "$skip_build_and_test" == "true" ]]; then
+            for file in $CHANGED_FILES; do
+              if [[ $file == tests/runner/* ]]; then
+                echo "Detected only skippable files + tests/runner/, enabling forge-model tests."
+                skip_build_and_test=false
+                only_run_forge_models=true
+                break
+              fi
+            done
+          fi
+
         else
           skip_build_and_test=false
           run_pr_tests=true

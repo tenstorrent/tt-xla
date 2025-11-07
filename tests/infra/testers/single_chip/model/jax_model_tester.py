@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
 import os
 import shutil
 from typing import Any, Dict, Mapping, Optional, Sequence
@@ -89,9 +90,12 @@ class JaxModelTester(ModelTester):
 
         By default returns existing model parameters for the HF FlaxPreTrainedModel.
         """
+
         if isinstance(self._model, FlaxPreTrainedModel):
             assert hasattr(self._model, "params")
             return self._model.params
+        elif isinstance(self._model, nnx.Module):
+            return
 
         raise NotImplementedError("Subclasses must implement this method.")
 
@@ -109,7 +113,7 @@ class JaxModelTester(ModelTester):
         ), f"Forward method args or kwargs or both must be provided"
         assert hasattr(
             self._model, forward_method_name
-        ), f"Model does not have {forward_method_name} method provided."
+        ), f"Model does not have method {forward_method_name}"
 
         forward_pass_method = getattr(self._model, forward_method_name)
 
@@ -128,7 +132,9 @@ class JaxModelTester(ModelTester):
         By default returns input parameters and activations for the Flax linen models,
         and empty list for other type of models.
         """
-        if isinstance(self._model, linen.Module):
+        if isinstance(self._model, nnx.Module):
+            return [self._input_activations]
+        elif isinstance(self._model, linen.Module):
             return [self._input_parameters, self._input_activations]
 
         return []
@@ -144,9 +150,25 @@ class JaxModelTester(ModelTester):
         if isinstance(self._model, FlaxPreTrainedModel):
             kwargs = {
                 "params": self._input_parameters,
-                "train": False if self._run_mode == RunMode.INFERENCE else True,
                 **self._input_activations,
             }
+
+            # Only add 'deterministic' if the model accepts it
+            try:
+                sig = inspect.signature(self._model.__call__)
+                if "deterministic" in sig.parameters:
+                    # deterministic=True means inference (no dropout), deterministic=False means training
+                    kwargs["deterministic"] = (
+                        True if self._run_mode == RunMode.INFERENCE else False
+                    )
+                if "train" in sig.parameters:
+                    kwargs["train"] = (
+                        False if self._run_mode == RunMode.INFERENCE else True
+                    )
+            except:
+                pass
+        elif isinstance(self._model, nnx.Module):
+            pass
         else:
             kwargs = {"train": False if self._run_mode == RunMode.INFERENCE else True}
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
@@ -164,9 +186,15 @@ class JaxModelTester(ModelTester):
 
         By default no arguments are static.
         """
+        static_argnames = []
+        sig = inspect.signature(self._model.__call__)
+        if "train" in sig.parameters:
+            static_argnames.append("train")
+        if "deterministic" in sig.parameters:
+            static_argnames.append("deterministic")
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
-            return ["mutable", "train"]
-        return ["train"]
+            static_argnames.append("mutable")
+        return static_argnames
 
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> None:

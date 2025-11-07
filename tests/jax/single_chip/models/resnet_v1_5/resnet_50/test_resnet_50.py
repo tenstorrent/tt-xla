@@ -30,16 +30,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> ResNetTester:
-    return ResNetTester(
-        VARIANT_NAME,
-        comparison_config=ComparisonConfig(
-            pcc=PccConfig(required_pcc=0.985)
-        ),  # Blackhole only regression after uplift of metal https://github.com/tenstorrent/tt-xla/pull/1808
-    )
-
-
-@pytest.fixture
 def trace_tester(monkeypatch: MonkeyPatch) -> ResNetTester:
     # These need to be set before the tester is created
     monkeypatch.setenv("TT_RUNTIME_TRACE_REGION_SIZE", "10000000")
@@ -64,20 +54,6 @@ def training_tester() -> ResNetTester:
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.PASSED,
-)
-@pytest.mark.large
-def test_resnet_v1_5_50_inference(inference_tester: ResNetTester):
-    inference_tester.test()
-
-
-@pytest.mark.push
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
     model_group=ModelGroup.RED,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
@@ -91,7 +67,7 @@ def test_resnet_v1_5_50_inference_trace(
 
 
 @pytest.mark.push
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
@@ -103,8 +79,8 @@ def test_resnet_v1_5_50_inference_trace(
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.pad' "
-        "https://github.com/tenstorrent/tt-mlir/issues/5305"
+        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/4687"
     )
 )
 def test_resnet_v1_5_50_training(training_tester: ResNetTester):

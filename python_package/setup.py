@@ -37,6 +37,9 @@ class SetupConfig:
     ```
     """
 
+    # --- Dataclass fields ---
+    build_type: str = "release"
+
     # --- Necessary wheel properties ---
 
     @property
@@ -78,6 +81,58 @@ class SetupConfig:
 
         with readme.open() as f:
             return f.read()
+
+    @property
+    def description_with_versions(self) -> str:
+        """Generate description with version information."""
+        import re
+        import urllib.request
+        from datetime import datetime
+
+        # Extract tt-mlir SHA from third_party/CMakeLists.txt
+        cmake_file = REPO_DIR / "third_party" / "CMakeLists.txt"
+        with cmake_file.open() as f:
+            cmake_content = f.read()
+
+        mlir_match = re.search(r'set\(TT_MLIR_VERSION "([^"]+)"\)', cmake_content)
+        if not mlir_match:
+            raise RuntimeError(
+                "Failed to extract TT_MLIR_VERSION from third_party/CMakeLists.txt"
+            )
+        mlir_sha = mlir_match.group(1)
+
+        # Fetch tt-metal SHA from tt-mlir repo
+        tt_mlir_url = f"https://raw.githubusercontent.com/tenstorrent/tt-mlir/{mlir_sha}/third_party/CMakeLists.txt"
+        try:
+            with urllib.request.urlopen(tt_mlir_url) as response:
+                tt_mlir_content = response.read().decode("utf-8")
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to fetch tt-mlir CMakeLists.txt from {tt_mlir_url}: {e}"
+            )
+
+        metal_match = re.search(r'set\(TT_METAL_VERSION "([^"]+)"\)', tt_mlir_content)
+        if not metal_match:
+            raise RuntimeError(
+                "Failed to extract TT_METAL_VERSION from tt-mlir CMakeLists.txt"
+            )
+        metal_sha = metal_match.group(1)
+
+        # Get frontend SHA from current repo
+        try:
+            commit = (
+                subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO_DIR)
+                .decode("ascii")
+                .strip()
+            )
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Failed to get frontend SHA: {e}")
+
+        # Get build date
+        build_date = datetime.now().strftime("%Y-%m-%d")
+
+        # Format the description
+        return f"commit={commit}, tt-mlir-commit={mlir_sha}, tt-metal-commit={metal_sha}, built-date={build_date}, build-type={self.build_type}"
 
     # --- Properties of wheel bundle ---
 
@@ -123,8 +178,6 @@ class SetupConfig:
 
         return json.dumps(result, indent=4)
 
-    code_coverage: bool = False
-
 
 # Instantiate config.
 config = SetupConfig()
@@ -141,21 +194,35 @@ class BdistWheel(bdist_wheel):
     """
 
     user_options = bdist_wheel.user_options + [
-        ("code-coverage", None, "Enable code coverage for the build")
+        ("build-type=", None, "Build type: release, codecov, or debug")
     ]
 
     def initialize_options(self):
         super().initialize_options()
-        self.code_coverage = False  # Default value for code coverage
+        # Default build type is release
+        self.build_type = "release"
 
     def finalize_options(self):
-        if self.code_coverage is None:
-            self.code_coverage = False
+        build_types = ["release", "codecov", "debug"]
+        if self.build_type not in build_types:
+            raise ValueError(
+                f"Invalid build type: {self.build_type}. Valid options are: {', '.join(build_types)}"
+            )
 
-        config.code_coverage = self.code_coverage
+        config.build_type = self.build_type
 
         bdist_wheel.finalize_options(self)
         self.root_is_pure = False
+
+    def run(self):
+        # Update the description with version info after options are finalized (e.g. self.build_type)
+        from setuptools.dist import Distribution
+
+        dist = self.distribution
+        dist.metadata.description = config.description_with_versions
+
+        # Call the parent run method
+        bdist_wheel.run(self)
 
     def get_tag(self):
         python, abi, plat = bdist_wheel.get_tag(self)
@@ -201,7 +268,7 @@ class CMakeBuildPy(build_py):
 
         code_coverage = "OFF"
 
-        if config.code_coverage:
+        if config.build_type == "codecov":
             code_coverage = "ON"
 
         cmake_args = [
@@ -237,7 +304,7 @@ class CMakeBuildPy(build_py):
 setup(
     author="tt-xla team",
     author_email="tt-xla@tenstorrent.com",
-    description="Tenstorrent PJRT plugin",
+    description=config.description_with_versions,
     classifiers=[
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3",

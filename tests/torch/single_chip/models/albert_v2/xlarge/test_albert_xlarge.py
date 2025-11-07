@@ -11,7 +11,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
 )
 
 from third_party.tt_forge_models.albert.masked_lm.pytorch import ModelVariant
@@ -52,13 +51,7 @@ def training_tester() -> AlbertV2Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
-        "https://github.com/tenstorrent/tt-xla/issues/735"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_torch_albert_v2_xlarge_inference(inference_tester: AlbertV2Tester):
     inference_tester.test()

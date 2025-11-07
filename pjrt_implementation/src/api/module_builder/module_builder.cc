@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <cassert>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -74,6 +75,14 @@
 namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
+
+// Helper function to get current timestamp in milliseconds.
+static std::string getCurrentTimeStamp() {
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch())
+                .count();
+  return std::to_string(ms);
+}
 
 // TTAlchemistHandler implementation
 
@@ -852,7 +861,12 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
   // Run the pass manager.
-  if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
+  mlir::LogicalResult mlir_result = ttir_to_ttnn_pm.run(mlir_module.get());
+
+  // Close the optimizer submesh now that the compilation is complete.
+  client_instance->closeOptimizerSubmesh();
+
+  if (mlir::failed(mlir_result)) {
     DLOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
     return tt_pjrt_status::kInternal;
   }
@@ -974,7 +988,7 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       std::filesystem::path(export_path.value()) / "irs";
   std::filesystem::create_directories(ir_dump_dir);
 
-  std::string filename = stage_name + ".mlir";
+  std::string filename = stage_name + "_" + getCurrentTimeStamp() + ".mlir";
   std::filesystem::path ir_file_path = ir_dump_dir / filename;
 
   std::error_code err_code;
@@ -1065,6 +1079,13 @@ ModuleBuilder::buildModuleForTTNNRuntime(
                                                  output_shardings, flatbuffer);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
+  }
+
+  if (compile_options.export_path.has_value()) {
+    std::string filename = "fb_" + getCurrentTimeStamp() + ".ttnn";
+    std::filesystem::path output_path =
+        std::filesystem::path(compile_options.export_path.value()) / filename;
+    flatbuffer.store(output_path.string().c_str());
   }
 
   auto executable_image = FlatbufferExecutableImage::createInstance(

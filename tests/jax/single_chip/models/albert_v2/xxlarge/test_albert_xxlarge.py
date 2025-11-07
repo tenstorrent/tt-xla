@@ -25,11 +25,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> AlbertV2Tester:
-    return AlbertV2Tester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> AlbertV2Tester:
     return AlbertV2Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
@@ -37,25 +32,7 @@ def training_tester() -> AlbertV2Tester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.9695068001747131. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
-def test_flax_albert_v2_xxlarge_inference(inference_tester: AlbertV2Tester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

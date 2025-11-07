@@ -11,7 +11,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
 )
 
 from third_party.tt_forge_models.falcon.pytorch.loader import ModelVariant
@@ -52,13 +51,7 @@ def training_tester() -> FalconTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: Failed to legalize operation 'stablehlo.reduce_window' "
-        "https://github.com/tenstorrent/tt-xla/issues/783"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_torch_falcon_inference(inference_tester: FalconTester):
     inference_tester.test()

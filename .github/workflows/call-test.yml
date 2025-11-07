@@ -49,6 +49,7 @@ env:
   IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
+  TT_XLA_CI: 1
 
 jobs:
   generate-matrix-test:
@@ -221,8 +222,10 @@ jobs:
       run: |
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
+        # NOTE: Forked not used for multichip machines until https://github.com/tenstorrent/tt-xla/issues/1824
+        # is fixed. This is accomplished by specifically excluding run_forge_models_multichip from the list here.
         PYTEST_FORKED=""
-        for n in run_torch run_large_jax_models run_forge_models_torch run_jax_training run_large_jax_training; do
+        for n in run_torch run_large_jax_models run_forge_models run_jax_training run_large_jax_training; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
             PYTEST_FORKED="--forked"; break
           fi
@@ -237,7 +240,7 @@ jobs:
 
         # Pass arch to forge models tests to resolve arch_overrides in test_config files.
         ARCH=""
-        if [[ "${{ matrix.build.name }}" == 'run_forge_models_torch' || "${{ matrix.build.name }}" == 'run_forge_models_torch_multichip' ]]; then
+        if [[ "${{ matrix.build.name }}" == 'run_forge_models' || "${{ matrix.build.name }}" == 'run_forge_models_multichip' ]]; then
           ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
         fi
 
@@ -265,7 +268,7 @@ jobs:
         echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
-      if: ${{ matrix.build.name == 'run_forge_models_torch' || matrix.build.name == 'run_forge_models_torch_multichip' }}
+      if: ${{ matrix.build.name == 'run_forge_models' || matrix.build.name == 'run_forge_models_multichip' }}
       shell: bash
       run: |
         apt-get update
@@ -274,11 +277,12 @@ jobs:
     # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
     # but still run tests even in case of failure here, will still treat overall job as failed.
     - name: Validate Forge Models Tests test config file
-      if: ${{ (matrix.build.name == 'run_forge_models_torch' || matrix.build.name == 'run_forge_models_torch_multichip') && strategy.job-index == 0 }}
+      if: ${{ (matrix.build.name == 'run_forge_models' || matrix.build.name == 'run_forge_models_multichip') && strategy.job-index == 0 }}
       shell: bash
       run: |
         source venv/activate
-        python -m pytest -vv tests/runner/test_models.py::test_all_models --validate-test-config
+        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_torch --validate-test-config
+        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_jax --validate-test-config
 
     - name: Collect Tests
       id: collect-tests

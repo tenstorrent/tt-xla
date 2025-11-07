@@ -17,13 +17,7 @@ from ..tester import WhisperTester
 VARIANT_NAME = ModelVariant.LARGE_V3
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
-
 # ----- Fixtures -----
-
-
-@pytest.fixture
-def inference_tester() -> WhisperTester:
-    return WhisperTester(VARIANT_NAME)
 
 
 @pytest.fixture
@@ -34,14 +28,6 @@ def training_tester() -> WhisperTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_FE_COMPILATION,
-)
 @pytest.mark.xfail(
     reason=failed_fe_compilation(
         "NotImplementedError: Could not run 'torchcodec_ns::create_from_tensor'"
@@ -49,11 +35,7 @@ def training_tester() -> WhisperTester:
     )
 )
 @pytest.mark.large
-def test_whisper_large_v3_inference(inference_tester: WhisperTester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

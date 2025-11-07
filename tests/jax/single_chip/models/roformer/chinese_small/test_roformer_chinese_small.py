@@ -18,11 +18,6 @@ MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> RoFormerTester:
-    return RoFormerTester(VARIANT_NAME)
-
-
-@pytest.fixture
 def training_tester() -> RoFormerTester:
     return RoFormerTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
@@ -30,19 +25,7 @@ def training_tester() -> RoFormerTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_roformer_chinese_small_inference(inference_tester: RoFormerTester):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

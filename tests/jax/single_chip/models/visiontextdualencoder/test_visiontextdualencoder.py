@@ -29,11 +29,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def inference_tester() -> VisionTextDualEncoderTester:
-    return VisionTextDualEncoderTester(VARIANT)
-
-
-@pytest.fixture
 def training_tester() -> VisionTextDualEncoderTester:
     return VisionTextDualEncoderTester(VARIANT, run_mode=RunMode.TRAINING)
 
@@ -41,27 +36,7 @@ def training_tester() -> VisionTextDualEncoderTester:
 # ----- Tests -----
 
 
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.INFERENCE,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Atol comparison failed. Calculated: pcc=nan. Required: pcc=0.99. "
-        "https://github.com/tenstorrent/tt-xla/issues/379"
-    )
-)
-def test_vision_text_dual_encoder_inference(
-    inference_tester: VisionTextDualEncoderTester,
-):
-    inference_tester.test()
-
-
-@pytest.mark.training
+@pytest.mark.test_forge_models_training
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
