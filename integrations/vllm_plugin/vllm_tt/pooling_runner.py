@@ -237,6 +237,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.speculative_config = vllm_config.speculative_config
         self.observability_config = vllm_config.observability_config
         self.device_config = vllm_config.device_config
+        self.batch_size = self.tt_config.batch_size
+        assert (
+            self.batch_size > 0
+        ), f"Positive batch_size allowed, received: batch_size: {self.batch_size}"
+        assert not (
+            self.batch_size > 1
+            and self.batch_size != self.scheduler_config.max_num_seqs
+        ), f"batch_size ({self.batch_size}) must equal max_num_seqs ({self.scheduler_config.max_num_seqs}) when batch_size > 1"
 
         model_config = self.model_config
         cache_config = self.cache_config
@@ -280,12 +288,29 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.most_model_len is not None
             else None
         )
+
         # InputBatch needs to work with sampling tensors greater than padding
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
+
+        # Determine the maximum allowed token size for padding:
+        # - If batch_size == 1, all inputs are concatenated into a single
+        #   sequence of shape [1 x total_input_length], so we use
+        #   scheduler_config.max_num_batched_tokens to cap the total combined length.
+        # - Otherwise, inputs are batched separately with shape [batch_size x single_input_length],
+        #   so we use self.max_model_len to cap each individual input.
+
+        # [TODO] (mmanzoor) Check if scheduler_config.max_num_batched_tokens can
+        # be replaced with self.max_num_reqs * self.max_model_len. This will
+        # reduce number of precompilation steps/graphs.
+        max_token_size = (
+            scheduler_config.max_num_batched_tokens
+            if self.batch_size == 1
+            else self.max_model_len
+        )
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
-            max_token_size=scheduler_config.max_num_batched_tokens,
+            max_token_size=max_token_size,
             padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
         )
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
@@ -353,11 +378,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # The pytorch tensor and numpy array share the same buffer.
         # Sometimes the numpy op is faster so we create both.
         self.input_ids_cpu = torch.zeros(
-            self.max_num_tokens, dtype=torch.int32, device="cpu"
+            (self.batch_size, self.max_num_tokens), dtype=torch.int32, device="cpu"
         )
 
         self.positions_cpu = torch.zeros(
-            self.max_num_tokens, dtype=torch.int32, device="cpu"
+            (self.batch_size, self.max_num_tokens), dtype=torch.int32, device="cpu"
         )
         self.positions_np = self.positions_cpu.numpy()
         # adjust num_reqs to avoid SMEM OOM.
@@ -720,43 +745,109 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         num_reqs = len(num_scheduled_tokens_per_req)
 
-        # Get request indices.
-        # E.g., [2, 5, 3] -> [0, 0, 1, 1, 1, 1, 1, 2, 2, 2]
-        # For each scheduled token, what are the corresponding req index.
-        req_indices = np.repeat(self.arange_np[:num_reqs], num_scheduled_tokens_per_req)
-
-        # Get batched arange.
-        # E.g., [2, 5, 3] -> [0, 1, 0, 1, 2, 3, 4, 0, 1, 2]
-        # For each scheduled token, what is its position in corresponding req.
-        arange = np.concatenate(
-            [self.arange_np[:n] for n in num_scheduled_tokens_per_req]
+        num_scheduled_tokens_padding = (
+            max_num_scheduled_tokens_all_reqs
+            if self.batch_size > 1
+            else total_num_scheduled_tokens
         )
 
-        # Get positions.
-        positions_np = self.positions_np[:total_num_scheduled_tokens]
-        np.add(
-            self.input_batch.num_computed_tokens_cpu[req_indices],
-            arange,
-            out=positions_np,
+        # Compute the required padded length.
+        padded_total_num_scheduled_tokens = _get_padded_token_len(
+            self.num_tokens_paddings, num_scheduled_tokens_padding
         )
 
-        # Get token indices.
-        # E.g., [0, 1, 0, 1, 2, 3, 4, 0, 1, 2]
-        # -> [0, 1, M, M + 1, M + 2, M + 3, M + 4, 2 * M, 2 * M + 1, 2 * M + 2]
-        # where M is the max_model_len.
-        token_indices = (
-            positions_np + req_indices * self.input_batch.token_ids_cpu.shape[1]
-        )
+        if self.batch_size == 1:
+            # Get request indices.
+            # E.g., [2, 5, 3] -> [[0, 0, 1, 1, 1, 1, 1, 2, 2, 2]]
+            # For each scheduled token, what are the corresponding req index.
+            req_indices = np.repeat(
+                self.arange_np[:num_reqs], num_scheduled_tokens_per_req
+            )[None, :]
 
-        # NOTE(woosuk): We use torch.index_select instead of np.take here
-        # because torch.index_select is much faster than np.take for large
-        # tensors.
-        torch.index_select(
-            self.input_batch.token_ids_cpu_tensor.flatten(),
-            0,
-            torch.from_numpy(token_indices),
-            out=self.input_ids_cpu[:total_num_scheduled_tokens],
-        )
+            # Get batched arange.
+            # E.g., [2, 5, 3] -> [[0, 1, 0, 1, 2, 3, 4, 0, 1, 2]]
+            # For each scheduled token, what is its position in corresponding req.
+            arange = np.concatenate(
+                [self.arange_np[:n] for n in num_scheduled_tokens_per_req]
+            )[None, :]
+
+            # Get positions.
+            positions_np = self.positions_np[
+                : self.batch_size, :total_num_scheduled_tokens
+            ]
+            np.add(
+                self.input_batch.num_computed_tokens_cpu[req_indices],
+                arange,
+                out=positions_np,
+            )
+            # Get token indices.
+            # E.g., [[0, 1, 0, 1, 2, 3, 4, 0, 1, 2]]
+            # -> [[0, 1, M, M + 1, M + 2, M + 3, M + 4, 2 * M, 2 * M + 1, 2 * M + 2]]
+            # where M is the max_model_len.
+            # Fused Inputs
+            token_indices = (
+                positions_np + req_indices * self.input_batch.token_ids_cpu.shape[1]
+            )
+
+            # NOTE(woosuk): We use torch.index_select instead of np.take here
+            # because torch.index_select is much faster than np.take for large
+            # tensors.
+            # Fused inputs
+            torch.index_select(
+                self.input_batch.token_ids_cpu_tensor.flatten(),
+                0,
+                torch.from_numpy(token_indices[0]),
+                out=self.input_ids_cpu[0, :total_num_scheduled_tokens],
+            )
+
+            # Zero out to avoid spurious values from prev iteration (last cp chunk)
+            self.input_ids_cpu[
+                total_num_scheduled_tokens:padded_total_num_scheduled_tokens
+            ] = 0
+            self.input_ids = self.input_ids_cpu[
+                :, :padded_total_num_scheduled_tokens
+            ].to(self.device)
+            self.position_ids = self.positions_cpu[
+                :, :padded_total_num_scheduled_tokens
+            ].to(self.device)
+        else:
+            # Create zero tensor of shape [num_reqs x max_token_len] for position tensor.
+            arange = np.zeros(
+                (num_reqs, max_num_scheduled_tokens_all_reqs), dtype=np.int32
+            )
+
+            # Get batched arange; padded with zero.
+            # E.g., [2, 5, 3] -> [[0, 1, 0, 0, 0],
+            #                     [0, 1, 2, 3, 4],
+            #                     [0, 1, 2, 0, 0]]
+            # For each scheduled token, what is its position in corresponding req.
+            for i, n in enumerate(num_scheduled_tokens_per_req):
+                arange[i, :n] = np.arange(n, dtype=np.int32)
+            arange = torch.from_numpy(arange)
+
+            self.input_ids_cpu = self.input_batch.token_ids_cpu_tensor[
+                :, :max_num_scheduled_tokens_all_reqs
+            ]
+
+            # Remove additional rows/request if received inputs are less than batch_size.
+            if num_reqs < self.batch_size:
+                self.input_ids_cpu = self.input_ids_cpu[:num_reqs, :]
+
+            # Apply padding.
+            if padded_total_num_scheduled_tokens > 0:
+                pad_len = (
+                    padded_total_num_scheduled_tokens
+                    - max_num_scheduled_tokens_all_reqs
+                )
+                padding = torch.zeros(
+                    (self.input_ids_cpu.shape[0], pad_len),
+                    dtype=self.input_ids_cpu.dtype,
+                )
+                self.input_ids_cpu = torch.cat([self.input_ids_cpu, padding], dim=1)
+                arange = torch.cat([arange, padding], dim=1)
+
+            self.input_ids = self.input_ids_cpu.to(self.device)
+            self.position_ids = arange.to(self.device)
 
         # Prepare the attention metadata.
         self.query_start_loc_np[0] = 0
@@ -770,20 +861,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             + num_scheduled_tokens_per_req
         )
 
-        # Do the padding and copy the tensors to the TPU.
-        padded_total_num_scheduled_tokens = _get_padded_token_len(
-            self.num_tokens_paddings, total_num_scheduled_tokens
-        )
-        # Zero out to avoid spurious values from prev iteration (last cp chunk)
-        self.input_ids_cpu[
-            total_num_scheduled_tokens:padded_total_num_scheduled_tokens
-        ] = 0
-        self.input_ids = self.input_ids_cpu[:padded_total_num_scheduled_tokens].to(
-            self.device
-        )
-        self.position_ids = self.positions_cpu[:padded_total_num_scheduled_tokens].to(
-            self.device
-        )
         if use_max_model_len:
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_max_model_len + 1
@@ -806,12 +883,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        # Default options: only valid for single input per batch.
+        # Default Configurations: valid for single input per batch.
         attn_mask = None
         is_causal = True
 
-        # Use custom mask if number of request per batch can exceed one.
-        if self.max_num_reqs > 1:
+        # Use custom mask if number of request per batch can exceed one; only
+        # supported for batch-1.
+        if self.batch_size == 1 and self.max_num_reqs > 1:
             attn_mask = generate_attn_mask(
                 seq_lens,
                 self.input_ids.shape[-1],
@@ -1038,14 +1116,27 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
                 hidden_states = hidden_states.to("cpu")
 
-            # Select states according to indices
-            hidden_states = hidden_states[:num_scheduled_tokens]
+            # Split along batch dimension and remove the extra dimension
+            hidden_states_list = [
+                t.squeeze(0) for t in torch.split(hidden_states, 1, dim=0)
+            ]
+
+            if self.batch_size > 1:
+                # Truncate each tensor according to number of input tokens per request.
+                hidden_states_list = [
+                    hidden_states_list[i][: num_scheduled_tokens_per_req[i]]
+                    for i in range(len(hidden_states_list))
+                ]
+            else:
+                # Truncate the output according to total lenght of fused input(s).
+                hidden_states_list = hidden_states_list[0][:num_scheduled_tokens]
+
             # Pooling
             if hasattr(self.model, "pooler") and callable(
                 getattr(self.model, "pooler")
             ):
                 pooling_metadata = self.input_batch.pooling_metadata
-                pooler_batch = self.model.pooler(hidden_states, pooling_metadata)
+                pooler_batch = self.model.pooler(hidden_states_list, pooling_metadata)
             else:
                 # fallback: use the last token’s hidden state
                 pooler_batch = hidden_states[:, -1, :]
@@ -1133,7 +1224,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         vllm_config=self.vllm_config, model_config=self.model_config
                     )
 
-                model = model.to("xla")
+                model = model.to(self.device)
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -1178,17 +1269,22 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (num_tokens, self.hidden_size), dtype=self.dtype, device=self.device
             )
         else:
-            input_ids = torch.zeros((num_tokens), dtype=torch.int32).to(self.device)
+            input_ids = torch.zeros(
+                (self.batch_size, num_tokens), dtype=torch.int32
+            ).to(self.device)
             inputs_embeds = None
-        position_ids = torch.zeros(num_tokens, dtype=torch.int32).to(self.device)
+        position_ids = torch.zeros((self.batch_size, num_tokens), dtype=torch.int32).to(
+            self.device
+        )
         context_lens = torch.ones((num_reqs,), dtype=torch.int32)
 
-        # Default options: only valid for single input per batch.
+        # Default Configurations: valid for single input per batch.
         attn_mask = None
         is_causal = True
 
-        # Use custom mask if number of request per batch can exceed one.
-        if self.max_num_reqs > 1:
+        # Use custom mask if number of request per batch can exceed one; only
+        # supported for batch-1.
+        if self.batch_size == 1 and self.max_num_reqs > 1:
             attn_mask = generate_attn_mask(
                 context_lens,
                 input_ids.shape[-1],
