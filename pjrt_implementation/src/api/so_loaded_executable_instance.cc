@@ -6,8 +6,8 @@
 #include "api/so_loaded_executable_instance.h"
 
 // c++ standard library includes
-#include <algorithm>
 #include <mutex>
+#include <numeric>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -113,7 +113,8 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     dumpInputs(input_tensors);
   }
 
-  // SO execution is not yet implemented - create default output buffers
+  // TODO: Implement SO execution. For now, we create default output buffers.
+  // https://github.com/tenstorrent/tt-xla/issues/2038
   createDefaultOutputBuffers(args->output_lists, args->num_devices);
 
   if (args->device_complete_events) {
@@ -137,11 +138,8 @@ void SOLoadedExecutableInstance::createDefaultOutputBuffers(
 
   for (size_t device_index = 0; device_index < num_devices; ++device_index) {
     for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
-      // Get output shape from executable image
       std::vector<std::uint32_t> output_shape =
           m_executable_image->getOutputShape(output_index);
-
-      // Get output data type
       PJRT_Buffer_Type output_type =
           m_executable_image->getOutputTypes()[output_index];
       ::tt::target::DataType runtime_data_type =
@@ -149,22 +147,17 @@ void SOLoadedExecutableInstance::createDefaultOutputBuffers(
       std::uint32_t element_size =
           tt::runtime::utils::dataTypeElementSize(runtime_data_type);
 
-      // Calculate strides for row-major layout
-      std::vector<std::uint32_t> strides;
-      strides.reserve(output_shape.size());
-      std::uint32_t stride = 1;
-      for (int i = output_shape.size() - 1; i >= 0; --i) {
-        strides.push_back(stride);
-        stride *= output_shape[i];
-      }
-      std::reverse(strides.begin(), strides.end());
+      // We create a row-major tensor. Last stride is 1, one before is the last
+      // dimension size, etc. That means the right algorithm is the exclusive
+      // right scan.
+      std::vector<std::uint32_t> strides(output_shape.size());
+      std::exclusive_scan(output_shape.rbegin(), output_shape.rend(),
+                          strides.rbegin(), std::uint32_t(1),
+                          std::multiplies<>());
 
-      // Create a default-initialized host tensor using createOwnedHostTensor
-      // Passing nullptr for data creates a zero-initialized tensor
       tt::runtime::Tensor host_tensor = tt::runtime::createOwnedHostTensor(
           nullptr, output_shape, strides, element_size, runtime_data_type);
 
-      // Create output buffer instance
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
               host_tensor, std::move(output_shape),
@@ -231,7 +224,6 @@ SOLoadedExecutableInstance::prepareInputTensor(
   return laid_out_tensor;
 }
 
-// See comment in the header file.
 tt::runtime::Tensor SOLoadedExecutableInstance::convertTensorLayout(
     tt::runtime::Tensor input_tensor, std::uint32_t program_index,
     size_t arg_index, const tt::runtime::Device &runtime_device) {
