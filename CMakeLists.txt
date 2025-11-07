@@ -43,6 +43,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
 option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" OFF)
+option(TTMLIR_BUILD_TYPE "Build type for tt-mlir" Release)
 option(TTXLA_ENABLE_EXPLORER "Enable Explorer feature in tt-mlir" OFF)
 
 if(TTXLA_ENABLE_EXPLORER)
