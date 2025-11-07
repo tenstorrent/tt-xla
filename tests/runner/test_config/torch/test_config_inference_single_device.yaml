@@ -518,9 +518,7 @@ test_config:
     status: EXPECTED_PASSING
 
   roberta/masked_lm/pytorch-xlm_base-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "failed to legalize operation 'ttir.gather' that was explicitly marked illegal - https://github.com/tenstorrent/tt-xla/issues/1884"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: EXPECTED_PASSING
 
   mamba/pytorch-mamba-2.8b-hf-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -603,9 +601,7 @@ test_config:
     status: EXPECTED_PASSING
 
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "failed to legalize operation 'ttir.gather' that was explicitly marked illegal - https://github.com/tenstorrent/tt-xla/issues/1884"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: EXPECTED_PASSING
 
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2155,9 +2151,9 @@ test_config:
 
   transfuser/pytorch-single_device-full-inference:
     assert_pcc: false
-    status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "failed to legalize operation 'ttir.gather' that was explicitly marked illegal - https://github.com/tenstorrent/tt-xla/issues/1884"
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT
+    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=-0.7153554558753967. Required: pcc=0.99."
 
   yolov11/pytorch-yolo11n-single_device-full-inference:
     status: EXPECTED_PASSING
