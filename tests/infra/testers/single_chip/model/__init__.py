@@ -10,5 +10,5 @@ from tests.runner.utils import (
 )
 
 from .jax_model_tester import JaxModelTester
-from .model_tester import RunMode
+from .model_tester import RunMode, ExecutionGranularity
 from .torch_model_tester import TorchModelTester

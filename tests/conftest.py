@@ -40,6 +40,7 @@ def pytest_configure(config: pytest.Config):
             - 'model_group': utils.ModelGroup
             - `model_info`: third_party.tt_forge_models.config.ModelInfo
             - `run_mode`: infra.RunMode
+            - `execution_granularity`: infra.ExecutionGranularity
             - `parallelism`: third_party.tt_forge_models.config.Parallelism
             - `bringup_status`: utils.BringupStatus
             - `pcc`: float
@@ -80,6 +81,7 @@ def pytest_collection_modifyitems(items):
             "model_group",
             "model_info",
             "run_mode",
+            "execution_granularity",
             "parallelism",
             "bringup_status",
             "execution_pass",

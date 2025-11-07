@@ -24,6 +24,13 @@ class RunMode(Enum):
     def __str__(self) -> str:
         return self.value
 
+class ExecutionGranularity(Enum):
+    FULL = "full"
+    OP_BY_OP = "op_by_op"
+
+    def __str__(self) -> str:
+        return self.value
+
 
 class ModelTester(BaseTester, ABC):
     """Abstract base class all single chip model testers must inherit."""

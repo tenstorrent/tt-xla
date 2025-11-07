@@ -19,7 +19,7 @@ from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .model_tester import ModelTester, RunMode
+from .model_tester import ModelTester, RunMode, ExecutionGranularity
 
 
 class JaxModelTester(ModelTester):

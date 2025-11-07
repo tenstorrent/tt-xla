@@ -4,7 +4,7 @@
 import os
 
 import pytest
-from infra import RunMode
+from infra import RunMode, ExecutionGranularity
 from infra.testers.single_chip.model import (
     DynamicLoader,
     JaxDynamicLoader,

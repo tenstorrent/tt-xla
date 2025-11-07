@@ -18,7 +18,7 @@ from tests.infra.comparators.comparator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.config import Parallelism
 
-from .model_tester import ModelTester, RunMode
+from .model_tester import ModelTester, RunMode, ExecutionGranularity
 
 
 class TorchModelTester(ModelTester):

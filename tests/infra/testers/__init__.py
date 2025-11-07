@@ -12,6 +12,7 @@ from .multichip import (
 from .single_chip import (
     JaxModelTester,
     RunMode,
+    ExecutionGranularity,
     TorchModelTester,
     run_graph_test,
     run_graph_test_with_random_inputs,
