@@ -112,6 +112,12 @@ class ComponentChecker(Enum):
                         M.last_line(
                             M.contains("infra/runners/torch_device_runner.py:")
                         ),
+                        M.last_line(M.contains("infra/comparators/comparator.py:")),
+                        M.last_line(
+                            M.contains(
+                                "infra/testers/single_chip/model/torch_model_tester.py"
+                            )
+                        ),
                         M.last_line(
                             M.contains(
                                 "forge/test/operators/pytorch/indexing/test_index_copy.py"
@@ -134,12 +140,6 @@ class ComponentChecker(Enum):
                     M.any(
                         M.last_line(
                             M.contains("forge/test/operators/utils/verify.py:")
-                        ),
-                        M.last_line(M.contains("infra/comparators/comparator.py:")),
-                        M.last_line(
-                            M.contains(
-                                "infra/testers/single_chip/model/torch_model_tester.py"
-                            )
                         ),
                     ),
                 ],
@@ -309,7 +309,7 @@ class FailingReasons(Enum):
             # forge/infra/comparators/comparator.py:169: AssertionError
             ExceptionCheck(
                 class_name="AssertionError",
-                component=ComponentChecker.SWEEPS.value,
+                component=ComponentChecker.XLA.value,
                 message=[
                     M.starts_with("Comparison result 0 failed"),
                     M.contains("PCC comparison failed"),
@@ -341,7 +341,7 @@ class FailingReasons(Enum):
             # forge/infra/comparators/comparator.py:169: AssertionError')
             ExceptionCheck(
                 class_name="AssertionError",
-                component=ComponentChecker.SWEEPS.value,
+                component=ComponentChecker.XLA.value,
                 message=[
                     M.starts_with("Comparison result 0 failed"),
                     M.contains("PCC comparison failed"),
@@ -365,7 +365,7 @@ class FailingReasons(Enum):
             # forge/infra/comparators/comparator.py:169: AssertionError
             ExceptionCheck(
                 class_name="AssertionError",
-                component=ComponentChecker.SWEEPS.value,
+                component=ComponentChecker.XLA.value,
                 message=[
                     M.starts_with("Comparison result 0 failed"),
                     M.contains("Allclose comparison failed"),
@@ -1100,7 +1100,7 @@ class FailingReasons(Enum):
             # tests/infra/testers/single_chip/model/torch_model_tester.py:153: AttributeError
             ExceptionCheck(
                 class_name="AttributeError",
-                component=ComponentChecker.SWEEPS.value,
+                component=ComponentChecker.XLA.value,
                 message=[
                     M.equals(
                         "'CausalLMOutputWithPast' object has no attribute 'shape'"
@@ -1112,7 +1112,7 @@ class FailingReasons(Enum):
                     ),
                     M.last_line(
                         M.contains(
-                            "tests/infra/testers/single_chip/model/torch_model_tester.py:"
+                            "infra/testers/single_chip/model/torch_model_tester.py:"
                         )
                     ),
                 ],
