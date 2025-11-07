@@ -621,6 +621,53 @@ def paged_fill_cache_fake(
     return torch.zeros_like(cache)
 
 
+@torch.library.custom_op(
+    "tt::paged_scaled_dot_product_attention_decode",
+    mutates_args=[],
+    device_types=["xla"],
+)
+def paged_scaled_dot_product_attention_decode(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    page_table: torch.Tensor,
+    is_causal: bool = False,
+    attention_mask: torch.Tensor = None,
+    cur_pos_tensor: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
+    scale: float = 1.0,
+) -> torch.Tensor:
+    device = query.device
+    if device.type == "xla":
+        attrs = {
+            "has_attention_mask": "False",
+            "has_cur_pos_tensor": "False",
+            "has_attention_sink": "False",
+            "scale": str(scale),
+            "is_causal": str(is_causal),
+        }
+        inputs = [query, key, value, page_table]
+        if attention_mask is not None:
+            attrs["has_attention_mask"] = "True"
+            inputs.append(attention_mask)
+        if cur_pos_tensor is not None:
+            attrs["has_cur_pos_tensor"] = "True"
+            inputs.append(cur_pos_tensor)
+        if attention_sink is not None:
+            attrs["has_attention_sink"] = "True"
+            inputs.append(attention_sink)
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.paged_scaled_dot_product_attention_decode",
+            [query.shape],
+            [query.dtype],
+            frontend_attributes=attrs,
+        )
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 for attr in dir(torch.ops.tt):
