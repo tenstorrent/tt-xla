@@ -86,11 +86,11 @@ def test_embed_bge_m3_perf():
     - Tests sequence lengths: 128, 256, 512, 1024, 2048, 4096, 8192
     - Performs precompilation first, then measures actual inference latency
     """
-    max_seq_len = 2**9  # 8192 (BGE-M3 max context length)
+    max_seq_len = 2**13  # 8192 (BGE-M3 max context length)
     prompts_list = []
 
     i = 128
-    batch_size = 32
+    batch_size = 16
     while i <= max_seq_len:
         num_hellos = max(1, (i // 2 - 2))  # Hello is ~2 tokens for bge-m3
         prompts_list.append(
@@ -104,7 +104,7 @@ def test_embed_bge_m3_perf():
         "dtype": "bfloat16",
         "max_model_len": max_seq_len,
         "disable_sliding_window": True,
-        "max_num_batched_tokens": max_seq_len,
+        "max_num_batched_tokens": max_seq_len * batch_size,
         "max_num_seqs": batch_size,
         "enable_prefix_caching": False,
         "additional_config": {
@@ -123,7 +123,7 @@ def test_embed_bge_m3_perf():
         # Use vLLM's tokenizer to get actual token count
         token_ids = model.llm_engine.tokenizer.encode(prompt)
         actual_tokens = len(token_ids)
-        print(f"Target: {seq_len}, Actual: {actual_tokens}, Prompt: '{prompt[:50]}...'")
+        print(f"Target: {seq_len}, Actual: {actual_tokens}")
 
         # Optional: Assert that we're within reasonable bounds
         assert (
@@ -131,26 +131,22 @@ def test_embed_bge_m3_perf():
         ), f"Prompt too long: {actual_tokens} > {max_seq_len}"
 
     # Precompile pre/post processing graphs which are part of the actual user flow
-    for seq_len, prompts in prompts_list:
-        output_embedding = model.embed(prompts)
-        print(f"Finished precompile for seq_len: {seq_len}")
+    for i in range(5):
+        for seq_len, prompts in prompts_list:
+            output_embedding = model.embed(prompts)
+        print(f"Finished warm-up step {i + 1} of 5")
 
     perf_data = {}
 
-    while True:
-        user_resp = input("Press 'y' to run the test, 'q' to skip: ").strip().lower()
-        if user_resp == "q":
-            print("Test skipped by user.")
-            import sys
-            sys.exit(0)
-        # Benchmark E2E latency
-        for seq_len, prompts in prompts_list:
-            start_time = time.time()
-            output_embedding = model.embed(prompts)
-            end_time = time.time()
-            perf_data[seq_len] = end_time - start_time
-            print(f"seq_len: {seq_len}, time: {end_time - start_time}")
+    # Benchmark E2E latency
+    for seq_len, prompts in prompts_list:
+        print(f"Running test for seq_len: {seq_len}")
+        start_time = time.time()
+        output_embedding = model.embed(prompts, use_tqdm=False)
+        end_time = time.time()
+        print(f"Latency: {end_time - start_time}")
+        perf_data[seq_len] = end_time - start_time
 
-        print("Latency per sequence length:")
-        for seq_len, latency in perf_data.items():
-            print(f"seq_len: {seq_len}, latency: {latency:.2f}s")
+    print("Latency per sequence length:")
+    for seq_len, latency in perf_data.items():
+        print(f"seq_len: {seq_len}, latency: {latency:.2f}s")

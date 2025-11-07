@@ -97,7 +97,6 @@ class XLAExecutor:
     def __call__(self, *args):
 
         inputs_shapes = [arg.shape for arg in args]
-        print(f"Inputs shapes: {inputs_shapes}")
         if self.inject_metadata:
             # MetadataDispatchMode intercepts tensor operations via TorchDispatchMode and
             # attaches FX metadata (module hierarchy, file, line) to XLA tensors.

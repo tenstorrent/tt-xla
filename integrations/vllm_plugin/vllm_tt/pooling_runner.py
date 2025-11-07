@@ -298,16 +298,12 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         #   sequence of shape [1 x total_input_length], so we use
         #   scheduler_config.max_num_batched_tokens to cap the total combined length.
         # - Otherwise, inputs are batched separately with shape [batch_size x single_input_length],
-        #   so we use self.max_model_len to cap each individual input.
+        #   and we need to use scheduler_config.max_num_batched_tokens to cap the total
+        #   batched tokens across all sequences.
 
-        # [TODO] (mmanzoor) Check if scheduler_config.max_num_batched_tokens can
-        # be replaced with self.max_num_reqs * self.max_model_len. This will
-        # reduce number of precompilation steps/graphs.
-        max_token_size = (
-            scheduler_config.max_num_batched_tokens
-            if self.batch_size == 1
-            else self.max_model_len
-        )
+        # Always use max_num_batched_tokens as it represents the total token capacity
+        # across all sequences in the batch.
+        max_token_size = self.max_model_len
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
             max_token_size=max_token_size,
@@ -364,7 +360,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.input_batch = InputBatch(
             max_num_reqs=self.max_num_reqs,
             max_model_len=self.max_model_len,
-            max_num_batched_tokens=self.max_num_tokens,
+            max_num_batched_tokens=self.max_num_tokens * self.batch_size,
             device=self.device,
             pin_memory=self.pin_memory,
             vocab_size=self.model_config.get_vocab_size(),
