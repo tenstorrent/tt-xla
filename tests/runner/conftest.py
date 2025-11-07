@@ -36,15 +36,17 @@ def pytest_addoption(parser):
     )
 
 
-def pytest_runtest_setup(item):
-    """Open and truncate bringup stage file before each test to ensure a fresh start."""
+@pytest.fixture(autouse=True)
+def bringup_stage_file():
+    """Create and cleanup bringup stage file for each test when ENABLE_BRINGUP_STAGE_LOGGING=1."""
     if os.environ.get("ENABLE_BRINGUP_STAGE_LOGGING") == "1":
+        # Setup: Create/truncate file before test
         with open(_BRINGUP_STAGE_FILE, "w") as f:
             pass
 
+    yield
 
-def pytest_runtest_teardown(item, nextitem):
-    """Close/cleanup bringup stage file after each test."""
+    # Teardown: Remove file after test
     if os.environ.get("ENABLE_BRINGUP_STAGE_LOGGING") == "1" and os.path.exists(
         _BRINGUP_STAGE_FILE
     ):
