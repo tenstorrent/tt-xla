@@ -10,38 +10,20 @@ import vllm
 
 
 @pytest.mark.push
-@pytest.mark.parametrize(
-    "batch_size, max_num_seqs",
-    [
-        (1, 2),
-        (2, 2),
-        (4, 4),
-    ],
-)
-def test_embed_qwen3(batch_size, max_num_seqs):
+def test_embed_qwen3():
     """
     Test the Qwen3-Embedding-4B model's embedding outputs for correctness
     under different batching and padding scenarios.
 
     Test Setup:
     - Input consists of four prompts with token lengths [32, 15, 29, 7].
-    - vLLM process one input in first iteration and one or more inputs in
-      subsequent iteration(s) depending on engine configs.
-    Case 1 (batch_size=1, max_num_seqs=2):
-    - Inputs will be processed in three iterations:
+    - vLLM is configured with max_num_seqs=2, meaning each batch can contain
+      up to 2 sequences and vLLM always process single prompt in first batch.
+    - This results in three batches:
         1. First batch: first prompt (32 tokens) → no padding required.
         2. Second batch: second and third prompts concatenated (15 + 29 = 44
            tokens), padded to max_model_len=64.
         3. Third batch: fourth prompt (7 tokens), padded to max_model_len=32.
-    Case 2 (batch_size=2, max_num_seqs=2):
-    - Inputs will be processed in three iterations:
-        1. First batch: first prompt (32 tokens) → no padding required.
-        2. Second batch: second and third prompts stacked as [2 x padded_tokens].
-        3. Third batch: fourth prompt (7 tokens) as [1 x padded_tokens].
-    Case 3 (batch_size=4, max_num_seqs=4):
-    - Inputs will be processed in two iterations:
-        1. First batch: first prompt (32 tokens) → no padding required.
-        2. Second batch: remaining three prompts stacked as [3 x padded_tokens].
 
     Purpose:
     - Validates that the model produces embeddings consistent with precomputed
@@ -66,11 +48,7 @@ def test_embed_qwen3(batch_size, max_num_seqs):
         "max_model_len": 64,
         "disable_sliding_window": True,
         "max_num_batched_tokens": 64,
-        "max_num_seqs": max_num_seqs,
-        "additional_config": {
-            "enable_const_eval": False,
-            "batch_size": batch_size,
-        },
+        "max_num_seqs": 2,
     }
     model = vllm.LLM(**llm_args)
 
@@ -221,3 +199,63 @@ def test_embed_qwen3_16K():
 
     output_embedding = model.embed(prompt)
     print(f"Finished precompile for seq_len: {seq_len}")
+
+
+@pytest.mark.parametrize(
+    "batch_size, max_num_seqs, max_num_batched_tokens",
+    [
+        (2, 2, 64),
+        (4, 4, 128),
+    ],
+)
+def test_embed_qwen3_multi_batch(batch_size, max_num_seqs, max_num_batched_tokens):
+    """
+    Test multi-batched inputs. Runner will create inputs of shape [batch_size x input_len]
+    Note:
+      - max_model_len * max_num_seqs <= max_num_batched_tokens
+      - max_num_reqs == batch_size
+
+    If the number of request are less than batch_size then runner will adjust
+    the shape accordingly and may require to compile the graph for new shape.
+    """
+
+    prompts = [
+        "The quick-thinking engineer designed a compact neural processor that could adapt to changing data patterns in real time, optimizing energy use while maintaining exceptional computational accuracy as well.",
+        "Hello, my name is chatbot. How can I help you?",
+        "We build computers for AI. We design Graph Processors, high-performance RISC CPUs, and configurable chips that run our robust software stack.",
+        "The capital of France is Paris",
+    ]
+    llm_args = {
+        "model": "Qwen/Qwen3-Embedding-4B",
+        "task": "embed",
+        "dtype": "bfloat16",
+        "max_model_len": 32,
+        "disable_sliding_window": True,
+        "max_num_batched_tokens": max_num_batched_tokens,
+        "max_num_seqs": max_num_seqs,
+        "additional_config": {
+            "enable_const_eval": False,
+            "batch_size": batch_size,
+        },
+    }
+    model = vllm.LLM(**llm_args)
+
+    output_embedding = model.embed(prompts)
+
+    path = os.path.join(os.path.dirname(__file__), "qwen3_embedding_baseline.pt")
+    loaded_data = torch.load(path)
+
+    for idx, (prompt, output) in enumerate(zip(prompts, output_embedding)):
+        embeds = output.outputs.embedding
+        embeds_trimmed = (
+            (str(embeds[:32])[:-1] + ", ...]") if len(embeds) > 32 else embeds
+        )
+        print(f"Prompt: {prompt!r} \nEmbeddings: {embeds_trimmed} (size={len(embeds)})")
+
+        output_tensor = torch.tensor(embeds, dtype=torch.float32)
+        golden_tensor = loaded_data[f"prompt{idx}"]
+        pcc = torch.corrcoef(torch.stack([output_tensor, golden_tensor]))[0, 1]
+        print("PCC:", pcc.item())
+        assert pcc.item() > 0.99, f"PCC Error: Incorrect embedding for prompt{idx}"
+
+        print("-" * 60)
