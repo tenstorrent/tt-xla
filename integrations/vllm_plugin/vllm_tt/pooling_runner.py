@@ -1114,6 +1114,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     hidden_states_list[i][: num_scheduled_tokens_per_req[i]]
                     for i in range(len(hidden_states_list))
                 ]
+                # Concatenate for pooler compatibility
+                hidden_states_list = torch.cat(hidden_states_list, dim=0)
             else:
                 # Truncate the output according to total lenght of fused input(s).
                 hidden_states_list = hidden_states_list[0][:num_scheduled_tokens]
