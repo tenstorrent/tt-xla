@@ -315,7 +315,7 @@ def test_llama_concat_heads(variant, variant_config, seq_len):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_create_heads(variant, variant_config, seq_len):
+def test_llama_create_heads(variant, variant_config, seq_len, request):
     if str(variant) == "llama_3_1_405b" or str(variant) == "llama_3_1_405b_instruct":
         pytest.xfail("Variant doesn't fit on device")
     if "70b" in str(variant) and not is_llmbox(request):
@@ -1406,7 +1406,7 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, request):
                 shard_specs[args[4]] = (None, None, None, None)  # attention_mask
                 return shard_specs
 
-        else:
+        elif num_heads % 4 == 0:
             # Use 2x4 mesh when heads not divisible by 8
             batch_size = 2
             mesh_shape = (2, num_devices // 2)
@@ -1421,6 +1421,11 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, request):
                 shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
                 shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
                 return shard_specs
+
+        else:
+            pytest.skip(
+                "No suitable mesh configuration for the number of attention heads"
+            )
 
     else:
         batch_size = 1
