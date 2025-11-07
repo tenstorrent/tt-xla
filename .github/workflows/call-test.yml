@@ -308,6 +308,7 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        ENABLE_BRINGUP_STAGE_LOGGING: 1
       shell: bash
       run: |
         source venv/activate
