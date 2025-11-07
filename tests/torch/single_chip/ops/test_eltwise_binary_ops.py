@@ -14,6 +14,8 @@ def run_binary_ops(op):
     """
     input_x = torch.randn(32, 32, dtype=torch.bfloat16)
     input_y = torch.randn(32, 32, dtype=torch.bfloat16)
+    print("input_x:", input_x)
+    print("input_y:", input_y)
     run_op_test(op, [input_x, input_y], framework=Framework.TORCH)
 
 
@@ -386,8 +388,7 @@ def test_minimum():
 def test_fmax():
     class Fmax(torch.nn.Module):
         def forward(self, x, y):
-            return torch.fmax(x, y)
-
+            return torch.fmax(x@x@x@x, y@y@y@y)
     run_binary_ops(Fmax())
 
 

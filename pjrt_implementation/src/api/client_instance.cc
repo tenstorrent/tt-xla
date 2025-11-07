@@ -711,6 +711,9 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
                                                 args->num_dims, device_instance,
                                                 memory_instance);
 
+  DLOG_F(LOG_DEBUG, "BufferFromHostBuffer created BufferInstance with UID=%lu, shape=%s",
+         buffer->getUID(), buffer->toShapeStr().c_str());
+
   buffer->copyFromHost(
       args->data, args->type, args->dims, args->num_dims, args->byte_strides,
       args->num_byte_strides, args->host_buffer_semantics,

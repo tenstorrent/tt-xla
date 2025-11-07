@@ -48,6 +48,8 @@ class Comparator(ABC):
         If config.assert_on_failure=True (default), also asserts on failure.
         """
         # Pack args in an iterable to simulate a pytree.
+        print("device output:", device_out)
+        
         device_output, golden_output = self._match_data_types((device_out, golden_out))
         _comparison_result = ComparisonResult(
             passed=None,

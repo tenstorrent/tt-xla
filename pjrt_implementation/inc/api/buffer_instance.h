@@ -14,7 +14,6 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <thread>
 #include <vector>
 
 // PJRT C API includes
@@ -253,9 +252,6 @@ private:
 
   // Mutex guarding buffer data deletion.
   std::mutex m_data_deleted_mutex;
-
-  // Thread for copying data to host.
-  std::unique_ptr<std::thread> m_copy_to_host_thread;
 };
 
 namespace internal {
