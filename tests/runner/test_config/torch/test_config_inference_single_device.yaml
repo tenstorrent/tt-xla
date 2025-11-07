@@ -2341,3 +2341,9 @@ test_config:
 
   yolov12/pytorch-yolo12n-single_device-full-inference:
     status: EXPECTED_PASSING
+
+  ultra_fast_lane_detection/pytorch-tusimple_resnet18-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  ultra_fast_lane_detection/pytorch-culane_resnet18-single_device-full-inference:
+    status: EXPECTED_PASSING
