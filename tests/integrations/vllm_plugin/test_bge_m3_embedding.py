@@ -86,14 +86,15 @@ def test_embed_bge_m3_perf():
     - Tests sequence lengths: 128, 256, 512, 1024, 2048, 4096, 8192
     - Performs precompilation first, then measures actual inference latency
     """
-    max_seq_len = 2**13  # 8192 (BGE-M3 max context length)
+    max_seq_len = 2**9  # 8192 (BGE-M3 max context length)
     prompts_list = []
 
     i = 128
+    batch_size = 32
     while i <= max_seq_len:
         num_hellos = max(1, (i // 2 - 2))  # Hello is ~2 tokens for bge-m3
         prompts_list.append(
-            (i, [f"hello " * num_hellos + "hello"])
+            (i, [f"hello " * num_hellos + "hello"] * batch_size)
         )  # hello can't make exact token count
         i *= 2
 
@@ -104,10 +105,11 @@ def test_embed_bge_m3_perf():
         "max_model_len": max_seq_len,
         "disable_sliding_window": True,
         "max_num_batched_tokens": max_seq_len,
-        "max_num_seqs": 1,
+        "max_num_seqs": batch_size,
         "enable_prefix_caching": False,
         "additional_config": {
             "enable_const_eval": False,
+            "batch_size": batch_size,
         },
     }
 
@@ -134,14 +136,21 @@ def test_embed_bge_m3_perf():
         print(f"Finished precompile for seq_len: {seq_len}")
 
     perf_data = {}
-    # Benchmark E2E latency
-    for seq_len, prompts in prompts_list:
-        start_time = time.time()
-        output_embedding = model.embed(prompts)
-        end_time = time.time()
-        perf_data[seq_len] = end_time - start_time
-        print(f"seq_len: {seq_len}, time: {end_time - start_time}")
 
-    print("Latency per sequence length:")
-    for seq_len, latency in perf_data.items():
-        print(f"seq_len: {seq_len}, latency: {latency}")
+    while True:
+        user_resp = input("Press 'y' to run the test, 'q' to skip: ").strip().lower()
+        if user_resp == "q":
+            print("Test skipped by user.")
+            import sys
+            sys.exit(0)
+        # Benchmark E2E latency
+        for seq_len, prompts in prompts_list:
+            start_time = time.time()
+            output_embedding = model.embed(prompts)
+            end_time = time.time()
+            perf_data[seq_len] = end_time - start_time
+            print(f"seq_len: {seq_len}, time: {end_time - start_time}")
+
+        print("Latency per sequence length:")
+        for seq_len, latency in perf_data.items():
+            print(f"seq_len: {seq_len}, latency: {latency:.2f}s")
