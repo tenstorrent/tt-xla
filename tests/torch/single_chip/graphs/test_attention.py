@@ -315,7 +315,7 @@ def test_llama_concat_heads(variant, variant_config, seq_len):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_create_heads(variant, variant_config, seq_len):
+def test_llama_create_heads(variant, variant_config, seq_len, request):
     if str(variant) == "llama_3_1_405b" or str(variant) == "llama_3_1_405b_instruct":
         pytest.xfail("Variant doesn't fit on device")
     if "70b" in str(variant) and not is_llmbox(request):
