@@ -180,10 +180,10 @@ class FailingReasons(Enum):
         description="Unclassified error",
     )
 
-    # # # RuntimeError: Fatal Python error: Segmentation fault
-    # SEG_FAULT = FailingReason(
-    #     description="Inference failed due to seg fault",
-    # )
+    # # RuntimeError: Fatal Python error: Segmentation fault
+    SEG_FAULT = FailingReason(
+        description="Inference failed due to seg fault",
+    )
 
     # # RuntimeError: Fatal Python error: Aborted
     FATAL_ERROR = FailingReason(

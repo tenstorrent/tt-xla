@@ -183,9 +183,6 @@ def update_test_metadata_for_exception(
     # Find failing reason by raised exception
     failing_reason = FailingReasonsFinder.find_reason_by_exception(exc)
 
-    # Log detected failing reason
-    # logger.warning(f"Update metadata detected failing reason: {failing_reason.name} - {failing_reason.value.description} in component: {failing_reason.value.component_checker_description}")
-
     if isinstance(exc, AssertionError) and "comparison failed" in msg:
         status = BringupStatus.INCORRECT_RESULT
     elif isinstance(exc, RuntimeError):
@@ -279,8 +276,6 @@ def record_model_test_properties(
     static_reason = getattr(test_metadata, "reason", None)
     arch = getattr(test_metadata, "arch", None)
     failing_reason = getattr(test_metadata, "failing_reason", None)
-
-    # logger.warning(f"Tags detected failing reason: {failing_reason.name} - {failing_reason.value.description} in component: {failing_reason.value.component_checker_description}")
 
     if test_passed:
         # If custom bringup_status and reason are provided, use them.
