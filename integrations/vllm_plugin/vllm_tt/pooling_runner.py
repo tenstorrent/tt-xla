@@ -288,12 +288,29 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.most_model_len is not None
             else None
         )
+
         # InputBatch needs to work with sampling tensors greater than padding
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
+
+        # Determine the maximum allowed token size for padding:
+        # - If batch_size == 1, all inputs are concatenated into a single
+        #   sequence of shape [1 x total_input_length], so we use
+        #   scheduler_config.max_num_batched_tokens to cap the total combined length.
+        # - Otherwise, inputs are batched separately with shape [batch_size x single_input_length],
+        #   so we use self.max_model_len to cap each individual input.
+
+        # [TODO] (mmanzoor) Check if scheduler_config.max_num_batched_tokens can
+        # be replaced with self.max_num_reqs * self.max_model_len. This will
+        # reduce number of precompilation steps/graphs.
+        max_token_size = (
+            scheduler_config.max_num_batched_tokens
+            if self.batch_size == 1
+            else self.max_model_len
+        )
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
-            max_token_size=scheduler_config.max_num_batched_tokens,
+            max_token_size=max_token_size,
             padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
         )
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
