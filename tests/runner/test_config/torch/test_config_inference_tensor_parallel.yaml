@@ -122,9 +122,13 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-7b_instruct-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
+  # TODO (kmabee): Add back when DRAM leak between tests resolved - https://github.com/tenstorrent/tt-xla/issues/1940
+  #   status: EXPECTED_PASSING
+  #   bringup_status: INCORRECT_RESULT
+  #   assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "DRAM leak between tests prevents running this test - https://github.com/tenstorrent/tt-xla/issues/1940"
 
   qwen_2_5/causal_lm/pytorch-14b_instruct-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -148,6 +152,10 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
+    # TODO (kmabee): Add back when DRAM leak between tests resolved - https://github.com/tenstorrent/tt-xla/issues/1940
+    # status: EXPECTED_PASSING
+    # bringup_status: INCORRECT_RESULT
+    # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "DRAM leak between tests prevents running this test - https://github.com/tenstorrent/tt-xla/issues/1940"
