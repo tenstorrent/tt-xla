@@ -38,6 +38,81 @@ from torch.utils._python_dispatch import TorchDispatchMode
 UNKNOWN_LOCATION = "unknown/unknown(unknown:0)/"
 
 
+import ast
+
+def _find_enclosing_function(full_path: str, line_num: int, mode: str = 'simple') -> str:
+    """
+    Given a file path and a line number, returns the full path (with line number) of the enclosing function.
+    If not found or file cannot be opened, returns "unknown".
+
+    Args:
+        full_path: Path to the source file.
+        line_num: The 1-based line number for which to find the enclosing function.
+        mode: 'simple' (default) uses a line-by-line scan;
+              'ast' uses the Python AST to determine the most accurate enclosing function.
+
+    Returns:
+        str: "<full_path>:<func_line>/<func_name>" or "unknown"
+    """
+    if mode == 'simple':
+        try:
+            with open(full_path, "r") as f:
+                current_func_name = "unknown"
+                current_func_lineno = 0
+                for lineno, file_line in enumerate(f, 1):
+                    stripped = file_line.lstrip()
+                    if stripped.startswith("def ") and "(" in stripped[4:]:
+                        func_def = stripped[4:].split("(")[0].strip()
+                        current_func_name = func_def
+                        current_func_lineno = lineno
+                    if lineno == line_num:
+                        break
+                if current_func_name != "unknown":
+                    return f"{full_path}:{current_func_lineno}/{current_func_name}"
+                else:
+                    return "unknown"
+        except Exception:
+            return "unknown"
+
+    elif mode == 'ast':
+        try:
+            with open(full_path, "r") as f:
+                source = f.read()
+            tree = ast.parse(source, full_path)
+            enclosing_func = None
+
+            class LineFunctionVisitor(ast.NodeVisitor):
+                def __init__(self, line):
+                    self.line = line
+                    self.found = None
+                    self.found_lineno = None
+                    self.found_name = None
+
+                def visit_FunctionDef(self, node):
+                    if hasattr(node, "body") and node.lineno <= self.line <= (
+                        max(getattr(x, "lineno", node.lineno) for x in node.body) if node.body else node.lineno
+                    ):
+                        # Possibly nested, visit children to check for more specific (inner) function
+                        for child in ast.iter_child_nodes(node):
+                            if isinstance(child, ast.FunctionDef):
+                                self.visit(child)
+                        # If no more specific one found, record this one
+                        if self.found is None or node.lineno > (self.found_lineno or 0):
+                            self.found = node
+                            self.found_lineno = node.lineno
+                            self.found_name = node.name
+
+            visitor = LineFunctionVisitor(line_num)
+            visitor.visit(tree)
+            if visitor.found is not None:
+                return f"{full_path}:{visitor.found_lineno}/{visitor.found_name}"
+            else:
+                return "unknown"
+        except Exception:
+            return "unknown"
+    else:
+        raise ValueError('Invalid mode for _find_enclosing_function: choose "simple" or "ast"')
+
 def _extract_source_info(node: torch.fx.Node) -> tuple[str, int, str]:
     """
     Extract source file, line number, and function name from node's stack trace.
@@ -52,7 +127,9 @@ def _extract_source_info(node: torch.fx.Node) -> tuple[str, int, str]:
 
     # Process in reverse to get deepest (innermost) call first
     lines = node.meta["stack_trace"].strip().split("\n")
+    print(f"Printing lines:")
     for line in reversed(lines):
+        print(f"  line: {line}")
         stripped = line.strip()
 
         if not stripped.startswith('File "'):
@@ -67,8 +144,15 @@ def _extract_source_info(node: torch.fx.Node) -> tuple[str, int, str]:
         file_name = full_path.split("/")[-1]
         line_num = int(parts[1].split()[-1])
         func_name = parts[2].split()[-1]
+        func_path = _find_enclosing_function(full_path, line_num)
+        func_path_ast = _find_enclosing_function(full_path, line_num, mode='ast')
+        if func_path != func_path_ast:
+            print(f"  func_path: {func_path}")
+            print(f"  func_path_ast: {func_path_ast}")
+            raise ValueError(f"Function path mismatch for {full_path}:{line_num} between simple and ast modes")
 
-        return file_name, line_num, func_name
+        # return file_name, line_num, func_name
+        return full_path, line_num, func_path
 
     return "unknown", 0, "unknown"
 
@@ -90,7 +174,10 @@ def _extract_module_hierarchy(node: torch.fx.Node) -> tuple[list[str], list[str]
     # Format: (path, class_name) e.g., ("L['self'].inner.linear", "torch.nn.modules.linear.Linear")
     modules = sorted(node.meta["nn_module_stack"].values(), key=lambda x: len(x[0]))
 
+    print(f"    Printing modules:")
     for path, class_name in modules:
+        print(f"      path: {path}")
+        print(f"      class_name: {class_name}")
         module_class = class_name.split(".")[-1] if "." in class_name else class_name
         module_classes.append(module_class)
 
@@ -109,7 +196,8 @@ def _build_location_string(
     module_names: list[str],
     file_name: str,
     line_num: int,
-    func_name: str,
+    # func_name: str,
+    func_path: str,
 ) -> str:
     """
     Build module hierarchy string from components.
@@ -123,7 +211,7 @@ def _build_location_string(
             path_parts.append(f"{mod_class}[{mod_name}]")
 
     hierarchy = "/".join(path_parts) if path_parts else ""
-    file_info = f"{func_name}({file_name}:{line_num})"
+    file_info = f"({func_path})"
 
     if hierarchy:
         return f"{hierarchy}/{file_info}/"
@@ -147,6 +235,15 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
     nodes_info = []
 
     for node in graph_module.graph.nodes:
+
+        # print(node.op)
+        # print(f"  node.target: {node.target}")
+        # print(f"  node.args: {node.args}")
+        # print(f"  node.kwargs: {node.kwargs}")
+        # print(f"  node.meta: {node.meta}")
+        # print(f"  node.name: {node.name}")
+        # print(f"  node.type: {node.type}")
+
         # Only process call_function nodes
         if node.op != "call_function":
             continue
@@ -156,14 +253,16 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
             continue
 
         # Extract metadata components
-        file_name, line_num, func_name = _extract_source_info(node)
+        # file_name, line_num, func_name = _extract_source_info(node)
+        file_name, line_num, func_path = _extract_source_info(node)
         module_classes, module_names = _extract_module_hierarchy(node)
 
         # Build location string if we have any metadata
         if file_name != "unknown" or module_classes:
             nodes_info.append(
                 _build_location_string(
-                    module_classes, module_names, file_name, line_num, func_name
+                    # module_classes, module_names, file_name, line_num, func_name
+                    module_classes, module_names, file_name, line_num, func_path
                 )
             )
         else:

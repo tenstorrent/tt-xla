@@ -11,9 +11,6 @@ import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 
 
-EXPORT_PATH = 'myresnet'
-
-
 class BasicBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1):
         super().__init__()
@@ -221,8 +218,8 @@ def run_on_tt():
 # main
 # --------------------------------
 if __name__ == "__main__":
-    # print("Dumping code...")
-    # dump_code()
+    print("Dumping code...")
+    dump_code()
 
     # print("Dumping tensors...")
     # dump_tensors()
@@ -230,5 +227,5 @@ if __name__ == "__main__":
     # print("Running on cpu...")
     # run_on_cpu()
 
-    print("Running on tt...")
-    run_on_tt()
+    # print("Running on tt...")
+    # run_on_tt()
