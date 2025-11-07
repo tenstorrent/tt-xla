@@ -146,9 +146,6 @@ def test_embed_qwen3_reduced_dims():
 
 
 @pytest.mark.push
-@pytest.mark.xfail(
-    reason="Failure due Out of memory https://github.com/tenstorrent/tt-xla/issues/1941"
-)
 def test_embed_qwen3_8K():
     # Enable program cache for better performance
     seq_len = 2**13  # 8192
@@ -177,9 +174,6 @@ def test_embed_qwen3_8K():
 
 
 @pytest.mark.push
-@pytest.mark.xfail(
-    reason="Failure due Out of memory https://github.com/tenstorrent/tt-xla/issues/1941"
-)
 def test_embed_qwen3_16K():
     # Enable program cache for better performance
     seq_len = 2**14  # 16384

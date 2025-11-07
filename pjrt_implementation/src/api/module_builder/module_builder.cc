@@ -861,7 +861,12 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
   // Run the pass manager.
-  if (mlir::failed(ttir_to_ttnn_pm.run(mlir_module.get()))) {
+  mlir::LogicalResult mlir_result = ttir_to_ttnn_pm.run(mlir_module.get());
+
+  // Close the optimizer submesh now that the compilation is complete.
+  client_instance->closeOptimizerSubmesh();
+
+  if (mlir::failed(mlir_result)) {
     DLOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
     return tt_pjrt_status::kInternal;
   }
