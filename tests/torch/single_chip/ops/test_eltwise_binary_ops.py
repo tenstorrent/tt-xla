@@ -12,8 +12,8 @@ def run_binary_ops(op):
     """
     Runs a binary operation with random float inputs for torch.
     """
-    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
-    input_y = torch.randn(32, 32, dtype=torch.bfloat16)
+    input_x = torch.randn(32, 32, dtype=torch.float32)
+    input_y = torch.randn(32, 32, dtype=torch.float32)
     print("input_x:", input_x)
     print("input_y:", input_y)
     run_op_test(op, [input_x, input_y], framework=Framework.TORCH)

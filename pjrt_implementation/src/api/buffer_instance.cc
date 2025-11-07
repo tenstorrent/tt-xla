@@ -338,8 +338,9 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       [](void *host_buffer, tt::runtime::Tensor runtime_tensor, 
          EventInstance *event, PJRT_Buffer_Type data_type,
          size_t host_buffer_size, std::optional<uint32_t> device_id,
-         bool already_on_host) {
+         bool already_on_host, uint32_t bid) {
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
+        DLOG_F(LOG_DEBUG, "Starting copy to host for buffer with BID %zu", bid);
         try {
           std::vector<tt::runtime::Tensor> host_runtime_tensors;
           if (!already_on_host) {
@@ -387,6 +388,9 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
               tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
                   data_type));
 
+            DLOG_F(LOG_DEBUG, "Completed copy to host for buffer with BID %zu",
+                    bid);
+
         } catch (const std::runtime_error &error) {
           DLOG_F(ERROR, "Copy to host buffer failed with error: %s",
                  error.what());
@@ -395,7 +399,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         event->markAsReady(copy_status);
       },
       host_buffer, runtime_tensor_to_retrieve, event.get(), m_data_type,
-      host_buffer_size, m_device_id, is_tensor_on_host);
+      host_buffer_size, m_device_id, is_tensor_on_host, m_uid);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.
