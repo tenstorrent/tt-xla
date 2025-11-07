@@ -129,3 +129,37 @@ def test_scaled_dot_product_attention_decode(
         [query, key, value, cur_pos_tensor, attn_mask, None, is_causal, scale],
         framework=Framework.TORCH,
     )
+
+
+@pytest.mark.parametrize("num_users", [8, 16, 24, 32])
+@pytest.mark.parametrize("max_num_blocks_per_seq", [16, 32])
+@pytest.mark.parametrize("num_heads", [1, 8, 32])
+@pytest.mark.parametrize("block_size", [32, 64, 128])
+@pytest.mark.parametrize("head_dim", [128, 256])
+def test_paged_update_cache(
+    num_users, max_num_blocks_per_seq, num_heads, block_size, head_dim
+):
+    max_num_blocks = max_num_blocks_per_seq * num_users
+    max_seq_len = max_num_blocks_per_seq * block_size
+
+    cache = torch.zeros(
+        max_num_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
+    )
+    fill_value = torch.randn(1, num_users, num_heads, head_dim, dtype=torch.bfloat16)
+
+    # Fill value head dim must be explicitly padded to 32, not only relying on tile layout.
+    fill_value = torch.nn.functional.pad(fill_value, (0, 0, 0, 32 - num_heads))
+
+    # Create arbitrary update indices
+    cache_idxs = torch.randperm(max_seq_len)[:num_users]
+    permutation = torch.randperm(max_num_blocks)
+    reverse_permutation = torch.argsort(permutation)
+    page_table = reverse_permutation.reshape(num_users, max_num_blocks_per_seq).to(
+        torch.int32
+    )
+
+    run_op_test(
+        torch.ops.tt.paged_update_cache,
+        [cache, fill_value, cache_idxs, page_table, False],
+        framework=Framework.TORCH,
+    )
