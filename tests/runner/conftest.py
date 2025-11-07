@@ -42,7 +42,7 @@ def bringup_stage_file():
     if os.environ.get("ENABLE_BRINGUP_STAGE_LOGGING") == "1":
         # Setup: Create/truncate file before test
         with open(_BRINGUP_STAGE_FILE, "w") as f:
-            pass
+            f.write("FE_COMPILATION_START")
 
     yield
 
