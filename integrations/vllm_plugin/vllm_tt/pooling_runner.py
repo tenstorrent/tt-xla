@@ -883,12 +883,12 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        # Default options: valid for single input per batch or data parallel model.
+        # Default Configurations: valid for single input per batch.
         attn_mask = None
         is_causal = True
 
-        # Use custom mask if model is not data parallel and number of request
-        # per batch can exceed one.
+        # Use custom mask if number of request per batch can exceed one; only
+        # supported for batch-1.
         if self.batch_size == 1 and self.max_num_reqs > 1:
             attn_mask = generate_attn_mask(
                 seq_lens,
@@ -1278,11 +1278,12 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         context_lens = torch.ones((num_reqs,), dtype=torch.int32)
 
-        # Default options: only valid for single input per batch.
+        # Default Configurations: valid for single input per batch.
         attn_mask = None
         is_causal = True
 
-        # Use custom mask if number of request per batch can exceed one.
+        # Use custom mask if number of request per batch can exceed one; only
+        # supported for batch-1.
         if self.batch_size == 1 and self.max_num_reqs > 1:
             attn_mask = generate_attn_mask(
                 context_lens,
