@@ -231,9 +231,7 @@ SOLoadedExecutableInstance::prepareInputTensor(
   return laid_out_tensor;
 }
 
-// For SO path, we don't have layout information from flatbuffer.
-// As a hack, we just return the input tensor (host tensor) without
-// any layout conversion in cases we can't reuse the prepared tensor.
+// See comment in the header file.
 tt::runtime::Tensor SOLoadedExecutableInstance::convertTensorLayout(
     tt::runtime::Tensor input_tensor, std::uint32_t program_index,
     size_t arg_index, const tt::runtime::Device &runtime_device) {
