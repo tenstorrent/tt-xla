@@ -2035,11 +2035,72 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
     bringup_status: FAILED_RUNTIME
 
+  bevformer/pytorch-BEVFormer-tiny-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    bringup_status: FAILED_RUNTIME
+
+  bevformer/pytorch-BEVFormer-small-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    bringup_status: FAILED_RUNTIME
+
+  bevformer/pytorch-BEVFormer-base-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    bringup_status: FAILED_RUNTIME
+
+  bevformer/pytorch-bevformerv2-r50-t1-base-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    bringup_status: FAILED_RUNTIME
+
+  bevformer/pytorch-bevformerv2-r50-t1-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    bringup_status: FAILED_RUNTIME
+
+  bevformer/pytorch-bevformerv2-r50-t2-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    bringup_status: FAILED_RUNTIME
+
+  bevformer/pytorch-bevformerv2-r50-t8-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    bringup_status: FAILED_RUNTIME
+
+  ssr/pytorch-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B, but bank size is only 1364704 B - https://github.com/tenstorrent/tt-xla/issues/1923"
+    bringup_status: FAILED_RUNTIME
+
   bge_m3/pytorch-base-single_device-full-inference:
     status: EXCLUDE_MODEL  # This model has a hand written test, don't run via test_models.py
 
   bge_m3/encode/pytorch-base-single_device-full-inference:
     status: EXCLUDE_MODEL  # This model has a hand written test, don't run via test_models.py
+
+  whisper/pytorch-openai/whisper-tiny-single_device-full-inference:
+    status: EXCLUDE_MODEL  # All whisper variants have a hand written test, don't run via test_models.py
+
+  whisper/pytorch-openai/whisper-small-single_device-full-inference:
+    status: EXCLUDE_MODEL
+
+  whisper/pytorch-openai/whisper-base-single_device-full-inference:
+    status: EXCLUDE_MODEL
+
+  whisper/pytorch-openai/whisper-medium-single_device-full-inference:
+    status: EXCLUDE_MODEL
+
+  whisper/pytorch-openai/whisper-large-single_device-full-inference:
+    status: EXCLUDE_MODEL
+
+  whisper/pytorch-openai/whisper-large-v3-single_device-full-inference:
+    status: EXCLUDE_MODEL
+
+  whisper/pytorch-openai/whisper-large-v3-turbo-single_device-full-inference:
+    status: EXCLUDE_MODEL
 
   uniad/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
