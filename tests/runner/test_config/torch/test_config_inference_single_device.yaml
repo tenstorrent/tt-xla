@@ -98,7 +98,9 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov3/pytorch-base-single_device-full-inference:
-    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    arch_overrides:
+      n150:
+        required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
   yolov4/pytorch-base-single_device-full-inference:
