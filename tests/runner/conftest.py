@@ -139,6 +139,17 @@ def pytest_collection_modifyitems(config, items):
     if validate_config:
         items.clear()
 
+    # Workaround (!) for DRAM Leak on device between tests - https://github.com/tenstorrent/tt-xla/issues/1940
+    # most commonly affecting multichip tests. If running data_parallel or tensor_parallel tests,
+    # avoid the DRAM leak by clearing the XLA compilation cache between tests.
+    for item in items:
+        is_dp_test = item.get_closest_marker("data_parallel")
+        is_tp_test = item.get_closest_marker("tensor_parallel")
+        if is_dp_test or is_tp_test:
+            os.environ.setdefault("XLA_COMPILATION_CACHE_SIZE", "1")
+            print("#1940 Workaround: XLA_COMPILATION_CACHE_SIZE=1 to avoid DRAM leak.")
+            break
+
 
 def pytest_sessionfinish(session, exitstatus):
     """At session end, validate test_config entries and arch_overrides against collected tests."""
