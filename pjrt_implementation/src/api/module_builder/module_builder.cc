@@ -1166,10 +1166,10 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
   bool is_local = false;
   // Alchemist specific options are passed here.
   // Other options are ingested during TTIR->TTNN conversion.
-  std::string should_load = compile_options.dump_inputs ? "true" : "false";
+  std::string should_load = compile_options.export_tensors ? "true" : "false";
   std::string pipeline_options = "load-input-tensors-from-disk=" + should_load +
                                  " "
-                                 "tensor-load-directory='./input_tensors'";
+                                 "tensor-load-directory='./tensors'";
   bool result;
 
   if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {

@@ -280,7 +280,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return status;
   }
 
-  if (m_executable_image->getCompileOptions().dump_inputs) {
+  if (m_executable_image->getCompileOptions().export_tensors) {
     dumpInputs(input_tensors);
   }
 

@@ -109,7 +109,7 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return status;
   }
 
-  if (m_executable_image->getCompileOptions().dump_inputs) {
+  if (m_executable_image->getCompileOptions().export_tensors) {
     dumpInputs(input_tensors);
   }
 

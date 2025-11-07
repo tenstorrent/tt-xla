@@ -75,7 +75,7 @@ void LoadedExecutableInstance::dumpInputs(
   std::filesystem::path dump_dir =
       std::filesystem::path(
           m_executable_image->getCompileOptions().export_path.value()) /
-      "input_tensors";
+      "tensors";
   std::filesystem::create_directories(dump_dir);
 
   for (int i = 0; i < input_tensors.size(); ++i) {
