@@ -183,10 +183,6 @@ def update_test_metadata_for_exception(
     # Find failing reason by raised exception
     failing_reason = FailingReasonsFinder.find_reason_by_exception(exc)
 
-    # If no failing reason is found, classify as UNCLASSIFIED
-    if not failing_reason:
-        failing_reason = FailingReasons.UNCLASSIFIED
-
     # Log detected failing reason
     # logger.warning(f"Update metadata detected failing reason: {failing_reason.name} - {failing_reason.value.description} in component: {failing_reason.value.component_checker_description}")
 

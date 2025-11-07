@@ -43,7 +43,8 @@ class FailingReasonsFinder:
     def find_reason_by_ex_data(cls, ex: ExceptionData) -> Optional["FailingReasons"]:
         reasons = list(cls.find_reasons_by_ex_data(ex))
         if not reasons:
-            return None
+            # If no failing reason is found, classify as UNCLASSIFIED
+            return FailingReasons.UNCLASSIFIED
         if len(reasons) > 1:
             logger.warning(f"Multiple reasons found: {reasons} for ex: {ex}")
         return reasons[0]
