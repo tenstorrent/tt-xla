@@ -245,7 +245,6 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   status = runFrontendSHLOPipeline(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
@@ -277,6 +276,7 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
+  LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
   status = convertFromSHLOToTTIR(mlir_module, ttir_mlir,
                                  compile_options.export_path);
