@@ -140,6 +140,13 @@ jobs:
           echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
         fi
 
+        # Precompute forge models detection as a reusable output
+        if [[ "${{ matrix.build.dir }}" == *"tests/runner/test_models.py"* ]]; then
+          echo "forge-models-test=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "forge-models-test=false" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Download and install wheels
       shell: bash
       run: |
@@ -240,7 +247,7 @@ jobs:
 
         # Pass arch to forge models tests to resolve arch_overrides in test_config files.
         ARCH=""
-        if [[ "${{ matrix.build.name }}" == 'run_forge_models' || "${{ matrix.build.name }}" == 'run_forge_models_multichip' ]]; then
+        if [[ "${{ steps.strings.outputs.forge-models-test }}" == "true" ]]; then
           ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
         fi
 
@@ -268,7 +275,7 @@ jobs:
         echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
-      if: ${{ matrix.build.name == 'run_forge_models' || matrix.build.name == 'run_forge_models_multichip' }}
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' }}
       shell: bash
       run: |
         apt-get update
@@ -277,7 +284,7 @@ jobs:
     # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
     # but still run tests even in case of failure here, will still treat overall job as failed.
     - name: Validate Forge Models Tests test config file
-      if: ${{ (matrix.build.name == 'run_forge_models' || matrix.build.name == 'run_forge_models_multichip') && strategy.job-index == 0 }}
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
       shell: bash
       run: |
         source venv/activate
