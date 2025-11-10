@@ -1021,7 +1021,7 @@ void ModuleBuilder::enableVerboseIRPrinting(
 
   if (loguru::g_stderr_verbosity >= LOG_VERBOSE_TREE) {
     std::string tree_root =
-        ".pass_manager_output/" + source_name.value_or("unknown");
+        "~/explorer/" + source_name.value_or("unknown") + ".mlir";
     std::string pipeline_output_dir =
         tree_root + "/" + pipeline_name.value_or("unknown");
     std::filesystem::create_directories(pipeline_output_dir);
