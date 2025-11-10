@@ -276,6 +276,7 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
+  LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
   status = convertFromSHLOToTTIR(mlir_module, ttir_mlir,
                                  compile_options.export_path);

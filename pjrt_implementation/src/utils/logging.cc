@@ -8,10 +8,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#include "utils/logging.h"
 #include <cstdlib>
 #include <cstring>
-
-#include "utils/logging.h"
+#include <fstream>
 
 namespace tt::pjrt {
 
@@ -44,6 +44,20 @@ void initializeLogging() {
   if (log_file_path) {
     // Add file output using the same verbosity level as stderr
     loguru::add_file(log_file_path, loguru::Append, loguru::g_stderr_verbosity);
+  }
+}
+
+bool isBringupStageLoggingEnabled() {
+  // Check environment variable to enable bringup stage logging
+  const char *enable_logging = std::getenv("ENABLE_BRINGUP_STAGE_LOGGING");
+  return enable_logging != nullptr && strcmp(enable_logging, "1") == 0;
+}
+
+void logBringupStage(const char *stage_name) {
+  if (!isBringupStageLoggingEnabled())
+    return;
+  if (std::ofstream f{"._bringup_stage.txt"}) {
+    f << stage_name << '\n';
   }
 }
 
