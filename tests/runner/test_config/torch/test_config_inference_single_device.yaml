@@ -44,6 +44,7 @@ test_config:
   clip/pytorch-base_patch16-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 3802 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
+    markers: ["extended"]
 
   clip/pytorch-base_patch32-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL # Newly exposed in Sept 6 due to tt-mlir uplift.
@@ -87,6 +88,7 @@ test_config:
     arch_overrides:
       n150:
         required_pcc: 0.98 # Is lately 0.992 but close to threshold.
+    markers: ["extended"]
 
   openpose/v2/pytorch-single_device-full-inference:
     assert_pcc: false
@@ -105,6 +107,7 @@ test_config:
   yolov3/pytorch-base-single_device-full-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
+    markers: ["extended"]
 
   yolov4/pytorch-base-single_device-full-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -283,6 +286,7 @@ test_config:
 
   efficientnet/pytorch-efficientnet_b0-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["extended"]
 
   efficientnet/pytorch-efficientnet_b1-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -313,6 +317,7 @@ test_config:
 
   hrnet/pytorch-hrnet_w18-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["extended"]
 
   hrnet/pytorch-hrnet_w18.ms_aug_in1k-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -583,6 +588,7 @@ test_config:
 
   bert/masked_lm/pytorch-bert-base-uncased-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["extended"]
 
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -601,6 +607,7 @@ test_config:
 
   opt/causal_lm/pytorch-facebook/opt-350m-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["extended"]
 
   opt/sequence_classification/pytorch-facebook/opt-125m-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -616,6 +623,7 @@ test_config:
 
   beit/pytorch-base-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["extended"]
 
   beit/pytorch-large-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -915,6 +923,7 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_2_1b-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["extended"]
 
   llama/causal_lm/pytorch-llama_3_2_3b-single_device-full-inference:
     required_pcc: 0.98
@@ -1037,6 +1046,7 @@ test_config:
 
   vit/pytorch-vit_b_16-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["extended"]
 
   vit/pytorch-vit_h_14-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1085,6 +1095,7 @@ test_config:
   resnet/pytorch-resnet50-single_device-full-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
+    markers: ["extended"]
 
   vit/pytorch-vit_b_32-single_device-full-inference:
     required_pcc: 0.98
@@ -1175,6 +1186,7 @@ test_config:
 
   vovnet/pytorch-ese_vovnet19b_dw-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["extended"]
 
   vovnet/pytorch-ese_vovnet39b-single_device-full-inference:
     assert_pcc: false
@@ -1355,6 +1367,7 @@ test_config:
 
   gemma/pytorch-google/gemma-2-2b-it-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["extended"]
 
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-inference:
     required_pcc: 0.98
