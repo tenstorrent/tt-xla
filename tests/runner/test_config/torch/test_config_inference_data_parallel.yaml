@@ -68,7 +68,6 @@ test_config:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "PCC comparison failed. Calculated: pcc=0.9775277376174927. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1844"
 
   mnist/pytorch-data_parallel-full-inference:
@@ -91,7 +90,6 @@ test_config:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   yolov6/pytorch-yolov6l-data_parallel-full-inference:
@@ -191,7 +189,6 @@ test_config:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "PCC comparison failed. Calculated: pcc=0.9593995213508606. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   vgg/pytorch-vgg13-data_parallel-full-inference:

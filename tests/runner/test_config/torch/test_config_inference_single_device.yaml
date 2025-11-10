@@ -14,7 +14,6 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC decreased with inputs changes to 0.946 in BH / 0.887 in WH"
-    bringup_status: INCORRECT_RESULT
 
   gpt_neo/causal_lm/pytorch-gpt_neo_1_3B-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -22,7 +21,6 @@ test_config:
   gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-single_device-full-inference:
     assert_pcc: false  # 0.749 on BH / 0.76 on WH
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   vovnet/pytorch-vovnet27s-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -30,12 +28,10 @@ test_config:
   vovnet/pytorch-vovnet39_th-single_device-full-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   vovnet/pytorch-vovnet57_th-single_device-full-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   hardnet/pytorch-single_device-full-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -44,27 +40,22 @@ test_config:
   qwen_2_5/causal_lm/pytorch-1_5b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   clip/pytorch-base_patch16-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 3802 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
-    bringup_status: FAILED_TTMLIR_COMPILATION
 
   clip/pytorch-base_patch32-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL # Newly exposed in Sept 6 due to tt-mlir uplift.
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 7604 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
-    bringup_status: FAILED_TTMLIR_COMPILATION
 
   clip/pytorch-large_patch14-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 13185 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
-    bringup_status: FAILED_TTMLIR_COMPILATION
 
   clip/pytorch-large_patch14_336-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 18766 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
-    bringup_status: FAILED_TTMLIR_COMPILATION
 
   wide_resnet/pytorch-wide_resnet50_2-single_device-full-inference:
     required_pcc: 0.98
@@ -80,7 +71,6 @@ test_config:
       n150:
         assert_pcc: false
         reason: "PCC comparison failed. Calculated: pcc=0.9799284338951111. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1828"
-        bringup_status: INCORRECT_RESULT
 
   xglm/pytorch-xglm-564M-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -101,7 +91,6 @@ test_config:
   openpose/v2/pytorch-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   albert/masked_lm/pytorch-xxlarge_v2-single_device-full-inference:
     required_pcc: 0.98
@@ -155,7 +144,6 @@ test_config:
   yolov5/pytorch-yolov5s-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
     reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
-    bringup_status: FAILED_FE_COMPILATION
 
   albert/masked_lm/pytorch-base_v2-single_device-full-inference:
     required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9882882237434387. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
@@ -348,12 +336,10 @@ test_config:
   mamba/pytorch-mamba-1.4b-hf-single_device-full-inference:
     assert_pcc: false # -0.0130 WH / -0.0888 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   mamba/pytorch-mamba-370m-hf-single_device-full-inference:
     assert_pcc: false # -0.0327 WH / 0.3821 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   mgp_str_base/pytorch-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -441,7 +427,6 @@ test_config:
   squeezebert/pytorch-squeezebert-mnli-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL  # Affected by change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
-    bringup_status: FAILED_FE_COMPILATION
 
   swin/image_classification/pytorch-swin_t-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -526,54 +511,44 @@ test_config:
   mistral/pytorch-ministral_3b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT
 
   mlp_mixer/pytorch-mixer_b16_224-single_device-full-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT
 
   mlp_mixer/pytorch-mixer_b16_224_in21k-single_device-full-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT
 
   mlp_mixer/pytorch-mixer_l16_224-single_device-full-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT
 
   mlp_mixer/pytorch-mixer_l16_224_in21k-single_device-full-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT
 
   mlp_mixer/pytorch-mixer_b16_224.goog_in21k-single_device-full-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT
 
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-full-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT
 
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-full-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT
 
   phi2/token_classification/pytorch-microsoft/phi-2-single_device-full-inference:
     required_pcc: 0.98
     status: KNOWN_FAILURE_XFAIL  # Drop from 0.982 exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.978385865688324. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: INCORRECT_RESULT
 
   phi2/token_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-inference:
     required_pcc: 0.98
     status: KNOWN_FAILURE_XFAIL  # Drop from 0.982 exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.978385865688324. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: INCORRECT_RESULT
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -687,7 +662,6 @@ test_config:
   yolos/pytorch-single_device-full-inference:
     status: EXPECTED_PASSING
     assert_pcc: false  # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168 AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96. Later on Sept 2 started failing in WH too: AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-inference:
@@ -725,13 +699,11 @@ test_config:
   albert/token_classification/pytorch-xxlarge_v2-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.958276593048647. Required: pcc=0.99"
 
   opt/causal_lm/pytorch-facebook/opt-1.3b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-full-inference:
@@ -743,7 +715,6 @@ test_config:
   opt/qa/pytorch-facebook/opt-1.3b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9410670165223607. Required: pcc=0.99"
 
   yolov8/pytorch-yolov8n-single_device-full-inference:
@@ -755,7 +726,6 @@ test_config:
   albert/token_classification/pytorch-xlarge_v2-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.872334097539835. Required: pcc=0.99"
 
   t5/pytorch-t5-base-single_device-full-inference:
@@ -767,7 +737,6 @@ test_config:
   stereo/pytorch-medium-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3149577673900601. Required: pcc=0.99"
 
   monodepth2/pytorch-mono_640x192-single_device-full-inference:
@@ -800,7 +769,6 @@ test_config:
   stereo/pytorch-large-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=-0.43084077321771863. Required: pcc=0.99"
 
   qwen_3/embedding/pytorch-embedding_0_6b-single_device-full-inference:
@@ -812,22 +780,18 @@ test_config:
   yolov5/pytorch-yolov5n-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
     reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
-    bringup_status: FAILED_FE_COMPILATION
 
   yolov5/pytorch-yolov5m-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
     reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
-    bringup_status: FAILED_FE_COMPILATION
 
   yolov5/pytorch-yolov5l-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
     reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
-    bringup_status: FAILED_FE_COMPILATION
 
   yolov5/pytorch-yolov5x-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
     reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
-    bringup_status: FAILED_FE_COMPILATION
 
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -843,12 +807,10 @@ test_config:
   qwen_2_5_vl/pytorch-3b_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
-    bringup_status: FAILED_TTMLIR_COMPILATION
 
   qwen_2_5_vl/pytorch-7b_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
-    bringup_status: FAILED_TTMLIR_COMPILATION
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -865,72 +827,58 @@ test_config:
   qwen_3/causal_lm/pytorch-4b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   qwen_3/causal_lm/pytorch-1_7b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   qwen_2_5_coder/pytorch-3b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   qwen_3/causal_lm/pytorch-0_6b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   qwen_2_5/causal_lm/pytorch-3b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   qwen_2_5/causal_lm/pytorch-3b_instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   qwen_2_5_coder/pytorch-3b_instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   qwen_2_5_coder/pytorch-1_5b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   retinanet/pytorch-retinanet_rn34fpn-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   qwen_2_5/causal_lm/pytorch-1_5b_instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   retinanet/pytorch-retinanet_rn18fpn-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   retinanet/pytorch-retinanet_rn152fpn-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   retinanet/pytorch-retinanet_rn50fpn-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   retinanet/pytorch-retinanet_rn101fpn-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   inception/pytorch-inception_v4-single_device-full-inference:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9682327508926392. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -999,12 +947,10 @@ test_config:
   yolox/pytorch-yolox_s-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
     reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_m-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
     reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_l-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
@@ -1027,7 +973,6 @@ test_config:
   mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-full-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9898824691772461. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
 
   mobilenetv2/pytorch-mobilenetv2_100-single_device-full-inference:
@@ -1068,7 +1013,6 @@ test_config:
   vit/pytorch-vit_l_32-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9611120820045471. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
 
   mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-full-inference:
@@ -1212,12 +1156,10 @@ test_config:
   deepseek/deepseek_ocr/pytorch-deepseek_ocr-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
-    bringup_status: FAILED_FE_COMPILATION
 
   deepseek/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
     reason: "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266"
-    bringup_status: FAILED_FE_COMPILATION
 
   gemma/pytorch-google/gemma-1.1-2b-it-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1244,7 +1186,6 @@ test_config:
   unet/pytorch-unet_cityscapes-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Bad PCC on blackhole - Calculated: pcc=0.9890791177749634. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1434"
-    bringup_status: INCORRECT_RESULT
 
   unet/pytorch-torchhub_brain_unet-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1373,7 +1314,6 @@ test_config:
     assert_pcc: false  # Exposed by removal of consteval on host
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1242"
-    bringup_status: INCORRECT_RESULT
 
   gemma/pytorch-google/gemma-2-2b-it-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1385,7 +1325,6 @@ test_config:
       p150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Bad PCC on blackhole - Calculated: pcc=0.978913426399231. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1434"
-        bringup_status: INCORRECT_RESULT
 
   vgg/pytorch-bn_vgg19b-single_device-full-inference:
     required_pcc: 0.96
@@ -1418,22 +1357,18 @@ test_config:
   gemma/pytorch-google/gemma-2b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   autoencoder/pytorch-conv-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   phi3/phi_3_5/pytorch-mini_instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
 
   bi_lstm_crf/pytorch-default-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
-    bringup_status: FAILED_RUNTIME
 
   flux/pytorch-schnell-single_device-full-inference:
     arch_overrides:
@@ -1441,7 +1376,6 @@ test_config:
         assert_pcc: false
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9095736145973206. Required: pcc=0.99"
-        bringup_status: INCORRECT_RESULT
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip" # (flux.1-schnell is 12B param model)
@@ -1459,24 +1393,20 @@ test_config:
   gliner/pytorch-urchade/gliner_multi-v2.1-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "TypeError: GLiNER.compile() got an unexpected keyword argument 'backend'"
-    bringup_status: FAILED_FE_COMPILATION
 
   gemma/pytorch-google/gemma-1.1-7b-it-single_device-full-inference:
     supported_archs: ["p150"]
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99"
 
   stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - Model initialization failed"
-    bringup_status: FAILED_FE_COMPILATION
 
   oft/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
-    bringup_status: FAILED_RUNTIME
 
   mistral/pixtral/pytorch-single_device-full-inference:
     required_pcc: 0.97 # AssertionError: PCC comparison failed. Calculated: pcc=0.9778134226799011. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
@@ -1492,7 +1422,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9552884697914124. Required: pcc=0.99"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1518,36 +1447,30 @@ test_config:
   phi3/phi_3_5_vision/pytorch-instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "TypeError: Phi3VForCausalLM.forward() got an unexpected keyword argument 'max_new_tokens'"
-    bringup_status: FAILED_FE_COMPILATION
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.36258700489997864. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.23872360587120056. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3322090804576874. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
@@ -1561,7 +1484,6 @@ test_config:
       n150:
         status: KNOWN_FAILURE_XFAIL
         reason: "RuntimeError: Out of Memory: Not enough space to allocate 49971200 B L1 buffer across 64 banks"
-        bringup_status: FAILED_RUNTIME
 
   stable_diffusion_1_4/pytorch-base-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1588,12 +1510,10 @@ test_config:
   detr3d/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353"
-    bringup_status: FAILED_RUNTIME
 
   vadv2/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B - https://github.com/tenstorrent/tt-xla/issues/1458"
-    bringup_status: FAILED_RUNTIME
 
   huggyllama/pytorch-llama_7b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1707,7 +1627,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1472"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1727,7 +1646,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.35885828733444214. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1747,7 +1665,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2924256920814514. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
 
       n150:
@@ -1760,7 +1677,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1772,7 +1688,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8147078156471252. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1784,7 +1699,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7706121206283569. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1801,7 +1715,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1813,7 +1726,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7253174185752869. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1825,7 +1737,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8598132729530334. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1837,7 +1748,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1854,7 +1764,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1866,7 +1775,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.964358925819397. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1878,7 +1786,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.48546990752220154. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1900,7 +1807,6 @@ test_config:
       p150:
         assert_pcc: false
         status: EXPECTED_PASSING
-        bringup_status: INCORRECT_RESULT
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7000502943992615. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1944,7 +1850,6 @@ test_config:
     supported_archs: ["p150"]
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475"
     arch_overrides:
       n150:
@@ -1983,87 +1888,70 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.04067724570631981. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505"
-    bringup_status: INCORRECT_RESULT
 
   centernet/pytorch-resnet18_coco-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
-    bringup_status: FAILED_FE_COMPILATION
 
   centernet/pytorch-resnet101_coco-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
-    bringup_status: FAILED_FE_COMPILATION
 
   centernet/pytorch-dla1x_coco-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507"
-    bringup_status: FAILED_FE_COMPILATION
 
   centernet/pytorch-dla2x_coco-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507"
-    bringup_status: FAILED_FE_COMPILATION
 
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
-    bringup_status: FAILED_RUNTIME
 
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
-    bringup_status: FAILED_RUNTIME
 
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
-    bringup_status: FAILED_RUNTIME
 
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
-    bringup_status: FAILED_RUNTIME
 
   bevformer/pytorch-BEVFormer-tiny-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
-    bringup_status: FAILED_RUNTIME
 
   bevformer/pytorch-BEVFormer-small-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
-    bringup_status: FAILED_RUNTIME
 
   bevformer/pytorch-BEVFormer-base-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
-    bringup_status: FAILED_RUNTIME
 
   bevformer/pytorch-bevformerv2-r50-t1-base-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
-    bringup_status: FAILED_RUNTIME
 
   bevformer/pytorch-bevformerv2-r50-t1-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
-    bringup_status: FAILED_RUNTIME
 
   bevformer/pytorch-bevformerv2-r50-t2-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
-    bringup_status: FAILED_RUNTIME
 
   bevformer/pytorch-bevformerv2-r50-t8-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
-    bringup_status: FAILED_RUNTIME
 
   ssr/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B, but bank size is only 1364704 B - https://github.com/tenstorrent/tt-xla/issues/1923"
-    bringup_status: FAILED_RUNTIME
 
   bge_m3/pytorch-base-single_device-full-inference:
     status: EXCLUDE_MODEL  # This model has a hand written test, don't run via test_models.py
@@ -2095,52 +1983,42 @@ test_config:
   uniad/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B"
-    bringup_status: FAILED_RUNTIME
 
   maptr/pytorch-tiny_r50_24e_av2-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
-    bringup_status: FAILED_FE_COMPILATION
 
   maptr/pytorch-tiny_r50_24e_bevformer-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
-    bringup_status: FAILED_FE_COMPILATION
 
   maptr/pytorch-tiny_r50_24e_bevformer_t4-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
-    bringup_status: FAILED_FE_COMPILATION
 
   maptr/pytorch-tiny_r50_24e-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
-    bringup_status: FAILED_FE_COMPILATION
 
   maptr/pytorch-tiny_r50_110e-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
-    bringup_status: FAILED_FE_COMPILATION
 
   maptr/pytorch-tiny_r50_24e_t4-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
-    bringup_status: FAILED_FE_COMPILATION
 
   maptr/pytorch-nano_r18_110e-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
-    bringup_status: FAILED_FE_COMPILATION
 
   maptr/pytorch-tiny_r50_24e_bevpool-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 95029248 B L1 buffer across 64 banks, where each bank needs to store 1484832 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1588"
-    bringup_status: FAILED_RUNTIME
 
   maptr/pytorch-tiny_fusion_24e-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Invalid type annotations in generated GraphModule forward cause torch.compile failure - https://github.com/tenstorrent/tt-xla/issues/1587"
-    bringup_status: FAILED_FE_COMPILATION
 
   hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-inference:
     required_pcc: 0.96
@@ -2153,17 +2031,14 @@ test_config:
   pointpillars/pytorch-pointpillars-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
-    bringup_status: FAILED_RUNTIME
 
   sam/pytorch-facebook/sam-vit-base-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Out of Memory:  Not enough space to allocate 16777216 B L1 buffer across 8 banks - https://github.com/tenstorrent/tt-xla/issues/1497"
-    bringup_status: FAILED_RUNTIME
 
   vilt/masked_lm/pytorch-mlm-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.gather': ' - https://github.com/tenstorrent/tt-xla/issues/318"
-    bringup_status: FAILED_RUNTIME
 
   mplug_owl2/pytorch-llama2_7b-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2173,37 +2048,30 @@ test_config:
   openvla/pytorch-openvla_7b-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
-    bringup_status: FAILED_RUNTIME
 
   openvla/pytorch-openvla_v01_7b-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
-    bringup_status: FAILED_RUNTIME
 
   openvla/pytorch-openvla_7b_finetuned_libero_10-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
-    bringup_status: FAILED_RUNTIME
 
   openvla/pytorch-openvla_7b_finetuned_libero_goal-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
-    bringup_status: FAILED_RUNTIME
 
   openvla/pytorch-openvla_7b_finetuned_libero_object-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
-    bringup_status: FAILED_RUNTIME
 
   openvla/pytorch-openvla_7b_finetuned_libero_spatial-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
-    bringup_status: FAILED_RUNTIME
 
   transfuser/pytorch-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=-0.7153554558753967. Required: pcc=0.99."
 
   yolov11/pytorch-yolo11n-single_device-full-inference:
@@ -2236,112 +2104,91 @@ test_config:
   vgg19_unet/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2162688 B L1_SMALL buffer across 64 banks, where each bank needs to store 33792 B, but bank size is only 32768 B - https://github.com/tenstorrent/tt-xla/issues/1722"
-    bringup_status: FAILED_RUNTIME
 
   qwen_2/token_classification/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 61079552 B L1 buffer across 64 banks, where each bank needs to store 954368 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722"
-    bringup_status: FAILED_RUNTIME
 
   unet/pytorch-smp_unet_resnet101-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
-    bringup_status: FAILED_RUNTIME
 
   sam/pytorch-facebook/sam-vit-large-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 16777216 B L1 buffer across 8 banks, where each bank needs to store 2097152 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722"
-    bringup_status: FAILED_RUNTIME
 
   deepseek/qwen/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23611392 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
-    bringup_status: FAILED_RUNTIME
     markers: [large]
 
   detr/segmentation/pytorch-resnet_50_panoptic-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
-    bringup_status: FAILED_RUNTIME
 
   sam/pytorch-facebook/sam-vit-huge-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 16777216 B L1 buffer across 8 banks, where each bank needs to store 2097152 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722"
-    bringup_status: FAILED_RUNTIME
 
   mobilenetv1/pytorch-google/mobilenet_v1_1.0_224-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9816039800643921. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
 
   regnet/pytorch-regnet_y_128gf-single_device-full-inference:
     assert_pcc: false
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 2023 clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/1827"
 
   detr/object_detection/pytorch-resnet_50-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9024592638015747. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
 
   sentencizer/pytorch-xlm-roberta-base-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
-    bringup_status: FAILED_FE_COMPILATION
 
   sentencizer/pytorch-xlm-roberta-large-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
-    bringup_status: FAILED_FE_COMPILATION
 
   stable_diffusion/pytorch-stable-diffusion-3.5-medium-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
 
   stable_diffusion/pytorch-stable-diffusion-3.5-large-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
     markers: [large]
 
   stable_diffusion/pytorch-stable-diffusion-3.5-large-turbo-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
     markers: [large]
 
   gliner/pytorch-urchade/gliner_largev2-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
 
   hippynn/pytorch-Hippynn-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
 
   vilt/question_answering/pytorch-vqa-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
 
   ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
 
   retinanet/pytorch-retinanet_resnet50_fpn_v2-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
 
   ssd300_vgg16/pytorch-ssd300_vgg16-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
 
   gemma/codegemma/pytorch-google/codegemma-2b-single_device-full-inference:
@@ -2350,11 +2197,9 @@ test_config:
   llama/causal_lm/pytorch-TinyLlama_v1.1-single_device-full-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1472
-    bringup_status: INCORRECT_RESULT
 
   maskformer_swin_b/pytorch-swin_base_coco-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Out of Memory: Not enough space to allocate 61231104 B L1 buffer across 72 banks, where each bank needs to store 850432 B, but bank size is only 1331936 B"
 
   maskformer_swin_b/pytorch-swin_base_ade-single_device-full-inference:
@@ -2362,28 +2207,23 @@ test_config:
 
   yolos_small/pytorch-small-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
 
   yolos_small/pytorch-small_dwr-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
 
   yolos_small/pytorch-small_300-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
 
   yolop/pytorch-yolop-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 12. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
 
   owl_vit/pytorch-base_patch32-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](16) - https://github.com/tenstorrent/tt-xla/issues/1955"
 
   yolov12/pytorch-yolo12n-single_device-full-inference:
@@ -2397,5 +2237,4 @@ test_config:
 
   faster_rcnn/pytorch-resnet50_fpn-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Out of Memory: Not enough space to allocate 62521344 B L1 buffer across 72 banks, where each bank needs to store 868352 B, but bank size is only 1331936 B"
