@@ -406,4 +406,7 @@ def record_model_test_properties(
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
+        # Ensure we have a reason for xfail (fixes crash when reason is None)
+        if reason is None:
+            reason = getattr(test_metadata, "reason", "Test marked as known failure")
         pytest.xfail(reason)
