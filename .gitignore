@@ -28,3 +28,6 @@ venv/*
 
 # Packaging scripts write artifacts here.
 bindist/
+
+# temporary files
+._bringup_stage.txt

@@ -410,6 +410,7 @@ void FlatbufferLoadedExecutableInstance::releaseResources() {
 tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute");
+  LOG_BRINGUP_STAGE("RUNTIME_EXECUTION_START");
 
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
     DLOG_F(ERROR,

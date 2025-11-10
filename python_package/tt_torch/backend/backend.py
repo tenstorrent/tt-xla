@@ -6,6 +6,7 @@ from typing import Tuple
 
 import torch
 import torch_xla
+import torch_xla.core.dynamo_bridge as bridge
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
@@ -78,6 +79,7 @@ class XLAExecutor:
         module: torch.fx.GraphModule,
         signature: torch.export.ExportGraphSignature,
         node_info: list[str],
+        experimental_compile_enabled: bool,
     ):
         self.module = module
         self.signature = signature
@@ -94,7 +96,59 @@ class XLAExecutor:
             self.devices.add(tensor.device.type)
         self.devices = list(self.devices)
 
+        # Whether to enable experimental compile flow.
+        # The following group of fields will only be used if the experimental flow is enabled.
+        self.experimental_compile_enabled = experimental_compile_enabled
+        self.params_and_consts = None
+        self.compiled_graph = None
+
+    # Extract the param and consts from the exported program.
+    def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
+        sig = ep.graph_signature
+
+        # Export keeps a state dict for lifted params/buffers.
+        state = ep.state_dict
+
+        # Map from placeholder name -> tensor.
+        total_args = tuple()
+        encountered_user_input = False
+        for spec in sig.input_specs:
+            if spec.kind == InputKind.USER_INPUT:
+                encountered_user_input = True
+                continue
+            assert (
+                not encountered_user_input
+            ), "We expect user inputs to be last in the list of inputs."
+            assert spec.target is not None
+            total_args += (state[spec.target],)
+
+        return total_args
+
+    def _call_experimental_compile(self, *args):
+        if self.compiled_graph is None:
+            # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
+            # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
+            program = torch.export.export_for_training(
+                self.module, tuple(args), strict=False
+            )
+
+            # Collect the params and constants from the exported program.
+            self.params_and_consts = self._build_params_and_consts(program)
+
+            # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
+            # This helps us avoid tracing the graph on the subsequent model execution. On the next
+            # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
+            # without any tracing.
+            self.compiled_graph = bridge.extract_compiled_graph(
+                program.graph_module, self.params_and_consts + args
+            )
+
+        full_args = self.params_and_consts + args
+        return self.compiled_graph(*full_args)
+
     def __call__(self, *args):
+        if self.experimental_compile_enabled:
+            return self._call_experimental_compile(*args)
 
         if self.inject_metadata:
             # MetadataDispatchMode intercepts tensor operations via TorchDispatchMode and
@@ -103,7 +157,6 @@ class XLAExecutor:
                 output = self.module(*args)
         else:
             output = self.module(*args)
-
         gm_has_functional_output_kind: bool = True
 
         for el in self.signature.output_specs:
@@ -129,4 +182,7 @@ class XLAExecutor:
 def xla_backend(gm, example_inputs, options=None):
     """TT backend for torch.compile."""
     module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
-    return XLAExecutor(module, graph_signature, node_info)
+    experimental_compile_enabled = (
+        options.get("tt_experimental_compile", False) if options else False
+    )
+    return XLAExecutor(module, graph_signature, node_info, experimental_compile_enabled)

@@ -20,6 +20,11 @@
 
 namespace tt::pjrt {
 void initializeLogging();
+bool isBringupStageLoggingEnabled();
+void logBringupStage(const char *stage_name);
 } // namespace tt::pjrt
+
+// Macro for convenient bringup stage logging
+#define LOG_BRINGUP_STAGE(stage_name) tt::pjrt::logBringupStage(stage_name)
 
 #endif // TT_XLA_PJRT_IMPLEMENTATION_INC_UTILS_LOGGING_H_

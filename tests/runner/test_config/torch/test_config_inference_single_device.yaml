@@ -521,9 +521,7 @@ test_config:
     required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9837640523910522. Required: pcc=0.985. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
 
   mlp_mixer/lucidrains/pytorch-base-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-    reason: "hangs - https://github.com/tenstorrent/tt-xla/issues/1245"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   mistral/pytorch-ministral_3b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2396,3 +2394,8 @@ test_config:
 
   ultra_fast_lane_detection/pytorch-culane_resnet18-single_device-full-inference:
     status: EXPECTED_PASSING
+
+  faster_rcnn/pytorch-resnet50_fpn-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Out of Memory: Not enough space to allocate 62521344 B L1 buffer across 72 banks, where each bank needs to store 868352 B, but bank size is only 1331936 B"
