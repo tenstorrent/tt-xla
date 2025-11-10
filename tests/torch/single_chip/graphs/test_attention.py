@@ -1406,11 +1406,11 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, request):
                 shard_specs[args[4]] = (None, None, None, None)  # attention_mask
                 return shard_specs
 
-        elif num_heads % 4 == 0:
-            # Use 2x4 mesh when heads not divisible by 8
-            batch_size = 2
-            mesh_shape = (2, num_devices // 2)
-            device_ids = np.array(range(num_devices))
+        elif num_heads == 4 or num_heads == 2:
+            # Use 1xnum_heads mesh when heads not divisible by 8
+            batch_size = 1
+            mesh_shape = (1, num_heads)
+            device_ids = np.array(range(num_heads))
             mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
             def get_shard_spec(sdpa, args, kwargs):
