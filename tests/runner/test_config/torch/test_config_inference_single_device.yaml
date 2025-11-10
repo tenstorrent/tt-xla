@@ -158,6 +158,12 @@ test_config:
   alexnet/pytorch-alexnetb-single_device-full-inference:
     status: EXPECTED_PASSING
 
+  mnist/image_classification/pytorch-cnn_dropout-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  mnist/image_classification/pytorch-cnn_nodropout-single_device-full-inference:
+    status: EXPECTED_PASSING
+
   autoencoder/pytorch-linear-single_device-full-inference:
     status: EXPECTED_PASSING
 
