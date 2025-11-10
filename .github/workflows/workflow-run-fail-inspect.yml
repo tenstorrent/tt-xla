@@ -10,11 +10,6 @@ on:
         description: 'The workflow run attempt number to inspect'
         required: false
         default: '1'
-      rerun:
-        description: 'Rerun failed jobs?'
-        type: boolean
-        required: false
-        default: false
   workflow_run:
     workflows: On nightly
     branches:
@@ -26,6 +21,7 @@ permissions:
   packages: write
   checks: write
 
+
 jobs:
   inspect:
     runs-on: ubuntu-latest
@@ -36,14 +32,64 @@ jobs:
         env:
             GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-            repo="${{ github.repository }}"
-            test_job_names=("test ")
-            test_step_names=("Collect Tests")
+          repo="${{ github.repository }}"
+          test_job_names=("test ")
+          test_step_names=("Collect Tests")
 
-            curr_wf_id="${{ github.event.workflow_run.id || inputs.workflow_run_id }}"
-            curr_wf_attempt="${{ github.event.workflow_run.run_attempt || inputs.workflow_run_attempt }}"
-            rm -f report.txt
+          curr_wf_id="${{ github.event.workflow_run.id || inputs.workflow_run_id }}"
+          curr_wf_attempt="${{ github.event.workflow_run.run_attempt || inputs.workflow_run_attempt }}"
+          rm -f report.txt
 
+          found_annotations=0
+          if ! gh run view -R "$repo" $curr_wf_id --attempt $curr_wf_attempt >_workflow_run_details.txt; then
+            echo "ERROR: Failed to fetch workflow run details."
+          else
+            echo "Workflow run details fetched successfully."
+            # Parse workflow run details for job annotations
+            if [ -f "_workflow_run_details.txt" ]; then
+              echo "Parsing workflow run details for annotations..."
+
+              # Find the ANNOTATIONS section
+              annotations_line=$(grep -n "^ANNOTATIONS$" _workflow_run_details.txt | cut -d: -f1)
+              if [ -n "$annotations_line" ]; then
+                echo "Found ANNOTATIONS section at line $annotations_line"
+                # Start reading from line after ANNOTATIONS
+                annotations_content=""
+                # Read lines from annotations_line+1 until empty line
+                while IFS= read -r line; do
+                  if [ -z "$line" ]; then
+                    if [ -z "$annotations_content" ]; then
+                      break
+                    else
+                      # Check if first line begins with 'X'
+                      first_line=$(echo "$annotations_content" | head -n 1)
+                      if [[ "$first_line" == X* ]]; then
+                        last_line=$(echo "$annotations_content" | tail -n 2 | head -n 1)
+                        job=$(echo "$last_line" | rev | cut -d':' -f2- | rev)
+                        error=$(echo "$last_line" | rev | cut -d':' -f1 | rev)
+                        if [[ "$error" =~ \.github#([0-9]+) ]] && [ "${BASH_REMATCH[1]}" -lt 10 ]; then
+                          echo "Github error no ${BASH_REMATCH[1]}"
+                          echo "<details><summary>Failure (code ${BASH_REMATCH[1]}) detected in job: $job</summary>$annotations_content</details>" >>report.txt
+                          found_annotations=1
+                        else
+                          echo "Annotation with error found: $first_line"
+                          echo "Job: $job"
+                          echo "Error: $error"
+                        fi
+                      fi
+                    fi
+                    annotations_content=""
+                    continue
+                  fi
+                  annotations_content+="$line"$'\n'
+                done < <(tail -n +$((annotations_line + 1)) _workflow_run_details.txt)
+
+              fi
+            fi
+          fi
+
+          # no need to proceed if we found annotations
+          if [ "$found_annotations" -ne 0 ]; then
             if ! gh run view -R "$repo" $curr_wf_id --attempt $curr_wf_attempt --json jobs >workflow_jobs.json; then
               echo "ERROR: Failed to fetch workflow jobs."
               exit 1
@@ -51,10 +97,9 @@ jobs:
 
             if ! jq empty workflow_jobs.json >/dev/null 2>&1; then
               echo "ERROR: workflow_jobs.json is not valid JSON:"
-              cat workflow_jobs.json
+              jq . workflow_jobs.json
               exit 1
             fi
-
             # Iterate through jobs using index
             job_count=$(jq '.jobs | length' workflow_jobs.json)
             for ((i=0; i<job_count; i++)); do
@@ -84,33 +129,32 @@ jobs:
                   done
                   if [[ "$step_conclusion" == "failure" ]]; then
                     job_id=$(jq -r ".jobs[$i].databaseId" workflow_jobs.json)
-                    echo "- Failure detected in step '$step_name' before tests are run in job: [$job_name](<https://github.com/$repo/actions/runs/$curr_wf_id/job/$job_id>)" >>report.txt
                   fi
                 done
               fi
             done
+          fi
 
-            if [ ! -s report.txt ]; then
-              echo "No failed tests to report."
-              echo "send_msg=" >>$GITHUB_OUTPUT
-              exit 0
-            else
-              if [[ "$curr_wf_attempt" -eq 1 ]]; then
-                retry=1
+          if [ ! -s report.txt ]; then
+            echo "No failed tests to report."
+            echo "send_msg=" >>$GITHUB_OUTPUT
+            exit 0
+          else
+            if [[ "$curr_wf_attempt" -eq 1 ]]; then
+                if [ "${{ github.event_name == 'workflow_run' }}" ]; then
+                gh run rerun $curr_wf_id -R "$repo" --failed
                 msg_retry_text=":rocket: Retrying failed jobs!"
-                echo "> Retry failed job issued!" >> $GITHUB_STEP_SUMMARY
-                if [ "${{ inputs.rerun || true }}" == "true" ]; then
-                  gh run rerun $curr_wf_id -R "$repo" --failed
-                fi
-              else
-                retry=0
-                msg_retry_text="No retries left, already $curr_wf_attempt attempts."
+                echo "> Retry of failed job issued!" >> report.txt
               fi
-              echo "Report: $(cat report.txt)"
-              echo "## Machine failures inspection report for [Nightly](<https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_attempt>)" >> $GITHUB_STEP_SUMMARY
-              cat report.txt >> $GITHUB_STEP_SUMMARY
-              echo "send_msg={\"text\": \"Nightly failure caused by machine failures. $msg_retry_text\", \"job_link\": \"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_attempt\", \"unfurl_links\": false, \"unfurl_media\": false }" >>$GITHUB_OUTPUT
+            else
+              echo "> No retries of failed job left ($curr_wf_attempt attempt)!" >> report.txt
+              msg_retry_text="No retries left, already $curr_wf_attempt attempts."
             fi
+            echo "Report: $(cat report.txt)"
+            echo "## Machine failures inspection report for [Nightly](<https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_attempt>)" >> $GITHUB_STEP_SUMMARY
+            cat report.txt >> $GITHUB_STEP_SUMMARY
+            echo "send_msg={\"text\": \"Nightly failure caused by machine failures. $msg_retry_text\", \"job_link\": \"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_attempt\", \"unfurl_links\": false, \"unfurl_media\": false }" >>$GITHUB_OUTPUT
+          fi
 
       - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ steps.inspect-failures.outputs.send_msg }}
