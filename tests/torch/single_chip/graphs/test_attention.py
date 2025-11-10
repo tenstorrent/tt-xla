@@ -1407,7 +1407,7 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, request):
                 return shard_specs
 
         elif num_heads == 4 or num_heads == 2:
-            # Use 1x4 mesh when heads not divisible by 8
+            # Use 1xnum_heads mesh when heads not divisible by 8
             batch_size = 1
             mesh_shape = (1, num_heads)
             device_ids = np.array(range(num_heads))
