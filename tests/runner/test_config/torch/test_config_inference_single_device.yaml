@@ -521,9 +521,7 @@ test_config:
     required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9837640523910522. Required: pcc=0.985. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
 
   mlp_mixer/lucidrains/pytorch-base-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-    reason: "hangs - https://github.com/tenstorrent/tt-xla/issues/1245"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   mistral/pytorch-ministral_3b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
