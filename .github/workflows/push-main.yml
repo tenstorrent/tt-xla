@@ -40,6 +40,15 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       build_type: codecov
 
+  build-ttxla-explorer:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla with explorer"
+    secrets: inherit
+    needs: [ build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      build_type: explorer
+
   test:
     needs: [ build-image, build-ttxla, build-ttxla-codecov ]
     uses: ./.github/workflows/call-test.yml
