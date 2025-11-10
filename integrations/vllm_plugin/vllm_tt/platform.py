@@ -35,6 +35,7 @@ class TTConfig:
     enable_const_eval: bool = True
     min_context_len: int = 128
     batch_size: int = 1
+    enable_precompile_all: bool = True
 
     def get_pjrt_compile_config(self) -> dict:
         return {
