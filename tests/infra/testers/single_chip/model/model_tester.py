@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Callable, Optional, Tuple
@@ -11,6 +12,7 @@ from typing import Callable, Optional, Tuple
 from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
+from loguru import logger
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
@@ -153,7 +155,27 @@ class ModelTester(BaseTester, ABC):
         cpu_res = self._run_on_cpu(self._workload)
 
         self._compile_for_tt_device(self._workload)
-        tt_res = self._run_on_tt_device(self._workload)
+
+        warmup_iters = 3
+        perf_iters = 2
+
+        # warmup runs
+        for _ in range(warmup_iters):
+            _ = self._run_on_tt_device(self._workload)
+
+        # e2e perf
+        tt_start = time.perf_counter()
+        for _ in range(perf_iters):
+            tt_res = self._run_on_tt_device(self._workload)
+        tt_end = time.perf_counter()
+        tt_total_time = tt_end - tt_start
+
+        avg_time = tt_total_time / perf_iters
+
+        logger.info(
+            f"[e2e Perf] warmup={warmup_iters} perf_runs={perf_iters} "
+            f"total_time={tt_total_time:.3f}s avg_time={avg_time:.4f}s"
+        )
 
         return (self._compare(tt_res, cpu_res),)
 
