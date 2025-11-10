@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "fcd934f0b59d54a0c546aeacd3005c8861c1949f")
+    set(TT_MLIR_VERSION "120c1f82f16a96121f123ec9c5d43d91c7082a6a")
 endif()
 
 set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
@@ -62,9 +62,9 @@ else()
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
     set(TTMLIR_LIB_DIR "${TTMLIR_SOURCE_DIR}/install")
-    set(WITH_METAL_HOME_SET "")
-    if(NOT DEFINED ENV{TT_METAL_HOME})
-        set(WITH_METAL_HOME_SET "TT_METAL_HOME=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
+    set(WITH_METAL_RUNTIME_ROOT_SET "")
+    if(NOT DEFINED ENV{TT_METAL_RUNTIME_ROOT})
+        set(WITH_METAL_RUNTIME_ROOT_SET "TT_METAL_RUNTIME_ROOT=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
     endif()
     set(TT_RUNTIME_DEBUG ${TT_RUNTIME_DEBUG} CACHE BOOL "Enable ttmlir runtime debugging")
     if(TTXLA_ENABLE_EXPLORER)
@@ -84,7 +84,7 @@ else()
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
 
-        BUILD_COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR>
+        BUILD_COMMAND env ${WITH_METAL_RUNTIME_ROOT_SET} ${CMAKE_COMMAND} --build <BINARY_DIR>
         COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist
 
         INSTALL_COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component SharedLib
@@ -110,7 +110,7 @@ else()
 
     if(TTXLA_ENABLE_EXPLORER)
         ExternalProject_Add_Step(tt-mlir build_explorer
-            COMMAND env ${WITH_METAL_HOME_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> -- explorer
+            COMMAND env ${WITH_METAL_RUNTIME_ROOT_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> -- explorer
             DEPENDEES build
             WORKING_DIRECTORY ${TTMLIR_BUILD_DIR}
         )

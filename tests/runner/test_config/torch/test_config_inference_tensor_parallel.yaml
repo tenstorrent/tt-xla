@@ -8,7 +8,6 @@ test_config:
     supported_archs: [n300-llmbox]
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "PCC comparison failed. Calculated: pcc=0.970244288444519. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference:
@@ -19,13 +18,11 @@ test_config:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
     reason: " Error: loc('compare.1209'): error: Compare operation is not supported in stablehlo-pipeline for meshes not 1x1 - https://github.com/tenstorrent/tt-mlir/issues/3497"
-    bringup_status: FAILED_TTMLIR_COMPILATION
 
   gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     assert_pcc: false
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9626210927963257. Required: pcc=0.97"
 
   gemma/pytorch-google/gemma-2-9b-it-tensor_parallel-full-inference:
@@ -58,7 +55,6 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1473
 
   mistral/pytorch-7b_instruct_v03-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -68,19 +64,16 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1474
 
   qwen_3/causal_lm/pytorch-14b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1474
 
   qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1474
 
   qwen_3/causal_lm/pytorch-32b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -96,7 +89,6 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     assert_pcc: false
-    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1474
 
   qwen_3/embedding/pytorch-embedding_8b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]

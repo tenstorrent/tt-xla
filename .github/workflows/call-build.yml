@@ -16,7 +16,7 @@ on:
             required: true
             type: string
         build_type:
-            description: 'Build type for the wheel'
+            description: 'Build type for the wheel: release, codecov, debug, explorer'
             default: release
             type: string
             required: false

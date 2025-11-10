@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import difflib
+import os
 
 import pytest
 
@@ -15,6 +16,7 @@ _collected_nodeids = set()
 
 # Allowed architecture identifiers for arch_overrides and --arch option
 ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
+_BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
 def pytest_addoption(parser):
@@ -32,6 +34,23 @@ def pytest_addoption(parser):
         default=False,
         help="Fail if test_config files and collected test IDs are out of sync",
     )
+
+
+@pytest.fixture(autouse=True)
+def bringup_stage_file():
+    """Create and cleanup bringup stage file for each test when ENABLE_BRINGUP_STAGE_LOGGING=1."""
+    if os.environ.get("ENABLE_BRINGUP_STAGE_LOGGING") == "1":
+        # Setup: Create/truncate file before test
+        with open(_BRINGUP_STAGE_FILE, "w") as f:
+            f.write("FE_COMPILATION_START")
+
+    yield
+
+    # Teardown: Remove file after test
+    if os.environ.get("ENABLE_BRINGUP_STAGE_LOGGING") == "1" and os.path.exists(
+        _BRINGUP_STAGE_FILE
+    ):
+        os.remove(_BRINGUP_STAGE_FILE)
 
 
 @pytest.fixture
