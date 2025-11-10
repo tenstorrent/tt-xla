@@ -1,11 +1,13 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import functools
 import os
 from typing import Tuple
 
 import torch
 import torch_xla
+import tt_xla_debug
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
@@ -16,7 +18,7 @@ from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
-    handle_composite_ops,
+    generate_intermediates,
     insert_argument_type_markers,
 )
 
@@ -78,6 +80,7 @@ class XLAExecutor:
         module: torch.fx.GraphModule,
         signature: torch.export.ExportGraphSignature,
         node_info: list[str],
+        intermediates: dict[str, torch.Tensor],
     ):
         self.module = module
         self.signature = signature
@@ -85,7 +88,9 @@ class XLAExecutor:
         # Inject metadata if xla debug is enabled and node_info is not empty
         # We need xla debug to be enabled in order for torch-xla to inject metadata
         self.inject_metadata = os.environ.get("XLA_HLO_DEBUG", "0") == "1" and node_info
-
+        self.intermediates = intermediates
+        self.intermediate_pccs = {}
+        self._enable_intermediate_verification()
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
         # tensors, so that we may cut the graph on the output tensors correctly.
@@ -124,9 +129,46 @@ class XLAExecutor:
 
         return output
 
+    def _enable_intermediate_verification(self):
+        intermediates = self.intermediates
+
+        def _intermediate_callback(executor, binary, callback_context, op_context):
+            def clean_location(raw_location):
+                return raw_location[5:-2]
+
+            def compute_pcc(x: torch.Tensor, y: torch.Tensor):
+                x_flat, y_flat = x.flatten(), y.flatten()
+                vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
+                denom = vx.norm() * vy.norm()
+
+                return torch.tensor(float("nan")) if denom == 0 else (vx @ vy) / denom
+
+            raw_location = tt_xla_debug.get_op_loc_info(op_context)
+            location = clean_location(raw_location)
+            print(location)
+            calculated = tt_xla_debug.get_op_output_torch_tensor(
+                op_context, callback_context
+            )
+            if location in executor.intermediates:
+                golden = executor.intermediates[location]
+                if calculated is not None and calculated.numel() == golden.numel():
+                    pcc = compute_pcc(calculated, golden)
+                    print(f"PCC is {pcc:02}")
+
+        wrapped = functools.partial(_intermediate_callback, self)
+        self._register_intermediate_callback(wrapped)
+
+    def _register_intermediate_callback(self, callback):
+        if not tt_xla_debug.is_runtime_debug_enabled():
+            raise RuntimeError(
+                "Runtime debug is required to use intermediate callbacks. Please recompile this project with -DTT_RUNTIME_DEBUG=ON."
+            )
+        tt_xla_debug.DebugHooks.get_debug_hooks(callback)
+
 
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
     """TT backend for torch.compile."""
     module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
-    return XLAExecutor(module, graph_signature, node_info)
+    intermediates = generate_intermediates(module, example_inputs, node_info)
+    return XLAExecutor(module, graph_signature, node_info, intermediates)

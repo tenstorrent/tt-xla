@@ -1,3 +1,4 @@
+--index-url https://download.pytorch.org/whl/cpu
 black
 clang-format
 cmake
@@ -28,6 +29,7 @@ pytorchcv
 rjieba
 sentencepiece
 setuptools
+six
 soundfile
 tabulate
 timm

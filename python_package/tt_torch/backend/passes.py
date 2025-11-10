@@ -186,3 +186,69 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
         gm = bypass_dtype_promotion_and_redundant_cast(gm, example_inputs)
 
     return gm
+
+
+def generate_intermediates(gm, inputs, node_info):
+    node_to_tensor = {}
+    input_index = 0
+    call_fn_index = 0
+    intermediates = {}
+    assert sum(node.op == "call_function" for node in gm.graph.nodes) == len(node_info)
+    for node in gm.graph.nodes:
+
+        if node.op == "placeholder":
+            node_to_tensor[node] = inputs[input_index].to("cpu")
+            input_index += 1
+        elif node.op == "get_attr":
+            if node.target in gm.state_dict():
+                node_to_tensor[node] = gm.state_dict()[node.target].to("cpu")
+            else:
+                buffer_found = False
+                for buffer in gm.named_buffers():
+                    if buffer[0] == node.target:
+                        node_to_tensor[node] = buffer[1].to("cpu")
+                        buffer_found = True
+                        break
+                assert buffer_found
+
+        elif node.op == "call_function":
+            info = node_info[call_fn_index]
+            call_fn_index += 1
+            if hasattr(node.target, "name"):
+                info += node.target.name().replace(":", "_").split(".")[0]
+            args = []
+            for arg in node.args:
+                if isinstance(arg, torch.fx.node.Node):
+                    args.append(node_to_tensor[arg])
+                elif isinstance(arg, list):
+                    args.append(
+                        [
+                            (
+                                node_to_tensor[a]
+                                if isinstance(a, torch.fx.node.Node)
+                                else a
+                            )
+                            for a in arg
+                        ]
+                    )
+                else:
+                    args.append(arg)
+
+            golden = node.target(*args, **node.kwargs)
+            tensor = golden.clone()
+            node_to_tensor[node] = tensor
+
+            # some ops return scalar (0D tensor) as output (e.g. aten.select.int)
+            if isinstance(golden, torch.Tensor) and golden.dim() == 0:
+                print(f"Unsqueezing golden {golden} to {golden.unsqueeze(0)}")
+                golden = golden.unsqueeze(0)
+
+            # some ops return a tuple of tensors as output (e.g. max_pool_2d_with_indices)
+            # we expect to only use the first, though this may be changed in the future
+            elif isinstance(golden, (tuple, list)) and len(golden) > 1:
+                golden = golden[0]
+                print(
+                    f"\033[33m[WARNING] {node.name} has {len(golden)} outputs, but we can only get one from runtime.\033[0m"
+                )
+            intermediates[info] = golden
+    return intermediates

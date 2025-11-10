@@ -81,6 +81,7 @@ add_custom_target(install-dylib-editable ALL
     COMMAND pip install -e ${CMAKE_SOURCE_DIR}/python_package --no-deps --no-build-isolation
     COMMENT "Running editable installation..."
     USES_TERMINAL
+    VERBATIM
 )
 
 add_dependencies(install-dylib-editable TTPJRTTTDylib)

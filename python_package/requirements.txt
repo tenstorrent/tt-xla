@@ -1,5 +1,6 @@
 jax==0.7.1
 jaxlib==0.7.1
 requests
+--find-links https://download.pytorch.org/whl/cpu
 torch==2.7.1
 torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgit1f21467-cp311-cp311-linux_x86_64.whl
