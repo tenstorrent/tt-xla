@@ -24,7 +24,7 @@ pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @n
 # Python package
 /python_package/ @mrakitaTT @pilkicTT @nvukobratTT @ajakovljevicTT @sgligorijevicTT
 /python_package/tt_jax/ @mrakitaTT @ajakovljevicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
-/python_package/tt_torch/ @nvukobratTT @dgolubovicTT @jameszianxuTT @LPanosTT @mstojkovicTT @ppadjinTT @vkovinicTT
+/python_package/tt_torch/ @nvukobratTT @dgolubovicTT @jameszianxuTT @LPanosTT @AleksKnezevic @mstojkovicTT @ppadjinTT @vkovinicTT
 
 # Third Party
 /third_party/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @jnie-TT @sdjukicTT @sgligorijevicTT
