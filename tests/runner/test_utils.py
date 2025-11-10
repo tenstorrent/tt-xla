@@ -195,6 +195,26 @@ def parse_last_bringup_stage() -> BringupStatus | None:
     return stage_to_status.get(stage_name)
 
 
+def update_test_metadata_for_exception(
+    test_metadata, exc: Exception, stderr: str
+) -> None:
+    """
+    Inspect exception message and set `failing_reason` and `runtime_reason` on `test_metadata`.
+    """
+    try:
+        message = str(exc)
+    except Exception:
+        message = repr(exc)
+
+    # Find failing reason by raised exception
+    failing_reason = FailingReasonsFinder.find_reason_by_exception(exc)
+
+    # TODO: remove this once we have a better way to set the reason dynamically.
+    # and handle it in record_model_test_properties.
+    setattr(test_metadata, "runtime_reason", message)
+    setattr(test_metadata, "failing_reason", failing_reason)
+
+
 # This is needed for combination of pytest-forked and using ruamel.yaml
 # ruamel returns ScalarFloat/ScalarString types (subclasses of float/str).
 # pytest-forked uses Python's marshal, which rejects non-builtin subclasses inside the
@@ -255,10 +275,12 @@ def record_model_test_properties(
     - Failing tests classify bringup info based on the last stage reached before failure.
     - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status and reason from config and call pytest.skip(reason).
     - If test_metadata.status is KNOWN_FAILURE_XFAIL, call pytest.xfail(reason) at the end.
+    - If test_metadata.failing_reason is set, use it to set the failing reason.
     """
 
     reason = None
     arch = getattr(test_metadata, "arch", None)
+    failing_reason = getattr(test_metadata, "failing_reason", None)
 
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
         bringup_status = getattr(test_metadata, "bringup_status", None)

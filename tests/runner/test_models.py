@@ -19,6 +19,7 @@ from tests.runner.test_utils import (
     ModelTestStatus,
     fix_venv_isolation,
     record_model_test_properties,
+    update_test_metadata_for_exception,
 )
 from tests.runner.testers import (
     DynamicJaxModelTester,
@@ -84,6 +85,7 @@ def test_all_models_torch(
     record_property,
     test_metadata,
     request,
+    capteesys,
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     fix_venv_isolation()
@@ -127,9 +129,9 @@ def test_all_models_torch(
                 Comparator._assert_on_results(comparison_result)
 
         except Exception as e:
-            # TODO: remove this once we have a better way to set the reason dynamically.
-            # and handle it in record_model_test_properties.
-            setattr(test_metadata, "runtime_reason", str(e))
+            err = capteesys.readouterr().err
+            # Record runtime failure info so it can be reflected in report properties
+            update_test_metadata_for_exception(test_metadata, e, stderr=err)
             raise
         finally:
             # If there are multiple comparison results, only record the first one because the
@@ -205,6 +207,7 @@ def test_all_models_jax(
     record_property,
     test_metadata,
     request,
+    capteesys,
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     fix_venv_isolation()
@@ -255,9 +258,9 @@ def test_all_models_jax(
                 Comparator._assert_on_results(comparison_result)
 
         except Exception as e:
-            # TODO: remove this once we have a better way to set the reason dynamically.
-            # and handle it in record_model_test_properties.
-            setattr(test_metadata, "runtime_reason", str(e))
+            err = capteesys.readouterr().err
+            # Record runtime failure info so it can be reflected in report properties
+            update_test_metadata_for_exception(test_metadata, e, stderr=err)
             raise
         finally:
             # If there are multiple comparison results, only record the first one because the
