@@ -62,7 +62,7 @@ private:
   // For SO path, we don't have layout information as we don't have a
   // flatbuffer. HACK: we just return the input tensor (host tensor) without any
   // layout conversion in cases we can't reuse the prepared tensor. This works
-  // because codegen code forces layouts(and therefore can basically accept
+  // because codegen code forces layouts (and therefore can basically accept
   // anything).
   tt::runtime::Tensor
   convertTensorLayout(tt::runtime::Tensor input_tensor,
