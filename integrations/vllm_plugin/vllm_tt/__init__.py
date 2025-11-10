@@ -8,4 +8,5 @@ import os
 def register():
     # Setting worker multiprocessing method to spawn to avoid hangs in consecutive vllm pytest runs
     os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
+    os.environ["VLLM_TARGET_DEVICE"] = "empty"
     return "vllm_tt.platform.TTPlatform"
