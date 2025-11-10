@@ -6,7 +6,6 @@ test_config:
   mnist/pytorch-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'stablehlo.rng_bit_generator' https://github.com/tenstorrent/tt-mlir/issues/4793"
-    bringup_status: FAILED_TTMLIR_COMPILATION
     markers: [push]
 
   autoencoder/pytorch-linear-single_device-full-training:
@@ -15,7 +14,6 @@ test_config:
 
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-full-training:
@@ -90,28 +88,23 @@ test_config:
 
   clip/pytorch-base_patch32-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
     reason: "runtime/lib/ttnn/operations/utils/utils.cpp:363: numElements * elementSize == data->size() when calling toTTNNTensor"
 
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: INCORRECT_RESULT
     reason: "PCC comparison failed."
     markers: [large]
 
   nbeats/pytorch-generic_basis-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: INCORRECT_RESULT
     reason: "PCC comparison failed."
 
   nbeats/pytorch-seasonality_basis-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: INCORRECT_RESULT
     reason: "PCC comparison failed."
 
   nbeats/pytorch-trend_basis-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: INCORRECT_RESULT
     reason: "PCC comparison failed."
 
   qwen_3/embedding/pytorch-embedding_0_6b-single_device-full-training:
