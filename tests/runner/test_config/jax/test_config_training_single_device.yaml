@@ -47,14 +47,14 @@ test_config:
 
   beit/image_classification/jax-base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "Assert: numElements * elementSize == data->size()"
     execution_pass: BACKWARD
 
   beit/image_classification/jax-large-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "Assert: numElements * elementSize == data->size()"
     execution_pass: BACKWARD
 
   bert/masked_lm/jax-base-single_device-full-training:
@@ -72,7 +72,7 @@ test_config:
   bigbird/causal_lm/jax-large-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
     execution_pass: FORWARD
 
   bigbird/question_answering/jax-base-single_device-full-training:
@@ -88,33 +88,33 @@ test_config:
     execution_pass: FORWARD
 
   blenderbot/summarization/jax-1B-distill-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory"
-    execution_pass: FORWARD
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    execution_pass: BACKWARD
 
   blenderbot/summarization/jax-3B-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory"
-    execution_pass: FORWARD
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    execution_pass: BACKWARD
 
   blenderbot/summarization/jax-400M-distill-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory"
-    execution_pass: FORWARD
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    execution_pass: BACKWARD
 
   blenderbot/summarization/jax-small-90M-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory"
-    execution_pass: FORWARD
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    execution_pass: BACKWARD
 
   bloom/causal_lm/jax-1b1-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
     execution_pass: BACKWARD
 
   bloom/causal_lm/jax-1b7-single_device-full-training:
@@ -130,9 +130,9 @@ test_config:
     execution_pass: BACKWARD
 
   bloom/causal_lm/jax-560m-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
     execution_pass: BACKWARD
 
   bloom/causal_lm/jax-7b-single_device-full-training:
@@ -148,9 +148,9 @@ test_config:
     execution_pass: BACKWARD
 
   clip/image_classification/jax-base_patch32-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory"
     execution_pass: FORWARD
 
   clip/image_classification/jax-large_patch14-single_device-full-training:
@@ -167,14 +167,14 @@ test_config:
 
   dinov2/image_classification/jax-base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "numElements * elementSize == data->size()"
     execution_pass: BACKWARD
 
   dinov2/image_classification/jax-giant-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "numElements * elementSize == data->size()"
     execution_pass: FORWARD
 
   dinov2/image_classification/jax-large-single_device-full-training:
@@ -233,8 +233,8 @@ test_config:
 
   gpt2/causal_lm/jax-xl-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory"
     execution_pass: FORWARD
 
   gpt_j/causal_lm/jax-6b-single_device-full-training:
@@ -277,19 +277,19 @@ test_config:
   longt5/text_classification/jax-base-tglobal-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1"
     execution_pass: FORWARD
 
   longt5/text_classification/jax-large-local-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1"
     execution_pass: FORWARD
 
   longt5/text_classification/jax-xl-tglobal-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1"
     markers: [large]
     execution_pass: FORWARD
 
@@ -332,7 +332,7 @@ test_config:
   mlp_mixer/image_classification/jax-base_16-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "numElements * elementSize == data->size()"
     execution_pass: BACKWARD
 
   mnist/image_classification/jax-cnn_batchnorm-single_device-full-training:
@@ -507,7 +507,7 @@ test_config:
   squeezebert/masked_lm/jax-base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "const T &llvm::ArrayRef<long>::operator[](size_t) const [T = long]: Assertion `Index < Length && \"Invalid index!\"' failed."
     execution_pass: BACKWARD
 
   t5/summarization/jax-base-single_device-full-training:
@@ -536,8 +536,8 @@ test_config:
 
   vit/image_classification/jax-base_patch16_224-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "numElements * elementSize == data->size()"
     execution_pass: BACKWARD
 
   vit/image_classification/jax-base_patch16_384-single_device-full-training:
@@ -591,26 +591,26 @@ test_config:
   wav2vec2/audio_classification/jax-large_lv_60-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "TorchCodec issue in front-end compilation"
+    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
     execution_pass: BACKWARD
 
   whisper/audio_classification/jax-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "TorchCodec issue in front-end compilation"
+    reason: " Assertion `Index < Length && \"Invalid index!\"' failed."
     execution_pass: BACKWARD
 
   whisper/audio_classification/jax-large_v3-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "TorchCodec issue in front-end compilation"
+    reason: " Assertion `Index < Length && \"Invalid index!\"' failed."
     markers: [large]
     execution_pass: BACKWARD
 
   whisper/audio_classification/jax-medium-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "TorchCodec issue in front-end compilation"
+    reason: " Assertion `Index < Length && \"Invalid index!\"' failed."
     execution_pass: BACKWARD
 
   xglm/causal_lm/jax-564M-single_device-full-training:
@@ -620,13 +620,13 @@ test_config:
     execution_pass: FORWARD
 
   xlm_roberta/causal_lm/jax-base-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory"
     execution_pass: FORWARD
 
   xlm_roberta/causal_lm/jax-large-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory"
     execution_pass: FORWARD
