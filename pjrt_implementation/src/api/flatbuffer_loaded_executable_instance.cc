@@ -23,6 +23,7 @@
 #include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "utils/logging.h"
+#include "utils/utils.h"
 
 namespace tt::pjrt {
 
@@ -456,9 +457,16 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
-  std::vector<tt::runtime::Tensor> output_tensors = tt::runtime::submit(
-      *runtime_device, executable_image->getFlatbufferBinary(), program_index,
-      input_tensors);
+  auto r = utils::invoke(tt::runtime::submit, *runtime_device,
+                         executable_image->getFlatbufferBinary(), program_index,
+                         input_tensors);
+
+  if (!r) {
+    m_client_instance->closeMeshDevice();
+    return tt_pjrt_status::kInternal;
+  }
+
+  std::vector<tt::runtime::Tensor> &output_tensors = *r;
 
   if (output_tensors.size() != m_executable_image->getNumOutputs()) {
     DLOG_F(ERROR,
