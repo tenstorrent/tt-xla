@@ -868,7 +868,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_max_model_len + 1
             ].to(self.device)
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
+            seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]  # .to(
+            # self.device)
         else:
             block_tables = self.block_table_cpu[
                 : self.num_reqs_most_model_len, : self.num_blocks_per_most_len_req
@@ -881,8 +882,29 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             query_start_loc = self.query_start_loc_cpu[
                 : self.num_reqs_most_model_len + 1
             ].to(self.device)
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
-        block_tables = block_tables.to(self.device)
+            seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]  # .to(
+            # self.device)
+        block_tables = block_tables  # .to(self.device)
+        print("PAGE TABLE:")
+        print(block_tables)
+        print("SEQ LEN:")
+        print(seq_lens)
+
+        # Calculate the slot mapping
+        slot_mapping_metadata = self._get_slot_mapping_metadata(
+            num_reqs, num_scheduled_tokens_per_req
+        )
+        num_kv_update_slices = slot_mapping_metadata.shape[0]
+        padded_num_slices = _get_padded_num_kv_cache_update_slices(
+            padded_total_num_scheduled_tokens, self.max_num_reqs, self.block_size
+        )
+        slot_mapping_metadata = np.pad(
+            slot_mapping_metadata,
+            [[0, padded_num_slices - len(slot_mapping_metadata)], [0, 0]],
+            constant_values=0,
+        )
+        slot_mapping_metadata = np.transpose(slot_mapping_metadata)
+        slot_mapping_metadata = torch.tensor(slot_mapping_metadata, device=self.device)
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -896,18 +918,29 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
         attn_metadata = TTMetadata(
+            # slot_mapping=slot_mapping_metadata,
+            page_table=block_tables,
             context_lens=seq_lens,
             query_start_loc=query_start_loc,
             num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
-            attn_mask=generate_attn_mask(
-                seq_lens,
-                self.input_ids.shape[-1],
-                self.num_query_heads,
-                self.max_model_len,
-                self.dtype,
-                self.device,
+            # num_kv_update_slices=torch.tensor([num_kv_update_slices],
+            #                                   dtype=torch.int32,
+            #                                   device=self.device),
+            # num_slices_per_kv_cache_update_block=self.
+            # _num_slices_per_kv_cache_update_block,
+            is_causal=True if seq_lens.shape[-1] == 1 else False,
+            attn_mask=(
+                generate_attn_mask(
+                    seq_lens,
+                    self.input_ids.shape[-1],
+                    self.num_query_heads,
+                    self.input_ids.shape[-1],
+                    self.dtype,
+                    self.device,
+                )
+                if seq_lens.shape[-1] > 1
+                else None
             ),
-            is_causal=False,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1110,6 +1143,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ) = self._prepare_inputs(scheduler_output, start_index)
             input_ids, inputs_embeds = self._get_model_inputs(self.input_ids, mm_embeds)
             xm.mark_step()
+            print("INPUT IDS:")
+            print(input_ids)
+            print("POSITIONS:")
+            print(self.position_ids)
+            print("INPUT EMBEDS:")
+            print(inputs_embeds)
             # Run the decoder
             with set_forward_context(
                 attn_metadata,
@@ -1370,7 +1409,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.no_grad()
     def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         if self.supports_mm_inputs:
             input_ids = None
             inputs_embeds = torch.zeros(
@@ -1381,26 +1419,51 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             inputs_embeds = None
         actual_num_reqs = min(num_tokens, num_reqs)
         position_ids = torch.zeros(num_tokens, dtype=torch.int32).to(self.device)
+        padded_num_slices = _get_padded_num_kv_cache_update_slices(
+            num_tokens, self.max_num_reqs, self.block_size
+        )
+        num_kv_update_slices = torch.tensor([padded_num_slices], dtype=torch.int32).to(
+            self.device
+        )
+        slot_mapping = torch.zeros((3, padded_num_slices), dtype=torch.int32).to(
+            self.device
+        )
+        block_tables = torch.zeros((num_reqs, num_blocks), dtype=torch.int32)
         query_lens = [1] * num_reqs
         query_start_loc = torch.cumsum(
             torch.tensor([0] + query_lens, dtype=torch.int32), dim=0, dtype=torch.int32
-        ).to(self.device)
-        context_lens = torch.ones((num_reqs,), dtype=torch.int32)  # .to(self.device)
-        num_seqs = torch.tensor([actual_num_reqs], dtype=torch.int32).to(self.device)
+        )
+        context_lens = torch.ones((num_reqs,), dtype=torch.int32)
+        num_seqs = torch.tensor([actual_num_reqs], dtype=torch.int32)
         attn_metadata = TTMetadata(
+            # slot_mapping=slot_mapping,
+            page_table=block_tables,
             context_lens=context_lens,
             query_start_loc=query_start_loc,
             num_seqs=num_seqs,
+            is_causal=False,
             attn_mask=generate_attn_mask(
                 context_lens,
                 input_ids.shape[-1],
                 self.num_query_heads,
-                self.max_model_len,
+                input_ids.shape[-1],
                 self.dtype,
                 self.device,
             ),
-            is_causal=False,
+            # num_kv_update_slices=num_kv_update_slices,
+            # num_slices_per_kv_cache_update_block=self.
+            # _num_slices_per_kv_cache_update_block,
         )
+
+        # if self.supports_mm_inputs:
+        #     torch._dynamo.mark_dynamic(inputs_embeds, 0)
+        # else:
+        #     torch._dynamo.mark_dynamic(input_ids, 0)
+        # torch._dynamo.mark_dynamic(position_ids, 0)
+        # torch._dynamo.mark_dynamic(attn_metadata.slot_mapping, 0)
+        # torch._dynamo.mark_dynamic(attn_metadata.block_tables, (0, 1))
+        # torch._dynamo.mark_dynamic(attn_metadata.context_lens, 0)
+        # torch._dynamo.mark_dynamic(attn_metadata.query_start_loc, 0)
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
         per_layer_attn_metadata = {
@@ -1501,7 +1564,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
 
     def _precompile_backbone(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
         for num_tokens in self.num_tokens_paddings:
@@ -1795,6 +1857,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         kv_cache_sizes = {}
+        print(f"kv_cache_config.kv_cache_tensors: {kv_cache_config.kv_cache_tensors}")
         for kv_cache_tensor in kv_cache_config.kv_cache_tensors:
             assert len(kv_cache_tensor.shared_by) == 1, (
                 "KV cache tensor shared by multiple layers is not supported in " "TPU."
@@ -1819,9 +1882,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             f"tp_size {tp_size} under SPMD mode"
                         )
                     kv_cache_shape = TTAttentionBackend.get_kv_cache_shape(
-                        1,
-                        self.num_kv_heads,
-                        self.max_model_len,
+                        num_blocks,
+                        kv_cache_spec.block_size,
+                        kv_cache_spec.num_kv_heads,
                         kv_cache_spec.head_size,
                     )
                     dtype = kv_cache_spec.dtype

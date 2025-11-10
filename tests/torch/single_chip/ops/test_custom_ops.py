@@ -148,7 +148,7 @@ def test_paged_update_cache(
     fill_value = torch.randn(1, num_users, num_heads, head_dim, dtype=torch.bfloat16)
 
     # Fill value head dim must be explicitly padded to 32, not only relying on tile layout.
-    fill_value = torch.nn.functional.pad(fill_value, (0, 0, 0, 32 - num_heads))
+    # fill_value = torch.nn.functional.pad(fill_value, (0, 0, 0, 32 - num_heads))
 
     # Create arbitrary update indices
     cache_idxs = torch.randperm(max_seq_len)[:num_users]

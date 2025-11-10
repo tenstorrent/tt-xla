@@ -635,7 +635,7 @@ def paged_scaled_dot_product_attention_decode(
     attention_mask: torch.Tensor = None,
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
-    scale: float = 1.0,
+    scale: float = None,
 ) -> torch.Tensor:
     device = query.device
     if device.type == "xla":
@@ -643,9 +643,12 @@ def paged_scaled_dot_product_attention_decode(
             "has_attention_mask": "False",
             "has_cur_pos_tensor": "False",
             "has_attention_sink": "False",
-            "scale": str(scale),
             "is_causal": str(is_causal),
         }
+
+        if scale is not None:
+            attrs["scale"] = str(scale)
+
         inputs = [query, key, value, page_table]
         if attention_mask is not None:
             attrs["has_attention_mask"] = "True"
@@ -666,6 +669,21 @@ def paged_scaled_dot_product_attention_decode(
         )
     else:
         raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@paged_scaled_dot_product_attention_decode.register_fake
+def paged_scaled_dot_product_attention_decode_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    page_table: torch.Tensor,
+    is_causal: bool = False,
+    attention_mask: torch.Tensor = None,
+    cur_pos_tensor: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
+    scale: float = None,
+) -> torch.Tensor:
+    return torch.zeros_like(query)
 
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow

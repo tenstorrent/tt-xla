@@ -13,9 +13,14 @@ def test_opt_generation():
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
     llm_args = {
         "model": "facebook/opt-125m",
-        "max_num_batched_tokens": 32,
+        "max_num_batched_tokens": 128,
         "max_num_seqs": 1,
-        "max_model_len": 32,
+        "max_model_len": 128,
+        "gpu_memory_utilization": 0.001,
+        "additional_config": {
+            "enable_const_eval": False,
+            "min_context_len": 32,
+        },
     }
     llm = vllm.LLM(**llm_args)
 

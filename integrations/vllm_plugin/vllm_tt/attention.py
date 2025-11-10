@@ -66,13 +66,12 @@ class TTAttentionBackend(AttentionBackend):
 
     @staticmethod
     def get_kv_cache_shape(
-        batch_size: int, num_heads: int, max_seq_len: int, head_size: int
+        num_blocks: int,
+        block_size: int,
+        num_kv_heads: int,
+        head_size: int,
     ) -> tuple[int, ...]:
-        # [2, batch_size, num_heads, max_cache_len), head_dim]
-        padded_head_size = (
-            cdiv(head_size, TT_HEAD_SIZE_ALIGNMENT) * TT_HEAD_SIZE_ALIGNMENT
-        )
-        return (2, batch_size, num_heads, max_seq_len, head_size)
+        return (2, num_blocks, num_kv_heads, block_size, head_size)
 
     @staticmethod
     def swap_blocks(
@@ -112,6 +111,7 @@ class TTAttentionBackend(AttentionBackend):
         # For long model length, we use 16 page-size to avoid too much
         # VMEM spill. A more robust solution should be implemented to
         # handle VREG spills.
+        return 32
         if vllm_config.model_config.max_model_len > 8192:
             return 16
         page_size = next_power_of_2(vllm_config.model_config.max_model_len) // 16
@@ -152,6 +152,7 @@ class TTMetadata:
     num_seqs: torch.Tensor
     # padding_in_inputs: torch.Tensor
     attn_mask: torch.Tensor
+    page_table: torch.Tensor
     is_causal: bool
 
 
@@ -264,33 +265,61 @@ class TTAttentionBackendImpl(AttentionImpl):
         )  # [batch, num_tokens, num_kv_heads, head_size]
 
         if kv_cache.numel() > 1:
-            cache_position = (attn_metadata.context_lens[:1] - 1).to(query.device)
+            # cache_position = (attn_metadata.context_lens[:1] - 1).to(query.device)
+            cache_position = (attn_metadata.context_lens - 1).to(query.device)
 
             k_cache = kv_cache[0]
             v_cache = kv_cache[1]
 
             if query.shape[-2] == 1:
-                k_cache = torch.ops.tt.update_cache(k_cache, key, cache_position)
-                v_cache = torch.ops.tt.update_cache(v_cache, value, cache_position)
+                # print(f"key.shape: {key.shape}, value.shape: {value.shape}")
+
+                # Transpose (1, num_heads, 1, head_size) to (1, 1, num_heads, head_size)
+                key = key.transpose(1, 2)
+                value = value.transpose(1, 2)
+
+                # Must pad heads to 32
+                # key = torch.nn.functional.pad(key, (0, 0, 0, 32 - key.shape[2]))
+                # value = torch.nn.functional.pad(value, (0, 0, 0, 32 - value.shape[2]))
+
+                k_cache = torch.ops.tt.paged_update_cache(
+                    k_cache,
+                    key,
+                    cache_position,
+                    attn_metadata.page_table.to(query.device),
+                )
+                v_cache = torch.ops.tt.paged_update_cache(
+                    v_cache,
+                    value,
+                    cache_position,
+                    attn_metadata.page_table.to(query.device),
+                )
+                # key = k_cache
+                # value = v_cache
             else:
                 # See the comment in this function for more details.
-                k_cache = fill_cache_workaround(k_cache.shape, key)
-                v_cache = fill_cache_workaround(v_cache.shape, value)
+                # k_cache = fill_cache_workaround(k_cache.shape, key)
+                # v_cache = fill_cache_workaround(v_cache.shape, value)
+                k_cache = torch.ops.tt.paged_fill_cache(
+                    k_cache, key, attn_metadata.page_table.to(query.device)
+                )
+                v_cache = torch.ops.tt.paged_fill_cache(
+                    v_cache, value, attn_metadata.page_table.to(query.device)
+                )
             new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
-            key = k_cache
-            value = v_cache
+
             kv_cache.copy_(new_kv_cache)
 
         if query.shape[-2] == 1:
             query = query.reshape(1, query.shape[0], query.shape[1], query.shape[3])
             cur_pos_tensor = attn_metadata.context_lens[:1].to(query.device)
-            out = torch.ops.tt.scaled_dot_product_attention_decode(
+            out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
                 query,
-                key,
-                value,
-                cur_pos_tensor,
-                is_causal=attn_metadata.is_causal,
-                attn_mask=attn_metadata.attn_mask,
+                k_cache,
+                v_cache,
+                attn_metadata.page_table.to(query.device),
+                cur_pos_tensor=cache_position,
+                is_causal=True,
             )
             out = out.transpose(-3, -2)
             out = out.reshape(query_num_tokens, query_hidden_size)
@@ -300,8 +329,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 query,
                 key,
                 value,
-                is_causal=attn_metadata.is_causal,
-                attn_mask=attn_metadata.attn_mask,
+                is_causal=True,
             ).transpose(-3, -2)
             if is_batched:
                 return output.reshape(
