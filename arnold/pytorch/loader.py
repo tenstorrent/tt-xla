@@ -29,6 +29,9 @@ from .src.dqn_module import DQNModuleFeedforward, DQNModuleRecurrent
 class ArnoldDQNConfig(ModelConfig):
     """Configuration specific to Arnold DQN models"""
 
+    # Required by ModelConfig base class
+    pretrained_model_name: str
+
     # Model architecture parameters
     height: int = 60
     width: int = 108
@@ -54,31 +57,19 @@ class ArnoldDQNConfig(ModelConfig):
     # Game features (optional)
     game_features: str = ""
 
-    # Pretrained model path (optional)
+    # Pretrained model path (only set if matching checkpoint exists)
     pretrained_model_path: str = ""
 
 
 class ModelVariant(StrEnum):
-    """Available Arnold DQN model variants."""
+    """Available Arnold DQN model variants - only variants with matching checkpoints."""
 
-    # Original variants (maintaining backward compatibility)
-    DEFEND_THE_CENTER = "defend_the_center"
-    HEALTH_GATHERING = "health_gathering"
-    DEATHMATCH_SHOTGUN = "deathmatch_shotgun"
-    VIZDOOM_2017_TRACK1 = "vizdoom_2017_track1"
-    VIZDOOM_2017_TRACK2 = "vizdoom_2017_track2"
-    DEFAULT = "default"
-
-    # Variants with explicit architecture suffixes for all 5 weights
+    # Feedforward variants with matching checkpoints
     DEFEND_THE_CENTER_FF = "defend_the_center_ff"
-    DEFEND_THE_CENTER_RNN = "defend_the_center_rnn"
     HEALTH_GATHERING_FF = "health_gathering_ff"
-    HEALTH_GATHERING_RNN = "health_gathering_rnn"
-    DEATHMATCH_SHOTGUN_FF = "deathmatch_shotgun_ff"
+    # Recurrent variants with matching checkpoints
     DEATHMATCH_SHOTGUN_RNN = "deathmatch_shotgun_rnn"
-    VIZDOOM_2017_TRACK1_FF = "vizdoom_2017_track1_ff"
     VIZDOOM_2017_TRACK1_RNN = "vizdoom_2017_track1_rnn"
-    VIZDOOM_2017_TRACK2_FF = "vizdoom_2017_track2_ff"
     VIZDOOM_2017_TRACK2_RNN = "vizdoom_2017_track2_rnn"
 
 
@@ -86,9 +77,11 @@ class ModelLoader(ForgeModel):
     """Arnold DQN model loader implementation."""
 
     # Dictionary of available model variants
+    # Each variant uses only weights meant for its specific architecture
     _VARIANTS = {
-        ModelVariant.DEFEND_THE_CENTER: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_defend_the_center",
+        # Feedforward variants with matching checkpoints
+        ModelVariant.DEFEND_THE_CENTER_FF: ArnoldDQNConfig(
+            pretrained_model_name="defend_the_center_ff",
             pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/defend_the_center.pth",
             height=60,
             width=108,
@@ -108,15 +101,15 @@ class ModelLoader(ForgeModel):
             bucket_size=[1, 1],
             game_features="",
         ),
-        ModelVariant.HEALTH_GATHERING: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_health_gathering",
+        ModelVariant.HEALTH_GATHERING_FF: ArnoldDQNConfig(
+            pretrained_model_name="health_gathering_ff",
             pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/health_gathering.pth",
             height=60,
             width=108,
             n_fm=3,
             hist_size=4,
             hidden_dim=512,
-            n_actions=3,
+            n_actions=8,
             use_bn=False,
             dropout=0.0,
             dueling_network=False,
@@ -129,259 +122,37 @@ class ModelLoader(ForgeModel):
             bucket_size=[1],
             game_features="",
         ),
-        ModelVariant.DEATHMATCH_SHOTGUN: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_deathmatch_shotgun",
+        # Recurrent variants with matching checkpoints
+        ModelVariant.DEATHMATCH_SHOTGUN_RNN: ArnoldDQNConfig(
+            pretrained_model_name="deathmatch_shotgun_rnn",
             pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/deathmatch_shotgun.pth",
             height=60,
             width=108,
-            n_fm=3,
+            n_fm=4,  # 3 RGB + 1 label map
             hist_size=6,
             hidden_dim=512,
-            n_actions=3,
+            n_actions=29,
             use_bn=False,
             dropout=0.5,
             dueling_network=False,
             network_type="dqn_rnn",
             recurrence="lstm",
             n_rec_layers=1,
-            game_variables=[("health", 101), ("sel_ammo", 301)],
-            n_variables=2,
-            variable_dim=[32, 32],
-            bucket_size=[10, 1],
-            game_features="target,enemy",
-        ),
-        ModelVariant.VIZDOOM_2017_TRACK1: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_vizdoom_2017_track1",
-            pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/vizdoom_2017_track1.pth",
-            height=60,
-            width=108,
-            n_fm=3,
-            hist_size=4,
-            hidden_dim=512,
-            n_actions=3,
-            use_bn=False,
-            dropout=0.5,
-            dueling_network=False,
-            network_type="dqn_rnn",
-            recurrence="lstm",
-            n_rec_layers=1,
-            game_variables=[("health", 101), ("sel_ammo", 301)],
-            n_variables=2,
-            variable_dim=[32, 32],
-            bucket_size=[10, 1],
-            game_features="target,enemy",
-        ),
-        ModelVariant.VIZDOOM_2017_TRACK2: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_vizdoom_2017_track2",
-            pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/vizdoom_2017_track2.pth",
-            height=60,
-            width=108,
-            n_fm=3,
-            hist_size=4,
-            hidden_dim=512,
-            n_actions=3,
-            use_bn=False,
-            dropout=0.5,
-            dueling_network=False,
-            network_type="dqn_rnn",
-            recurrence="lstm",
-            n_rec_layers=1,
-            game_variables=[("health", 101), ("sel_ammo", 301)],
-            n_variables=2,
-            variable_dim=[32, 32],
-            bucket_size=[10, 1],
-            game_features="target,enemy",
-        ),
-        ModelVariant.DEFAULT: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_default",
-            pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/defend_the_center.pth",
-            height=60,
-            width=108,
-            n_fm=3,
-            hist_size=4,
-            hidden_dim=512,
-            n_actions=3,
-            use_bn=False,
-            dropout=0.0,
-            dueling_network=False,
-            network_type="dqn_ff",
-            recurrence="",
-            n_rec_layers=1,
-            game_variables=[("health", 101), ("sel_ammo", 301)],
+            game_variables=[("health", 11), ("sel_ammo", 301)],
             n_variables=2,
             variable_dim=[32, 32],
             bucket_size=[1, 1],
-            game_features="",
-        ),
-        # Variants with explicit architecture suffixes for all 5 weights
-        # defend_the_center with both architectures
-        ModelVariant.DEFEND_THE_CENTER_FF: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_defend_the_center_ff",
-            pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/defend_the_center.pth",
-            height=60,
-            width=108,
-            n_fm=3,
-            hist_size=4,
-            hidden_dim=512,
-            n_actions=3,
-            use_bn=False,
-            dropout=0.0,
-            dueling_network=False,
-            network_type="dqn_ff",
-            recurrence="",
-            n_rec_layers=1,
-            game_variables=[("health", 101), ("sel_ammo", 301)],
-            n_variables=2,
-            variable_dim=[32, 32],
-            bucket_size=[1, 1],
-            game_features="",
-        ),
-        ModelVariant.DEFEND_THE_CENTER_RNN: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_defend_the_center_rnn",
-            pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/defend_the_center.pth",
-            height=60,
-            width=108,
-            n_fm=3,
-            hist_size=4,
-            hidden_dim=512,
-            n_actions=3,
-            use_bn=False,
-            dropout=0.5,
-            dueling_network=False,
-            network_type="dqn_rnn",
-            recurrence="lstm",
-            n_rec_layers=1,
-            game_variables=[("health", 101), ("sel_ammo", 301)],
-            n_variables=2,
-            variable_dim=[32, 32],
-            bucket_size=[10, 1],
             game_features="target,enemy",
-        ),
-        # health_gathering with both architectures
-        ModelVariant.HEALTH_GATHERING_FF: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_health_gathering_ff",
-            pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/health_gathering.pth",
-            height=60,
-            width=108,
-            n_fm=3,
-            hist_size=4,
-            hidden_dim=512,
-            n_actions=3,
-            use_bn=False,
-            dropout=0.0,
-            dueling_network=False,
-            network_type="dqn_ff",
-            recurrence="",
-            n_rec_layers=1,
-            game_variables=[("health", 101)],
-            n_variables=1,
-            variable_dim=[32],
-            bucket_size=[1],
-            game_features="",
-        ),
-        ModelVariant.HEALTH_GATHERING_RNN: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_health_gathering_rnn",
-            pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/health_gathering.pth",
-            height=60,
-            width=108,
-            n_fm=3,
-            hist_size=4,
-            hidden_dim=512,
-            n_actions=3,
-            use_bn=False,
-            dropout=0.5,
-            dueling_network=False,
-            network_type="dqn_rnn",
-            recurrence="lstm",
-            n_rec_layers=1,
-            game_variables=[("health", 101)],
-            n_variables=1,
-            variable_dim=[32],
-            bucket_size=[1],
-            game_features="",
-        ),
-        # deathmatch_shotgun with both architectures
-        # Note: Checkpoint has n_fm=4 (labels_mapping="0"), health vocab=11, n_actions=29
-        ModelVariant.DEATHMATCH_SHOTGUN_FF: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_deathmatch_shotgun_ff",
-            pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/deathmatch_shotgun.pth",
-            height=60,
-            width=108,
-            n_fm=4,  # 3 RGB + 1 label map (labels_mapping="0")
-            hist_size=1,  # For feedforward, if n_fm=4, hist_size should be 1 to match checkpoint [32, 4, 8, 8]
-            hidden_dim=512,
-            n_actions=29,  # From checkpoint: proj_action_scores.weight [29, 512]
-            use_bn=False,
-            dropout=0.0,
-            dueling_network=False,
-            network_type="dqn_ff",
-            recurrence="",
-            n_rec_layers=1,
-            game_variables=[
-                ("health", 11),
-                ("sel_ammo", 301),
-            ],  # health vocab=11 from checkpoint
-            n_variables=2,
-            variable_dim=[32, 32],
-            bucket_size=[1, 1],
-            game_features="",
-        ),
-        ModelVariant.DEATHMATCH_SHOTGUN_RNN: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_deathmatch_shotgun_rnn",
-            pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/deathmatch_shotgun.pth",
-            height=60,
-            width=108,
-            n_fm=4,  # 3 RGB + 1 label map (labels_mapping="0")
-            hist_size=6,  # From run.sh: --hist_size 6
-            hidden_dim=512,
-            n_actions=29,  # From checkpoint: proj_action_scores.weight [29, 512]
-            use_bn=False,
-            dropout=0.5,
-            dueling_network=False,
-            network_type="dqn_rnn",
-            recurrence="lstm",
-            n_rec_layers=1,
-            game_variables=[
-                ("health", 11),
-                ("sel_ammo", 301),
-            ],  # health vocab=11 from checkpoint
-            n_variables=2,
-            variable_dim=[32, 32],
-            bucket_size=[10, 1],
-            game_features="target,enemy",
-        ),
-        # vizdoom_2017_track1 with both architectures
-        # Note: Checkpoint has n_actions=29 (action_combinations="attack+move_lr;turn_lr;move_fb")
-        ModelVariant.VIZDOOM_2017_TRACK1_FF: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_vizdoom_2017_track1_ff",
-            pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/vizdoom_2017_track1.pth",
-            height=60,
-            width=108,
-            n_fm=3,
-            hist_size=4,
-            hidden_dim=512,
-            n_actions=29,  # From checkpoint: proj_action_scores.weight [29, 512]
-            use_bn=False,
-            dropout=0.0,
-            dueling_network=False,
-            network_type="dqn_ff",
-            recurrence="",
-            n_rec_layers=1,
-            game_variables=[("health", 101), ("sel_ammo", 301)],
-            n_variables=2,
-            variable_dim=[32, 32],
-            bucket_size=[1, 1],
-            game_features="",
         ),
         ModelVariant.VIZDOOM_2017_TRACK1_RNN: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_vizdoom_2017_track1_rnn",
+            pretrained_model_name="vizdoom_2017_track1_rnn",
             pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/vizdoom_2017_track1.pth",
             height=60,
             width=108,
             n_fm=3,
             hist_size=4,
             hidden_dim=512,
-            n_actions=29,  # From checkpoint: proj_action_scores.weight [29, 512]
+            n_actions=35,
             use_bn=False,
             dropout=0.5,
             dueling_network=False,
@@ -394,38 +165,15 @@ class ModelLoader(ForgeModel):
             bucket_size=[10, 1],
             game_features="target,enemy",
         ),
-        # vizdoom_2017_track2 with both architectures
-        # Note: Checkpoint has n_actions=29 (action_combinations="move_fb+move_lr;turn_lr;attack")
-        ModelVariant.VIZDOOM_2017_TRACK2_FF: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_vizdoom_2017_track2_ff",
-            pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/vizdoom_2017_track2.pth",
-            height=60,
-            width=108,
-            n_fm=3,
-            hist_size=4,
-            hidden_dim=512,
-            n_actions=29,  # From checkpoint: proj_action_scores.weight [29, 512]
-            use_bn=False,
-            dropout=0.0,
-            dueling_network=False,
-            network_type="dqn_ff",
-            recurrence="",
-            n_rec_layers=1,
-            game_variables=[("health", 101), ("sel_ammo", 301)],
-            n_variables=2,
-            variable_dim=[32, 32],
-            bucket_size=[1, 1],
-            game_features="",
-        ),
         ModelVariant.VIZDOOM_2017_TRACK2_RNN: ArnoldDQNConfig(
-            pretrained_model_name="arnold_dqn_vizdoom_2017_track2_rnn",
+            pretrained_model_name="vizdoom_2017_track2_rnn",
             pretrained_model_path="s3://tt-ci-models-private/test_files/pytorch/Arnold/vizdoom_2017_track2.pth",
             height=60,
             width=108,
             n_fm=3,
             hist_size=4,
             hidden_dim=512,
-            n_actions=29,  # From checkpoint: proj_action_scores.weight [29, 512]
+            n_actions=29,
             use_bn=False,
             dropout=0.5,
             dueling_network=False,
@@ -441,7 +189,7 @@ class ModelLoader(ForgeModel):
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.DEFEND_THE_CENTER
+    DEFAULT_VARIANT = ModelVariant.DEFEND_THE_CENTER_FF
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -465,9 +213,7 @@ class ModelLoader(ForgeModel):
             torch.Tensor: Q-values tensor for backward pass
         """
         if isinstance(fwd_output, tuple):
-            # If tuple, return the first element (Q-values)
             return fwd_output[0]
-        # If single tensor, return it directly
         return fwd_output
 
     @classmethod
@@ -488,17 +234,38 @@ class ModelLoader(ForgeModel):
             model="arnold_dqn",
             variant=variant,
             group=ModelGroup.GENERALITY,
-            task=ModelTask.ATOMIC_ML,  # Reinforcement learning
+            task=ModelTask.ATOMIC_ML,
             source=ModelSource.CUSTOM,
             framework=Framework.TORCH,
         )
+
+    @staticmethod
+    def _convert_s3_path_for_cache(s3_path: str) -> str:
+        """Convert S3 path to format expected by IRD_LF_CACHE server.
+
+        The cache server expects paths without the bucket name:
+        - Input:  s3://tt-ci-models-private/test_files/pytorch/Arnold/file.pth
+        - Output: test_files/pytorch/Arnold/file.pth
+
+        Args:
+            s3_path: S3 path starting with s3://
+
+        Returns:
+            Path without s3:// prefix and bucket name, or original path if not S3
+        """
+        if s3_path.startswith("s3://"):
+            path_without_prefix = s3_path[5:]
+            if "/" in path_without_prefix:
+                _, path_after_bucket = path_without_prefix.split("/", 1)
+                return path_after_bucket
+            return path_without_prefix
+        return s3_path
 
     def load_model(self, dtype_override=None, pretrained_path=None):
         """Load and return the Arnold DQN model instance.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
             pretrained_path: Optional path to pretrained model weights. If None, uses path from config.
 
         Returns:
@@ -536,8 +303,7 @@ class ModelLoader(ForgeModel):
             base_model = DQNModuleFeedforward(params)
         base_model.eval()
 
-        # Wrap model to ensure consistent output format (always return single tensor)
-        # This prevents issues with test framework when game features are disabled
+        # Wrap model to ensure consistent output format
         class ModelWrapper(torch.nn.Module):
             def __init__(self, base_model, is_recurrent=False):
                 super().__init__()
@@ -546,8 +312,6 @@ class ModelLoader(ForgeModel):
 
             def forward(self, x_screens, x_variables, prev_state=None):
                 if self.is_recurrent:
-                    # For recurrent models, we need prev_state
-                    # For inference/testing, we can use None (model will initialize it)
                     if prev_state is None:
                         # Initialize hidden state for recurrent models
                         batch_size = x_screens.size(0)
@@ -582,19 +346,13 @@ class ModelLoader(ForgeModel):
                                 )
                                 prev_state = h_0
                     output = self.base_model(x_screens, x_variables, prev_state)
-                    # Recurrent models return (output_sc, output_gf, next_state)
-                    # Return only Q-values for testing
                     if isinstance(output, tuple):
                         return output[0]  # Return only Q-values
                     return output
                 else:
-                    # Feedforward model
                     output = self.base_model(x_screens, x_variables)
-                    # Ensure we always return a single tensor (not tuple with None)
                     if isinstance(output, tuple):
-                        # If tuple, return only the first element (Q-values)
                         return output[0]
-                    # If already a single tensor, return it
                     return output
 
         model = ModelWrapper(
@@ -605,43 +363,19 @@ class ModelLoader(ForgeModel):
         # Load pretrained weights if available
         pretrained_path = pretrained_path or config.pretrained_model_path
         if pretrained_path:
-            try:
-                # Use get_file utility to load from S3 bucket (s3://tt-ci-models-private/test_files/pytorch/Arnold/)
-                # This handles S3 downloads and local caching automatically
-                weight_path = get_file(pretrained_path)
+            cache_path = self._convert_s3_path_for_cache(pretrained_path)
+            weight_path = get_file(cache_path)
+            state_dict = torch.load(weight_path, map_location="cpu")
 
-                # Load state dict - Arnold saves state_dict directly
-                # Handle both direct state_dict and wrapped formats
-                state_dict = torch.load(weight_path, map_location="cpu")
-                if isinstance(state_dict, dict):
-                    # If it's a full checkpoint, try to extract the module state dict
-                    if "module" in state_dict:
-                        state_dict = state_dict["module"]
-                    elif "state_dict" in state_dict:
-                        state_dict = state_dict["state_dict"]
-                    # Arnold saves state_dict directly, so load it
-                    # Load into the base model, not the wrapper
-                    missing_keys, unexpected_keys = base_model.load_state_dict(
-                        state_dict, strict=False
-                    )
-                    if missing_keys:
-                        print(
-                            f"Warning: Some model parameters were not loaded: {missing_keys[:5]}..."
-                        )
-                    if unexpected_keys:
-                        print(
-                            f"Warning: Some checkpoint keys were not used: {unexpected_keys[:5]}..."
-                        )
-                    print(f"Successfully loaded pretrained weights from: {weight_path}")
-            except Exception as e:
-                # If weight loading fails, continue with untrained model
-                # This allows the model to work even if weights aren't available
-                print(
-                    f"Warning: Failed to load pretrained weights from {pretrained_path}: {e}"
-                )
-                print("Continuing with randomly initialized weights.")
+            # Extract module state dict if wrapped
+            if isinstance(state_dict, dict):
+                if "module" in state_dict:
+                    state_dict = state_dict["module"]
+                elif "state_dict" in state_dict:
+                    state_dict = state_dict["state_dict"]
 
-        # Only convert dtype if explicitly requested
+            base_model.load_state_dict(state_dict, strict=False)
+
         if dtype_override is not None:
             model = model.to(dtype_override)
 
@@ -652,7 +386,6 @@ class ModelLoader(ForgeModel):
 
         Args:
             dtype_override: Optional torch.dtype to override the inputs' default dtype.
-                           If not provided, inputs will use the default dtype (typically float32).
             batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
@@ -667,14 +400,10 @@ class ModelLoader(ForgeModel):
         config = self._variant_config
 
         if config.network_type == "dqn_rnn":
-            # Recurrent models: input shape is (batch_size, seq_len, n_fm, h, w)
-            # Use hist_size as seq_len for recurrent models
             seq_len = config.hist_size
             screens = torch.rand(
                 batch_size, seq_len, config.n_fm, config.height, config.width
             )
-
-            # Create sample game variables with sequence dimension
             variables = []
             for i, (name, n_values) in enumerate(config.game_variables):
                 var_tensor = torch.randint(
@@ -682,20 +411,15 @@ class ModelLoader(ForgeModel):
                 )
                 variables.append(var_tensor)
         else:
-            # Feedforward models: input shape is (batch_size, hist_size * n_fm, height, width)
             screens = torch.rand(
                 batch_size, config.hist_size * config.n_fm, config.height, config.width
             )
-
-            # Create sample game variables (health, ammo)
             variables = []
             for i, (name, n_values) in enumerate(config.game_variables):
                 var_tensor = torch.randint(0, n_values, (batch_size,), dtype=torch.long)
                 variables.append(var_tensor)
 
-        # Only convert dtype if explicitly requested
         if dtype_override is not None:
             screens = screens.to(dtype_override)
-            # Note: variables are long tensors (indices), so we don't convert their dtype
 
         return screens, variables
