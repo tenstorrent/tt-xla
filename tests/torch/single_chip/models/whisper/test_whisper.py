@@ -15,11 +15,8 @@ from .tester import WhisperTester
 
 # ----- Fixtures -----
 
-_FAILING_VARIANTS = (
-    ModelVariant.WHISPER_LARGE,
-    ModelVariant.WHISPER_LARGE_V3,
-    ModelVariant.WHISPER_LARGE_V3_TURBO,
-)
+
+_FAILING_VARIANTS = [ModelVariant.WHISPER_LARGE]
 
 
 def _variant_param(v):
