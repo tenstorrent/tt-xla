@@ -2238,3 +2238,43 @@ test_config:
   faster_rcnn/pytorch-resnet50_fpn-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 62521344 B L1 buffer across 72 banks, where each bank needs to store 868352 B, but bank size is only 1331936 B"
+
+  deformable_detr/pytorch-deformable-detr-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
+
+  deformable_detr/pytorch-deformable-detr-single-scale-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 445644800 B DRAM buffer across 12 banks, where each bank needs to store 37138432 B, but bank size is only 1073741792 B"
+
+  deformable_detr/pytorch-deformable-detr-with-box-refine-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
+
+  deformable_detr/pytorch-deformable-detr-with-box-refine-two-stage-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
+
+  rt_detr/pytorch-rtdetr-r18vd-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 314572800 B DRAM buffer across 12 banks, where each bank needs to store 26214400 B, but bank size is only 1073741792 B"
+
+  rt_detr/pytorch-rtdetr-r34vd-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
+
+  rt_detr/pytorch-rtdetr-r50vd-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
+
+  rt_detr/pytorch-rtdetr-r101vd-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
+
+  llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
+
+  llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision_instruct-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor while an async operation is in flight: UNKNOWN_SCALAR[]')"
