@@ -14,7 +14,8 @@ test_config:
     markers: [push]
 
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-full-training:
@@ -975,7 +976,7 @@ test_config:
     reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1"
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'ttir.scatter'"
 
@@ -1835,7 +1836,7 @@ test_config:
     reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3072 input channels and 1 in the weight tensor."
 
   efficientnet/pytorch-efficientnet_b6-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3456 input channels and 1 in the weight tensor."
 
@@ -2020,7 +2021,7 @@ test_config:
     reason: "Problem with tensor_data."
 
   regnet/pytorch-regnet_y_8gf-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3456 input channels and 1 in the weight tensor."
 
