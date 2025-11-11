@@ -21,8 +21,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   meta-llama/Llama-4-Maverick-17B-128E-Instruct:
     bringup_status: NOT_STARTED
-  meta-llama/Llama-3.2-11B-Vision:
-    bringup_status: NOT_STARTED
   meta-llama/Llama-3.2-90B-Vision:
     bringup_status: NOT_STARTED
   deepseek-ai/DeepSeek-R1:
@@ -89,8 +87,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   Wan-AI/Wan2.2-Animate-14B:
     bringup_status: NOT_STARTED
-  Deformable-DETR:
-    bringup_status: NOT_STARTED
   Isaac GROOT:
     bringup_status: NOT_STARTED
   PETR:
@@ -106,6 +102,4 @@ PLACEHOLDER_MODELS:
   Yolov7:
     bringup_status: NOT_STARTED
   OpenVLA_OFT:
-    bringup_status: NOT_STARTED
-  RT-Detr:
     bringup_status: NOT_STARTED
