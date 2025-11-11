@@ -30,10 +30,19 @@ class ModelVariant(StrEnum):
     MISTRAL_SMALL_24B_INSTRUCT_2501 = "mistral_small_24b_instruct_2501"
     MISTRAL_LARGE_INSTRUCT_2411 = "mistral_large_instruct_2411"
     MISTRAL_NEMO_INSTRUCT_2407 = "mistral_nemo_instruct_2407"
+    DEVSTRAL_SMALL_2505 = "devstral_small_2505"
+    MAGISTRAL_SMALL_2506 = "magistral_small_2506"
 
 
 class ModelLoader(ForgeModel):
     """Mistral model loader implementation for causal language modeling tasks."""
+
+    # These models do NOT ship a HF tokenizer. Instead they use tekken.json,
+    # which must be loaded via mistral-common, can't use AutoTokenizer.
+    _TEKKEN_TOKENIZER_VARIANTS = {
+        ModelVariant.DEVSTRAL_SMALL_2505,
+        ModelVariant.MAGISTRAL_SMALL_2506,
+    }
 
     # Dictionary of available model variants
     _VARIANTS = {
@@ -57,6 +66,12 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MISTRAL_NEMO_INSTRUCT_2407: ModelConfig(
             pretrained_model_name="mistralai/Mistral-Nemo-Instruct-2407",
+        ),
+        ModelVariant.DEVSTRAL_SMALL_2505: ModelConfig(
+            pretrained_model_name="mistralai/Devstral-Small-2505",
+        ),
+        ModelVariant.MAGISTRAL_SMALL_2506: ModelConfig(
+            pretrained_model_name="mistralai/Magistral-Small-2506",
         ),
     }
 
@@ -91,6 +106,8 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501,
             ModelVariant.MISTRAL_LARGE_INSTRUCT_2411,
             ModelVariant.MISTRAL_NEMO_INSTRUCT_2407,
+            ModelVariant.DEVSTRAL_SMALL_2505,
+            ModelVariant.MAGISTRAL_SMALL_2506,
         ]:
             group = ModelGroup.RED
         else:
@@ -111,6 +128,19 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded tokenizer instance
         """
+
+        if self._variant in self._TEKKEN_TOKENIZER_VARIANTS:
+
+            from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+            from huggingface_hub import hf_hub_download
+
+            tokenizer_json = hf_hub_download(
+                repo_id=self._variant_config.pretrained_model_name,
+                filename="tekken.json",
+            )
+            self.tokenizer = MistralTokenizer.from_file(tokenizer_json)
+            return self.tokenizer
+
         tokenizer_kwargs = {
             "padding_side": "left",
         }
@@ -171,8 +201,24 @@ class ModelLoader(ForgeModel):
         # Set up sample input
         test_input = "How often does the letter r occur in Mistral?"
 
-        # Tokenize input
-        inputs = self.tokenizer.encode_plus(test_input, return_tensors="pt")
+        # Tokenize input using either Tekken or regular HF tokenizer.
+        if self._variant in self._TEKKEN_TOKENIZER_VARIANTS:
+
+            from mistral_common.protocol.instruct.messages import UserMessage
+            from mistral_common.protocol.instruct.request import ChatCompletionRequest
+
+            req = ChatCompletionRequest(
+                messages=[UserMessage(content=test_input)],
+            )
+            encoded = self.tokenizer.encode_chat_completion(req)
+            token_ids = encoded.tokens
+
+            input_ids = torch.tensor([token_ids], dtype=torch.long)
+            attention_mask = torch.ones_like(input_ids, dtype=torch.long)
+            inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
+
+        else:
+            inputs = self.tokenizer.encode_plus(test_input, return_tensors="pt")
 
         # Add batch dimension
         for key in inputs:
