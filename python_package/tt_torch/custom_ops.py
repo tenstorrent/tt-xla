@@ -4,6 +4,7 @@
 
 import torch
 from torch_xla.experimental import stablehlo_custom_call
+from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
 
 
 @torch.library.custom_op(
@@ -124,36 +125,43 @@ def scaled_dot_product_attention(
     else:
         assert is_causal == True, "Attention mask is required when is_causal is false."
 
+    builder = None
     if query.device.type == "xla":
-        inputs = [query, key, value]
-        if attn_mask is not None:
-            inputs.append(attn_mask)
-
-        frontend_attributes = {"is_causal": str(is_causal)}
+        attr = {"is_causal": str(is_causal)}
         if scale is not None:
-            frontend_attributes["scale"] = str(scale)
+            attr["scale"] = scale
+        builder = StableHLOCompositeBuilder("tt.scaled_dot_product_attention", attr)
+        query, key, value = builder.mark_inputs(query, key, value)
+        if attn_mask is not None:
+            attn_mask = builder.mark_inputs(attn_mask)
 
-        return stablehlo_custom_call.stablehlo_custom_call(
-            inputs,
-            "tt.scaled_dot_product_attention",
-            [query.shape],
-            [query.dtype],
-            frontend_attributes=frontend_attributes,
+    L, S = query.size(-2), key.size(-2)
+    scale_factor = 1 / query.size(-1) ** 0.5 if scale is None else scale
+    attn_bias = torch.zeros(L, S, dtype=query.dtype, device=query.device)
+    if is_causal:
+        assert attn_mask is None
+        temp_mask = torch.ones(L, S, dtype=torch.bool, device=query.device).tril(
+            diagonal=0
         )
+        attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
 
-    elif query.device.type == "cpu":
-        # Enable GQA as the ttnn op handles GQA automatically.
-        return torch.nn.functional.scaled_dot_product_attention(
-            query,
-            key,
-            value,
-            attn_mask,
-            is_causal=is_causal,
-            scale=scale,
-            enable_gqa=True,
-        )
-    else:
-        raise ValueError(f"Unsupported device type: {query.device.type}")
+    if attn_mask is not None:
+        if attn_mask.dtype == torch.bool:
+            attn_bias.masked_fill_(attn_mask.logical_not(), float("-inf"))
+        else:
+            attn_bias = attn_mask + attn_bias
+
+    key = key.repeat_interleave(query.size(-3) // key.size(-3), -3)
+    value = value.repeat_interleave(query.size(-3) // value.size(-3), -3)
+
+    attn_weight = query @ key.transpose(-2, -1) * scale_factor
+    attn_weight += attn_bias
+    attn_weight = torch.softmax(attn_weight, dim=-1)
+    output = attn_weight @ value
+
+    if builder is not None:
+        output = builder.mark_outputs(output)
+    return output
 
 
 @scaled_dot_product_attention.register_fake
