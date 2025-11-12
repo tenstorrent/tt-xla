@@ -232,9 +232,10 @@ test_config:
     execution_pass: BACKWARD
 
   gpt2/causal_lm/jax-xl-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
+    markers: [large]
     execution_pass: FORWARD
 
   gpt_j/causal_lm/jax-6b-single_device-full-training:
@@ -250,13 +251,14 @@ test_config:
     execution_pass: BACKWARD
 
   gpt_neo/causal_lm/jax-_1_3b-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP # Model too large for our runners
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    markers: [large]
     execution_pass: BACKWARD
 
   gpt_neo/causal_lm/jax-_2_7b-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP # Model too large for our runners
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
     markers: [large]
@@ -366,7 +368,7 @@ test_config:
     execution_pass: BACKWARD
 
   mt5/nlp_summarization/jax-xl-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP # Model too large for our runners
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
     markers: [large]
