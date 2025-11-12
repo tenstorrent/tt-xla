@@ -71,6 +71,7 @@ class ModelTask(StrEnum):
     MM_IMAGE_TEXT_SIM = "mm_image_text_similarity"
     CONDITIONAL_GENERATION = "conditional_generation"
     ATOMIC_ML = "atomic_ml"
+    MULTIVIEW_3D_OBJECT_DET = "Multiview_3D_object_detection"
 
 
 class ModelSource(StrEnum):
