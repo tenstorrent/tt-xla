@@ -92,9 +92,6 @@ def training_tester() -> ResnetTester:
         pytest.param(
             "bfloat16",
             True,
-            marks=pytest.mark.xfail(
-                reason="PCC comparison < 0.99 (observed ~0.982-0.984)"
-            ),
         ),
         pytest.param(
             "bfloat16",

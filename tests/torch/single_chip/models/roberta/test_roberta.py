@@ -52,13 +52,7 @@ def training_tester() -> RobertaTester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.batch_norm_training' "
-        "https://github.com/tenstorrent/tt-xla/issues/735"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_torch_roberta_inference(inference_tester: RobertaTester):
     inference_tester.test()
