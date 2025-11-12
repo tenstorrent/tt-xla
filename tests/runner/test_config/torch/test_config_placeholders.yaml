@@ -21,6 +21,8 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   meta-llama/Llama-4-Maverick-17B-128E-Instruct:
     bringup_status: NOT_STARTED
+  meta-llama/Llama-3.2-90B-Vision:
+    bringup_status: NOT_STARTED
   deepseek-ai/DeepSeek-R1:
     bringup_status: NOT_STARTED
   panoptic deeplab:
@@ -67,7 +69,7 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   Boltz2:
     bringup_status: NOT_STARTED
-  Qwen-Image:
+  Qwen/Qwen-Image:
     bringup_status: NOT_STARTED
   WhisperX:
     bringup_status: NOT_STARTED
@@ -76,4 +78,28 @@ PLACEHOLDER_MODELS:
   Gemma 3 27B:
     bringup_status: NOT_STARTED
   Command A Reasoning:
+    bringup_status: NOT_STARTED
+  SURYA OCR:
+    bringup_status: NOT_STARTED
+  SAM_large_sa1b:
+    bringup_status: NOT_STARTED
+  Motif-Technologies/Motif-Image-6B-Preview:
+    bringup_status: NOT_STARTED
+  Wan-AI/Wan2.2-Animate-14B:
+    bringup_status: NOT_STARTED
+  Isaac GROOT:
+    bringup_status: NOT_STARTED
+  PETR:
+    bringup_status: NOT_STARTED
+  3D_DenseUNet:
+    bringup_status: NOT_STARTED
+  Attention DenseUNet:
+    bringup_status: NOT_STARTED
+  EfficientDet:
+    bringup_status: NOT_STARTED
+  Yolov3_416:
+    bringup_status: NOT_STARTED
+  Yolov7:
+    bringup_status: NOT_STARTED
+  OpenVLA_OFT:
     bringup_status: NOT_STARTED
