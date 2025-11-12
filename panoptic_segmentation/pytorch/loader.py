@@ -9,8 +9,14 @@ from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 import torch
 import numpy as np
-import importlib.util
 
+from .src.model import (
+    get_cfg,
+    DefaultPredictor,
+    MetadataCatalog,
+    get_config_file,
+    get_checkpoint_url,
+)
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -21,6 +27,10 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
+from ...tools.utils import get_file
+import cv2
+import urllib.request
+import numpy as np
 
 
 @dataclass
@@ -31,6 +41,8 @@ class PanopticFPNConfig(ModelConfig):
     backbone: str
     num_classes: int
     image_size: tuple
+    checkpoint_url: Optional[str] = None
+    sample_image_url: Optional[str] = None
 
 
 class ModelVariant(StrEnum):
@@ -40,6 +52,147 @@ class ModelVariant(StrEnum):
     RESNET_50_1X_COCO = "resnet50_1x_coco"
     RESNET_50_3X_COCO = "resnet50_3x_coco"
     RESNET_101_3X_COCO = "resnet101_3x_coco"
+
+
+# COCO class definitions for metadata
+THING_CLASSES = [
+    "person",
+    "bicycle",
+    "car",
+    "motorcycle",
+    "airplane",
+    "bus",
+    "train",
+    "truck",
+    "boat",
+    "traffic light",
+    "fire hydrant",
+    "stop sign",
+    "parking meter",
+    "bench",
+    "bird",
+    "cat",
+    "dog",
+    "horse",
+    "sheep",
+    "cow",
+    "elephant",
+    "bear",
+    "zebra",
+    "giraffe",
+    "backpack",
+    "umbrella",
+    "handbag",
+    "tie",
+    "suitcase",
+    "frisbee",
+    "skis",
+    "snowboard",
+    "sports ball",
+    "kite",
+    "baseball bat",
+    "baseball glove",
+    "skateboard",
+    "surfboard",
+    "tennis racket",
+    "bottle",
+    "wine glass",
+    "cup",
+    "fork",
+    "knife",
+    "spoon",
+    "bowl",
+    "banana",
+    "apple",
+    "sandwich",
+    "orange",
+    "broccoli",
+    "carrot",
+    "hot dog",
+    "pizza",
+    "donut",
+    "cake",
+    "chair",
+    "couch",
+    "potted plant",
+    "bed",
+    "dining table",
+    "toilet",
+    "tv",
+    "laptop",
+    "mouse",
+    "remote",
+    "keyboard",
+    "cell phone",
+    "microwave",
+    "oven",
+    "toaster",
+    "sink",
+    "refrigerator",
+    "book",
+    "clock",
+    "vase",
+    "scissors",
+    "teddy bear",
+    "hair drier",
+    "toothbrush",
+]
+
+STUFF_CLASSES = [
+    "banner",
+    "blanket",
+    "bridge",
+    "cardboard",
+    "counter",
+    "curtain",
+    "door-stuff",
+    "floor-wood",
+    "flower",
+    "fruit",
+    "gravel",
+    "house",
+    "light",
+    "mirror-stuff",
+    "net",
+    "pillow",
+    "platform",
+    "playingfield",
+    "railroad",
+    "river",
+    "road",
+    "roof",
+    "sand",
+    "sea",
+    "shelf",
+    "snow",
+    "stairs",
+    "tent",
+    "towel",
+    "wall-brick",
+    "wall-stone",
+    "wall-tile",
+    "wall-wood",
+    "water-other",
+    "window-blind",
+    "window-other",
+    "tree-merged",
+    "fence-merged",
+    "ceiling-merged",
+    "sky-other-merged",
+    "cabinet-merged",
+    "table-merged",
+    "floor-other-merged",
+    "pavement-merged",
+    "mountain-merged",
+    "grass-merged",
+    "dirt-merged",
+    "paper-merged",
+    "food-other-merged",
+    "building-other-merged",
+    "rock-merged",
+    "wall-other-merged",
+    "rug-merged",
+]
 
 
 class ModelLoader(ForgeModel):
@@ -52,6 +205,8 @@ class ModelLoader(ForgeModel):
             backbone="resnet50",
             num_classes=80,  # COCO instance classes
             image_size=(640, 640),
+            checkpoint_url="https://dl.fbaipublicfiles.com/detectron2/COCO-PanopticSegmentation/panoptic_fpn_R_50_1x/139514544/model_final_dbfeb4.pkl",
+            sample_image_url="http://images.cocodataset.org/val2017/000000439715.jpg",
         ),
         ModelVariant.RESNET_50_3X_COCO: PanopticFPNConfig(
             pretrained_model_name="panoptic_fpn_R_50_3x",
@@ -59,6 +214,8 @@ class ModelLoader(ForgeModel):
             backbone="resnet50",
             num_classes=80,
             image_size=(640, 640),
+            checkpoint_url="https://dl.fbaipublicfiles.com/detectron2/COCO-PanopticSegmentation/panoptic_fpn_R_50_3x/139514569/model_final_c10459.pkl",
+            sample_image_url="http://images.cocodataset.org/val2017/000000439715.jpg",
         ),
         ModelVariant.RESNET_101_3X_COCO: PanopticFPNConfig(
             pretrained_model_name="panoptic_fpn_R_101_3x",
@@ -66,6 +223,8 @@ class ModelLoader(ForgeModel):
             backbone="resnet101",
             num_classes=80,
             image_size=(640, 640),
+            checkpoint_url="https://dl.fbaipublicfiles.com/detectron2/COCO-PanopticSegmentation/panoptic_fpn_R_101_3x/139514519/model_final_cafdb1.pkl",
+            sample_image_url="http://images.cocodataset.org/val2017/000000439715.jpg",
         ),
     }
 
@@ -95,257 +254,49 @@ class ModelLoader(ForgeModel):
             group=ModelGroup.RED,
         )
 
-    def _setup_cfg(
-        self, device: str = "cpu", dtype_override: Optional[torch.dtype] = None
-    ) -> "CfgNode":
-        """Setup detectron2 configuration based on the CPU inference script.
-
-        Args:
-            device: Device to run inference on (default: cpu)
-            dtype_override: Override model dtype (currently not used by detectron2)
+    def load_model(self, **kwargs):
+        """Load and return the Panoptic FPN model with DefaultPredictor.
 
         Returns:
-            CfgNode: Configured detectron2 config object
+            DefaultPredictor: The predictor instance ready for inference
         """
-        # Import the model.py implementation
-        try:
-            import sys
-            import os
-
-            model_path = os.path.join(os.path.dirname(__file__), "model.py")
-            spec = importlib.util.spec_from_file_location("panoptic_model", model_path)
-            panoptic_model = importlib.util.module_from_spec(spec)
-            sys.modules["panoptic_model"] = panoptic_model
-            spec.loader.exec_module(panoptic_model)
-        except ImportError as e:
-            raise ImportError(f"Failed to import model.py: {e}")
-
+        # Get configuration
+        cfg = get_cfg()
         config = self._variant_config
 
-        # Use the get_cfg() function from model.py
-        cfg = panoptic_model.get_cfg()
+        # Load config file
+        config_file = get_config_file(config.config_file)
+        cfg.merge_from_file(config_file)
 
-        # Load the appropriate config file
-        try:
-            config_file = panoptic_model.get_config_file(config.config_file)
-            cfg.merge_from_file(config_file)
-        except Exception:
-            # If config file not found, use default configuration
-            cfg.MODEL.META_ARCHITECTURE = "GeneralizedRCNN"
-            cfg.MODEL.WEIGHTS = ""
+        # Set model weights from checkpoint URL
+        cfg.MODEL.WEIGHTS = get_checkpoint_url(config.config_file)
 
         # Set device
-        cfg.MODEL.DEVICE = device
+        cfg.MODEL.DEVICE = "cpu"
 
-        # Set confidence thresholds
+        # Add confidence thresholds
         cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.5
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
 
-        # Setup metadata for COCO panoptic dataset
-        metadata = panoptic_model.MetadataCatalog.get("coco_2017_val_panoptic")
-        metadata.thing_classes = (
-            [
-                "person",
-                "bicycle",
-                "car",
-                "motorcycle",
-                "airplane",
-                "bus",
-                "train",
-                "truck",
-                "boat",
-            ]
-            + [
-                "traffic light",
-                "fire hydrant",
-                "stop sign",
-                "parking meter",
-                "bench",
-                "bird",
-                "cat",
-                "dog",
-                "horse",
-                "sheep",
-                "cow",
-                "elephant",
-                "bear",
-                "zebra",
-                "giraffe",
-            ]
-            + [
-                "backpack",
-                "umbrella",
-                "handbag",
-                "tie",
-                "suitcase",
-                "frisbee",
-                "skis",
-                "snowboard",
-                "sports ball",
-                "kite",
-                "baseball bat",
-                "baseball glove",
-                "skateboard",
-                "surfboard",
-                "tennis racket",
-            ]
-            + [
-                "bottle",
-                "wine glass",
-                "cup",
-                "fork",
-                "knife",
-                "spoon",
-                "bowl",
-                "banana",
-                "apple",
-                "sandwich",
-                "orange",
-                "broccoli",
-                "carrot",
-                "hot dog",
-                "pizza",
-                "donut",
-                "cake",
-            ]
-            + [
-                "chair",
-                "couch",
-                "potted plant",
-                "bed",
-                "dining table",
-                "toilet",
-                "tv",
-                "laptop",
-                "mouse",
-                "remote",
-                "keyboard",
-                "cell phone",
-                "microwave",
-                "oven",
-                "toaster",
-                "sink",
-                "refrigerator",
-                "book",
-                "clock",
-                "vase",
-                "scissors",
-                "teddy bear",
-                "hair drier",
-                "toothbrush",
-            ]
-        )
-        metadata.stuff_classes = (
-            [
-                "banner",
-                "blanket",
-                "bridge",
-                "cardboard",
-                "counter",
-                "curtain",
-                "door-stuff",
-                "floor-wood",
-                "flower",
-                "fruit",
-                "gravel",
-                "house",
-                "light",
-                "mirror-stuff",
-                "net",
-                "pillow",
-                "platform",
-            ]
-            + [
-                "playingfield",
-                "railroad",
-                "river",
-                "road",
-                "roof",
-                "sand",
-                "sea",
-                "shelf",
-                "snow",
-                "stairs",
-                "tent",
-                "towel",
-                "wall-brick",
-                "wall-stone",
-                "wall-tile",
-                "wall-wood",
-                "water-other",
-                "window-blind",
-                "window-other",
-            ]
-            + [
-                "tree-merged",
-                "fence",
-                "ceiling",
-                "sky-other",
-                "cabinet",
-                "table",
-                "floor-other",
-                "pavement",
-                "mountain",
-                "grass",
-                "dirt",
-                "paper",
-                "food-other",
-                "building-other",
-                "rock",
-                "wall-other",
-                "rug",
-            ]
-        )
+        # Create predictor
+        self.predictor = DefaultPredictor(cfg)
 
-        return cfg
+        # Setup metadata
+        self._setup_metadata(cfg)
 
-    def load_model(self, **kwargs) -> torch.nn.Module:
-        """Load and return the Panoptic FPN model instance.
+        return self.predictor
 
-        Args:
-            **kwargs: Additional model-specific arguments.
-                     - dtype_override: Override model dtype (e.g., torch.bfloat16)
-                     - device: Device to load model on (default: cpu)
-                     - force_cpu: Force CPU usage even if CUDA is available
-
-        Returns:
-            torch.nn.Module: The Panoptic FPN model instance
-        """
-        dtype_override = kwargs.get("dtype_override", torch.float32)
-        device = kwargs.get("device", "cpu")
-        force_cpu = kwargs.get("force_cpu", True)
-
-        # Force CPU usage (following CPU inference script pattern)
-        if force_cpu:
-            torch.cuda.is_available = lambda: False
-            device = "cpu"
-
-        # Setup configuration
-        cfg = self._setup_cfg(device=device, dtype_override=dtype_override)
-
-        # Create predictor using the model.py implementation
-        try:
-            # Import the model.py implementation
-            import sys
-            import os
-
-            model_path = os.path.join(os.path.dirname(__file__), "model.py")
-            spec = importlib.util.spec_from_file_location("panoptic_model", model_path)
-            panoptic_model = importlib.util.module_from_spec(spec)
-            sys.modules["panoptic_model"] = panoptic_model
-            spec.loader.exec_module(panoptic_model)
-
-            self.predictor = panoptic_model.DefaultPredictor(cfg)
-            model = self.predictor.model
-        except Exception as e:
-            raise RuntimeError(f"Failed to create Panoptic FPN model: {str(e)}") from e
-
-        # Apply dtype override if specified and different from float32
-        if dtype_override != torch.float32:
-            model = model.to(dtype=dtype_override)
-
-        model.eval()
-        return model
+    def _setup_metadata(self, cfg):
+        """Setup metadata for COCO panoptic dataset like in panoptic_seg.py."""
+        dataset_names = list(cfg.DATASETS.TRAIN) + list(cfg.DATASETS.TEST)
+        for name in dataset_names:
+            if not name:
+                continue
+            metadata = MetadataCatalog.get(name)
+            if not hasattr(metadata, "thing_classes"):
+                metadata.thing_classes = THING_CLASSES
+            if not hasattr(metadata, "stuff_classes"):
+                metadata.stuff_classes = STUFF_CLASSES
 
     def load_inputs(self, **kwargs) -> List[torch.Tensor]:
         """Load and return sample inputs for the model as tensors (C, H, W format).
@@ -367,57 +318,82 @@ class ModelLoader(ForgeModel):
         inputs = []
         for i in range(batch_size):
             # Create random tensor in (C, H, W) format expected by the model
-            tensor_input = torch.randn(
+            # Use more realistic values (normalized between 0 and 1)
+            tensor_input = torch.rand(
                 3, image_size[0], image_size[1], dtype=dtype_override
             )
             inputs.append(tensor_input)
 
         return inputs
 
-    def predict(self, inputs: List[torch.Tensor]) -> List[Dict[str, Any]]:
-        """Run inference using tensors directly (bypassing image preprocessing).
+    def predict(self, image_path: Optional[str] = None) -> Dict[str, Any]:
+        """Run inference on an image using the loaded predictor.
 
         Args:
-            inputs: List of input tensors in (C, H, W) format
+            image_path: Optional path to image file. If None, uses sample image URL.
 
         Returns:
-            List of prediction dictionaries
+            Dict containing panoptic segmentation results
         """
         if self.predictor is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
 
-        results = []
-        for tensor_input in inputs:
-            if isinstance(tensor_input, torch.Tensor):
-                # Run inference directly on the model with tensor input
-                predictions = self._predict_tensor(tensor_input)
-                results.append(predictions)
-            else:
-                raise ValueError("Input must be a torch.Tensor")
+        # Load image
+        if image_path is None:
+            # Use sample image from config
+            config = self._variant_config
+            if config.sample_image_url:
+                image_path = config.sample_image_url
 
-        return results
+        if image_path.startswith("http"):
+            # Download image from URL
+            print(f"Downloading image from: {image_path}")
+            with urllib.request.urlopen(image_path) as response:
+                image_data = np.asarray(bytearray(response.read()), dtype="uint8")
+                im = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
+        else:
+            # Load from local file
+            im = cv2.imread(image_path)
 
-    def _predict_tensor(self, tensor_input: torch.Tensor) -> Dict[str, Any]:
-        """Run inference on a single tensor input.
+        if im is None:
+            raise ValueError(f"Could not load image from {image_path}")
 
-        Args:
-            tensor_input: Input tensor in (C, H, W) format
+        # Run inference
+        outputs = self.predictor(im)
 
-        Returns:
-            Prediction dictionary
-        """
-        with torch.no_grad():
-            # Ensure tensor is on the correct device
-            tensor_input = tensor_input.to(self.predictor.cfg.MODEL.DEVICE)
+        # Print results like in panoptic_seg.py
+        self._print_inference_results(outputs)
 
-            # Create input dict in the format expected by detectron2 models
-            height, width = tensor_input.shape[1], tensor_input.shape[2]
-            inputs = {"image": tensor_input, "height": height, "width": width}
+        return outputs
 
-            # Run inference directly on the model
-            predictions = self.predictor.model([inputs])[0]
+    def _print_inference_results(self, outputs):
+        """Print inference results like in panoptic_seg.py."""
+        inst = outputs.get("instances")
+        if inst is not None:
+            print("instances:", len(inst))
+            try:
+                print("classes:", inst.pred_classes.tolist())
+            except Exception:
+                pass
 
-            return predictions
+        sem = outputs.get("sem_seg")
+        if sem is not None:
+            print(
+                "sem_shape:",
+                tuple(sem.shape),
+                "unique_on_argmax:",
+                int(sem.argmax(0).unique().numel()),
+            )
+
+        ps = outputs.get("panoptic_seg")
+        if ps is not None:
+            pan, segs = ps
+            print(
+                "panoptic_unique_ids:",
+                int(torch.unique(pan).numel()),
+                "segments_len:",
+                0 if segs is None else len(segs),
+            )
 
     @classmethod
     def decode_output(cls, outputs: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
