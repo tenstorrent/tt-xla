@@ -3,10 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 test_config:
-  mnist/pytorch-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+  mnist/image_classification/pytorch-cnn_dropout-single_device-full-training:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter'"
+    markers: [push]
+
+  mnist/image_classification/pytorch-cnn_nodropout-single_device-full-training:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: failed to legalize operation 'stablehlo.rng_bit_generator'"
     markers: [push]
 
   autoencoder/pytorch-linear-single_device-full-training:

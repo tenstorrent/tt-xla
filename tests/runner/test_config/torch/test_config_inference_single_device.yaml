@@ -160,9 +160,11 @@ test_config:
 
   mnist/image_classification/pytorch-cnn_dropout-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["push", "weekly"]
 
   mnist/image_classification/pytorch-cnn_nodropout-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: ["push", "weekly"]
 
   autoencoder/pytorch-linear-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -368,12 +370,6 @@ test_config:
   mlp_mixer/pytorch-mixer_b16_224_miil_in21k-single_device-full-inference:
     required_pcc: 0.975
     status: EXPECTED_PASSING
-
-  mnist/pytorch-single_device-full-inference:
-    status: EXPECTED_PASSING
-    # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
-    required_pcc: 0.99
-    markers: ["push", "weekly"]
 
   mobilenetv1/pytorch-mobilenet_v1-single_device-full-inference:
     status: EXPECTED_PASSING
