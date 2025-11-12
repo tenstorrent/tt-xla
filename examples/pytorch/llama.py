@@ -18,7 +18,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenize
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-
 DEFAULT_PROMPTS = [
     "I like taking walks in the",
     "My name is",
@@ -35,7 +34,7 @@ DEFAULT_PROMPTS = [
     "Bison meat is not",
     "If you forget to wear your shoes when you go hiking,",
     "My right elbow is in pain, and",
-    "To make a grilld cheese, start by",
+    "To make a grilled cheese, start by",
     "The internal combustion engine",
     "The first person to walk on the moon was",
     "The ocean is home to many",
@@ -43,16 +42,17 @@ DEFAULT_PROMPTS = [
     "Calculus is a branch of mathematics that",
     "The most common type of cloud is",
     "A matrix dot product is",
-    "The 300 spartans were",
-    "Napolean Bonaparte was born in",
+    "The 300 Spartans were",
+    "Napoleon Bonaparte was born in",
     "The quick brown fox jumps over the lazy dog. And then he",
     "The original title of the book 'The Great Gatsby' was",
     "I forgot to tie my shoelaces",
     "Playing video games",
     "The sun is",
     "My car's transmission is",
-    "My keyboard is in a language I don't understand! What"
+    "My keyboard is in a language I don't understand! What",
 ]
+
 
 # --------------------------------
 # Llama Generation Loop Example
