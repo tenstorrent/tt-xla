@@ -507,7 +507,7 @@ test_config:
     execution_pass: BACKWARD
 
   squeezebert/masked_lm/jax-base-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "const T &llvm::ArrayRef<long>::operator[](size_t) const [T = long]: Assertion `Index < Length && \"Invalid index!\"' failed."
     execution_pass: BACKWARD
@@ -597,7 +597,7 @@ test_config:
     execution_pass: BACKWARD
 
   whisper/audio_classification/jax-base-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: " Assertion `Index < Length && \"Invalid index!\"' failed."
     execution_pass: BACKWARD
