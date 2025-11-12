@@ -1,0 +1,726 @@
+WARNING:root:Defaulting to PJRT_DEVICE=CPU
+Using TT-Metal from the source tree: /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-8.4.2, pluggy-1.6.0 -- /localdev/jameszianxu/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /localdev/jameszianxu/tt-xla
+configfile: pytest.ini
+plugins: anyio-4.11.0, jaxtyping-0.3.3, forked-1.6.0, split-0.10.0
+collecting ... 2025-11-10 22:56:44.232 | WARNING  | tests.runner.utils.dynamic_loader:discover_loader_paths:400 - Workaround to exclude model: suryaocr from discovery. Issue #1166
+collected 6 items
+
+tests/runner/test_models.py::test_all_models_torch[mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-full-inference] Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  10%|█         | 1/10 [02:16<20:27, 136.34s/it]Fetching 10 files:  30%|███       | 3/10 [02:34<04:54, 42.04s/it] Fetching 10 files:  40%|████      | 4/10 [02:36<02:49, 28.31s/it]Fetching 10 files:  50%|█████     | 5/10 [02:56<02:06, 25.37s/it]Fetching 10 files:  70%|███████   | 7/10 [03:01<00:43, 14.35s/it]Fetching 10 files:  90%|█████████ | 9/10 [03:19<00:12, 12.24s/it]Fetching 10 files: 100%|██████████| 10/10 [03:20<00:00, 20.01s/it]
+Loading checkpoint shards:   0%|          | 0/10 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 10/10 [00:00<00:00, 180.17it/s]
+2025-11-10 23:02:49.201 | critical |          Always | Out of Memory: Not enough space to allocate 167772160 B DRAM buffer across 12 banks, where each bank needs to store 13991936 B, but bank size is only 1073741792 B (assert.hpp:103)
+Running tests/runner/test_models.py::test_all_models_torch[mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-full-inference] - pytorch_mistral_mistral_small_24b_instruct_2501_nlp_causal_lm_huggingface
+Created device mesh: (1, 2) with 2 devices.
+Clearing XLA computation cache
+Clearing XLA computation cache
+FAILED
+tests/runner/test_models.py::test_all_models_torch[gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference] Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [01:01<03:04, 61.60s/it]Fetching 4 files: 100%|██████████| 4/4 [01:01<00:00, 15.40s/it]
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:00<00:00, 26.70it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 30.57it/s]
+2025-11-10 23:11:56.092 | critical |          Always | Out of Memory: Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B (assert.hpp:103)
+Running tests/runner/test_models.py::test_all_models_torch[gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference] - pytorch_gemma_causal_lm_google/gemma-1.1-7b-it_nlp_causal_lm_huggingface
+Created device mesh: (1, 2) with 2 devices.
+Clearing XLA computation cache
+Clearing XLA computation cache
+FAILED
+tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference] Running tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference] - pytorch_qwen_3_0_6b_nlp_causal_lm_huggingface
+Created device mesh: (1, 2) with 2 devices.
+Clearing XLA computation cache
+Running tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference] - pytorch_qwen_3_0_6b_nlp_causal_lm_huggingface
+Created device mesh: (1, 2) with 2 devices.
+Clearing XLA computation cache
+PASSED
+tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference] Fetching 5 files:   0%|          | 0/5 [00:00<?, ?it/s]Fetching 5 files:  20%|██        | 1/5 [01:15<05:02, 75.64s/it]Fetching 5 files:  40%|████      | 2/5 [01:17<01:35, 31.95s/it]Fetching 5 files: 100%|██████████| 5/5 [01:17<00:00, 15.40s/it]
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:00<00:00, 86.64it/s]
+Running tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference] - pytorch_falcon_tiiuae/Falcon3-10B-Base_nlp_causal_lm_huggingface
+Created device mesh: (1, 2) with 2 devices.
+Clearing XLA computation cache
+Running tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference] - pytorch_falcon_tiiuae/Falcon3-10B-Base_nlp_causal_lm_huggingface
+Created device mesh: (1, 2) with 2 devices.
+Clearing XLA computation cache
+Fetching 5 files:   0%|          | 0/5 [00:00<?, ?it/s]Fetching 5 files:  20%|██        | 1/5 [01:15<05:02, 75.64s/it]Fetching 5 files:  40%|████      | 2/5 [01:17<01:35, 31.95s/it]Fetching 5 files: 100%|██████████| 5/5 [01:17<00:00, 15.40s/it]
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:00<00:00, 86.64it/s]
+PASSED
+tests/runner/test_models.py::test_all_models_torch[qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-full-inference] Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [00:55<02:46, 55.48s/it]Fetching 4 files: 100%|██████████| 4/4 [00:55<00:00, 13.87s/it]
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 82.29it/s]
+Running tests/runner/test_models.py::test_all_models_torch[qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-full-inference] - pytorch_qwen_2_5_math_7b_nlp_causal_lm_huggingface
+Created device mesh: (1, 2) with 2 devices.
+Clearing XLA computation cache
+Clearing XLA computation cache
+FAILED
+tests/runner/test_models.py::test_all_models_torch[llama/causal_lm/pytorch-llama_3_1_8b_instruct-tensor_parallel-full-inference] Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [00:59<02:57, 59.14s/it]Fetching 4 files: 100%|██████████| 4/4 [00:59<00:00, 14.78s/it]
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 86.76it/s]
+Running tests/runner/test_models.py::test_all_models_torch[llama/causal_lm/pytorch-llama_3_1_8b_instruct-tensor_parallel-full-inference] - pytorch_llama_causal_lm_llama_3_1_8b_instruct_nlp_causal_lm_huggingface
+Created device mesh: (1, 2) with 2 devices.
+Clearing XLA computation cache
+Running tests/runner/test_models.py::test_all_models_torch[llama/causal_lm/pytorch-llama_3_1_8b_instruct-tensor_parallel-full-inference] - pytorch_llama_causal_lm_llama_3_1_8b_instruct_nlp_causal_lm_huggingface
+Created device mesh: (1, 2) with 2 devices.
+Clearing XLA computation cache
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [00:59<02:57, 59.14s/it]Fetching 4 files: 100%|██████████| 4/4 [00:59<00:00, 14.78s/it]
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 86.76it/s]
+PASSED
+
+=================================== FAILURES ===================================
+_ test_all_models_torch[mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-full-inference] _
+
+test_entry = ModelTestEntry(path='/localdev/jameszianxu/tt-xla/third_party/tt_forge_models/mistral/pytorch/loader.py', variant_info...L_24B_INSTRUCT_2501: 'mistral_small_24b_instruct_2501'>, <class 'tt-forge-models.mistral.pytorch.loader.ModelLoader'>))
+run_mode = <RunMode.INFERENCE: 'inference'>, op_by_op = None
+parallelism = <Parallelism.TENSOR_PARALLEL: 'tensor_parallel'>
+record_property = <function record_property.<locals>.append_property at 0x77651f9e2660>
+test_metadata = <tests.runner.test_utils.ModelTestConfig object at 0x77651f9e5150>
+request = <FixtureRequest for <Function test_all_models_torch[mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-full-inference]>>
+capteesys = <_pytest.capture.CaptureFixture object at 0x77651f890090>
+
+    @pytest.mark.model_test
+    @pytest.mark.no_auto_properties
+    @pytest.mark.parametrize(
+        "run_mode",
+        [
+            pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+            pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "op_by_op",
+        [None],
+        ids=["full"],  # When op-by-op flow is required/supported, add here.
+    )
+    @pytest.mark.parametrize(
+        "parallelism",
+        [
+            pytest.param(
+                Parallelism.SINGLE_DEVICE,
+                id="single_device",
+                marks=pytest.mark.single_device,
+            ),
+            pytest.param(
+                Parallelism.DATA_PARALLEL,
+                id="data_parallel",
+                marks=pytest.mark.data_parallel,
+            ),
+            pytest.param(
+                Parallelism.TENSOR_PARALLEL,
+                id="tensor_parallel",
+                marks=pytest.mark.tensor_parallel,
+            ),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "test_entry",
+        test_entries_torch,
+        ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+    )
+    def test_all_models_torch(
+        test_entry,
+        run_mode,
+        op_by_op,
+        parallelism,
+        record_property,
+        test_metadata,
+        request,
+        capteesys,
+    ):
+        # Fix venv isolation issue: ensure venv packages take precedence over system packages
+        fix_venv_isolation()
+    
+        loader_path = test_entry.path
+        variant, ModelLoader = test_entry.variant_info
+    
+        # Ensure per-model requirements are installed, and roll back after the test
+        with RequirementsManager.for_loader(loader_path):
+    
+            # Get the model loader and model info from desired model, variant.
+            loader = ModelLoader(variant=variant)
+            model_info = ModelLoader.get_model_info(variant=variant)
+            print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
+    
+            succeeded = False
+            comparison_result = None
+            tester = None
+    
+            try:
+                # Only run the actual model test if not marked for skip. The record properties
+                # function in finally block will always be called and handles the pytest.skip.
+                if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
+                    tester = DynamicTorchModelTester(
+                        run_mode,
+                        loader=loader,
+                        comparison_config=test_metadata.to_comparison_config(),
+                        parallelism=parallelism,
+                    )
+    
+>                   comparison_result = tester.test()
+                                        ^^^^^^^^^^^^^
+
+tests/runner/test_models.py:119: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/infra/testers/single_chip/model/model_tester.py:143: in test
+    return self._test_inference()
+           ^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:158: in _test_inference
+    return (self._compare(tt_res, cpu_res),)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:170: in _compare
+    return self._comparator.compare(device_out, golden_out)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/comparators/comparator.py:51: in compare
+    device_output, golden_output = self._match_data_types((device_out, golden_out))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/utils.py:41: in wrapper
+    return runner.run_on_cpu(workload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:26: in run_on_cpu
+    return self.run_on_device(workload, DeviceType.CPU)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:38: in run_on_device
+    device_workload = self._put_on_device(workload, device=device)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:54: in _put_on_device
+    return self._safely_put_workload_on_device(workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:95: in _safely_put_workload_on_device
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/torch/utils/_pytree.py:1145: in tree_map
+    return treespec.unflatten(map(func, *flat_args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/torch/utils/_pytree.py:982: in unflatten
+    leaves = list(leaves)
+             ^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:95: in <lambda>
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                                        ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+x = <[RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 6401 while an async operation is in flight: UNKNOWN_SCALAR[]') raised in repr()] Tensor object at 0x7763e4797170>
+device = device(type='cpu'), depth = 5
+
+    def to_device(x, device, depth=5):
+        """
+        Recursively move data structures and objects to the specified device.
+    
+        This function handles:
+        - Basic Python containers (list, tuple, dict)
+        - PyTorch tensors and models (objects with .to() method)
+        - Custom objects with attributes (recursively processes all fields)
+        - None values and other primitives (returned unchanged)
+    
+        Args:
+            x: The data structure or object to move to device
+            device: The target device (e.g., 'cuda', 'cpu', torch.device)
+            depth: Maximum recursion depth (default: 5). When depth reaches 0,
+                   recursion stops and objects are returned as-is.
+    
+        Returns:
+            The same structure with all compatible elements moved to the device
+        """
+        # Stop recursion when maximum depth is reached
+        if depth <= 0:
+            # Still try to move tensors/models at the final depth level
+            if hasattr(x, "to"):
+                return x.to(device)
+            return x
+    
+        if x is None:
+            return x
+        elif isinstance(x, list):
+            return [to_device(item, device, depth - 1) for item in x]
+        elif isinstance(x, tuple):
+            return tuple(to_device(item, device, depth - 1) for item in x)
+        elif isinstance(x, dict):
+            return {k: to_device(v, device, depth - 1) for k, v in x.items()}
+        elif hasattr(x, "to"):
+>           return x.to(device)
+                   ^^^^^^^^^^^^
+E           RuntimeError: TT_FATAL @ /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/impl/allocator/bank_manager.cpp:431: address.has_value()
+E           info:
+E           Out of Memory: Not enough space to allocate 167772160 B DRAM buffer across 12 banks, where each bank needs to store 13991936 B, but bank size is only 1073741792 B
+E           backtrace:
+E            --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x54068e) [0x77633394068e]
+E            --- tt::tt_metal::BankManager::allocate_buffer(unsigned long, unsigned long, bool, CoreRangeSet const&, std::optional<unsigned int>, ttsl::StrongType<unsigned int, tt::tt_metal::AllocatorIDTag>)
+E            --- tt::tt_metal::Allocator::allocate_buffer(tt::tt_metal::Buffer*)
+E            --- tt::tt_metal::Buffer::allocate_impl()
+E            --- tt::tt_metal::Buffer::create(tt::tt_metal::IDevice*, unsigned long, unsigned long, tt::tt_metal::BufferType, tt::tt_metal::BufferShardingArgs const&, std::optional<bool>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> >)
+E            --- tt::tt_metal::distributed::MeshBuffer::create(std::variant<tt::tt_metal::distributed::ReplicatedBufferConfig, tt::tt_metal::distributed::ShardedBufferConfig> const&, tt::tt_metal::distributed::DeviceLocalBufferConfig const&, tt::tt_metal::distributed::MeshDevice*, std::optional<unsigned long>)
+E            --- tt::tt_metal::tensor_impl::allocate_device_buffer(tt::tt_metal::distributed::MeshDevice*, tt::tt_metal::TensorSpec const&)
+E            --- tt::tt_metal::Tensor tt::tt_metal::tensor_impl::to_device<bfloat16>(tt::tt_metal::Tensor const&, tt::tt_metal::distributed::MeshDevice*, ttsl::optional_reference<tt::tt_metal::MemoryConfig const>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::QueueIdTag> >)
+E            --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN2tt8tt_metal11tensor_impl8dispatchIZNS1_17to_device_wrapperIJRKNS0_6TensorERPNS0_11distributed10MeshDeviceERN4ttsl18optional_referenceIKNS0_12MemoryConfigEEERSt8optionalINSB_10StrongTypeIhNS0_10QueueIdTagEEEEEEEDaDpOT_EUlTyDpOT0_E_JS6_SA_SG_SM_EEEDaNS0_8DataTypeEOT_SS_+0x3c) [0x77633277087c]
+E            --- tt::tt_metal::tensor_ops::tensor_to_device(tt::tt_metal::Tensor const&, tt::tt_metal::distributed::MeshDevice*, ttsl::optional_reference<tt::tt_metal::MemoryConfig const>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::QueueIdTag> >)
+E            --- tt::tt_metal::Tensor::to_device(tt::tt_metal::distributed::MeshDevice*, ttsl::optional_reference<tt::tt_metal::MemoryConfig const>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::QueueIdTag> >) const
+E            --- ttnn::operations::core::to_device(tt::tt_metal::Tensor const&, tt::tt_metal::distributed::MeshDevice*, std::optional<tt::tt_metal::MemoryConfig> const&, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::QueueIdTag> >)
+E            --- tt::runtime::ttnn::LayoutConverter::handleHostInputLayoutNoTypecast(tt::tt_metal::Tensor const&, std::optional<std::reference_wrapper<tt::tt_metal::distributed::MeshDevice> >)
+E            --- tt::runtime::ttnn::LayoutConverter::convertHostTensorLayout(tt::tt_metal::Tensor const&, std::optional<std::reference_wrapper<tt::tt_metal::distributed::MeshDevice> >)
+E            --- tt::runtime::ttnn::LayoutConverter::convertTensorLayout(tt::tt_metal::Tensor const&, std::optional<std::reference_wrapper<tt::tt_metal::distributed::MeshDevice> >)
+E            --- tt::runtime::ttnn::toLayout(tt::runtime::Tensor, tt::runtime::Device, tt::runtime::Layout, std::optional<bool>)
+E            --- tt::runtime::toLayout(tt::runtime::Tensor, tt::runtime::Device, tt::runtime::Layout, std::optional<bool>)
+E            --- tt::pjrt::FlatbufferLoadedExecutableInstance::convertTensorLayout(tt::runtime::Tensor, unsigned int, unsigned long, tt::runtime::Device const&)
+E            --- tt::pjrt::FlatbufferLoadedExecutableInstance::prepareInputTensor(std::vector<tt::pjrt::BufferInstance*, std::allocator<tt::pjrt::BufferInstance*> > const&, tt::runtime::Device, unsigned long, unsigned int, unsigned long)
+E            --- tt::pjrt::FlatbufferLoadedExecutableInstance::getInputRuntimeTensors(PJRT_Buffer* const* const*, unsigned long, unsigned long, tt::runtime::Device const&, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+E            --- tt::pjrt::FlatbufferLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args*)
+E            --- tt::pjrt::internal::onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args*)
+E            --- xla::PjRtCApiLoadedExecutable::Execute(absl::lts_20230802::Span<std::vector<xla::PjRtBuffer*, std::allocator<xla::PjRtBuffer*> > const>, xla::ExecuteOptions const&, std::optional<std::vector<xla::PjRtFuture<void>, std::allocator<xla::PjRtFuture<void> > > >&)
+E            --- torch_xla::runtime::PjRtComputationClient::ExecuteReplicated(torch_xla::runtime::ComputationClient::Computation const&, absl::lts_20230802::Span<std::shared_ptr<torch_xla::runtime::ComputationClient::Data> const>, absl::lts_20230802::Span<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const>, torch_xla::runtime::ComputationClient::ExecuteReplicatedOptions const&)
+E            --- /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/_XLAC.cpython-311-x86_64-linux-gnu.so(+0x6ddf582) [0x7765c4ddf582]
+E            --- torch::lazy::MultiWait::Complete(std::function<void ()> const&)
+E            --- Eigen::ThreadPoolTempl<tsl::thread::EigenEnvironment>::WorkerLoop(int)
+E            --- void absl::lts_20230802::internal_any_invocable::RemoteInvoker<false, void, tsl::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}&>(absl::lts_20230802::internal_any_invocable::TypeErasedState*)
+E            --- /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/_XLAC.cpython-311-x86_64-linux-gnu.so(+0x11678942) [0x7765cf678942]
+E            --- /lib/x86_64-linux-gnu/libc.so.6(+0x94ac3) [0x77661dac6ac3]
+E            --- /lib/x86_64-linux-gnu/libc.so.6(+0x1268c0) [0x77661db588c0]
+
+tests/infra/runners/torch_device_runner.py:53: RuntimeError
+_ test_all_models_torch[gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference] _
+
+test_entry = ModelTestEntry(path='/localdev/jameszianxu/tt-xla/third_party/tt_forge_models/gemma/pytorch/loader.py', variant_info=(<ModelVariant.GEMMA_1_1_7B_IT: 'google/gemma-1.1-7b-it'>, <class 'tt-forge-models.gemma.pytorch.loader.ModelLoader'>))
+run_mode = <RunMode.INFERENCE: 'inference'>, op_by_op = None
+parallelism = <Parallelism.TENSOR_PARALLEL: 'tensor_parallel'>
+record_property = <function record_property.<locals>.append_property at 0x77651f9e1f80>
+test_metadata = <tests.runner.test_utils.ModelTestConfig object at 0x77651f9e5190>
+request = <FixtureRequest for <Function test_all_models_torch[gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference]>>
+capteesys = <_pytest.capture.CaptureFixture object at 0x776456c59dd0>
+
+    @pytest.mark.model_test
+    @pytest.mark.no_auto_properties
+    @pytest.mark.parametrize(
+        "run_mode",
+        [
+            pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+            pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "op_by_op",
+        [None],
+        ids=["full"],  # When op-by-op flow is required/supported, add here.
+    )
+    @pytest.mark.parametrize(
+        "parallelism",
+        [
+            pytest.param(
+                Parallelism.SINGLE_DEVICE,
+                id="single_device",
+                marks=pytest.mark.single_device,
+            ),
+            pytest.param(
+                Parallelism.DATA_PARALLEL,
+                id="data_parallel",
+                marks=pytest.mark.data_parallel,
+            ),
+            pytest.param(
+                Parallelism.TENSOR_PARALLEL,
+                id="tensor_parallel",
+                marks=pytest.mark.tensor_parallel,
+            ),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "test_entry",
+        test_entries_torch,
+        ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+    )
+    def test_all_models_torch(
+        test_entry,
+        run_mode,
+        op_by_op,
+        parallelism,
+        record_property,
+        test_metadata,
+        request,
+        capteesys,
+    ):
+        # Fix venv isolation issue: ensure venv packages take precedence over system packages
+        fix_venv_isolation()
+    
+        loader_path = test_entry.path
+        variant, ModelLoader = test_entry.variant_info
+    
+        # Ensure per-model requirements are installed, and roll back after the test
+        with RequirementsManager.for_loader(loader_path):
+    
+            # Get the model loader and model info from desired model, variant.
+            loader = ModelLoader(variant=variant)
+            model_info = ModelLoader.get_model_info(variant=variant)
+            print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
+    
+            succeeded = False
+            comparison_result = None
+            tester = None
+    
+            try:
+                # Only run the actual model test if not marked for skip. The record properties
+                # function in finally block will always be called and handles the pytest.skip.
+                if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
+                    tester = DynamicTorchModelTester(
+                        run_mode,
+                        loader=loader,
+                        comparison_config=test_metadata.to_comparison_config(),
+                        parallelism=parallelism,
+                    )
+    
+>                   comparison_result = tester.test()
+                                        ^^^^^^^^^^^^^
+
+tests/runner/test_models.py:119: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/infra/testers/single_chip/model/model_tester.py:143: in test
+    return self._test_inference()
+           ^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:158: in _test_inference
+    return (self._compare(tt_res, cpu_res),)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:170: in _compare
+    return self._comparator.compare(device_out, golden_out)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/comparators/comparator.py:51: in compare
+    device_output, golden_output = self._match_data_types((device_out, golden_out))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/utils.py:41: in wrapper
+    return runner.run_on_cpu(workload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:26: in run_on_cpu
+    return self.run_on_device(workload, DeviceType.CPU)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:38: in run_on_device
+    device_workload = self._put_on_device(workload, device=device)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:54: in _put_on_device
+    return self._safely_put_workload_on_device(workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:95: in _safely_put_workload_on_device
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/torch/utils/_pytree.py:1145: in tree_map
+    return treespec.unflatten(map(func, *flat_args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/torch/utils/_pytree.py:982: in unflatten
+    leaves = list(leaves)
+             ^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:95: in <lambda>
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                                        ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+x = <[RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 10688 while an async operation is in flight: UNKNOWN_SCALAR[]') raised in repr()] Tensor object at 0x776457a94b30>
+device = device(type='cpu'), depth = 5
+
+    def to_device(x, device, depth=5):
+        """
+        Recursively move data structures and objects to the specified device.
+    
+        This function handles:
+        - Basic Python containers (list, tuple, dict)
+        - PyTorch tensors and models (objects with .to() method)
+        - Custom objects with attributes (recursively processes all fields)
+        - None values and other primitives (returned unchanged)
+    
+        Args:
+            x: The data structure or object to move to device
+            device: The target device (e.g., 'cuda', 'cpu', torch.device)
+            depth: Maximum recursion depth (default: 5). When depth reaches 0,
+                   recursion stops and objects are returned as-is.
+    
+        Returns:
+            The same structure with all compatible elements moved to the device
+        """
+        # Stop recursion when maximum depth is reached
+        if depth <= 0:
+            # Still try to move tensors/models at the final depth level
+            if hasattr(x, "to"):
+                return x.to(device)
+            return x
+    
+        if x is None:
+            return x
+        elif isinstance(x, list):
+            return [to_device(item, device, depth - 1) for item in x]
+        elif isinstance(x, tuple):
+            return tuple(to_device(item, device, depth - 1) for item in x)
+        elif isinstance(x, dict):
+            return {k: to_device(v, device, depth - 1) for k, v in x.items()}
+        elif hasattr(x, "to"):
+>           return x.to(device)
+                   ^^^^^^^^^^^^
+E           RuntimeError: TT_FATAL @ /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/impl/allocator/bank_manager.cpp:431: address.has_value()
+E           info:
+E           Out of Memory: Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B
+E           backtrace:
+E            --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x54068e) [0x77633394068e]
+E            --- tt::tt_metal::BankManager::allocate_buffer(unsigned long, unsigned long, bool, CoreRangeSet const&, std::optional<unsigned int>, ttsl::StrongType<unsigned int, tt::tt_metal::AllocatorIDTag>)
+E            --- tt::tt_metal::Allocator::allocate_buffer(tt::tt_metal::Buffer*)
+E            --- tt::tt_metal::Buffer::allocate_impl()
+E            --- tt::tt_metal::Buffer::create(tt::tt_metal::IDevice*, unsigned long, unsigned long, tt::tt_metal::BufferType, tt::tt_metal::BufferShardingArgs const&, std::optional<bool>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> >)
+E            --- tt::tt_metal::distributed::MeshBuffer::create(std::variant<tt::tt_metal::distributed::ReplicatedBufferConfig, tt::tt_metal::distributed::ShardedBufferConfig> const&, tt::tt_metal::distributed::DeviceLocalBufferConfig const&, tt::tt_metal::distributed::MeshDevice*, std::optional<unsigned long>)
+E            --- tt::tt_metal::tensor_impl::allocate_device_buffer(tt::tt_metal::distributed::MeshDevice*, tt::tt_metal::TensorSpec const&)
+E            --- tt::tt_metal::allocate_tensor_on_device(tt::tt_metal::TensorSpec const&, tt::tt_metal::distributed::MeshDevice*)
+E            --- tt::tt_metal::create_device_tensor(tt::tt_metal::TensorSpec const&, tt::tt_metal::IDevice*)
+E            --- tt::tt_metal::operation::program_output_helper<ttnn::operations::matmul::Matmul, has_create_program<ttnn::operations::matmul::Matmul>::value>::type tt::tt_metal::operation::default_create_output_tensors<ttnn::operations::matmul::Matmul>(ttnn::operations::matmul::Matmul const&, std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > const&, std::vector<std::optional<tt::tt_metal::Tensor>, std::allocator<std::optional<tt::tt_metal::Tensor> > > const&)
+E            --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(+0xeb4fa9) [0x776332eb4fa9]
+E            --- tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::create_output_tensors(tt::tt_metal::operation::DeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > > const&, tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::tensor_args_t const&)
+E            --- tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::tensor_return_value_t ttnn::device_operation::detail::launch_on_device<tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > > >(tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::operation_attributes_t const&, tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::tensor_args_t const&)
+E            --- tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::tensor_return_value_t ttnn::device_operation::detail::invoke<tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > > >(tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::operation_attributes_t const&, tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::tensor_args_t const&)
+E            --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(+0x6fbf1b) [0x7763326fbf1b]
+E            --- std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > tt::tt_metal::operation::run<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >(tt::tt_metal::operation::DeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >&&, std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > const&, std::vector<std::optional<tt::tt_metal::Tensor const>, std::allocator<std::optional<tt::tt_metal::Tensor const> > > const&, std::vector<std::optional<tt::tt_metal::Tensor>, std::allocator<std::optional<tt::tt_metal::Tensor> > > const&)
+E            --- ttnn::operations::matmul::matmul(tt::tt_metal::Tensor const&, tt::tt_metal::Tensor const&, std::optional<tt::tt_metal::Tensor const> const&, ttnn::operations::matmul::Matmul const&, std::optional<tt::tt_metal::Tensor> const&)
+E            --- ttnn::operations::matmul::bound_matmul(tt::tt_metal::Tensor const&, tt::tt_metal::Tensor const&, std::optional<tt::tt_metal::Tensor const> const&, ttnn::operations::matmul::Matmul const&, std::optional<tt::tt_metal::Tensor>&)
+E            --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN4ttnn10operations6matmul15MatmulOperation6invokeERKN2tt8tt_metal6TensorES7_bbRKSt8optionalIKNS4_12MemoryConfigEES8_IKNS4_8DataTypeEERKS8_IKSt7variantIJNS1_28MatmulMultiCoreProgramConfigENS1_33MatmulMultiCoreReuseProgramConfigENS1_42MatmulMultiCoreReuseMultiCastProgramConfigENS1_44MatmulMultiCoreReuseMultiCast1DProgramConfigENS1_53MatmulMultiCoreReuseMultiCastDRAMShardedProgramConfigEEEERKS8_IKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEES8_IKSH_IJNS_28GrayskullComputeKernelConfigENS_27WormholeComputeKernelConfigEEEES8_IKNS_5types8CoreGridEERKS8_IKNS4_4TileEES8_IS5_ERKS8_IKNS4_12experimental20GlobalCircularBufferEERKS8_IN4ttsl10StrongTypeIhNS4_14SubDeviceIdTagEEEE+0x2fd) [0x776332e9f3dd]
+E            --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRRuntime.so(+0x2aaa50) [0x7764086aaa50]
+E            --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRRuntime.so(+0x2aa473) [0x7764086aa473]
+E            --- tt::runtime::ttnn::operations::matmul::run(tt::target::ttnn::MatmulOp const*, tt::runtime::ttnn::ProgramContext&)
+E            --- tt::runtime::ttnn::ProgramExecutor::execute()
+E            --- tt::runtime::ttnn::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+E            --- tt::runtime::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+E            --- tt::pjrt::FlatbufferLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args*)
+E            --- tt::pjrt::internal::onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args*)
+E            --- xla::PjRtCApiLoadedExecutable::Execute(absl::lts_20230802::Span<std::vector<xla::PjRtBuffer*, std::allocator<xla::PjRtBuffer*> > const>, xla::ExecuteOptions const&, std::optional<std::vector<xla::PjRtFuture<void>, std::allocator<xla::PjRtFuture<void> > > >&)
+E            --- torch_xla::runtime::PjRtComputationClient::ExecuteReplicated(torch_xla::runtime::ComputationClient::Computation const&, absl::lts_20230802::Span<std::shared_ptr<torch_xla::runtime::ComputationClient::Data> const>, absl::lts_20230802::Span<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const>, torch_xla::runtime::ComputationClient::ExecuteReplicatedOptions const&)
+E            --- /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/_XLAC.cpython-311-x86_64-linux-gnu.so(+0x6ddf582) [0x7765c4ddf582]
+E            --- torch::lazy::MultiWait::Complete(std::function<void ()> const&)
+E            --- Eigen::ThreadPoolTempl<tsl::thread::EigenEnvironment>::WorkerLoop(int)
+E            --- void absl::lts_20230802::internal_any_invocable::RemoteInvoker<false, void, tsl::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}&>(absl::lts_20230802::internal_any_invocable::TypeErasedState*)
+E            --- /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/_XLAC.cpython-311-x86_64-linux-gnu.so(+0x11678942) [0x7765cf678942]
+E            --- /lib/x86_64-linux-gnu/libc.so.6(+0x94ac3) [0x77661dac6ac3]
+E            --- /lib/x86_64-linux-gnu/libc.so.6(+0x1268c0) [0x77661db588c0]
+
+tests/infra/runners/torch_device_runner.py:53: RuntimeError
+_ test_all_models_torch[qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-full-inference] _
+
+test_entry = ModelTestEntry(path='/localdev/jameszianxu/tt-xla/third_party/tt_forge_models/qwen_2_5/causal_lm/pytorch/loader.py', v...=(<ModelVariant.QWEN_2_5_MATH_7B: 'math_7b'>, <class 'tt-forge-models.qwen_2_5.causal_lm.pytorch.loader.ModelLoader'>))
+run_mode = <RunMode.INFERENCE: 'inference'>, op_by_op = None
+parallelism = <Parallelism.TENSOR_PARALLEL: 'tensor_parallel'>
+record_property = <function record_property.<locals>.append_property at 0x7762bb803600>
+test_metadata = <tests.runner.test_utils.ModelTestConfig object at 0x77651f9e5a90>
+request = <FixtureRequest for <Function test_all_models_torch[qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-full-inference]>>
+capteesys = <_pytest.capture.CaptureFixture object at 0x7762aa0a02d0>
+
+    @pytest.mark.model_test
+    @pytest.mark.no_auto_properties
+    @pytest.mark.parametrize(
+        "run_mode",
+        [
+            pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+            pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "op_by_op",
+        [None],
+        ids=["full"],  # When op-by-op flow is required/supported, add here.
+    )
+    @pytest.mark.parametrize(
+        "parallelism",
+        [
+            pytest.param(
+                Parallelism.SINGLE_DEVICE,
+                id="single_device",
+                marks=pytest.mark.single_device,
+            ),
+            pytest.param(
+                Parallelism.DATA_PARALLEL,
+                id="data_parallel",
+                marks=pytest.mark.data_parallel,
+            ),
+            pytest.param(
+                Parallelism.TENSOR_PARALLEL,
+                id="tensor_parallel",
+                marks=pytest.mark.tensor_parallel,
+            ),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "test_entry",
+        test_entries_torch,
+        ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+    )
+    def test_all_models_torch(
+        test_entry,
+        run_mode,
+        op_by_op,
+        parallelism,
+        record_property,
+        test_metadata,
+        request,
+        capteesys,
+    ):
+        # Fix venv isolation issue: ensure venv packages take precedence over system packages
+        fix_venv_isolation()
+    
+        loader_path = test_entry.path
+        variant, ModelLoader = test_entry.variant_info
+    
+        # Ensure per-model requirements are installed, and roll back after the test
+        with RequirementsManager.for_loader(loader_path):
+    
+            # Get the model loader and model info from desired model, variant.
+            loader = ModelLoader(variant=variant)
+            model_info = ModelLoader.get_model_info(variant=variant)
+            print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
+    
+            succeeded = False
+            comparison_result = None
+            tester = None
+    
+            try:
+                # Only run the actual model test if not marked for skip. The record properties
+                # function in finally block will always be called and handles the pytest.skip.
+                if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
+                    tester = DynamicTorchModelTester(
+                        run_mode,
+                        loader=loader,
+                        comparison_config=test_metadata.to_comparison_config(),
+                        parallelism=parallelism,
+                    )
+    
+                    comparison_result = tester.test()
+    
+                    if request.config.getoption("--serialize", default=False):
+                        tester.serialize_compilation_artifacts(request.node.name)
+    
+                    # All results must pass for the test to succeed
+                    succeeded = all(result.passed for result in comparison_result)
+    
+                    # Trigger assertion after comparison_result is cached, and
+                    #     fallthrough to finally block on failure.
+>                   Comparator._assert_on_results(comparison_result)
+
+tests/runner/test_models.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+comparison_result = (ComparisonResult(passed=False, pcc=0.5958560705184937, atol=26.6875, allclose=False, equal=False, error_message='PCC comparison failed. Calculated: pcc=0.5958560705184937. Required: pcc=0.99.'),)
+
+    @staticmethod
+    def _assert_on_results(
+        comparison_result: ComparisonResult | Tuple[ComparisonResult, ...],
+    ) -> None:
+        """
+        Assert based on comparison results if any checks failed.
+    
+        Args:
+            comparison_result: Either a single ComparisonResult or a tuple of ComparisonResults to assert on.
+            There may be multiple results for each test, eg. forward and backward pass results for training.
+        """
+        # Handle both single ComparisonResult and tuple of ComparisonResults
+        if isinstance(comparison_result, ComparisonResult):
+            results = (comparison_result,)
+        else:
+            results = comparison_result
+    
+        error_messages = []
+        for i, result in enumerate(results):
+            if not result.passed:
+                error_messages.append(
+                    f"Comparison result {i} failed: {result.error_message}"
+                )
+        if error_messages:
+>           assert False, "\n".join(error_messages)
+                   ^^^^^
+E           AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.5958560705184937. Required: pcc=0.99.
+
+tests/infra/comparators/comparator.py:184: AssertionError
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:241
+  <frozen importlib._bootstrap>:241: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:241
+  <frozen importlib._bootstrap>:241: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/runner/test_models.py::test_all_models_torch[gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference]
+tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference]
+tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference]
+tests/runner/test_models.py::test_all_models_torch[qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-full-inference]
+tests/runner/test_models.py::test_all_models_torch[llama/causal_lm/pytorch-llama_3_1_8b_instruct-tensor_parallel-full-inference]
+  /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/torch_xla/runtime.py:213: UserWarning: XLA_USE_SPMD is being deprecated. Use torch_xla.runtime.use_spmd() without setting XLA_USE_SPMD env-var.
+    warnings.warn("XLA_USE_SPMD is being deprecated. "
+
+tests/runner/test_models.py::test_all_models_torch[gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference]
+tests/runner/test_models.py::test_all_models_torch[gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference]
+  /usr/local/lib/python3.11/dist-packages/torch/export/_unlift.py:81: UserWarning: Attempted to insert a get_attr Node with no underlying reference in the owning GraphModule! Call GraphModule.add_submodule to add the necessary submodule, GraphModule.add_parameter to add the necessary Parameter, or nn.Module.register_buffer to add the necessary buffer
+    getattr_node = gm.graph.get_attr(lifted_node)
+
+tests/runner/test_models.py::test_all_models_torch[gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference]
+tests/runner/test_models.py::test_all_models_torch[gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference]
+  /usr/local/lib/python3.11/dist-packages/torch/fx/graph.py:1772: UserWarning: Node l_self_model_lifted_tensor_0 target L['self'].model.lifted_tensor_0 lifted_tensor_0 of L['self'].model does not reference an nn.Module, nn.Parameter, or buffer, which is what 'get_attr' Nodes typically target
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/runner/test_models.py::test_all_models_torch[mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-full-inference] - RuntimeError: TT_FATAL @ /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/impl/allocator/bank_manager.cpp:431: address.has_value()
+info:
+Out of Memory: Not enough space to allocate 167772160 B DRAM buffer across 12 banks, where each bank needs to store 13991936 B, but bank size is only 1073741792 B
+backtrace:
+ --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x54068e) [0x77633394068e]
+ --- tt::tt_metal::BankManager::allocate_buffer(unsigned long, unsigned long, bool, CoreRangeSet const&, std::optional<unsigned int>, ttsl::StrongType<unsigned int, tt::tt_metal::AllocatorIDTag>)
+ --- tt::tt_metal::Allocator::allocate_buffer(tt::tt_metal::Buffer*)
+ --- tt::tt_metal::Buffer::allocate_impl()
+ --- tt::tt_metal::Buffer::create(tt::tt_metal::IDevice*, unsigned long, unsigned long, tt::tt_metal::BufferType, tt::tt_metal::BufferShardingArgs const&, std::optional<bool>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> >)
+ --- tt::tt_metal::distributed::MeshBuffer::create(std::variant<tt::tt_metal::distributed::ReplicatedBufferConfig, tt::tt_metal::distributed::ShardedBufferConfig> const&, tt::tt_metal::distributed::DeviceLocalBufferConfig const&, tt::tt_metal::distributed::MeshDevice*, std::optional<unsigned long>)
+ --- tt::tt_metal::tensor_impl::allocate_device_buffer(tt::tt_metal::distributed::MeshDevice*, tt::tt_metal::TensorSpec const&)
+ --- tt::tt_metal::Tensor tt::tt_metal::tensor_impl::to_device<bfloat16>(tt::tt_metal::Tensor const&, tt::tt_metal::distributed::MeshDevice*, ttsl::optional_reference<tt::tt_metal::MemoryConfig const>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::QueueIdTag> >)
+ --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN2tt8tt_metal11tensor_impl8dispatchIZNS1_17to_device_wrapperIJRKNS0_6TensorERPNS0_11distributed10MeshDeviceERN4ttsl18optional_referenceIKNS0_12MemoryConfigEEERSt8optionalINSB_10StrongTypeIhNS0_10QueueIdTagEEEEEEEDaDpOT_EUlTyDpOT0_E_JS6_SA_SG_SM_EEEDaNS0_8DataTypeEOT_SS_+0x3c) [0x77633277087c]
+ --- tt::tt_metal::tensor_ops::tensor_to_device(tt::tt_metal::Tensor const&, tt::tt_metal::distributed::MeshDevice*, ttsl::optional_reference<tt::tt_metal::MemoryConfig const>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::QueueIdTag> >)
+ --- tt::tt_metal::Tensor::to_device(tt::tt_metal::distributed::MeshDevice*, ttsl::optional_reference<tt::tt_metal::MemoryConfig const>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::QueueIdTag> >) const
+ --- ttnn::operations::core::to_device(tt::tt_metal::Tensor const&, tt::tt_metal::distributed::MeshDevice*, std::optional<tt::tt_metal::MemoryConfig> const&, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::QueueIdTag> >)
+ --- tt::runtime::ttnn::LayoutConverter::handleHostInputLayoutNoTypecast(tt::tt_metal::Tensor const&, std::optional<std::reference_wrapper<tt::tt_metal::distributed::MeshDevice> >)
+ --- tt::runtime::ttnn::LayoutConverter::convertHostTensorLayout(tt::tt_metal::Tensor const&, std::optional<std::reference_wrapper<tt::tt_metal::distributed::MeshDevice> >)
+ --- tt::runtime::ttnn::LayoutConverter::convertTensorLayout(tt::tt_metal::Tensor const&, std::optional<std::reference_wrapper<tt::tt_metal::distributed::MeshDevice> >)
+ --- tt::runtime::ttnn::toLayout(tt::runtime::Tensor, tt::runtime::Device, tt::runtime::Layout, std::optional<bool>)
+ --- tt::runtime::toLayout(tt::runtime::Tensor, tt::runtime::Device, tt::runtime::Layout, std::optional<bool>)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::convertTensorLayout(tt::runtime::Tensor, unsigned int, unsigned long, tt::runtime::Device const&)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::prepareInputTensor(std::vector<tt::pjrt::BufferInstance*, std::allocator<tt::pjrt::BufferInstance*> > const&, tt::runtime::Device, unsigned long, unsigned int, unsigned long)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::getInputRuntimeTensors(PJRT_Buffer* const* const*, unsigned long, unsigned long, tt::runtime::Device const&, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args*)
+ --- tt::pjrt::internal::onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args*)
+ --- xla::PjRtCApiLoadedExecutable::Execute(absl::lts_20230802::Span<std::vector<xla::PjRtBuffer*, std::allocator<xla::PjRtBuffer*> > const>, xla::ExecuteOptions const&, std::optional<std::vector<xla::PjRtFuture<void>, std::allocator<xla::PjRtFuture<void> > > >&)
+ --- torch_xla::runtime::PjRtComputationClient::ExecuteReplicated(torch_xla::runtime::ComputationClient::Computation const&, absl::lts_20230802::Span<std::shared_ptr<torch_xla::runtime::ComputationClient::Data> const>, absl::lts_20230802::Span<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const>, torch_xla::runtime::ComputationClient::ExecuteReplicatedOptions const&)
+ --- /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/_XLAC.cpython-311-x86_64-linux-gnu.so(+0x6ddf582) [0x7765c4ddf582]
+ --- torch::lazy::MultiWait::Complete(std::function<void ()> const&)
+ --- Eigen::ThreadPoolTempl<tsl::thread::EigenEnvironment>::WorkerLoop(int)
+ --- void absl::lts_20230802::internal_any_invocable::RemoteInvoker<false, void, tsl::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}&>(absl::lts_20230802::internal_any_invocable::TypeErasedState*)
+ --- /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/_XLAC.cpython-311-x86_64-linux-gnu.so(+0x11678942) [0x7765cf678942]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x94ac3) [0x77661dac6ac3]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x1268c0) [0x77661db588c0]
+FAILED tests/runner/test_models.py::test_all_models_torch[gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference] - RuntimeError: TT_FATAL @ /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/impl/allocator/bank_manager.cpp:431: address.has_value()
+info:
+Out of Memory: Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B
+backtrace:
+ --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x54068e) [0x77633394068e]
+ --- tt::tt_metal::BankManager::allocate_buffer(unsigned long, unsigned long, bool, CoreRangeSet const&, std::optional<unsigned int>, ttsl::StrongType<unsigned int, tt::tt_metal::AllocatorIDTag>)
+ --- tt::tt_metal::Allocator::allocate_buffer(tt::tt_metal::Buffer*)
+ --- tt::tt_metal::Buffer::allocate_impl()
+ --- tt::tt_metal::Buffer::create(tt::tt_metal::IDevice*, unsigned long, unsigned long, tt::tt_metal::BufferType, tt::tt_metal::BufferShardingArgs const&, std::optional<bool>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> >)
+ --- tt::tt_metal::distributed::MeshBuffer::create(std::variant<tt::tt_metal::distributed::ReplicatedBufferConfig, tt::tt_metal::distributed::ShardedBufferConfig> const&, tt::tt_metal::distributed::DeviceLocalBufferConfig const&, tt::tt_metal::distributed::MeshDevice*, std::optional<unsigned long>)
+ --- tt::tt_metal::tensor_impl::allocate_device_buffer(tt::tt_metal::distributed::MeshDevice*, tt::tt_metal::TensorSpec const&)
+ --- tt::tt_metal::allocate_tensor_on_device(tt::tt_metal::TensorSpec const&, tt::tt_metal::distributed::MeshDevice*)
+ --- tt::tt_metal::create_device_tensor(tt::tt_metal::TensorSpec const&, tt::tt_metal::IDevice*)
+ --- tt::tt_metal::operation::program_output_helper<ttnn::operations::matmul::Matmul, has_create_program<ttnn::operations::matmul::Matmul>::value>::type tt::tt_metal::operation::default_create_output_tensors<ttnn::operations::matmul::Matmul>(ttnn::operations::matmul::Matmul const&, std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > const&, std::vector<std::optional<tt::tt_metal::Tensor>, std::allocator<std::optional<tt::tt_metal::Tensor> > > const&)
+ --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(+0xeb4fa9) [0x776332eb4fa9]
+ --- tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::create_output_tensors(tt::tt_metal::operation::DeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > > const&, tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::tensor_args_t const&)
+ --- tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::tensor_return_value_t ttnn::device_operation::detail::launch_on_device<tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > > >(tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::operation_attributes_t const&, tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::tensor_args_t const&)
+ --- tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::tensor_return_value_t ttnn::device_operation::detail::invoke<tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > > >(tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::operation_attributes_t const&, tt::tt_metal::operation::OldInfraDeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >::tensor_args_t const&)
+ --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(+0x6fbf1b) [0x7763326fbf1b]
+ --- std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > tt::tt_metal::operation::run<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >(tt::tt_metal::operation::DeviceOperation<std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > >&&, std::vector<tt::tt_metal::Tensor, std::allocator<tt::tt_metal::Tensor> > const&, std::vector<std::optional<tt::tt_metal::Tensor const>, std::allocator<std::optional<tt::tt_metal::Tensor const> > > const&, std::vector<std::optional<tt::tt_metal::Tensor>, std::allocator<std::optional<tt::tt_metal::Tensor> > > const&)
+ --- ttnn::operations::matmul::matmul(tt::tt_metal::Tensor const&, tt::tt_metal::Tensor const&, std::optional<tt::tt_metal::Tensor const> const&, ttnn::operations::matmul::Matmul const&, std::optional<tt::tt_metal::Tensor> const&)
+ --- ttnn::operations::matmul::bound_matmul(tt::tt_metal::Tensor const&, tt::tt_metal::Tensor const&, std::optional<tt::tt_metal::Tensor const> const&, ttnn::operations::matmul::Matmul const&, std::optional<tt::tt_metal::Tensor>&)
+ --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN4ttnn10operations6matmul15MatmulOperation6invokeERKN2tt8tt_metal6TensorES7_bbRKSt8optionalIKNS4_12MemoryConfigEES8_IKNS4_8DataTypeEERKS8_IKSt7variantIJNS1_28MatmulMultiCoreProgramConfigENS1_33MatmulMultiCoreReuseProgramConfigENS1_42MatmulMultiCoreReuseMultiCastProgramConfigENS1_44MatmulMultiCoreReuseMultiCast1DProgramConfigENS1_53MatmulMultiCoreReuseMultiCastDRAMShardedProgramConfigEEEERKS8_IKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEES8_IKSH_IJNS_28GrayskullComputeKernelConfigENS_27WormholeComputeKernelConfigEEEES8_IKNS_5types8CoreGridEERKS8_IKNS4_4TileEES8_IS5_ERKS8_IKNS4_12experimental20GlobalCircularBufferEERKS8_IN4ttsl10StrongTypeIhNS4_14SubDeviceIdTagEEEE+0x2fd) [0x776332e9f3dd]
+ --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRRuntime.so(+0x2aaa50) [0x7764086aaa50]
+ --- /localdev/jameszianxu/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRRuntime.so(+0x2aa473) [0x7764086aa473]
+ --- tt::runtime::ttnn::operations::matmul::run(tt::target::ttnn::MatmulOp const*, tt::runtime::ttnn::ProgramContext&)
+ --- tt::runtime::ttnn::ProgramExecutor::execute()
+ --- tt::runtime::ttnn::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::runtime::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args*)
+ --- tt::pjrt::internal::onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args*)
+ --- xla::PjRtCApiLoadedExecutable::Execute(absl::lts_20230802::Span<std::vector<xla::PjRtBuffer*, std::allocator<xla::PjRtBuffer*> > const>, xla::ExecuteOptions const&, std::optional<std::vector<xla::PjRtFuture<void>, std::allocator<xla::PjRtFuture<void> > > >&)
+ --- torch_xla::runtime::PjRtComputationClient::ExecuteReplicated(torch_xla::runtime::ComputationClient::Computation const&, absl::lts_20230802::Span<std::shared_ptr<torch_xla::runtime::ComputationClient::Data> const>, absl::lts_20230802::Span<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const>, torch_xla::runtime::ComputationClient::ExecuteReplicatedOptions const&)
+ --- /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/_XLAC.cpython-311-x86_64-linux-gnu.so(+0x6ddf582) [0x7765c4ddf582]
+ --- torch::lazy::MultiWait::Complete(std::function<void ()> const&)
+ --- Eigen::ThreadPoolTempl<tsl::thread::EigenEnvironment>::WorkerLoop(int)
+ --- void absl::lts_20230802::internal_any_invocable::RemoteInvoker<false, void, tsl::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}&>(absl::lts_20230802::internal_any_invocable::TypeErasedState*)
+ --- /localdev/jameszianxu/tt-xla/venv/lib/python3.11/site-packages/_XLAC.cpython-311-x86_64-linux-gnu.so(+0x11678942) [0x7765cf678942]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x94ac3) [0x77661dac6ac3]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x1268c0) [0x77661db588c0]
+FAILED tests/runner/test_models.py::test_all_models_torch[qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-full-inference] - AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.5958560705184937. Required: pcc=0.99.
+============ 3 failed, 3 passed, 11 warnings in 1697.49s (0:28:17) =============
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

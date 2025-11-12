@@ -443,3 +443,14 @@ def run_around_tests():
     torch.manual_seed(0)
     yield
     torch._dynamo.reset()
+
+# @pytest.fixture(autouse=True, scope="function")
+# def clear_pjrt_computation_cache():
+#     """
+#     Pytest fixture that clears PJRT computation cache before each test.
+#     This helps to avoid interference between tests due to cached computations.
+#     """
+#     import torch_xla.runtime as xr
+
+#     yield
+#     xr.clear_computation_cache()
