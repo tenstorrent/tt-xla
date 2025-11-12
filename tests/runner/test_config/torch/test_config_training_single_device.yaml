@@ -10,7 +10,7 @@ test_config:
 
   mnist/image_classification/pytorch-cnn_nodropout-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.rng_bit_generator'"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter'"
     markers: [push]
 
   autoencoder/pytorch-linear-single_device-full-training:
