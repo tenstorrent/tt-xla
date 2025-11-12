@@ -149,11 +149,25 @@ class ModelTester(BaseTester, ABC):
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
+        # Run CPU compilation and inference
         self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
+        print("cpu_res=", cpu_res)
 
+        # Reinitialize all components to prevent state contamination between backends.
+        # Without this, the second backend inherits state from the first (model device placement,
+        # torch.compile wrappers, mutated inputs), causing order-dependent results.
+        self._initialize_components()
+
+        # Clear PyTorch dynamo cache to remove compilation artifacts
+        if self._framework == Framework.TORCH:
+            import torch._dynamo
+            torch._dynamo.reset()
+
+        # Run TT compilation and inference with fresh state
         self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
+        print("tt_res=", tt_res)
 
         return (self._compare(tt_res, cpu_res),)
 
