@@ -4,8 +4,9 @@
 
 test_config:
   mnist/pytorch-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.rng_bit_generator' https://github.com/tenstorrent/tt-mlir/issues/4793"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
     markers: [push]
 
   autoencoder/pytorch-linear-single_device-full-training:
@@ -13,7 +14,8 @@ test_config:
     markers: [push]
 
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-full-training:
@@ -87,8 +89,9 @@ test_config:
     reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   clip/pytorch-base_patch32-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "runtime/lib/ttnn/operations/utils/utils.cpp:363: numElements * elementSize == data->size() when calling toTTNNTensor"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
@@ -695,87 +698,87 @@ test_config:
   dla/pytorch-dla34-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   dla/pytorch-dla46_c-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   dla/pytorch-dla46x_c-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   dla/pytorch-dla60-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   dla/pytorch-dla60x-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   dla/pytorch-dla60x_c-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   dla/pytorch-dla102-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   dla/pytorch-dla102x-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   dla/pytorch-dla102x2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   dla/pytorch-dla169-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   densenet/pytorch-densenet121-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   densenet/pytorch-densenet161-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   densenet/pytorch-densenet169-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   densenet/pytorch-densenet201-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
 
   codegen/pytorch-Salesforce/codegen-350M-mono-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   codegen/pytorch-Salesforce/codegen-350M-multi-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   codegen/pytorch-Salesforce/codegen-350M-nl-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.pad' https://github.com/tenstorrent/tt-mlir/issues/5305"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   squeezebert/pytorch-squeezebert-mnli-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1304,803 +1307,803 @@ test_config:
 
   distilbert/masked_lm/pytorch-distilbert-base-cased-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   distilbert/masked_lm/pytorch-distilbert-base-uncased-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   distilbert/masked_lm/pytorch-distilbert-base-multilingual-cased-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   distilbert/token_classification/pytorch-Davlan/distilbert-base-multilingual-cased-ner-hrl-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vgg19_unet/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   qwen_3/causal_lm/pytorch-0_6b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   phi1_5/causal_lm/pytorch-microsoft/phi-1_5-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Input X dimension (32) must be divisible by 64 for tiling."
 
   gpt_neo/causal_lm/pytorch-gpt_neo_125M-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Input X dimension (32) must be divisible by 64 for tiling."
 
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Input X dimension (32) must be divisible by 64 for tiling."
 
   albert/masked_lm/pytorch-base_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   albert/masked_lm/pytorch-xlarge_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   albert/masked_lm/pytorch-xxlarge_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   albert/masked_lm/pytorch-base_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   albert/masked_lm/pytorch-large_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   albert/masked_lm/pytorch-xlarge_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   albert/masked_lm/pytorch-xxlarge_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   albert/token_classification/pytorch-base_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   albert/token_classification/pytorch-large_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   albert/token_classification/pytorch-xlarge_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   albert/token_classification/pytorch-xxlarge_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   albert/token_classification/pytorch-base_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   albert/token_classification/pytorch-large_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   albert/token_classification/pytorch-xlarge_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   albert/token_classification/pytorch-xxlarge_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   xglm/pytorch-xglm-564M-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   xglm/pytorch-xglm-1.7B-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   densenet/pytorch-densenet121_xray-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "RuntimeError: Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source."
 
   opt/causal_lm/pytorch-facebook/opt-125m-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   opt/causal_lm/pytorch-facebook/opt-350m-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   opt/causal_lm/pytorch-facebook/opt-1.3b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   beit/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "PCC comparison failed."
 
   beit/pytorch-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Input X dimension (32) must be divisible by 64 for tiling."
 
   phi1/causal_lm/pytorch-microsoft/phi-1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Input X dimension (32) must be divisible by 64 for tiling."
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "PCC comparison failed."
 
   d_fine/pytorch-nano-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   d_fine/pytorch-small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   d_fine/pytorch-medium-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   d_fine/pytorch-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   d_fine/pytorch-xlarge-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   bert/masked_lm/pytorch-bert-base-uncased-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'cls.predictions.bias'}"
 
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_b16_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_b16_224_in21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_b16_224_miil-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_b16_224_miil_in21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_l16_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_l16_224_in21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_s16_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_b16_224.goog_in21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_github-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/lucidrains/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space in L1"
 
   perceiver/pytorch-deepmind/language-perceiver-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   gpt2/pytorch-gpt2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   openpose/v2/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 128 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   hrnet/pytorch-hrnet_w18_small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnet_w18_small_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnet_w18-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnet_w30-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnet_w32-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnet_w40-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Input X dimension (32) must be divisible by 64 for tiling."
 
   hrnet/pytorch-hrnet_w44-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnet_w48-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnet_w64-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnet_w18.ms_aug_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Input X dimension (32) must be divisible by 64 for tiling."
 
   hrnet/pytorch-hrnet_w18_small_v2_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
 
   hrnet/pytorch-hrnetv2_w18_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
 
   hrnet/pytorch-hrnetv2_w30_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
 
   hrnet/pytorch-hrnetv2_w32_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
 
   hrnet/pytorch-hrnetv2_w40_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnetv2_w44_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnetv2_w48_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
 
   hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
 
   glpn_kitti/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
 
   albert/masked_lm/pytorch-large_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   segformer/pytorch-mit_b0-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1024 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   segformer/pytorch-mit_b1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   segformer/pytorch-mit_b2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   segformer/pytorch-mit_b3-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   segformer/pytorch-mit_b4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   segformer/pytorch-mit_b5-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   ghostnet/pytorch-ghostnet_100-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   ghostnet/pytorch-ghostnet_100.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   ghostnet/pytorch-ghostnetv2_100.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1152 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1152 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1248 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1392 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1632 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   monodepth2/pytorch-mono_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space in L1"
 
   monodepth2/pytorch-stereo_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space in L1"
 
   monodepth2/pytorch-mono+stereo_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space in L1"
 
   monodepth2/pytorch-mono_no_pt_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space in L1"
 
   monodepth2/pytorch-stereo_no_pt_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space in L1"
 
   monodepth2/pytorch-mono+stereo_no_pt_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space in L1"
 
   monodepth2/pytorch-mono_1024x320-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space in L1"
 
   monodepth2/pytorch-stereo_1024x320-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space in L1"
 
   monodepth2/pytorch-mono+stereo_1024x320-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space in L1"
 
   efficientnet/pytorch-efficientnet_b0-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1152 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-efficientnet_b1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1920 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-efficientnet_b2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3072 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-efficientnet_b3-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3840 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-efficientnet_b4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3072 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-efficientnet_b5-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3072 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-efficientnet_b6-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3456 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-efficientnet_b7-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3072 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-timm_efficientnet_b0-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-timm_efficientnet_b4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1152 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1632 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   mobilenetv1/pytorch-mobilenet_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1024 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   unet_for_conditional_generation/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   whisper/pytorch-openai/whisper-tiny-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
 
   whisper/pytorch-openai/whisper-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
 
   whisper/pytorch-openai/whisper-small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
 
   whisper/pytorch-openai/whisper-medium-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
 
   whisper/pytorch-openai/whisper-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
 
   whisper/pytorch-openai/whisper-large-v3-turbo-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
 
   mobilenetv3/pytorch-mobilenet_v3_large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   mobilenetv3/pytorch-mobilenet_v3_small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 576 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   mobilenetv3/pytorch-mobilenetv3_large_100-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 960 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   mobilenetv3/pytorch-mobilenetv3_small_100-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 576 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   xception/pytorch-xception41-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1536 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   xception/pytorch-xception65-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1536 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   xception/pytorch-xception71-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   xception/pytorch-xception71.tf_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1536 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_y_040-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1088 input channels and 64 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_y_064-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1296 input channels and 72 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_y_080-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2016 input channels and 56 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_y_120-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   regnet/pytorch-regnet_y_160-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3024 input channels and 112 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_y_320-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Input X dimension (32) must be divisible by 64 for tiling."
 
   regnet/pytorch-regnet_y_400mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 440 input channels and 8 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_y_800mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   regnet/pytorch-regnet_y_1_6gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 888 input channels and 24 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_y_3_2gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1512 input channels and 24 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_y_8gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3456 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_y_16gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3024 input channels and 112 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_y_32gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3712 input channels and 232 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_y_128gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   regnet/pytorch-regnet_x_400mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 400 input channels and 16 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_x_800mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 672 input channels and 16 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_x_1_6gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   regnet/pytorch-regnet_x_3_2gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   regnet/pytorch-regnet_x_8gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1920 input channels and 120 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_x_16gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 128 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   regnet/pytorch-regnet_x_32gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   mobilenetv2/pytorch-mobilenet_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 960 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 336 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 720 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 960 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   mobilenetv2/pytorch-mobilenetv2_100-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 960 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Batch norm with training=true hangs for channels > 64: https://github.com/tenstorrent/tt-metal/issues/30279"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 960 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
 
   qwen_3/causal_lm/pytorch-1_7b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
