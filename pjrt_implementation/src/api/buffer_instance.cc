@@ -149,6 +149,7 @@ void BufferInstance::deleteData() {
 
   // Wait if there is a copy to host in progress.
   std::unique_lock<std::mutex> copy_lock(s_copy_to_host_thread_mutex);
+
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
   }
@@ -330,6 +331,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // called async.
   std::unique_lock copy_lock(
       s_copy_to_host_thread_mutex); // ctor locks the mutex
+
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
   }
