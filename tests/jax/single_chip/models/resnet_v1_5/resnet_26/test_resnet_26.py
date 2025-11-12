@@ -57,8 +57,7 @@ def inference_tester_optimizer() -> ResNetTester:
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
-        "https://github.com/tenstorrent/tt-mlir/issues/4687"
+        "error: 'ttir.conv2d' op Padding attribute values must be >= 0."
     )
 )
 def test_resnet_v1_5_26_training(training_tester: ResNetTester):

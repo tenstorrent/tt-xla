@@ -12,7 +12,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    failed_ttmlir_compilation,
+    incorrect_result,
 )
 
 from third_party.tt_forge_models.mnist.image_classification.jax import (
@@ -50,12 +50,11 @@ def training_tester() -> MNISTCNNTester:
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.TRAINING,
     execution_pass=ExecutionPass.FORWARD,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
-        "https://github.com/tenstorrent/tt-mlir/issues/4687"
+    reason=incorrect_result(
+        "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.14429746568202972. Required: pcc=0.99."
     )
 )
 def test_mnist_cnn_dropout_training(training_tester: MNISTCNNTester):
