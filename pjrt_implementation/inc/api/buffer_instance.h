@@ -256,6 +256,9 @@ private:
 
   // Thread for copying data to host.
   std::unique_ptr<std::thread> m_copy_to_host_thread;
+
+  // Mutex guarding Thread for copying data to host.
+  std::mutex m_copy_to_host_thread_mutex;
 };
 
 namespace internal {

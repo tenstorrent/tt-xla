@@ -146,6 +146,7 @@ void BufferInstance::deleteData() {
   }
 
   // Wait if there is a copy to host in progress.
+  std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
   }
@@ -319,6 +320,10 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       m_prepared_runtime_tensor.value_or(*m_host_runtime_tensor);
 
   // Wait if there is a copy already in progress.
+  // Needs to be locked because multiple framework threads can initiate
+  // copyToHost
+  //  simultaneously and see m_copy_to_host_thread as null.
+  std::lock_guard<std::mutex> lock(m_copy_to_host_thread_mutex);
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
   }
