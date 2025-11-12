@@ -67,8 +67,10 @@ else()
         set(WITH_METAL_RUNTIME_ROOT_SET "TT_METAL_RUNTIME_ROOT=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
     endif()
     set(TT_RUNTIME_DEBUG ${TT_RUNTIME_DEBUG} CACHE BOOL "Enable ttmlir runtime debugging")
-    if(TTXLA_ENABLE_EXPLORER)
+    set(TTMLIR_ENABLE_BINDINGS_PYTHON ${TTMLIR_ENABLE_BINDINGS_PYTHON} CACHE BOOL "Enable tt-mlir python bindings")
+    if(TTXLA_ENABLE_EXPLORER OR TTXLA_ENABLE_CHISEL)
         set(TT_RUNTIME_DEBUG ON)
+        set(TTMLIR_ENABLE_BINDINGS_PYTHON ON)
     endif()
 
     message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
@@ -98,7 +100,7 @@ else()
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
           -DTT_RUNTIME_DEBUG=${TT_RUNTIME_DEBUG}
-          -DTTMLIR_ENABLE_BINDINGS_PYTHON=${TTXLA_ENABLE_EXPLORER}
+          -DTTMLIR_ENABLE_BINDINGS_PYTHON=${TTMLIR_ENABLE_BINDINGS_PYTHON}
           -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
           -DTT_RUNTIME_ENABLE_PERF_TRACE=${TTMLIR_ENABLE_PERF_TRACE}
           -DTTMLIR_ENABLE_OPMODEL=ON
@@ -111,6 +113,14 @@ else()
     if(TTXLA_ENABLE_EXPLORER)
         ExternalProject_Add_Step(tt-mlir build_explorer
             COMMAND env ${WITH_METAL_RUNTIME_ROOT_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> -- explorer
+            DEPENDEES build
+            WORKING_DIRECTORY ${TTMLIR_BUILD_DIR}
+        )
+    endif()
+
+    if(TTXLA_ENABLE_CHISEL)
+        ExternalProject_Add_Step(tt-mlir build_chisel
+            COMMAND env ${WITH_METAL_RUNTIME_ROOT_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> -- chisel
             DEPENDEES build
             WORKING_DIRECTORY ${TTMLIR_BUILD_DIR}
         )
