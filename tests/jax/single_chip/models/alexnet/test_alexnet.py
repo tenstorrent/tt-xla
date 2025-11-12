@@ -6,7 +6,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
+from utils import BringupStatus, Category, ExecutionPass, failed_runtime
 
 from third_party.tt_forge_models.alexnet.image_classification.jax import (
     ModelLoader,
