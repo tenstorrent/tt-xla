@@ -1328,7 +1328,7 @@ test_config:
   vgg19_unet/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Out of Memory: Not enough space on DRAM"
 
   qwen_3/causal_lm/pytorch-0_6b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1343,7 +1343,7 @@ test_config:
   gpt_neo/causal_lm/pytorch-gpt_neo_125M-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    reason: "ValueError: Node arity mismatch; expected X, but got X-1."
 
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1357,17 +1357,17 @@ test_config:
 
   albert/masked_lm/pytorch-base_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
+    bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   albert/masked_lm/pytorch-xlarge_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
+    bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   albert/masked_lm/pytorch-xxlarge_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
+    bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   albert/masked_lm/pytorch-base_v2-single_device-full-training:
@@ -1382,12 +1382,12 @@ test_config:
 
   albert/masked_lm/pytorch-xlarge_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
+    bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   albert/masked_lm/pytorch-xxlarge_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
+    bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
 
   albert/token_classification/pytorch-base_v1-single_device-full-training:
@@ -1512,7 +1512,7 @@ test_config:
 
   bert/masked_lm/pytorch-bert-base-uncased-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
+    bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'cls.predictions.bias'}"
 
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-full-training:
@@ -1547,13 +1547,13 @@ test_config:
 
   mlp_mixer/pytorch-mixer_l16_224_in21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_s16_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_b16_224.goog_in21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1568,7 +1568,7 @@ test_config:
   mlp_mixer/lucidrains/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2723168 B which is beyond max L1 size of 1499136 B"
 
   perceiver/pytorch-deepmind/language-perceiver-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1588,7 +1588,7 @@ test_config:
   hrnet/pytorch-hrnet_w18_small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnet_w18_small_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1623,7 +1623,7 @@ test_config:
   hrnet/pytorch-hrnet_w48-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    reason: "Out of Memory: Not enough space on DRAM"
 
   hrnet/pytorch-hrnet_w64-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1702,13 +1702,13 @@ test_config:
 
   segformer/pytorch-mit_b2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor."
 
   segformer/pytorch-mit_b3-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor."
 
   segformer/pytorch-mit_b4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1717,8 +1717,8 @@ test_config:
 
   segformer/pytorch-mit_b5-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor."
 
   ghostnet/pytorch-ghostnet_100-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1752,8 +1752,8 @@ test_config:
 
   efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1392 input channels and 1 in the weight tensor."
 
   efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1807,13 +1807,13 @@ test_config:
 
   efficientnet/pytorch-efficientnet_b0-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1152 input channels and 1 in the weight tensor."
 
   efficientnet/pytorch-efficientnet_b1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1920 input channels and 1 in the weight tensor."
 
   efficientnet/pytorch-efficientnet_b2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1822,8 +1822,8 @@ test_config:
 
   efficientnet/pytorch-efficientnet_b3-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3840 input channels and 1 in the weight tensor."
 
   efficientnet/pytorch-efficientnet_b4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1842,18 +1842,18 @@ test_config:
 
   efficientnet/pytorch-efficientnet_b7-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3072 input channels and 1 in the weight tensor."
 
   efficientnet/pytorch-timm_efficientnet_b0-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor."
 
   efficientnet/pytorch-timm_efficientnet_b4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor."
 
   efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1867,13 +1867,13 @@ test_config:
 
   efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor."
 
   efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor."
 
   efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1882,13 +1882,13 @@ test_config:
 
   efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor."
 
   mobilenetv1/pytorch-mobilenet_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1024 input channels and 1 in the weight tensor."
 
   mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1897,8 +1897,8 @@ test_config:
 
   unet_for_conditional_generation/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM"
 
   whisper/pytorch-openai/whisper-tiny-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -2002,8 +2002,8 @@ test_config:
 
   regnet/pytorch-regnet_y_400mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 440 input channels and 8 in the weight tensor."
 
   regnet/pytorch-regnet_y_800mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -2017,8 +2017,8 @@ test_config:
 
   regnet/pytorch-regnet_y_3_2gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1512 input channels and 24 in the weight tensor."
 
   regnet/pytorch-regnet_y_8gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -2032,23 +2032,23 @@ test_config:
 
   regnet/pytorch-regnet_y_32gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3712 input channels and 232 in the weight tensor."
 
   regnet/pytorch-regnet_y_128gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space on DRAM"
 
   regnet/pytorch-regnet_x_400mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 400 input channels and 16 in the weight tensor."
 
   regnet/pytorch-regnet_x_800mf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 672 input channels and 16 in the weight tensor."
 
   regnet/pytorch-regnet_x_1_6gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -2058,7 +2058,7 @@ test_config:
   regnet/pytorch-regnet_x_3_2gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Problem with tensor_data."
+    reason: "Out of Memory: Not enough space on DRAM"
 
   regnet/pytorch-regnet_x_8gf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -2087,8 +2087,8 @@ test_config:
 
   mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Problem with tensor_data."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 720 input channels and 1 in the weight tensor."
 
   mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -2101,7 +2101,7 @@ test_config:
     reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 960 input channels and 1 in the weight tensor."
 
   mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_RUNTIME
     reason: "Failed to find a path for this model."
 
