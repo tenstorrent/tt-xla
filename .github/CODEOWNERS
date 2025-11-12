@@ -31,4 +31,4 @@ pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @n
 /third_party/tt_forge_models @AleksKnezevic @kmabeeTT @mrakitaTT @nvukobratTT
 
 # Integrations
-/integrations/vllm_plugin/ @AleksKnezevic @LPanosTT @mmanzoorTT
+/integrations/vllm_plugin/ @AleksKnezevic @LPanosTT @mmanzoorTT @ljovanovicTT
