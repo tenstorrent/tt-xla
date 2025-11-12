@@ -1518,7 +1518,7 @@ test_config:
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: INCORRECT_RESULT
-    reason: "pcc comparison failed."
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_b16_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1908,7 +1908,7 @@ test_config:
   whisper/pytorch-openai/whisper-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "No path found for this model."
+    reason: "Failed to find a path for this model."
 
   whisper/pytorch-openai/whisper-small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
