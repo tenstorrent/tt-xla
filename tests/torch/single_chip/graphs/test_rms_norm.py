@@ -1,25 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
-from typing import Callable
-
-import numpy as np
 import pytest
 import torch
 import torch_xla
-import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
-from torch_xla.distributed.spmd import Mesh
-from transformers import CacheConfig
-from transformers.cache_utils import StaticCache
-from transformers.models.llama.modeling_llama import (
-    ALL_ATTENTION_FUNCTIONS,
-    eager_attention_forward,
-)
-from utils import failed_runtime
 
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
