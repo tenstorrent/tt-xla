@@ -466,9 +466,19 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
     traceRegionSize = std::stoull(std::getenv("TT_RUNTIME_TRACE_REGION_SIZE"));
   }
 
+  // TODO(vkovacevic, #1480): This is a temporary way to set L1 small size
+  // until we have a proper way for a user to pass device options. After that
+  // this should be removed. Issue for device options:
+  // https://github.com/tenstorrent/tt-xla/issues/1480
+  std::optional<size_t> l1SmallSize = std::nullopt;
+  if (std::getenv("TT_RUNTIME_L1_SMALL_SIZE") != nullptr) {
+    l1SmallSize = std::stoull(std::getenv("TT_RUNTIME_L1_SMALL_SIZE"));
+  }
+
   tt::runtime::MeshDeviceOptions options = tt::runtime::MeshDeviceOptions{
       .enableProgramCache = enableProgramCache,
       .meshShape = mesh_shape,
+      .l1SmallSize = l1SmallSize,
       .traceRegionSize = traceRegionSize,
   };
 
