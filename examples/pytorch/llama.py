@@ -404,7 +404,6 @@ def check_transformers_version():
 
 
 if __name__ == "__main__":
-    os.environ["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
     parser = argparse.ArgumentParser(description="Llama generation example")
     parser.add_argument(
         "--interactive",
