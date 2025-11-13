@@ -73,6 +73,7 @@ def test_embed_qwen3():
         print("-" * 60)
 
 
+@pytest.mark.nightly
 def test_embed_qwen3_perf():
     max_seq_len = 2**14  # 16384
     prompts_list = []

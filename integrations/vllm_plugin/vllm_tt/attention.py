@@ -180,12 +180,13 @@ class TTAttentionBackendImpl(AttentionImpl):
         if alibi_slopes is not None:
             raise NotImplementedError("Alibi slopes is not supported.")
 
-        if attn_type != AttentionType.DECODER:
+        if attn_type not in (
+            AttentionType.DECODER,
+            AttentionType.ENCODER,
+            AttentionType.ENCODER_ONLY,
+        ):
             raise NotImplementedError(
-                "Encoder self-attention and "
-                "encoder/decoder cross-attention "
-                "are not implemented for "
-                "TTAttentionBackendImpl"
+                f"TT attention only supports encoder or decoder attention, but got {attn_type}."
             )
 
         self.kv_cache_stored = None
