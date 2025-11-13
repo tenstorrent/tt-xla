@@ -258,7 +258,8 @@ private:
   std::unique_ptr<std::thread> m_copy_to_host_thread;
 
   // Mutex guarding Thread for copying data to host.
-  std::mutex m_copy_to_host_thread_mutex;
+  // Even two different buffer instances may not copy to host at once.
+  static std::mutex s_copy_to_host_thread_mutex;
 };
 
 namespace internal {
