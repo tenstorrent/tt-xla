@@ -7,7 +7,7 @@ Arnold DQN model loader implementation.
 Arnold is a Deep Q-Network (DQN) implementation for ViZDoom reinforcement learning.
 This model processes screen images and game variables to predict Q-values for actions.
 """
-from typing import Optional
+from typing import Optional, Dict, Any
 from dataclasses import dataclass
 import torch
 
@@ -423,3 +423,72 @@ class ModelLoader(ForgeModel):
             screens = screens.to(dtype_override)
 
         return screens, variables
+
+    def post_process(
+        self,
+        output: torch.Tensor,
+        return_q_values: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Post-process model output (Q-values) to extract action ID.
+
+        The model outputs Q-values (action scores) for each possible action.
+        This method selects the action with the highest Q-value (argmax) and
+        returns the action ID along with optional Q-value information.
+
+        Args:
+            output: Model output tensor containing Q-values.
+                   Shape: (batch_size, n_actions) for feedforward models
+                   Shape: (batch_size, seq_len, n_actions) for recurrent models
+            return_q_values: If True, include Q-values in the returned dictionary.
+
+        Returns:
+            Dictionary containing:
+                - action_id: Integer action ID (0 to n_actions-1) with highest Q-value
+                - max_q_value: Maximum Q-value (if return_q_values is True)
+                - q_values: All Q-values as a tensor (if return_q_values is True)
+                - batch_size: Batch size of the input
+                - n_actions: Number of possible actions
+        """
+        # Handle different output shapes based on model type
+        if output.dim() == 3:
+            # Recurrent model: (batch_size, seq_len, n_actions)
+            # Use the last timestep for action selection
+            scores = output[:, -1, :]  # Shape: (batch_size, n_actions)
+        elif output.dim() == 2:
+            # Feedforward model: (batch_size, n_actions)
+            scores = output
+        else:
+            # Handle single sample case: (n_actions,) -> (1, n_actions)
+            if output.dim() == 1:
+                scores = output.unsqueeze(0)
+            else:
+                raise ValueError(
+                    f"Unexpected output shape: {output.shape}. "
+                    "Expected (batch_size, n_actions) or (batch_size, seq_len, n_actions)"
+                )
+
+        batch_size = scores.size(0)
+        n_actions = scores.size(1)
+
+        # Get action IDs with highest Q-value for each sample in batch
+        max_q_values, action_ids = torch.max(scores, dim=1)
+        action_ids = action_ids.cpu().numpy()
+
+        # Prepare result dictionary
+        result = {
+            "action_id": action_ids[0] if batch_size == 1 else action_ids.tolist(),
+            "batch_size": batch_size,
+            "n_actions": n_actions,
+        }
+
+        # Add Q-value information if requested
+        if return_q_values:
+            result["max_q_value"] = (
+                max_q_values[0].item()
+                if batch_size == 1
+                else max_q_values.cpu().tolist()
+            )
+            result["q_values"] = scores.cpu() if batch_size == 1 else scores.cpu()
+
+        return result
