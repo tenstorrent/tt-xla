@@ -1212,3 +1212,9 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.45505842566490173. Required: pcc=0.99.
+
+  phi3/phi_3_5/pytorch-mini_instruct-data_parallel-full-inference:
+    supported_archs: [n300]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    bringup_status: INCORRECT_RESULT # Calculated: pcc=0.2603238821029663. Required: pcc=0.99.
