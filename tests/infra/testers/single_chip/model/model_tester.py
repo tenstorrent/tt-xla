@@ -48,6 +48,8 @@ class ModelTester(BaseTester, ABC):
         self._model: Model = None
         self._workload: Workload = None
 
+        self._perf_stats: dict[str, float] | None = None
+
         super().__init__(comparison_config, framework)
         self._initialize_components()
 
@@ -146,6 +148,10 @@ class ModelTester(BaseTester, ABC):
         else:
             return self._test_training()
 
+    def get_perf_stats(self) -> dict[str, float]:
+        """Returns performance statistics."""
+        return self._perf_stats
+
     def _test_inference(self) -> Tuple[ComparisonResult, ...]:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
@@ -176,6 +182,13 @@ class ModelTester(BaseTester, ABC):
             f"[e2e Perf] warmup={warmup_iters} perf_runs={perf_iters} "
             f"total_time={tt_total_time:.3f}s avg_time={avg_time:.4f}s"
         )
+
+        self._perf_stats = {
+            "warmup_iters": warmup_iters,
+            "perf_iters": perf_iters,
+            "total_time": tt_total_time,
+            "avg_time": avg_time,
+        }
 
         return (self._compare(tt_res, cpu_res),)
 
