@@ -332,6 +332,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   std::unique_lock copy_lock(
       s_copy_to_host_thread_mutex); // ctor locks the mutex
 
+
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
   }
@@ -351,11 +352,12 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         copy_lock.lock();
 
 
+
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         DLOG_F(LOG_DEBUG,
                "Starting copy to host; runtime_tensor from device "
-               "%d and uid %lu",
-               buffer_uid);
+               "%d and uid %lu"
+               device_id.has_value() ? device_id.value() : 0);
         try {
           std::vector<tt::runtime::Tensor> host_runtime_tensors;
           if (!already_on_host) {
@@ -408,15 +410,14 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                  error.what());
           copy_status = tt_pjrt_status::kInternal;
         }
-        DLOG_F(LOG_DEBUG, "Finished copy to host from device %d for buffer uid %lu",
+        DLOG_F(LOG_DEBUG,
+               "Finished copy to host from device %d for buffer uid %lu",
                device_id.has_value() ? device_id.value() : 0, buffer_uid);
         event->markAsReady(copy_status);
       },
-=      std::move(copy_lock), host_buffer, runtime_tensor_to_retrieve, event.get(),
-      m_data_type, host_buffer_size, m_device_id, is_tensor_on_host);
-
-
-
+      std::ref(s_copy_to_host_thread_mutex), host_buffer,
+      runtime_tensor_to_retrieve, event.get(), m_data_type, host_buffer_size,
+      m_device_id, is_tensor_on_host, m_uid);
 
   // responsible for calling `PJRT_Event_Destroy` on the event.
   *out_copy_done_event = event.release();
