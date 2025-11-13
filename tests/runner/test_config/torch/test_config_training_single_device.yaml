@@ -781,177 +781,177 @@ test_config:
     reason: "PCC comparison failed."
 
   squeezebert/pytorch-squeezebert-mnli-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   vit/pytorch-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   vit/pytorch-large-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   vit/pytorch-vit_b_16-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   vit/pytorch-vit_b_32-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   vit/pytorch-vit_l_16-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   vit/pytorch-vit_l_32-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   vit/pytorch-vit_h_14-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   maptr/pytorch-tiny_r50_24e_av2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   albert/sequence_classification/pytorch-imdb-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   swin/image_classification/pytorch-swin_t-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   swin/image_classification/pytorch-swin_s-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   swin/image_classification/pytorch-swin_b-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   swin/image_classification/pytorch-swin_v2_t-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   swin/image_classification/pytorch-swin_v2_s-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   swin/image_classification/pytorch-swin_v2_b-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   deit/pytorch-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   deit/pytorch-base_distilled-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   deit/pytorch-small-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   deit/pytorch-tiny-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   bart/pytorch-large-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   sam/pytorch-facebook/sam-vit-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   sam/pytorch-facebook/sam-vit-large-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   sam/pytorch-facebook/sam-vit-huge-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   mamba/pytorch-mamba-370m-hf-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   mamba/pytorch-mamba-790m-hf-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
   mamba/pytorch-mamba-1.4b-hf-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
 
