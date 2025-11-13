@@ -444,4 +444,13 @@ def run_around_tests():
     torch.manual_seed(0)
     yield
     torch._dynamo.reset()
+
+
+@pytest.fixture()
+def clear_torchxla_computation_cache():
+    """
+    Pytest fixture that clears the TorchXLA computation cache before each test.
+    This helps avoid consteval-associated DRAM leaks as described in https://github.com/tenstorrent/tt-xla/issues/1940
+    """
+    yield
     xr.clear_computation_cache()
