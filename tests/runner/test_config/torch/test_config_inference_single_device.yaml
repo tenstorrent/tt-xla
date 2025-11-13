@@ -2302,3 +2302,15 @@ test_config:
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor while an async operation is in flight: UNKNOWN_SCALAR[]')"
+
+  arnold/pytorch-deathmatch_shotgun_rnn-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  arnold/pytorch-vizdoom_2017_track1_rnn-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  arnold/pytorch-defend_the_center_ff-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  arnold/pytorch-vizdoom_2017_track2_rnn-single_device-full-inference:
+    status: EXPECTED_PASSING
