@@ -13,11 +13,18 @@ import torch_xla.runtime as xr
 from transformers import ResNetForImageClassification
 
 
-EXPORT_PATH = "resnet"
+EXPORT_PATH = "resnet18"
 
 def get_model():
-    model = ResNetForImageClassification.from_pretrained("microsoft/resnet-50")
+    # model = ResNetForImageClassification.from_pretrained("microsoft/resnet-50")
+    model = ResNetForImageClassification.from_pretrained("microsoft/resnet-18")
     model = model.eval()
+
+    # Get only the first conv layer
+    # model = model.resnet.embedder.embedder
+
+    # Get only the head of resnet
+    # model = model.resnet.embedder
 
     return model
 

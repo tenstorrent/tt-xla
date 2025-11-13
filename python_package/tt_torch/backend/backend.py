@@ -102,7 +102,7 @@ class XLAExecutor:
             with MetadataDispatchMode(self.node_info):
                 output = self.module(*args)
         else:
-            output = self.module(*args)
+            output = self.module(*args)  # pravi XLA graf
 
         gm_has_functional_output_kind: bool = True
 
