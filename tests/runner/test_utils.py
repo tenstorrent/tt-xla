@@ -295,7 +295,7 @@ def record_model_test_properties(
     elif comparison_result is not None:
         pcc = comparison_result.pcc
         required_pcc = comparison_config.pcc.required_pcc
-        if pcc < required_pcc:
+        if np.isnan(pcc) or pcc < required_pcc:
             bringup_status = BringupStatus.INCORRECT_RESULT
             required_pcc = comparison_config.pcc.required_pcc
             pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"

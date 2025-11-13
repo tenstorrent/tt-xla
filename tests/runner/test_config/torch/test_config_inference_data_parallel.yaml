@@ -70,9 +70,13 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9775277376174927. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1844"
 
-  mnist/pytorch-data_parallel-full-inference:
+  mnist/image_classification/pytorch-cnn_dropout-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
+
+  mnist/image_classification/pytorch-cnn_nodropout-data_parallel-full-inference:
+      supported_archs: [n300]
+      status: EXPECTED_PASSING
 
   vit/pytorch-large-data_parallel-full-inference:
     supported_archs: [n300]
