@@ -66,7 +66,7 @@ struct CompileOptions {
 
   // Enables saving graph inputs to disk whenever Execute() is called.
   // This is useful for chisel and codegen.
-  bool dump_inputs = false;
+  bool export_tensors = false;
 
   // Enables generation of consteval graphs.
   //
