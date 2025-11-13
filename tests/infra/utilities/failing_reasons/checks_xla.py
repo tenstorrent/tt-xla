@@ -505,7 +505,134 @@ class FailingReasons(Enum):
                     ),
                 ],
                 error_log=[
-                    M.last_line(M.contains("infra/runners/torch_device_runner.py:")),
+                    M.any(
+                        # Accept when comparator/runner is the last line
+                        M.last_line(
+                            M.contains("infra/runners/torch_device_runner.py:")
+                        ),
+                        # Also accept when the OOM message appears in the captured longrepr anywhere
+                        M.regex(
+                            "Out of Memory: Not enough space to allocate .* B (?:L1|L1_SMALL|DRAM) buffer across .* banks"
+                        ),
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    TORCHVISION_DEFORM_IM2COL_BFLOAT16_NOT_IMPLEMENTED = FailingReason(
+        description="deformable_im2col not implemented for bfloat16",
+        checks=[
+            # RuntimeError: "deformable_im2col" not implemented for 'BFloat16'
+            ExceptionCheck(
+                class_name="RuntimeError",
+                error_log=[
+                    M.contains("deformable_im2col"),
+                    M.contains("not implemented"),
+                    M.any(M.contains("BFloat16"), M.contains("bfloat16")),
+                    M.any(
+                        M.contains("torchvision/ops"),
+                        M.contains("torchvision.ops"),
+                        M.contains("torchvision.deform_conv2d"),
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    TORCHVISION_NMS_BFLOAT16_NOT_IMPLEMENTED = FailingReason(
+        description="nms_kernel not implemented for bfloat16",
+        checks=[
+            # RuntimeError: 'nms_kernel' not implemented for 'BFloat16'
+            ExceptionCheck(
+                class_name="RuntimeError",
+                error_log=[
+                    M.any(M.contains("nms_kernel"), M.contains("torchvision.ops.nms")),
+                    M.contains("not implemented"),
+                    M.any(M.contains("BFloat16"), M.contains("bfloat16")),
+                    M.any(
+                        M.contains("torchvision/ops"), M.contains("torchvision.ops.nms")
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    AUTOSHAPE_FORWARD_ARGS_MISMATCH = FailingReason(
+        description="AutoShape forward received wrong number of arguments",
+        checks=[
+            # TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given
+            ExceptionCheck(
+                class_name="TypeError",
+                error_log=[
+                    M.contains("AutoShape.forward"),
+                    M.any(M.contains("positional arguments"), M.contains("were given")),
+                ],
+            ),
+        ],
+    )
+
+    DYNAMO_FAKE_TENSORS_FX_NODE = FailingReason(
+        description="Dynamo failed to run FX node with fake tensors",
+        checks=[
+            # TorchRuntimeError: Dynamo failed to run FX node with fake tensors
+            ExceptionCheck(
+                error_log=[
+                    M.any(
+                        M.contains("Dynamo failed to run FX node with fake tensors"),
+                        M.contains("Dynamo failed to run FX node"),
+                    ),
+                    M.any(
+                        M.contains("torch/_dynamo"),
+                        M.contains("torch._dynamo"),
+                        M.contains("dynamo"),
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    TENSOR_DATA_NOT_ALLOCATED = FailingReason(
+        description="Tensor has non-zero elements but data not allocated",
+        checks=[
+            # RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet
+            ExceptionCheck(
+                class_name="RuntimeError",
+                error_log=[
+                    M.contains("The tensor has a non-zero number of elements"),
+                    M.contains("data is not allocated yet"),
+                ],
+            ),
+        ],
+    )
+
+    PHI3V_UNEXPECTED_MAX_NEW_TOKENS = FailingReason(
+        description="Phi3VForCausalLM.forward got unexpected keyword 'max_new_tokens'",
+        checks=[
+            # TypeError: Phi3VForCausalLM.forward() got an unexpected keyword argument 'max_new_tokens'
+            ExceptionCheck(
+                class_name="TypeError",
+                error_log=[
+                    M.contains("Phi3VForCausalLM.forward"),
+                    M.contains("unexpected keyword argument"),
+                    M.contains("max_new_tokens"),
+                ],
+            ),
+        ],
+    )
+
+    MODEL_NOT_TORCH_MODULE = FailingReason(
+        description="Model is not a torch.nn.Module",
+        checks=[
+            # AssertionError at torch_model_tester.py:70: assert isinstance(self._model, torch.nn.Module)
+            ExceptionCheck(
+                class_name="AssertionError",
+                error_log=[
+                    M.last_line(
+                        M.contains(
+                            "infra/testers/single_chip/model/torch_model_tester.py:"
+                        )
+                    ),
                 ],
             ),
         ],
