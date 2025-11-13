@@ -161,7 +161,7 @@ By default, the generated code loads random inputs and parameters. To dump actua
 ```python
 options = {
     # Tensor dumping options
-    "dump_inputs": True,
+    "export_tensors": True,
 
     # Export path
     "export_path": "model",

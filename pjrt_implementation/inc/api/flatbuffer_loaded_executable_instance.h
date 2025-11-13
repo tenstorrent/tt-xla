@@ -10,35 +10,20 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
-#include "mlir/Support/LogicalResult.h"
+#include "tt/runtime/types.h"
 
 // tt-xla includes
+#include "api/buffer_instance.h"
+#include "api/device_instance.h"
+#include "api/executable_image.h"
 #include "api/loaded_executable_instance.h"
 #include "utils/status.h"
-
-// Forward declarations
-namespace tt::runtime {
-class Device;
-class Tensor;
-} // namespace tt::runtime
-
-namespace mlir::tt::sharding_utils {
-struct MeshSharding;
-} // namespace mlir::tt::sharding_utils
-
-namespace tt::pjrt {
-class BufferInstance;
-class FlatbufferExecutableImage;
-} // namespace tt::pjrt
 
 namespace tt::pjrt {
 
@@ -61,28 +46,6 @@ public:
   tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args) override;
 
 private:
-  // Opens devices on which input arguments are placed, which we assume are the
-  // the devices where computation will run, if their count is equal to the
-  // corresponding devices count in the mesh shape estimated by the compiler.
-  std::optional<tt::runtime::Device>
-  getOrCreateMeshDevice(PJRT_Buffer *const *const *argument_lists,
-                        size_t num_args, size_t num_devices,
-                        PJRT_Device *pjrt_device);
-
-  // Collects device ids from the addressable devices.
-  std::unordered_set<int>
-  getDeviceIds(PJRT_Buffer *const *const *argument_lists, size_t num_args,
-               size_t num_devices);
-
-  // Gets input runtime tensors from the arguments' buffers and converts them to
-  // desired layout determined from the compiled graph.
-  tt_pjrt_status
-  getInputRuntimeTensors(PJRT_Buffer *const *const *argument_lists,
-                         size_t num_args, size_t num_devices,
-                         const tt::runtime::Device &runtime_device,
-                         std::uint32_t program_index,
-                         std::vector<tt::runtime::Tensor> &input_tensors);
-
   // Returns an input tensor constructed from the provided buffer instances,
   // prepared for execution. If we cannot reuse the already prepared tensor
   // contained within the buffer instances, this will involve calling
@@ -90,21 +53,7 @@ private:
   std::optional<tt::runtime::Tensor>
   prepareInputTensor(const std::vector<BufferInstance *> &arg_buffers,
                      tt::runtime::Device device, size_t num_devices,
-                     std::uint32_t program_index, size_t arg_index);
-
-  // Fills strategy map from sharding configuration.
-  // TODO: This function might be better suited living in the tt-mlir
-  // repository. https://github.com/tenstorrent/tt-xla/issues/374
-  static mlir::FailureOr<std::unordered_map<std::string, std::string>>
-  fillStrategyMapFromSharding(
-      const mlir::tt::sharding_utils::MeshSharding &meshSharding,
-      size_t num_devices);
-
-  // Either returns single tensor or creates multi-device host tensor from arg
-  // tensors, depending on the strategy.
-  tt::runtime::Tensor getTensorFromStrategy(
-      const std::vector<BufferInstance *> &arg_buffers,
-      const std::unordered_map<std::string, std::string> &strategy);
+                     std::uint32_t program_index, size_t arg_index) override;
 
   // Converts input tensor to desired layout. This might move it on device.
   tt::runtime::Tensor
@@ -127,9 +76,6 @@ private:
 
   // Returns the shape of the output on the specified index.
   std::vector<std::uint32_t> getOutputShape(size_t output_index);
-
-  // Save all graph inputs as files, in metal's tensorbin format.
-  void dumpInputs(const std::vector<tt::runtime::Tensor> &input_tensors);
 
   // Creates flatbuffer loaded executable instance from the executable image.
   FlatbufferLoadedExecutableInstance(

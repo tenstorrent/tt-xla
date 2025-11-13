@@ -99,7 +99,7 @@ result = jitted_forward(graphdef, state, x)
 |--------|------|-------------|
 | `backend` | `string` | Code generation target:<br>• `"codegen_py"` - Generate Python code<br>• `"codegen_cpp"` - Generate C++ code |
 | `export_path` | `string` | Directory for generated code (created if doesn't exist) |
-| `dump_inputs` | `bool` | Whether to dump model input and parameter tensors to disk (**False** by default) |
+| `export_tensors` | `bool` | Whether to dump model input and parameter tensors to disk (**False** by default) |
 
 ### Example Configurations
 
@@ -108,7 +108,7 @@ result = jitted_forward(graphdef, state, x)
 options = {
     "backend": "codegen_py",
     "export_path": "./generated_python"
-    "dump_inputs": True
+    "export_tensors": True
 }
 ```
 
@@ -117,7 +117,7 @@ options = {
 options = {
     "backend": "codegen_cpp",
     "export_path": "./generated_cpp"
-    #dump_inputs -> default False
+    #export_tensors -> default True when doing codegen
 }
 ```
 
@@ -134,7 +134,7 @@ After code generation completes, your `export_path` directory contains:
 ├── ttir.mlir          # TTIR intermediate representation (debugging)
 ├── main.py/cpp        # Generated Python/C++ code
 ├── run                # Execution script
-└── input_tensors/     # Directory with dumped tensors if specified by dump_inputs option
+└── tensors/     # Directory with dumped tensors if specified by export_tensors option
 ```
 
 ### File Descriptions
@@ -156,7 +156,7 @@ After code generation completes, your `export_path` directory contains:
 - **Fully standalone** - only requires TT-NN library
 - Can be integrated into existing C++ projects
 
-**input_tensors/** - Serialized model inputs and parameters (created when `dump_inputs: True`)
+**tensors/** - Serialized model inputs and parameters (created when `export_tensors: True`)
 - Used by the generated code to load real model inputs and weights instead of random values
 
 ---

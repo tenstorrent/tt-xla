@@ -37,14 +37,16 @@ CompileOptions CompileOptions::parse(
   options.enable_trace =
       internal::parseBoolOption(compile_options, "enable_trace")
           .value_or(options.enable_trace);
-  options.dump_inputs =
-      internal::parseBoolOption(compile_options, "dump_inputs")
-          .value_or(options.dump_inputs);
+  options.export_tensors =
+      internal::parseBoolOption(compile_options, "export_tensors")
+          .value_or(options.backend == BackendRuntime::TTNNFlatbuffer ? false
+                                                                      : true);
   options.enable_const_eval =
       internal::parseBoolOption(compile_options, "enable_const_eval")
           .value_or(true);
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
+
   if (!options.export_path.has_value() &&
       options.backend != BackendRuntime::TTNNFlatbuffer) {
     ABORT_F("Compile option 'export_path' must be provided when backend is not "
