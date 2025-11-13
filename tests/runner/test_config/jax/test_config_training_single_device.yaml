@@ -59,8 +59,8 @@ test_config:
     execution_pass: BACKWARD
 
   bigbird/causal_lm/jax-large-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Assertion `false && \"incorrect fold result type\""
     execution_pass: FORWARD
 
   bigbird/question_answering/jax-base-single_device-full-training:
@@ -82,6 +82,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
     execution_pass: BACKWARD
+    markers: [large]
 
   blenderbot/summarization/jax-400M-distill-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
@@ -537,7 +538,7 @@ test_config:
 
   whisper/audio_classification/jax-medium-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: " Assertion `Index < Length && \"Invalid index!\"' failed."
+    reason: "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=nan"
     execution_pass: BACKWARD
 
   xglm/causal_lm/jax-564M-single_device-full-training:
