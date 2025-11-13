@@ -327,22 +327,23 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // their m_copy_to_host_thread as null. Metal (especially + program cache) is
   // not thread safe and this will dispatch a concurrent untilize on device if
   // called async.
-  std::lock_guard<std::mutex> lock(s_copy_to_host_thread_mutex);
+  std::unique_lock<std::mutex> copy_lock(s_copy_to_host_thread_mutex);
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
   }
+  copy_lock.unlock();
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
   // Start copying in a separate thread.
   m_copy_to_host_thread = std::make_unique<std::thread>(
-      [](std::mutex &copy_mutex, void *host_buffer,
+      [](std::unique_lock<std::mutex> copy_lock, void *host_buffer,
          tt::runtime::Tensor runtime_tensor, EventInstance *event,
          PJRT_Buffer_Type data_type, size_t host_buffer_size,
          std::optional<uint32_t> device_id, bool already_on_host) {
         // Acquire lock to serialize all copy-to-host operations across all
         // BufferInstances
-        std::lock_guard<std::mutex> lock(copy_mutex);
+        copy_lock.lock();
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         try {
           std::vector<tt::runtime::Tensor> host_runtime_tensors;
@@ -398,9 +399,9 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         }
         event->markAsReady(copy_status);
       },
-      std::ref(s_copy_to_host_thread_mutex), host_buffer,
-      runtime_tensor_to_retrieve, event.get(), m_data_type, host_buffer_size,
-      m_device_id, is_tensor_on_host);
+      std::move(copy_lock), host_buffer, runtime_tensor_to_retrieve,
+      event.get(), m_data_type, host_buffer_size, m_device_id,
+      is_tensor_on_host);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.
