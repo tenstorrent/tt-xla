@@ -352,6 +352,10 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
 
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
+        DLOG_F(LOG_DEBUG,
+               "Starting copy to host; runtime_tensor from device "
+               "%d and uid %lu",
+               buffer_uid);
         try {
           std::vector<tt::runtime::Tensor> host_runtime_tensors;
           if (!already_on_host) {
@@ -404,10 +408,13 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                  error.what());
           copy_status = tt_pjrt_status::kInternal;
         }
+        DLOG_F(LOG_DEBUG, "Finished copy to host from device %d for buffer uid %lu",
+               device_id.has_value() ? device_id.value() : 0, buffer_uid);
         event->markAsReady(copy_status);
       },
-      std::move(copy_lock), host_buffer, runtime_tensor_to_retrieve, event.get(),
+=      std::move(copy_lock), host_buffer, runtime_tensor_to_retrieve, event.get(),
       m_data_type, host_buffer_size, m_device_id, is_tensor_on_host);
+
 
 
 
