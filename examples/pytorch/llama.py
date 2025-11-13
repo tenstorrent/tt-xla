@@ -119,6 +119,7 @@ def llama(interactive: bool = False):
             is_spmd,
             max_tokens_to_generate,
             user_prompt,
+            interactive,
         )
 
         if not interactive:
@@ -198,7 +199,6 @@ def construct_inputs(
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
-    # breakpoint()
     inputs = tokenizer(
         input_prompt,
         return_tensors="pt",
@@ -320,6 +320,7 @@ def run_generate(
     is_spmd: bool = True,
     max_tokens_to_generate: int = 128,
     input_prompt: List[str] = [""],
+    is_interactive: bool = False,
 ):
     """
     Run the generation loop.
@@ -339,19 +340,18 @@ def run_generate(
         for step in range(max_tokens_to_generate):
             if step == 0:
                 print("RUNNING PREFILL")
-            else:
-                print(f"RUNNING DECODE ITER: {step}")
+                if is_interactive:
+                    print(f"Result: {input_prompt[0]}", end="", flush=True)
+
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
             output_logits: torch.Tensor = output.logits.to("cpu")
             next_token_id = output_logits[:, -1].argmax(dim=-1)
-            # breakpoint()
             output_text = [tokenizer.decode(next_token_id[i]) for i in range(num_users)]
             for i, output_tokens_list in enumerate(output_tokens):
                 output_tokens_list.append(output_text[i])
-                # for token in output_tokens_list:
-                #     print(token, end="", flush=True)
-                # print()
+                if is_interactive:
+                    print(output_text[i], end="", flush=True)
 
             # Check for EOS token and early exit
             if torch.all(next_token_id == tokenizer.eos_token_id):
@@ -376,9 +376,11 @@ def run_generate(
                 ):
                     xs.mark_sharding(key, mesh, (None, "model", None, None))
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
-    for i in range(num_users):
-        print(f"Result for user {i}: {input_prompt[i]}{''.join(output_tokens[i])}")
-        print()
+    print()
+    if not is_interactive:
+        for i in range(num_users):
+            print(f"Result for user {i}: {input_prompt[i]}{''.join(output_tokens[i])}")
+            print()
 
 
 def check_transformers_version():
