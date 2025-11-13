@@ -15,6 +15,7 @@ from pathlib import Path
 import psutil
 import pytest
 import torch
+import torch_xla.runtime as xr
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
 
@@ -443,3 +444,4 @@ def run_around_tests():
     torch.manual_seed(0)
     yield
     torch._dynamo.reset()
+    xr.clear_computation_cache()
