@@ -108,6 +108,16 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "xr.global_runtime_device_count() - Expected 2 eth links from physical chip 4 to physical chip 0 - https://github.com/tenstorrent/tt-xla/issues/1975"
 
+  mistral/pytorch-devstral_small_2505-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    markers: ["large_device_dram"]
+    status: EXPECTED_PASSING
+
+  mistral/pytorch-magistral_small_2506-tensor_parallel-full-inference:
+    supported_archs: [n300-llmbox]
+    markers: ["large_device_dram"]
+    status: EXPECTED_PASSING
+
   qwen_2_5/causal_lm/pytorch-7b_instruct-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
