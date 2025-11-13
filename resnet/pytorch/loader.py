@@ -7,16 +7,12 @@ ResNet model loader implementation
 
 from typing import Optional
 from dataclasses import dataclass
-from PIL import Image
 from torchvision import models
 import torch
 import timm
-from timm.data import resolve_data_config
-from timm.data.transforms_factory import create_transform
 
-from transformers import ResNetForImageClassification, AutoImageProcessor
-from ...tools.utils import get_file, print_compiled_model_results
-from torchvision import transforms
+from transformers import ResNetForImageClassification
+from ...tools.utils import VisionPreprocessor, VisionPostprocessor
 
 
 from ...config import (
@@ -29,7 +25,6 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from .src.utils import run_and_print_results
 
 
 @dataclass
@@ -126,8 +121,9 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self.image_processor = None
         self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -196,8 +192,16 @@ class ModelLoader(ForgeModel):
 
         model.eval()
 
-        # Store model for potential use in load_inputs and post_processing
+        # Store model for potential use in input preprocessing and postprocessing
         self.model = model
+
+        # Update preprocessor with cached model (for TIMM models)
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
+        # Update postprocessor with model instance (for HuggingFace models)
+        if self._postprocessor is not None:
+            self._postprocessor.set_model_instance(model)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
@@ -205,125 +209,108 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the ResNet model with this instance's variant settings.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            dtype_override: Optional torch.dtype to override the inputs' default dtype.
-                           If not provided, inputs will use the default dtype (typically float32).
-            batch_size: Optional batch size to override the default batch size of 1.
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default COCO image).
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for ResNet.
+            torch.Tensor: Preprocessed input tensor.
         """
-        # Get the pretrained model name and source from the instance's variant config
-        model_name = self._variant_config.pretrained_model_name
-        source = self._variant_config.source
-        high_res_size = self._variant_config.high_res_size
+        if self._preprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+            high_res_size = self._variant_config.high_res_size
 
-        # Get the Image
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_file).convert("RGB")
+            def weight_class_name_fn(name: str) -> str:
+                return name.replace("resnet", "ResNet") + "_Weights"
 
-        # Resize to high res if specified
-        if high_res_size is not None:
-            image = image.resize(high_res_size)  # width, height
+            self._preprocessor = VisionPreprocessor(
+                model_source=source,
+                model_name=model_name,
+                high_res_size=high_res_size,
+                weight_class_name_fn=(
+                    weight_class_name_fn if source == ModelSource.TORCHVISION else None
+                ),
+            )
 
-        if source == ModelSource.HUGGING_FACE:
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
 
-            # Initialize image processor if not already done
-            if self.image_processor is None:
-                self.image_processor = AutoImageProcessor.from_pretrained(model_name)
-
-            # Preprocess image using HuggingFace image processor
-            inputs = self.image_processor(
-                images=image,
-                return_tensors="pt",
-                do_resize=False if high_res_size is not None else True,
-            ).pixel_values
-
-        elif source == ModelSource.TIMM:
-
-            # Use cached model if available, otherwise load it
+        model_for_config = None
+        if self._variant_config.source == ModelSource.TIMM:
             if hasattr(self, "model") and self.model is not None:
                 model_for_config = self.model
-            else:
-                model_for_config = self.load_model(dtype_override)
 
-            # Preprocess image using model's data config
-            data_config = resolve_data_config({}, model=model_for_config)
-            if high_res_size is not None:
-                data_config["crop_pct"] = 1.0  # avoid center crop
-                data_config["input_size"] = (
-                    3,
-                    high_res_size[1],
-                    high_res_size[0],
-                )  # maintain high res tensor shape
-            timm_transforms = create_transform(**data_config)
-            inputs = timm_transforms(image).unsqueeze(0)
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
+        )
 
-        elif source == ModelSource.TORCHVISION:
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs (backward compatibility wrapper for input_preprocess).
 
-            # Get the weights class name for torchvision preprocessing
-            weight_class_name = model_name.replace("resnet", "ResNet") + "_Weights"
+        Args:
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
 
-            # Get the weights and use their transforms
-            weights = getattr(models, weight_class_name).DEFAULT
-            preprocess = weights.transforms()
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
+        """
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
 
-            if high_res_size is not None:
-                # Skip resize, just normalize
-                preprocess = transforms.Compose(
-                    [
-                        transforms.ToTensor(),
-                        transforms.Normalize(
-                            mean=weights.transforms().mean, std=weights.transforms().std
-                        ),
-                    ]
-                )
-            else:
-                # Use default weights transforms
-                preprocess = weights.transforms()
-
-            inputs = preprocess(image).unsqueeze(0)
-
-        # Replicate tensors for batch size
-        inputs = inputs.repeat_interleave(batch_size, dim=0)
-
-        # Only convert dtype if explicitly requested
-        if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
-
-        return inputs
-
-    def post_process(
+    def output_postprocess(
         self,
+        output=None,
         co_out=None,
         framework_model=None,
         compiled_model=None,
         inputs=None,
         dtype_override=None,
     ):
-
-        """
-        Post-processes model outputs based on the model source.
+        """Post-process model outputs.
 
         Args:
-            co_out : Outputs from the compiled model
-            framework_model: The original framework-based model.
-            compiled_model: The compiled version of the model.
-            inputs: A list of images to process and classify.
-            dtype_override: Optional torch.dtype to override the input's dtype.
+            output: Model output tensor (returns dict if provided).
+            co_out: Compiled model outputs (legacy, prints results).
+            framework_model: Original framework model (legacy).
+            compiled_model: Compiled model (legacy).
+            inputs: Input images (legacy).
+            dtype_override: Optional dtype override (legacy).
 
         Returns:
-            None: Prints predicted results.
+            dict or None: Prediction dict if output provided, else None (prints results).
         """
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
 
-        source = self._variant_config.source
-
-        if source == ModelSource.HUGGING_FACE:
-            run_and_print_results(
-                framework_model, compiled_model, inputs, dtype_override
+            self._postprocessor = VisionPostprocessor(
+                model_source=source,
+                model_name=model_name,
+                model_instance=self.model,
             )
-        else:
-            print_compiled_model_results(co_out)
+
+        # New usage: return dict from output tensor
+        if output is not None:
+            return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
+
+        # Legacy usage: print results (backward compatibility)
+        self._postprocessor.print_results(
+            co_out=co_out,
+            framework_model=framework_model,
+            compiled_model=compiled_model,
+            inputs=inputs,
+            dtype_override=dtype_override,
+        )
+        return None
