@@ -99,7 +99,5 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   Yolov3_416:
     bringup_status: NOT_STARTED
-  Yolov7:
-    bringup_status: NOT_STARTED
   OpenVLA_OFT:
     bringup_status: NOT_STARTED
