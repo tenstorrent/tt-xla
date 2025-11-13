@@ -70,7 +70,7 @@ def test_embed_bge_m3():
         print("-" * 60)
 
 
-@pytest.mark.push
+@pytest.mark.nightly
 def test_embed_bge_m3_perf():
     """
     Performance test for BGE-M3 model's embedding generation.
