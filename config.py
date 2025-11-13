@@ -56,6 +56,7 @@ class ModelTask(StrEnum):
     CV_KEYPOINT_DET = "cv_keypoint_det"
     CV_KNOW_DISTILL = "cv_know_distill"
     CV_PANOPTIC_SEG = "cv_panoptic_seg"
+    CV_IMAGE_TO_TEXT = "cv_image_to_text"
     REALTIME_MAP_CONSTRUCTION = "realtime_map_construction"
     MM_IMAGE_CAPT = "mm_image_capt"
     MM_DOC_QA = "mm_doc_qa"

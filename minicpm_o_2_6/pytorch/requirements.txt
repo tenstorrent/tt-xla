@@ -1,0 +1,6 @@
+# MiniCPM-o-2_6 Inference Requirements
+torchaudio==2.7.0+cpu
+
+# Model-specific dependencies
+vector_quantize_pytorch>=1.18.5
+vocos>=0.1.0
