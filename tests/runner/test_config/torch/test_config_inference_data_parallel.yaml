@@ -1067,7 +1067,7 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9550557136535645. Required: pcc=0.96.
 
-  qwen_2_5/casual_lm/pytorch-0_5b-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-0_5b-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -1170,7 +1170,7 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8792946338653564. Required: pcc=0.99.
 
-  qwen_2_5/casual_lm/pytorch-1_5b-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-1_5b-data_parallel-full-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -1197,7 +1197,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  qwen_2_5/casual_lm/pytorch-3b_instruct-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-3b_instruct-data_parallel-full-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
