@@ -5,12 +5,12 @@
 test_config:
   mnist/image_classification/pytorch-cnn_dropout-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter'"
+    reason: "PCC check enabled. Calculated: pcc=0.4345083236694336. Required: pcc=0.99."
     markers: [push]
 
   mnist/image_classification/pytorch-cnn_nodropout-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter'"
+    reason: "PCC check enabled. Calculated: pcc=NaN. Required: pcc=0.99."
     markers: [push]
 
   autoencoder/pytorch-linear-single_device-full-training:
