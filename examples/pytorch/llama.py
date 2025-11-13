@@ -63,10 +63,7 @@ def llama(interactive: bool = False):
     check_transformers_version()
 
     # Set up config variables.
-    batch_size: int = 32
     max_cache_len: int = 128
-    default_prompts: List[str] = DEFAULT_PROMPTS[:batch_size]
-
     model_name: str = "meta-llama/Llama-3.2-3B"
 
     # Determine if SPMD mode should be enabled, if more than 1 device is available.
@@ -86,10 +83,13 @@ def llama(interactive: bool = False):
     while True:
         if interactive:
             user_prompt = input("Enter your prompt or quit() to exit: ")
+            batch_size: int = 1
             if user_prompt.lower() == "quit()":
                 break
+            user_prompt = [user_prompt]
         else:
-            user_prompt = default_prompts
+            batch_size: int = 32
+            user_prompt = DEFAULT_PROMPTS[:batch_size]
 
         # Construct inputs, including static cache
         input_args = construct_inputs(
@@ -319,7 +319,7 @@ def run_generate(
     mesh: Mesh = None,
     is_spmd: bool = True,
     max_tokens_to_generate: int = 128,
-    input_prompt: str = "",
+    input_prompt: List[str] = [""],
 ):
     """
     Run the generation loop.
