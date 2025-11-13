@@ -531,14 +531,16 @@ test_config:
     execution_pass: BACKWARD
 
   whisper/audio_classification/jax-large_v3-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     reason: " Assertion `Index < Length && \"Invalid index!\"' failed."
+    bringup_status: FAILED_TTMLIR_COMPILATION
     markers: [large]
     execution_pass: BACKWARD
 
   whisper/audio_classification/jax-medium-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=nan"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Out of memory"
     execution_pass: BACKWARD
 
   xglm/causal_lm/jax-564M-single_device-full-training:
