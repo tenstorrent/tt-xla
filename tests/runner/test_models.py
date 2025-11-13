@@ -170,6 +170,12 @@ def test_all_models_torch(
 
             comparison_config = tester._comparison_config if tester else None
 
+            perf_stats = getattr(tester, "get_perf_stats", None)
+            if callable(perf_stats):
+                perf_stats = perf_stats()
+            else:
+                perf_stats = getattr(tester, "_perf_stats", None)
+
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
             record_model_test_properties(
@@ -182,6 +188,7 @@ def test_all_models_torch(
                 test_passed=succeeded,
                 comparison_result=comparison_result,
                 comparison_config=comparison_config,
+                perf_stats=perf_stats,
             )
 
 

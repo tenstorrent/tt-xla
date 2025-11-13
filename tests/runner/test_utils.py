@@ -332,6 +332,7 @@ def record_model_test_properties(
     test_passed: bool = False,
     comparison_result=None,
     comparison_config=None,
+    perf_stats= None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -474,3 +475,6 @@ def record_model_test_properties(
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         pytest.xfail(reason)
+
+    if perf_stats is not None:
+        record_property("perf_stats", _to_marshal_safe(perf_stats))
