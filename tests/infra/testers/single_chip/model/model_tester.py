@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Callable, Optional, Tuple
 
+import torch
 from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
@@ -167,7 +168,18 @@ class ModelTester(BaseTester, ABC):
 
     def _compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
         """Compares device with golden output and returns the result."""
-        return self._comparator.compare(device_out, golden_out)
+        attn_mask = None
+        inputs = getattr(self, "_input_activations", None)
+
+        if inputs is not None:
+            if isinstance(inputs, dict):
+                attn_mask = inputs.get("attention_mask", None)
+
+            elif isinstance(inputs, (list, tuple)):
+                if len(inputs) > 1 and torch.is_tensor(inputs[1]):
+                    attn_mask = inputs[1]
+
+        return self._comparator.compare(device_out, golden_out, attn_mask)
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         """
