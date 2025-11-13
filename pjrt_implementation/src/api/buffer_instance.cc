@@ -339,16 +339,11 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       [](std::mutex &copy_mutex, void *host_buffer,
          tt::runtime::Tensor runtime_tensor, EventInstance *event,
          PJRT_Buffer_Type data_type, size_t host_buffer_size,
-         std::optional<uint32_t> device_id, bool already_on_host,
-         uint64_t buffer_uid) {
+         std::optional<uint32_t> device_id, bool already_on_host) {
         // Acquire lock to serialize all copy-to-host operations across all
         // BufferInstances
         std::lock_guard<std::mutex> lock(copy_mutex);
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
-        DLOG_F(LOG_DEBUG,
-               "Starting copy to host; runtime_tensor from device "
-               "%d and uid %lu",
-               device_id.has_value() ? device_id.value() : 0, buffer_uid);
         try {
           std::vector<tt::runtime::Tensor> host_runtime_tensors;
           if (!already_on_host) {
@@ -361,7 +356,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
             host_runtime_tensors.push_back(runtime_tensor);
           }
           DLOG_F(LOG_DEBUG,
-                 "Returning tensor to host; with host_runtime_tensors ct = %ld "
+                 "Returning tensor to host with host_runtime_tensors ct = %ld "
                  "from device %d",
                  host_runtime_tensors.size(),
                  device_id.has_value() ? device_id.value() : 0);
@@ -401,14 +396,11 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                  error.what());
           copy_status = tt_pjrt_status::kInternal;
         }
-        DLOG_F(LOG_DEBUG,
-               "Finished copy to host from device %d for buffer uid %lu",
-               device_id.has_value() ? device_id.value() : 0, buffer_uid);
         event->markAsReady(copy_status);
       },
       std::ref(s_copy_to_host_thread_mutex), host_buffer,
       runtime_tensor_to_retrieve, event.get(), m_data_type, host_buffer_size,
-      m_device_id, is_tensor_on_host, m_uid);
+      m_device_id, is_tensor_on_host);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.
