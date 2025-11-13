@@ -1,14 +1,16 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import os
 
 import torch
 import torch_xla
-import torch_xla.runtime as xr
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
-
+import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
-
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
+
 
 def setup_spmd():
     print("Setting up SPMD...")
@@ -16,12 +18,14 @@ def setup_spmd():
     xr.use_spmd()
     print("SPMD setup complete.")
 
+
 def create_device_mesh():
     num_devices = xr.global_runtime_device_count()
     mesh_shape = (8, 4)
     device_ids = list(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
     return mesh
+
 
 def setup_model_and_tokenizer(model_name):
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
@@ -31,6 +35,7 @@ def setup_model_and_tokenizer(model_name):
     tokenizer.pad_token = tokenizer.eos_token
 
     return model, tokenizer
+
 
 def construct_inputs(
     input_prompt: str,
@@ -46,13 +51,17 @@ def construct_inputs(
     )
     return inputs
 
+
 def transfer_to_device(model, input_args, device):
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
     model = model.to(device)
     return model, input_args
 
-def mark_sharding_on_model(model, mesh):
+
+def mark_sharding_on_model_and_inputs(model, input_args, mesh):
+    xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
+    xs.mark_sharding(input_args["attention_mask"], mesh, ("batch", None))
     for layer in model.model.layers:
         xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", "batch"))
         xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", "batch"))
@@ -63,6 +72,7 @@ def mark_sharding_on_model(model, mesh):
         xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", "batch"))
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, ("batch", "model"))
     xs.mark_sharding(model.lm_head.weight, mesh, ("model", "batch"))
+
 
 def run_llama_70b():
     # Set up config variables.
@@ -85,7 +95,7 @@ def run_llama_70b():
 
     model, input_args = transfer_to_device(model, input_args, device)
 
-    mark_sharding_on_model(model, mesh)
+    mark_sharding_on_model_and_inputs(model, input_args, mesh)
 
     compiled_model = torch.compile(model, backend="tt")
 
@@ -96,6 +106,7 @@ def run_llama_70b():
         output_text = tokenizer.decode(next_token_id)
         print("Prompt: ", input_prompt)
         print("Output: ", output_text)
+
 
 if __name__ == "__main__":
     xr.set_device_type("TT")
