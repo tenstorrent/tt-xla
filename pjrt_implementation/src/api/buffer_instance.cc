@@ -149,7 +149,6 @@ void BufferInstance::deleteData() {
 
   // Wait if there is a copy to host in progress.
   std::unique_lock<std::mutex> copy_lock(s_copy_to_host_thread_mutex);
-
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
   }
@@ -329,14 +328,12 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // their m_copy_to_host_thread as null. Metal (especially + program cache) is
   // not thread safe and this will dispatch a concurrent untilize on device if
   // called async.
-  std::unique_lock copy_lock(
-      s_copy_to_host_thread_mutex); // ctor locks the mutex
 
-
+  std::unique_lock<std::mutex> copy_lock(s_copy_to_host_thread_mutex);
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
   }
-  copy_lock.unlock(); // unlock before moving to the copy thread
+  copy_lock.unlock();
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
@@ -351,7 +348,6 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         // cause ND segfaults as metal is not thread safe.
         // This lock is released once it falls out of scope.
         copy_lock.lock();
-
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
 
         try {
@@ -408,9 +404,9 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         }
         event->markAsReady(copy_status);
       },
-      std::ref(s_copy_to_host_thread_mutex), host_buffer,
-      runtime_tensor_to_retrieve, event.get(), m_data_type, host_buffer_size,
-      m_device_id, is_tensor_on_host);
+      std::move(copy_lock), host_buffer, runtime_tensor_to_retrieve,
+      event.get(), m_data_type, host_buffer_size, m_device_id,
+      is_tensor_on_host);
 
   // responsible for calling `PJRT_Event_Destroy` on the event.
   *out_copy_done_event = event.release();
