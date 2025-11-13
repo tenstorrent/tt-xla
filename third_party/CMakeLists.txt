@@ -90,7 +90,7 @@ else()
         INSTALL_COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component SharedLib
 
         CMAKE_ARGS
-          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE=${TTMLIR_BUILD_TYPE}
           -DCMAKE_C_COMPILER=clang-17
           -DCMAKE_CXX_COMPILER=clang++-17
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
