@@ -279,7 +279,7 @@ def record_model_test_properties(
     - If test_metadata.failing_reason is set, use it to set the failing reason.
     """
 
-    reason = None
+    reason = ""
     arch = getattr(test_metadata, "arch", None)
     failing_reason = getattr(test_metadata, "failing_reason", None)
     config_bringup_status = getattr(test_metadata, "bringup_status", None)
