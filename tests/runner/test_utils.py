@@ -286,11 +286,11 @@ def record_model_test_properties(
 
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
         bringup_status = config_bringup_status
-        reason = getattr(test_metadata, "reason", None)
+        reason = getattr(test_metadata, "reason", "")
 
     elif config_bringup_status == BringupStatus.NOT_STARTED:
         bringup_status = config_bringup_status
-        reason = getattr(test_metadata, "reason", None)
+        reason = getattr(test_metadata, "reason", "")
 
     elif comparison_result is not None:
         pcc = comparison_result.pcc
