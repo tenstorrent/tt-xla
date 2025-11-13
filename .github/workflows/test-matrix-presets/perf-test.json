@@ -1,0 +1,26 @@
+[
+    {
+      "runs-on": "n150",
+      "name": "mnist_inference",
+      "dir": "./tests/runner/test_models.py",
+      "args": "tests/runner/test_models.py::test_all_models_torch[mnist/pytorch-single_device-full-inference]",
+      "test-mark": "model_test and inference and single_device",
+      "parallel-groups": 1
+    },
+    {
+      "runs-on": "n150",
+      "name": "resnet50_inference",
+      "dir": "./tests/runner/test_models.py",
+      "args": "tests/runner/test_models.py::test_all_models_torch[resnet50/pytorch-single_device-full-inference]",
+      "test-mark": "model_test and inference and single_device",
+      "parallel-groups": 1
+    },
+    {
+      "runs-on": "n150",
+      "name": "bert_inference",
+      "dir": "./tests/runner/test_models.py",
+      "args": "tests/runner/test_models.py::test_all_models_torch[bert/pytorch-single_device-full-inference]",
+      "test-mark": "model_test and inference and single_device",
+      "parallel-groups": 1
+    }
+]
