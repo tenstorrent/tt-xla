@@ -251,6 +251,7 @@ test_config:
 
   mnist/image_classification/jax-cnn_batchnorm-single_device-full-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   mnist/image_classification/jax-cnn_dropout-single_device-full-inference:
     status: EXPECTED_PASSING
