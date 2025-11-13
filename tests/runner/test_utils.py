@@ -429,6 +429,7 @@ def record_model_test_properties(
         ),
         "parallelism": str(parallelism),
         "arch": arch,
+
     }
 
     # Add execution_pass if available
@@ -475,6 +476,3 @@ def record_model_test_properties(
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         pytest.xfail(reason)
-
-    if perf_stats is not None:
-        record_property("perf_stats", _to_marshal_safe(perf_stats))
