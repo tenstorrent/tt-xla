@@ -1,7 +1,9 @@
 [
     { "runs-on": "n150",        "name": "run_jax",              "dir": "./tests/jax/single_chip", "test-mark": "model_test and not large", "parallel-groups": 1 },
-    { "runs-on": "n150",        "name": "run_torch",            "dir": "./tests/torch/single_chip", "test-mark": "model_test", "parallel-groups": 3 },
+    { "runs-on": "n150",        "name": "run_torch",            "dir": "./tests/torch/single_chip", "test-mark": "model_test and not large", "parallel-groups": 3 },
+    { "runs-on": "n150",        "name": "run_large_torch",      "dir": "./tests/torch/single_chip", "test-mark": "model_test and large"},
     { "runs-on": "p150",        "name": "run_jax",              "dir": "./tests/jax/single_chip", "test-mark": "model_test and not large", "parallel-groups": 1 },
-    { "runs-on": "p150",        "name": "run_torch",            "dir": "./tests/torch/single_chip", "test-mark": "model_test", "parallel-groups": 3 },
+    { "runs-on": "p150",        "name": "run_torch",            "dir": "./tests/torch/single_chip", "test-mark": "model_test and not large", "parallel-groups": 3 },
+    { "runs-on": "p150",        "name": "run_large_torch",      "dir": "./tests/torch/single_chip", "test-mark": "model_test and large"},
     { "runs-on": "n300",        "name": "torch_multichip",      "dir": "./tests/torch/multi_chip/n300", "test-mark": "model_test" }
 ]

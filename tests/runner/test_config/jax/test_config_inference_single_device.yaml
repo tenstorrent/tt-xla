@@ -51,8 +51,8 @@ test_config:
     status: EXPECTED_PASSING
 
   bigbird/causal_lm/jax-large-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Assertion `false && \"incorrect fold result type\" - https://github.com/tenstorrent/tt-xla/issues/2140"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
   bigbird/question_answering/jax-base-single_device-full-inference:
@@ -225,9 +225,7 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
 
   mistral/causal_lm/jax-v0_1_tiny-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Failed to allocate buffers for model execution"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   mistral/causal_lm/jax-v0_2_instruct-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
@@ -252,15 +250,11 @@ test_config:
     markers: [push]
 
   mnist/image_classification/jax-cnn_batchnorm-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Cannot update variable 'mean' in '/BatchNorm_0' because collection 'batch_stats' is immutable - https://github.com/tenstorrent/tt-xla/issues/1388"
-    bringup_status: FAILED_FE_COMPILATION
+    status: EXPECTED_PASSING
     markers: [push]
 
   mnist/image_classification/jax-cnn_dropout-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter'"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: EXPECTED_PASSING
     markers: [push]
 
   mt5/nlp_summarization/jax-base-single_device-full-inference:
@@ -418,9 +412,7 @@ test_config:
     status: EXPECTED_PASSING
 
   vit/image_classification/jax-large_patch16_384-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Failed to allocate buffers for ViT large patch16_384"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   vit/image_classification/jax-large_patch32_224_in_21k-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL

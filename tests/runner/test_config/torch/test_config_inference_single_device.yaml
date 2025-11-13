@@ -541,14 +541,10 @@ test_config:
     assert_pcc: false
 
   phi2/token_classification/pytorch-microsoft/phi-2-single_device-full-inference:
-    required_pcc: 0.98
-    status: KNOWN_FAILURE_XFAIL  # Drop from 0.982 exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.978385865688324. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1289"
+    status: EXPECTED_PASSING
 
   phi2/token_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-inference:
-    required_pcc: 0.98
-    status: KNOWN_FAILURE_XFAIL  # Drop from 0.982 exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.978385865688324. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1289"
+    status: EXPECTED_PASSING
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1208,8 +1204,7 @@ test_config:
     status: EXPECTED_PASSING
 
   unet/pytorch-unet_cityscapes-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Bad PCC on blackhole - Calculated: pcc=0.9890791177749634. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1434"
+    status: EXPECTED_PASSING
 
   unet/pytorch-torchhub_brain_unet-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1225,19 +1220,16 @@ test_config:
     status: EXPECTED_PASSING
 
   efficientnet/pytorch-timm_efficientnet_b4-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433"
+    status: EXPECTED_PASSING
 
   efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-full-inference:
     status: EXPECTED_PASSING
 
   efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433"
+    status: EXPECTED_PASSING
 
   efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433"
+    status: EXPECTED_PASSING
 
   efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-full-inference:
     status: EXPECTED_PASSING

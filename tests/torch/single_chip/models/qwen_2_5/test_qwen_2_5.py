@@ -11,6 +11,7 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
+    incorrect_result,
 )
 
 from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch import ModelVariant
@@ -50,7 +51,13 @@ def training_tester() -> Qwen2_5Tester:
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9770750403404236. Required: pcc=0.99. "
+        "Issue https://github.com/tenstorrent/tt-xla/issues/2143"
+    )
 )
 def test_torch_qwen_2_5_inference(inference_tester: Qwen2_5Tester):
     inference_tester.test()
