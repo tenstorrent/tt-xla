@@ -2310,3 +2310,23 @@ test_config:
 
   arnold/pytorch-vizdoom_2017_track2_rnn-single_device-full-inference:
     status: EXPECTED_PASSING
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_10-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_goal-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_object-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial_object_goal_10-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
