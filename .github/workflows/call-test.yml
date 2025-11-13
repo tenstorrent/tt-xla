@@ -314,7 +314,7 @@ jobs:
       timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
       env:
         HF_HOME: /mnt/dockercache/huggingface
-        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
       shell: bash

@@ -18,6 +18,7 @@ on:
       - completed
 
 permissions:
+  actions: write  # Allows viewing and rerunning workflow runs
   packages: write
   checks: write
 
@@ -30,7 +31,7 @@ jobs:
         id: inspect-failures
         shell: bash
         env:
-            GH_TOKEN: ${{ secrets.GH_TOKEN }}
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           repo="${{ github.repository }}"
           test_job_names=("test ")

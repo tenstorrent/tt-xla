@@ -4,9 +4,14 @@
 name: Daily Forge Models Uplift
 
 on:
+  push:
   schedule:
     - cron: '0 7 * * *'  # Runs at 07:00 UTC every day
   workflow_dispatch:  # Manual trigger
+
+permissions:
+  contents: write  # Allows creating commits and PRs
+  pull-requests: write  # Allows creating and commenting on PRs
 
 jobs:
   uplift-pr:
@@ -65,7 +70,7 @@ jobs:
           body: "This PR uplifts the ${{ env.TT_FORGE_MODELS_SUBMODULE_PATH }} to the ${{ steps.set-env-variables.outputs.LATEST_TT_FORGE_MODELS_VERSION }}"
           labels: uplift,forge-models
           delete-branch: true
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Approve Pull Request
         if: ${{ steps.create-pr.outputs.pull-request-number }}
@@ -79,7 +84,7 @@ jobs:
       - name: Enable Pull Request Automerge and Add Comment with Commit List
         if: ${{ steps.create-pr.outputs.pull-request-number }}
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
           gh pr comment ${{ steps.create-pr.outputs.pull-request-number }} --body "$(cat ${{ runner.temp }}/commit_list.txt)"

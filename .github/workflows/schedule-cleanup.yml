@@ -2,10 +2,13 @@
 name: Container image retention
 
 on:
+  push:
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
 
+permissions:
+  packages: write # Allows deleting package versions
 
 jobs:
   delete-package-versions:
@@ -15,7 +18,7 @@ jobs:
       - uses: snok/container-retention-policy@v3.0.0
         with:
           account: tenstorrent
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           image-names: "tt-xla*ci* tt-xla*ird*"
           cut-off: 4w
           keep-n-most-recent: 5
