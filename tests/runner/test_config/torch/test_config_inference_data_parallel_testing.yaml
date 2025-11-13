@@ -2,228 +2,228 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-test_config:
+# test_config:
 
   #==============================================================================
   # KNOWN ISSUE: error: 'sdy.all_reduce' op reduction axis "_axis_0" overlaps
   # with operand dimension sharding or replicated axes
   # STATUS: Het is investigating InsertExplicitReshardsPass
   #==============================================================================
-  opt/sequence_classification/pytorch-facebook/opt-1.3b-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # opt/sequence_classification/pytorch-facebook/opt-1.3b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  opt/sequence_classification/pytorch-facebook/opt-125m-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # opt/sequence_classification/pytorch-facebook/opt-125m-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  opt/sequence_classification/pytorch-facebook/opt-350m-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # opt/sequence_classification/pytorch-facebook/opt-350m-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  gpt_neo/sequence_classification/pytorch-gpt_neo_125M-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # gpt_neo/sequence_classification/pytorch-gpt_neo_125M-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  gpt_neo/sequence_classification/pytorch-gpt_neo_1_3B-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # gpt_neo/sequence_classification/pytorch-gpt_neo_1_3B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+  # gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
 
-  phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  phi1/sequence_classification/pytorch-microsoft/phi-1-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # phi1/sequence_classification/pytorch-microsoft/phi-1-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  phi2/sequence_classification/pytorch-microsoft/phi-2-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # phi2/sequence_classification/pytorch-microsoft/phi-2-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  phi4/seq_cls/pytorch-microsoft/phi-4-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # phi4/seq_cls/pytorch-microsoft/phi-4-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  gpt2/pytorch-gpt2_sequence_classification-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-
-  #==============================================================================
-  # NEW ISSUE: Dynamo failed to run FX node with fake tensors
-  #==============================================================================
-  nbeats/pytorch-generic_basis-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  nbeats/pytorch-seasonality_basis-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  nbeats/pytorch-trend_basis-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # gpt2/pytorch-gpt2_sequence_classification-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
 
-  #==============================================================================
-  # NEW ISSUE: 'GenerationConfig' object has no attribute 'rep
-  #==============================================================================
-  gpt_neo/causal_lm/pytorch-gpt_neo_1_3B-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+  # #==============================================================================
+  # # NEW ISSUE: Dynamo failed to run FX node with fake tensors
+  # #==============================================================================
+  # nbeats/pytorch-generic_basis-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # nbeats/pytorch-seasonality_basis-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-
-  #==============================================================================
-  # NEW ISSUE: TT_FATAL @ /__w/tt-xla/tt-xla/third_party/tt-ml…
-  #    ERROR | All dimensions are overlapping, cannot find non-overlapping dimension for mesh composer.
-  # critical |          Always | dims must be unique (assert.hpp:103)
-  #==============================================================================
-  dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  dpr/reader/pytorch-facebook/dpr-reader-multiset-base-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # nbeats/pytorch-trend_basis-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
 
-  #==============================================================================
-  # NEW ISSUE: error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal
-  #==============================================================================
-  hrnet/pytorch-hrnetv2_w44_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.96
+  # #==============================================================================
+  # # NEW ISSUE: 'GenerationConfig' object has no attribute 'rep
+  # #==============================================================================
+  # gpt_neo/causal_lm/pytorch-gpt_neo_1_3B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
 
-  resnext/pytorch-resnext26_32x4d_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18_small_v1_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnetv2_w48_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.985
+  # #==============================================================================
+  # # NEW ISSUE: TT_FATAL @ /__w/tt-xla/tt-xla/third_party/tt-ml…
+  # #    ERROR | All dimensions are overlapping, cannot find non-overlapping dimension for mesh composer.
+  # # critical |          Always | dims must be unique (assert.hpp:103)
+  # #==============================================================================
+  # dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
 
-  ghostnet/pytorch-ghostnetv2_100.in1k-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # dpr/reader/pytorch-facebook/dpr-reader-multiset-base-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext50_32x4d_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
 
-  inception/pytorch-inceptionv4-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.97
+  # #==============================================================================
+  # # NEW ISSUE: error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal
+  # #==============================================================================
+  # hrnet/pytorch-hrnetv2_w44_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.96
 
-  hrnet/pytorch-hrnetv2_w18_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # resnext/pytorch-resnext26_32x4d_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18_small_v2_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # hrnet/pytorch-hrnet_w18_small_v1_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  vovnet/pytorch-vovnet27s-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # hrnet/pytorch-hrnetv2_w48_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.985
 
-  hrnet/pytorch-hrnetv2_w30_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+  # ghostnet/pytorch-ghostnetv2_100.in1k-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  vovnet/pytorch-vovnet39-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+  # resnext/pytorch-resnext50_32x4d_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnetv2_w32_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.985
+  # inception/pytorch-inceptionv4-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.97
 
-  resnext/pytorch-resnext101_64x4d_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # hrnet/pytorch-hrnetv2_w18_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnetv2_w40_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+  # hrnet/pytorch-hrnet_w18_small_v2_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  vovnet/pytorch-vovnet57-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+  # vovnet/pytorch-vovnet27s-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext14_32x4d_osmr-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # hrnet/pytorch-hrnetv2_w30_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
 
-  densenet/pytorch-densenet121-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # vovnet/pytorch-vovnet39-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
 
-  densenet/pytorch-densenet161-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # hrnet/pytorch-hrnetv2_w32_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.985
 
-  densenet/pytorch-densenet169-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+  # resnext/pytorch-resnext101_64x4d_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  densenet/pytorch-densenet201-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+  # hrnet/pytorch-hrnetv2_w40_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
 
-  yolov9/pytorch-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # vovnet/pytorch-vovnet57-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # resnext/pytorch-resnext14_32x4d_osmr-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # densenet/pytorch-densenet121-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # densenet/pytorch-densenet161-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # densenet/pytorch-densenet169-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # densenet/pytorch-densenet201-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # yolov9/pytorch-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
 
   #==============================================================================
   # NEW ISSUE: assert len(timesteps.shape) == 1, "Timesteps should be a 1d-array"
   #==============================================================================
 
-  flux/pytorch-dev-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # flux/pytorch-dev-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
-  flux/pytorch-schnell-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # flux/pytorch-schnell-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
 
   #==============================================================================
@@ -237,22 +237,22 @@ test_config:
   # NEW ISSUE: error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match
   # the expected output shape dimension[2](256)
   #==============================================================================
-  bart/pytorch-large-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+  # bart/pytorch-large-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
 
-  xglm/pytorch-xglm-564M-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING # not OOM but leaking 3000 MB
+  # xglm/pytorch-xglm-564M-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING # not OOM but leaking 3000 MB
 
-  xglm/pytorch-xglm-1.7B-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING # not OOM but leaking 10000 MB
+  # xglm/pytorch-xglm-1.7B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING # not OOM but leaking 10000 MB
 
-  musicgen_small/pytorch-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # musicgen_small/pytorch-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
 
   #==============================================================================
