@@ -372,6 +372,7 @@ def record_model_test_properties(
         ),
         "parallelism": str(parallelism),
         "arch": arch,
+
     }
 
     # Add execution_pass if available
@@ -398,7 +399,15 @@ def record_model_test_properties(
                 "atol_assertion_enabled": comparison_config.atol.enabled,
             }
         )
-
+    if perf_stats is not None:
+        tags.update(
+            {
+                "e2e_perf_warmup_iters": perf_stats["warmup_iters"],
+                "e2e_perf_iters": perf_stats["perf_iters"],
+                "e2e_perf_total_time": perf_stats["total_time"],
+                "e2e_perf_avg_time": perf_stats["avg_time"],
+            }
+        )
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
     if reason:
@@ -415,6 +424,3 @@ def record_model_test_properties(
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         pytest.xfail(reason)
-
-    if perf_stats is not None:
-        record_property("perf_stats", _to_marshal_safe(perf_stats))
