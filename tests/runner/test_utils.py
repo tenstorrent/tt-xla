@@ -279,18 +279,18 @@ def record_model_test_properties(
     - If test_metadata.failing_reason is set, use it to set the failing reason.
     """
 
-    reason = None
+    reason = ""
     arch = getattr(test_metadata, "arch", None)
     failing_reason = getattr(test_metadata, "failing_reason", None)
     config_bringup_status = getattr(test_metadata, "bringup_status", None)
 
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
         bringup_status = config_bringup_status
-        reason = getattr(test_metadata, "reason", None)
+        reason = getattr(test_metadata, "reason", "")
 
     elif config_bringup_status == BringupStatus.NOT_STARTED:
         bringup_status = config_bringup_status
-        reason = getattr(test_metadata, "reason", None)
+        reason = getattr(test_metadata, "reason", "")
 
     elif comparison_result is not None:
         pcc = comparison_result.pcc
