@@ -86,8 +86,9 @@ result = jitted_forward(graphdef, state, x)
 ```
 
 **Output location:** `jax_codegen_output/` directory containing:
-- `ttir.mlir` - TTIR intermediate representation
+- `irs/` - various intermediate representations for debugging
 - `*.py` or `*.cpp`/`*.h` - Generated source files
+- `tensors/` - exported model input and parameter tensors
 
 ---
 
@@ -99,7 +100,9 @@ result = jitted_forward(graphdef, state, x)
 |--------|------|-------------|
 | `backend` | `string` | Code generation target:<br>• `"codegen_py"` - Generate Python code<br>• `"codegen_cpp"` - Generate C++ code |
 | `export_path` | `string` | Directory for generated code (created if doesn't exist) |
-| `export_tensors` | `bool` | Whether to dump model input and parameter tensors to disk (**False** by default) |
+| `export_tensors` | `bool` | Whether to export model input and parameter tensors to disk under `export_path\tensors` directory  (**True** by default) |
+
+**Note** If 'export_tensors' is set to False, model input and parameter tensors won't be exported to disk, and instead ttnn.ones will be loaded into model inputs and parameters.
 
 ### Example Configurations
 
@@ -131,18 +134,18 @@ After code generation completes, your `export_path` directory contains:
 
 ```
 <export_path>/
-├── ttir.mlir          # TTIR intermediate representation (debugging)
+├── irs/          # VHLO, SHLO, TTIR, TTNN intermediate representations (debugging)
 ├── main.py/cpp        # Generated Python/C++ code
 ├── run                # Execution script
-└── tensors/     # Directory with dumped tensors if specified by export_tensors option
+└── tensors/     # Directory with exported tensors if specified by export_tensors option
 ```
 
 ### File Descriptions
-
-**`ttir.mlir`** - Tenstorrent Intermediate Representation
-- High-level representation after initial compilation
-- Useful for debugging compilation issues
-- Human-readable MLIR dialect
+**Intermediate representations** - Various levels of model intermediate representation
+ - `irs/vhlo*.mlir` - High-level intermediate representation after initial Jax/Pytorch compilation
+ - `irs/shlo*.mlir` - StableHLO intermediate representation (framework-level tensor operations)
+ - `irs/ttir*.mlir` - TT Intermediate Representation (hardware-agnostic tensor IR)
+ - `irs/ttnn*.mlir` - TTNN dialect (backend-specific IR modeling the TT-NN API)
 
 **Generated Python (`*.py`)** - Python Implementation
 - Direct TT-NN API calls
@@ -167,21 +170,6 @@ After code generation completes, your `export_path` directory contains:
 
 1. ✅ Model compiles through TT-XLA pipeline
 2. ✅ Code generation writes files to `export_path`
-3. ⚠️ **Process may terminate with error** (expected behavior)
-
-### Process Termination
-
-> **Important:** The process terminating after code generation is **expected behavior** when running through the frontend.
-
-**You'll see this error message:**
-```
-Standalone solution was successfully generated. Executing codegen through the frontend is not supported yet.
-Unfortunately your program will now crash :(
-ERROR:root:Caught an exception when exiting the process.
-RuntimeError: Bad StatusOr access: UNIMPLEMENTED: Error code: 12
-```
-
-**This is normal!** Your code was generated successfully. The error simply indicates that continuing execution through the frontend isn't currently supported.
 
 ### Verifying Success
 
@@ -192,7 +180,7 @@ ls -la <export_path>/
 ```
 
 You should see:
-- ✅ `ttir.mlir` file exists
+- ✅ `export_path` directory structure like [here](#directory-structure)
 - ✅ Generated source files (`.py` or `.cpp`/`.h`)
 - ✅ File sizes are non-zero
 - ✅ (Python only) Executable `run` script exists
