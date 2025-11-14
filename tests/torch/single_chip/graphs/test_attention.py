@@ -1137,8 +1137,9 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
         num_heads = model.config.num_attention_heads
+        num_key_value_heads = getattr(model.config, "num_key_value_heads", num_heads)
 
-        if num_heads % 8 == 0:
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
             # Use 1x8 mesh for full model parallelism
             batch_size = 1
             mesh_shape = (1, num_devices)
@@ -1157,24 +1158,28 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
 
         else:
             # Use 2x4 mesh when heads not divisible by 8
-            batch_size = 2
-            mesh_shape = (2, num_devices // 2)
-            device_ids = np.array(range(num_devices))
-            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+            if num_heads % 4 == 0 and num_key_value_heads % 4 == 0:
+                batch_size = 2
+                mesh_shape = (2, num_devices // 2)
+                device_ids = np.array(range(num_devices))
+                mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-            def get_shard_spec(attention, args, kwargs):
-                shard_specs = {}
-                # Shard args on batch dimension
-                shard_specs[args[0]] = ("batch", None, None)
-                shard_specs[args[1][0]] = ("batch", None, None)
-                shard_specs[args[1][1]] = ("batch", None, None)
-                shard_specs[args[2]] = ("batch", None, None, None)
-                # Shard weights on model dimension
-                shard_specs[attention.q_proj.weight] = ("model", None)
-                shard_specs[attention.k_proj.weight] = ("model", None)
-                shard_specs[attention.v_proj.weight] = ("model", None)
-                shard_specs[attention.o_proj.weight] = (None, "model")
-                return shard_specs
+                def get_shard_spec(attention, args, kwargs):
+                    shard_specs = {}
+                    # Shard args on batch dimension
+                    shard_specs[args[0]] = ("batch", None, None)
+                    shard_specs[args[1][0]] = ("batch", None, None)
+                    shard_specs[args[1][1]] = ("batch", None, None)
+                    shard_specs[args[2]] = ("batch", None, None, None)
+                    # Shard weights on model dimension
+                    shard_specs[attention.q_proj.weight] = ("model", None)
+                    shard_specs[attention.k_proj.weight] = ("model", None)
+                    shard_specs[attention.v_proj.weight] = ("model", None)
+                    shard_specs[attention.o_proj.weight] = (None, "model")
+                    return shard_specs
+
+            else:
+                pytest.skip("1x8 and 2x4 mesh not supported for this variant")
 
     else:
         batch_size = 1
@@ -1314,8 +1319,9 @@ def test_qwen2_5_attention_decode(variant, variant_config, request):
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
         num_heads = model.config.num_attention_heads
+        num_key_value_heads = getattr(model.config, "num_key_value_heads", num_heads)
 
-        if num_heads % 8 == 0:
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
             # Use 1x8 mesh for full model parallelism
             batch_size = 1
             mesh_shape = (1, num_devices)
@@ -1334,24 +1340,28 @@ def test_qwen2_5_attention_decode(variant, variant_config, request):
 
         else:
             # Use 2x4 mesh when heads not divisible by 8
-            batch_size = 2
-            mesh_shape = (2, num_devices // 2)
-            device_ids = np.array(range(num_devices))
-            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+            if num_heads % 4 == 0 and num_key_value_heads % 4 == 0:
+                batch_size = 2
+                mesh_shape = (2, num_devices // 2)
+                device_ids = np.array(range(num_devices))
+                mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-            def get_shard_spec(attention, args, kwargs):
-                shard_specs = {}
-                # Shard args on batch dimension
-                shard_specs[args[0]] = ("batch", None, None)
-                shard_specs[args[1][0]] = ("batch", None, None)
-                shard_specs[args[1][1]] = ("batch", None, None)
-                shard_specs[args[2]] = ("batch", None, None, None)
-                # Shard weights on model dimension
-                shard_specs[attention.q_proj.weight] = ("model", None)
-                shard_specs[attention.k_proj.weight] = ("model", None)
-                shard_specs[attention.v_proj.weight] = ("model", None)
-                shard_specs[attention.o_proj.weight] = (None, "model")
-                return shard_specs
+                def get_shard_spec(attention, args, kwargs):
+                    shard_specs = {}
+                    # Shard args on batch dimension
+                    shard_specs[args[0]] = ("batch", None, None)
+                    shard_specs[args[1][0]] = ("batch", None, None)
+                    shard_specs[args[1][1]] = ("batch", None, None)
+                    shard_specs[args[2]] = ("batch", None, None, None)
+                    # Shard weights on model dimension
+                    shard_specs[attention.q_proj.weight] = ("model", None)
+                    shard_specs[attention.k_proj.weight] = ("model", None)
+                    shard_specs[attention.v_proj.weight] = ("model", None)
+                    shard_specs[attention.o_proj.weight] = (None, "model")
+                    return shard_specs
+
+            else:
+                pytest.skip("1x8 and 2x4 mesh not supported for this variant")
 
     else:
         batch_size = 1
@@ -1438,8 +1448,9 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, request):
     if is_llmbox(request):
         num_devices = xr.global_runtime_device_count()
         num_heads = model.config.num_attention_heads
+        num_key_value_heads = getattr(model.config, "num_key_value_heads", num_heads)
 
-        if num_heads % 8 == 0:
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
             # Use 1x8 mesh for full model parallelism
             batch_size = 1
             mesh_shape = (1, num_devices)
@@ -1455,26 +1466,33 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, request):
                 shard_specs[args[4]] = (None, None, None, None)  # attention_mask
                 return shard_specs
 
-        elif num_heads == 4 or num_heads == 2:
-            # Use 1xnum_heads mesh when heads not divisible by 8
-            batch_size = 1
-            mesh_shape = (1, num_heads)
-            device_ids = np.array(range(num_heads))
-            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-            def get_shard_spec(sdpa, args, kwargs):
-                shard_specs = {}
-                # Shard on both batch and model dimensions
-                shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
-                shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
-                shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
-                shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
-                return shard_specs
-
         else:
-            pytest.skip(
-                "No suitable mesh configuration for the number of attention heads"
-            )
+            if num_heads % 4 == 0 and num_key_value_heads % 4 == 0:
+                batch_size = 2
+                mesh_shape = (2, num_devices // 2)
+                device_ids = np.array(range(num_devices))
+                mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+                def get_shard_spec(sdpa, args, kwargs):
+                    shard_specs = {}
+                    shard_specs[args[1]] = (
+                        "batch",
+                        "model",
+                        None,
+                        None,
+                    )  # query_states
+                    shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
+                    shard_specs[args[3]] = (
+                        "batch",
+                        "model",
+                        None,
+                        None,
+                    )  # value_states
+                    shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
+                    return shard_specs
+
+            else:
+                pytest.skip("1x8 and 2x4 mesh not supported for this variant")
 
     else:
         batch_size = 1
