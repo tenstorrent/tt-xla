@@ -545,10 +545,20 @@ test_config:
     assert_pcc: false
 
   phi2/token_classification/pytorch-microsoft/phi-2-single_device-full-inference:
-    status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "PCC comparison failed. Calculated: pcc=0.989181399345398. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
+      n150:
+        status: EXPECTED_PASSING
 
   phi2/token_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-inference:
-    status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "PCC comparison failed. Calculated: pcc=0.989181399345398. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
+      n150:
+        status: EXPECTED_PASSING
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1189,7 +1199,8 @@ test_config:
     status: EXPECTED_PASSING
 
   nbeats/pytorch-generic_basis-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason : "patoolib.util.PatoolError: error extracting STORAGE/datasets/electricity/LD2011_2014.txt.zip - https://github.com/tenstorrent/tt-xla/issues/2185"
 
   nbeats/pytorch-seasonality_basis-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1208,10 +1219,12 @@ test_config:
   #   status: EXPECTED_PASSING
 
   unet/pytorch-unet_cityscapes-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  unet/pytorch-torchhub_brain_unet-single_device-full-inference:
-    status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "PCC comparison failed. Calculated: pcc=0.9891136288642883. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
+      n150:
+        status: EXPECTED_PASSING
 
   ghostnet/pytorch-ghostnetv2_100.in1k-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2306,7 +2319,8 @@ test_config:
     status: EXPECTED_PASSING
 
   arnold/pytorch-defend_the_center_ff-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.9587238430976868. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
 
   arnold/pytorch-vizdoom_2017_track2_rnn-single_device-full-inference:
     status: EXPECTED_PASSING
