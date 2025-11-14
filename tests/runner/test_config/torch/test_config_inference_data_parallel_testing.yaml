@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# test_config:
+test_config:
 
   #==============================================================================
   # KNOWN ISSUE: error: 'sdy.all_reduce' op reduction axis "_axis_0" overlaps
