@@ -104,19 +104,6 @@ options = {
 The process will:
 1. ✅ Compile your model through the TT-XLA pipeline
 2. ✅ Generate Python source code in the `model/` directory
-3. ⚠️ Terminate with an error message (this is **expected behavior**)
-
-**Expected terminal output:**
-```
-Standalone solution was successfully generated. Executing codegen through the frontend is not supported yet. Unfortunately your program will now crash :(
-ERROR:root:Caught an exception when exiting the process. Exception:
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/dist-packages/torch_xla/__init__.py", line 216, in _prepare_to_exit
-    _XLAC._prepare_to_exit()
-RuntimeError: Bad StatusOr access: UNIMPLEMENTED: Error code: 12
-```
-
-> **Don't worry!** Despite the error message, your code was generated successfully. This termination is a known limitation when running code generation through the frontend.
 
 #### Generated Files
 
@@ -129,7 +116,8 @@ ls -la model/
 You should see:
 - **`main.py`** - Generated Python code with TT-NN API calls
 - **`run`** - Executable shell script to run the generated code
-- **`ttir.mlir`** - TTIR intermediate representation (for debugging)
+- **`tensors/`** - Directory with exported model input and parameter tensors
+- **`irs/`** - # VHLO, SHLO, TTIR, TTNN intermediate representations (debugging)
 
 ### Step 5: Generate the optimized code
 We can specify different optimization options in order to produce the more performant code. For example, we can supply following set of options to produce the optimized code.
@@ -150,42 +138,21 @@ options = {
 
 Link to other optimizer options to be added here. [\[#1849\] TT-XLA Optimizer Docs](https://github.com/tenstorrent/tt-xla/issues/1849)
 
-### Step 6: Dump model inputs
+### Step 6: Exporting model input and parameter tensors
 
-By default, the generated code loads random inputs and parameters. To dump actual model inputs and parameters to disk for use during code execution, you need to run a separate command.
+By default, model input and parameter tensors are exported to `export_path/tensors/`.
 
-> **Note:** Due to a current limitation ([#1851](https://github.com/tenstorrent/tt-xla/issues/1851)), you must dump tensors and generate code in two separate runs. Once resolved, both can be done together.
-
-#### First Run: Dump Inputs
-
-```python
-options = {
-    # Tensor dumping options
-    "export_tensors": True,
-
-    # Export path
-    "export_path": "model",
-}
-```
-
-#### Second Run: Generate Code (with or without optimizer)
+If you don't need to dump these tensors, set the compile option `"export_tensor": False`. The generated code will use `ttnn.ones` for input and parameter tensors instead.
 
 ```python
 options = {
     # Code generation options
     "backend": "codegen_py",
-
-    # Optimizer options (optional)
-    #"enable_optimizer": True,
-    #"enable_memory_layout_analysis": True,
-    #"enable_l1_interleaved": False,
-
     # Export path
     "export_path": "model",
+    "export_tensors": False
 }
 ```
-
-You can run these in either order. The generated code will automatically load the dumped tensors if they exist in the `model/` directory.
 
 ### Step 7: Execute the Generated Code
 
