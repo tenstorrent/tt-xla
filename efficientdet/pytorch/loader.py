@@ -17,7 +17,6 @@ from ...config import (
 )
 from ...base import ForgeModel
 from ...tools.utils import get_file
-from .src.model_utils import create_model, preprocess_image
 
 
 class ModelVariant(StrEnum):
@@ -118,6 +117,7 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The Efficientdet model instance.
         """
+        from .src.model_utils import create_model
 
         variant_name = self._variant_config.pretrained_model_name
 
@@ -145,6 +145,7 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.Tensor: Preprocessed input tensor suitable for Efficientdet.
         """
+        from .src.model_utils import preprocess_image
 
         # Get the Image
         image_file = get_file("http://images.cocodataset.org/test2017/000000000001.jpg")
