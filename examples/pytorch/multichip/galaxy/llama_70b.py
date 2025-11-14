@@ -40,16 +40,24 @@ def setup_model_and_tokenizer(model_name):
 def construct_inputs(
     input_prompt: str,
     tokenizer: PreTrainedTokenizer,
+    batch_size: int,
     max_cache_len: int,
 ):
     inputs = tokenizer(
         input_prompt,
         return_tensors="pt",
         truncation=True,
-        max_length=max_cache_len,
-        padding="max_length",
+        return_attention_mask=True,
     )
-    return inputs
+
+    for key in inputs:
+        inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
+    input_args = {
+        "input_ids": inputs.input_ids,
+        "attention_mask": inputs.attention_mask,
+    }
+    return input_args
 
 
 def transfer_to_device(model, input_args, device):
@@ -76,7 +84,7 @@ def mark_sharding_on_model_and_inputs(model, input_args, mesh):
 
 def run_llama_70b():
     # Set up config variables.
-    batch_size: int = 1
+    batch_size: int = 4
     max_cache_len: int = 128
     input_prompt: str = "I like taking walks in the"
     model_name: str = "meta-llama/Meta-Llama-3.1-70B"
@@ -91,7 +99,7 @@ def run_llama_70b():
 
     model, tokenizer = setup_model_and_tokenizer(model_name)
 
-    input_args = construct_inputs(input_prompt, tokenizer, max_cache_len)
+    input_args = construct_inputs(input_prompt, tokenizer, batch_size, max_cache_len)
 
     model, input_args = transfer_to_device(model, input_args, device)
 
