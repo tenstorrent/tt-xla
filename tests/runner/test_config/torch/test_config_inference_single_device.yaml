@@ -102,13 +102,13 @@ test_config:
       n150:
         required_pcc: 0.98
 
-  # yolov3/pytorch-base-single_device-full-inference:
-  #   required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
+  yolov3/pytorch-base-single_device-full-inference:
+    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
 
-  # yolov4/pytorch-base-single_device-full-inference:
-  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
+  yolov4/pytorch-base-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
 
   t5/pytorch-google/flan-t5-small-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -659,10 +659,10 @@ test_config:
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-full-inference:
     status: EXPECTED_PASSING
 
-#  yolos/pytorch-single_device-full-inference:
-#    status: EXPECTED_PASSING
-#    assert_pcc: false  # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168 AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96. Later on Sept 2 started failing in WH too: AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
-#    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2"
+  yolos/pytorch-single_device-full-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false  # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168 AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96. Later on Sept 2 started failing in WH too: AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-inference:
     required_pcc: 0.98
@@ -958,38 +958,38 @@ test_config:
   #   status: KNOWN_FAILURE_XFAIL
   #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  # yolox/pytorch-yolox_nano-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
-  #   bringup_status: FAILED_FE_COMPILATION
+  yolox/pytorch-yolox_nano-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+    bringup_status: FAILED_FE_COMPILATION
 
-  # yolox/pytorch-yolox_tiny-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
-  #   bringup_status: FAILED_FE_COMPILATION
+  yolox/pytorch-yolox_tiny-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+    bringup_status: FAILED_FE_COMPILATION
 
-  # yolox/pytorch-yolox_s-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-  #   reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+  yolox/pytorch-yolox_s-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
 
-  # yolox/pytorch-yolox_m-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-  #   reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+  yolox/pytorch-yolox_m-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
 
-  # yolox/pytorch-yolox_l-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-  #   reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
-  #   bringup_status: FAILED_FE_COMPILATION
+  yolox/pytorch-yolox_l-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+    bringup_status: FAILED_FE_COMPILATION
 
-  # yolox/pytorch-yolox_darknet-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-  #   reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
-  #   bringup_status: FAILED_FE_COMPILATION
+  yolox/pytorch-yolox_darknet-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+    bringup_status: FAILED_FE_COMPILATION
 
-  # yolox/pytorch-yolox_x-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-  #   reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
-  #   bringup_status: FAILED_FE_COMPILATION
+  yolox/pytorch-yolox_x-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+    bringup_status: FAILED_FE_COMPILATION
 
   mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2225,20 +2225,20 @@ test_config:
   maskformer_swin_b/pytorch-swin_base_ade-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  # yolos_small/pytorch-small-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+  yolos_small/pytorch-small-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
 
-  # yolos_small/pytorch-small_dwr-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+  yolos_small/pytorch-small_dwr-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
 
-  # yolos_small/pytorch-small_300-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+  yolos_small/pytorch-small_300-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
 
-  # yolop/pytorch-yolop-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL
+  yolop/pytorch-yolop-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
     reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 12. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
 
