@@ -135,10 +135,11 @@ void BufferInstance::deleteData() {
   }
 
   // Wait if there is a copy to host in progress.
-  std::lock_guard<std::mutex> copy_lock(s_copy_to_host_thread_mutex);
+  std::unique_lock<std::mutex> copy_lock(s_copy_to_host_thread_mutex);
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
   }
+  copy_lock.unlock();
 
   // Just reset the tensors, deallocation happens automatically when
   // reference count drops to zero.
@@ -331,6 +332,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         // Acquire lock to serialize all copy-to-host operations across all
         // BufferInstances since any metal dispatch in this async thread will
         // cause ND segfaults as metal is not thread safe.
+        // This lock is released once it falls out of scope.
         copy_lock.lock();
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         try {
