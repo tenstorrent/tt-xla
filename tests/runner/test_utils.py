@@ -287,6 +287,15 @@ def record_model_test_properties(
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
         bringup_status = config_bringup_status
         reason = getattr(test_metadata, "reason", "")
+        # Record a standardized failing reason for skipped-not-supported tests
+        failing_reason = FailingReasons.find_by_description(
+            "Model is not supported (skipped)"
+        )
+        if failing_reason is not None:
+            try:
+                setattr(test_metadata, "failing_reason", failing_reason)
+            except Exception as e:
+                assert False, f"Failed to set failing_reason on test_metadata: {e}"
 
     elif config_bringup_status == BringupStatus.NOT_STARTED:
         bringup_status = config_bringup_status
@@ -300,6 +309,17 @@ def record_model_test_properties(
             required_pcc = comparison_config.pcc.required_pcc
             pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"
             reason = f"Test marked w/ INCORRECT_RESULT. PCC check {pcc_check_str}. Calculated: pcc={pcc}. Required: pcc={required_pcc}."
+            if not comparison_config.pcc.enabled:
+                failing_reason = FailingReasons.find_by_description(
+                    "Test marked w/ INCORRECT_RESULT. PCC check disabled."
+                )
+                if failing_reason is not None:
+                    try:
+                        setattr(test_metadata, "failing_reason", failing_reason)
+                    except Exception as e:
+                        assert (
+                            False
+                        ), f"Failed to set failing_reason on test_metadata: {e}"
         elif test_passed:
             bringup_status = BringupStatus.PASSED
 
