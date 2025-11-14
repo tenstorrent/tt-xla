@@ -6,7 +6,7 @@ option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" 
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
     # This is the commit after Milan's RoPE fix
-    set(TT_MLIR_VERSION "ac55aa98d09122e6812fc65d93baee543c0b259b")
+    set(TT_MLIR_VERSION "64a8931d782136ec77f18e613788e7c0e894129e")
 endif()
 
 set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
