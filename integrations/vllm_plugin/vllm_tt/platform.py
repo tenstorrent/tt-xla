@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
 from vllm.inputs import ProcessorInputs, PromptType
-from vllm.logger import init_logger
 from vllm.platforms.interface import Platform, PlatformEnum, _Backend
 from vllm.sampling_params import SamplingParams, SamplingType
 from vllm.utils import DEFAULT_MAX_NUM_BATCHED_TOKENS
@@ -21,9 +20,11 @@ else:
     VllmConfig = None
     PoolingParams = None
 
-logger = init_logger(__name__)
-
 from torch_xla import runtime as xrt
+
+from .logger import tt_init_logger
+
+logger = tt_init_logger(__name__)
 
 
 @dataclass

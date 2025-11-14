@@ -30,7 +30,6 @@ from vllm.config import (
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
 from vllm.forward_context import get_forward_context, set_forward_context
-from vllm.logger import init_logger
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
@@ -85,6 +84,7 @@ from .attention import (
     TTMetadata,
     get_page_size_bytes,
 )
+from .logger import tt_init_logger
 from .platform import TTConfig
 
 
@@ -122,7 +122,7 @@ def add_kv_sharing_layers_to_kv_cache_groups(
 if TYPE_CHECKING:
     from vllm.v1.core.sched.output import SchedulerOutput
 
-logger = init_logger(__name__)
+logger = tt_init_logger(__name__)
 
 INVALID_TOKEN_ID = -1
 # Smallest output size
