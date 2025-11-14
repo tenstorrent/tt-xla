@@ -9,7 +9,6 @@ from utils import (
     Category,
     ExecutionPass,
     failed_runtime,
-    failed_ttmlir_compilation,
 )
 
 from third_party.tt_forge_models.config import Parallelism
@@ -44,9 +43,10 @@ def training_tester() -> ViTTester:
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "Invalid data size. numElements * elementSize == data->size() "
-        "https://github.com/tenstorrent/tt-mlir/issues/5665"
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, "
+        "where each bank needs to store 1505280 B, but bank size is only 1331936 B"
+        "https://github.com/tenstorrent/tt-xla/issues/918"
     )
 )
 def test_vit_large_patch16_384_training(training_tester: ViTTester):

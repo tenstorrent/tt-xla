@@ -4,7 +4,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
+from utils import BringupStatus, Category, ExecutionPass, failed_runtime
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.resnet.image_classification.jax import (
@@ -38,8 +38,9 @@ def training_tester() -> ResNetTester:
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: 'ttir.conv2d' op Padding attribute values must be >= 0."
+    reason=failed_runtime(
+        "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] "
+        "grow to 2010400 B which is beyond max L1 size of 1499136 B"
     )
 )
 def test_resnet_v1_5_34_training(training_tester: ResNetTester):

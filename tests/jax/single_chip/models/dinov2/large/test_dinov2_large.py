@@ -39,9 +39,10 @@ def training_tester() -> Dinov2Tester:
     bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
 )
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: 'ttir.conv2d' op The output tensor height and width dimension (224, 224) do not match the expected dimensions (29, 29) "
-        "https://github.com/tenstorrent/tt-mlir/issues/5304"
+    reason=failed_runtime(
+        "Out of Memory: Not enough space to allocate 21471744 B L1 buffer across 7 banks, "
+        "where each bank needs to store 3067392 B, but bank size is only 1331936 B "
+        "https://github.com/tenstorrent/tt-xla/issues/918"
     )
 )
 def test_dinov2_large_training(training_tester: Dinov2Tester):

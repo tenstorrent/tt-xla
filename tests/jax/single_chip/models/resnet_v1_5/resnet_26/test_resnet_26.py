@@ -9,8 +9,6 @@ from utils import (
     Category,
     ExecutionPass,
     failed_runtime,
-    failed_ttmlir_compilation,
-    incorrect_result,
 )
 
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -56,8 +54,9 @@ def inference_tester_optimizer() -> ResNetTester:
 )
 @pytest.mark.large
 @pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: 'ttir.conv2d' op Padding attribute values must be >= 0."
+    reason=failed_runtime(
+        "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] "
+        "grow to 2010400 B which is beyond max L1 size of 1499136 B"
     )
 )
 def test_resnet_v1_5_26_training(training_tester: ResNetTester):
