@@ -102,13 +102,13 @@ test_config:
       n150:
         required_pcc: 0.98
 
-  yolov3/pytorch-base-single_device-full-inference:
-    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
+  # yolov3/pytorch-base-single_device-full-inference:
+  #   required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
 
-  yolov4/pytorch-base-single_device-full-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
+  # yolov4/pytorch-base-single_device-full-inference:
+  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
 
   t5/pytorch-google/flan-t5-small-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -141,9 +141,9 @@ test_config:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
 
-  yolov5/pytorch-yolov5s-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
-    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+#  yolov5/pytorch-yolov5s-single_device-full-inference:
+#    status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+#    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
 
   albert/masked_lm/pytorch-base_v2-single_device-full-inference:
     required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9882882237434387. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
@@ -577,8 +577,8 @@ test_config:
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  yoloworld/pytorch-single_device-full-inference:
-    status: EXPECTED_PASSING
+#  yoloworld/pytorch-single_device-full-inference:
+#    status: EXPECTED_PASSING
 
   opt/qa/pytorch-facebook/opt-125m-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -659,10 +659,10 @@ test_config:
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  yolos/pytorch-single_device-full-inference:
-    status: EXPECTED_PASSING
-    assert_pcc: false  # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168 AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96. Later on Sept 2 started failing in WH too: AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2"
+#  yolos/pytorch-single_device-full-inference:
+#    status: EXPECTED_PASSING
+#    assert_pcc: false  # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168 AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96. Later on Sept 2 started failing in WH too: AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
+#    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-inference:
     required_pcc: 0.98
@@ -690,8 +690,8 @@ test_config:
     reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
     bringup_status: FAILED_RUNTIME
 
-  yolov8/pytorch-yolov8x-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov8/pytorch-yolov8x-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-base_v2-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -717,8 +717,8 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9410670165223607. Required: pcc=0.99"
 
-  yolov8/pytorch-yolov8n-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov8/pytorch-yolov8n-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
   stereo/pytorch-small-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -777,21 +777,21 @@ test_config:
   qwen_3/embedding/pytorch-embedding_4b-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  yolov5/pytorch-yolov5n-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
-    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+  # yolov5/pytorch-yolov5n-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
 
-  yolov5/pytorch-yolov5m-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
-    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+  # yolov5/pytorch-yolov5m-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
 
-  yolov5/pytorch-yolov5l-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
-    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+  # yolov5/pytorch-yolov5l-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
 
-  yolov5/pytorch-yolov5x-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
-    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+  # yolov5/pytorch-yolov5x-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
 
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -920,76 +920,76 @@ test_config:
   llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6n-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov6/pytorch-yolov6n-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6s-single_device-full-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890339970588684. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
+  # yolov6/pytorch-yolov6s-single_device-full-inference:
+  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890339970588684. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6m-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
+  # yolov6/pytorch-yolov6m-single_device-full-inference:
+  #   required_pcc: 0.98
+  #   status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6l-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov6/pytorch-yolov6l-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov7/pytorch-yolov7x-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov7/pytorch-yolov7x-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov7/pytorch-yolov7-single_device-full-inference:
-    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9570515751838684. Required: pcc=0.99."
-    assert_pcc: false
-    bringup_status: INCORRECT_RESULT
+  # yolov7/pytorch-yolov7-single_device-full-inference:
+  #   reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9570515751838684. Required: pcc=0.99."
+  #   assert_pcc: false
+  #   bringup_status: INCORRECT_RESULT
 
-  yolov7/pytorch-yolov7-w6-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+  # yolov7/pytorch-yolov7-w6-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  yolov7/pytorch-yolov7-e6-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+  # yolov7/pytorch-yolov7-e6-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  yolov7/pytorch-yolov7-d6-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+  # yolov7/pytorch-yolov7-d6-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  yolov7/pytorch-yolov7-e6e-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+  # yolov7/pytorch-yolov7-e6e-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  yolox/pytorch-yolox_nano-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
-    bringup_status: FAILED_FE_COMPILATION
+  # yolox/pytorch-yolox_nano-single_device-full-inference:
+  #   status: NOT_SUPPORTED_SKIP
+  #   reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+  #   bringup_status: FAILED_FE_COMPILATION
 
-  yolox/pytorch-yolox_tiny-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
-    bringup_status: FAILED_FE_COMPILATION
+  # yolox/pytorch-yolox_tiny-single_device-full-inference:
+  #   status: NOT_SUPPORTED_SKIP
+  #   reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+  #   bringup_status: FAILED_FE_COMPILATION
 
-  yolox/pytorch-yolox_s-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+  # yolox/pytorch-yolox_s-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+  #   reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
 
-  yolox/pytorch-yolox_m-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+  # yolox/pytorch-yolox_m-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+  #   reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
 
-  yolox/pytorch-yolox_l-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
-    bringup_status: FAILED_FE_COMPILATION
+  # yolox/pytorch-yolox_l-single_device-full-inference:
+  #   status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+  #   reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+  #   bringup_status: FAILED_FE_COMPILATION
 
-  yolox/pytorch-yolox_darknet-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
-    bringup_status: FAILED_FE_COMPILATION
+  # yolox/pytorch-yolox_darknet-single_device-full-inference:
+  #   status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+  #   reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+  #   bringup_status: FAILED_FE_COMPILATION
 
-  yolox/pytorch-yolox_x-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
-    bringup_status: FAILED_FE_COMPILATION
+  # yolox/pytorch-yolox_x-single_device-full-inference:
+  #   status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+  #   reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+  #   bringup_status: FAILED_FE_COMPILATION
 
   mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1204,8 +1204,8 @@ test_config:
   gpt2/pytorch-gpt2_sequence_classification-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  yolov9/pytorch-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov9/pytorch-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
   unet/pytorch-unet_cityscapes-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1368,11 +1368,11 @@ test_config:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9663628935813904. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  yolov10/pytorch-yolov10x-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov10/pytorch-yolov10x-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov10/pytorch-yolov10n-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov10/pytorch-yolov10n-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
   gemma/pytorch-google/gemma-2b-single_device-full-inference:
     assert_pcc: false
@@ -2094,32 +2094,32 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=-0.7153554558753967. Required: pcc=0.99."
 
-  yolov11/pytorch-yolo11n-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov11/pytorch-yolo11n-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov11/pytorch-yolo11s-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov11/pytorch-yolo11s-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov11/pytorch-yolo11m-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov11/pytorch-yolo11m-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov11/pytorch-yolo11l-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov11/pytorch-yolo11l-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov11/pytorch-yolo11x-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov11/pytorch-yolo11x-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov12/pytorch-yolo12s-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov12/pytorch-yolo12s-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov12/pytorch-yolo12m-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov12/pytorch-yolo12m-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov12/pytorch-yolo12l-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov12/pytorch-yolo12l-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  yolov12/pytorch-yolo12x-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov12/pytorch-yolo12x-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
   vgg19_unet/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2225,20 +2225,20 @@ test_config:
   maskformer_swin_b/pytorch-swin_base_ade-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  yolos_small/pytorch-small-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+  # yolos_small/pytorch-small-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
 
-  yolos_small/pytorch-small_dwr-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+  # yolos_small/pytorch-small_dwr-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
 
-  yolos_small/pytorch-small_300-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+  # yolos_small/pytorch-small_300-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
 
-  yolop/pytorch-yolop-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+  # yolop/pytorch-yolop-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
     reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 12. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
 
@@ -2246,8 +2246,8 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](16) - https://github.com/tenstorrent/tt-xla/issues/1955"
 
-  yolov12/pytorch-yolo12n-single_device-full-inference:
-    status: EXPECTED_PASSING
+  # yolov12/pytorch-yolo12n-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
   ultra_fast_lane_detection/pytorch-tusimple_resnet18-single_device-full-inference:
     status: EXPECTED_PASSING

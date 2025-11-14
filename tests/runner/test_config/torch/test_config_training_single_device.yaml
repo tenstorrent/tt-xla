@@ -284,40 +284,40 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "AttributeError: 'NoneType' object has no attribute 'max'"
 
-  yolov5/pytorch-yolov5n-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+  # yolov5/pytorch-yolov5n-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
 
-  yolov5/pytorch-yolov5s-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+  # yolov5/pytorch-yolov5s-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
 
-  yolov5/pytorch-yolov5m-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+  # yolov5/pytorch-yolov5m-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
 
-  yolov5/pytorch-yolov5l-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+  # yolov5/pytorch-yolov5l-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
 
-  yolov5/pytorch-yolov5x-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
+  # yolov5/pytorch-yolov5x-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
 
   whisper/pytorch-openai/whisper-large-v3-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Could not load libtorchcodec. Likely causes:"
 
-  yolox/pytorch-yolox_x-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "EOFError: Ran out of input"
+  # yolox/pytorch-yolox_x-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "EOFError: Ran out of input"
 
   unet/pytorch-smp_unet_resnet101-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -344,55 +344,55 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
 
-  yolox/pytorch-yolox_nano-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+  # yolox/pytorch-yolox_nano-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "Model expects targets to be passed while in training mode"
 
-  yolox/pytorch-yolox_tiny-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+  # yolox/pytorch-yolox_tiny-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "Model expects targets to be passed while in training mode"
 
-  yolox/pytorch-yolox_s-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+  # yolox/pytorch-yolox_s-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "Model expects targets to be passed while in training mode"
 
-  yolox/pytorch-yolox_m-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+  # yolox/pytorch-yolox_m-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "Model expects targets to be passed while in training mode"
 
-  yolox/pytorch-yolox_l-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+  # yolox/pytorch-yolox_l-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "Model expects targets to be passed while in training mode"
 
-  yolox/pytorch-yolox_darknet-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+  # yolox/pytorch-yolox_darknet-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "Model expects targets to be passed while in training mode"
 
   hippynn/pytorch-Hippynn-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
 
-  yolov6/pytorch-yolov6n-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov6/pytorch-yolov6n-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov6/pytorch-yolov6s-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov6/pytorch-yolov6s-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov6/pytorch-yolov6m-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov6/pytorch-yolov6m-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   distilbert/question_answering/pytorch-distilbert-base-cased-distilled-squad-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -409,40 +409,40 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov10/pytorch-yolov10x-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov10/pytorch-yolov10x-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov10/pytorch-yolov10n-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov10/pytorch-yolov10n-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov11/pytorch-yolo11n-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov11/pytorch-yolo11n-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov11/pytorch-yolo11s-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov11/pytorch-yolo11s-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov11/pytorch-yolo11m-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov11/pytorch-yolo11m-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov11/pytorch-yolo11l-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov11/pytorch-yolo11l-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov11/pytorch-yolo11x-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov11/pytorch-yolo11x-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   albert/question_answering/pytorch-squad2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -494,10 +494,10 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolos/pytorch-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolos/pytorch-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -514,15 +514,15 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov8/pytorch-yolov8x-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov8/pytorch-yolov8x-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov9/pytorch-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov9/pytorch-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   retinanet/pytorch-retinanet_rn18fpn-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -589,10 +589,10 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov6/pytorch-yolov6l-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov6/pytorch-yolov6l-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   maptr/pytorch-tiny_r50_24e_bevformer-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -634,20 +634,20 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov3/pytorch-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov3/pytorch-base-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   transfuser/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yoloworld/pytorch-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yoloworld/pytorch-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   segformer/semantic_segmentation/pytorch-b1_finetuned_ade_512_512-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -679,15 +679,15 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov8/pytorch-yolov8n-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov8/pytorch-yolov8n-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  yolov4/pytorch-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  # yolov4/pytorch-base-single_device-full-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   detr/object_detection/pytorch-resnet_50-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
