@@ -1577,6 +1577,14 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, request):
                 shard_specs[attention.v_proj.weight] = ("model", None)
                 shard_specs[attention.o_proj.weight] = (None, "model")
                 return shard_specs
+                """elif num_heads % 8 == 0 and num_key_value_heads == 1:
+                    mesh_shape = (1, num_devices)
+
+                    def get_shard_spec(attention, args, kwargs):
+                        shard_specs = {}
+                        shard_specs[attention.q_proj.weight] = ("model", None)
+                        shard_specs[attention.o_proj.weight] = (None, "model")
+                        return shard_specs"""
 
         else:
             batch_size = 2
@@ -1837,13 +1845,24 @@ def test_gemma_attention(variant, variant_config, seq_len, request):
 
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(sdpa, args, kwargs):
-            shard_specs = {}
-            shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
-            shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
-            shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
-            shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
-            return shard_specs
+        # replicate key, value states if num_kv_heads=1 like in Gemma 1.1 2b
+        if num_key_value_heads == 1:
+
+            def get_shard_spec(sdpa, args, kwargs):
+                shard_specs = {}
+                shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
+                shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
+                return shard_specs
+
+        else:
+
+            def get_shard_spec(sdpa, args, kwargs):
+                shard_specs = {}
+                shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
+                shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
+                shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
+                shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
+                return shard_specs
 
     else:
         mesh = None
