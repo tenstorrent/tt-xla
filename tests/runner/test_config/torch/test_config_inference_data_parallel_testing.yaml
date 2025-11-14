@@ -292,7 +292,7 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8567329049110413. Required: pcc=0.99.
 
-  qwen_2_5/casual_lm/pytorch-1_5b_instruct-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-1_5b_instruct-data_parallel-full-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -386,31 +386,31 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  qwen_2_5/casual_lm/pytorch-14b-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-14b-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  qwen_2_5/casual_lm/pytorch-14b_instruct-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-14b_instruct-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  qwen_2_5/casual_lm/pytorch-14b_instruct_1m-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-14b_instruct_1m-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  qwen_2_5/casual_lm/pytorch-7b-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-7b-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  qwen_2_5/casual_lm/pytorch-7b_instruct-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-7b_instruct-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  qwen_2_5/casual_lm/pytorch-7b_instruct_1m-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-7b_instruct_1m-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  qwen_2_5/casual_lm/pytorch-math_7b-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-math_7b-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -555,12 +555,12 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  qwen_2_5/casual_lm/pytorch-0_5b_instruct-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-0_5b_instruct-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  qwen_2_5/casual_lm/pytorch-3b-data_parallel-full-inference:
+  qwen_2_5/causal_lm/pytorch-3b-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
