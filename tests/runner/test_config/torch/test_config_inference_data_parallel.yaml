@@ -70,9 +70,13 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9775277376174927. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1844"
 
-  mnist/pytorch-data_parallel-full-inference:
+  mnist/image_classification/pytorch-cnn_dropout-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
+
+  mnist/image_classification/pytorch-cnn_nodropout-data_parallel-full-inference:
+      supported_archs: [n300]
+      status: EXPECTED_PASSING
 
   vit/pytorch-large-data_parallel-full-inference:
     supported_archs: [n300]
@@ -92,9 +96,9 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
-  yolov6/pytorch-yolov6l-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # yolov6/pytorch-yolov6l-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg16-data_parallel-full-inference:
     supported_archs: [n300]

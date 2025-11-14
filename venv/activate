@@ -27,6 +27,8 @@ else
   pip install -r venv/requirements-dev.txt
 fi
 
+export VLLM_TARGET_DEVICE="empty"
+
 export TTXLA_ENV_ACTIVATED=1
 export TTMLIR_ENV_ACTIVATED=1
 export TT_METAL_LOGGER_LEVEL="ERROR"

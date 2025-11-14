@@ -274,22 +274,28 @@ def record_model_test_properties(
     - Passing tests (test_passed=True) set bringup_status based on PCC comparison.
     - Failing tests classify bringup info based on the last stage reached before failure.
     - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status and reason from config and call pytest.skip(reason).
+    - If test_metadata.bringup_status is NOT_STARTED, its just recorded as NOT_STARTED - test_placeholder_models uses this.
     - If test_metadata.status is KNOWN_FAILURE_XFAIL, call pytest.xfail(reason) at the end.
     - If test_metadata.failing_reason is set, use it to set the failing reason.
     """
 
-    reason = None
+    reason = ""
     arch = getattr(test_metadata, "arch", None)
     failing_reason = getattr(test_metadata, "failing_reason", None)
+    config_bringup_status = getattr(test_metadata, "bringup_status", None)
 
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
-        bringup_status = getattr(test_metadata, "bringup_status", None)
-        reason = getattr(test_metadata, "reason", None)
+        bringup_status = config_bringup_status
+        reason = getattr(test_metadata, "reason", "")
+
+    elif config_bringup_status == BringupStatus.NOT_STARTED:
+        bringup_status = config_bringup_status
+        reason = getattr(test_metadata, "reason", "")
 
     elif comparison_result is not None:
         pcc = comparison_result.pcc
         required_pcc = comparison_config.pcc.required_pcc
-        if pcc < required_pcc:
+        if np.isnan(pcc) or pcc < required_pcc:
             bringup_status = BringupStatus.INCORRECT_RESULT
             required_pcc = comparison_config.pcc.required_pcc
             pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"

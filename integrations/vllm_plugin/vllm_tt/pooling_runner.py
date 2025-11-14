@@ -238,6 +238,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.observability_config = vllm_config.observability_config
         self.device_config = vllm_config.device_config
         self.batch_size = self.tt_config.batch_size
+        self.enable_precompile_all = self.tt_config.enable_precompile_all
         assert (
             self.batch_size > 0
         ), f"Positive batch_size allowed, received: batch_size: {self.batch_size}"
@@ -356,6 +357,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Request states.
         self.requests: dict[str, CachedRequestState] = {}
 
+        # If there's no kv_cache_spec, we don't need KV cache block tables
+        kv_cache_spec = self.get_kv_cache_spec()
+        block_sizes = [self.block_size] if kv_cache_spec else []
+
         # Initialize input batch early to avoid AttributeError in _update_states
         self.input_batch = InputBatch(
             max_num_reqs=self.max_num_reqs,
@@ -364,7 +369,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             device=self.device,
             pin_memory=self.pin_memory,
             vocab_size=self.model_config.get_vocab_size(),
-            block_sizes=[self.block_size],
+            block_sizes=block_sizes,
             logitsprocs=build_logitsprocs(
                 self.vllm_config,
                 self.device,
@@ -1261,7 +1266,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         model_loader.load_weights(self.model, model_config=self.model_config)
 
     @torch.no_grad()
-    def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
+    def _dummy_run(
+        self, batch_size: int, num_tokens: int, num_reqs: int, num_blocks: int
+    ) -> None:
         torch._dynamo.config.dynamic_shapes = False
         if self.supports_mm_inputs:
             input_ids = None
@@ -1269,11 +1276,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (num_tokens, self.hidden_size), dtype=self.dtype, device=self.device
             )
         else:
-            input_ids = torch.zeros(
-                (self.batch_size, num_tokens), dtype=torch.int32
-            ).to(self.device)
+            input_ids = torch.zeros((batch_size, num_tokens), dtype=torch.int32).to(
+                self.device
+            )
             inputs_embeds = None
-        position_ids = torch.zeros((self.batch_size, num_tokens), dtype=torch.int32).to(
+        position_ids = torch.zeros((batch_size, num_tokens), dtype=torch.int32).to(
             self.device
         )
         context_lens = torch.ones((num_reqs,), dtype=torch.int32)
@@ -1404,18 +1411,28 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _precompile_backbone(self) -> None:
         torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling the model with different input shapes.")
+        batch_variants = (
+            list(range(1, self.batch_size + 1))
+            if self.enable_precompile_all
+            else [self.batch_size]
+        )
         start = time.perf_counter()
-        for num_tokens in self.num_tokens_paddings:
-            logger.info("  -- num_tokens: %d", num_tokens)
-            self._dummy_run(
-                num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
-            )
-            if self.most_model_len is not None:
+        for batch in batch_variants:
+            for num_tokens in self.num_tokens_paddings:
+                logger.info(f"Precompilation: input shape  -- [{batch} x {num_tokens}]")
                 self._dummy_run(
+                    batch,
                     num_tokens,
-                    self.num_reqs_most_model_len,
-                    self.num_blocks_per_most_len_req,
+                    self.num_reqs_max_model_len,
+                    self.max_num_blocks_per_req,
                 )
+                if self.most_model_len is not None:
+                    self._dummy_run(
+                        batch,
+                        num_tokens,
+                        self.num_reqs_most_model_len,
+                        self.num_blocks_per_most_len_req,
+                    )
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)

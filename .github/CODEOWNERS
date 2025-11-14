@@ -15,6 +15,7 @@
 
 # Tests
 /tests/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
+/tests/infra/utilities/failing_reasons/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @vbrkicTT @vobojevicTT @kmilanovicTT @nvukobratTT @dgolubovicTT
 pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
 .test_durations @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
 
@@ -31,4 +32,4 @@ pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @n
 /third_party/tt_forge_models @AleksKnezevic @kmabeeTT @mrakitaTT @nvukobratTT
 
 # Integrations
-/integrations/vllm_plugin/ @AleksKnezevic @LPanosTT @mmanzoorTT
+/integrations/vllm_plugin/ @AleksKnezevic @LPanosTT @mmanzoorTT @ljovanovicTT

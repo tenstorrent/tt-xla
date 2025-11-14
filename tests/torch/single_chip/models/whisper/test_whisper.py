@@ -38,6 +38,10 @@ def _variant_param(v):
     else:
         bringup_status = BringupStatus.PASSED
 
+    # Mark large model variants
+    if v == ModelVariant.WHISPER_LARGE_V3:
+        marks.append(pytest.mark.large)
+
     marks.extend(
         [
             pytest.mark.model_test,

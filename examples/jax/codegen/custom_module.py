@@ -47,7 +47,7 @@ options = {
     # "enable_memory_layout_analysis": True,
     # "enable_l1_interleaved": False,
     # Tensor dumping options
-    # "dump_inputs": True,
+    # "export_tensors": True,
     "export_path": "model",
 }
 
