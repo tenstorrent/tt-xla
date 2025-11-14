@@ -24,7 +24,7 @@ def codegen_py(
     compiler_options: dict = {},
     export_path: str = "codegen_result",
     export_tensors: bool = True,
-    **kwargs
+    **kwargs,
 ):
     real_compile_options = {
         **compiler_options,
@@ -40,6 +40,9 @@ def codegen_py(
     kwargs = {k: v.to(device) for k, v in kwargs.items() if isinstance(v, torch.Tensor)}
     output = model(*args, **kwargs)
     torch_xla.sync(wait=True)
+    print(
+        f"Python codegen successful. Generated model TTNN code can be found under: {export_path}"
+    )
     return None
 
 
@@ -49,7 +52,7 @@ def codegen_cpp(
     compiler_options: dict = {},
     export_path: str = "codegen_result",
     export_tensors: bool = True,
-    **kwargs
+    **kwargs,
 ):
     real_compile_options = {
         **compiler_options,
@@ -65,4 +68,7 @@ def codegen_cpp(
     kwargs = {k: v.to(device) for k, v in kwargs.items() if isinstance(v, torch.Tensor)}
     output = model(*args, **kwargs)
     torch_xla.sync(wait=True)
+    print(
+        f"C++ codegen successful. Generated model TTNN code can be found under: {export_path}"
+    )
     return None
