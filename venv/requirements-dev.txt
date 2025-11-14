@@ -43,7 +43,6 @@ wheel
 # monodepth2 model
 matplotlib
 
-ultralytics # For yolo
 seaborn
 diffusers
 scikit-image>=0.24 # For DenseNet 121 HF XRay model
