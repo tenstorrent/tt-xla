@@ -86,6 +86,7 @@ def test_all_models_torch(
     test_metadata,
     request,
     capteesys,
+    clear_torchxla_computation_cache,
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     fix_venv_isolation()
