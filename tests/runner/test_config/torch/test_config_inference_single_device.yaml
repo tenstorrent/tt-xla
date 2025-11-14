@@ -1533,7 +1533,7 @@ test_config:
 
   vadv2/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B - https://github.com/tenstorrent/tt-xla/issues/1458"
+    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
   huggyllama/pytorch-llama_7b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2038,7 +2038,7 @@ test_config:
 
   maptr/pytorch-tiny_fusion_24e-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Invalid type annotations in generated GraphModule forward cause torch.compile failure - https://github.com/tenstorrent/tt-xla/issues/1587"
+    reason: "AssertionError: SparseSequential encountered by torch._dynamo"
 
   hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-inference:
     required_pcc: 0.96
@@ -2131,7 +2131,7 @@ test_config:
 
   unet/pytorch-smp_unet_resnet101-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
+    reason: "ModuleNotFoundError: No module named segmentation_models_pytorch"
 
   sam/pytorch-facebook/sam-vit-large-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2293,7 +2293,7 @@ test_config:
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
+    reason: "ValueError: Cannot use chat template functions because tokenizer.chat_template is not set and no template argument was passed"
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
