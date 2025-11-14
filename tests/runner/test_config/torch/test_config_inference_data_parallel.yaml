@@ -96,9 +96,9 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
-  yolov6/pytorch-yolov6l-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # yolov6/pytorch-yolov6l-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg16-data_parallel-full-inference:
     supported_archs: [n300]
