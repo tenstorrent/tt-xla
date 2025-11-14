@@ -6,7 +6,7 @@
 
 import pytest
 from infra import RunMode
-from utils import BringupStatus, Category, ExecutionPass, failed_runtime
+from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.alexnet.image_classification.jax import (
     ModelLoader,
@@ -42,9 +42,9 @@ def training_tester() -> AlexNetTester:
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.xfail(
-    reason=failed_runtime(
-        "Statically allocated circular buffers on core range [(x=0,y=0) - (x=1,y=1)] "
-        "grow to 3087776 B which is beyond max L1 size of 1499136 B"
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'ttir.scatter' "
+        "https://github.com/tenstorrent/tt-mlir/issues/5091"
     )
 )
 def test_alexnet_training(training_tester: AlexNetTester):
