@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import argparse
 import os
 from typing import List
 
@@ -17,19 +18,52 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenize
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
+DEFAULT_PROMPTS = [
+    "I like taking walks in the",
+    "My name is",
+    "My favorite color is",
+    "Cheese is an excellent",
+    "While ham sandwiches are great, I prefer",
+    "My bicycle is broken, and",
+    "The best way to start my day is with",
+    "I love to",
+    "I am not a fan of",
+    "Toronto has an explosive restaurant scene. There are many different cuisines to",
+    "My favorite season is",
+    "My least favorite season is",
+    "Bison meat is not",
+    "If you forget to wear your shoes when you go hiking,",
+    "My right elbow is in pain, and",
+    "To make a grilled cheese, start by",
+    "The internal combustion engine",
+    "The first person to walk on the moon was",
+    "The ocean is home to many",
+    "I",
+    "Calculus is a branch of mathematics that",
+    "The most common type of cloud is",
+    "A matrix dot product is",
+    "The 300 Spartans were",
+    "Napoleon Bonaparte was born in",
+    "The quick brown fox jumps over the lazy dog. And then he",
+    "The original title of the book 'The Great Gatsby' was",
+    "I forgot to tie my shoelaces",
+    "Playing video games",
+    "The sun is",
+    "My car's transmission is",
+    "My keyboard is in a language I don't understand! What",
+]
+
 
 # --------------------------------
 # Llama Generation Loop Example
 # --------------------------------
-def llama():
+def llama(interactive: bool = False):
 
     # Check transformers version
     check_transformers_version()
 
     # Set up config variables.
-    batch_size: int = 1
     max_cache_len: int = 128
-    input_prompt: str = "I like taking walks in the"
     model_name: str = "meta-llama/Llama-3.2-3B"
 
     # Determine if SPMD mode should be enabled, if more than 1 device is available.
@@ -46,34 +80,50 @@ def llama():
     # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_name)
 
-    # Construct inputs, including static cache
-    input_args = construct_inputs(
-        input_prompt, tokenizer, model.config, batch_size, max_cache_len
-    )
+    while True:
+        if interactive:
+            user_prompt = input("Enter your prompt or quit() to exit: ")
+            batch_size: int = 1
+            if user_prompt.lower() == "quit()":
+                break
+            user_prompt = [user_prompt]
+        else:
+            batch_size: int = 32
+            user_prompt = DEFAULT_PROMPTS[:batch_size]
 
-    # Limit maximum generation count to fit within preallocated static cache
-    max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
+        # Construct inputs, including static cache
+        input_args = construct_inputs(
+            user_prompt, tokenizer, model.config, batch_size, max_cache_len
+        )
 
-    # Transfer model and inputs to device
-    model, input_args = transfer_to_device(model, input_args, device)
+        # Limit maximum generation count to fit within preallocated static cache
+        max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
 
-    # Mark sharding on inputs and model internals if SPMD is enabled
-    if is_spmd:
-        mark_sharding_on_inputs_and_model(model, input_args, mesh)
+        # Transfer model and inputs to device
+        model, input_args = transfer_to_device(model, input_args, device)
 
-    # Compile model
-    compiled_model = torch.compile(model, backend="tt")
+        # Mark sharding on inputs and model internals if SPMD is enabled
+        if is_spmd:
+            mark_sharding_on_inputs_and_model(model, input_args, mesh)
 
-    # Run generation loop until EOS token generated or max tokens reached
-    run_generate(
-        compiled_model,
-        input_args,
-        tokenizer,
-        device,
-        mesh,
-        is_spmd,
-        max_tokens_to_generate,
-    )
+        # Compile model
+        compiled_model = torch.compile(model, backend="tt")
+
+        # Run generation loop until EOS token generated or max tokens reached
+        run_generate(
+            compiled_model,
+            input_args,
+            tokenizer,
+            device,
+            mesh,
+            is_spmd,
+            max_tokens_to_generate,
+            user_prompt,
+            interactive,
+        )
+
+        if not interactive:
+            break
 
 
 def setup_spmd():
@@ -149,10 +199,13 @@ def construct_inputs(
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
-    inputs = tokenizer.encode_plus(
+    inputs = tokenizer(
         input_prompt,
         return_tensors="pt",
-        truncation=True,
+        max_length=32,
+        padding="max_length",
+        padding_side="left",
+        return_attention_mask=True,
     )
 
     # Static cache should be initialized on CPU and separately transferred to device
@@ -166,12 +219,30 @@ def construct_inputs(
     )
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
+    # it is for some reason necessary to pass an attention mask (even though it is not updated/becomes invalid)
+    # to avoid a left padded model from producing degenerate outputs. We do not update the attention mask
+    # during generation, so it will remain technically invalid after the first step, but produced output is still correct.
+    # -- just as a test, passing in a randint attention mask also produces degenerate output, so during prefill attn mask does matter.
+
     input_args = {
         "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
         "cache_position": cache_position,
         "use_cache": True,
+        "attention_mask": inputs.attention_mask,
     }
+
+    #   Debug prints
+    print("\n=== DEBUG: construct_inputs ===")
+    print(f"Input prompt: '{input_prompt}'")
+    print(f"Input IDs shape: {inputs.input_ids.shape}")
+    print(f"Input IDs: {inputs.input_ids}")
+    print(f"Attention mask shape: {inputs.attention_mask.shape}")
+    print(f"Attention mask: {inputs.attention_mask}")
+    print(f"Cache position shape: {cache_position.shape}")
+    print(f"Cache position: {cache_position}")
+    print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
+    print("=" * 50)
 
     return input_args
 
@@ -198,6 +269,7 @@ def transfer_to_device(
     ]
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
+    input_args["attention_mask"] = input_args["attention_mask"].to(device)
 
     model = model.to(device)
 
@@ -247,6 +319,8 @@ def run_generate(
     mesh: Mesh = None,
     is_spmd: bool = True,
     max_tokens_to_generate: int = 128,
+    input_prompt: List[str] = [""],
+    is_interactive: bool = False,
 ):
     """
     Run the generation loop.
@@ -260,19 +334,27 @@ def run_generate(
         is_spmd: Whether SPMD mode is enabled
         max_tokens_to_generate: Maximum number of tokens to generate
     """
-    output_tokens: List[str] = []
+    num_users = input_args["input_ids"].shape[0]
+    output_tokens: List[List[str]] = [[] for _ in range(num_users)]
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
+            if step == 0:
+                print("RUNNING PREFILL")
+                if is_interactive:
+                    print(f"Result: {input_prompt[0]}", end="", flush=True)
+
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
             output_logits: torch.Tensor = output.logits.to("cpu")
             next_token_id = output_logits[:, -1].argmax(dim=-1)
-            output_text = tokenizer.decode(next_token_id)
-            output_tokens.append(output_text)
-            print(output_text, end="", flush=True)
+            output_text = [tokenizer.decode(next_token_id[i]) for i in range(num_users)]
+            for i, output_tokens_list in enumerate(output_tokens):
+                output_tokens_list.append(output_text[i])
+                if is_interactive:
+                    print(output_text[i], end="", flush=True)
 
             # Check for EOS token and early exit
-            if next_token_id.item() == tokenizer.eos_token_id:
+            if torch.all(next_token_id == tokenizer.eos_token_id):
                 print()  # Add newline after generation completes
                 break
 
@@ -294,7 +376,11 @@ def run_generate(
                 ):
                     xs.mark_sharding(key, mesh, (None, "model", None, None))
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
-    print("Output tokens:", output_tokens)
+    print()
+    if not is_interactive:
+        for i in range(num_users):
+            print(f"Result for user {i}: {input_prompt[i]}{''.join(output_tokens[i])}")
+            print()
 
 
 def check_transformers_version():
@@ -320,7 +406,16 @@ def check_transformers_version():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Llama generation example")
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        default=False,
+        help="Enable interactive mode for entering custom prompts",
+    )
+    args = parser.parse_args()
+
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
 
-    llama()
+    llama(interactive=args.interactive)
