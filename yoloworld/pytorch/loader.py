@@ -8,7 +8,6 @@ import torch
 from datasets import load_dataset
 from torch.hub import load_state_dict_from_url
 from torchvision import transforms
-from ultralytics.nn.tasks import WorldModel
 
 from ...config import (
     ModelInfo,
@@ -54,7 +53,6 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_url = "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8s-worldv2.pt"
 
     def load_model(self, dtype_override=None):
         """Load and return the YOLO-World model instance with default settings.

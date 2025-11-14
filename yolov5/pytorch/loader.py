@@ -102,7 +102,6 @@ class ModelLoader(ForgeModel):
         """
         # Get the model name from the instance's variant config
         model_variant = self._variant_config.pretrained_model_name
-        model = torch.hub.load("ultralytics/yolov5", model_variant)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:

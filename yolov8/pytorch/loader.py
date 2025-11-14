@@ -20,7 +20,6 @@ from ...config import (
 )
 from ...base import ForgeModel
 from torch.hub import load_state_dict_from_url
-from ultralytics.nn.tasks import DetectionModel
 from torchvision import transforms
 from datasets import load_dataset
 from ...tools.utils import yolo_postprocess
@@ -98,9 +97,6 @@ class ModelLoader(ForgeModel):
         """
         # Get the model name from the instance's variant config
         variant = self._variant_config.pretrained_model_name
-        weights = load_state_dict_from_url(
-            f"https://github.com/ultralytics/assets/releases/download/v8.2.0/{variant}.pt"
-        )
         model = DetectionModel(cfg=weights["model"].yaml)
         model.load_state_dict(weights["model"].float().state_dict())
         model.eval()

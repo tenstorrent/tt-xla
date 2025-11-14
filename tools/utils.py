@@ -227,29 +227,6 @@ def pad_inputs(inputs, max_new_tokens=512):
     return padded_inputs, seq_len
 
 
-def yolo_postprocess(y):
-    from ultralytics.nn.modules.head import Detect
-
-    processed_output = Detect.postprocess(y.permute(0, 2, 1), 50)
-    yaml_url = (
-        "https://raw.githubusercontent.com/ultralytics/yolov5/master/data/coco.yaml"
-    )
-
-    response = requests.get(yaml_url)
-    coco_yaml = yaml.safe_load(response.text)
-    class_names = coco_yaml["names"]
-    det = processed_output[0]
-
-    print("Detections:")
-    for d in det:
-        x, y, w, h, score, cls = d.tolist()
-        cls = int(cls)
-        label = class_names[cls] if cls < len(class_names) else f"Unknown({cls})"
-        print(
-            f"  Box: [x={x:.1f}, y={y:.1f}, w={w:.1f}, h={h:.1f}], Score: {score:.2f}, Class: {label} ({cls})"
-        )
-
-
 def cast_input_to_type(
     tensor: torch.Tensor, dtype_override: Optional[torch.dtype]
 ) -> torch.Tensor:

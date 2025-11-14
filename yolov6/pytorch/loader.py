@@ -155,9 +155,7 @@ class ModelLoader(ForgeModel):
 
         det = non_max_suppression(output.detach().float())
 
-        coco_yaml_path = get_file(
-            "https://raw.githubusercontent.com/ultralytics/yolov5/master/data/coco.yaml"
-        )
+        coco_yaml_path = get_file("FIND_NEW_PATH")
         with open(coco_yaml_path, "r") as f:
             coco_yaml = yaml.safe_load(f)
         class_names = coco_yaml["names"]
