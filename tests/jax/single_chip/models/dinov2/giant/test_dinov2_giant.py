@@ -22,7 +22,7 @@ MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 @pytest.fixture
 def training_tester() -> Dinov2Tester:
-    return Dinov2Tester(VARIANT_NAME, RunMode.TRAINING)
+    return Dinov2Tester(VARIANT_NAME, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -34,16 +34,15 @@ def training_tester() -> Dinov2Tester:
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.TRAINING,
-    execution_pass=ExecutionPass.FORWARD,
+    execution_pass=ExecutionPass.BACKWARD,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
 @pytest.mark.large
 @pytest.mark.xfail(
     reason=failed_runtime(
-        "Statically allocated circular buffers in program 2669 clash with "
-        "L1 buffers on core range[(x=0,y=0) - (x=7,y=0)]. "
-        "L1 buffer allocated at 1069056 and static circular buffer region ends at 1117312"
-        "(https://github.com/tenstorrent/tt-xla/issues/1066)"
+        "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, "
+        "where each bank needs to store 1505280 B, but bank size is only 1331936 B "
+        "https://github.com/tenstorrent/tt-xla/issues/918"
     )
 )
 def test_dinov2_giant_training(training_tester: Dinov2Tester):
