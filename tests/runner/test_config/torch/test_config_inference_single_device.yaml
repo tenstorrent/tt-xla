@@ -2310,3 +2310,23 @@ test_config:
 
   arnold/pytorch-vizdoom_2017_track2_rnn-single_device-full-inference:
     status: EXPECTED_PASSING
+
+  petr/pytorch-vovnet_gridmask_p4_800x320-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 57952512 B L1 buffer across 72 banks, where each bank needs to store 804896 B, but bank size is only 1331936 B"
+    bringup_status: FAILED_RUNTIME
+
+  petr/pytorch-vovnet_gridmask_p4_1600x640-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
+    bringup_status: FAILED_RUNTIME
+
+  petr/pytorch-r50dcn_gridmask_c5-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
+    bringup_status: FAILED_RUNTIME
+
+  petr/pytorch-r50dcn_gridmask_p4-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
+    bringup_status: FAILED_RUNTIME

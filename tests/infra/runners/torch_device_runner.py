@@ -24,6 +24,7 @@ def to_device(x, device, depth=5):
     - PyTorch tensors and models (objects with .to() method)
     - Custom objects with attributes (recursively processes all fields)
     - None values and other primitives (returned unchanged)
+    - Class types (returned unchanged as metadata)
 
     Args:
         x: The data structure or object to move to device
@@ -50,6 +51,8 @@ def to_device(x, device, depth=5):
     elif isinstance(x, dict):
         return {k: to_device(v, device, depth - 1) for k, v in x.items()}
     elif hasattr(x, "to"):
+        if isinstance(x, type):
+            return x
         return x.to(device)
     # Handle objects with attributes by recursively processing all fields.
     # This is done in-place.
