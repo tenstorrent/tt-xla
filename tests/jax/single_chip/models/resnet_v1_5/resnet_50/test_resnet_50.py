@@ -6,13 +6,7 @@ import pytest
 from infra import RunMode
 from infra.comparators import ComparisonConfig, PccConfig
 from pytest import MonkeyPatch
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    ModelGroup,
-    failed_runtime,
-)
+from utils import BringupStatus, Category, ExecutionPass, ModelGroup, failed_runtime
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.resnet.image_classification.jax import (

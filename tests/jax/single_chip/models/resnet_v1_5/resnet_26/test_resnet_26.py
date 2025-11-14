@@ -4,12 +4,7 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    failed_runtime,
-)
+from utils import BringupStatus, Category, ExecutionPass, failed_runtime
 
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.config import Parallelism
