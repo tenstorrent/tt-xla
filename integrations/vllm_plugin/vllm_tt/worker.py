@@ -38,6 +38,7 @@ from vllm.v1.worker.utils import bind_kv_cache
 from .attention import TT_HEAD_SIZE_ALIGNMENT
 from .logger import tt_init_logger
 from .model_runner import TTModelRunner
+from .platform import TTConfig
 from .pooling_runner import TTPoolingModelRunner
 
 logger = tt_init_logger(__name__)
@@ -59,7 +60,11 @@ class TTWorker:
         self.lora_config = vllm_config.lora_config
         self.load_config = vllm_config.load_config
         self.parallel_config = vllm_config.parallel_config
-        self.use_spmd = envs.VLLM_XLA_USE_SPMD
+
+        self.tt_config = TTConfig(**vllm_config.additional_config)
+        data_parallel_inference = self.tt_config.is_data_parallel
+
+        self.use_spmd = envs.VLLM_XLA_USE_SPMD or data_parallel_inference
         self.original_parallel_config = None
         if self.use_spmd:
             # Under SPMD mode, distributed env is initialized as if there is
@@ -68,6 +73,13 @@ class TTWorker:
             self.parallel_config.tensor_parallel_size = 1
             self.parallel_config.pipeline_parallel_size = 1
             self.parallel_config.world_size = 1
+
+            # torch-xla uses 'CONVERT_SHLO_TO_SHARDY' evn variable to enable
+            # conversion of sharding annotations (expressed in the shlo dialect)
+            # into the Shardy dialect representation, which is what Shardy uses
+            # for SPMD execution.
+            os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+
         self.scheduler_config = vllm_config.scheduler_config
         self.device_config = vllm_config.device_config
         self.speculative_config = vllm_config.speculative_config
@@ -208,28 +220,17 @@ class TTWorker:
 
         # Get the maximum amount of memory used by the model weights and
         # intermediate activations.
-        if self.use_spmd:
-            # This is a workaround for the TPU SPMD mode. The get_memory_info
-            # API doesn't work with SPMD mode in PyTorch/XLA.
-            # TODO: use xm.get_memory_info for SPMD once it's supported in
-            # PyTorch/XLA.
-            import tpu_info
+        # TODO @LPanosTT: https://github.com/tenstorrent/tt-xla/issues/1414: we should find out if/how we
+        # can implement the PJRT API function(s) necessary to execute xm.get_memory_info,
+        # and implement them. I believe we must implement PJRT_Device_MemoryStats.
 
-            chip_type, _ = tpu_info.device.get_local_chips()
-            device_usage = tpu_info.metrics.get_chip_usage(chip_type)
-            total_memory_size = device_usage[0].total_memory
-            current_mem = device_usage[0].memory_usage
-        else:
-            # TODO @LPanosTT: https://github.com/tenstorrent/tt-xla/issues/1414: we should find out if/how we
-            # can implement the PJRT API function(s) necesarry to exegcute xm.get_memory_info,
-            # and implement them. I believe we must implement PJRT_Device_MemoryStats.
+        # m = xm.get_memory_info(self.device)
+        # total_memory_size = m["bytes_limit"]
+        # current_mem = m["bytes_used"]
+        # @LPanosTT: For now we will always report that no memory has been used.
+        total_memory_size = 12 * 1024**3  # m["bytes_limit"]
+        current_mem = 0  # m["bytes_used"]
 
-            # m = xm.get_memory_info(self.device)
-            # total_memory_size = m["bytes_limit"]
-            # current_mem = m["bytes_used"]
-            # @LPanosTT: For now we will always report that no memory has been used.
-            total_memory_size = 12 * 1024**3  # m["bytes_limit"]
-            current_mem = 0  # m["bytes_used"]
         # Ideally we would use profiled = m["peak_bytes_used"] to
         # get weights + activations. But there is memory used during
         # compilation / weight loading that impacts the peak and
