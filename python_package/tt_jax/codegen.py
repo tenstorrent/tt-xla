@@ -26,9 +26,6 @@ def codegen_py(
         "export_tensors": export_tensors,
     }
     jax.jit(func, compiler_options=real_compile_options)(*args, **kwargs)
-    print(
-        f"Python codegen successful. Generated model TTNN code can be found under: {export_path}"
-    )
     return None
 
 
@@ -47,7 +44,4 @@ def codegen_cpp(
         "export_tensors": export_tensors,
     }
     jax.jit(func, compiler_options=real_compile_options)(*args, **kwargs)
-    print(
-        f"C++ codegen successful. Generated model TTNN code can be found under: {export_path}"
-    )
     return None
