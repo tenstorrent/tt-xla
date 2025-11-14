@@ -9,5 +9,5 @@
   { "runs-on": "n300-llmbox",        "name": "run_jax_4_devices",     "dir": "./tests/jax/multi_chip/llmbox/4_devices", "test-mark": "push", "shared-runners": "true" },
   { "runs-on": "n300-llmbox",        "name": "run_jax_8_devices",     "dir": "./tests/jax/multi_chip/llmbox/8_devices", "test-mark": "push", "shared-runners": "true" },
   { "runs-on": "n300-llmbox",        "name": "run_torch_multi_chip",  "dir": "./tests/torch/single_chip",               "test-mark": "push and llmbox", "shared-runners": "true" },
-  { "runs-on": "n150",               "name": "run_vllm_n150_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "push", "shared-runners": "true" }
+  { "runs-on": "n150",               "name": "run_vllm_n150_tests",   "dir": "./tests/integrations/vllm_plugin/single_chip",        "test-mark": "push", "shared-runners": "true" }
 ]
