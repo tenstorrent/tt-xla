@@ -163,7 +163,7 @@ void SOLoadedExecutableInstance::createDefaultOutputBuffers(
               host_tensor, std::move(output_shape),
               m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
-              output_type);
+              output_type, device_index);
 
       output_buffer->markAsDataReady();
 
