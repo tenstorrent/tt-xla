@@ -1858,7 +1858,7 @@ test_config:
 
   deepseek/deepseek_math/pytorch-7b_instruct-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
+    reason: "Too large for single chip - https://github.com/tenstorrent/tt-xla/issues/2208"
     bringup_status: FAILED_RUNTIME
 
   llava/pytorch-1_5_7b-single_device-full-inference:
