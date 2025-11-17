@@ -835,11 +835,9 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-4b-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-1_7b-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   qwen_2_5_coder/pytorch-3b-single_device-full-inference:
@@ -847,7 +845,6 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-0_6b-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-3b-single_device-full-inference:

@@ -7,7 +7,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Tuple
 
-import torch
 from infra.utilities import PyTree, Tensor
 
 from .comparison_config import (
@@ -40,9 +39,7 @@ class Comparator(ABC):
         """Initialize the comparator with comparison configuration."""
         self._comparison_config = comparison_config
 
-    def compare(
-        self, device_out: Tensor, golden_out: Tensor, attn_mask=None
-    ) -> ComparisonResult:
+    def compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
         """
         Compares device output with golden output based on ComparisonConfig provided
         during creation.
@@ -50,16 +47,6 @@ class Comparator(ABC):
         Returns ComparisonResult with computed metrics.
         If config.assert_on_failure=True (default), also asserts on failure.
         """
-
-        if attn_mask is not None and torch.is_tensor(attn_mask):
-            device_out = device_out.logits
-            golden_out = golden_out.logits
-            valid_mask = attn_mask.bool()
-
-            if valid_mask.dim() == 2 and device_out.dim() == 3:
-                valid_indices = valid_mask.view(-1).nonzero(as_tuple=False).squeeze(-1)
-                device_out = device_out.view(-1, device_out.size(-1))[valid_indices]
-                golden_out = golden_out.view(-1, golden_out.size(-1))[valid_indices]
         # Pack args in an iterable to simulate a pytree.
         device_output, golden_output = self._match_data_types((device_out, golden_out))
         _comparison_result = ComparisonResult(
