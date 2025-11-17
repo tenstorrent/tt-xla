@@ -831,8 +831,8 @@ test_config:
 
   maptr/pytorch-tiny_r50_24e_av2-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-single_device-full-training:
     status: EXPECTED_PASSING
@@ -931,18 +931,18 @@ test_config:
 
   sam/pytorch-facebook/sam-vit-base-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   sam/pytorch-facebook/sam-vit-large-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   sam/pytorch-facebook/sam-vit-huge-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   mamba/pytorch-mamba-370m-hf-single_device-full-training:
     status: EXPECTED_PASSING
