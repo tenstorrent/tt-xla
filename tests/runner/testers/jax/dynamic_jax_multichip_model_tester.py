@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
-from flax import linen
+from flax import linen, nnx
 from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.connectors import DeviceConnectorFactory, JaxDeviceConnector
 from infra.runners import JaxDeviceRunner
@@ -156,18 +156,19 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         """
         assert isinstance(workload, JaxMultichipWorkload)
 
-        module_sharded_executable = shard_map(
-            workload.executable,
-            mesh=workload.device_mesh,
-            in_specs=workload.in_specs,
-            out_specs=workload.out_spec,
-            # For some reason this check doesn't like replicated outputs.
-            check_rep=False,
-        )
+        # module_sharded_executable = shard_map(
+        #     workload.executable,
+        #     mesh=workload.device_mesh,
+        #     in_specs=workload.in_specs,
+        #     out_specs=workload.out_spec,
+        #     # For some reason this check doesn't like replicated outputs.
+        #     check_rep=False,
+        # )
         output_sharding = NamedSharding(workload.device_mesh, workload.out_spec)
 
-        workload.executable = jax.jit(
-            module_sharded_executable,
+        workload.compiled_executable = jax.jit(
+            # module_sharded_executable,
+            workload.executable,
             out_shardings=output_sharding,
             static_argnames=workload.static_argnames,
             compiler_options=compiler_options,
@@ -205,7 +206,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         By default returns specs for input parameters and activations for the Flax linen
         models, and empty tuple for other type of models.
         """
-        if isinstance(self._model, linen.Module):
+        if isinstance(self._model, (linen.Module, nnx.Module)):
             return (
                 self._input_parameters_partition_specs,
                 self._input_activations_partition_specs,
