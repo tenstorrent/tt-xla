@@ -166,28 +166,28 @@ test_config:
 
   oft/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   mlp_mixer/pytorch-mixer_b32_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_l32_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   mlp_mixer/pytorch-mixer_s32_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   stable_diffusion_unet/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Invalid head size: 120. The head size must be a multiple of the tile width (32). Please adjust the dimensions accordingly."
 
   centernet/pytorch-resnet18_coco-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1572,7 +1572,7 @@ test_config:
   mlp_mixer/lucidrains/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Out of Memory: Not enough space in L1 - circular buffer allocation failed conv2d"
 
   perceiver/pytorch-deepmind/language-perceiver-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1767,47 +1767,47 @@ test_config:
   monodepth2/pytorch-mono_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Out of Memory: Not enough space in L1 - circular buffer allocation failed pad"
 
   monodepth2/pytorch-stereo_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Out of Memory: Not enough space in L1 - circular buffer allocation failed pad"
 
   monodepth2/pytorch-mono+stereo_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Out of Memory: Not enough space in L1 - circular buffer allocation failed pad"
 
   monodepth2/pytorch-mono_no_pt_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Out of Memory: Not enough space in L1 - circular buffer allocation failed pad"
 
   monodepth2/pytorch-stereo_no_pt_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Out of Memory: Not enough space in L1 - circular buffer allocation failed pad"
 
   monodepth2/pytorch-mono+stereo_no_pt_640x192-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Out of Memory: Not enough space in L1 - circular buffer allocation failed pad"
 
   monodepth2/pytorch-mono_1024x320-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Out of Memory: Not enough space in L1 - circular buffer allocation failed pad"
 
   monodepth2/pytorch-stereo_1024x320-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Out of Memory: Not enough space in L1 - circular buffer allocation failed pad"
 
   monodepth2/pytorch-mono+stereo_1024x320-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space in L1"
+    reason: "Out of Memory: Not enough space in L1 - circular buffer allocation failed pad"
 
   efficientnet/pytorch-efficientnet_b0-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
