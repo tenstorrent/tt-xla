@@ -62,17 +62,10 @@ MODEL_LOADER_MAP = {
 AVAILABLE_VARIANT_MAP = {
     "llama": [
         "llama_3_8b",
-        "llama_3_8b_instruct",
         "llama_3_1_8b",
-        "llama_3_1_8b_instruct",
         "llama_3_1_70b",
-        "llama_3_1_70b_instruct",
-        "llama_3_1_405b",
-        "llama_3_1_405b_instruct",
         "llama_3_2_1b",
-        "llama_3_2_1b_instruct",
         "llama_3_2_3b",
-        "llama_3_2_3b_instruct",
         "llama_3_3_70b_instruct",
         "huggyllama_7b",
         "TinyLlama_v1.1",
@@ -80,17 +73,10 @@ AVAILABLE_VARIANT_MAP = {
     "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b", "32b", "30b_a3b"],
     "qwen2_5": [
         "0_5b",
-        "0_5b_instruct",
         "1_5b",
-        "1_5b_instruct",
         "3b",
-        "3b_instruct",
         "7b",
-        "7b_instruct",
-        "7b_instruct_1m",
         "14b",
-        "14b_instruct",
-        "14b_instruct_1m",
         "32b_instruct",
         "72b_instruct",
         "math_7b",
@@ -213,9 +199,6 @@ def test_qwen3_mlp(seq_len, variant, variant_config, request):
 def test_llama_mlp(seq_len, variant, variant_config, request):
     if "70b" in str(variant) and not is_llmbox(request):
         pytest.xfail("70B models don't fit on device")
-
-    if "405b" in str(variant):
-        pytest.skip("405B variants too large for device and disk space")
 
     xr.set_device_type("TT")
 

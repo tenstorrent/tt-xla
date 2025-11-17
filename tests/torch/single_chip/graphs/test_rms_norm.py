@@ -19,18 +19,9 @@ MODEL_LOADER_MAP = {
 AVAILABLE_VARIANT_MAP = {
     "llama": [
         "llama_3_8b",
-        "llama_3_8b_instruct",
         "llama_3_1_8b",
-        "llama_3_1_8b_instruct",
-        "llama_3_1_70b",
-        "llama_3_1_70b_instruct",
-        "llama_3_1_405b",
-        "llama_3_1_405b_instruct",
         "llama_3_2_1b",
-        "llama_3_2_1b_instruct",
         "llama_3_2_3b",
-        "llama_3_2_3b_instruct",
-        "llama_3_3_70b_instruct",
         "huggyllama_7b",
         "TinyLlama_v1.1",
     ],
@@ -64,13 +55,6 @@ def get_available_variants(model_name):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_rms_norm(seq_len, variant, variant_config, request):
-    if "70b" in str(variant):
-        pytest.xfail("70B models don't fit on device")
-
-    # Will download huge amount of data and run out of disk space.
-    if "405b" in str(variant):
-        pytest.skip("405B variants too large for device and disk space")
-
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)

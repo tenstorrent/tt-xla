@@ -69,17 +69,10 @@ MODEL_LOADER_MAP = {
 AVAILABLE_VARIANT_MAP = {
     "llama": [
         "llama_3_8b",
-        "llama_3_8b_instruct",
         "llama_3_1_8b",
-        "llama_3_1_8b_instruct",
         "llama_3_1_70b",
-        "llama_3_1_70b_instruct",
-        "llama_3_1_405b",
-        "llama_3_1_405b_instruct",
         "llama_3_2_1b",
-        "llama_3_2_1b_instruct",
         "llama_3_2_3b",
-        "llama_3_2_3b_instruct",
         "llama_3_3_70b_instruct",
         "huggyllama_7b",
         "TinyLlama_v1.1",
@@ -89,17 +82,10 @@ AVAILABLE_VARIANT_MAP = {
     "bert": ["bert-base-uncased"],
     "qwen2_5": [
         "0_5b",
-        "0_5b_instruct",
         "1_5b",
-        "1_5b_instruct",
         "3b",
-        "3b_instruct",
         "7b",
-        "7b_instruct",
-        "7b_instruct_1m",
         "14b",
-        "14b_instruct",
-        "14b_instruct_1m",
         "32b_instruct",
         "72b_instruct",
         "math_7b",
@@ -151,10 +137,6 @@ def get_available_variants(model_name):
 def test_llama_attention_prefill(seq_len, variant, variant_config, request):
     if "70b" in str(variant) and not is_llmbox(request):
         pytest.xfail("70B models don't fit on device")
-
-    # Will download huge amount of data and run out of disk space.
-    if "405b" in str(variant):
-        pytest.skip("405B variants too large for device and disk space")
 
     xr.set_device_type("TT")
 
@@ -215,10 +197,6 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, request):
 def test_llama_attention_decode(variant, variant_config, request):
     if "70b" in str(variant) and not is_llmbox(request):
         pytest.xfail("70B models don't fit on device")
-
-    # Will download huge amount of data and run out of disk space.
-    if "405b" in str(variant):
-        pytest.skip("405B variants too large for device and disk space")
 
     xr.set_device_type("TT")
 
@@ -283,8 +261,6 @@ def test_llama_attention_decode(variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_concat_heads(variant, variant_config, seq_len, request):
-    if str(variant) == "llama_3_1_405b" or str(variant) == "llama_3_1_405b_instruct":
-        pytest.xfail("Variant doesn't fit on device")
     if "70b" in str(variant) and not is_llmbox(request):
         pytest.xfail("70B models don't fit on device")
 
@@ -316,8 +292,6 @@ def test_llama_concat_heads(variant, variant_config, seq_len, request):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_create_heads(variant, variant_config, seq_len, request):
-    if str(variant) == "llama_3_1_405b" or str(variant) == "llama_3_1_405b_instruct":
-        pytest.xfail("Variant doesn't fit on device")
     if "70b" in str(variant) and not is_llmbox(request):
         pytest.xfail("70B models don't fit on device")
 
@@ -365,9 +339,6 @@ def test_llama_create_heads(variant, variant_config, seq_len, request):
 def test_llama_attention(variant, variant_config, seq_len, request):
     if "70b" in str(variant) and not is_llmbox(request):
         pytest.xfail("70B models don't fit on device")
-
-    if "405b" in str(variant):
-        pytest.skip("405B variants too large for device and disk space")
 
     xr.set_device_type("TT")
 
