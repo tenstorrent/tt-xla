@@ -712,7 +712,7 @@ test_config:
   dla/pytorch-dla46x_c-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   dla/pytorch-dla60-single_device-full-training:
     status: EXPECTED_PASSING
@@ -722,12 +722,12 @@ test_config:
   dla/pytorch-dla60x-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   dla/pytorch-dla60x_c-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   dla/pytorch-dla102-single_device-full-training:
     status: EXPECTED_PASSING
@@ -737,12 +737,12 @@ test_config:
   dla/pytorch-dla102x-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   dla/pytorch-dla102x2-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   dla/pytorch-dla169-single_device-full-training:
     status: EXPECTED_PASSING
@@ -787,7 +787,7 @@ test_config:
   squeezebert/pytorch-squeezebert-mnli-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-full-training:
     status: EXPECTED_PASSING
@@ -947,17 +947,17 @@ test_config:
   mamba/pytorch-mamba-370m-hf-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   mamba/pytorch-mamba-790m-hf-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   mamba/pytorch-mamba-1.4b-hf-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   roberta/masked_lm/pytorch-xlm_base-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1017,17 +1017,17 @@ test_config:
   resnext/pytorch-resnext101_32x8d-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   resnext/pytorch-resnext101_32x8d_wsl-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   resnext/pytorch-resnext14_32x4d_osmr-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   resnext/pytorch-resnext26_32x4d_osmr-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1037,12 +1037,12 @@ test_config:
   resnext/pytorch-resnext50_32x4d_osmr-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   resnext/pytorch-resnext101_64x4d_osmr-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   rcnn/pytorch-alexnet-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1092,7 +1092,7 @@ test_config:
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   inception/pytorch-inception_v4-single_device-full-training:
     status: EXPECTED_PASSING
