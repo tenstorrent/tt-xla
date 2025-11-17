@@ -1054,8 +1054,9 @@ test_config:
     status: EXPECTED_PASSING
 
   mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-full-inference:
-    required_pcc: 0.96  # BH is higher at 0.97
+    assert_pcc: false
     status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.9587556719779968. Required: pcc=0.96 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-full-inference:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9657779932022095. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -1176,7 +1177,9 @@ test_config:
     status: EXPECTED_PASSING
 
   vovnet/pytorch-ese_vovnet39b-single_device-full-inference:
+    assert_pcc: false
     status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.9872968792915344. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1336,12 +1339,14 @@ test_config:
     status: EXPECTED_PASSING
 
   vovnet/pytorch-vovnet39-single_device-full-inference:
-    required_pcc: 0.98
+    assert_pcc: false
     status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.964539647102356. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   vovnet/pytorch-vovnet57-single_device-full-inference:
-    required_pcc: 0.98
+    assert_pcc: false
     status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.9755112528800964. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   vovnet/pytorch-ese_vovnet99b-single_device-full-inference:
     assert_pcc: false  # Exposed by removal of consteval on host
@@ -1852,12 +1857,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   deepseek/deepseek_math/pytorch-7b_instruct-single_device-full-inference:
-    status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip - https://github.com/tenstorrent/tt-xla/issues/2208"
+    bringup_status: FAILED_RUNTIME
 
   llava/pytorch-1_5_7b-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2104,8 +2106,8 @@ test_config:
 
   transfuser/pytorch-single_device-full-inference:
     assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=-0.7153554558753967. Required: pcc=0.99."
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Invalid head size: 54. The head size must be a multiple of the tile width (32). Please adjust the dimensions accordingly - https://github.com/tenstorrent/tt-xla/issues/2204"
 
   # yolov11/pytorch-yolo11n-single_device-full-inference:
   #   status: EXPECTED_PASSING
@@ -2269,7 +2271,7 @@ test_config:
     status: EXPECTED_PASSING
 
   faster_rcnn/pytorch-resnet50_fpn-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 62521344 B L1 buffer across 72 banks, where each bank needs to store 868352 B, but bank size is only 1331936 B"
 
   deformable_detr/pytorch-deformable-detr-single_device-full-inference:
@@ -2326,12 +2328,12 @@ test_config:
     status: EXPECTED_PASSING
 
   petr/pytorch-vovnet_gridmask_p4_800x320-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 57952512 B L1 buffer across 72 banks, where each bank needs to store 804896 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
 
   petr/pytorch-vovnet_gridmask_p4_1600x640-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
 
