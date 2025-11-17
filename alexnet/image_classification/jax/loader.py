@@ -333,3 +333,47 @@ class ModelLoader(ForgeModel):
             str: Name of the forward method (typically 'apply' for Flax models)
         """
         return "apply"
+
+    def get_input_parameters(self, train=False):
+        """Get input parameters for training or inference mode.
+
+        This method is required by the DynamicJaxModelTester for training mode.
+        It returns the model parameters that will be used in the backward pass.
+
+        Args:
+            train: Whether to initialize parameters for training mode (affects dropout, etc.)
+
+        Returns:
+            PyTree: Model parameters initialized with random weights
+        """
+        # Use the existing load_parameters method to get initialized parameters
+        return self.load_parameters(train=train)
+
+    def get_forward_method_kwargs(self, train=False):
+        """Get keyword arguments for the model's forward method.
+
+        Args:
+            train: Whether the model is in training mode
+
+        Returns:
+            dict: Keyword arguments for the model's forward method
+        """
+        # AlexNet always requires train argument
+        kwargs = {"train": train}
+
+        # Add dropout RNG key when training (AlexNet has dropout layers)
+        if train:
+            kwargs["rngs"] = {"dropout": jax.random.key(1)}
+
+        return kwargs
+
+    def get_static_argnames(self):
+        """Get static argument names for the model's forward method.
+
+        For custom Flax models using apply, 'train' needs to be static because
+        the model uses control flow based on the train value.
+
+        Returns:
+            list: List containing 'train' as a static argument
+        """
+        return ["train"]

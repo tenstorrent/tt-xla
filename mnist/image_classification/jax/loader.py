@@ -360,6 +360,33 @@ class ModelLoader(ForgeModel):
         """
         return "apply"
 
+    def get_static_argnames(self):
+        """Get static argument names for the forward method.
+
+        For Flax models using apply, 'train' needs to be static when the model
+        uses it, because the model uses 'not train' which requires a concrete boolean value.
+        Additionally, 'mutable' must be static when using batch normalization
+        because it contains string values that cannot be traced.
+
+        Returns:
+            list: List containing static argument names
+        """
+        static_args = []
+
+        # Check if the model actually has a 'train' parameter
+        # Only CNN models have it, not the MLP models
+        if self._variant in [ModelVariant.CNN_BATCHNORM, ModelVariant.CNN_DROPOUT]:
+            # 'train' must be static because the model does boolean operations on it
+            # (e.g., use_running_average=not train) which don't work with traced values
+            static_args.append("train")
+
+            # 'mutable' must be static for batch norm models because it contains strings
+            # which cannot be traced by JAX
+            if self._variant == ModelVariant.CNN_BATCHNORM:
+                static_args.append("mutable")
+
+        return static_args
+
     def get_input_parameters(self, train=False, seed=None):
         """Get input parameters for the model.
 
@@ -375,14 +402,14 @@ class ModelLoader(ForgeModel):
         """
         return self.load_parameters(train=train, seed=seed)
 
-    def get_forward_method_kwargs(self, run_mode=None):
+    def get_forward_method_kwargs(self, train=False):
         """Get keyword arguments for the model's forward method.
 
         This method provides compatibility with DynamicJaxModelTester by returning
         the appropriate kwargs based on what the model's __call__ method accepts.
 
         Args:
-            run_mode: Optional RunMode. If not provided, defaults to inference behavior.
+            train: Whether the model is in training mode
 
         Returns:
             dict: Keyword arguments for the model's forward method
@@ -400,7 +427,43 @@ class ModelLoader(ForgeModel):
         kwargs = {}
 
         if "train" in params:
-            is_training = str(run_mode).lower() == "training" if run_mode else False
-            kwargs["train"] = is_training
+            kwargs["train"] = train
+
+        # For Flax models using apply method, add RNG keys for models with dropout
+        # We detect dropout by checking the model variant or by inspecting the model
+        if self._variant == ModelVariant.CNN_DROPOUT and train:
+            # Explicit dropout variant
+            kwargs["rngs"] = {"dropout": jax.random.key(1)}
+
+        # For models with batch normalization, make batch_stats mutable during training
+        if self._variant == ModelVariant.CNN_BATCHNORM and train:
+            kwargs["mutable"] = ("batch_stats",)
 
         return kwargs
+
+    def wrapper_model(self, f):
+        """Wrapper for model forward method to handle batch normalization outputs.
+
+        When batch normalization is used with mutable=("batch_stats",) during training,
+        the model returns a tuple of (output, updated_variables). This wrapper extracts
+        just the output for compatibility with the testing framework.
+
+        Args:
+            f: The model forward function to wrap
+
+        Returns:
+            Wrapped function that handles batch norm outputs correctly
+        """
+
+        def model(args, kwargs):
+            out = f(*args, **kwargs)
+            # For CNN_BATCHNORM variant, when mutable is used (training mode),
+            # the output is always a tuple (output, {"batch_stats": ...})
+            # We need to extract just the first element
+            if self._variant == ModelVariant.CNN_BATCHNORM:
+                if isinstance(out, tuple) and len(out) == 2:
+                    # Extract the actual model output from the tuple
+                    out = out[0]
+            return out
+
+        return model

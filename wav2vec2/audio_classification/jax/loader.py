@@ -8,6 +8,7 @@ Wav2Vec2 model loader implementation for audio classification.
 
 from typing import Optional
 
+import datasets
 from ....base import ForgeModel
 from ....config import (
     ModelConfig,
@@ -131,6 +132,9 @@ class ModelLoader(ForgeModel):
             inputs: Input tensors that can be fed to the model.
         """
         from datasets import load_dataset
+
+        # Force datasets to use soundfile backend instead of torchcodec
+        datasets.config.AUDIO_BACKEND = "soundfile"
 
         # Ensure processor is initialized
         if self._processor is None:

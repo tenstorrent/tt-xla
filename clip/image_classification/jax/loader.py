@@ -169,3 +169,24 @@ class ModelLoader(ForgeModel):
         )
 
         return inputs
+
+    def wrapper_model(self, f):
+        """Wrapper for model forward method that extracts the appropriate output.
+
+        CLIP models output both image and text embeddings. This wrapper extracts
+        the text model pooler output for compatibility with the testing framework.
+
+        Args:
+            f: The model forward function to wrap
+
+        Returns:
+            Wrapped function that extracts text model pooler output
+        """
+
+        def model(args, kwargs):
+            out = f(*args, **kwargs)
+            # Extract text model pooler output from the CLIP model output
+            out = out.text_model_output.pooler_output
+            return out
+
+        return model

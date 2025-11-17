@@ -145,3 +145,24 @@ class ModelLoader(ForgeModel):
                     inputs[key] = value.astype(dtype_override)
 
         return inputs
+
+    def wrapper_model(self, f):
+        """Wrapper for model forward method that extracts the appropriate output.
+
+        RegNet models return a tuple where the first element contains the logits.
+        This wrapper extracts the logits from the tuple output.
+
+        Args:
+            f: The model forward function to wrap
+
+        Returns:
+            Wrapped function that extracts logits
+        """
+
+        def model(args, kwargs):
+            out = f(*args, **kwargs)
+            # RegNet returns a tuple, extract first element then get logits
+            out = out[0]
+            return out.logits
+
+        return model

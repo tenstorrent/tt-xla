@@ -160,3 +160,25 @@ class ModelLoader(ForgeModel):
         )
 
         return inputs
+
+    def wrapper_model(self, f):
+        """Wrapper for model forward method that extracts the appropriate output.
+
+        Question answering models output start_logits and end_logits instead of
+        a single logits tensor. This wrapper extracts end_logits for compatibility
+        with the testing framework.
+
+        Args:
+            f: The model forward function to wrap
+
+        Returns:
+            Wrapped function that extracts end_logits
+        """
+
+        def model(args, kwargs):
+            out = f(*args, **kwargs)
+            # Extract end_logits from the QA model output
+            out = out.end_logits
+            return out
+
+        return model

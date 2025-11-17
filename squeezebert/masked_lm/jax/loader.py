@@ -8,6 +8,7 @@ SqueezeBERT model loader implementation for masked language modeling.
 
 
 from typing import Optional
+import jax
 
 from ....base import ForgeModel
 from ....config import (
@@ -144,7 +145,8 @@ class ModelLoader(ForgeModel):
             return_tensors="jax",
         )
 
-        return inputs
+        # Convert BatchEncoding to dict for JAX compatibility
+        return dict(inputs)
 
     def load_parameters(self):
         """Load and return the SqueezeBERT model parameters for this instance's variant.
@@ -166,3 +168,70 @@ class ModelLoader(ForgeModel):
         state_dict = torch.load(model_file, weights_only=True)
 
         return self._model.init_from_pytorch_statedict(state_dict, dtype=jnp.bfloat16)
+
+    def get_input_parameters(self, train=False):
+        """Get input parameters for the model.
+
+        This method provides compatibility with DynamicJaxModelTester which expects
+        a get_input_parameters method.
+
+        Args:
+            train: Whether to initialize for training mode (not used for this model).
+
+        Returns:
+            PyTree: Model parameters
+        """
+        # Return the loaded parameters
+        return self.load_parameters()
+
+    def get_forward_method_kwargs(self, train=False):
+        """Get keyword arguments for the model's forward method.
+
+        This method ensures that the inputs are properly unpacked for the model.
+
+        Args:
+            train: Whether the model is in training mode
+
+        Returns:
+            dict: Keyword arguments for the model's forward method
+        """
+        # Get the inputs
+        inputs = self.load_inputs()
+
+        # Unpack the inputs and add the train flag
+        kwargs = {**inputs, "train": train}
+
+        # Add dropout RNG key for training mode
+        if train:
+            kwargs["rngs"] = {"dropout": jax.random.key(1)}
+
+        return kwargs
+
+    def get_forward_method_args(self):
+        """Get positional arguments for the model's forward method.
+
+        For this custom Flax model using apply, we only need params as positional arg.
+        The inputs will be passed as kwargs through get_forward_method_kwargs.
+
+        Returns:
+            list: List containing only the parameters
+        """
+        # Only return params, inputs will be in kwargs
+        return [self.load_parameters()]
+
+    def get_forward_method_name(self):
+        """Get the name of the forward method for the model.
+
+        Returns:
+            str: Name of the forward method ('apply' for Flax models)
+        """
+        return "apply"
+
+    def get_static_argnames(self):
+        """Get static argument names for the forward method.
+
+        Returns:
+            list: List containing 'train' as a static argument
+        """
+        # 'train' must be static for Flax models
+        return ["train"]

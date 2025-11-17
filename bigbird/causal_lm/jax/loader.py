@@ -5,6 +5,7 @@
 """BigBird model loader implementation for causal language modeling."""
 
 from typing import Optional
+import jax
 
 from ....base import ForgeModel
 from ....config import (
@@ -143,3 +144,35 @@ class ModelLoader(ForgeModel):
         )
 
         return inputs
+
+    def get_forward_method_kwargs(self, train=False):
+        """Get keyword arguments for the model's forward method.
+
+        BigBird models require special RNG keys for training mode:
+        - dropout_rng: for dropout layers
+        - indices_rng: for sparse attention pattern generation
+
+        Args:
+            train: Whether the model is in training mode
+
+        Returns:
+            dict: Keyword arguments for the model's forward method
+        """
+        kwargs = {}
+
+        # BigBird needs special RNG keys for training mode
+        if train:
+            kwargs["dropout_rng"] = jax.random.key(1)
+            kwargs["indices_rng"] = jax.random.key(2)
+
+        return kwargs
+
+    def get_static_argnames(self):
+        """Get static argument names for the model's forward method.
+
+        HuggingFace models don't have static args at the top-level __call__.
+
+        Returns:
+            list: Empty list for HuggingFace models
+        """
+        return []
