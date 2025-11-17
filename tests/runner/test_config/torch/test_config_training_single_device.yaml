@@ -146,18 +146,18 @@ test_config:
 
   musicgen_small/pytorch-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   stereo/pytorch-small-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   stereo/pytorch-medium-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   stereo/pytorch-large-single_device-full-training:
     status: EXPECTED_PASSING
@@ -791,33 +791,33 @@ test_config:
 
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-base-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-large-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-vit_b_16-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-vit_b_32-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-vit_l_16-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-vit_l_32-single_device-full-training:
     status: EXPECTED_PASSING
@@ -911,8 +911,8 @@ test_config:
 
   deit/pytorch-tiny-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   bart/pytorch-large-single_device-full-training:
     status: EXPECTED_PASSING
@@ -926,8 +926,8 @@ test_config:
 
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   sam/pytorch-facebook/sam-vit-base-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1211,8 +1211,8 @@ test_config:
 
   autoencoder/pytorch-conv-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vgg/pytorch-vgg11-single_device-full-training:
     status: EXPECTED_PASSING
