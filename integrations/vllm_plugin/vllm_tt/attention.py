@@ -22,10 +22,11 @@ from vllm.attention.backends.abstract import (
 )
 from vllm.attention.backends.utils import CommonAttentionState
 from vllm.config import VllmConfig
-from vllm.logger import init_logger
 from vllm.utils import cdiv, next_power_of_2
 
-logger = init_logger(__name__)
+from .logger import tt_init_logger
+
+logger = tt_init_logger(__name__)
 
 # TT requires the head size to be a multiple of 32.
 TT_HEAD_SIZE_ALIGNMENT = 32

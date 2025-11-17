@@ -24,7 +24,6 @@ from vllm.distributed.kv_transfer import (
     ensure_kv_transfer_initialized,
     has_kv_transfer_group,
 )
-from vllm.logger import init_logger
 from vllm.lora.request import LoRARequest
 from vllm.model_executor import set_random_seed
 from vllm.platforms import current_platform
@@ -37,10 +36,11 @@ from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.utils import bind_kv_cache
 
 from .attention import TT_HEAD_SIZE_ALIGNMENT
+from .logger import tt_init_logger
 from .model_runner import TTModelRunner
 from .pooling_runner import TTPoolingModelRunner
 
-logger = init_logger(__name__)
+logger = tt_init_logger(__name__)
 
 
 class TTWorker:

@@ -314,10 +314,10 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Could not load libtorchcodec. Likely causes:"
 
-  # yolox/pytorch-yolox_x-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "EOFError: Ran out of input"
+  yolox/pytorch-yolox_x-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "EOFError: Ran out of input"
 
   unet/pytorch-smp_unet_resnet101-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -344,35 +344,35 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
 
-  # yolox/pytorch-yolox_nano-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "Model expects targets to be passed while in training mode"
+  yolox/pytorch-yolox_nano-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
 
-  # yolox/pytorch-yolox_tiny-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "Model expects targets to be passed while in training mode"
+  yolox/pytorch-yolox_tiny-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
 
-  # yolox/pytorch-yolox_s-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "Model expects targets to be passed while in training mode"
+  yolox/pytorch-yolox_s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
 
-  # yolox/pytorch-yolox_m-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "Model expects targets to be passed while in training mode"
+  yolox/pytorch-yolox_m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
 
-  # yolox/pytorch-yolox_l-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "Model expects targets to be passed while in training mode"
+  yolox/pytorch-yolox_l-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
 
-  # yolox/pytorch-yolox_darknet-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "Model expects targets to be passed while in training mode"
+  yolox/pytorch-yolox_darknet-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
 
   hippynn/pytorch-Hippynn-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -494,10 +494,10 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  # yolos/pytorch-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  yolos/pytorch-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -634,10 +634,10 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  # yolov3/pytorch-base-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  yolov3/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   transfuser/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -684,10 +684,10 @@ test_config:
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  # yolov4/pytorch-base-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  yolov4/pytorch-base-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   detr/object_detection/pytorch-resnet_50-single_device-full-training:
     status: NOT_SUPPORTED_SKIP

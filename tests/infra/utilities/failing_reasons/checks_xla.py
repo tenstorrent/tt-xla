@@ -180,6 +180,69 @@ class FailingReasons(Enum):
         description="Unclassified error",
     )
 
+    # Used when a model is marked as not supported and test is skipped.
+    NOT_SUPPORTED_AND_SKIPPED = FailingReason(
+        description="Model is not supported (skipped)",
+    )
+
+    # Used when a test is marked as incorrect result due to PCC,
+    # but PCC assertion is disabled in the comparison configuration.
+    INCORRECT_RESULT_PCC_DISABLED = FailingReason(
+        description="Test marked w/ INCORRECT_RESULT. PCC check disabled.",
+    )
+
+    # Missing dependency: segmentation_models_pytorch
+    SEGMENTATION_MODELS_PYTORCH_NOT_FOUND = FailingReason(
+        description="ModuleNotFoundError: No module named 'segmentation_models_pytorch'",
+        checks=[
+            ExceptionCheck(
+                class_name="ModuleNotFoundError",
+                message=[
+                    M.contains("No module named 'segmentation_models_pytorch'"),
+                ],
+            ),
+        ],
+    )
+
+    # Missing tokenizer chat template configuration for chat template functions
+    TOKENIZER_CHAT_TEMPLATE_NOT_SET = FailingReason(
+        description="ValueError: Cannot use chat template functions because tokenizer.chat_template is not set and no template argument was passed",
+        checks=[
+            ExceptionCheck(
+                class_name="ValueError",
+                message=[
+                    M.contains("Cannot use chat template functions"),
+                    M.contains("tokenizer.chat_template is not set"),
+                    M.contains("no template argument was passed"),
+                ],
+            ),
+        ],
+    )
+
+    # Fatal error raised during xla_sync_multi call in backend
+    XLA_SYNC_MULTI_FATAL_ERROR = FailingReason(
+        description="Fatal error in xla_sync_multi call",
+        checks=[
+            ExceptionCheck(
+                class_name="RuntimeError",
+                component=ComponentChecker.XLA.value,
+                message=[
+                    M.contains("Fatal error"),
+                ],
+                error_log=[
+                    M.contains(
+                        ">           torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)"
+                    ),
+                    M.any(
+                        M.last_line(M.contains("tt_torch/backend/backend.py:")),
+                        M.last_line(
+                            M.contains("python_package/tt_torch/backend/backend.py:")
+                        ),
+                    ),
+                ],
+            ),
+        ],
+    )
     # # RuntimeError: Fatal Python error: Segmentation fault
     SEG_FAULT = FailingReason(
         description="Inference failed due to seg fault",
@@ -606,6 +669,43 @@ class FailingReasons(Enum):
         ],
     )
 
+    DYNAMO_UNSUPPORTED_MODULE_CONTAINER = FailingReason(
+        description="Dynamo assertion: unsupported module container (e.g., SparseSequential)",
+        checks=[
+            # AssertionError from torch/_dynamo when encountering unsupported container like SparseSequential
+            ExceptionCheck(
+                class_name="AssertionError",
+                error_log=[
+                    M.any(
+                        M.contains("torch/_dynamo/variables/nn_module.py"),
+                        M.contains("torch._dynamo"),
+                    ),
+                    M.any(
+                        M.contains("SparseSequential"),
+                        M.regex(
+                            "assert isinstance\\(base, \\(torch\\.nn\\.ModuleList, .*\\)\\)"
+                        ),
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    TENSOR_CANNOT_CONVERT_TO_SCALAR = FailingReason(
+        description="Tensor with multiple elements cannot be converted to Scalar",
+        checks=[
+            # RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar
+            ExceptionCheck(
+                class_name="RuntimeError",
+                error_log=[
+                    M.regex(
+                        "a Tensor with \\d+ elements cannot be converted to Scalar"
+                    ),
+                ],
+            ),
+        ],
+    )
+
     PHI3V_UNEXPECTED_MAX_NEW_TOKENS = FailingReason(
         description="Phi3VForCausalLM.forward got unexpected keyword 'max_new_tokens'",
         checks=[
@@ -796,6 +896,23 @@ class FailingReasons(Enum):
                 ],
                 error_log=[
                     M.last_line(M.contains("infra/runners/torch_device_runner.py:")),
+                ],
+            ),
+        ],
+    )
+
+    XLA_ASYNC_OPERATION_IN_FLIGHT = FailingReason(
+        description="Trying to access XLA data while async operation is in flight",
+        checks=[
+            # RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID <id> while an async operation is in flight:')
+            ExceptionCheck(
+                class_name="RuntimeError",
+                message=[
+                    M.any(
+                        M.contains("handle->HasValue"),
+                        M.contains("torch_xla/csrc/tensor.cpp"),
+                    ),
+                    M.contains("async operation is in flight"),
                 ],
             ),
         ],

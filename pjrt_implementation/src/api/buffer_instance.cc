@@ -32,6 +32,8 @@
 
 namespace tt::pjrt {
 
+std::mutex BufferInstance::s_copy_to_host_thread_mutex;
+
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
     DeviceInstance *device, MemoryInstance *memory) {
@@ -133,9 +135,11 @@ void BufferInstance::deleteData() {
   }
 
   // Wait if there is a copy to host in progress.
+  std::unique_lock<std::mutex> copy_lock(s_copy_to_host_thread_mutex);
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
   }
+  copy_lock.unlock();
 
   // Just reset the tensors, deallocation happens automatically when
   // reference count drops to zero.
@@ -306,17 +310,30 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   }
 
   // Wait if there is a copy already in progress.
+  // Needs to be locked, globally, because multiple framework threads can
+  // initiate copyToHost simultaneously on different BufferInstances and see
+  // their m_copy_to_host_thread as null. Metal (especially + program cache) is
+  // not thread safe and this will dispatch a concurrent untilize on device if
+  // called async.
+  std::unique_lock copy_lock(
+      s_copy_to_host_thread_mutex); // ctor locks the mutex
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
   }
+  copy_lock.unlock(); // unlock before moving to the copy thread
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
   // Start copying in a separate thread.
   m_copy_to_host_thread = std::make_unique<std::thread>(
-      [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
-         EventInstance *event, PJRT_Buffer_Type data_type,
-         size_t runtime_tensor_size) {
+      [](std::unique_lock<std::mutex> copy_lock, void *host_buffer,
+         tt::runtime::Tensor runtime_tensor, EventInstance *event,
+         PJRT_Buffer_Type data_type, size_t runtime_tensor_size) {
+        // Acquire lock to serialize all copy-to-host operations across all
+        // BufferInstances since any metal dispatch in this async thread will
+        // cause ND segfaults as metal is not thread safe.
+        // This lock is released once it falls out of scope.
+        copy_lock.lock();
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
         try {
           tt::runtime::memcpy(
@@ -331,10 +348,9 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         }
         event->markAsReady(copy_status);
       },
-      host_buffer, *m_host_runtime_tensor, event.get(), m_data_type,
-      runtime_tensor_size);
+      std::move(copy_lock), host_buffer, *m_host_runtime_tensor, event.get(),
+      m_data_type, runtime_tensor_size);
 
-  // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Event_Destroy` on the event.
   *out_copy_done_event = event.release();
 
