@@ -108,7 +108,8 @@ jobs:
           payload: |
             {
               "text": "Bad bad nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
-              "channel": "C08GYB57C8M"
+              "channel": "C08GYB57C8M",
+              "unfurl_links": false, "unfurl_media": false
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
@@ -120,7 +121,8 @@ jobs:
           payload: |
             {
               "text": "Good nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
-              "channel": "C08GYB57C8M"
+              "channel": "C08GYB57C8M",
+              "unfurl_links": false, "unfurl_media": false
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_SUCCESS }}
