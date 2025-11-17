@@ -79,12 +79,50 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   // expecting. If so, we can just reuse this tensor.
   tt::runtime::Layout expected_layout = tt::runtime::getLayout(
       executable_image->getFlatbufferBinary(), program_index, arg_index);
-  if (prepared_tensor.has_value() &&
-      tt::runtime::hasLayout(*prepared_tensor, expected_layout)) {
+
+  bool has_cached_tensor = prepared_tensor.has_value();
+  bool has_expected_layout =
+      has_cached_tensor &&
+      tt::runtime::hasLayout(*prepared_tensor, expected_layout);
+  if (has_expected_layout) {
     DLOG_F(LOG_DEBUG,
-           "Reusing already prepared input tensor for argument index %zu",
-           arg_index);
+           "Reusing already prepared input tensor for argument index %zu with "
+           "shape %s",
+           arg_index, arg_buffers[0]->toShapeStr().c_str());
+
+    // This prepared tensor may be from a previous graph output aliased to
+    // input, so
+    //  we should set its retention flag to true.
+    if (tt::runtime::getTensorRetain(*prepared_tensor) == false) {
+      DLOG_F(LOG_DEBUG,
+             "Prepared tensor for argument index %zu with shape %s had "
+             "retain=false; setting "
+             "to true to avoid deallocation during execution.",
+             arg_index, arg_buffers[0]->toShapeStr().c_str());
+    }
+    tt::runtime::setTensorRetain(*prepared_tensor, /*retain=*/true);
     return *prepared_tensor;
+  }
+
+  // We might have a cached tensor in the wrong layout, for example
+  // if the cached tensor came from an output from a previous execution
+  // on a differently shaped mesh. An output BufferInstance will not have
+  // a host_runtime_tensor when reused in a future graph as input.
+  // In this case, we re-layout the cached tensor into the expected layout
+  // and return that while saving it back into the buffer instances for future
+  // reuse.
+  else if (!has_expected_layout && has_cached_tensor) {
+    DLOG_F(LOG_DEBUG,
+           "Re-laying out already prepared input tensor for argument index %zu "
+           "with shape %s.",
+           arg_index, arg_buffers[0]->toShapeStr().c_str());
+    tt::runtime::Tensor relaid_out_tensor = convertTensorLayout(
+        *prepared_tensor, program_index, arg_index, runtime_device);
+    for (size_t i = 0; i < arg_buffers.size(); ++i) {
+      arg_buffers[i]->setPreparedTensor(relaid_out_tensor);
+    }
+    tt::runtime::setTensorRetain(relaid_out_tensor, /*retain=*/true);
+    return relaid_out_tensor;
   }
 
   // We don't have an already prepared tensor so we need to prepare it now.
@@ -130,57 +168,38 @@ tt::runtime::Tensor FlatbufferLoadedExecutableInstance::convertTensorLayout(
                                tt::runtime::getTensorRetain(input_tensor));
 }
 
-tt_pjrt_status FlatbufferLoadedExecutableInstance::untilizeToHost(
-    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
-    std::vector<std::vector<tt::runtime::Tensor>> &untilized_output_tensors) {
-  for (size_t output_index = 0; output_index < output_tensors.size();
-       ++output_index) {
-    std::vector<tt::runtime::Tensor> untilized_output =
-        tt::runtime::toHost(output_tensors[output_index], /* untilize */ true);
-
-    // If the output is a replicated scalar or tensor, we expect only one tensor
-    // on output, so we need to fill the rest of the output tensors with the
-    // same tensors, to match the number of devices.
-    if (untilized_output.size() != num_devices) {
-      // If the size of the output is not 1 nor num_devices, we have an error.
-      if (untilized_output.size() > 1) {
-        DLOG_F(ERROR,
-               "Untilize to host produced invalid number of output tensors: "
-               "expected %zu, got %zu",
-               num_devices, untilized_output.size());
-        return tt_pjrt_status::kInternal;
-      }
-      for (size_t device_index = 1; device_index < num_devices;
-           ++device_index) {
-        untilized_output.emplace_back(untilized_output[0]);
-      }
-    }
-
-    untilized_output_tensors.emplace_back(std::move(untilized_output));
-  }
-
-  return tt_pjrt_status::kSuccess;
-}
-
 void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
-    const std::vector<std::vector<tt::runtime::Tensor>>
-        &untilized_output_tensors,
-    size_t num_devices, PJRT_Buffer **const *output_lists,
+    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
+    PJRT_Buffer **const *output_lists,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
-  size_t num_outputs = untilized_output_tensors.size();
+  size_t n_prog_output_tensors = output_tensors.size();
 
-  for (int device_index = 0; device_index < num_devices; ++device_index) {
-    for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
-      tt::runtime::Tensor output_tensor =
-          untilized_output_tensors[output_index][device_index];
+  // Iterate over the available tensors and devices, filling in the PJRT Buffer
+  // outputs. The output BufferInstance is initialized with a device tensor
+  // which is lazily returned to host when CopyToHost is called.
+  for (size_t output_index = 0; output_index < n_prog_output_tensors;
+       output_index++) {
+    tt::runtime::Tensor outputDeviceTensor = output_tensors[output_index];
+
+    for (int device_index = 0; device_index < num_devices; ++device_index) {
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
 
+      // For a given output_index, each device will get the same
+      // outputDeviceTensor This is trivially correct for replicated outputs.
+      // For sharded outputs, the outputDeviceTensor is a multi-device tensor
+      // and represents all shards. Therefore, the outputDevice tensor will
+      // still be the same for each device, and the BufferInstance will store
+      // which shard to retrieve via the device index, when requested in
+      // CopyToHost.
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
-              output_tensor, std::move(output_shape),
+              outputDeviceTensor, std::move(output_shape),
               m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
-              expected_output_data_types[output_index]);
+              expected_output_data_types[output_index], device_index);
+      DLOG_F(LOG_DEBUG,
+             "Filled output at output_index %zu device_index %d with shape %s",
+             output_index, device_index, output_buffer->toShapeStr().c_str());
 
       output_buffer->markAsDataReady();
 
@@ -300,21 +319,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return tt_pjrt_status::kInternal;
   }
 
-  std::vector<std::vector<tt::runtime::Tensor>> untilized_output_tensors;
-  untilized_output_tensors.reserve(output_tensors.size());
-  status = untilizeToHost(output_tensors, args->num_devices,
-                          untilized_output_tensors);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return status;
-  }
-
-  fillPJRTOutputLists(untilized_output_tensors, args->num_devices,
-                      args->output_lists, m_executable_image->getOutputTypes());
-
-  for (size_t output_index = 0; output_index < output_tensors.size();
-       ++output_index) {
-    tt::runtime::deallocateTensor(output_tensors[output_index], /*force=*/true);
-  }
+  fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
+                      m_executable_image->getOutputTypes());
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {

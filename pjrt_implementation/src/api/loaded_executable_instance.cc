@@ -173,8 +173,20 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     }
 
     input_tensors.push_back(*prepared_tensor);
-  }
 
+    // Safety check to ensure no input tensor can be accidentally
+    //  deallocated during execution, as it may be reused in a future graph.
+    if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
+      DLOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
+                    "be deallocated during execution.");
+      return tt_pjrt_status::kInternal;
+    }
+    if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
+      DLOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
+                    "means it was deallocated by a previous operation.");
+      return tt_pjrt_status::kInternal;
+    }
+  }
   return tt_pjrt_status::kSuccess;
 }
 
