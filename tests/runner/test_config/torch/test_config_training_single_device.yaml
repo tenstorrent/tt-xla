@@ -146,23 +146,23 @@ test_config:
 
   musicgen_small/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   stereo/pytorch-small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   stereo/pytorch-medium-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   stereo/pytorch-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   oft/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -701,73 +701,73 @@ test_config:
 
   dla/pytorch-dla34-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   dla/pytorch-dla46_c-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   dla/pytorch-dla46x_c-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   dla/pytorch-dla60-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   dla/pytorch-dla60x-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   dla/pytorch-dla60x_c-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   dla/pytorch-dla102-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   dla/pytorch-dla102x-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   dla/pytorch-dla102x2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   dla/pytorch-dla169-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   densenet/pytorch-densenet121-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   densenet/pytorch-densenet161-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   densenet/pytorch-densenet169-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   densenet/pytorch-densenet201-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   codegen/pytorch-Salesforce/codegen-350M-mono-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -787,177 +787,177 @@ test_config:
   squeezebert/pytorch-squeezebert-mnli-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-vit_b_16-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-vit_b_32-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-vit_l_16-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vit/pytorch-vit_l_32-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vit/pytorch-vit_h_14-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   maptr/pytorch-tiny_r50_24e_av2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: failed to legalize operation 'ttir.scatter' that was explicitly marked illegal"
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   albert/sequence_classification/pytorch-imdb-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   swin/image_classification/pytorch-swin_t-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL circular_buffer"
 
   swin/image_classification/pytorch-swin_s-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   swin/image_classification/pytorch-swin_b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   swin/image_classification/pytorch-swin_v2_t-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   swin/image_classification/pytorch-swin_v2_s-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   swin/image_classification/pytorch-swin_v2_b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   deit/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   deit/pytorch-base_distilled-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL circular_buffer"
 
   deit/pytorch-small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   deit/pytorch-tiny-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   bart/pytorch-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: failed to legalize operation 'ttir.scatter' that was explicitly marked illegal"
 
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   sam/pytorch-facebook/sam-vit-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   sam/pytorch-facebook/sam-vit-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   sam/pytorch-facebook/sam-vit-huge-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   mamba/pytorch-mamba-370m-hf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   mamba/pytorch-mamba-790m-hf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   mamba/pytorch-mamba-1.4b-hf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   roberta/masked_lm/pytorch-xlm_base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -971,13 +971,13 @@ test_config:
 
   vilt/masked_lm/pytorch-mlm-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Fatal Python error: Floating point exception"
 
   vilt/question_answering/pytorch-vqa-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Fatal Python error: Floating point exception"
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -1011,303 +1011,303 @@ test_config:
 
   resnext/pytorch-resnext50_32x4d-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   resnext/pytorch-resnext101_32x8d-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   resnext/pytorch-resnext101_32x8d_wsl-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   resnext/pytorch-resnext14_32x4d_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   resnext/pytorch-resnext26_32x4d_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnext/pytorch-resnext50_32x4d_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   resnext/pytorch-resnext101_64x4d_osmr-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   rcnn/pytorch-alexnet-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vovnet/pytorch-vovnet27s-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vovnet/pytorch-vovnet39-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
 
   vovnet/pytorch-vovnet57-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
 
   vovnet/pytorch-vovnet39_th-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   vovnet/pytorch-vovnet57_th-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   vovnet/pytorch-ese_vovnet19b_dw-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vovnet/pytorch-ese_vovnet39b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   vovnet/pytorch-ese_vovnet99b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
 
   inception/pytorch-inception_v4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   inception/pytorch-inception_v4.tf_in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
 
   inception/pytorch-inceptionv4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
 
   dla/pytorch-dla34.in1k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   googlenet/pytorch-googlenet-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet_50_hf-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet_50_hf_high_res-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet50_timm-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet50_timm_high_res-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet18-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   resnet/pytorch-resnet34-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   resnet/pytorch-resnet50-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet50_high_res-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet101-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet152-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   hardnet/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL conv2d"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   wide_resnet/pytorch-wide_resnet50_2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   wide_resnet/pytorch-wide_resnet101_2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   wide_resnet/pytorch-wide_resnet101_2.timm-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   alexnet/pytorch-alexnet-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   alexnet/pytorch-alexnetb-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   autoencoder/pytorch-conv-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed."
 
   vgg/pytorch-vgg11-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-vgg13-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-vgg16-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL conv2d"
 
   vgg/pytorch-vgg19-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-bn_vgg19-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-bn_vgg19b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-vgg19_bn-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-timm_vgg19_bn-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   vgg/pytorch-torchvision_vgg11-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg11_bn-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg13-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg13_bn-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg16-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg16_bn-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg19-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg19_bn-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-hf_vgg19-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   unet/pytorch-torchhub_brain_unet-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   unet/pytorch-carvana_unet-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   distilbert/masked_lm/pytorch-distilbert-base-cased-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
