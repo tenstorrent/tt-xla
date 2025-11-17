@@ -319,7 +319,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 v_cache,
                 attn_metadata.page_table.to(query.device),
                 cur_pos_tensor=cache_position,
-                is_causal=True,
+                is_causal=attn_metadata.is_causal,
             )
             out = out.transpose(-3, -2)
             out = out.reshape(query_num_tokens, query_hidden_size)
@@ -329,7 +329,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 query,
                 key,
                 value,
-                is_causal=True,
+                is_causal=attn_metadata.is_causal,
             ).transpose(-3, -2)
             if is_batched:
                 return output.reshape(

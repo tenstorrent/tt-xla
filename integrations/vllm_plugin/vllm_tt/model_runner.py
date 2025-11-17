@@ -928,19 +928,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             #                                   device=self.device),
             # num_slices_per_kv_cache_update_block=self.
             # _num_slices_per_kv_cache_update_block,
-            is_causal=True if seq_lens.shape[-1] == 1 else False,
-            attn_mask=(
-                generate_attn_mask(
-                    seq_lens,
-                    self.input_ids.shape[-1],
-                    self.num_query_heads,
-                    self.input_ids.shape[-1],
-                    self.dtype,
-                    self.device,
-                )
-                if seq_lens.shape[-1] > 1
-                else None
-            ),
+            is_causal=True,
+            attn_mask=None,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1441,15 +1430,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             context_lens=context_lens,
             query_start_loc=query_start_loc,
             num_seqs=num_seqs,
-            is_causal=False,
-            attn_mask=generate_attn_mask(
-                context_lens,
-                input_ids.shape[-1],
-                self.num_query_heads,
-                input_ids.shape[-1],
-                self.dtype,
-                self.device,
-            ),
+            is_causal=True,
+            attn_mask=None,
             # num_kv_update_slices=num_kv_update_slices,
             # num_slices_per_kv_cache_update_block=self.
             # _num_slices_per_kv_cache_update_block,
