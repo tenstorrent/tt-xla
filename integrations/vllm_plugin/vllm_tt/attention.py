@@ -138,22 +138,23 @@ def fill_cache_workaround(
 
 @dataclass
 class TTMetadata:
-    # NOTE(sang): Definition of context_len, query_len, and seq_len.
-    # |---------- N-1 iteration --------|
-    # |---------------- N iteration ---------------------|
-    # |- tokenA -|......................|-- newTokens ---|
-    # |---------- context_len ----------|
-    # |-------------------- seq_len ---------------------|
-    #                                   |-- query_len ---|
-
     # Used in the TTAttentionBackendImpl
-    context_lens: torch.Tensor
-    query_start_loc: torch.Tensor
-    num_seqs: torch.Tensor
-    # padding_in_inputs: torch.Tensor
+    cache_position: torch.Tensor
     attn_mask: torch.Tensor
     page_table: torch.Tensor
     is_causal: bool
+
+    def __init__(
+        self,
+        cache_position: torch.Tensor = None,
+        attn_mask: torch.Tensor = None,
+        page_table: torch.Tensor = None,
+        is_causal: bool = True,
+    ):
+        self.cache_position = cache_position
+        self.attn_mask = attn_mask
+        self.page_table = page_table
+        self.is_causal = is_causal
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -265,7 +266,6 @@ class TTAttentionBackendImpl(AttentionImpl):
         )  # [batch, num_tokens, num_kv_heads, head_size]
 
         if kv_cache.numel() > 1:
-            cache_position = (attn_metadata.context_lens - 1).to(query.device)
 
             k_cache = kv_cache[0]
             v_cache = kv_cache[1]
@@ -278,21 +278,21 @@ class TTAttentionBackendImpl(AttentionImpl):
                 k_cache = torch.ops.tt.paged_update_cache(
                     k_cache,
                     key,
-                    cache_position,
-                    attn_metadata.page_table.to(query.device),
+                    attn_metadata.cache_position,
+                    attn_metadata.page_table,
                 )
                 v_cache = torch.ops.tt.paged_update_cache(
                     v_cache,
                     value,
-                    cache_position,
-                    attn_metadata.page_table.to(query.device),
+                    attn_metadata.cache_position,
+                    attn_metadata.page_table,
                 )
             else:
                 k_cache = torch.ops.tt.paged_fill_cache(
-                    k_cache, key, attn_metadata.page_table.to(query.device)
+                    k_cache, key, attn_metadata.page_table
                 )
                 v_cache = torch.ops.tt.paged_fill_cache(
-                    v_cache, value, attn_metadata.page_table.to(query.device)
+                    v_cache, value, attn_metadata.page_table
                 )
             new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
 
@@ -304,8 +304,8 @@ class TTAttentionBackendImpl(AttentionImpl):
                 query,
                 k_cache,
                 v_cache,
-                attn_metadata.page_table.to(query.device),
-                cur_pos_tensor=cache_position,
+                attn_metadata.page_table,
+                cur_pos_tensor=attn_metadata.cache_position,
                 is_causal=attn_metadata.is_causal,
                 attn_mask=attn_metadata.attn_mask,
             )

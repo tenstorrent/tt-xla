@@ -859,48 +859,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.device
         )
         if use_max_model_len:
-            block_tables = self.block_table_cpu[
+            page_table = self.block_table_cpu[
                 : self.num_reqs_max_model_len, : self.max_num_blocks_per_req
             ]
-            block_tables[:num_reqs, : self.max_num_blocks_per_req] = (
+            page_table[:num_reqs, : self.max_num_blocks_per_req] = (
                 self.input_batch.block_table[0].get_cpu_tensor()[:num_reqs]
             )
-            query_start_loc = self.query_start_loc_cpu[
-                : self.num_reqs_max_model_len + 1
-            ].to(self.device)
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]  # .to(
-            # self.device)
+            seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
-            block_tables = self.block_table_cpu[
+            page_table = self.block_table_cpu[
                 : self.num_reqs_most_model_len, : self.num_blocks_per_most_len_req
             ]
-            block_tables[:num_reqs, : self.num_blocks_per_most_len_req] = (
+            page_table[:num_reqs, : self.num_blocks_per_most_len_req] = (
                 self.input_batch.block_table[0].get_cpu_tensor()[
                     :num_reqs, : self.num_blocks_per_most_len_req
                 ]
             )
-            query_start_loc = self.query_start_loc_cpu[
-                : self.num_reqs_most_model_len + 1
-            ].to(self.device)
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]  # .to(
-            # self.device)
-        block_tables = block_tables.to(self.device)
-
-        # Calculate the slot mapping
-        slot_mapping_metadata = self._get_slot_mapping_metadata(
-            num_reqs, num_scheduled_tokens_per_req
-        )
-        num_kv_update_slices = slot_mapping_metadata.shape[0]
-        padded_num_slices = _get_padded_num_kv_cache_update_slices(
-            padded_total_num_scheduled_tokens, self.max_num_reqs, self.block_size
-        )
-        slot_mapping_metadata = np.pad(
-            slot_mapping_metadata,
-            [[0, padded_num_slices - len(slot_mapping_metadata)], [0, 0]],
-            constant_values=0,
-        )
-        slot_mapping_metadata = np.transpose(slot_mapping_metadata)
-        slot_mapping_metadata = torch.tensor(slot_mapping_metadata, device=self.device)
+            seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
+        cache_position = (seq_lens - 1).to(self.device)
+        page_table = page_table.to(self.device)
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -914,16 +891,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
         attn_metadata = TTMetadata(
-            # slot_mapping=slot_mapping_metadata,
-            page_table=block_tables,
-            context_lens=seq_lens,
-            query_start_loc=query_start_loc,
-            num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
-            # num_kv_update_slices=torch.tensor([num_kv_update_slices],
-            #                                   dtype=torch.int32,
-            #                                   device=self.device),
-            # num_slices_per_kv_cache_update_block=self.
-            # _num_slices_per_kv_cache_update_block,
+            page_table=page_table,
+            cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
         )
@@ -1396,48 +1365,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             input_ids = torch.zeros((num_tokens), dtype=torch.int32).to(self.device)
             inputs_embeds = None
-        actual_num_reqs = min(num_tokens, num_reqs)
+
         position_ids = torch.zeros(num_tokens, dtype=torch.int32).to(self.device)
-        padded_num_slices = _get_padded_num_kv_cache_update_slices(
-            num_tokens, self.max_num_reqs, self.block_size
-        )
-        num_kv_update_slices = torch.tensor([padded_num_slices], dtype=torch.int32).to(
+        page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
             self.device
         )
-        slot_mapping = torch.zeros((3, padded_num_slices), dtype=torch.int32).to(
-            self.device
-        )
-        block_tables = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
-            self.device
-        )
-        query_lens = [1] * num_reqs
-        query_start_loc = torch.cumsum(
-            torch.tensor([0] + query_lens, dtype=torch.int32), dim=0, dtype=torch.int32
-        )
-        context_lens = torch.ones((num_reqs,), dtype=torch.int32)
-        num_seqs = torch.tensor([actual_num_reqs], dtype=torch.int32)
+        cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
         attn_metadata = TTMetadata(
-            # slot_mapping=slot_mapping,
-            page_table=block_tables,
-            context_lens=context_lens,
-            query_start_loc=query_start_loc,
-            num_seqs=num_seqs,
+            page_table=page_table,
+            cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
-            # num_kv_update_slices=num_kv_update_slices,
-            # num_slices_per_kv_cache_update_block=self.
-            # _num_slices_per_kv_cache_update_block,
         )
-
-        # if self.supports_mm_inputs:
-        #     torch._dynamo.mark_dynamic(inputs_embeds, 0)
-        # else:
-        #     torch._dynamo.mark_dynamic(input_ids, 0)
-        # torch._dynamo.mark_dynamic(position_ids, 0)
-        # torch._dynamo.mark_dynamic(attn_metadata.slot_mapping, 0)
-        # torch._dynamo.mark_dynamic(attn_metadata.block_tables, (0, 1))
-        # torch._dynamo.mark_dynamic(attn_metadata.context_lens, 0)
-        # torch._dynamo.mark_dynamic(attn_metadata.query_start_loc, 0)
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
         per_layer_attn_metadata = {
