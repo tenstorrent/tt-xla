@@ -5,6 +5,7 @@
 from contextlib import contextmanager
 from enum import Enum
 
+from click import Tuple
 import jax
 from flax import linen
 from jax.experimental.shard_map import shard_map
@@ -69,6 +70,44 @@ def make_flax_linen_parameters_partition_specs_on_cpu(
             cpu_inputs,
         )
     )
+
+def make_easydel_parameters_partition_specs(
+      model_state: PyTree,
+      partition_rules: Tuple[Tuple[str, PartitionSpec], ...],
+  ) -> PyTree:
+      """
+      Creates partition specs for EasyDel/NNX model parameters based on partition rules.
+      
+      Args:
+          model_state: The NNX model state (from nnx.split(model)[1])
+          partition_rules: Tuple of (regex_pattern, PartitionSpec) pairs
+      
+      Returns:
+          PyTree of partition specs matching the model_state structure
+      """
+      import re
+
+      def get_partition_spec_for_param(param_path: str) -> PartitionSpec:
+          """Match param path against partition rules and return appropriate spec."""
+          for pattern, spec in partition_rules:
+              if re.match(pattern, param_path):
+                  return spec
+          # Default to replicated if no match
+          return PartitionSpec()
+
+      # Get flattened state with paths
+      flat_state, tree_def = jax.tree_util.tree_flatten_with_path(model_state)
+
+      # Create partition specs for each parameter
+      partition_specs = []
+      for path, _ in flat_state:
+          # Convert JAX path to string (e.g., "transformer/h/0/attn/c_attn/kernel")
+          param_path = '/'.join(str(key.key) for key in path)
+          spec = get_partition_spec_for_param(param_path)
+          partition_specs.append(spec)
+
+      # Reconstruct PyTree with same structure
+      return jax.tree_util.tree_unflatten(tree_def, partition_specs)
 
 
 def initialize_flax_linen_parameters_on_cpu(
