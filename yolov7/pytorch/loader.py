@@ -20,12 +20,12 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import yolo_postprocess
 
 from third_party.tt_forge_models.yolov7.pytorch.src.model_utils import (
     check_img_size,
     attempt_load,
     letterbox,
+    yolov7_postprocess,
 )
 from third_party.tt_forge_models.tools.utils import get_file
 
@@ -192,4 +192,4 @@ class ModelLoader(ForgeModel):
         Returns:
             Post-processed detection results.
         """
-        return yolo_postprocess(co_out)
+        return yolov7_postprocess(co_out, self.img_src, self.input_batch)

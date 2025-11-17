@@ -87,9 +87,6 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, dtype_override=None):
-
-        from yolov6.layers.common import DetectBackend
-
         """Load and return the YOLOv6 model instance with default settings.
 
         Args:
@@ -99,6 +96,13 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The YOLOv6 model instance.
         """
+        # Disable weights_only check for PyTorch 2.6+ to load YOLOv6 checkpoint with custom classes
+        import os
+
+        os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
+
+        from yolov6.layers.common import DetectBackend
+
         # Get the model name from the instance's variant config
         variant = self._variant_config.pretrained_model_name
         weight_url = (
@@ -155,7 +159,7 @@ class ModelLoader(ForgeModel):
 
         det = non_max_suppression(output.detach().float())
 
-        coco_yaml_path = get_file("FIND_NEW_PATH")
+        coco_yaml_path = get_file("test_files/pytorch/yolo/coco.yaml")
         with open(coco_yaml_path, "r") as f:
             coco_yaml = yaml.safe_load(f)
         class_names = coco_yaml["names"]
