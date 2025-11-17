@@ -161,8 +161,8 @@ test_config:
 
   stereo/pytorch-large-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttnn.matmul' op Output shape dimension[2](X) doesn't match the expected output shape dimension[2](Y) https://github.com/tenstorrent/tt-mlir/issues/5662"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   oft/pytorch-single_device-full-training:
     status: EXPECTED_PASSING
@@ -716,8 +716,8 @@ test_config:
 
   dla/pytorch-dla60-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   dla/pytorch-dla60x-single_device-full-training:
     status: EXPECTED_PASSING
@@ -746,8 +746,8 @@ test_config:
 
   dla/pytorch-dla169-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   densenet/pytorch-densenet121-single_device-full-training:
     status: EXPECTED_PASSING
@@ -756,13 +756,13 @@ test_config:
 
   densenet/pytorch-densenet161-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   densenet/pytorch-densenet169-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   densenet/pytorch-densenet201-single_device-full-training:
     status: EXPECTED_PASSING
@@ -826,8 +826,8 @@ test_config:
 
   vit/pytorch-vit_h_14-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   maptr/pytorch-tiny_r50_24e_av2-single_device-full-training:
     status: EXPECTED_PASSING
@@ -876,8 +876,8 @@ test_config:
 
   swin/image_classification/pytorch-swin_b-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   swin/image_classification/pytorch-swin_v2_t-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1031,8 +1031,8 @@ test_config:
 
   resnext/pytorch-resnext26_32x4d_osmr-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnext/pytorch-resnext50_32x4d_osmr-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1066,13 +1066,13 @@ test_config:
 
   vovnet/pytorch-vovnet39_th-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   vovnet/pytorch-vovnet57_th-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   vovnet/pytorch-ese_vovnet19b_dw-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1081,8 +1081,8 @@ test_config:
 
   vovnet/pytorch-ese_vovnet39b-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   vovnet/pytorch-ese_vovnet99b-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1096,8 +1096,8 @@ test_config:
 
   inception/pytorch-inception_v4-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   inception/pytorch-inception_v4.tf_in1k-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1111,33 +1111,33 @@ test_config:
 
   dla/pytorch-dla34.in1k-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   googlenet/pytorch-googlenet-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet_50_hf-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet_50_hf_high_res-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet50_timm-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet50_timm_high_res-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet18-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1151,23 +1151,23 @@ test_config:
 
   resnet/pytorch-resnet50-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet50_high_res-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet101-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   resnet/pytorch-resnet152-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   hardnet/pytorch-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1181,23 +1181,23 @@ test_config:
 
   wide_resnet/pytorch-wide_resnet50_2-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   wide_resnet/pytorch-wide_resnet101_2-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   wide_resnet/pytorch-wide_resnet101_2.timm-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   alexnet/pytorch-alexnet-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1251,8 +1251,8 @@ test_config:
 
   vgg/pytorch-timm_vgg19_bn-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of memory: Not enough space on DRAM"
 
   vgg/pytorch-torchvision_vgg11-single_device-full-training:
     status: EXPECTED_PASSING
