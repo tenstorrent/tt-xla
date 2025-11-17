@@ -72,12 +72,15 @@ from vllm.v1.worker.kv_connector_model_runner_mixin import (
     KVConnectorOutput,
 )
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
-from vllm.v1.worker.tpu_input_batch import CachedRequestState, InputBatch
+from vllm.v1.worker.tpu_input_batch import CachedRequestState
 from vllm.v1.worker.utils import (
     MultiModalBudget,
     bind_kv_cache,
     sanity_check_mm_encoder_outputs,
 )
+
+# from .input_batch import InputBatch
+from .pooling_input_batch import InputBatch
 
 from .attention import (
     TPU_STR_DTYPE_TO_TORCH_DTYPE,
@@ -136,6 +139,7 @@ def generate_attn_mask(
     max_model_len: int,
     dtype,
     device,
+    mesh
 ) -> torch.Tensor:
     L, S = num_query_tokens, max_model_len
     attn_mask = torch.zeros(L, S, dtype=dtype)
@@ -150,7 +154,9 @@ def generate_attn_mask(
     attn_mask[:, length:] = float("-inf")
     attn_mask = attn_mask.unsqueeze(0).unsqueeze(0)
     if L == 1:
-        attn_mask = attn_mask.repeat(1, 1, num_query_heads, 1)
+        attn_mask = attn_mask.repeat(1, 1, num_query_heads, 1).to(device)
+        attn_mask = xs.mark_sharding(attn_mask, mesh, (None, None, "x", None))
+        return attn_mask
 
     return attn_mask.detach().to(device)
 
@@ -261,9 +267,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         # InputBatch needs to work with sampling tensors greater than padding
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
-        assert (
-            scheduler_config.max_num_seqs == 1
-        ), f"The TT plugin only supports max_num_seqs == 1 currently, received: max_num_seqs: {scheduler_config.max_num_seqs}"
+        # assert (
+        #     scheduler_config.max_num_seqs == 1
+        # ), f"The TT plugin only supports max_num_seqs == 1 currently, received: max_num_seqs: {scheduler_config.max_num_seqs}"
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
@@ -895,19 +901,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        attn_metadata = TTMetadata(
-            context_lens=seq_lens,
-            query_start_loc=query_start_loc,
-            num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
-            attn_mask=generate_attn_mask(
+        attn_mask = generate_attn_mask(
                 seq_lens,
                 self.input_ids.shape[-1],
                 self.num_query_heads,
                 self.max_model_len,
                 self.dtype,
                 self.device,
-            ),
+                self.mesh
+            )
+        
+        attn_metadata = TTMetadata(
+            context_lens=seq_lens,
+            query_start_loc=query_start_loc,
+            num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
+            attn_mask=attn_mask,
             is_causal=False,
+            mesh=self.mesh
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1295,7 +1305,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             setattr(self, config_name, new_config)
 
     def load_model(self) -> None:
-        logger.info("CALLING LOAD MODEL")
         self.device = self.device_config.device
 
         # NOTE(woosuk): While the executor assigns the TP ranks to the worker
@@ -1314,8 +1323,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return_value=xm_tp_rank,
         ):
             try:
-                if self.use_spmd:
-                    logger.info("Loading model with TPUModelLoader...")
+                if self.use_spmd or True:
                     tpu_loader = TPUModelLoader(
                         load_config=self.vllm_config.load_config
                     )
@@ -1331,7 +1339,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         vllm_config=self.vllm_config, model_config=self.model_config
                     )
 
-                model = model.to("xla")
+                model = model.to(self.device)
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -1341,7 +1349,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     f"See the detailed error: {e}"
                 ) from e
         if self.lora_config is not None:
-            logger.info("Loading lora model...")
             model = self.load_lora_model(
                 model,
                 self.model_config,
@@ -1359,6 +1366,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.model = model
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = TPUSampler()
+
+        if self.use_spmd:
+            # SPMD mode is enabled after loading the model so that it does not
+            # ineract with model/weights loading and is only applied for model
+            # execution.
+            xr.use_spmd()
+
 
     def reload_weights(self) -> None:
         assert (
@@ -1387,19 +1401,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ).to(self.device)
         context_lens = torch.ones((num_reqs,), dtype=torch.int32)  # .to(self.device)
         num_seqs = torch.tensor([actual_num_reqs], dtype=torch.int32).to(self.device)
-        attn_metadata = TTMetadata(
-            context_lens=context_lens,
-            query_start_loc=query_start_loc,
-            num_seqs=num_seqs,
-            attn_mask=generate_attn_mask(
+        attn_mask = generate_attn_mask(
                 context_lens,
                 input_ids.shape[-1],
                 self.num_query_heads,
                 self.max_model_len,
                 self.dtype,
                 self.device,
-            ),
+                self.mesh
+            )
+        
+        attn_metadata = TTMetadata(
+            context_lens=context_lens,
+            query_start_loc=query_start_loc,
+            num_seqs=num_seqs,
+            attn_mask=attn_mask,
             is_causal=False,
+            mesh=self.mesh
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
@@ -1846,7 +1864,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.use_spmd:
             # Shard KV Cache
             for cache in self.kv_caches:
-                xs.mark_sharding(cache, self.mesh, (None, "x", None, None))
+                xs.mark_sharding(cache, self.mesh, (None, None, "x", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)

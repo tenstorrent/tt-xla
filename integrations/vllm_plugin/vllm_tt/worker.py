@@ -68,6 +68,7 @@ class TTWorker:
             self.parallel_config.tensor_parallel_size = 1
             self.parallel_config.pipeline_parallel_size = 1
             self.parallel_config.world_size = 1
+            os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
         self.scheduler_config = vllm_config.scheduler_config
         self.device_config = vllm_config.device_config
         self.speculative_config = vllm_config.speculative_config
@@ -208,7 +209,7 @@ class TTWorker:
 
         # Get the maximum amount of memory used by the model weights and
         # intermediate activations.
-        if self.use_spmd:
+        if self.use_spmd and False:
             # This is a workaround for the TPU SPMD mode. The get_memory_info
             # API doesn't work with SPMD mode in PyTorch/XLA.
             # TODO: use xm.get_memory_info for SPMD once it's supported in

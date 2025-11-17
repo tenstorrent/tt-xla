@@ -71,14 +71,17 @@ class InputBatch:
             max_model_len=max_model_len,
             max_num_batched_tokens=max_num_batched_tokens,
             pin_memory=pin_memory,
-            device=device,
+            device="cpu",
             block_sizes=block_sizes,
         )
 
+        for i in range(len(self.block_table.block_tables)):
+            self.block_table.block_tables[i].block_table = self.block_table.block_tables[i].block_table.to(device)
+
         # Sampling-related.
         self.temperature = torch.empty(
-            (max_num_reqs,), dtype=torch.float32, device=device
-        )
+            (max_num_reqs,), dtype=torch.float32, device="cpu"
+        ).to(device)
         self.temperature_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
         )
@@ -86,21 +89,21 @@ class InputBatch:
         self.greedy_reqs: set[str] = set()
         self.random_reqs: set[str] = set()
 
-        self.top_p = torch.empty((max_num_reqs,), dtype=torch.float32, device=device)
+        self.top_p = torch.empty((max_num_reqs,), dtype=torch.float32, device="cpu").to(device)
         self.top_p_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
         )
         self.top_p_cpu = self.top_p_cpu_tensor.numpy()
         self.top_p_reqs: set[str] = set()
 
-        self.top_k = torch.empty((max_num_reqs,), dtype=torch.int32, device=device)
+        self.top_k = torch.empty((max_num_reqs,), dtype=torch.int32, device="cpu").to(device)
         self.top_k_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.int32, device="cpu", pin_memory=pin_memory
         )
         self.top_k_cpu = self.top_k_cpu_tensor.numpy()
         self.top_k_reqs: set[str] = set()
 
-        self.min_p = torch.empty((max_num_reqs,), dtype=torch.float32, device=device)
+        self.min_p = torch.empty((max_num_reqs,), dtype=torch.float32, device="cpu").to(device)
         self.min_p_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
         )
@@ -109,8 +112,8 @@ class InputBatch:
 
         # Frequency penalty related data structures
         self.frequency_penalties = torch.empty(
-            (max_num_reqs,), dtype=torch.float, device=device
-        )
+            (max_num_reqs,), dtype=torch.float, device="cpu"
+        ).to(device)
         self.frequency_penalties_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float, device="cpu", pin_memory=pin_memory
         )
@@ -119,7 +122,7 @@ class InputBatch:
 
         # Presence penalty related data structures
         self.presence_penalties = torch.empty(
-            (max_num_reqs,), dtype=torch.float, device=device
+            (max_num_reqs,), dtype=torch.float, device="cpu"
         )
         self.presence_penalties_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float, device="cpu", pin_memory=pin_memory
@@ -129,7 +132,7 @@ class InputBatch:
 
         # Repetition penalty related data structures
         self.repetition_penalties = torch.empty(
-            (max_num_reqs,), dtype=torch.float, device=device
+            (max_num_reqs,), dtype=torch.float, device="cpu"
         )
         self.repetition_penalties_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float, device="cpu", pin_memory=pin_memory

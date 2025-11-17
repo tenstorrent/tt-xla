@@ -1209,7 +1209,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return_value=xm_tp_rank,
         ):
             try:
-                if self.use_spmd:
+                if self.use_spmd or True:
                     tpu_loader = TPUModelLoader(
                         load_config=self.vllm_config.load_config
                     )
@@ -1252,6 +1252,12 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.model = model
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = TPUSampler()
+
+        if self.use_spmd:
+            # SPMD mode is enabled after loading the model so that it does not
+            # ineract with model/weights loading and is only applied for model
+            # execution.
+            xr.use_spmd()
 
     def reload_weights(self) -> None:
         assert (

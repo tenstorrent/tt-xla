@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 from typing import List, Optional
-
+import torch_xla.distributed.spmd as xs
 import torch
 import torch_xla.core.xla_builder as xb
 import torch_xla.experimental.custom_kernel  # noqa: F401
@@ -133,7 +133,6 @@ def fill_cache_workaround(
         fill_value, (0, 0, 0, cache_shape[-2] - fill_value.shape[-2], 0, 0, 0, 0)
     )
     return new_cache
-
 
 @dataclass
 class TTMetadata:
