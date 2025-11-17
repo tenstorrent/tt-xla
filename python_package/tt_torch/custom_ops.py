@@ -262,6 +262,7 @@ def scaled_dot_product_attention_decode(
                 )
 
         # Enable GQA as the ttnn op handles GQA automatically.
+        breakpoint()
         return torch.nn.functional.scaled_dot_product_attention(
             query, key, value, attn_mask, is_causal=False, scale=scale, enable_gqa=True
         ).reshape(1, batch_size, num_heads, head_size)
@@ -624,7 +625,7 @@ def paged_fill_cache_fake(
 @torch.library.custom_op(
     "tt::paged_scaled_dot_product_attention_decode",
     mutates_args=[],
-    device_types=["xla"],
+    device_types=["xla", "cpu"],
 )
 def paged_scaled_dot_product_attention_decode(
     query: torch.Tensor,
@@ -638,6 +639,17 @@ def paged_scaled_dot_product_attention_decode(
     scale: float = None,
 ) -> torch.Tensor:
     device = query.device
+
+    if is_causal:
+        assert (
+            attention_mask is None
+        ), "attention_mask must be None when is_causal is True."
+        assert (
+            cur_pos_tensor is not None
+        ), "cur_pos_tensor must be provided when is_causal is True."
+    if attention_mask is not None:
+        assert not is_causal, "attention_mask must be None when is_causal is True."
+
     if device.type == "xla":
         attrs = {
             "has_attention_mask": "False",
@@ -667,6 +679,64 @@ def paged_scaled_dot_product_attention_decode(
             [query.dtype],
             frontend_attributes=attrs,
         )
+    elif device.type == "cpu":
+        # Select the proper key and value blocks based on the page table
+        block_size = key.shape[-2]
+        num_heads = key.shape[-3]
+        num_users = cur_pos_tensor.shape[0]
+        head_size = key.shape[-1]
+
+        num_blocks_per_user = page_table.shape[1]
+        max_seq_len = num_blocks_per_user * block_size
+        causal_mask = torch.zeros(num_users, max_seq_len, dtype=query.dtype)
+
+        new_key = torch.zeros(
+            num_users, num_heads, max_seq_len, head_size, dtype=query.dtype
+        )
+        new_value = torch.zeros(
+            num_users, num_heads, max_seq_len, head_size, dtype=query.dtype
+        )
+
+        for i in range(num_users):
+            block_indices = page_table[i]
+
+            user_key_blocks = key[block_indices]
+            user_value_blocks = value[block_indices]
+
+            # Flatten blocks into seq len
+            user_key = user_key_blocks.transpose(0, 1)  # Move head dim to the front
+            user_value = user_value_blocks.transpose(0, 1)  # Move head dim to the front
+
+            # Select the proper key and value blocks based on the current position
+            user_key = user_key.reshape(
+                num_heads, block_size * num_blocks_per_user, head_size
+            )
+            user_value = user_value.reshape(
+                num_heads, block_size * num_blocks_per_user, head_size
+            )
+
+            new_key[i] = user_key
+            new_value[i] = user_value
+
+            causal_mask[i, cur_pos_tensor[i] + 1 :] = float("-inf")
+
+        query = query.reshape(num_users, num_heads, 1, head_size)
+
+        attn_mask = (
+            causal_mask.reshape(num_users, 1, 1, max_seq_len)
+            if is_causal
+            else attention_mask
+        )
+
+        key = key.repeat_interleave(query.size(-3) // key.size(-3), -3)
+        value = value.repeat_interleave(query.size(-3) // value.size(-3), -3)
+        scale = 1 / head_size**0.5 if scale is None else scale
+        attn_weight = query @ new_key.transpose(-2, -1) * scale
+        attn_weight += attn_mask
+        attn_weight = torch.softmax(attn_weight, dim=-1)
+        out = attn_weight @ new_value
+        return out.reshape(1, num_users, num_heads, head_size)
+
     else:
         raise ValueError(f"Unsupported device type: {device.type}")
 

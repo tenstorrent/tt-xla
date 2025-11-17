@@ -198,3 +198,31 @@ def test_paged_fill_cache(
         [cache, fill_value, page_table, batch_idx],
         framework=Framework.TORCH,
     )
+
+
+@pytest.mark.parametrize("num_users", [8])
+@pytest.mark.parametrize("max_num_blocks_per_seq", [16, 32])
+@pytest.mark.parametrize("num_heads", [1, 8])
+@pytest.mark.parametrize("block_size", [32, 64])
+@pytest.mark.parametrize("head_dim", [128])
+def test_paged_scaled_dot_product_attention_decode(
+    num_users, max_num_blocks_per_seq, num_heads, block_size, head_dim
+):
+    max_num_blocks = max_num_blocks_per_seq * num_users
+    max_seq_len = max_num_blocks_per_seq * block_size
+
+    query = torch.randn(1, num_users, num_heads, head_dim, dtype=torch.bfloat16)
+    key = torch.randn(
+        max_num_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
+    )
+    value = torch.randn(
+        max_num_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
+    )
+    page_table = torch.ones(num_users, max_num_blocks_per_seq).to(torch.int32)
+    cur_pos_tensor = torch.ones(num_users).to(torch.int32)
+
+    run_op_test(
+        torch.ops.tt.paged_scaled_dot_product_attention_decode,
+        [query, key, value, page_table, True, None, cur_pos_tensor],
+        framework=Framework.TORCH,
+    )
