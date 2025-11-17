@@ -107,6 +107,9 @@ class ModelTestConfig:
             self._resolve("supported_archs", default=[])
         )
 
+        # Execution pass for the model (e.g. "FORWARD" or "BACKWARD")
+        self.execution_pass = self._resolve("execution_pass", default=None)
+
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
         if self.arch in overrides and key in overrides[self.arch]:
@@ -362,6 +365,11 @@ def record_model_test_properties(
         "parallelism": str(parallelism),
         "arch": arch,
     }
+
+    # Add execution_pass if available
+    execution_pass = getattr(test_metadata, "execution_pass", None)
+    if execution_pass is not None:
+        tags["execution_pass"] = str(execution_pass)
 
     # Add comparison result metrics if available
     if comparison_result is not None:
