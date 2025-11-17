@@ -884,7 +884,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ].to(self.device)
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]  # .to(
             # self.device)
-        block_tables = block_tables  # .to(self.device)
+        block_tables = block_tables.to(self.device)
 
         # Calculate the slot mapping
         slot_mapping_metadata = self._get_slot_mapping_metadata(
@@ -1407,7 +1407,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         slot_mapping = torch.zeros((3, padded_num_slices), dtype=torch.int32).to(
             self.device
         )
-        block_tables = torch.zeros((num_reqs, num_blocks), dtype=torch.int32)
+        block_tables = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
+            self.device
+        )
         query_lens = [1] * num_reqs
         query_start_loc = torch.cumsum(
             torch.tensor([0] + query_lens, dtype=torch.int32), dim=0, dtype=torch.int32

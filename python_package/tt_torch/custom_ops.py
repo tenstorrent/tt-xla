@@ -633,7 +633,7 @@ def paged_scaled_dot_product_attention_decode(
     value: torch.Tensor,
     page_table: torch.Tensor,
     is_causal: bool = False,
-    attention_mask: torch.Tensor = None,
+    attn_mask: torch.Tensor = None,
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: float = None,
@@ -641,13 +641,11 @@ def paged_scaled_dot_product_attention_decode(
     device = query.device
 
     if is_causal:
-        assert (
-            attention_mask is None
-        ), "attention_mask must be None when is_causal is True."
+        assert attn_mask is None, "attention_mask must be None when is_causal is True."
         assert (
             cur_pos_tensor is not None
         ), "cur_pos_tensor must be provided when is_causal is True."
-    if attention_mask is not None:
+    if attn_mask is not None:
         assert not is_causal, "attention_mask must be None when is_causal is True."
 
     if device.type == "xla":
@@ -662,9 +660,9 @@ def paged_scaled_dot_product_attention_decode(
             attrs["scale"] = str(scale)
 
         inputs = [query, key, value, page_table]
-        if attention_mask is not None:
+        if attn_mask is not None:
             attrs["has_attention_mask"] = "True"
-            inputs.append(attention_mask)
+            inputs.append(attn_mask)
         if cur_pos_tensor is not None:
             attrs["has_cur_pos_tensor"] = "True"
             inputs.append(cur_pos_tensor)
@@ -725,7 +723,7 @@ def paged_scaled_dot_product_attention_decode(
         attn_mask = (
             causal_mask.reshape(num_users, 1, 1, max_seq_len)
             if is_causal
-            else attention_mask
+            else attn_mask
         )
 
         key = key.repeat_interleave(query.size(-3) // key.size(-3), -3)
