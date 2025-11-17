@@ -456,6 +456,7 @@ test_config:
   resnet/image_classification/jax-resnet-26-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
+    markers: [large]
     reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
@@ -468,6 +469,7 @@ test_config:
   resnet/image_classification/jax-resnet-50-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
+    markers: [large, push]
     reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
