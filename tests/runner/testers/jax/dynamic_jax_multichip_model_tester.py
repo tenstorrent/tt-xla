@@ -130,9 +130,11 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         results.
         """
         self._compile_for_cpu(self.cpu_multichip_workload)
+        self._model.config.set_model_mesh(self._cpu_mesh)
         cpu_res = self._run_on_cpu(self.cpu_multichip_workload)
 
         self._compile_for_tt_device(self.tt_device_multichip_workload)
+        self._model.config.set_model_mesh(self._device_mesh)
         tt_res = self._run_on_tt_device(self.tt_device_multichip_workload)
 
         return (self._compare(tt_res, cpu_res),)

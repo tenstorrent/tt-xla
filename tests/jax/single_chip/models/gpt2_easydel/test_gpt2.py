@@ -15,12 +15,12 @@ from .tester import GPT2EasyDel
 
 @pytest.fixture
 def inference_tester() -> GPT2EasyDel:
-    return GPT2EasyDel(axis_name=("x", "y"), mesh_shape=(1, 1), run_mode=RunMode.INFERENCE)
+    return GPT2EasyDel(axis_names=("x", "y"), mesh_shape=(1, 1), run_mode=RunMode.INFERENCE)
 
 
 @pytest.fixture
 def training_tester() -> GPT2EasyDel:
-    return GPT2EasyDel(axis_name=("x", "y"), mesh_shape=(1, 1), run_mode=RunMode.TRAINING)
+    return GPT2EasyDel(axis_names=("x", "y"), mesh_shape=(1, 1), run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----

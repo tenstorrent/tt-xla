@@ -4,8 +4,8 @@
 
 from contextlib import contextmanager
 from enum import Enum
+from typing import Tuple
 
-from click import Tuple
 import jax
 from flax import linen
 from jax.experimental.shard_map import shard_map
@@ -102,7 +102,14 @@ def make_easydel_parameters_partition_specs(
       partition_specs = []
       for path, _ in flat_state:
           # Convert JAX path to string (e.g., "transformer/h/0/attn/c_attn/kernel")
-          param_path = '/'.join(str(key.key) for key in path)
+          # Handle different key types: GetAttrKey has .name, DictKey has .key, SequenceKey has .idx
+          param_path = '/'.join(
+              key.name if hasattr(key, 'name') else
+              str(key.key) if hasattr(key, 'key') else
+              str(key.idx) if hasattr(key, 'idx') else
+              str(key)
+              for key in path
+          )
           spec = get_partition_spec_for_param(param_path)
           partition_specs.append(spec)
 
