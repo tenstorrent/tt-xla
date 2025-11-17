@@ -214,6 +214,16 @@ def update_test_metadata_for_exception(
     except Exception:
         message = repr(exc)
 
+    print(f"stdout {stdout}")
+    print(f"stdout {stdout}")
+    print(f"stdout {stdout}")
+    print(f"stdout {stdout}")
+
+    print(f"stderr {stderr}")
+    print(f"stderr {stderr}")
+    print(f"stderr {stderr}")
+    print(f"stderr {stderr}")
+
     # Find failing reason by raised exception
     failing_reason = FailingReasonsFinder.find_reason_by_exception(
         exc, stdout=stdout, stderr=stderr

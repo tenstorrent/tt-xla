@@ -1364,6 +1364,11 @@ class FailingReasons(Enum):
                 error_log=[
                     M.last_line(M.contains("torch/utils/_pytree.py:")),
                 ],
+                stdout=[
+                    M.contains("Running tests/runner/test_models.py"),
+                    M.contains("pytorch_qwen_2_5_0_5b_nlp_causal_lm_huggingface"),
+                    M.contains("Created device mesh: (1, 1) with 1 devices."),
+                ],
             ),
         ],
     )
