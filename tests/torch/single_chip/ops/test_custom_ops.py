@@ -147,9 +147,6 @@ def test_paged_update_cache(
     )
     fill_value = torch.randn(1, num_users, num_heads, head_dim, dtype=torch.bfloat16)
 
-    # Fill value head dim must be explicitly padded to 32, not only relying on tile layout.
-    # fill_value = torch.nn.functional.pad(fill_value, (0, 0, 0, 32 - num_heads))
-
     # Create arbitrary update indices
     cache_idxs = torch.randperm(max_seq_len)[:num_users]
     permutation = torch.randperm(max_num_blocks)
@@ -175,7 +172,6 @@ def test_paged_fill_cache(
     num_users, max_num_blocks_per_seq, num_heads, block_size, head_dim, seq_len_to_fill
 ):
     max_num_blocks = max_num_blocks_per_seq * num_users
-    max_seq_len = max_num_blocks_per_seq * block_size
 
     cache = torch.zeros(
         max_num_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
@@ -209,7 +205,6 @@ def test_paged_scaled_dot_product_attention_decode(
     num_users, max_num_blocks_per_seq, num_heads, block_size, head_dim
 ):
     max_num_blocks = max_num_blocks_per_seq * num_users
-    max_seq_len = max_num_blocks_per_seq * block_size
 
     query = torch.randn(1, num_users, num_heads, head_dim, dtype=torch.bfloat16)
     key = torch.randn(

@@ -262,7 +262,6 @@ def scaled_dot_product_attention_decode(
                 )
 
         # Enable GQA as the ttnn op handles GQA automatically.
-        breakpoint()
         return torch.nn.functional.scaled_dot_product_attention(
             query, key, value, attn_mask, is_causal=False, scale=scale, enable_gqa=True
         ).reshape(1, batch_size, num_heads, head_size)
