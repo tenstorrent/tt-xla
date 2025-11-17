@@ -701,13 +701,13 @@ test_config:
 
   dla/pytorch-dla34-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   dla/pytorch-dla46_c-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   dla/pytorch-dla46x_c-single_device-full-training:
     status: EXPECTED_PASSING
@@ -731,8 +731,8 @@ test_config:
 
   dla/pytorch-dla102-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   dla/pytorch-dla102x-single_device-full-training:
     status: EXPECTED_PASSING
@@ -751,8 +751,8 @@ test_config:
 
   densenet/pytorch-densenet121-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   densenet/pytorch-densenet161-single_device-full-training:
     status: EXPECTED_PASSING
@@ -766,8 +766,8 @@ test_config:
 
   densenet/pytorch-densenet201-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   codegen/pytorch-Salesforce/codegen-350M-mono-single_device-full-training:
     status: EXPECTED_PASSING
@@ -821,8 +821,8 @@ test_config:
 
   vit/pytorch-vit_l_32-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vit/pytorch-vit_h_14-single_device-full-training:
     status: EXPECTED_PASSING
@@ -836,8 +836,8 @@ test_config:
 
   phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-full-training:
     status: EXPECTED_PASSING
@@ -881,8 +881,8 @@ test_config:
 
   swin/image_classification/pytorch-swin_v2_t-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   swin/image_classification/pytorch-swin_v2_s-single_device-full-training:
     status: EXPECTED_PASSING
@@ -891,8 +891,8 @@ test_config:
 
   swin/image_classification/pytorch-swin_v2_b-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   deit/pytorch-base-single_device-full-training:
     status: EXPECTED_PASSING
@@ -906,8 +906,8 @@ test_config:
 
   deit/pytorch-small-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   deit/pytorch-tiny-single_device-full-training:
     status: EXPECTED_PASSING
@@ -921,8 +921,8 @@ test_config:
 
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1011,8 +1011,8 @@ test_config:
 
   resnext/pytorch-resnext50_32x4d-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   resnext/pytorch-resnext101_32x8d-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1046,13 +1046,13 @@ test_config:
 
   rcnn/pytorch-alexnet-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vovnet/pytorch-vovnet27s-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vovnet/pytorch-vovnet39-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1076,8 +1076,8 @@ test_config:
 
   vovnet/pytorch-ese_vovnet19b_dw-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vovnet/pytorch-ese_vovnet39b-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1086,8 +1086,8 @@ test_config:
 
   vovnet/pytorch-ese_vovnet99b-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1141,13 +1141,13 @@ test_config:
 
   resnet/pytorch-resnet18-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   resnet/pytorch-resnet34-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   resnet/pytorch-resnet50-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1176,8 +1176,8 @@ test_config:
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   wide_resnet/pytorch-wide_resnet50_2-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1201,13 +1201,13 @@ test_config:
 
   alexnet/pytorch-alexnet-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   alexnet/pytorch-alexnetb-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   autoencoder/pytorch-conv-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1216,13 +1216,13 @@ test_config:
 
   vgg/pytorch-vgg11-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-vgg13-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-vgg16-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1231,23 +1231,23 @@ test_config:
 
   vgg/pytorch-vgg19-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-bn_vgg19-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-bn_vgg19b-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-vgg19_bn-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-timm_vgg19_bn-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1256,58 +1256,58 @@ test_config:
 
   vgg/pytorch-torchvision_vgg11-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg11_bn-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg13-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg13_bn-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg16-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg16_bn-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg19-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-torchvision_vgg19_bn-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   vgg/pytorch-hf_vgg19-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   unet/pytorch-torchhub_brain_unet-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   unet/pytorch-carvana_unet-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space in L1"
 
   distilbert/masked_lm/pytorch-distilbert-base-cased-single_device-full-training:
     status: EXPECTED_PASSING
