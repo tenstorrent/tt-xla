@@ -842,7 +842,7 @@ test_config:
   gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: failed to legalize operation 'ttir.scatter' that was explicitly marked illegal"
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-training:
     status: EXPECTED_PASSING
@@ -866,8 +866,8 @@ test_config:
 
   swin/image_classification/pytorch-swin_t-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL circular_buffer"
 
   swin/image_classification/pytorch-swin_s-single_device-full-training:
     status: EXPECTED_PASSING
@@ -901,8 +901,8 @@ test_config:
 
   deit/pytorch-base_distilled-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL circular_buffer"
 
   deit/pytorch-small-single_device-full-training:
     status: EXPECTED_PASSING
@@ -917,7 +917,7 @@ test_config:
   bart/pytorch-large-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    reason: "error: failed to legalize operation 'ttir.scatter' that was explicitly marked illegal"
 
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-full-training:
     status: EXPECTED_PASSING
@@ -971,13 +971,13 @@ test_config:
 
   vilt/masked_lm/pytorch-mlm-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Fatal Python error: Floating point exception"
 
   vilt/question_answering/pytorch-vqa-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttir.reshape' op All dimensions must be positive except the one with -1"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Fatal Python error: Floating point exception"
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1057,12 +1057,12 @@ test_config:
   vovnet/pytorch-vovnet39-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
 
   vovnet/pytorch-vovnet57-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
 
   vovnet/pytorch-vovnet39_th-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1102,12 +1102,12 @@ test_config:
   inception/pytorch-inception_v4.tf_in1k-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
 
   inception/pytorch-inceptionv4-single_device-full-training:
     status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
 
   dla/pytorch-dla34.in1k-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1171,8 +1171,8 @@ test_config:
 
   hardnet/pytorch-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL conv2d"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-training:
     status: EXPECTED_PASSING
@@ -1226,8 +1226,8 @@ test_config:
 
   vgg/pytorch-vgg16-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4794"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL conv2d"
 
   vgg/pytorch-vgg19-single_device-full-training:
     status: EXPECTED_PASSING
