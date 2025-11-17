@@ -265,22 +265,15 @@ class TTAttentionBackendImpl(AttentionImpl):
         )  # [batch, num_tokens, num_kv_heads, head_size]
 
         if kv_cache.numel() > 1:
-            # cache_position = (attn_metadata.context_lens[:1] - 1).to(query.device)
             cache_position = (attn_metadata.context_lens - 1).to(query.device)
 
             k_cache = kv_cache[0]
             v_cache = kv_cache[1]
 
             if query.shape[-2] == 1:
-                # print(f"key.shape: {key.shape}, value.shape: {value.shape}")
-
                 # Transpose (1, num_heads, 1, head_size) to (1, 1, num_heads, head_size)
                 key = key.transpose(1, 2)
                 value = value.transpose(1, 2)
-
-                # Must pad heads to 32
-                # key = torch.nn.functional.pad(key, (0, 0, 0, 32 - key.shape[2]))
-                # value = torch.nn.functional.pad(value, (0, 0, 0, 32 - value.shape[2]))
 
                 k_cache = torch.ops.tt.paged_update_cache(
                     k_cache,
@@ -294,12 +287,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                     cache_position,
                     attn_metadata.page_table.to(query.device),
                 )
-                # key = k_cache
-                # value = v_cache
             else:
-                # See the comment in this function for more details.
-                # k_cache = fill_cache_workaround(k_cache.shape, key)
-                # v_cache = fill_cache_workaround(v_cache.shape, value)
                 k_cache = torch.ops.tt.paged_fill_cache(
                     k_cache, key, attn_metadata.page_table.to(query.device)
                 )
@@ -312,7 +300,6 @@ class TTAttentionBackendImpl(AttentionImpl):
 
         if query.shape[-2] == 1:
             query = query.reshape(1, query.shape[0], query.shape[1], query.shape[3])
-            cur_pos_tensor = attn_metadata.context_lens[:1].to(query.device)
             out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
                 query,
                 k_cache,
@@ -320,6 +307,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 attn_metadata.page_table.to(query.device),
                 cur_pos_tensor=cache_position,
                 is_causal=attn_metadata.is_causal,
+                attn_mask=attn_metadata.attn_mask,
             )
             out = out.transpose(-3, -2)
             out = out.reshape(query_num_tokens, query_hidden_size)
@@ -330,6 +318,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 key,
                 value,
                 is_causal=attn_metadata.is_causal,
+                attn_mask=attn_metadata.attn_mask,
             ).transpose(-3, -2)
             if is_batched:
                 return output.reshape(

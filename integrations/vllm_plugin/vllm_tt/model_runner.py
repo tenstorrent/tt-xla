@@ -885,10 +885,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]  # .to(
             # self.device)
         block_tables = block_tables  # .to(self.device)
-        print("PAGE TABLE:")
-        print(block_tables)
-        print("SEQ LEN:")
-        print(seq_lens)
 
         # Calculate the slot mapping
         slot_mapping_metadata = self._get_slot_mapping_metadata(
@@ -1132,12 +1128,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ) = self._prepare_inputs(scheduler_output, start_index)
             input_ids, inputs_embeds = self._get_model_inputs(self.input_ids, mm_embeds)
             xm.mark_step()
-            print("INPUT IDS:")
-            print(input_ids)
-            print("POSITIONS:")
-            print(self.position_ids)
-            print("INPUT EMBEDS:")
-            print(inputs_embeds)
             # Run the decoder
             with set_forward_context(
                 attn_metadata,
@@ -1839,7 +1829,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         kv_cache_sizes = {}
-        print(f"kv_cache_config.kv_cache_tensors: {kv_cache_config.kv_cache_tensors}")
         for kv_cache_tensor in kv_cache_config.kv_cache_tensors:
             assert len(kv_cache_tensor.shared_by) == 1, (
                 "KV cache tensor shared by multiple layers is not supported in " "TPU."
