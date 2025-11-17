@@ -49,6 +49,7 @@ def main():
                 print(
                     "Server returned a connection error. This usually occurs when a request is made before the service is ready. Please wait for the service to be ready and try again."
                 )
+                data["messages"].pop()
             else:
                 raise e
 
