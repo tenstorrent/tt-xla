@@ -846,23 +846,23 @@ test_config:
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   albert/sequence_classification/pytorch-imdb-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   swin/image_classification/pytorch-swin_t-single_device-full-training:
     status: EXPECTED_PASSING
@@ -871,8 +871,8 @@ test_config:
 
   swin/image_classification/pytorch-swin_s-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   swin/image_classification/pytorch-swin_b-single_device-full-training:
     status: EXPECTED_PASSING
@@ -886,8 +886,8 @@ test_config:
 
   swin/image_classification/pytorch-swin_v2_s-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   swin/image_classification/pytorch-swin_v2_b-single_device-full-training:
     status: EXPECTED_PASSING
@@ -896,8 +896,8 @@ test_config:
 
   deit/pytorch-base-single_device-full-training:
     status: EXPECTED_PASSING
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.dynamic_update_slice' https://github.com/tenstorrent/tt-mlir/issues/5527"
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: TT_FATAL rotary_embedding"
 
   deit/pytorch-base_distilled-single_device-full-training:
     status: EXPECTED_PASSING
