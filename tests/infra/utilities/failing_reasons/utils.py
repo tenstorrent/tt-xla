@@ -21,6 +21,8 @@ class ExceptionData:
     class_name: str
     message: str
     error_log: str
+    stdout: Optional[str] = None
+    stderr: Optional[str] = None
 
 
 MessageCheckerType = Callable[[str], bool]
@@ -85,6 +87,8 @@ class ExceptionCheck:
     component: Optional["ComponentChecker"] = None
     message: List[MessageCheckerType] = field(default_factory=list)
     error_log: List[MessageCheckerType] = field(default_factory=list)
+    stdout: List[MessageCheckerType] = field(default_factory=list)
+    stderr: List[MessageCheckerType] = field(default_factory=list)
 
     def __contains__(self, ex: ExceptionData) -> bool:
         """
@@ -113,6 +117,12 @@ class ExceptionCheck:
                 return False
         for message_check in self.error_log:
             if not message_check(ex.error_log):
+                return False
+        for message_check in self.stdout:
+            if ex.stdout is None or not message_check(ex.stdout):
+                return False
+        for message_check in self.stderr:
+            if ex.stderr is None or not message_check(ex.stderr):
                 return False
         return True
 
