@@ -68,3 +68,7 @@ class JaxMultichipWorkload(Workload):
     def sharding_mode(self) -> ShardingMode:
         assert self._sharding_mode is not None
         return self._sharding_mode
+
+    def execute(self) -> Any:
+        with self.device_mesh:
+            return super().execute()
