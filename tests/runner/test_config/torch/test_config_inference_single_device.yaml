@@ -2344,3 +2344,39 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
+
+  efficientdet/pytorch-d0-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,64,8,8] vs. bf16[2]. Expected dimension 3 of shape bf16[1,64,8,8] (8) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/pytorch-d1-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,88,10,10] vs. bf16[2]. Expected dimension 3 of shape bf16[1,88,10,10] (10) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/pytorch-d2-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,112,12,12] vs. bf16[2]. Expected dimension 3 of shape bf16[1,112,12,12] (12) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/pytorch-d3-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,160,14,14] vs. bf16[2]. Expected dimension 3 of shape bf16[1,160,14,14] (14) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/pytorch-d4-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,224,16,16] vs. bf16[2]. Expected dimension 3 of shape bf16[1,224,16,16] (16) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/pytorch-d5-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,288,20,20] vs. bf16[2]. Expected dimension 3 of shape bf16[1,288,20,20] (20) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/pytorch-d6-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 52428800 B L1 buffer across 64 banks, where each bank needs to store 819200 B, but bank size is only 1331936 B"
+
+  efficientdet/pytorch-d7-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 33030144 B L1 buffer across 56 banks, where each bank needs to store 589824 B, but bank size is only 1331936 B"
+
+  efficientdet/pytorch-d7x-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 5760 B L1_SMALL buffer across 36 banks, where each bank needs to store 160 B, but bank size is only 65536 B"
