@@ -1006,9 +1006,10 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
   out_stream.close();
 }
 
-void ModuleBuilder::enableVerboseIRPrinting(
-    mlir::PassManager &pm, const std::string &source_name,
-    const std::string &pipeline_name, bool dump_initial) {
+void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm,
+                                            const std::string &source_name,
+                                            const std::string &pipeline_name,
+                                            bool dump_initial) {
   const char *explorer_level = std::getenv("EXPLORER_EXPORT_LEVEL");
   if (loguru::g_stderr_verbosity == LOG_VERBOSE || explorer_level != nullptr) {
     // Multithreading must be disabled when printing at module scope
@@ -1021,18 +1022,18 @@ void ModuleBuilder::enableVerboseIRPrinting(
     return;
   }
 
-  mlir::tt::addTTPrintIRInstrumentation(pm, {
-      .level = parseExplorerDumpLevel(explorer_level),
-      .modelName = source_name,
-      .pipelineName = pipeline_name,
-      .dumpInitial = dump_initial
-  });
+  mlir::tt::addTTPrintIRInstrumentation(
+      pm, {.level = parseExplorerDumpLevel(explorer_level),
+           .modelName = source_name + ".mlir",
+           .pipelineName = pipeline_name,
+           .dumpInitial = dump_initial});
 }
 
 mlir::tt::TTPrintIRInstrumentation::DumpLevel
-ModuleBuilder::parseExplorerDumpLevel(const char* level_str) {
+ModuleBuilder::parseExplorerDumpLevel(const char *level_str) {
   static const auto default_level =
-      mlir::tt::TTPrintIRInstrumentation::TTPrintIRInstrumentationOptions{}.level;
+      mlir::tt::TTPrintIRInstrumentation::TTPrintIRInstrumentationOptions{}
+          .level;
 
   if (!level_str || !*level_str) {
     return default_level;
@@ -1041,10 +1042,14 @@ ModuleBuilder::parseExplorerDumpLevel(const char* level_str) {
   std::string_view str(level_str);
   using DumpLevel = mlir::tt::TTPrintIRInstrumentation::DumpLevel;
 
-  if (str == "once") return DumpLevel::Once;
-  if (str == "pipeline") return DumpLevel::Pipeline;
-  if (str == "pass") return DumpLevel::Pass;
-  if (str == "transformation") return DumpLevel::Transformation;
+  if (str == "once")
+    return DumpLevel::Once;
+  if (str == "pipeline")
+    return DumpLevel::Pipeline;
+  if (str == "pass")
+    return DumpLevel::Pass;
+  if (str == "transformation")
+    return DumpLevel::Transformation;
 
   return default_level;
 }
@@ -1053,17 +1058,19 @@ std::string ModuleBuilder::extractSourceName(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) const {
   // Try pytest test name first
   if (const char *pytest_test = std::getenv("PYTEST_CURRENT_TEST")) {
-    std::string test_path = pytest_test;
+    std::string_view test_path = pytest_test;
     if (size_t slash_pos = test_path.rfind('/');
         slash_pos != std::string::npos) {
-      std::string filepath_part = test_path.substr(slash_pos + 1);
-      // Sanitize: replace special chars with '_'
+      std::string filepath_part = std::string(test_path.substr(slash_pos + 1));
+
+      // Sanitize
       static constexpr std::string_view chars_to_replace = "[]- ().,=";
-      for (char &c : filepath_part) {
-        if (chars_to_replace.find(c) != std::string_view::npos) {
-          c = '_';
-        }
-      }
+      std::replace_if(
+          filepath_part.begin(), filepath_part.end(),
+          [chars_to_replace](char c) {
+            return chars_to_replace.find(c) != std::string_view::npos;
+          },
+          '_');
       return filepath_part;
     }
   }

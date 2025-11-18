@@ -52,11 +52,13 @@ module attributes {} {
 You can use the EXPLORER_EXPORT_LEVEL environment variable to collect graphs being compiled from a pytest.
 
 #### Export Usage
-Graphs will be saved to `~/explorer/` with organized subdirectories by test name and compilation stage.
+Graphs will be saved to `~/explorer/` with organized subdirectories by test name and compilation stage. For example, `~/explorer/your_test_name/compilation_stage/0_initial.mlir`.
 ```bash
-export EXPLORER_EXPORT_LEVEL=pass  # or "once", "pipeline", "transformation"
+export EXPLORER_EXPORT_LEVEL=once  # or "pipeline", "pass", "transformation"
 pytest your_test.py
 ```
+Once exported, you can preload graphs saved under `~/explorer/` from the Explorer GUI.
+You can also open the `.mlir` files directly to view the graph.
 
 #### Dump Levels
 - **`once`**: Export IR only once after each major compilation stage
@@ -64,13 +66,6 @@ pytest your_test.py
 - **`pass`**: Export IR after each compiler pass
 - **`transformation`**: Export IR after every transformation (most verbose)
 
-#### Viewing Exported Graphs
-
-Once exported, you can preload graphs saved under `~/explorer/` in the Explorer GUI.
-You can also open the `.mlir` files directly to view the graph:
-```bash
-tt-explorer ~/explorer/your_test_name/compilation_stage/0_initial.mlir
-```
 ## Learn More
 
 For detailed documentation on how to use Explorer, including tutorials and advanced features, see the [TT-MLIR Explorer Documentation](https://docs.tenstorrent.com/tt-mlir/tt-explorer/tt-explorer.html).

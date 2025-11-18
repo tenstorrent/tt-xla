@@ -240,15 +240,14 @@ private:
                           const std::string &stage_name);
 
   // Enables IR printing between passes with VERBOSE or higher logger level.
-  static void enableVerboseIRPrinting(
-      mlir::PassManager &pm,
-      const std::string &source_name,
-      const std::string &pipeline_name,
-      bool dump_initial = false);
+  static void enableVerboseIRPrinting(mlir::PassManager &pm,
+                                      const std::string &source_name,
+                                      const std::string &pipeline_name,
+                                      bool dump_initial = false);
 
   // Parse EXPLORER_EXPORT_LEVEL keyword to determine dump level.
   static mlir::tt::TTPrintIRInstrumentation::DumpLevel
-  parseExplorerDumpLevel(const char* level_str);
+  parseExplorerDumpLevel(const char *level_str);
 
   // Extract source file name from MLIR module location information.
   std::string
