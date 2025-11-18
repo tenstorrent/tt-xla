@@ -98,9 +98,9 @@ runs:
           run_pr_tests=true
         fi
 
-        # Check if branch name contains "uplift"
+        # Check if branch name is "uplift"
         BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
-        if [[ "$BRANCH_NAME" == *"uplift"* ]]; then
+        if [[ "$BRANCH_NAME" == "uplift" ]]; then
           run_uplift_model_tests=true
         fi
 
