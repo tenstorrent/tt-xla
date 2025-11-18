@@ -87,8 +87,306 @@ jobs:
         - /mnt/dockercache:/mnt/dockercache
 
     steps:
-    - name: Log disk space
+    - name: Log env var
       shell: bash
       run: |
-        curl http://large-file-cache.large-file-cache.svc.cluster.local || true
-        curl http://large-file-cache.large-file.cache.svc.cluster.local || true
+        python3 -c 'import os; print(bool(os.environ.get("DOCKER_CACHE_ROOT")))'
+        python3 -c 'import os; print(os.environ.get("DOCKER_CACHE_ROOT"))'
+
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-xla/tt-xla
+        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+    - name: Log disk space
+      run: df -h
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        sparse-checkout: |
+          .github/scripts
+          .gitmodules
+          .test_durations
+          pytest.ini
+          python_package/requirements.txt
+          integrations/vllm_plugin/requirements-vllm-plugin.txt
+          tests
+          venv
+
+    - name: Fetch job id
+      id: fetch-job-id
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      env:
+        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+        echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
+        cat << 'EOF' > _test_matrix.json
+          ${{ needs.generate-matrix-test.outputs.test_matrix }}
+        EOF
+        cat _test_matrix.json
+        echo "matrix-hash=$(cat _test_matrix.json | md5sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        rm -f _test_matrix.json
+        if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
+          echo "do_codecov=true" >> "$GITHUB_OUTPUT"
+          echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "artifact_run_id=${{ inputs.artifact_codecov_run_id }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
+        fi
+
+        # Precompute forge models detection as a reusable output
+        if [[ "${{ matrix.build.dir }}" == *"tests/runner/test_models.py"* ]]; then
+          echo "forge-models-test=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "forge-models-test=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Download and install wheels
+      shell: bash
+      run: |
+        echo "=== Downloading wheels ==="
+        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_artifact_name }}"
+        gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir wheels \
+          --name ${{ steps.strings.outputs.wheel_artifact_name }}
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}
+        fi
+        echo "Downloaded wheel files:"
+        ls -la wheels
+
+        echo "=== Installing wheel ==="
+        source venv/activate
+        pip install wheels/*.whl
+
+    - name: Download build artifacts
+      if: steps.strings.outputs.do_codecov
+      run: |
+        echo "Downloading build artifacts"
+        gh run download ${{ inputs.artifact_codecov_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir build \
+          --name ${{ inputs.build_artifact_name }}
+        echo "Untar build artifacts"
+        cd build
+        tar xf artifact.tar
+        rm -f artifact.tar
+
+    - name: Check for re-run attempt
+      id: check-rerun-attempt
+      shell: bash
+      run: |
+        source venv/activate
+        rm -f .pytest_tests_to_run
+        if [ "${{ github.run_attempt }}" -gt 1 ]; then
+          echo "Rerun attempt detected"
+          attempt=$((${{ github.run_attempt }} - 1))
+          rm -rf old-reports
+          mkdir old-reports
+          set +e
+          result=1
+          while [ $attempt -ge 1 ]; do
+            echo "Downloading test reports from attempt $attempt"
+            gh run download ${{ github.run_id }} \
+              --repo ${{ github.repository }} \
+              --pattern "test-reports-${{ steps.strings.outputs.matrix-hash }}-$attempt.${{ strategy.job-index }}-*" \
+              -D old-reports
+            result=$?
+            if [ $result -eq 0 ]; then
+              break
+            fi
+            attempt=$((attempt - 1))
+          done
+          if [ $result -ne 0 ]; then
+            echo "No previous test reports found"
+          else
+            echo "Found test reports from attempt $attempt"
+            python .github/scripts/find_all_failed_tests.py old-reports
+            if [ -f ".pytest_tests_to_run" ]; then
+              echo "There are tests to rerun"
+              echo "rerun_attempt=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "All tests will rerun"
+            fi
+          fi
+        else
+          echo "First attempt"
+        fi
+
+    - name: Set pytest command
+      shell: bash
+      run: |
+        # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
+        # See issue: https://github.com/tenstorrent/tt-xla/issues/795
+        # NOTE: Forked not used for multichip machines until https://github.com/tenstorrent/tt-xla/issues/1824
+        # is fixed. This is accomplished by specifically excluding run_forge_models_multichip from the list here.
+        PYTEST_FORKED=""
+        for n in run_torch run_large_jax_models run_forge_models run_jax_training run_large_jax_training; do
+          if [[ "${{ matrix.build.name }}" == "$n" ]]; then
+            PYTEST_FORKED="--forked"; break
+          fi
+        done
+
+        # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
+        if [[ -n "$PYTEST_FORKED" ]]; then
+          VERBOSITY="-vv"
+        else
+          VERBOSITY="-sv"
+        fi
+
+        # Pass arch to forge models tests to resolve arch_overrides in test_config files.
+        ARCH=""
+        if [[ "${{ steps.strings.outputs.forge-models-test }}" == "true" ]]; then
+          ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
+        fi
+
+        MARKS="${{ matrix.build.test-mark }}"
+
+        if [ "${{ steps.check-rerun-attempt.outputs.rerun_attempt }}" == "true" ]; then
+          echo "Only running previously failed tests"
+          PYTEST_SPLITS=""
+        else
+          echo "Running all tests"
+          PYTEST_SPLITS="--splits ${{ matrix.build.parallel-groups || 1}} \
+            --group ${{ matrix.build.group-id || 1}} \
+            --splitting-algorithm least_duration"
+        fi
+
+        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
+          --durations=0 \
+          ${{ matrix.build.dir }} \
+          $ARCH \
+          -m \"$MARKS\" ${{ matrix.build.args }} \
+          -k "$(printf '%q' '${{ matrix.build.contains }}')" \
+          $PYTEST_SPLITS"
+
+        echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
+        echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
+
+    - name: Install System Deps for Forge Models Tests
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' }}
+      shell: bash
+      run: |
+        apt-get update
+        apt install -y libgl1 libglx-mesa0
+
+    # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
+    # but still run tests even in case of failure here, will still treat overall job as failed.
+    - name: Validate Forge Models Tests test config file
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
+      shell: bash
+      run: |
+        source venv/activate
+        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_torch --validate-test-config
+        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_jax --validate-test-config
+
+    - name: Collect Tests
+      id: collect-tests
+      shell: bash
+      run: |
+        source venv/activate
+        echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
+        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
+        cat collected_tests.txt
+
+        SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
+          --collected-output collected_tests.txt \
+          --durations-file .test_durations \
+          --default-timeout 240)
+        echo "$SCRIPT_OUTPUT"
+
+        ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
+        echo "Estimated duration: $ESTIMATED_DURATION minutes"
+        echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
+
+    - name: Run tests
+      timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
+      env:
+        HF_HOME: /mnt/dockercache/huggingface
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        ENABLE_BRINGUP_STAGE_LOGGING: 1
+      shell: bash
+      run: |
+        source venv/activate
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+          $(pwd)/venv/bin/pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
+          pip freeze
+        fi
+        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
+               --junitxml=${{ steps.strings.outputs.test_report_path }} \
+               2>&1 | tee pytest.log
+
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+          $(pwd)/venv/bin/pip uninstall -y vllm transformers
+          $(pwd)/venv/bin/pip install -r $(pwd)/venv/requirements-dev.txt
+        fi
+
+    # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
+    # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
+    - name: Sanitize test_mark
+      id: sanitize
+      shell: bash
+      run: echo "test_mark=${TEST_MARK// /_}" >> $GITHUB_OUTPUT
+      env:
+        TEST_MARK: ${{ matrix.build.test-mark }}
+
+    - name: Upload Test Log
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-log-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: pytest.log
+
+    - name: Upload Test Report
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-reports-${{ steps.strings.outputs.matrix-hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ steps.strings.outputs.test_report_path }}
+
+    - name: Show Test Report
+      continue-on-error: true
+      uses: mikepenz/action-junit-report@v5
+      if: success() || failure()
+      with:
+        report_paths: ${{ steps.strings.outputs.test_report_path }}
+        check_name: TT-XLA Tests
+        comment: true
+        updateComment: true
+        detailed_summary: true
+        group_suite: true
+        token: ${{ github.token }}
+
+    - name: Prepare code coverage report
+      if: steps.strings.outputs.do_codecov && (success() || failure())
+      run: |
+        lcov --directory build --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh
+        lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
+        sed -i 's|SF:/__w/tt-xla/tt-xla/pjrt_implementation/src/|SF:src/|' coverage.info
+        lcov --list coverage.info
+
+    - name: Upload coverage reports to Codecov
+      if: steps.strings.outputs.do_codecov && (success() || failure())
+      uses: codecov/codecov-action@v5
+      with:
+        files: coverage.info
+        disable_search: true
+        token: ${{ secrets.CODECOV_TOKEN }}
