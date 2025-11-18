@@ -48,6 +48,7 @@ class ModelVariant(StrEnum):
 
     # Carvana UNet (in-repo fallback)
     CARVANA_UNET = "carvana_unet"
+    CARVANA_UNET_480x640 = "carvana_unet_480x640"
 
 
 class ModelLoader(ForgeModel):
@@ -71,6 +72,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.CARVANA_UNET: UnetConfig(
             pretrained_model_name="carvana_unet",
+            source=ModelSource.CUSTOM,
+        ),
+        ModelVariant.CARVANA_UNET_480x640: UnetConfig(
+            pretrained_model_name="carvana_unet_480x640",
             source=ModelSource.CUSTOM,
         ),
     }
@@ -197,6 +202,9 @@ class ModelLoader(ForgeModel):
                 )
 
             inputs = (img_tensor - mean) / std
+
+        elif self._variant == ModelVariant.CARVANA_UNET_480x640:
+            inputs = torch.rand(1, 3, 480, 640)
 
         else:
             inputs = torch.rand(1, 3, 224, 224)
