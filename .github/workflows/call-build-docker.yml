@@ -26,11 +26,17 @@ permissions:
 jobs:
 
   check-if-docker-exist:
-    runs-on: ubuntu-latest
+    runs-on: tt-ubuntu-2204-n150-stable
     outputs:
       docker-image: ${{ steps.check.outputs.docker-image }}
       docker-image-base: ${{ steps.check.outputs.docker-image-base }}
     steps:
+      - name: Log
+        shell: bash
+        run: |
+          curl http://large-file-cache.large-file-cache.svc.cluster.local || true
+          curl http://large-file-cache.large-file.cache.svc.cluster.local || true
+
       - uses: actions/checkout@v4
       - name: Override tt-mlir SHA mlir_override is set
         if: ${{ inputs.mlir_override }}
