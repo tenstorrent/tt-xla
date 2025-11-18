@@ -1000,7 +1000,13 @@ void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
   // Multithreading must be disabled when printing at module scope
   // to avoid interleaved output.
   pm.getContext()->disableMultithreading();
-  pm.enableIRPrinting();
+
+  // Enable debug info printing
+  pm.enableIRPrintingToFileTree([&](mlir::Pass *pass, mlir::Operation *op) {
+    return true;
+  }, [&](mlir::Pass *pass, mlir::Operation *op) {
+    return true;
+  }, true, true, false, ".pass_manager_output", mlir::OpPrintingFlags().enableDebugInfo().useLocalScope());
 }
 
 bool ModuleBuilder::isUsingShardy(
