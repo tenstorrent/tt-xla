@@ -326,11 +326,9 @@ def serialize_jax_multichip_op_with_random_inputs(
         maxval: Maximum value for random inputs (default: 1.0)
         compiler_config: Compiler configuration options
     """
-    import re
+    from infra.utilities.utils import sanitize_test_name
 
-    # Keep the test name but replace special chars with underscores
-    clean_name = re.sub(r"[\[\](),\-\s]+", "_", test_name)
-    clean_name = clean_name.rstrip("_")
+    clean_name = sanitize_test_name(test_name)
     output_prefix = f"output_artifact/{clean_name}"
 
     inputs = [
