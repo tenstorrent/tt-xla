@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Tuple
 
 from infra.utilities import PyTree, Tensor
+from loguru import logger
 
 from .comparison_config import (
     AllcloseConfig,
@@ -47,6 +48,9 @@ class Comparator(ABC):
         Returns ComparisonResult with computed metrics.
         If config.assert_on_failure=True (default), also asserts on failure.
         """
+        logger.info("golden_out={}", golden_out)
+        logger.info("device_out={}", device_out)
+
         # Pack args in an iterable to simulate a pytree.
         device_output, golden_output = self._match_data_types((device_out, golden_out))
         _comparison_result = ComparisonResult(
@@ -93,6 +97,8 @@ class Comparator(ABC):
         - passed: True if all enabled comparisons passed their thresholds, False otherwise
         - error_message: None if passed, combined error message for all failures if any failed
         """
+        logger.info("comparison_result.pcc={}", comparison_result.pcc)
+
         passed = True
         error_messages = []
 
