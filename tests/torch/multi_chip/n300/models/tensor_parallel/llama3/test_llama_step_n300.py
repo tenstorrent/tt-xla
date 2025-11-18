@@ -18,11 +18,6 @@ from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from infra.connectors.torch_device_connector import TorchDeviceConnector
-from tt_torch import parse_compiled_artifacts_from_cache_to_disk
-
-
-
 
 from tests.infra.comparators.comparison_config import (
     AtolConfig,
@@ -47,14 +42,14 @@ class LLMRunMode(Enum):
     bringup_status=BringupStatus.PASSED,
 )
 @pytest.mark.parametrize("run_mode", [LLMRunMode.PREFILL, LLMRunMode.DECODE])
-def test_llama_step(run_mode, request):
+def test_llama_step(run_mode):
 
     # Must be called at start of program.
     xr.set_device_type("TT")
     enable_spmd()
 
     # Set up config variables.
-    model_hidden_layers: int = 1
+    model_hidden_layers: int = 28
     batch_size: int = 1
     max_cache_len: int = 128
     input_prompt: str = "I like taking walks in the"
@@ -155,8 +150,6 @@ def test_llama_step(run_mode, request):
     # Run model (with no gradient calculation since we only need inference).
     with torch.no_grad():
         output: CausalLMOutputWithPast = model(**input_args)
-
-
         output_logits: torch.Tensor = output.logits.to("cpu")
         generated_output_logits.append(output_logits)
         output_text = tokenizer.decode(output_logits[:, -1].argmax(dim=-1))
@@ -171,9 +164,6 @@ def test_llama_step(run_mode, request):
         host_cache_pos = input_args["cache_position"].to("cpu")
         host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
         input_args["cache_position"] = host_cache_pos.to(device)
-
-        parse_compiled_artifacts_from_cache_to_disk(TorchDeviceConnector.get_cache_dir(), f"output_artifact/{request.node.name}")
-
 
         # Reapply shardings for static cache (i/o inplace mutated tensors since they lose sharding annotations).
         for i, (key, value) in enumerate(
