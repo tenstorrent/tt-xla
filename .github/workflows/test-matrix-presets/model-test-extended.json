@@ -1,0 +1,3 @@
+[
+  { "runs-on": "n150", "name": "extended_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "extended", "parallel-groups": 1 }
+]
