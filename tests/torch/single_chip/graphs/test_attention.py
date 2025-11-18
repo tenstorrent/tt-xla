@@ -12,13 +12,18 @@ from infra import Framework, run_graph_test
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers.cache_utils import StaticCache
+from transformers.models.bert.modeling_bert import BertSelfAttention
+from transformers.models.gemma.modeling_gemma import GemmaAttention
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
+    LlamaAttention,
     eager_attention_forward,
 )
-from utils import failed_runtime
+from transformers.models.mistral.modeling_mistral import MistralAttention
+from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
+from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
+from transformers.models.xlm_roberta.modeling_xlm_roberta import XLMRobertaSelfAttention
 
-from tests.utils import is_llmbox
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader as BertModelLoader,
 )
@@ -122,7 +127,6 @@ def get_available_variants(model_name):
 
 # Mark tests to run on both llmbox and single device when shard spec setup is included
 def parametrize_is_llmbox():
-    """Returns a parametrize decorator for is_llmbox parameter that creates both llmbox and single_device test variants."""
     return pytest.mark.parametrize(
         "is_llmbox",
         [
@@ -136,7 +140,7 @@ def parametrize_is_llmbox():
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -150,17 +154,15 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(
-        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
-    )
+    cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
@@ -197,7 +199,7 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
@@ -210,24 +212,22 @@ def test_llama_attention_decode(variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
 
     seq_len = 1
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(
-        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
-    )
+    cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
-        config=model.config,
+        config=config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
         device="cpu",
@@ -278,11 +278,11 @@ def test_llama_concat_heads(variant, variant_config, seq_len):
         return attn_output.reshape(*input_shape, -1).contiguous()
 
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
+    config = loader.load_config()
 
     batch_size = 1
-    num_heads = model.config.num_attention_heads
-    head_dim = model.config.head_dim
+    num_heads = config.num_attention_heads
+    head_dim = config.head_dim
 
     attn_output = torch.randn(
         (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -310,12 +310,12 @@ def test_llama_create_heads(variant, variant_config, seq_len):
         return query_states, key_states, value_states
 
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
-    hidden_size = model.config.hidden_size
-    head_dim = model.config.head_dim
+    hidden_size = config.hidden_size
+    head_dim = config.head_dim
 
     hidden_states = torch.randn(
         (batch_size, seq_len, hidden_size), dtype=torch.bfloat16
@@ -336,7 +336,7 @@ def test_llama_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -376,14 +376,14 @@ def test_llama_attention(variant, variant_config, seq_len, is_llmbox):
         return attn_output, attn_weights
 
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
 
-    num_heads = model.config.num_attention_heads
-    num_key_value_heads = getattr(model.config, "num_key_value_heads", num_heads)
-    head_dim = model.config.head_dim
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+    head_dim = config.head_dim
 
     query_states = torch.randn(
         (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -439,7 +439,7 @@ def test_llama_attention(variant, variant_config, seq_len, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -453,14 +453,14 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = Qwen3ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
         # Qwen3-30B-A3B has 4 key value heads  so it would use 2x4 mesh
         # Thus, we need to see if 2x4 mesh is needed for all Qwen3 models
-        num_key_value_heads = model.config.num_key_value_heads
+        num_key_value_heads = config.num_key_value_heads
 
         if num_key_value_heads % 8 == 0:
             # Use 1x8 mesh for full model parallelism
@@ -506,11 +506,9 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, is_llmbox):
         get_shard_spec = None
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(
-        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
-    )
+    cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
@@ -527,7 +525,7 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, is_llmbox):
 
 # Add single push test to ensure multi-chip graph tester has coverage.
 @pytest.mark.push
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", [Qwen3ModelVariant.QWEN_3_8B])
 def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
@@ -536,15 +534,13 @@ def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
     batch_size = 1
 
     loader = Qwen3ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(
-        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
-    )
+    cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
@@ -578,7 +574,7 @@ def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen3").items(),
@@ -591,14 +587,14 @@ def test_qwen3_attention_decode(variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = Qwen3ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
         # Qwen3-30B-A3B has 4 key value heads  so it would use 2x4 mesh
         # Thus, we need to see if 2x4 mesh is needed for all Qwen3 models
-        num_key_value_heads = model.config.num_key_value_heads
+        num_key_value_heads = config.num_key_value_heads
 
         if num_key_value_heads % 8 == 0:
             # Use 1x8 mesh for full model parallelism
@@ -645,17 +641,15 @@ def test_qwen3_attention_decode(variant, variant_config, is_llmbox):
 
     seq_len = 1
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(
-        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
-    )
+    cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
-        config=model.config,
+        config=config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
         device="cpu",
@@ -689,11 +683,11 @@ def test_qwen3_concat_heads(variant, variant_config, seq_len):
         return attn_output.reshape(*input_shape, -1).contiguous()
 
     loader = Qwen3ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
+    config = loader.load_config()
 
     batch_size = 1
-    num_heads = model.config.num_attention_heads
-    head_dim = model.config.head_dim
+    num_heads = config.num_attention_heads
+    head_dim = config.head_dim
 
     attn_output = torch.randn(
         (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -725,12 +719,12 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
         return query_states, key_states, value_states
 
     loader = Qwen3ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
-    hidden_size = model.config.hidden_size
-    head_dim = model.config.head_dim
+    hidden_size = config.hidden_size
+    head_dim = config.head_dim
 
     hidden_states = torch.randn(
         (batch_size, seq_len, hidden_size), dtype=torch.bfloat16
@@ -753,7 +747,7 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -795,14 +789,14 @@ def test_qwen3_attention(variant, variant_config, seq_len, is_llmbox):
         return attn_output, attn_weights
 
     loader = Qwen3ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
         # Qwen3-30B-A3B has 4 key value heads  so it would use 2x4 mesh
         # Thus, we need to see if 2x4 mesh is needed for all Qwen3 models
-        num_key_value_heads = model.config.num_key_value_heads
+        num_key_value_heads = config.num_key_value_heads
 
         if num_key_value_heads % 8 == 0:
             # Use 1x8 mesh for full model parallelism
@@ -830,9 +824,9 @@ def test_qwen3_attention(variant, variant_config, seq_len, is_llmbox):
         mesh = None
         get_shard_spec = None
 
-    num_heads = model.config.num_attention_heads
-    num_key_value_heads = getattr(model.config, "num_key_value_heads", num_heads)
-    head_dim = model.config.head_dim
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+    head_dim = config.head_dim
 
     query_states = torch.randn(
         (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -876,20 +870,18 @@ def test_qwen3_attention(variant, variant_config, seq_len, is_llmbox):
     get_available_variants("bge_m3").items(),
     ids=[str(k) for k in get_available_variants("bge_m3").keys()],
 )
-@pytest.mark.skip(
-    reason=failed_runtime(
-        "Test hangs - https://github.com/tenstorrent/tt-xla/issues/1830"
-    )
+@pytest.mark.xfail(
+    reason="PCC comparison failed with pcc=0.9486. https://github.com/tenstorrent/tt-xla/issues/2214"
 )
 def test_bge_m3_attention_prefill(seq_len, variant, variant_config):
     xr.set_device_type("TT")
 
     loader = BgeModelLoader(variant=variant)
-    model = loader.load_model()
-    attention = model.model.encoder.layer[0].attention
+    config = loader.load_config()
+    attention = XLMRobertaSelfAttention(config).to(torch.float32)
 
     batch_size = 1
-    hidden_size = model.config.hidden_size
+    hidden_size = config.hidden_size
     hidden_states = torch.randn((batch_size, seq_len, hidden_size), dtype=torch.float32)
     attention_mask = torch.zeros((batch_size, 1, 1, seq_len), dtype=torch.float32)
 
@@ -919,12 +911,12 @@ def test_bge_m3_concat_heads(seq_len, variant, variant_config):
         return context_layer
 
     loader = BgeModelLoader(variant=variant)
-    model = loader.load_model()
+    config = loader.load_config()
 
     batch_size = 1
-    num_heads = model.config.num_attention_heads
-    head_dim = model.config.hidden_size // model.config.num_attention_heads
-    all_head_size = model.config.hidden_size
+    num_heads = config.num_attention_heads
+    head_dim = config.hidden_size // config.num_attention_heads
+    all_head_size = config.hidden_size
     context_layer = torch.randn(
         (batch_size, num_heads, seq_len, head_dim), dtype=torch.float32
     )
@@ -964,13 +956,13 @@ def test_bge_m3_create_heads(seq_len, variant, variant_config):
         return query_states, key_states, value_states
 
     loader = BgeModelLoader(variant=variant)
-    model = loader.load_model()
-    attention = model.model.encoder.layer[0].attention.self
+    config = loader.load_config()
+    attention = XLMRobertaSelfAttention(config).to(torch.float32)
 
     batch_size = 1
-    hidden_size = model.config.hidden_size
-    num_heads = model.config.num_attention_heads
-    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    hidden_size = config.hidden_size
+    num_heads = config.num_attention_heads
+    head_dim = config.hidden_size // config.num_attention_heads
 
     hidden_states = torch.randn((batch_size, seq_len, hidden_size), dtype=torch.float32)
 
@@ -983,6 +975,9 @@ def test_bge_m3_create_heads(seq_len, variant, variant_config):
         [hidden_states, query_layer, key_layer, value_layer, num_heads, head_dim],
         framework=Framework.TORCH,
     )
+
+
+"""Bert attention tests"""
 
 
 @pytest.mark.nightly
@@ -1001,13 +996,11 @@ def test_bert_create_heads(variant, variant_config, seq_len):
         return query_states, key_states, value_states
 
     loader = BertModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-
-    attention = model.bert.encoder.layer[0].attention.self
+    config = loader.load_config()
+    attention = BertSelfAttention(config).to(torch.bfloat16)
 
     batch_size = 1
-    hidden_size = model.config.hidden_size
-    num_heads = model.config.num_attention_heads
+    hidden_size = config.hidden_size
     head_dim = attention.attention_head_size
 
     hidden_states = torch.randn(
@@ -1032,7 +1025,7 @@ def test_bert_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1048,13 +1041,13 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = Qwen2_5ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
-        num_heads = model.config.num_attention_heads
+        num_heads = config.num_attention_heads
 
         if num_heads % 8 == 0:
             # Use 1x8 mesh for full model parallelism
@@ -1100,9 +1093,9 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, is_llmbox):
         get_shard_spec = None
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
@@ -1136,13 +1129,13 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
     xr.set_device_type("TT")
 
     loader = Qwen2_5ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
-        num_heads = model.config.num_attention_heads
+        num_heads = config.num_attention_heads
 
         if num_heads % 8 == 0:
             # Use 1x8 mesh for full model parallelism
@@ -1188,9 +1181,9 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
         get_shard_spec = None
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
@@ -1210,7 +1203,7 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen2_5").items(),
@@ -1225,13 +1218,13 @@ def test_qwen2_5_attention_decode(variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = Qwen2_5ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
-        num_heads = model.config.num_attention_heads
+        num_heads = config.num_attention_heads
 
         if num_heads % 8 == 0:
             # Use 1x8 mesh for full model parallelism
@@ -1278,22 +1271,21 @@ def test_qwen2_5_attention_decode(variant, variant_config, is_llmbox):
 
     seq_len = 1
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
-        config=model.config,
+        config=config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
         device="cpu",
         dtype=torch.bfloat16,
     )
-    cache_position = torch.tensor([0])
     past_key_states = static_cache
 
     run_graph_test(
@@ -1306,7 +1298,7 @@ def test_qwen2_5_attention_decode(variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1349,13 +1341,13 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, is_llmbox):
         return attn_output, attn_weights
 
     loader = Qwen2_5ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
-        num_heads = model.config.num_attention_heads
+        num_heads = config.num_attention_heads
 
         if num_heads % 8 == 0:
             # Use 1x8 mesh for full model parallelism
@@ -1399,11 +1391,11 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, is_llmbox):
         mesh = None
         get_shard_spec = None
 
-    hidden_size = model.config.hidden_size
-    num_heads = model.config.num_attention_heads
+    hidden_size = config.hidden_size
+    num_heads = config.num_attention_heads
     num_key_value_heads = (
-        model.config.num_key_value_heads
-    )  # getattr(model.config, "num_key_value_heads", num_heads)
+        config.num_key_value_heads
+    )  # getattr(config, "num_key_value_heads", num_heads)
     head_dim = hidden_size // num_heads
 
     query_states = torch.randn(
@@ -1442,7 +1434,7 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1456,17 +1448,15 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = GemmaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(
-        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
-    )
+    cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
@@ -1519,15 +1509,13 @@ def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
     batch_size = 1
 
     loader = GemmaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(
-        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
-    )
+    cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
@@ -1564,7 +1552,7 @@ def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gemma").items(),
@@ -1577,24 +1565,22 @@ def test_gemma_attention_decode(variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = GemmaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
 
     seq_len = 1
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    cos_sin = torch.rand(
-        batch_size, seq_len, model.config.head_dim, dtype=torch.bfloat16
-    )
+    cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
-        config=model.config,
+        config=config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
         device="cpu",
@@ -1630,7 +1616,7 @@ def test_gemma_attention_decode(variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1670,15 +1656,14 @@ def test_gemma_attention(variant, variant_config, seq_len, is_llmbox):
         return attn_output, attn_weights
 
     loader = GemmaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
 
-    hidden_size = model.config.hidden_size
-    num_heads = model.config.num_attention_heads
-    num_key_value_heads = getattr(model.config, "num_key_value_heads", num_heads)
-    head_dim = model.config.head_dim
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+    head_dim = config.head_dim
 
     query_states = torch.randn(
         (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -1734,7 +1719,7 @@ def test_gemma_attention(variant, variant_config, seq_len, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1745,15 +1730,15 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = MistralModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
@@ -1804,13 +1789,13 @@ def test_mistral_attention_prefill_push(seq_len, variant, is_llmbox):
     batch_size = 1
 
     loader = MistralModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
@@ -1845,7 +1830,7 @@ def test_mistral_attention_prefill_push(seq_len, variant, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("mistral").items(),
@@ -1855,23 +1840,23 @@ def test_mistral_attention_decode(variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = MistralModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
 
     seq_len = 1
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    head_dim = model.config.hidden_size // model.config.num_attention_heads
+    head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
-        config=model.config,
+        config=config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
         device="cpu",
@@ -1907,7 +1892,7 @@ def test_mistral_attention_decode(variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1946,14 +1931,14 @@ def test_mistral_attention(variant, variant_config, seq_len, is_llmbox):
         return attn_output, attn_weights
 
     loader = MistralModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    attention = model.model.layers[0].self_attn
+    config = loader.load_config()
+    attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
 
-    hidden_size = model.config.hidden_size
-    num_heads = model.config.num_attention_heads
-    num_key_value_heads = model.config.num_key_value_heads
+    hidden_size = config.hidden_size
+    num_heads = config.num_attention_heads
+    num_key_value_heads = config.num_key_value_heads
     head_dim = hidden_size // num_heads
 
     query_states = torch.randn(
