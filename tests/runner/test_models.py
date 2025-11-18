@@ -12,6 +12,7 @@ from infra.testers.single_chip.model import (
 )
 
 from tests.infra.comparators.comparator import Comparator, ComparisonResult
+from tests.infra.utilities.filecheck_utils import run_filecheck
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
@@ -124,6 +125,15 @@ def test_all_models_torch(
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
+
+                # Run FileCheck on generated IR files if test succeeded
+                if succeeded:
+                    filecheck_results = run_filecheck(
+                        test_node_id=request.node.nodeid,
+                        irs_filepath="output_artifact"
+                    )
+                    if filecheck_results:
+                        print(f"\nFileCheck results: {filecheck_results}")
 
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
