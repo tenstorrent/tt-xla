@@ -14,6 +14,9 @@ outputs:
   only-run-forge-models:
     description: "True if only forge-models runner files changed."
     value: ${{ steps.inspect.outputs.only-run-forge-models }}
+  run-uplift-model-tests:
+    description: "True if branch name contains 'uplift'."
+    value: ${{ steps.inspect.outputs.run-uplift-model-tests }}
 runs:
   using: "composite"
   steps:
@@ -28,6 +31,7 @@ runs:
         run_pr_tests=false
         run_perf_tests=false
         only_run_forge_models=false
+        run_uplift_model_tests=false
         if [ "${{ github.event_name }}" = "pull_request" ]; then
           CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
           echo "Changed files:"
@@ -93,7 +97,15 @@ runs:
           skip_build_and_test=false
           run_pr_tests=true
         fi
+
+        # Check if branch name contains "uplift"
+        BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+        if [[ "$BRANCH_NAME" == *"uplift"* ]]; then
+          run_uplift_model_tests=true
+        fi
+
         echo "skip-build-and-test=$skip_build_and_test" >> "$GITHUB_OUTPUT"
         echo "run-pr-tests=$run_pr_tests" >> "$GITHUB_OUTPUT"
         echo "run-perf-tests=$run_perf_tests" >> "$GITHUB_OUTPUT"
         echo "only-run-forge-models=$only_run_forge_models" >> "$GITHUB_OUTPUT"
+        echo "run-uplift-model-tests=$run_uplift_model_tests" >> "$GITHUB_OUTPUT"
