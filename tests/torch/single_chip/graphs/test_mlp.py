@@ -11,8 +11,13 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from torch_xla.distributed.spmd import Mesh
+from transformers.models.falcon.modeling_falcon import FalconMLP
+from transformers.models.gemma.modeling_gemma import GemmaMLP
+from transformers.models.llama.modeling_llama import LlamaMLP
+from transformers.models.mistral.modeling_mistral import MistralMLP
+from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
+from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
 
-from tests.utils import is_llmbox
 from third_party.tt_forge_models.falcon.pytorch.loader import (
     ModelLoader as FalconModelLoader,
 )
@@ -46,9 +51,6 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelVariant as Qwen3ModelVariant,
 )
-
-# To see all available models and variants, run:
-# pytest -s tests/torch/single_chip/graphs/test_mlp.py::test_display_available_variants
 
 MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
@@ -124,7 +126,6 @@ def get_available_variants(model_name):
 
 # Mark tests to run on both llmbox and single device when shard spec setup is included
 def parametrize_is_llmbox():
-    """Returns a parametrize decorator for is_llmbox parameter that creates both llmbox and single_device test variants."""
     return pytest.mark.parametrize(
         "is_llmbox",
         [
@@ -138,7 +139,7 @@ def parametrize_is_llmbox():
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -152,13 +153,13 @@ def test_qwen3_mlp(seq_len, variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = Qwen3ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    mlp = model.model.layers[0].mlp
+    config = loader.load_config()
+    mlp = Qwen3MLP(config).to(torch.bfloat16)
 
     batch_size = 1
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
 
     if is_llmbox:
@@ -199,7 +200,7 @@ def test_qwen3_mlp(seq_len, variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -213,13 +214,13 @@ def test_llama_mlp(seq_len, variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    mlp = model.model.layers[0].mlp
+    config = loader.load_config()
+    mlp = LlamaMLP(config).to(torch.bfloat16)
 
     batch_size = 1
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
 
     if is_llmbox:
@@ -252,7 +253,7 @@ def test_llama_mlp(seq_len, variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -266,13 +267,13 @@ def test_gemma_mlp(seq_len, variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = GemmaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    mlp = model.model.layers[0].mlp
+    config = loader.load_config()
+    mlp = GemmaMLP(config).to(torch.bfloat16)
 
     batch_size = 1
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
 
     if is_llmbox:
@@ -305,7 +306,7 @@ def test_gemma_mlp(seq_len, variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -317,13 +318,13 @@ def test_mistral_mlp(seq_len, variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = MistralModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    mlp = model.model.layers[0].mlp
+    config = loader.load_config()
+    mlp = MistralMLP(config).to(torch.bfloat16)
 
     batch_size = 1
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
 
     if is_llmbox:
@@ -356,7 +357,7 @@ def test_mistral_mlp(seq_len, variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -372,13 +373,13 @@ def test_qwen2_5_mlp(seq_len, variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = Qwen2_5ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    mlp = model.model.layers[0].mlp
+    config = loader.load_config()
+    mlp = Qwen2MLP(config).to(torch.bfloat16)
 
     batch_size = 1
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
 
     if is_llmbox:
@@ -411,7 +412,7 @@ def test_qwen2_5_mlp(seq_len, variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()
+@parametrize_is_llmbox()  # True for llmbox, False for single device
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -430,13 +431,13 @@ def test_falcon_mlp(seq_len, variant, variant_config, is_llmbox):
     xr.set_device_type("TT")
 
     loader = FalconModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    mlp = model.transformer.h[0].mlp
+    config = loader.load_config()
+    mlp = FalconMLP(config).to(torch.bfloat16)
 
     batch_size = 1
 
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
 
     if is_llmbox:
