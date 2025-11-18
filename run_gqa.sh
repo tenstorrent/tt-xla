@@ -189,4 +189,36 @@ rm -rf /localdev/ddilbaz/cache/*
 LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[gemma/pytorch-google/gemma-2-27b-it-single_device-full-inference] 2>&1 | tee gqa_logs/gemma_pytorch_google_gemma_2_27b_it_single_device_full_inference.log
 rm -rf /localdev/ddilbaz/cache/*
 
+# Qwen 3 models (use GQA)
+echo "=== Qwen 3 Models (GQA) ==="
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-0_6b-single_device-full-inference] 2>&1 | tee gqa_logs/qwen_3_pytorch_0_6b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-1_7b-single_device-full-inference] 2>&1 | tee gqa_logs/qwen_3_pytorch_1_7b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-4b-single_device-full-inference] 2>&1 | tee gqa_logs/qwen_3_pytorch_4b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-8b-single_device-full-inference] 2>&1 | tee gqa_logs/qwen_3_pytorch_8b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-14b-single_device-full-inference] 2>&1 | tee gqa_logs/qwen_3_pytorch_14b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-32b-single_device-full-inference] 2>&1 | tee gqa_logs/qwen_3_pytorch_32b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-30b_a3b-single_device-full-inference] 2>&1 | tee gqa_logs/qwen_3_pytorch_30b_a3b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[qwen_3/embedding/pytorch-embedding_0_6b-single_device-full-inference] 2>&1 | tee gqa_logs/qwen_3_embedding_pytorch_embedding_0_6b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[qwen_3/embedding/pytorch-embedding_4b-single_device-full-inference] 2>&1 | tee gqa_logs/qwen_3_embedding_pytorch_embedding_4b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
+LOGGER_LEVEL=DEBUG pytest -s tests/runner/test_models.py::test_all_models_torch[qwen_3/embedding/pytorch-embedding_8b-single_device-full-inference] 2>&1 | tee gqa_logs/qwen_3_embedding_pytorch_embedding_8b_single_device_full_inference.log
+rm -rf /localdev/ddilbaz/cache/*
+
 echo "=== GQA Test Suite Complete ==="
