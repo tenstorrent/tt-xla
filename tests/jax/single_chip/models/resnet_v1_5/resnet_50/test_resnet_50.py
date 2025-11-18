@@ -4,7 +4,6 @@
 
 import pytest
 from infra import RunMode
-from infra.comparators import ComparisonConfig, PccConfig
 from pytest import MonkeyPatch
 from utils import BringupStatus, Category, ModelGroup
 
