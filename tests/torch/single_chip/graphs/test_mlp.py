@@ -70,7 +70,7 @@ AVAILABLE_VARIANT_MAP = {
         "huggyllama_7b",
         "TinyLlama_v1.1",
     ],
-    "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b", "32b", "30b_a3b"],
+    "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b", "32b"],
     "qwen2_5": [
         "0_5b",
         "1_5b",
@@ -122,22 +122,32 @@ def get_available_variants(model_name):
     return available_variants
 
 
+# Mark tests to run on both llmbox and single device when shard spec setup is included
+def parametrize_is_llmbox():
+    """Returns a parametrize decorator for is_llmbox parameter that creates both llmbox and single_device test variants."""
+    return pytest.mark.parametrize(
+        "is_llmbox",
+        [
+            pytest.param(True, marks=pytest.mark.llmbox),
+            pytest.param(False, marks=pytest.mark.single_device),
+        ],
+    )
+
+
 """Qwen3 MLP test"""
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@parametrize_is_llmbox()
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen3").items(),
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
-def test_qwen3_mlp(seq_len, variant, variant_config, request):
-    if not is_llmbox(request) and str(variant) == "32b":
-        pytest.xfail("Variant doesn't fit on device")
-    if str(variant) == "30b_a3b":
-        pytest.xfail("30B-A3B model is an MoE model and is not supported yet")
+def test_qwen3_mlp(seq_len, variant, variant_config, is_llmbox):
+    if not is_llmbox and str(variant) == "32b":
+        pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
 
@@ -151,7 +161,7 @@ def test_qwen3_mlp(seq_len, variant, variant_config, request):
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
     )
 
-    if is_llmbox(request):
+    if is_llmbox:
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -189,16 +199,16 @@ def test_qwen3_mlp(seq_len, variant, variant_config, request):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@parametrize_is_llmbox()
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_mlp(seq_len, variant, variant_config, request):
-    if "70b" in str(variant) and not is_llmbox(request):
-        pytest.xfail("70B models don't fit on device")
+def test_llama_mlp(seq_len, variant, variant_config, is_llmbox):
+    if "70b" in str(variant) and not is_llmbox:
+        pytest.skip("70B models don't fit on a single device")
 
     xr.set_device_type("TT")
 
@@ -212,7 +222,7 @@ def test_llama_mlp(seq_len, variant, variant_config, request):
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
     )
 
-    if is_llmbox(request):
+    if is_llmbox:
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -242,16 +252,16 @@ def test_llama_mlp(seq_len, variant, variant_config, request):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@parametrize_is_llmbox()
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gemma").items(),
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
-def test_gemma_mlp(seq_len, variant, variant_config, request):
-    if not is_llmbox(request) and (str(variant) == "google/gemma-2-27b-it"):
-        pytest.xfail("Variant doesn't fit on device")
+def test_gemma_mlp(seq_len, variant, variant_config, is_llmbox):
+    if not is_llmbox and (str(variant) == "google/gemma-2-27b-it"):
+        pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
 
@@ -265,7 +275,7 @@ def test_gemma_mlp(seq_len, variant, variant_config, request):
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
     )
 
-    if is_llmbox(request):
+    if is_llmbox:
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -295,14 +305,14 @@ def test_gemma_mlp(seq_len, variant, variant_config, request):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@parametrize_is_llmbox()
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("mistral").items(),
     ids=[str(k) for k in get_available_variants("mistral").keys()],
 )
-def test_mistral_mlp(seq_len, variant, variant_config, request):
+def test_mistral_mlp(seq_len, variant, variant_config, is_llmbox):
 
     xr.set_device_type("TT")
 
@@ -316,7 +326,7 @@ def test_mistral_mlp(seq_len, variant, variant_config, request):
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
     )
 
-    if is_llmbox(request):
+    if is_llmbox:
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -346,18 +356,18 @@ def test_mistral_mlp(seq_len, variant, variant_config, request):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@parametrize_is_llmbox()
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
-def test_qwen2_5_mlp(seq_len, variant, variant_config, request):
-    if not is_llmbox(request) and (
+def test_qwen2_5_mlp(seq_len, variant, variant_config, is_llmbox):
+    if not is_llmbox and (
         str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
     ):
-        pytest.xfail("Variant doesn't fit on device")
+        pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
 
@@ -371,7 +381,7 @@ def test_qwen2_5_mlp(seq_len, variant, variant_config, request):
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
     )
 
-    if is_llmbox(request):
+    if is_llmbox:
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -401,19 +411,19 @@ def test_qwen2_5_mlp(seq_len, variant, variant_config, request):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@parametrize_is_llmbox()
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("falcon").items(),
     ids=[str(k) for k in get_available_variants("falcon").keys()],
 )
-def test_falcon_mlp(seq_len, variant, variant_config, request):
+def test_falcon_mlp(seq_len, variant, variant_config, is_llmbox):
     if variant != FalconModelVariant.FALCON_7B_INSTRUCT:
         if variant == FalconModelVariant.FALCON_MAMBA_7B:
-            pytest.xfail("FalconMamba has no MLP as it is a State Space Model.")
+            pytest.skip("FalconMamba has no MLP as it is a State Space Model.")
         else:
-            pytest.xfail(
+            pytest.skip(
                 "Falcon3-Base models use Llama3 architecure, use Llama MLP test instead."
             )
 
@@ -429,7 +439,7 @@ def test_falcon_mlp(seq_len, variant, variant_config, request):
         (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
     )
 
-    if is_llmbox(request):
+    if is_llmbox:
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
