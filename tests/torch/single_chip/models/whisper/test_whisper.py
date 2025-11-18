@@ -41,6 +41,11 @@ def _variant_param(v):
     # Mark large model variants
     if v == ModelVariant.WHISPER_LARGE_V3:
         marks.append(pytest.mark.large)
+        marks.append(
+            pytest.mark.skip(
+                reason="Skipping whisper_large_v3 - can't find weights on CIv2 - https://github.com/tenstorrent/tt-xla/issues/2223"
+            )
+        )
 
     marks.extend(
         [
