@@ -8,6 +8,8 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
+from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding
+from transformers.models.qwen3.modeling_qwen3 import Qwen3RotaryEmbedding
 
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
@@ -59,14 +61,12 @@ def get_available_variants(model_name):
 @pytest.mark.parametrize("seq_len", [1024])
 def test_llama_RoPE(seq_len, variant, variant_config):
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-
-    # extract RoPE module from model
-    RoPE = model.model.rotary_emb
+    config = loader.load_config()
+    RoPE = LlamaRotaryEmbedding(config).to(torch.bfloat16)
 
     # Create query tensors and position_ids for RoPE to operate on
-    num_query_heads = model.config.num_attention_heads
-    head_dim = model.config.head_dim
+    num_query_heads = config.num_attention_heads
+    head_dim = config.head_dim
 
     query_states = torch.randn(
         (1, num_query_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -85,13 +85,13 @@ def test_llama_RoPE(seq_len, variant, variant_config):
 @pytest.mark.parametrize("seq_len", [1024])
 def test_llama_apply_rotary_emb(seq_len, variant, variant_config):
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
+    config = loader.load_config()
 
     from transformers.models.llama.modeling_llama import apply_rotary_pos_emb
 
-    num_query_heads = model.config.num_attention_heads
-    num_key_value_heads = model.config.num_key_value_heads
-    head_dim = model.config.head_dim
+    num_query_heads = config.num_attention_heads
+    num_key_value_heads = config.num_key_value_heads
+    head_dim = config.head_dim
 
     query_states = torch.randn(
         (1, num_query_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -118,14 +118,12 @@ def test_llama_apply_rotary_emb(seq_len, variant, variant_config):
 @pytest.mark.parametrize("seq_len", [1024])
 def test_qwen_3_RoPE(seq_len, variant, variant_config):
     loader = Qwen3ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-
-    # extract RoPE module from model
-    RoPE = model.model.rotary_emb
+    config = loader.load_config()
+    RoPE = Qwen3RotaryEmbedding(config).to(torch.bfloat16)
 
     # Create query tensors and position_ids for RoPE to operate on
-    num_query_heads = model.config.num_attention_heads
-    head_dim = model.config.head_dim
+    num_query_heads = config.num_attention_heads
+    head_dim = config.head_dim
 
     query_states = torch.randn(
         (1, num_query_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -144,13 +142,13 @@ def test_qwen_3_RoPE(seq_len, variant, variant_config):
 @pytest.mark.parametrize("seq_len", [1024])
 def test_qwen_3_apply_rotary_emb(seq_len, variant, variant_config):
     loader = Qwen3ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
+    config = loader.load_config()
 
     from transformers.models.qwen3.modeling_qwen3 import apply_rotary_pos_emb
 
-    num_query_heads = model.config.num_attention_heads
-    num_key_value_heads = model.config.num_key_value_heads
-    head_dim = model.config.head_dim
+    num_query_heads = config.num_attention_heads
+    num_key_value_heads = config.num_key_value_heads
+    head_dim = config.head_dim
 
     query_states = torch.randn(
         (1, num_query_heads, seq_len, head_dim), dtype=torch.bfloat16

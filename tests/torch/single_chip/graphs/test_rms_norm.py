@@ -7,6 +7,7 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
+from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
@@ -54,16 +55,16 @@ def get_available_variants(model_name):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_rms_norm(seq_len, variant, variant_config, request):
+def test_llama_rms_norm(seq_len, variant, variant_config):
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    rms_norm = model.model.norm
+    config = loader.load_config()
+    rms_norm = LlamaRMSNorm(config.hidden_size).to(torch.bfloat16)
 
     batch_size = 1
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
 
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
