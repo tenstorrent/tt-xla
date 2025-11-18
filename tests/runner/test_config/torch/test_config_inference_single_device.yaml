@@ -969,13 +969,13 @@ test_config:
   #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
   yolox/pytorch-yolox_nano-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
     bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_tiny-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
     bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_s-single_device-full-inference:
@@ -987,18 +987,18 @@ test_config:
     reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
 
   yolox/pytorch-yolox_l-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
     bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_darknet-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
     bringup_status: FAILED_FE_COMPILATION
 
   yolox/pytorch-yolox_x-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-    reason: "Yolo models have issues with loading yolox https://github.com/tenstorrent/tt-xla/issues/1929"
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
     bringup_status: FAILED_FE_COMPILATION
 
   mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-full-inference:
