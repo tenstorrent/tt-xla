@@ -1,0 +1,4 @@
+[
+    { "runs-on": "n150",               "name": "run_torch_graph_n150_tests",   "dir": "./tests/torch/single_chip/graphs",  "test-mark": "not llmbox", "shared-runners": "true" },
+    { "runs-on": "n300-llmbox",        "name": "run_torch_graph_llmbox_tests", "dir": "./tests/torch/single_chip/graphs",  "test-mark": "llmbox", "shared-runners": "true" }
+]
