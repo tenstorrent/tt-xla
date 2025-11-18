@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
-import re
 from abc import ABC, abstractmethod
 from typing import Optional
 
 from infra.comparators import Comparator, ComparatorFactory, ComparisonConfig
 from infra.runners import DeviceRunner, DeviceRunnerFactory
 from infra.utilities import Framework
+from infra.utilities.utils import sanitize_test_name
 from infra.workloads import Workload
 
 
@@ -69,15 +69,8 @@ class BaseTester(ABC):
         Args:
             test_name: Test name to generate output prefix from.
         """
-
-        # Keep the test name but replace special chars with underscores
-        # Example: test_mnist_mlp_inference[256-128-64] -> output/test_mnist_mlp_inference_256_128_64
-        clean_name = re.sub(r"[\[\](),\-\s]+", "_", test_name)
-        # Remove trailing underscores
-        clean_name = clean_name.rstrip("_")
-
+        clean_name = sanitize_test_name(test_name)
         output_prefix = f"output_artifact/{clean_name}"
-
         self.serialize_on_device(output_prefix)
 
     @abstractmethod
