@@ -1,8 +1,6 @@
 # Getting Started
 This document walks you through how to set up TT-XLA. TT-XLA is a front end for TT-Forge that is primarily used to ingest JAX models via jit compile, providing a StableHLO (SHLO) graph to the TT-MLIR compiler. TT-XLA leverages [PJRT](https://github.com/openxla/xla/tree/main/xla/pjrt/c#pjrt---uniform-device-api) to integrate JAX, [TT-MLIR](https://github.com/tenstorrent/tt-mlir) and Tenstorrent hardware. Please see [this](https://opensource.googleblog.com/2023/05/pjrt-simplifying-ml-hardware-and-framework-integration.html) blog post for more information about PJRT project. This project started as a fork of [iree-pjrt](https://github.com/stellaraccident/iree-pjrt), but has since been refactored and diverged.
 
-> **NOTE:** Currently, only Tenstorrent Nebula boards are supported.
-
 This is the main Getting Started page. There are two additional Getting Started pages depending on what you want to do. They are all described here, with links provided to each.
 
 The following topics are covered:
@@ -73,13 +71,13 @@ pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.co
 
 3. You are now ready to try running a model. Navigate to the section of the [TT-Forge repo that contains TT-XLA demos](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla).
 
-4. For this walkthrough, the [demo in the **gpt2** folder](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla/gpt2) is used. In the **gpt2** folder, in the **requirements.txt** file, you can see that **flax** and **transformers** are necessary to run the demo. Install them:
+4. For this walkthrough, the [demo in the **TT-Forge** repo](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/jax/gpt_demo.py) is used. In the **jax** folder, in the **requirements.txt** file, you can see that **flax** and **transformers** are necessary to run the demo. Install them:
 
 ```bash
 pip install flax transformers
 ```
 
-5. Download the [**demo.py** file from the **gpt2** folder](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/gpt2/demo.py) inside your activated virtual environment in a place where you can run it. The demo you are about to run takes a piece of text and tries to predict the next word that logically follows.
+5. Download the [**gpt_demo.py** file ](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/jax/gpt_demo.py ) inside your activated virtual environment in a place where you can run it. The demo you are about to run takes a piece of text and tries to predict the next word that logically follows.
 
 6. Run the model:
 
