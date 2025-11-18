@@ -379,20 +379,20 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
 
-  # yolov6/pytorch-yolov6n-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  yolov6/pytorch-yolov6n-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  # yolov6/pytorch-yolov6s-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  yolov6/pytorch-yolov6s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  # yolov6/pytorch-yolov6m-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  yolov6/pytorch-yolov6m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   distilbert/question_answering/pytorch-distilbert-base-cased-distilled-squad-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -589,10 +589,10 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  # yolov6/pytorch-yolov6l-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  yolov6/pytorch-yolov6l-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   maptr/pytorch-tiny_r50_24e_bevformer-single_device-full-training:
     status: NOT_SUPPORTED_SKIP

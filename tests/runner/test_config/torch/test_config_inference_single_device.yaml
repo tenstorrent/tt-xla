@@ -930,43 +930,43 @@ test_config:
   llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  # yolov6/pytorch-yolov6n-single_device-full-inference:
-  #   status: EXPECTED_PASSING
+  yolov6/pytorch-yolov6n-single_device-full-inference:
+    status: EXPECTED_PASSING
 
-  # yolov6/pytorch-yolov6s-single_device-full-inference:
-  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890339970588684. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
+  yolov6/pytorch-yolov6s-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890339970588684. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
 
-  # yolov6/pytorch-yolov6m-single_device-full-inference:
-  #   required_pcc: 0.98
-  #   status: EXPECTED_PASSING
+  yolov6/pytorch-yolov6m-single_device-full-inference:
+    required_pcc: 0.98
+    status: EXPECTED_PASSING
 
-  # yolov6/pytorch-yolov6l-single_device-full-inference:
-  #   status: EXPECTED_PASSING
+  yolov6/pytorch-yolov6l-single_device-full-inference:
+    status: EXPECTED_PASSING
 
-  # yolov7/pytorch-yolov7x-single_device-full-inference:
-  #   status: EXPECTED_PASSING
+  yolov7/pytorch-yolov7x-single_device-full-inference:
+    status: EXPECTED_PASSING
 
-  # yolov7/pytorch-yolov7-single_device-full-inference:
-  #   reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9570515751838684. Required: pcc=0.99."
-  #   assert_pcc: false
-  #   bringup_status: INCORRECT_RESULT
+  yolov7/pytorch-yolov7-single_device-full-inference:
+    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9570515751838684. Required: pcc=0.99."
+    assert_pcc: false
+    bringup_status: INCORRECT_RESULT
 
-  # yolov7/pytorch-yolov7-w6-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+  yolov7/pytorch-yolov7-w6-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  # yolov7/pytorch-yolov7-e6-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+  yolov7/pytorch-yolov7-e6-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  # yolov7/pytorch-yolov7-d6-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+  yolov7/pytorch-yolov7-d6-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  # yolov7/pytorch-yolov7-e6e-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+  yolov7/pytorch-yolov7-e6e-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
   yolox/pytorch-yolox_nano-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
