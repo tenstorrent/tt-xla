@@ -453,8 +453,4 @@ def clear_torchxla_computation_cache():
     This helps avoid consteval-associated DRAM leaks as described in https://github.com/tenstorrent/tt-xla/issues/1940
     """
     yield
-    # TODO(jameszianxu): Can remove try-except when https://github.com/tenstorrent/tt-xla/issues/2196 solved
-    try:
-        xr.clear_computation_cache()
-    except AssertionError as e:
-        logger.warning(f"clear_torchxla_computation_cache: {e}")
+    xr.clear_computation_cache()
