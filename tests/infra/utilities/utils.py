@@ -33,7 +33,7 @@ def sanitize_test_name(test_name: str) -> str:
         'test_all_models_pytorch_wide_resnet50_2'
     """
     # Replace special chars (including forward slashes) with underscores
-    clean_name = re.sub(r"[\[\](),\-\s/]+", "_", test_name)
+    clean_name = re.sub(r"[\[\](),\-\s/:]+", "_", test_name)
     # Remove trailing underscores
     return clean_name.rstrip("_")
 

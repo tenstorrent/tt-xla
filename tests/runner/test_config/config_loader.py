@@ -93,6 +93,8 @@ _ALLOWED_FIELDS = {
     "arch_overrides",
     # Needed for training tests
     "execution_pass",
+    # FileCheck patterns list
+    "filechecks",
 }
 
 

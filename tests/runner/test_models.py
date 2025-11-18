@@ -128,12 +128,20 @@ def test_all_models_torch(
 
                 # Run FileCheck on generated IR files if test succeeded
                 if succeeded:
-                    filecheck_results = run_filecheck(
-                        test_node_id=request.node.nodeid,
-                        irs_filepath="output_artifact"
+                    # Get filecheck patterns from test config (if any)
+                    pattern_files = (
+                        test_metadata.filechecks
+                        if hasattr(test_metadata, "filechecks")
+                        else None
                     )
-                    if filecheck_results:
-                        print(f"\nFileCheck results: {filecheck_results}")
+                    if pattern_files:
+                        filecheck_results = run_filecheck(
+                            test_node_id=request.node.name,
+                            irs_filepath="output_artifact",
+                            pattern_files=pattern_files,
+                        )
+                        if filecheck_results:
+                            print(f"\nFileCheck results: {filecheck_results}")
 
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
@@ -265,6 +273,23 @@ def test_all_models_jax(
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
+
+                # Run FileCheck on generated IR files if test succeeded
+                if succeeded:
+                    # Get filecheck patterns from test config (if any)
+                    pattern_files = (
+                        test_metadata.filechecks
+                        if hasattr(test_metadata, "filechecks")
+                        else None
+                    )
+                    if pattern_files:
+                        filecheck_results = run_filecheck(
+                            test_node_id=request.node.name,
+                            irs_filepath="output_artifact",
+                            pattern_files=pattern_files,
+                        )
+                        if filecheck_results:
+                            print(f"\nFileCheck results: {filecheck_results}")
 
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
