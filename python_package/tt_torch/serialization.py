@@ -43,10 +43,10 @@ def parse_compiled_artifacts_from_cache(cache_path: str):
     if len(files) == 0:
         raise ValueError(f"No files found in cache directory: {cache_path}")
 
-    # assert len(files) == 1, (
-    #     f"Expected exactly one file in cache directory {cache_path}, found {len(files)}: {files}. \n"
-    #     f"You can manually load the right file and pass it to parse_executable from the parent module"
-    # )
+    assert len(files) == 1, (
+        f"Expected exactly one file in cache directory {cache_path}, found {len(files)}: {files}. \n"
+        f"You can manually load the right file and pass it to parse_executable from the parent module"
+    )
 
     cache_file_path = os.path.join(cache_path, files[0])
 
