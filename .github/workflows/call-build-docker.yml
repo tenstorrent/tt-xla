@@ -35,6 +35,7 @@ jobs:
         shell: bash
         run: |
           curl http://large-file-cache.large-file-cache.svc.cluster.local || true
+          echo "SPLIT"
           curl http://large-file-cache.large-file.cache.svc.cluster.local || true
 
       - uses: actions/checkout@v4
