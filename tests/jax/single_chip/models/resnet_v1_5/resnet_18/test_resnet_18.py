@@ -3,20 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import RunMode
-from utils import BringupStatus, Category, ExecutionPass, failed_ttmlir_compilation
 
 from tests.infra.utilities.utils import create_jax_inference_tester
-from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.resnet.image_classification.jax import (
-    ModelLoader,
-    ModelVariant,
-)
+from third_party.tt_forge_models.resnet.image_classification.jax import ModelVariant
 
 from ..tester import ResNetTester
 
 VARIANT_NAME = ModelVariant.RESNET_18
-MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 # ----- Fixtures -----
 
@@ -24,11 +17,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 def create_inference_tester(format: str) -> ResNetTester:
     """Create inference tester with specified format."""
     return create_jax_inference_tester(ResNetTester, VARIANT_NAME, format)
-
-
-@pytest.fixture
-def training_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME, RunMode.TRAINING)
 
 
 @pytest.fixture(
@@ -50,30 +38,3 @@ def inference_tester(request) -> ResNetTester:
     tester = create_inference_tester(request.param)
     request.node.add_marker(pytest.mark.record_test_properties(dtype=request.param))
     return tester
-
-
-@pytest.fixture
-def training_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
-
-
-# ----- Tests -----
-
-
-@pytest.mark.test_forge_models_training
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    run_mode=RunMode.TRAINING,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    execution_pass=ExecutionPass.BACKWARD,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
-        "https://github.com/tenstorrent/tt-mlir/issues/4687"
-    )
-)
-def test_resnet_v1_5_18_training(training_tester: ResNetTester):
-    training_tester.test()

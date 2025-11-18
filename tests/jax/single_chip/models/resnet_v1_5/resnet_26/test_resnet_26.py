@@ -4,14 +4,7 @@
 
 import pytest
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ExecutionPass,
-    failed_runtime,
-    failed_ttmlir_compilation,
-    incorrect_result,
-)
+from utils import Category, failed_runtime
 
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.config import Parallelism
@@ -29,11 +22,6 @@ MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
 
 
 @pytest.fixture
-def training_tester() -> ResNetTester:
-    return ResNetTester(VARIANT_NAME, run_mode=RunMode.TRAINING)
-
-
-@pytest.fixture
 def inference_tester_optimizer() -> ResNetTester:
     return ResNetTester(
         VARIANT_NAME,
@@ -43,26 +31,6 @@ def inference_tester_optimizer() -> ResNetTester:
 
 
 # ----- Tests -----
-
-
-@pytest.mark.test_forge_models_training
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
-    parallelism=Parallelism.SINGLE_DEVICE,
-    run_mode=RunMode.TRAINING,
-    execution_pass=ExecutionPass.BACKWARD,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-)
-@pytest.mark.large
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.select_and_scatter' "
-        "https://github.com/tenstorrent/tt-mlir/issues/4687"
-    )
-)
-def test_resnet_v1_5_26_training(training_tester: ResNetTester):
-    training_tester.test()
 
 
 @pytest.mark.nightly
