@@ -108,6 +108,26 @@ class RequirementsManager:
             _dbg(f"[Requirements] __enter__: installing (no-deps) -r {nodeps_path}")
             self._pip(("install", "--no-input", "--no-deps", "-r", nodeps_path))
 
+        # Optional: a sibling file 'requirements.nodeps.nobuildisolation.txt' for packages to install without dependencies and isolated environment
+        nodeps_no_build_isolation_path = os.path.join(
+            os.path.dirname(self.requirements_path),
+            "requirements.nodeps.nobuildisolation.txt",
+        )
+        if os.path.isfile(nodeps_no_build_isolation_path):
+            _dbg(
+                f"[Requirements] __enter__: installing (no-deps and no-build-isolation) -r {nodeps_no_build_isolation_path}"
+            )
+            self._pip(
+                (
+                    "install",
+                    "--no-input",
+                    "--no-deps",
+                    "--no-build-isolation",
+                    "-r",
+                    nodeps_no_build_isolation_path,
+                )
+            )
+
         _dbg("[Requirements] __enter__: running pip freeze (after)")
         self._after_freeze = self._pip_freeze()
         self._compute_diffs()

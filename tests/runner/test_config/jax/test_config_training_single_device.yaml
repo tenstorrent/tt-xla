@@ -30,7 +30,7 @@ test_config:
   alexnet/image_classification/jax-custom-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4687"
+    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/5091"
     execution_pass: FORWARD
 
   bart/causal_lm/jax-base-single_device-full-training:
@@ -48,13 +48,13 @@ test_config:
   beit/image_classification/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Assert: numElements * elementSize == data->size()"
+    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   beit/image_classification/jax-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Assert: numElements * elementSize == data->size()"
+    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   bert/masked_lm/jax-base-single_device-full-training:
@@ -168,20 +168,20 @@ test_config:
   dinov2/image_classification/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "numElements * elementSize == data->size()"
+    reason: "Out of Memory: Not enough space to allocate 21471744 B L1 buffer across 7 banks, where each bank needs to store 3067392 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   dinov2/image_classification/jax-giant-single_device-full-training:
     status: NOT_SUPPORTED_SKIP # Model too large for our runners.
     bringup_status: FAILED_RUNTIME
-    reason: "numElements * elementSize == data->size()"
+    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: FORWARD
     markers: [large]
 
   dinov2/image_classification/jax-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "Out of Memory: Not enough space to allocate 21471744 B L1 buffer across 7 banks, where each bank needs to store 3067392 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   distilbert/masked_lm/jax-base-uncased-single_device-full-training:
@@ -335,19 +335,19 @@ test_config:
   mlp_mixer/image_classification/jax-base_16-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "numElements * elementSize == data->size()"
+    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   mnist/image_classification/jax-cnn_batchnorm-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4687"
+    reason: "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
     execution_pass: FORWARD
 
   mnist/image_classification/jax-cnn_dropout-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.select_and_scatter' https://github.com/tenstorrent/tt-mlir/issues/4687"
+    reason: "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.14429746568202972. Required: pcc=0.99."
     execution_pass: FORWARD
 
   mnist/image_classification/jax-mlp_custom-single_device-full-training:
@@ -438,37 +438,39 @@ test_config:
   resnet/image_classification/jax-resnet-101-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
   resnet/image_classification/jax-resnet-152-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
   resnet/image_classification/jax-resnet-18-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Does not fit in L1"
+    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
   resnet/image_classification/jax-resnet-26-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Does not fit in L1"
+    markers: [large]
+    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
   resnet/image_classification/jax-resnet-34-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Does not fit in L1"
+    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
   resnet/image_classification/jax-resnet-50-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory"
+    markers: [large, push]
+    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
   roberta/masked_lm/jax-base-single_device-full-training:
@@ -540,43 +542,43 @@ test_config:
   vit/image_classification/jax-base_patch16_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "numElements * elementSize == data->size()"
+    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   vit/image_classification/jax-base_patch16_384-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   vit/image_classification/jax-base_patch32_224_in_21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   vit/image_classification/jax-base_patch32_384-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   vit/image_classification/jax-huge_patch14_224_in_21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   vit/image_classification/jax-large_patch16_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   vit/image_classification/jax-large_patch16_384-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   vit/image_classification/jax-large_patch32_224_in_21k-single_device-full-training:

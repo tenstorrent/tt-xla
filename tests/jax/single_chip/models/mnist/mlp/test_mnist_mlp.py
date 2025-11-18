@@ -7,7 +7,6 @@ from infra import Framework, RunMode
 from utils import (
     BringupStatus,
     Category,
-    ExecutionPass,
     ModelGroup,
     ModelSource,
     ModelTask,
@@ -32,11 +31,6 @@ MODEL_NAME = build_model_name(
 def create_inference_tester(hidden_sizes: tuple, format: str) -> MNISTMLPTester:
     """Create inference tester with specified hidden sizes and data format."""
     return create_jax_inference_tester(MNISTMLPTester, hidden_sizes, format)
-
-
-@pytest.fixture
-def training_tester(request) -> MNISTMLPTester:
-    return MNISTMLPTester(request.param, run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -71,21 +65,3 @@ def test_mnist_mlp_inference(hidden_sizes: tuple, format: str, request):
 
     if request.config.getoption("--serialize", default=False):
         tester.serialize_compilation_artifacts(request.node.name)
-
-
-@pytest.mark.push
-@pytest.mark.test_forge_models_training
-@pytest.mark.model_test
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name=MODEL_NAME,
-    model_group=ModelGroup.GENERALITY,
-    run_mode=RunMode.TRAINING,
-    execution_pass=ExecutionPass.BACKWARD,
-    bringup_status=BringupStatus.PASSED,
-)
-@pytest.mark.parametrize(
-    "training_tester", [(256, 128, 64)], indirect=True, ids=lambda val: f"{val}"
-)
-def test_mnist_mlp_training(training_tester: MNISTMLPTester):
-    training_tester.test()
