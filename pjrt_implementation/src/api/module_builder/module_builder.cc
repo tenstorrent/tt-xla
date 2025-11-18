@@ -6,12 +6,14 @@
 #include "api/module_builder/module_builder.h"
 
 // c++ standard library includes
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <numeric>
+#include <string_view>
 
 // POSIX includes
 #include <dlfcn.h>
@@ -19,6 +21,7 @@
 // llvm includes
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/LogicalResult.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
 // llvm mlir includes
@@ -59,6 +62,7 @@
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
 #include "ttmlir/RegisterAll.h"
+#include "ttmlir/Support/TTPrintIRInstrumentation.h"
 #include "ttmlir/Target/Python/PythonEmitter.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
 
@@ -356,7 +360,8 @@ tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
 
   mlir::stablehlo::createStablehloDeserializePipeline(vhlo_to_shlo_pm);
 
-  enableVerboseIRPrinting(vhlo_to_shlo_pm);
+  enableVerboseIRPrinting(vhlo_to_shlo_pm, extractSourceName(mlir_module),
+                          "1_vhlo_to_shlo", /*dump_initial=*/true);
 
   if (mlir::failed(vhlo_to_shlo_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from VHLO to SHLO module");
@@ -685,7 +690,8 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
 
-  enableVerboseIRPrinting(stablehlo_pipeline_pm);
+  enableVerboseIRPrinting(stablehlo_pipeline_pm, extractSourceName(mlir_module),
+                          "2_stablehlo");
 
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to run stablehlo pipeline");
@@ -716,7 +722,8 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
   shlo_options.legalizeCompositeToCallEnabled = true;
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
 
-  enableVerboseIRPrinting(shlo_to_ttir_pm);
+  enableVerboseIRPrinting(shlo_to_ttir_pm, extractSourceName(mlir_module),
+                          "3_shlo_to_ttir");
 
   if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
     DLOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
@@ -859,7 +866,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
           submesh_for_optim.handle);
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
-  enableVerboseIRPrinting(ttir_to_ttnn_pm);
+  enableVerboseIRPrinting(ttir_to_ttnn_pm, extractSourceName(mlir_module),
+                          "4_ttir_to_ttnn");
 
   // Run the pass manager.
   mlir::LogicalResult mlir_result = ttir_to_ttnn_pm.run(mlir_module.get());
@@ -998,15 +1006,75 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
   out_stream.close();
 }
 
-void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
-  if (loguru::g_stderr_verbosity < LOG_VERBOSE) {
+void ModuleBuilder::enableVerboseIRPrinting(
+    mlir::PassManager &pm, const std::string &source_name,
+    const std::string &pipeline_name, bool dump_initial) {
+  const char *explorer_level = std::getenv("EXPLORER_EXPORT_LEVEL");
+  if (loguru::g_stderr_verbosity == LOG_VERBOSE || explorer_level != nullptr) {
+    // Multithreading must be disabled when printing at module scope
+    // to avoid interleaved output.
+    pm.getContext()->disableMultithreading();
+  }
+
+  if (loguru::g_stderr_verbosity == LOG_VERBOSE) {
+    pm.enableIRPrinting();
     return;
   }
 
-  // Multithreading must be disabled when printing at module scope
-  // to avoid interleaved output.
-  pm.getContext()->disableMultithreading();
-  pm.enableIRPrinting();
+  mlir::tt::addTTPrintIRInstrumentation(pm, {
+      .level = parseExplorerDumpLevel(explorer_level),
+      .modelName = source_name,
+      .pipelineName = pipeline_name,
+      .dumpInitial = dump_initial
+  });
+}
+
+mlir::tt::TTPrintIRInstrumentation::DumpLevel
+ModuleBuilder::parseExplorerDumpLevel(const char* level_str) {
+  static const auto default_level =
+      mlir::tt::TTPrintIRInstrumentation::TTPrintIRInstrumentationOptions{}.level;
+
+  if (!level_str || !*level_str) {
+    return default_level;
+  }
+
+  std::string_view str(level_str);
+  using DumpLevel = mlir::tt::TTPrintIRInstrumentation::DumpLevel;
+
+  if (str == "once") return DumpLevel::Once;
+  if (str == "pipeline") return DumpLevel::Pipeline;
+  if (str == "pass") return DumpLevel::Pass;
+  if (str == "transformation") return DumpLevel::Transformation;
+
+  return default_level;
+}
+
+std::string ModuleBuilder::extractSourceName(
+    const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) const {
+  // Try pytest test name first
+  if (const char *pytest_test = std::getenv("PYTEST_CURRENT_TEST")) {
+    std::string test_path = pytest_test;
+    if (size_t slash_pos = test_path.rfind('/');
+        slash_pos != std::string::npos) {
+      std::string filepath_part = test_path.substr(slash_pos + 1);
+      // Sanitize: replace special chars with '_'
+      static constexpr std::string_view chars_to_replace = "[]- ().,=";
+      for (char &c : filepath_part) {
+        if (chars_to_replace.find(c) != std::string_view::npos) {
+          c = '_';
+        }
+      }
+      return filepath_part;
+    }
+  }
+
+  // Fallback to MLIR location info
+  if (auto fileLoc =
+          llvm::dyn_cast<mlir::FileLineColLoc>(mlir_module.get()->getLoc())) {
+    return llvm::sys::path::stem(fileLoc.getFilename()).str();
+  }
+
+  return "unknown";
 }
 
 bool ModuleBuilder::isUsingShardy(
