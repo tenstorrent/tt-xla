@@ -23,6 +23,7 @@ def map_runner_name(entry):
         "wormhole_b0": "tt-ubuntu-2204-n300-stable",
         "p150": "tt-ubuntu-2204-p150b-stable",
         "n300-llmbox": "tt-ubuntu-2204-n300-llmbox-stable",
+        "blackhole-qb": "blackhole-qb",
     }
 
     if entry.get("shared-runners") == "true" or entry.get("shared-runners") is True:

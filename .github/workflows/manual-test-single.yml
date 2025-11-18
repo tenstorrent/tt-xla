@@ -28,6 +28,7 @@ on:
           - 'n300'
           - 'p150'
           - 'n300-llmbox'
+          - 'blackhole-qb'
       shared_runners:
         description: 'Run test on the CIv2 runner'
         required: false
