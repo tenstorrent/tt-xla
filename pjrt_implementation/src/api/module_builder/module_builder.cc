@@ -237,6 +237,7 @@ ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
+  printModule(mlir_module, ".", "0_CreateVHLOModule");
 
   std::string original_mlir_code(mlir_code);
 
@@ -244,29 +245,34 @@ ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
+  printModule(mlir_module, ".", "1_VHLOToSHLO");
 
   status = runFrontendSHLOPipeline(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
+  printModule(mlir_module, ".", "2_FrontendSHLOPipeline");
 
   std::vector<mlir::tt::sharding_utils::MeshSharding> input_shardings;
   status = collectInputShardings(mlir_module, input_shardings);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
+  printModule(mlir_module, ".", "3_InputShardings");
 
   std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
   status = collectOutputShardings(mlir_module, output_shardings);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
+  printModule(mlir_module, ".", "4_OutputShardings");
 
   NumArgumentsResult num_arguments;
   status = collectNumArguments(mlir_module, num_arguments);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
+  printModule(mlir_module, ".", "5_NumArguments");
 
   std::vector<PJRT_Buffer_Type> output_types = collectOutputTypes(mlir_module);
 
@@ -275,6 +281,7 @@ ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
+  printModule(mlir_module, ".", "6_CompilerStableHLOPipeline");
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
@@ -283,6 +290,7 @@ ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
+  printModule(mlir_module, ".", "7_ConvertFromSHLOToTTIR");
 
   std::vector<std::uint32_t> mesh_shape =
       collectMeshShape(mlir_module, input_shardings);
@@ -303,7 +311,7 @@ ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
-
+  printModule(mlir_module, ".", "8_ConvertFromTTIRToTTNN");
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
