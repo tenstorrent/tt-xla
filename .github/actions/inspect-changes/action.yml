@@ -15,7 +15,7 @@ outputs:
     description: "True if only forge-models runner files changed."
     value: ${{ steps.inspect.outputs.only-run-forge-models }}
   run-uplift-model-tests:
-    description: "True if branch name contains 'uplift'."
+    description: "True if we need to run extended tests"
     value: ${{ steps.inspect.outputs.run-uplift-model-tests }}
 runs:
   using: "composite"
@@ -99,8 +99,7 @@ runs:
         fi
 
         # Check if branch name is "uplift"
-        BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
-        if [[ "$BRANCH_NAME" == "uplift" ]]; then
+        if [[ ${{ github.event.pull_request.head.ref == 'uplift' }} ]]; then
           run_uplift_model_tests=true
         fi
 
