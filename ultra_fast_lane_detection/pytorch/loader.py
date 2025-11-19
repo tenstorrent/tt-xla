@@ -48,6 +48,7 @@ class LaneDetectionConfig(ModelConfig):
     img_w: int  # Output image width
     img_h: int  # Output image height
     row_anchor: List[int]  # Row anchor points for lane detection
+    input_size: tuple  # Model input size (height, width)
 
 
 class ModelVariant(StrEnum):
@@ -55,6 +56,7 @@ class ModelVariant(StrEnum):
 
     # TuSimple variants (Highway/Freeway focused)
     TUSIMPLE_RESNET18 = "tusimple_resnet18"
+    TUSIMPLE_RESNET34 = "tusimple_resnet34"
 
     # CULane variants (Urban roads focused)
     CULANE_RESNET18 = "culane_resnet18"
@@ -74,6 +76,18 @@ class ModelLoader(ForgeModel):
             img_w=1280,
             img_h=720,
             row_anchor=TUSIMPLE_ROW_ANCHOR,
+            input_size=(288, 800),
+        ),
+        ModelVariant.TUSIMPLE_RESNET34: LaneDetectionConfig(
+            pretrained_model_name="tusimple_34",
+            dataset="Tusimple34",
+            backbone="34",
+            griding_num=100,
+            cls_num_per_lane=56,
+            img_w=1280,
+            img_h=720,
+            row_anchor=TUSIMPLE_ROW_ANCHOR,
+            input_size=(320, 800),
         ),
         # CULane variants
         ModelVariant.CULANE_RESNET18: LaneDetectionConfig(
@@ -85,6 +99,7 @@ class ModelLoader(ForgeModel):
             img_w=1640,
             img_h=590,
             row_anchor=CULANE_ROW_ANCHOR,
+            input_size=(288, 800),
         ),
     }
 
@@ -93,12 +108,14 @@ class ModelLoader(ForgeModel):
     # Model paths in test_files based on dataset type
     MODEL_PATHS = {
         "Tusimple": "test_files/pytorch/Ultrafast_lane_detection/tusimple_18.pth",
+        "Tusimple34": "test_files/pytorch/Ultrafast_lane_detection/tusimple_res34.pth",
         "CULane": "test_files/pytorch/Ultrafast_lane_detection/culane_18.pth",
     }
 
     # Sample image paths in test_images
     SAMPLE_IMAGE_PATHS = {
         "Tusimple": "test_images/tu_simple_image.jpg",
+        "Tusimple34": "test_images/tu_simple_image.jpg",
         "CULane": "test_images/culane_image.jpg",
     }
 
@@ -144,7 +161,8 @@ class ModelLoader(ForgeModel):
             model="ultra-fast-lane-detection",
             variant=variant,
             group=ModelGroup.RED
-            if variant == ModelVariant.TUSIMPLE_RESNET18
+            if variant
+            in [ModelVariant.TUSIMPLE_RESNET18, ModelVariant.TUSIMPLE_RESNET34]
             else ModelGroup.GENERALITY,
             source=ModelSource.GITHUB,
             task=ModelTask.CV_IMAGE_SEG,
@@ -170,6 +188,7 @@ class ModelLoader(ForgeModel):
                 griding_num=self.config.griding_num,
                 cls_num_per_lane=self.config.cls_num_per_lane,
                 model_path=self.model_path,
+                input_size=self.config.input_size,
             )
             self.model.eval()
 
@@ -211,7 +230,7 @@ class ModelLoader(ForgeModel):
                 f"Using predefined sample image for {dataset} dataset: {sample_image_path}"
             )
             image = cv2.imread(sample_image_path)
-            input_tensor = preprocess_image(image)
+            input_tensor = preprocess_image(image, input_size=self.config.input_size)
             return input_tensor
         else:
             expected_image = self.SAMPLE_IMAGE_PATHS.get(dataset)

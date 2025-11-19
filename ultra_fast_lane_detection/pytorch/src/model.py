@@ -154,19 +154,26 @@ class parsingNet(torch.nn.Module):
                 self.aux_header2, self.aux_header3, self.aux_header4, self.aux_combine
             )
 
-        self.cls = torch.nn.Sequential(
-            torch.nn.Linear(1800, 2048),
-            torch.nn.ReLU(),
-            torch.nn.Linear(2048, self.total_dim),
-        )
-
         self.pool = (
             torch.nn.Conv2d(512, 8, 1)
             if backbone in ["34", "18"]
             else torch.nn.Conv2d(2048, 8, 1)
         )
+
+        # Calculate feature size based on input dimensions
+        # After ResNet backbone, spatial dims are downsampled by 1/32
+        self.feature_h = self.w // 32
+        self.feature_w = self.h // 32
+        self.num_features = self.feature_h * self.feature_w * 8
+
+        self.cls = torch.nn.Sequential(
+            torch.nn.Linear(self.num_features, 2048),
+            torch.nn.ReLU(),
+            torch.nn.Linear(2048, self.total_dim),
+        )
         # 1/32,2048 channel
-        # 288,800 -> 9,40,2048
+        # 288,800 -> 9,25,8 -> 1800
+        # 320,800 -> 10,25,8 -> 2000
         # (w+1) * sample_rows * 4
         # 37 * 10 * 4
         initialize_weights(self.cls)
@@ -186,7 +193,8 @@ class parsingNet(torch.nn.Module):
         else:
             aux_seg = None
 
-        fea = self.pool(fea).view(-1, 1800)
+        fea_pooled = self.pool(fea)
+        fea = fea_pooled.view(-1, self.num_features)
 
         group_cls = self.cls(fea).view(-1, *self.cls_dim)
 

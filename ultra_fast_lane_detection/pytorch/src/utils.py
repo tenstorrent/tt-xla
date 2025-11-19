@@ -13,23 +13,29 @@ import torchvision.transforms as transforms
 from PIL import Image
 
 
-def load_lane_detection_model(backbone, griding_num, cls_num_per_lane, model_path):
+def load_lane_detection_model(
+    backbone, griding_num, cls_num_per_lane, model_path, input_size=(288, 800)
+):
     """Load the lane detection model from a checkpoint.
 
     Args:
         backbone: ResNet backbone variant (e.g., '18', '34', '50')
         griding_num: Number of grid cells
         cls_num_per_lane: Number of classification points per lane
-        model_path: Path to the pretrained model weights (.pth file)
+        model_path: Path to the pretrained model weights (.pth file). If None or file doesn't exist,
+                   the model will be initialized with random weights.
+        input_size: Tuple of (height, width) for model input size. Default: (288, 800)
 
     Returns:
         torch.nn.Module: Loaded model
     """
     # Import the model architecture (now local to this module)
     from .model import parsingNet
+    import os
 
     # Create model instance
     net = parsingNet(
+        size=input_size,
         pretrained=False,
         backbone=backbone,
         cls_dim=(griding_num + 1, cls_num_per_lane, 4),
@@ -53,14 +59,15 @@ def load_lane_detection_model(backbone, griding_num, cls_num_per_lane, model_pat
     return net
 
 
-def preprocess_image(image):
+def preprocess_image(image, input_size=(288, 800)):
     """Preprocess an image for lane detection.
 
     Args:
         image: Input image (numpy array in BGR format from cv2)
+        input_size: Tuple of (height, width) for resizing. Default: (288, 800)
 
     Returns:
-        torch.Tensor: Preprocessed image tensor (1, 3, 288, 800)
+        torch.Tensor: Preprocessed image tensor (1, 3, H, W)
     """
     # Convert BGR to RGB
     img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -71,7 +78,7 @@ def preprocess_image(image):
     # Define transforms
     img_transforms = transforms.Compose(
         [
-            transforms.Resize((288, 800)),
+            transforms.Resize(input_size),
             transforms.ToTensor(),
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         ]
