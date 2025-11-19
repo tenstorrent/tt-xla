@@ -152,9 +152,6 @@ class ModelLoader(ForgeModel):
         arguments = {
             **inputs,
             "use_cache": False,
-            "max_new_tokens": 20,
-            "do_sample": False,
-            "pad_token_id": self.tokenizer.eos_token_id,
         }
 
         return arguments
