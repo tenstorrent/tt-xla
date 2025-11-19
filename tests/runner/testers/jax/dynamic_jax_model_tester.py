@@ -8,7 +8,8 @@ import inspect
 
 import jax
 from infra.comparators import ComparisonConfig
-from infra.testers.single_chip.model import JaxModelTester, RunMode
+from infra.testers.single_chip.model import JaxModelTester, RunMode, ExecutionGranularity
+from infra.testers.compiler_config import CompilerConfig
 from transformers import FlaxPreTrainedModel
 
 from tests.runner.utils import JaxDynamicLoader
@@ -24,9 +25,11 @@ class DynamicJaxModelTester(JaxModelTester):
     def __init__(
         self,
         run_mode: RunMode,
+        execution_granularity: ExecutionGranularity,
         *,
         loader,
         comparison_config: ComparisonConfig | None = None,
+        ir_dump_path: str = "",
     ) -> None:
         """Initialize DynamicJaxModelTester.
 
@@ -35,12 +38,17 @@ class DynamicJaxModelTester(JaxModelTester):
             loader: Loader object that implements load_model and load_inputs methods
             comparison_config: Optional comparison configuration for result validation
         """
+         # Create CompilerConfig with IR dump path
+        compiler_config = CompilerConfig(export_path=ir_dump_path)
+
         # Create JaxDynamicLoader instance
         self.dynamic_loader = JaxDynamicLoader(loader)
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
             run_mode=run_mode,
+            execution_granularity=execution_granularity,
+            compiler_config=compiler_config,
         )
 
     # --- JaxModelTester interface implementations ---

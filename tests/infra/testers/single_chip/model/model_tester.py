@@ -39,6 +39,7 @@ class ModelTester(BaseTester, ABC):
         self,
         comparison_config: ComparisonConfig,
         run_mode: RunMode,
+        execution_granularity: ExecutionGranularity,
         framework: Framework,
         compiler_config: CompilerConfig = None,
         dtype_override=None,
@@ -48,6 +49,7 @@ class ModelTester(BaseTester, ABC):
             compiler_config = CompilerConfig()
         self._compiler_config = compiler_config
         self._run_mode = run_mode
+        self._execution_granularity = execution_granularity
         self._dtype_override = dtype_override
 
         self._model: Model = None

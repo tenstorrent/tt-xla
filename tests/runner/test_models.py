@@ -171,9 +171,11 @@ def test_all_models_torch(
     ],
 )
 @pytest.mark.parametrize(
-    "op_by_op",
-    [None],
-    ids=["full"],  # When op-by-op flow is required/supported, add here.
+    "execution_granularity",
+    [
+        pytest.param(ExecutionGranularity.FULL, id="full", marks=pytest.mark.full),
+        pytest.param(ExecutionGranularity.OP_BY_OP, id="op_by_op", marks=pytest.mark.op_by_op),
+    ]
 )
 @pytest.mark.parametrize(
     "parallelism",
@@ -204,7 +206,7 @@ def test_all_models_torch(
 def test_all_models_jax(
     test_entry,
     run_mode,
-    op_by_op,
+    execution_granularity,
     parallelism,
     record_property,
     test_metadata,
@@ -233,6 +235,13 @@ def test_all_models_jax(
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
+                # Set IR dump path for op-by-op execution granularity
+                ir_dump_path = (
+                    os.path.join(PROJECT_ROOT, "ir_dumps", model_info.name)
+                    if execution_granularity == ExecutionGranularity.OP_BY_OP
+                    else ""
+                )
+
                 # Use DynamicJaxMultiChipModelTester for tensor parallel
                 if parallelism == Parallelism.TENSOR_PARALLEL:
                     tester = DynamicJaxMultiChipModelTester(
@@ -243,8 +252,10 @@ def test_all_models_jax(
                 else:
                     tester = DynamicJaxModelTester(
                         run_mode,
+                        execution_granularity=execution_granularity,
                         loader=loader,
                         comparison_config=test_metadata.to_comparison_config(),
+                        ir_dump_path=ir_dump_path,
                     )
 
                 comparison_result = tester.test()
