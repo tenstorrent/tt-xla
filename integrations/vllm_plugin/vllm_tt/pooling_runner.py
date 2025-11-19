@@ -206,7 +206,7 @@ def generate_attn_mask(
 # 4. encoder.
 # Each subgraph should be decorated in a torch.compile. This is used to make
 # sure that we have the same subgraph topology in both dummy_run and
-# xecute_model. The results from these subgraphs should either be passed to
+# execute_model. The results from these subgraphs should either be passed to
 # other subgraphs, or transferred from TPU to CPU using xla_tensor.cpu() for
 # subsequent processing on the CPU.
 #
@@ -247,6 +247,23 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and self.batch_size != self.scheduler_config.max_num_seqs
         ), f"batch_size ({self.batch_size}) must equal max_num_seqs ({self.scheduler_config.max_num_seqs}) when batch_size > 1"
 
+        self.num_devices = xr.global_runtime_device_count()
+        # Model loader try to parallelize everything for SPMD mode. So we are
+        # processing data parallel separately.
+        self.data_parallel_inference = self.tt_config.is_data_parallel
+        if self.data_parallel_inference:
+            if self.batch_size == 1:
+                logger.warning(
+                    "Data parallel execution is possible for 'batch_size > 1' but got 'batch_size = 1'. Disabling multi device execution and proceeding with single device execution."
+                )
+                self.data_parallel_inference = False
+
+            if self.num_devices == 1:
+                logger.warning(
+                    "Data parallel execution is possible with multiple devices but found single device. Disabling multi device execution and proceeding with single device execution."
+                )
+                self.data_parallel_inference = False
+
         model_config = self.model_config
         cache_config = self.cache_config
         scheduler_config = self.scheduler_config
@@ -254,12 +271,15 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.device = device
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
 
+        # Data parallel execution
+        self.num_additional_inputs = 0
+
         # SPMD Related
         self.use_spmd = envs.VLLM_XLA_USE_SPMD
-        if self.use_spmd:
-            num_devices = xr.global_runtime_device_count()
-            mesh_shape = (num_devices, 1)
-            device_ids = np.array(range(num_devices))
+        # Setup for parallel execution.
+        if self.use_spmd or self.data_parallel_inference:
+            mesh_shape = (self.num_devices, 1)
+            device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
 
         self.enforce_eager = model_config.enforce_eager
@@ -366,13 +386,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             max_num_reqs=self.max_num_reqs,
             max_model_len=self.max_model_len,
             max_num_batched_tokens=self.max_num_tokens,
-            device=self.device,
+            device="cpu",
             pin_memory=self.pin_memory,
             vocab_size=self.model_config.get_vocab_size(),
             block_sizes=block_sizes,
             logitsprocs=build_logitsprocs(
                 self.vllm_config,
-                self.device,
+                "cpu",
                 self.pin_memory,
                 True,  # self.is_pooling_model,
                 self.vllm_config.model_config.logits_processors,
@@ -710,6 +730,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_reqs = self.input_batch.num_reqs
         assert num_reqs > 0
         assert start_index < num_reqs
+        self.num_additional_inputs = 0
 
         # Get the number of scheduled tokens for each request.
         use_max_model_len = self.most_model_len is None
@@ -850,6 +871,26 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
                 self.input_ids_cpu = torch.cat([self.input_ids_cpu, padding], dim=1)
                 arange = torch.cat([arange, padding], dim=1)
+
+            # Add additional rows to make batch divisible by num_devices so inputs
+            # can be divided equally between devices for data parallel execution.
+            if self.data_parallel_inference:
+                # Compute how many extra rows are needed to make batch divisible by num_devices.
+                remainder = self.input_ids_cpu.shape[0] % self.num_devices
+                if remainder > 0:
+                    self.num_additional_inputs = (
+                        self.num_devices - remainder
+                    )  # number of zero rows to add
+                    # Create zero rows with same number of columns as input_ids_cpu
+                    zero_rows = torch.zeros(
+                        (self.num_additional_inputs, self.input_ids_cpu.shape[1]),
+                        dtype=self.input_ids_cpu.dtype,
+                    )
+                    # Append zero rows to inputs.
+                    self.input_ids_cpu = torch.cat(
+                        [self.input_ids_cpu, zero_rows], dim=0
+                    )
+                    arange = torch.cat([arange, zero_rows], dim=0)
 
             self.input_ids = self.input_ids_cpu.to(self.device)
             self.position_ids = arange.to(self.device)
@@ -1108,6 +1149,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             input_ids, inputs_embeds = self._get_model_inputs(self.input_ids, mm_embeds)
             xm.mark_step()
 
+            # Mark inputs for data parallel sharding.
+            if self.data_parallel_inference:
+                xs.mark_sharding(self.input_ids, self.mesh, ("x", None))
+                xs.mark_sharding(self.position_ids, self.mesh, ("x", None))
+
             # Run the decoder
             with set_forward_context(
                 attn_metadata,
@@ -1125,6 +1171,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             hidden_states_list = [
                 t.squeeze(0) for t in torch.split(hidden_states, 1, dim=0)
             ]
+
+            # Remove additional rows/inputs which were added to make batch size
+            # divisible by num_devices.
+            if self.data_parallel_inference and self.num_additional_inputs > 0:
+                hidden_states_list = hidden_states_list[: -self.num_additional_inputs]
 
             if self.batch_size > 1:
                 # Truncate each tensor according to number of input tokens per request.
@@ -1285,6 +1336,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         context_lens = torch.ones((num_reqs,), dtype=torch.int32)
 
+        # Mark inputs for data parallel sharding.
+        if self.data_parallel_inference:
+            xs.mark_sharding(input_ids, self.mesh, ("x", None))
+            xs.mark_sharding(position_ids, self.mesh, ("x", None))
+
         # Default Configurations: valid for single input per batch.
         attn_mask = None
         is_causal = True
@@ -1416,10 +1472,17 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.enable_precompile_all
             else [self.batch_size]
         )
+        # Keep only batch sizes divisible by num_devices for data-parallel model
+        # execution.
+        if self.data_parallel_inference:
+            batch_variants = [
+                batch for batch in batch_variants if batch % self.num_devices == 0
+            ]
+
         start = time.perf_counter()
         for batch in batch_variants:
             for num_tokens in self.num_tokens_paddings:
-                logger.info(f"Precompilation: input shape  -- [{batch} x {num_tokens}]")
+                logger.info(f"Compiling for: input shape=[{batch} x {num_tokens}]")
                 self._dummy_run(
                     batch,
                     num_tokens,

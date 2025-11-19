@@ -38,6 +38,12 @@ class TTConfig:
     batch_size: int = 1
     enable_precompile_all: bool = True
 
+    # Flag to enable data parallel execution of a model. It will require
+    # - batch_size > 1
+    # - max_num_seqs > 1
+    # Only supported for pooling/embedding models.
+    is_data_parallel: bool = False
+
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
