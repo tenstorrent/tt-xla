@@ -127,11 +127,6 @@ class TTPlatform(Platform):
         from vllm.config import CompilationLevel, CUDAGraphMode
 
         cache_config = vllm_config.cache_config
-        if cache_config.gpu_memory_utilization > 0.2:
-            logger.warning(
-                f"TT device memory utilization is set to {cache_config.gpu_memory_utilization*100}%, a device memory utilization greater than 20% is currently unstable. Capping at 20%"
-            )
-            cache_config.gpu_memory_utilization = 0.2
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
             cache_config.block_size = cast(BlockSize, 32)
