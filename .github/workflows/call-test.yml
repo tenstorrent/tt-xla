@@ -46,7 +46,6 @@ on:
         type: string
 
 env:
-  IRD_LF_CACHE: ${{ vars.IRD_LF_CACHE }}
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
   TT_XLA_CI: 1
@@ -68,9 +67,6 @@ jobs:
         build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
 
     runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on  }}
-
-    env:
-      DOCKER_CACHE_ROOT: ${{ !matrix.build.shared-runners && '/mnt/dockercache' || '' }}
 
     # Keep this name in sync with the fetch-job-id step
     name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
@@ -94,6 +90,16 @@ jobs:
 
     - name: Log disk space
       run: df -h
+
+    - name: Set caching env variables
+      shell: bash
+      run: |
+        shared_runners=${{ matrix.build.shared-runners }}
+        if [[ "$shared_runners" == "" || "$shared_runners" == "false" ]]; then
+          echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
+        else
+          echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
+        fi
 
     - uses: actions/checkout@v4
       with:
