@@ -13,7 +13,7 @@ from enum import Enum
 
 import numpy as np
 import pytest
-import torch
+import torch_xla
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
@@ -364,6 +364,7 @@ def record_model_test_properties(
         ),
         "parallelism": str(parallelism),
         "arch": arch,
+        "fallback_ops": torch_xla._XLAC._get_executed_fallback_ops(),
     }
 
     # Add execution_pass if available
