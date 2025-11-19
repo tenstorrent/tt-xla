@@ -13,7 +13,7 @@ FILECHECK_PATH = Path("tests/filecheck")
 
 
 def run_filecheck(
-    test_node_id: str, irs_filepath: str, pattern_files: list[str]
+    test_node_name: str, irs_filepath: str, pattern_files: list[str]
 ) -> dict:
     """
     Run FileCheck on IR files against specified pattern files.
@@ -43,7 +43,7 @@ def run_filecheck(
     # We need to match files that correspond to this specific test_node_id
     from tests.infra.utilities.utils import sanitize_test_name
 
-    sanitized_test_id = sanitize_test_name(test_node_id)
+    sanitized_test_id = sanitize_test_name(test_node_name)
 
     ir_files_map = {}
     for filepath in irs_dir.glob("*.mlir"):
@@ -153,3 +153,19 @@ def _run_filecheck(pattern_filepath: Path, ir_filepath: Path, ir_type: str):
         )
 
     print(f"✓ FileCheck PASSED for {ir_type}")
+
+
+def validate_filecheck_results(results: dict | None):
+    """
+    Validate FileCheck results and raise AssertionError if any checks failed.
+
+    Args:
+        results: Dictionary of FileCheck results from run_filecheck()
+    """
+    if results is None:
+        return
+    for pattern, result in results.items():
+        if not result["passed"]:
+            raise AssertionError(
+                f"FileCheck failed for pattern '{pattern}': {result['error']}"
+            )
