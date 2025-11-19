@@ -859,30 +859,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.device
         )
         if use_max_model_len:
-            block_tables = self.block_table_cpu[
+            page_table = self.block_table_cpu[
                 : self.num_reqs_max_model_len, : self.max_num_blocks_per_req
             ]
-            block_tables[:num_reqs, : self.max_num_blocks_per_req] = (
+            page_table[:num_reqs, : self.max_num_blocks_per_req] = (
                 self.input_batch.block_table[0].get_cpu_tensor()[:num_reqs]
             )
-            query_start_loc = self.query_start_loc_cpu[
-                : self.num_reqs_max_model_len + 1
-            ].to(self.device)
             seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
-            block_tables = self.block_table_cpu[
+            page_table = self.block_table_cpu[
                 : self.num_reqs_most_model_len, : self.num_blocks_per_most_len_req
             ]
-            block_tables[:num_reqs, : self.num_blocks_per_most_len_req] = (
+            page_table[:num_reqs, : self.num_blocks_per_most_len_req] = (
                 self.input_batch.block_table[0].get_cpu_tensor()[
                     :num_reqs, : self.num_blocks_per_most_len_req
                 ]
             )
-            query_start_loc = self.query_start_loc_cpu[
-                : self.num_reqs_most_model_len + 1
-            ].to(self.device)
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
-        block_tables = block_tables.to(self.device)
+        cache_position = (seq_lens - 1).to(self.device)
+        page_table = page_table.to(self.device)
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -896,18 +891,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
         attn_metadata = TTMetadata(
-            context_lens=seq_lens,
-            query_start_loc=query_start_loc,
-            num_seqs=torch.tensor([num_reqs], dtype=torch.int32, device=self.device),
-            attn_mask=generate_attn_mask(
-                seq_lens,
-                self.input_ids.shape[-1],
-                self.num_query_heads,
-                self.max_model_len,
-                self.dtype,
-                self.device,
-            ),
-            is_causal=False,
+            page_table=page_table,
+            cache_position=cache_position,
+            is_causal=True,
+            attn_mask=None,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1370,7 +1357,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.no_grad()
     def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         if self.supports_mm_inputs:
             input_ids = None
             inputs_embeds = torch.zeros(
@@ -1379,27 +1365,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             input_ids = torch.zeros((num_tokens), dtype=torch.int32).to(self.device)
             inputs_embeds = None
-        actual_num_reqs = min(num_tokens, num_reqs)
+
         position_ids = torch.zeros(num_tokens, dtype=torch.int32).to(self.device)
-        query_lens = [1] * num_reqs
-        query_start_loc = torch.cumsum(
-            torch.tensor([0] + query_lens, dtype=torch.int32), dim=0, dtype=torch.int32
-        ).to(self.device)
-        context_lens = torch.ones((num_reqs,), dtype=torch.int32)  # .to(self.device)
-        num_seqs = torch.tensor([actual_num_reqs], dtype=torch.int32).to(self.device)
+        page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
+            self.device
+        )
+        cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
         attn_metadata = TTMetadata(
-            context_lens=context_lens,
-            query_start_loc=query_start_loc,
-            num_seqs=num_seqs,
-            attn_mask=generate_attn_mask(
-                context_lens,
-                input_ids.shape[-1],
-                self.num_query_heads,
-                self.max_model_len,
-                self.dtype,
-                self.device,
-            ),
-            is_causal=False,
+            page_table=page_table,
+            cache_position=cache_position,
+            is_causal=True,
+            attn_mask=None,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
@@ -1501,7 +1477,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
 
     def _precompile_backbone(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
         for num_tokens in self.num_tokens_paddings:
@@ -1819,9 +1794,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             f"tp_size {tp_size} under SPMD mode"
                         )
                     kv_cache_shape = TTAttentionBackend.get_kv_cache_shape(
-                        1,
-                        self.num_kv_heads,
-                        self.max_model_len,
+                        num_blocks,
+                        kv_cache_spec.block_size,
+                        kv_cache_spec.num_kv_heads,
                         kv_cache_spec.head_size,
                     )
                     dtype = kv_cache_spec.dtype

@@ -410,7 +410,10 @@ def paged_update_cache(
         block_size = cache.shape[-2]
         num_heads = cache.shape[-3]
 
+        # Find which block (per user) are being updated
         block_indices = update_indices // block_size
+
+        # Find how deep into the block the update is
         block_offsets = update_indices % block_size
 
         user_range = torch.arange(num_users)
@@ -434,6 +437,320 @@ def paged_update_cache_fake(
     share_cache=False,
 ) -> torch.Tensor:
     return torch.zeros_like(cache)
+
+
+@torch.library.custom_op(
+    "tt::paged_fill_cache", mutates_args=[], device_types=["xla", "cpu"]
+)
+def paged_fill_cache(
+    cache: torch.Tensor,
+    fill_value: torch.Tensor,
+    page_table: torch.Tensor,
+    batch_idx: torch.Tensor = None,
+) -> torch.Tensor:
+    device = cache.device
+    if batch_idx is None:
+        batch_idx = torch.tensor([0], dtype=torch.int32, device=device)
+    if device.type == "xla":
+        inputs = [cache, fill_value, page_table, batch_idx]
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.paged_fill_cache",
+            [cache.shape],
+            [cache.dtype],
+        )
+
+    elif device.type == "cpu":
+        cache = cache.clone()
+
+        block_size = cache.shape[-2]
+        fill_seq_len = fill_value.shape[-2]
+        num_heads = fill_value.shape[-3]
+
+        batch_block_indices = page_table[batch_idx.item()]
+
+        num_blocks_to_fill = fill_seq_len // block_size
+        part_of_final_block_to_fill = fill_seq_len % block_size
+
+        if num_blocks_to_fill > 0:
+            fill_value_in_blocks_shape = [
+                num_blocks_to_fill,
+                num_heads,
+                block_size,
+                fill_value.shape[-1],
+            ]
+            if part_of_final_block_to_fill > 0:
+                fill_value_first_blocks = fill_value[
+                    :, :, :-part_of_final_block_to_fill, :
+                ]
+                cache[batch_block_indices[:num_blocks_to_fill]] = (
+                    fill_value_first_blocks.reshape(
+                        1,
+                        num_heads,
+                        num_blocks_to_fill,
+                        block_size,
+                        fill_value.shape[-1],
+                    )
+                    .transpose(0, 2)
+                    .reshape(fill_value_in_blocks_shape)
+                )
+            else:
+                cache[batch_block_indices[:num_blocks_to_fill]] = (
+                    fill_value.reshape(
+                        1,
+                        num_heads,
+                        num_blocks_to_fill,
+                        block_size,
+                        fill_value.shape[-1],
+                    )
+                    .transpose(0, 2)
+                    .reshape(fill_value_in_blocks_shape)
+                )
+
+        if part_of_final_block_to_fill > 0:
+            cache[
+                batch_block_indices[num_blocks_to_fill : num_blocks_to_fill + 1],
+                :,
+                :part_of_final_block_to_fill,
+                :,
+            ] = fill_value[:, :, -part_of_final_block_to_fill:, :]
+
+        return cache
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@paged_fill_cache.register_fake
+def paged_fill_cache_fake(
+    cache: torch.Tensor,
+    fill_value: torch.Tensor,
+    page_table: torch.Tensor,
+    batch_idx: torch.Tensor = None,
+) -> torch.Tensor:
+    return torch.zeros_like(cache)
+
+
+@torch.library.custom_op(
+    "tt::paged_fill_cache", mutates_args=[], device_types=["xla", "cpu"]
+)
+def paged_fill_cache(
+    cache: torch.Tensor,
+    fill_value: torch.Tensor,
+    page_table: torch.Tensor,
+    batch_idx: torch.Tensor = None,
+) -> torch.Tensor:
+    device = cache.device
+    if batch_idx is None:
+        batch_idx = torch.tensor([0], dtype=torch.int32, device=device)
+    if device.type == "xla":
+        inputs = [cache, fill_value, page_table, batch_idx]
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.paged_fill_cache",
+            [cache.shape],
+            [cache.dtype],
+        )
+
+    elif device.type == "cpu":
+        cache = cache.clone()
+
+        block_size = cache.shape[-2]
+        fill_seq_len = fill_value.shape[-2]
+        num_heads = fill_value.shape[-3]
+
+        batch_block_indices = page_table[batch_idx.item()]
+
+        num_blocks_to_fill = fill_seq_len // block_size
+        part_of_final_block_to_fill = fill_seq_len % block_size
+
+        if num_blocks_to_fill > 0:
+            fill_value_in_blocks_shape = [
+                num_blocks_to_fill,
+                num_heads,
+                block_size,
+                fill_value.shape[-1],
+            ]
+            if part_of_final_block_to_fill > 0:
+                fill_value_first_blocks = fill_value[
+                    :, :, :-part_of_final_block_to_fill, :
+                ]
+                cache[batch_block_indices[:num_blocks_to_fill]] = (
+                    fill_value_first_blocks.reshape(
+                        1,
+                        num_heads,
+                        num_blocks_to_fill,
+                        block_size,
+                        fill_value.shape[-1],
+                    )
+                    .transpose(0, 2)
+                    .reshape(fill_value_in_blocks_shape)
+                )
+            else:
+                cache[batch_block_indices[:num_blocks_to_fill]] = (
+                    fill_value.reshape(
+                        1,
+                        num_heads,
+                        num_blocks_to_fill,
+                        block_size,
+                        fill_value.shape[-1],
+                    )
+                    .transpose(0, 2)
+                    .reshape(fill_value_in_blocks_shape)
+                )
+
+        if part_of_final_block_to_fill > 0:
+            cache[
+                batch_block_indices[num_blocks_to_fill : num_blocks_to_fill + 1],
+                :,
+                :part_of_final_block_to_fill,
+                :,
+            ] = fill_value[:, :, -part_of_final_block_to_fill:, :]
+
+        return cache
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@paged_fill_cache.register_fake
+def paged_fill_cache_fake(
+    cache: torch.Tensor,
+    fill_value: torch.Tensor,
+    page_table: torch.Tensor,
+    batch_idx: torch.Tensor = None,
+) -> torch.Tensor:
+    return torch.zeros_like(cache)
+
+
+@torch.library.custom_op(
+    "tt::paged_scaled_dot_product_attention_decode",
+    mutates_args=[],
+    device_types=["xla", "cpu"],
+)
+def paged_scaled_dot_product_attention_decode(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    page_table: torch.Tensor,
+    is_causal: bool = False,
+    attn_mask: torch.Tensor = None,
+    cur_pos_tensor: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
+    scale: float = None,
+) -> torch.Tensor:
+    device = query.device
+
+    if is_causal:
+        assert attn_mask is None, "attention_mask must be None when is_causal is True."
+        assert (
+            cur_pos_tensor is not None
+        ), "cur_pos_tensor must be provided when is_causal is True."
+    if attn_mask is not None:
+        assert not is_causal, "attention_mask must be None when is_causal is True."
+
+    if device.type == "xla":
+        attrs = {
+            "has_attention_mask": "False",
+            "has_cur_pos_tensor": "False",
+            "has_attention_sink": "False",
+            "is_causal": str(is_causal),
+        }
+
+        if scale is not None:
+            attrs["scale"] = str(scale)
+
+        inputs = [query, key, value, page_table]
+        if attn_mask is not None:
+            attrs["has_attention_mask"] = "True"
+            inputs.append(attn_mask)
+        if cur_pos_tensor is not None:
+            attrs["has_cur_pos_tensor"] = "True"
+            inputs.append(cur_pos_tensor)
+        if attention_sink is not None:
+            attrs["has_attention_sink"] = "True"
+            inputs.append(attention_sink)
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.paged_scaled_dot_product_attention_decode",
+            [query.shape],
+            [query.dtype],
+            frontend_attributes=attrs,
+        )
+    elif device.type == "cpu":
+        # Select the proper key and value blocks based on the page table
+        block_size = key.shape[-2]
+        num_heads = key.shape[-3]
+        num_users = cur_pos_tensor.shape[0]
+        head_size = key.shape[-1]
+
+        num_blocks_per_user = page_table.shape[1]
+        max_seq_len = num_blocks_per_user * block_size
+        causal_mask = torch.zeros(num_users, max_seq_len, dtype=query.dtype)
+
+        new_key = torch.zeros(
+            num_users, num_heads, max_seq_len, head_size, dtype=query.dtype
+        )
+        new_value = torch.zeros(
+            num_users, num_heads, max_seq_len, head_size, dtype=query.dtype
+        )
+
+        for i in range(num_users):
+            block_indices = page_table[i]
+
+            user_key_blocks = key[block_indices]
+            user_value_blocks = value[block_indices]
+
+            # Flatten blocks into seq len
+            user_key = user_key_blocks.transpose(0, 1)  # Move head dim to the front
+            user_value = user_value_blocks.transpose(0, 1)  # Move head dim to the front
+
+            # Select the proper key and value blocks based on the current position
+            user_key = user_key.reshape(
+                num_heads, block_size * num_blocks_per_user, head_size
+            )
+            user_value = user_value.reshape(
+                num_heads, block_size * num_blocks_per_user, head_size
+            )
+
+            new_key[i] = user_key
+            new_value[i] = user_value
+
+            causal_mask[i, cur_pos_tensor[i] + 1 :] = float("-inf")
+
+        query = query.reshape(num_users, num_heads, 1, head_size)
+
+        attn_mask = (
+            causal_mask.reshape(num_users, 1, 1, max_seq_len)
+            if is_causal
+            else attn_mask
+        )
+
+        key = key.repeat_interleave(query.size(-3) // key.size(-3), -3)
+        value = value.repeat_interleave(query.size(-3) // value.size(-3), -3)
+        scale = 1 / head_size**0.5 if scale is None else scale
+        attn_weight = query @ new_key.transpose(-2, -1) * scale
+        attn_weight += attn_mask
+        attn_weight = torch.softmax(attn_weight, dim=-1)
+        out = attn_weight @ new_value
+        return out.reshape(1, num_users, num_heads, head_size)
+
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@paged_scaled_dot_product_attention_decode.register_fake
+def paged_scaled_dot_product_attention_decode_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    page_table: torch.Tensor,
+    is_causal: bool = False,
+    attention_mask: torch.Tensor = None,
+    cur_pos_tensor: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
+    scale: float = None,
+) -> torch.Tensor:
+    return torch.zeros_like(query)
 
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow

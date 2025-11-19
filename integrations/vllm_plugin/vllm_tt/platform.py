@@ -135,7 +135,7 @@ class TTPlatform(Platform):
         cache_config = vllm_config.cache_config
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
-            cache_config.block_size = cast(BlockSize, 16)
+            cache_config.block_size = cast(BlockSize, 32)
         compilation_config = vllm_config.compilation_config
 
         # TT only supports DYNAMO_ONCE compilation level
