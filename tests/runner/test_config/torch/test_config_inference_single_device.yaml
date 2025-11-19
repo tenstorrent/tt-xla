@@ -1823,9 +1823,8 @@ test_config:
   qwen_3/causal_lm/pytorch-14b-single_device-full-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
         status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.48546990752220154. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+        required_pcc: 0.98
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
