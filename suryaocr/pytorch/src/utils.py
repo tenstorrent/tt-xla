@@ -19,10 +19,10 @@ from surya.recognition import RecognitionPredictor
 
 
 class SuryaOCRWrapper(nn.Module):
-    def __init__(self, image_tensor=None):
+    def __init__(self, image_tensor=None, device: str = "cpu"):
         super().__init__()
-        self.detection_predictor = DetectionPredictor()
-        self.foundation_predictor = FoundationPredictor()
+        self.detection_predictor = DetectionPredictor(device=device)
+        self.foundation_predictor = FoundationPredictor(device=device)
         self.rec_predictor = RecognitionPredictor(self.foundation_predictor)
         self._to_pil = transforms.ToPILImage()
 
@@ -77,9 +77,9 @@ class SuryaOCRWrapper(nn.Module):
 
 
 class SuryaOCRDetectionWrapper(nn.Module):
-    def __init__(self):
+    def __init__(self, device: str = "cpu"):
         super().__init__()
-        self.detection_predictor = DetectionPredictor()
+        self.detection_predictor = DetectionPredictor(device=device)
         self._to_pil = transforms.ToPILImage()
 
         # Set eval mode on wrapper and underlying models
