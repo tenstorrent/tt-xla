@@ -21,10 +21,12 @@ class BaseTester(ABC):
         self,
         comparison_config: ComparisonConfig = ComparisonConfig(),
         framework: Optional[Framework] = None,
+        record_property=None,
     ) -> None:
         """Protected constructor for subclasses to use."""
         self._comparison_config = comparison_config
         self._framework = framework
+        self._record_property = record_property
         # Placeholders for objects that will be set during
         # `_initialize_framework_specific_helpers`. Easier to spot if located in
         # constructor instead of dynamically creating them somewhere in methods.

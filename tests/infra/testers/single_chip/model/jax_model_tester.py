@@ -47,6 +47,7 @@ class JaxModelTester(ModelTester):
         compiler_config: CompilerConfig = None,
         has_batch_norm: bool = False,
         dtype_override=None,
+        record_property=None,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
@@ -54,7 +55,7 @@ class JaxModelTester(ModelTester):
         self._has_batch_norm = has_batch_norm
 
         super().__init__(
-            comparison_config, run_mode, execution_granularity, Framework.JAX, compiler_config, dtype_override
+            comparison_config, run_mode, execution_granularity, Framework.JAX, compiler_config, dtype_override, record_property
         )
 
     # @override

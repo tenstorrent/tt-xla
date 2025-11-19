@@ -14,7 +14,7 @@ from infra.workloads import Workload
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from op_by_op_infra.pydantic_models import OpTest
+from op_by_op_infra.pydantic_models import OpTest, model_to_dict
 from op_by_op_infra.workflow import run_op_by_op_workflow
 
 from ...base_tester import BaseTester
@@ -46,6 +46,7 @@ class ModelTester(BaseTester, ABC):
         framework: Framework,
         compiler_config: CompilerConfig = None,
         dtype_override=None,
+        record_property=None,
     ) -> None:
         """Protected constructor for subclasses to use."""
         if compiler_config is None:
@@ -58,7 +59,7 @@ class ModelTester(BaseTester, ABC):
         self._model: Model = None
         self._workload: Workload = None
 
-        super().__init__(comparison_config, framework)
+        super().__init__(comparison_config, framework, record_property)
         self._initialize_components()
 
     def _initialize_components(self) -> None:
@@ -159,12 +160,8 @@ class ModelTester(BaseTester, ABC):
         import os
         import glob
 
-        irs_dir = os.path.join("/localdev/sdjukic/tt-xla/ir_dumps/jax_bart_base_nlp_causal_lm_huggingface", "irs")
+        irs_dir = os.path.join(self._compiler_config.export_path, "irs")
         pattern = os.path.join(irs_dir, "shlo_compiler*.mlir")
-
-        print(os.path.exists(irs_dir))
-        print(os.access(irs_dir, os.R_OK))
-        print(os.listdir(irs_dir))
 
         matches = glob.glob(pattern)
         if not matches:
@@ -183,8 +180,8 @@ class ModelTester(BaseTester, ABC):
         print("Running op by op tests for module:")
         print(module)
         results = self._test_op_by_op(module=module)
-        for result in results:
-            record_property(f"OpTest model for: {result.op_name}", model_to_dict(result))
+        for resulty in results:
+            self._record_property(f"OpTest model for: {resulty.op_name}", model_to_dict(resulty))
         return result
 
 

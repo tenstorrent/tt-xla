@@ -248,6 +248,7 @@ def test_all_models_jax(
                         model_loader=loader,
                         run_mode=run_mode,
                         comparison_config=test_metadata.to_comparison_config(),
+                        record_property=record_property,
                     )
                 else:
                     tester = DynamicJaxModelTester(
@@ -256,6 +257,7 @@ def test_all_models_jax(
                         loader=loader,
                         comparison_config=test_metadata.to_comparison_config(),
                         ir_dump_path=ir_dump_path,
+                        record_property=record_property,
                     )
 
                 comparison_result = tester.test()

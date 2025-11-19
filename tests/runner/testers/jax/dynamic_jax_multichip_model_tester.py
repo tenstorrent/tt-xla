@@ -38,6 +38,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         compiler_config: CompilerConfig = None,
         num_devices: Optional[int] = None,
         axis_name: str = "X",
+        record_property=None,
     ) -> None:
         """Initialize the multichip model tester.
 
@@ -51,6 +52,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
             compiler_config: Compiler configuration.
             num_devices: Number of devices to use. Auto-detected if None.
             axis_name: Name of the sharding axis (used when model_loader is provided).
+            record_property: Optional pytest record_property fixture for recording test properties.
         """
         # If model_loader is provided, auto-configure mesh settings
         if model_loader is not None:
@@ -84,7 +86,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         self._input_parameters_partition_specs: PyTree = None
         self._input_parameters: PyTree = None
 
-        super().__init__(comparison_config, run_mode, compiler_config)
+        super().__init__(comparison_config, run_mode, compiler_config, record_property=record_property)
 
     # @override
     def _initialize_components(self) -> None:

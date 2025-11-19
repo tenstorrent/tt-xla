@@ -30,6 +30,7 @@ class DynamicJaxModelTester(JaxModelTester):
         loader,
         comparison_config: ComparisonConfig | None = None,
         ir_dump_path: str = "",
+        record_property=None,
     ) -> None:
         """Initialize DynamicJaxModelTester.
 
@@ -37,6 +38,8 @@ class DynamicJaxModelTester(JaxModelTester):
             run_mode: RunMode.INFERENCE or RunMode.TRAINING
             loader: Loader object that implements load_model and load_inputs methods
             comparison_config: Optional comparison configuration for result validation
+            ir_dump_path: Optional path for IR dumps during op-by-op execution
+            record_property: Optional pytest record_property fixture for recording test properties
         """
          # Create CompilerConfig with IR dump path
         compiler_config = CompilerConfig(export_path=ir_dump_path)
@@ -49,6 +52,7 @@ class DynamicJaxModelTester(JaxModelTester):
             run_mode=run_mode,
             execution_granularity=execution_granularity,
             compiler_config=compiler_config,
+            record_property=record_property,
         )
 
     # --- JaxModelTester interface implementations ---
