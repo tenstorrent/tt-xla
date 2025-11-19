@@ -63,28 +63,24 @@ test_config:
   qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    assert_pcc: false
 
   qwen_3/causal_lm/pytorch-14b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    assert_pcc: false
+    required_pcc: 0.98 # 0.9860
 
   qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    assert_pcc: false
 
   qwen_3/causal_lm/pytorch-32b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    assert_pcc: false
-    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1474
+    required_pcc: 0.98 # 0.9899
 
   qwen_3/causal_lm/pytorch-8b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    assert_pcc: false
 
   qwen_3/embedding/pytorch-embedding_8b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
