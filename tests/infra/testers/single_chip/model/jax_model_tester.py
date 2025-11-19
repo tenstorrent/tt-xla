@@ -311,6 +311,14 @@ class JaxModelTester(ModelTester):
 
         # Compare forward results and gradients
         forward_comparison = self._compare(tt_forward_out, cpu_forward_out)
+
+        # JAX uses rngs to compute gradients and returns them in a tuple with the gradients.
+        # We need to remove the rngs from the gradients if they are present, as our comparison
+        # should not handle differences in manually set rngs.
+        if self._workload.kwargs["rngs"] is not None:
+            grads_tt = grads_tt[0]
+            grads_cpu = grads_cpu[0]
+        
         gradients_comparison = self._compare(grads_tt, grads_cpu)
 
         return (gradients_comparison, forward_comparison)
