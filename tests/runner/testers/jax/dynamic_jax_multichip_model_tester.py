@@ -158,19 +158,19 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         """
         assert isinstance(workload, JaxMultichipWorkload)
 
-        # module_sharded_executable = shard_map(
-        #     workload.executable,
-        #     mesh=workload.device_mesh,
-        #     in_specs=workload.in_specs,
-        #     out_specs=workload.out_spec,
-        #     # For some reason this check doesn't like replicated outputs.
-        #     check_rep=False,
-        # )
+        module_sharded_executable = shard_map(
+            workload.executable,
+            mesh=workload.device_mesh,
+            in_specs=workload.in_specs,
+            out_specs=workload.out_spec,
+            # For some reason this check doesn't like replicated outputs.
+            check_rep=False,
+        )
         output_sharding = NamedSharding(workload.device_mesh, workload.out_spec)
 
         workload.compiled_executable = jax.jit(
-            # module_sharded_executable,
-            workload.executable,
+            module_sharded_executable,
+            #workload.executable,
             out_shardings=output_sharding,
             static_argnames=workload.static_argnames,
             compiler_options=compiler_options,
@@ -191,10 +191,11 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         out_spec = PartitionSpec()  # Assuming replicated outputs for now.
 
         return JaxMultichipWorkload(
-            self._workload.executable,
-            self._workload.compiled_executable,
-            self._workload.args,
-            self._workload.kwargs,
+            executable=self._workload.executable,
+            compiled_executable=self._workload.compiled_executable,
+            model=self._model,
+            args=self._workload.args,
+            kwargs=self._workload.kwargs,
             device_mesh=mesh,
             in_specs=in_specs,
             out_spec=out_spec,
