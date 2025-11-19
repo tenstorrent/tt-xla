@@ -1,5 +1,7 @@
 # Chisel Integration
 
+NOTE: Chisel is currently only available for use by building from source.
+
 ## Overview
 
 Chisel is a runtime inspection tool from **[tt-mlir](https://github.com/tenstorrent/tt-mlir)** that allows you to debug MLIR graph.
