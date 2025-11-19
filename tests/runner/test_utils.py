@@ -341,6 +341,11 @@ def record_model_test_properties(
 
         reason = static_reason or runtime_reason or "Not specified"
 
+    try:
+        fallback_ops = torch_xla._XLAC._get_executed_fallback_ops()
+    except (AttributeError, NotImplementedError):
+        fallback_ops = "Not implemented"
+
     tags = {
         "test_name": str(request.node.originalname),
         "specific_test_case": str(request.node.name),
@@ -364,7 +369,7 @@ def record_model_test_properties(
         ),
         "parallelism": str(parallelism),
         "arch": arch,
-        "fallback_ops": torch_xla._XLAC._get_executed_fallback_ops(),
+        "fallback_ops": fallback_ops,
     }
 
     # Add execution_pass if available
