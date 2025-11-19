@@ -14,6 +14,9 @@ from infra.workloads import Workload
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
+from op_by_op_infra.pydantic_models import OpTest
+from op_by_op_infra.workflow import run_op_by_op_workflow
+
 from ...base_tester import BaseTester
 
 
@@ -149,9 +152,74 @@ class ModelTester(BaseTester, ABC):
     def test(self) -> Tuple[ComparisonResult, ...]:
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
-            return self._test_inference()
+            result = self._test_inference()
         else:
-            return self._test_training()
+            result = self._test_training() 
+
+        import os
+        import glob
+
+        irs_dir = os.path.join("/localdev/sdjukic/tt-xla/ir_dumps/jax_bart_base_nlp_causal_lm_huggingface", "irs")
+        pattern = os.path.join(irs_dir, "shlo_compiler*.mlir")
+
+        print(os.path.exists(irs_dir))
+        print(os.access(irs_dir, os.R_OK))
+        print(os.listdir(irs_dir))
+
+        matches = glob.glob(pattern)
+        if not matches:
+            raise FileNotFoundError(f"No file matching {pattern}")
+
+        # If there are multiple, pick the newest one
+        ir_file_path = max(matches, key=os.path.getmtime)
+
+        try:
+            with open(ir_file_path, 'r') as f:
+                module = f.read()
+        except (FileNotFoundError, IOError, OSError) as e:
+            print(f"Warning: Could not read IR dump file {ir_file_path}: {e}")
+            module = ""
+        
+        print("Running op by op tests for module:")
+        print(module)
+        results = self._test_op_by_op(module=module)
+        for result in results:
+            record_property(f"OpTest model for: {result.op_name}", model_to_dict(result))
+        return result
+
+
+    def _test_op_by_op(self, module: str, compile_before_split: bool = False, compile_each_submodule_after_split: bool = False, *, frontend: Optional[str] = "tt-xla", model_name: Optional[str] = None) -> List[OpTest]:
+        """
+        Tests the model on op by op basis.
+        To enable showing progress of the workflow, set env var `SHOW_WORKFLOW_PROGRESS=ON`
+
+        Parameters
+        ----------
+        module: Module | str
+            Original MLIR module (or module str) processed by the workflow.
+        compile_before_split: bool
+            If True, compiles the module before splitting.
+            NOTE if True `compile_each_submodule_after_split` cannot be True.
+        compile_each_submodule_after_split: bool
+            If True, compiles each submodule after splitting.
+            NOTE if True `compile_before_split` cannot be True.
+        frontend: Optional[str]
+            Name of the frontend using op by op infra.
+        model_name: Optional[str]
+            Name of the ML model which was passed as original MLIR module to the workflow.
+
+        Returns
+        -------
+        List[OpTest]
+            List of `OpTest` pydantic models
+        """
+        return run_op_by_op_workflow(
+            module=module,
+            compile_before_split=compile_before_split,
+            compile_each_submodule_after_split=compile_each_submodule_after_split,
+            frontend=frontend,
+            model_name=model_name,
+        )
 
     def _test_inference(self) -> Tuple[ComparisonResult, ...]:
         """
