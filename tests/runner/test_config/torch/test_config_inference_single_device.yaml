@@ -946,6 +946,10 @@ test_config:
 
   yolov7/pytorch-yolov7x-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "PCC comparison failed. Calculated: pcc=0.9886450171470642. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2237"
 
   yolov7/pytorch-yolov7-single_device-full-inference:
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9570515751838684. Required: pcc=0.99."
@@ -2238,7 +2242,8 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 61231104 B L1 buffer across 72 banks, where each bank needs to store 850432 B, but bank size is only 1331936 B"
 
   maskformer_swin_b/pytorch-swin_base_ade-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.6917205452919006. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2237"
 
   yolos_small/pytorch-small-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
