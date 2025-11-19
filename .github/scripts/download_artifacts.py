@@ -1,13 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
-import requests
 import argparse
+import os
 import subprocess
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime as dt
+
+import requests
 
 
 def get_token(cli_token):
@@ -61,7 +62,7 @@ def download_artifact(artifact, folder_name, headers, args, session):
     artifact_id = artifact["id"]
     # Destination ZIP file: use artifact_name + ".zip"
     target_zip = os.path.join(folder_name, f"{artifact_name}.zip")
-    print(f"Downloading artifact '{artifact_name}' (ID: {artifact_id}) to {target_zip}")
+    print(f"Downloading artifact id: {artifact_id} name: {artifact_name}")
     download_url = (
         f"https://api.github.com/repos/{args.repo}/actions/artifacts/{artifact_id}/zip"
     )
@@ -78,54 +79,20 @@ def download_artifact(artifact, folder_name, headers, args, session):
         return None
 
 
-def recursive_unzip(directory):
-    """
-    Recursively search for and extract any ZIP files in the given directory.
-    After extracting a ZIP file, it is removed.
-    """
-    zip_found = True
-    while zip_found:
-        zip_found = False
-        # Walk the directory to find any .zip file.
-        for root, _, files in os.walk(directory):
-            for file in files:
-                if file.endswith(".zip"):
-                    zip_path = os.path.join(root, file)
-                    print(f"Recursively unzipping {zip_path}")
-                    try:
-                        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                            zip_ref.extractall(root)
-                        os.remove(zip_path)
-                        zip_found = True
-                    except Exception as e:
-                        print(f"Failed to recursively unzip {zip_path}: {e}")
-
-
 def process_zip_file(zip_path, folder_name):
     """
-    Unzip the given ZIP file. For ZIP files with names like
-    "full-logs-<model_name>.zip", if the extracted contents include
-    "full_job_output.log", rename it to "<model_name>_full_job_output.log".
-    Then, recursively extract any nested ZIP files.
+    Extract the given ZIP file into a unique subdirectory derived from the
+    original artifact/ZIP name to avoid filename collisions across artifacts.
+    The original ZIP file is removed after extraction.
     """
     try:
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(folder_name)
-        os.remove(zip_path)
-
         zip_base = os.path.basename(zip_path)
-        # Check for the special pattern "full-logs-<model_name>.zip"
-        if zip_base.startswith("full-logs-") and zip_base.endswith(".zip"):
-            # Extract <model_name> from the zip filename.
-            # E.g., "full-logs-vision-misc.zip" gives model_name = "vision-misc"
-            model_name = zip_base[len("full-logs-") : -len(".zip")]
-            extracted_log = os.path.join(folder_name, "full_job_output.log")
-            if os.path.exists(extracted_log):
-                new_name = os.path.join(
-                    folder_name, f"{model_name}_full_job_output.log"
-                )
-                os.rename(extracted_log, new_name)
-                print(f"Renamed {extracted_log} to {new_name}")
+        artifact_base, _ = os.path.splitext(zip_base)
+        target_dir = os.path.join(folder_name, artifact_base)
+        os.makedirs(target_dir, exist_ok=True)
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(target_dir)
+        os.remove(zip_path)
     except Exception as e:
         print(f"Failed to process zip file '{zip_path}': {e}")
 
@@ -299,7 +266,7 @@ def main():
         "--no-unzip",
         dest="unzip",
         action="store_false",
-        help="Do not unzip downloaded .zip files (default is to unzip, including nested ZIPs. Removes original ZIP and applies special renaming if needed.)",
+        help="Do not unzip downloaded .zip files (default unzips each into a subdirectory named after the artifact and removes the original ZIP).",
     )
     parser.set_defaults(unzip=True)
     parser.add_argument(
@@ -381,12 +348,11 @@ def main():
                 if result:  # result is the file path for the downloaded ZIP
                     downloaded_zips.append(result)
 
-    # If --unzip is set, process each ZIP file one-at-a-time.
+    # If --unzip is set, extract each ZIP into its own artifact-named subdirectory.
     if args.unzip:
+        print(f"Unzipping {len(downloaded_zips)} zip files into {folder_name}")
         for zip_file in downloaded_zips:
             process_zip_file(zip_file, folder_name)
-        # If any zip files remain (recursive zips) extract them now.
-        recursive_unzip(folder_name)
 
 
 if __name__ == "__main__":
