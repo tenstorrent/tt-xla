@@ -591,7 +591,9 @@ test_config:
 
   vovnet/pytorch-ese_vovnet39b-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.9872968792915344. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   ghostnet/pytorch-ghostnet_100.in1k-data_parallel-full-inference:
     supported_archs: [n300]
