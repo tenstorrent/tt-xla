@@ -829,7 +829,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
-  options.optimizerPassEnabled = compile_options.enable_optimizer;
+  options.optimizerPassEnabled = true;
   options.memoryLayoutAnalysisEnabled =
       compile_options.enable_memory_layout_analysis;
   options.l1InterleavedFallbackAnalysisEnabled =
@@ -865,7 +865,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   mlir::LogicalResult mlir_result = ttir_to_ttnn_pm.run(mlir_module.get());
 
   // Close the optimizer submesh now that the compilation is complete.
-  client_instance->closeOptimizerSubmesh();
+  // client_instance->closeOptimizerSubmesh();
 
   if (mlir::failed(mlir_result)) {
     DLOG_F(ERROR, "Failed to convert from TTIR to TTNN module");

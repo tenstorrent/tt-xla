@@ -89,7 +89,7 @@ ClientInstance::ClientInstance()
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
 
-  closeOptimizerSubmesh();
+  // closeOptimizerSubmesh();
 
   if (m_parent_mesh.has_value()) {
     tt::runtime::closeMeshDevice(*m_parent_mesh);
@@ -477,8 +477,13 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
 
 void ClientInstance::closeOptimizerSubmesh() {
   if (m_optimizer_submesh.has_value()) {
+    std::cout << "[DEBUG] ClientInstance::closeOptimizerSubmesh() - About to call releaseSubMeshDevice" << std::endl;
     tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
+    std::cout << "[DEBUG] ClientInstance::closeOptimizerSubmesh() - releaseSubMeshDevice completed" << std::endl;
     m_optimizer_submesh.reset();
+    std::cout << "[DEBUG] ClientInstance::closeOptimizerSubmesh() - m_optimizer_submesh reset complete" << std::endl;
+  } else {
+    std::cout << "[DEBUG] ClientInstance::closeOptimizerSubmesh() - No submesh to close" << std::endl;
   }
 }
 
