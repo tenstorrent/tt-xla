@@ -188,6 +188,9 @@ void BufferInstance::copyFromHost(
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
 
+  // In distributed runtime, we always create owned host tensor because we
+  // cannot alias the host buffer.
+  //
   // In case when input host buffer has a semantic `ImmutableOnlyDuringCall`
   // we are not allowed to alias it directly, so we have to create owned host
   // tensor which copies buffer data. In JAX this semantic is used only for
@@ -199,7 +202,9 @@ void BufferInstance::copyFromHost(
   // supported by runtime/ttnn, then we must create an owned tensor as runtime
   // must case the data inside the host buffer into a supported data type. Thus,
   // the buffer cannot be borrowed.
-  if (host_buffer_semantics ==
+  if (::tt::runtime::getCurrentHostRuntime() ==
+          tt::runtime::HostRuntime::Distributed ||
+      host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
 
