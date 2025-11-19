@@ -14,6 +14,9 @@ from tests.utils import BringupStatus
 # Single source of truth for the placeholders YAML filename
 PLACEHOLDERS_FILENAME = "test_config_placeholders.yaml"
 
+# Path to filecheck pattern files
+FILECHECK_DIR = Path(__file__).parent.parent.parent / "filecheck"
+
 
 # Map YAML 'status' string (enum name or value) to ModelTestStatus; raises on invalid values if provided.
 def _enum_map_status(value: str):
@@ -116,6 +119,57 @@ def _validate_allowed_keys(cfg: Dict[str, Any], *, ctx: str) -> None:
                 validate_mapping(arch_cfg, where=f"arch_overrides['{arch}']")
 
 
+# Validate that filecheck pattern files referenced in config exist in tests/filecheck/
+def _validate_filecheck_references(
+    cfg: Dict[str, Any], *, test_id: str, yaml_file: str
+) -> None:
+    """Check that all filecheck pattern files exist and warn if not found.
+
+    Args:
+        cfg: Test configuration dictionary
+        test_id: Test identifier for error messages
+        yaml_file: YAML filename for error messages
+    """
+
+    def check_filechecks(filechecks, where: str) -> None:
+        if not filechecks:
+            return
+
+        if not isinstance(filechecks, list):
+            print(
+                f"WARNING: 'filechecks' should be a list in {where}. Found: {type(filechecks).__name__}"
+            )
+            return
+
+        for pattern_file in filechecks:
+            if not isinstance(pattern_file, str):
+                print(
+                    f"WARNING: filecheck entry should be a string in {where}. Found: {type(pattern_file).__name__}"
+                )
+                continue
+
+            pattern_path = FILECHECK_DIR / pattern_file
+            if not pattern_path.exists():
+                print(
+                    f"WARNING: filecheck pattern file not found: {pattern_path}"
+                    f"\n         Referenced in test '{test_id}' in {yaml_file}"
+                )
+
+    # Check top-level filechecks
+    if "filechecks" in cfg:
+        check_filechecks(cfg["filechecks"], where=f"test '{test_id}' in {yaml_file}")
+
+    # Check filechecks in arch_overrides
+    overrides = cfg.get("arch_overrides")
+    if isinstance(overrides, dict):
+        for arch, arch_cfg in overrides.items():
+            if isinstance(arch_cfg, dict) and "filechecks" in arch_cfg:
+                check_filechecks(
+                    arch_cfg["filechecks"],
+                    where=f"arch_overrides['{arch}'] in test '{test_id}' in {yaml_file}",
+                )
+
+
 # Load test configs for a specific framework
 def load_framework_test_configs(framework: Framework) -> Dict[str, Any]:
     """Load YAML-based test configurations for a specific framework.
@@ -161,6 +215,11 @@ def load_framework_test_configs(framework: Framework) -> Dict[str, Any]:
         for test_id, cfg in tests.items():
             _validate_allowed_keys(
                 cfg, ctx=f"test '{test_id}' in {framework.value}/{yaml_file.name}"
+            )
+            _validate_filecheck_references(
+                cfg,
+                test_id=test_id,
+                yaml_file=f"{framework.value}/{yaml_file.name}",
             )
             merged_test_config[test_id] = _normalize_enums_in_cfg(cfg)
 

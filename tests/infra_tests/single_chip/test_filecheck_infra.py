@@ -8,6 +8,7 @@ Tests the basic mechanics of filecheck_utils with existing pattern files.
 """
 
 import pytest
+
 from tests.infra.utilities.filecheck_utils import (
     run_filecheck,
     validate_filecheck_results,
@@ -24,12 +25,12 @@ class TestFileCheckUtils:
         test_name = "test_concat"
         ir_file = ir_dir / f"{test_name}_ttnn.mlir"
         ir_file.write_text(
-            'module {\n'
-            '  func.func @main() {\n'
+            "module {\n"
+            "  func.func @main() {\n"
             '    "ttnn.concatenate_heads"() : () -> ()\n'
-            '    return\n'
-            '  }\n'
-            '}\n'
+            "    return\n"
+            "  }\n"
+            "}\n"
         )
 
         results = run_filecheck(
@@ -48,12 +49,12 @@ class TestFileCheckUtils:
         test_name = "test_no_concat"
         ir_file = ir_dir / f"{test_name}_ttnn.mlir"
         ir_file.write_text(
-            'module {\n'
-            '  func.func @main() {\n'
+            "module {\n"
+            "  func.func @main() {\n"
             '    "ttnn.other_operation"() : () -> ()\n'
-            '    return\n'
-            '  }\n'
-            '}\n'
+            "    return\n"
+            "  }\n"
+            "}\n"
         )
 
         results = run_filecheck(
@@ -73,12 +74,12 @@ class TestFileCheckUtils:
         test_name = "test_split"
         ir_file = ir_dir / f"{test_name}_ttnn.mlir"
         ir_file.write_text(
-            'module {\n'
-            '  func.func @main() {\n'
+            "module {\n"
+            "  func.func @main() {\n"
             '    "ttnn.split_query_key_value_and_split_heads"() : () -> ()\n'
-            '    return\n'
-            '  }\n'
-            '}\n'
+            "    return\n"
+            "  }\n"
+            "}\n"
         )
 
         results = run_filecheck(
@@ -159,7 +160,9 @@ class TestFileCheckUtils:
         errors = []
         for pattern, result in results.items():
             if not result["passed"]:
-                errors.append(f"FileCheck failed for pattern '{pattern}': {result['error']}")
+                errors.append(
+                    f"FileCheck failed for pattern '{pattern}': {result['error']}"
+                )
 
         # Should have both errors
         assert len(errors) == 2
