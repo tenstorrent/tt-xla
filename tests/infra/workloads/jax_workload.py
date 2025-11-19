@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-from infra.utilities import Framework, ShardingMode
+from infra.utilities import Framework, ShardingMode, Model
 from jax.sharding import Mesh, PartitionSpec
 
 from .workload import Workload
@@ -24,6 +24,7 @@ class JaxMultichipWorkload(Workload):
         self,
         executable: Callable,
         compiled_executable: Optional[Callable] = None,
+        model: Optional[Model] = None,
         args: Optional[Sequence[Any]] = None,
         kwargs: Optional[Mapping[str, Any]] = None,
         static_argnames: Optional[Sequence[str]] = None,
@@ -37,6 +38,7 @@ class JaxMultichipWorkload(Workload):
             framework=Framework.JAX,
             executable=executable,
             compiled_executable=compiled_executable,
+            model=model,
             args=args,
             kwargs=kwargs,
             static_argnames=static_argnames,

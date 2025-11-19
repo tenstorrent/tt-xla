@@ -128,10 +128,11 @@ class JaxDeviceRunner(DeviceRunner):
             kwargs_on_device[key] = device_arg
 
         return JaxMultichipWorkload(
-            multichip_workload.executable,
-            multichip_workload.compiled_executable,
-            args_on_device,
-            kwargs_on_device,
+            executable=multichip_workload.executable,
+            compiled_executable=multichip_workload.compiled_executable,
+            model=multichip_workload.model,
+            args=args_on_device,
+            kwargs=kwargs_on_device,
             device_mesh=multichip_workload.device_mesh,
             in_specs=multichip_workload.in_specs,
         )
