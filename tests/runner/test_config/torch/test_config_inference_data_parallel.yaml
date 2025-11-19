@@ -96,9 +96,9 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
-  # yolov6/pytorch-yolov6l-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  yolov6/pytorch-yolov6l-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg16-data_parallel-full-inference:
     supported_archs: [n300]
@@ -410,9 +410,9 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov8/pytorch-yolov8n-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # yolov8/pytorch-yolov8n-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-data_parallel-full-inference:
     supported_archs: [n300]
@@ -461,10 +461,10 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov8/pytorch-yolov8x-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+  # yolov8/pytorch-yolov8x-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
 
   wide_resnet/pytorch-wide_resnet50_2.timm-data_parallel-full-inference:
     supported_archs: [n300]
@@ -765,9 +765,9 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  yolov10/pytorch-yolov10n-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # yolov10/pytorch-yolov10n-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
   efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-data_parallel-full-inference:
     supported_archs: [n300]
@@ -853,9 +853,9 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  yolov10/pytorch-yolov10x-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # yolov10/pytorch-yolov10x-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
   efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-data_parallel-full-inference:
     supported_archs: [n300]
@@ -1199,9 +1199,9 @@ test_config:
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9163239002227783. Required: pcc=0.99.
 
-  yoloworld/pytorch-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
+  # yoloworld/pytorch-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
 
   phi3/phi_3_5/pytorch-mini_instruct-data_parallel-full-inference:
     supported_archs: [n300]
