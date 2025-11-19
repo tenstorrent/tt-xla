@@ -80,12 +80,12 @@ Choose your framework and run the example:
 
 **PyTorch:**
 ```bash
-python examples/pytorch/codegen/codegen_via_options_example.py
+python examples/pytorch/codegen/custom_module.py
 ```
 
 **JAX:**
 ```bash
-python examples/jax/codegen/codegen_via_options_example.py
+python examples/jax/codegen/custom_module.py
 ```
 
 #### What Happens During Code Generation
