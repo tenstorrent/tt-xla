@@ -908,14 +908,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if use_max_model_len:
-            query_start_loc = self.query_start_loc_cpu[
-                : self.num_reqs_max_model_len + 1
-            ].to(self.device)
             seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
-            query_start_loc = self.query_start_loc_cpu[
-                : self.num_reqs_most_model_len + 1
-            ].to(self.device)
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
 
         if self.lora_config is not None:
@@ -947,9 +941,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal = False
 
         attn_metadata = TTMetadata(
-            context_lens=seq_lens,
-            query_start_loc=None,  # Required for paged attention.
-            num_seqs=None,  # Required for paged attention.
             attn_mask=attn_mask,
             is_causal=is_causal,
         )
@@ -1359,9 +1350,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal = False
 
         attn_metadata = TTMetadata(
-            context_lens=context_lens,
-            query_start_loc=None,  # Required for paged attention.
-            num_seqs=None,  # Required for paged attention.
             attn_mask=attn_mask,
             is_causal=is_causal,
         )
