@@ -7,7 +7,7 @@ Qwen Casual LM model loader implementation
 
 
 import torch
-from transformers import AutoTokenizer, Qwen2ForCausalLM
+from transformers import AutoTokenizer, Qwen2ForCausalLM, AutoConfig
 from typing import Optional
 
 from ....base import ForgeModel
@@ -279,3 +279,15 @@ class ModelLoader(ForgeModel):
         shard_specs[model.lm_head.weight] = ("model", "batch")
 
         return shard_specs
+
+    def load_config(self):
+        """Load and return the configuration for the Qwen 2.5 model variant.
+
+        Returns:
+            The configuration object for the Qwen 2.5 model.
+        """
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+
+        return self.config

@@ -6,7 +6,7 @@ Falcon model loader implementation for causal language modeling
 """
 from typing import Optional
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 
 from ...config import (
     ModelInfo,
@@ -246,3 +246,15 @@ class ModelLoader(ForgeModel):
             return None
 
         return shard_specs
+
+    def load_config(self):
+        """Load and return the configuration for the Falcon model.
+
+        Returns:
+            The configuration object for the Falcon model.
+        """
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+
+        return self.config

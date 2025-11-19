@@ -6,6 +6,7 @@ BGE M3 embedding model loader using FlagEmbedding's BGEM3FlagModel.
 """
 import torch
 from typing import Optional
+from transformers import AutoConfig
 
 from ...base import ForgeModel
 from ...config import (
@@ -89,3 +90,15 @@ class ModelLoader(ForgeModel):
         }
 
         return forward_inputs
+
+    def load_config(self):
+        """Load and return the configuration for the Bge-m3 model.
+
+        Returns:
+            The configuration object for the Bge-m3 model.
+        """
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+
+        return self.config

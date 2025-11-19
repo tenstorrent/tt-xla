@@ -5,7 +5,7 @@
 Qwen 3 model loader implementation for causal language modeling.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
 from ....base import ForgeModel
@@ -218,3 +218,15 @@ class ModelLoader(ForgeModel):
         shard_specs[model.lm_head.weight] = ("model", "batch")
 
         return shard_specs
+
+    def load_config(self):
+        """Load and return the configuration for the Qwen3 model variant.
+
+        Returns:
+            The configuration object for the Qwen3 model.
+        """
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+
+        return self.config

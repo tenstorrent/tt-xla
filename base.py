@@ -210,3 +210,14 @@ class ForgeModel(ABC):
             Dict[Tensor, Tuple(str, str)]: Shard specification object, or None if not applicable for this model
         """
         return None
+
+    def load_config(self, **kwargs):
+        """Load and return the model configuration using this instance's variant.
+
+        Args:
+            **kwargs: Additional config-specific arguments.
+
+        Returns:
+            Any: Model configuration object
+        """
+        return None
