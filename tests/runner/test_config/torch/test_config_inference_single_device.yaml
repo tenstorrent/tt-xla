@@ -1488,8 +1488,13 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   phi3/phi_3_5_vision/pytorch-instruct-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 52428800 B DRAM buffer across 12 banks, where each bank needs to store 4370432 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 52428800 B DRAM buffer across 12 banks, where each bank needs to store 4370432 B, but bank size is only 1073741792 B"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Running the test CRASHED with signal 9 https://github.com/tenstorrent/tt-xla/issues/2254"
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     assert_pcc: false
@@ -2193,8 +2198,13 @@ test_config:
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
 
   stable_diffusion/pytorch-stable-diffusion-3.5-medium-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Running the test CRASHED with signal 9 https://github.com/tenstorrent/tt-xla/issues/2254"
 
   stable_diffusion/pytorch-stable-diffusion-3.5-large-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
