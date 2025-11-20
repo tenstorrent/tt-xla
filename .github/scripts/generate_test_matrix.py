@@ -20,6 +20,7 @@ def map_runner_name(entry):
     shared_runner_mapping = {
         "n150": "tt-ubuntu-2204-n150-stable",
         "n300": "tt-ubuntu-2204-n300-stable",
+        "n300-high-memory": "tt-ubuntu-2204-n300-stable",
         "wormhole_b0": "tt-ubuntu-2204-n300-stable",
         "p150": "tt-ubuntu-2204-p150b-stable",
         "n300-llmbox": "tt-ubuntu-2204-n300-llmbox-stable",
