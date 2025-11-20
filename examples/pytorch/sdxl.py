@@ -62,6 +62,7 @@ def run_sdxl_unet_inference():
     with torch.no_grad():
         output = model(sample, timestep, encoder_hidden_states, added_cond_kwargs=added_cond_kwargs)
 
+
     print(output)
 
 
