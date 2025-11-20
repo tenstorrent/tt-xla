@@ -66,3 +66,6 @@ qwen-vl-utils[decord]==0.0.8
 
 # whisper and wav2vec2 models
 torchcodec
+
+# unet
+segmentation-models-pytorch==0.5.0
