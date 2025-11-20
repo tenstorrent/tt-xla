@@ -1539,6 +1539,16 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, is_llmbox):
                 shard_specs[attention.o_proj.weight] = (None, "model")
                 return shard_specs
 
+        elif num_heads % 8 == 0 and num_key_value_heads == 1:
+            # for small variants like gemma 1.1 2b with 8 attn heads and 1 kv head
+            mesh_shape = (1, num_devices)
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
         else:
             batch_size = 2
             mesh_shape = (2, num_devices // 2)
@@ -1675,6 +1685,16 @@ def test_gemma_attention_decode(variant, variant_config, is_llmbox):
                 shard_specs[attention.q_proj.weight] = ("model", None)
                 shard_specs[attention.k_proj.weight] = ("model", None)
                 shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        elif num_heads % 8 == 0 and num_key_value_heads == 1:
+            # for small variants like gemma 1.1 2b with 8 attn heads and 1 kv head
+            mesh_shape = (1, num_devices)
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[attention.q_proj.weight] = ("model", None)
                 shard_specs[attention.o_proj.weight] = (None, "model")
                 return shard_specs
 
