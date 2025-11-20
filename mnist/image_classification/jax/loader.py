@@ -363,27 +363,33 @@ class ModelLoader(ForgeModel):
     def get_static_argnames(self):
         """Get static argument names for the forward method.
 
-        For Flax models using apply, 'train' needs to be static when the model
+        For Flax models using apply, `train` needs to be static when the model
         uses it, because the model uses 'not train' which requires a concrete boolean value.
-        Additionally, 'mutable' must be static when using batch normalization
-        because it contains string values that cannot be traced.
+        Additionally, `mutable` must be static when using batch normalization
+        because it contains string values that cannot be traced. `rngs` must be static for
+        dropout models because it contains a random key that cannot be traced.
 
         Returns:
             list: List containing static argument names
         """
         static_args = []
 
-        # Check if the model actually has a 'train' parameter
-        # Only CNN models have it, not the MLP models
+        # Check if the model actually has a `train` parameter
+        # Only CNN models have it, not the MLP models.
         if self._variant in [ModelVariant.CNN_BATCHNORM, ModelVariant.CNN_DROPOUT]:
-            # 'train' must be static because the model does boolean operations on it
-            # (e.g., use_running_average=not train) which don't work with traced values
+            # `train` must be static because the model does boolean operations on it
+            # (e.g., use_running_average=not train) which don't work with traced values.
             static_args.append("train")
 
-            # 'mutable' must be static for batch norm models because it contains strings
-            # which cannot be traced by JAX
-            if self._variant == ModelVariant.CNN_BATCHNORM:
-                static_args.append("mutable")
+        # `mutable` must be static for batch norm models because it contains strings
+        # which cannot be traced by JAX.
+        if self._variant == ModelVariant.CNN_BATCHNORM:
+            static_args.append("mutable")
+
+        # `rngs` must be static for dropout models because it contains a random key
+        # which cannot be traced by JAX.
+        if self._variant == ModelVariant.CNN_DROPOUT:
+            static_args.append("rngs")
 
         return static_args
 
