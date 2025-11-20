@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -8,6 +8,8 @@ FileCheck utilities for verifying IR patterns in tests.
 
 import subprocess
 from pathlib import Path
+
+from tests.infra.utilities import sanitize_test_name
 
 FILECHECK_PATH = Path("tests/filecheck")
 
@@ -37,11 +39,12 @@ def run_filecheck(
     irs_dir = Path(irs_filepath)
 
     if not irs_dir.exists():
-        raise FileNotFoundError(f"IR directory does not exist: {irs_filepath}")
+        raise FileNotFoundError(
+            f"IR directory does not exist: {irs_filepath}. This is probably because you didn't run the test with pytest --serialize option."
+        )
 
     # Build a mapping of IR types to IR files for the current test
     # We need to match files that correspond to this specific test_node_id
-    from tests.infra.utilities.utils import sanitize_test_name
 
     sanitized_test_id = sanitize_test_name(test_node_name)
 
@@ -70,13 +73,9 @@ def run_filecheck(
         pattern_filepath = FILECHECK_PATH / pattern_filename
 
         # Extract IR type from pattern filename (e.g., "concatenate_heads.ttnn.mlir" -> "ttnn")
+        # Filename format: <description>.<ir_type>.mlir
         pattern_stem = Path(pattern_filename).stem
-        if "." in pattern_stem:
-            # Handle "name.ir_type" format
-            ir_type = pattern_stem.split(".")[-1]
-        else:
-            # Handle "name_ir_type" format
-            ir_type = pattern_stem.split("_")[-1]
+        ir_type = pattern_stem.split(".")[-1]
 
         # Use pattern filename (without .mlir) as result key
         result_key = pattern_stem
