@@ -5,6 +5,7 @@
 import pytest
 import torch
 import torch_xla.core.xla_model as xm
+import tt_torch.composite_ops as composite_ops
 from infra.comparators.torch_comparator import TorchComparator
 from infra.utilities.types import Framework
 from torch.nn import functional as F
@@ -23,6 +24,9 @@ def test_composite_gelu(approx):
     class MM(torch.nn.Module):
         def forward(self, x):
             return composite_gelu(x, approx)
+
+    # Disable handle_composite_ops for this test
+    composite_ops.COMPOSITE_OPS_ALLOWED = False
 
     input = torch.randn(32, 32)
 
@@ -47,6 +51,9 @@ def test_composite_gelu_eager(approx):
     class MM(torch.nn.Module):
         def forward(self, x):
             return composite_gelu(x, approx)
+
+    # Disable handle_composite_ops for this test
+    composite_ops.COMPOSITE_OPS_ALLOWED = False
 
     input = torch.randn(32, 32)
 
@@ -74,6 +81,9 @@ def test_patched_gelu(approx):
         def forward(self, x):
             return F.gelu(input=x, approximate=approx)
 
+    # Enable handle_composite_ops for this test
+    composite_ops.COMPOSITE_OPS_ALLOWED = True
+
     input = torch.randn(32, 32)
 
     model = MM()
@@ -98,6 +108,9 @@ def test_patched_gelu_eager(approx):
     class MM(torch.nn.Module):
         def forward(self, x):
             return F.gelu(input=x, approximate=approx)
+
+    # Enable handle_composite_ops for this test
+    composite_ops.COMPOSITE_OPS_ALLOWED = True
 
     input = torch.randn(32, 32)
 
@@ -124,6 +137,9 @@ def test_patched_gelu_op_test(approx):
     def gelu_with_approx(x):
         return F.gelu(x, approximate=approx)
 
+    # Enable handle_composite_ops for this test
+    composite_ops.COMPOSITE_OPS_ALLOWED = True
+
     run_op_test_with_random_inputs(
         gelu_with_approx, [(32, 32)], framework=Framework.TORCH
     )
@@ -139,6 +155,9 @@ def test_rmsnorm(use_weight):
 
         def forward(self, x, weight):
             return torch.nn.functional.rms_norm(x, self.normalized_shape, weight)
+
+    # Enable handle_composite_ops for this test
+    composite_ops.COMPOSITE_OPS_ALLOWED = True
 
     normalized_shape = (32,)
     input_shape = (4, 32)
@@ -171,6 +190,9 @@ def test_composite_rms_norm(use_weight):
 
         def forward(self, x, weight):
             return composite_rms_norm(x, self.normalized_shape, weight)
+
+    # Disable handle_composite_ops for this test
+    composite_ops.COMPOSITE_OPS_ALLOWED = False
 
     normalized_shape = (32,)
     input_shape = (4, 32)
