@@ -1457,8 +1457,7 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99"
 
   stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - Model initialization failed"
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   oft/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2211,23 +2210,13 @@ test_config:
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
 
   stable_diffusion/pytorch-stable-diffusion-3.5-medium-single_device-full-inference:
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Running the test CRASHED with signal 9 https://github.com/tenstorrent/tt-xla/issues/2254"
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   stable_diffusion/pytorch-stable-diffusion-3.5-large-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
-    markers: [large]
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   stable_diffusion/pytorch-stable-diffusion-3.5-large-turbo-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
-    markers: [large]
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   gliner/pytorch-urchade/gliner_largev2-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
