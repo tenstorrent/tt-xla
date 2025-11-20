@@ -70,7 +70,7 @@ def run_vae_decoder():
 
         output = model(latent_normalized)
 
-    print(f"VAE Decoder output shape: {output.shape}")
+    # print(f"VAE Decoder output shape: {output.shape}")
     print(f"Expected shape: [1, 3, 18, 256, 256]")
     print(output)
 
