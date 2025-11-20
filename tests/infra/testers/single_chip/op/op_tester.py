@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 from typing import Callable, Sequence
-
+from loguru import logger
 import jax
 import torch
 import torch_xla
@@ -42,7 +42,6 @@ class OpTester(BaseTester):
         cpu_workload = workload
         self._compile_for_cpu(cpu_workload)
         cpu_res = self._device_runner.run_on_cpu(cpu_workload)
-
         tt_workload = workload
         self._compile_for_tt_device(tt_workload)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
@@ -133,6 +132,18 @@ class OpTester(BaseTester):
             )
             for shape in input_shapes
         ]
+        logger.info("inputs are ",inputs)
+        workload = Workload(framework=self._framework, executable=f, args=inputs)
+        self.test(workload)
+    
+    def test_with_saved_inputs(self, f: Callable, inputs: List) -> None:
+
+        logger.info("inputs={}", inputs)
+        for idx, inp in enumerate(inputs):
+            logger.info(
+                f"Input[{idx}] -> dtype: {inp.dtype}, shape: {tuple(inp.shape)}"
+            )
+
         workload = Workload(framework=self._framework, executable=f, args=inputs)
         self.test(workload)
 
@@ -261,3 +272,16 @@ def run_op_test_with_random_inputs(
         compiler_config = CompilerConfig()
     tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
     tester.test_with_random_inputs(op, input_shapes, minval, maxval, dtype)
+
+
+def run_op_test_with_saved_inputs(
+    op: Callable,
+    inputs: List,
+    comparison_config: ComparisonConfig = ComparisonConfig(),
+    framework: Framework = Framework.JAX,
+    compiler_config: CompilerConfig = None,
+) -> None:
+    if compiler_config is None:
+        compiler_config = CompilerConfig()
+    tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
+    tester.test_with_saved_inputs(op, inputs)

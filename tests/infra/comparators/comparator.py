@@ -6,7 +6,7 @@ import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Tuple
-
+from loguru import logger
 from infra.utilities import PyTree, Tensor
 
 from .comparison_config import (
@@ -57,7 +57,8 @@ class Comparator(ABC):
             equal=None,
             error_message=None,
         )
-
+        logger.info("golden_out={}", golden_out)
+        logger.info("device_out={}", device_out)
         _comparison_result.equal = self._compare_equal(device_output, golden_output)
         _comparison_result.atol = self._compare_atol(
             device_output, golden_output, self._comparison_config.atol
@@ -77,7 +78,7 @@ class Comparator(ABC):
         # Check if any comparison failed and optionally assert
         if self._comparison_config.assert_on_failure:
             Comparator._assert_on_results(_comparison_result)
-
+        logger.info("comparison_result pcc={},atol={}",_comparison_result.pcc,_comparison_result.atol)
         return _comparison_result
 
     def _evaluate_results(
