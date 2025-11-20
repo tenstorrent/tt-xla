@@ -332,4 +332,4 @@ def run_sdxl_vae_encoder_conv():
 
 
 if __name__ == "__main__":
-    run_sdxl_vae_decoder()
+    run_sdxl_unet_inference()
