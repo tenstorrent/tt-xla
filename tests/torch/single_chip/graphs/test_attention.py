@@ -158,6 +158,45 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
+            mesh_shape = (1, num_devices)
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[args[0]] = ("batch", None, None)  # hidden_states
+                shard_specs[args[1][0]] = ("batch", None, None)  # cos
+                shard_specs[args[1][1]] = ("batch", None, None)  # sin
+                shard_specs[args[2]] = ("batch", None, None, None)  # mask
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
 
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
@@ -167,24 +206,6 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     past_key_states = None
-
-    if is_llmbox:
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(attention, args, kwargs):
-            shard_specs = {}
-            shard_specs[attention.q_proj.weight] = ("model", None)
-            shard_specs[attention.k_proj.weight] = ("model", None)
-            shard_specs[attention.v_proj.weight] = ("model", None)
-            shard_specs[attention.o_proj.weight] = (None, "model")
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
 
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
 
@@ -218,6 +239,46 @@ def test_llama_attention_decode(variant, variant_config, is_llmbox):
     batch_size = 1
 
     seq_len = 1
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
+            mesh_shape = (1, num_devices)
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[args[0]] = ("batch", None, None)  # hidden_states
+                shard_specs[args[1][0]] = ("batch", None, None)  # cos
+                shard_specs[args[1][1]] = ("batch", None, None)  # sin
+                shard_specs[args[2]] = ("batch", None, None, None)  # mask
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
@@ -234,24 +295,6 @@ def test_llama_attention_decode(variant, variant_config, is_llmbox):
         dtype=torch.bfloat16,
     )
     past_key_states = static_cache
-
-    if is_llmbox:
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(attention, args, kwargs):
-            shard_specs = {}
-            shard_specs[attention.q_proj.weight] = ("model", None)
-            shard_specs[attention.k_proj.weight] = ("model", None)
-            shard_specs[attention.v_proj.weight] = ("model", None)
-            shard_specs[attention.o_proj.weight] = (None, "model")
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
 
     run_graph_test(
         attention,
@@ -385,25 +428,19 @@ def test_llama_attention(variant, variant_config, seq_len, is_llmbox):
     num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
     head_dim = config.head_dim
 
-    query_states = torch.randn(
-        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
-    key_states = torch.randn(
-        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
-    value_states = torch.randn(
-        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
-
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
-
     dropout = 0.0
     scaling = attention.scaling
 
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
+
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
+            mesh_shape = (1, num_devices)
+        else:
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(sdpa, args, kwargs):
@@ -417,6 +454,18 @@ def test_llama_attention(variant, variant_config, seq_len, is_llmbox):
     else:
         mesh = None
         get_shard_spec = None
+
+    query_states = torch.randn(
+        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    key_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    value_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     run_graph_test(
         sdpa,
@@ -1452,6 +1501,45 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
+            mesh_shape = (1, num_devices)
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[args[0]] = ("batch", None, None)  # hidden_states
+                shard_specs[args[1][0]] = ("batch", None, None)  # cos
+                shard_specs[args[1][1]] = ("batch", None, None)  # sin
+                shard_specs[args[2]] = ("batch", None, None, None)  # attention_mask
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    else:
+        mesh = None
+        get_shard_spec = None
 
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
@@ -1461,24 +1549,6 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     past_key_states = None
-
-    if is_llmbox:
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(attention, args, kwargs):
-            shard_specs = {}
-            shard_specs[attention.q_proj.weight] = ("model", None)
-            shard_specs[attention.k_proj.weight] = ("model", None)
-            shard_specs[attention.v_proj.weight] = ("model", None)
-            shard_specs[attention.o_proj.weight] = (None, "model")
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
 
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
 
@@ -1569,8 +1639,47 @@ def test_gemma_attention_decode(variant, variant_config, is_llmbox):
     attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
-
     seq_len = 1
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
+            mesh_shape = (1, num_devices)
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[args[0]] = ("batch", None, None)  # hidden_states
+                shard_specs[args[1][0]] = ("batch", None, None)  # cos
+                shard_specs[args[1][1]] = ("batch", None, None)  # sin
+                shard_specs[args[2]] = ("batch", None, None, None)  # attention_mask
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
@@ -1587,24 +1696,6 @@ def test_gemma_attention_decode(variant, variant_config, is_llmbox):
         dtype=torch.bfloat16,
     )
     past_key_states = static_cache
-
-    if is_llmbox:
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(attention, args, kwargs):
-            shard_specs = {}
-            shard_specs[attention.q_proj.weight] = ("model", None)
-            shard_specs[attention.k_proj.weight] = ("model", None)
-            shard_specs[attention.v_proj.weight] = ("model", None)
-            shard_specs[attention.o_proj.weight] = (None, "model")
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
 
     run_graph_test(
         attention,
@@ -1665,25 +1756,19 @@ def test_gemma_attention(variant, variant_config, seq_len, is_llmbox):
     num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
     head_dim = config.head_dim
 
-    query_states = torch.randn(
-        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
-    key_states = torch.randn(
-        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
-    value_states = torch.randn(
-        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
-
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
-
     dropout = 0.0
     scaling = attention.scaling
 
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
+
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
+            mesh_shape = (1, num_devices)
+        else:
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(sdpa, args, kwargs):
@@ -1697,6 +1782,18 @@ def test_gemma_attention(variant, variant_config, seq_len, is_llmbox):
     else:
         mesh = None
         get_shard_spec = None
+
+    query_states = torch.randn(
+        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    key_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    value_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     run_graph_test(
         sdpa,
