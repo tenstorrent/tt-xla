@@ -62,9 +62,34 @@ def test_conv3d_reproduction():
     with torch.no_grad():
         output = conv3d(x)
     print(f"✓ Success! Output shape: {output.shape}")
+    print(f"Output: {output}")
+    return output
+
+
+def test_conv2d_reproduction():
+    device = torch_xla.device()
+
+    # Create the Conv2d layer
+    conv2d = nn.Conv2d(in_channels=3, out_channels=768, kernel_size=(1, 1))
+    conv2d = conv2d.to(torch.bfloat16).to(device)
+
+    conv2d = torch.compile(conv2d, backend="tt")
+    batch = 1
+    channels = 3
+    height = 32
+    width = 32
+
+    x = torch.randn(batch, channels, height, width, dtype=torch.bfloat16)
+    x = x.to(device)
+
+    print(f"\nRunning forward pass...")
+    with torch.no_grad():
+        output = conv2d(x)
+    print(f"✓ Success! Output shape: {output.shape}")
     return output
 
 
 if __name__ == "__main__":
     xr.set_device_type("TT")
     test_conv3d_reproduction()
+    # test_conv2d_reproduction()
