@@ -599,1207 +599,1207 @@ test_config:
 #   opt/causal_lm/pytorch-facebook/opt-125m-single_device-full-inference:
 #     status: EXPECTED_PASSING
 
-  opt/causal_lm/pytorch-facebook/opt-350m-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  opt/sequence_classification/pytorch-facebook/opt-125m-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  opt/sequence_classification/pytorch-facebook/opt-350m-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  perceiver/pytorch-deepmind/language-perceiver-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  beit/pytorch-base-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  beit/pytorch-large-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  deepcogito/pytorch-v1_preview_llama_3b-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  segformer/semantic_segmentation/pytorch-b0_finetuned_ade_512_512-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  albert/token_classification/pytorch-base_v1-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  albert/token_classification/pytorch-large_v1-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  albert/token_classification/pytorch-xxlarge_v1-single_device-full-inference:
-    status: EXPECTED_PASSING
-    required_pcc: 0.96  # tt-torch has this at 0.99
-
-  albert/masked_lm/pytorch-base_v1-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  albert/masked_lm/pytorch-large_v1-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  albert/masked_lm/pytorch-xlarge_v1-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  albert/masked_lm/pytorch-xxlarge_v1-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  albert/question_answering/pytorch-squad2-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  albert/sequence_classification/pytorch-imdb-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  fuyu/pytorch-adept/fuyu-8b-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  phi1/causal_lm/pytorch-microsoft/phi-1-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  phi1/token_classification/pytorch-microsoft/phi-1-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  yolos/pytorch-single_device-full-inference:
-    status: EXPECTED_PASSING
-    assert_pcc: false  # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168 AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96. Later on Sept 2 started failing in WH too: AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2"
-
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-inference:
-    required_pcc: 0.98
-    status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: FAILED_RUNTIME
-
-  t5/pytorch-t5-small-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  albert/token_classification/pytorch-large_v2-single_device-full-inference:
-    status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        required_pcc: 0.98
-
-  albert/token_classification/pytorch-xlarge_v1-single_device-full-inference:
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-single_device-full-inference:
-    required_pcc: 0.98
-    assert_pcc: false  # FIXME - PCC drop to 0.96 on Aug6 due to tt-mlir/tt-xla uplift (passed locally before it)
-    status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: FAILED_RUNTIME
-
-  # yolov8/pytorch-yolov8x-single_device-full-inference:
+  # opt/causal_lm/pytorch-facebook/opt-350m-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
-  albert/token_classification/pytorch-base_v2-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  albert/token_classification/pytorch-xxlarge_v2-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.958276593048647. Required: pcc=0.99"
-
-  opt/causal_lm/pytorch-facebook/opt-1.3b-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99"
-
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-full-inference:
-    assert_pcc: false  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
-    status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: FAILED_RUNTIME
-
-  opt/qa/pytorch-facebook/opt-1.3b-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9410670165223607. Required: pcc=0.99"
-
-  # yolov8/pytorch-yolov8n-single_device-full-inference:
+  # opt/sequence_classification/pytorch-facebook/opt-125m-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
-  stereo/pytorch-small-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  albert/token_classification/pytorch-xlarge_v2-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.872334097539835. Required: pcc=0.99"
-
-  t5/pytorch-t5-base-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  t5/pytorch-t5-large-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  stereo/pytorch-medium-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3149577673900601. Required: pcc=0.99"
-
-  monodepth2/pytorch-mono_640x192-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  monodepth2/pytorch-stereo_no_pt_640x192-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  monodepth2/pytorch-stereo_640x192-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  monodepth2/pytorch-stereo_1024x320-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  monodepth2/pytorch-mono_no_pt_640x192-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  monodepth2/pytorch-mono_1024x320-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  monodepth2/pytorch-mono+stereo_no_pt_640x192-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  monodepth2/pytorch-mono+stereo_640x192-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  monodepth2/pytorch-mono+stereo_1024x320-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  stereo/pytorch-large-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=-0.43084077321771863. Required: pcc=0.99"
-
-  qwen_3/embedding/pytorch-embedding_0_6b-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  qwen_3/embedding/pytorch-embedding_4b-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  # yolov5/pytorch-yolov5n-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
-  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
-
-  # yolov5/pytorch-yolov5m-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
-  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
-
-  # yolov5/pytorch-yolov5l-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
-  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
-
-  # yolov5/pytorch-yolov5x-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
-  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
-
-  qwen_1_5/causal_lm/pytorch-0_5b-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  qwen_2_5_vl/pytorch-72b_instruct-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
-
-  qwen_2_5_vl/pytorch-3b_instruct-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
-
-  qwen_2_5_vl/pytorch-7b_instruct-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
-
-  llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  llama/sequence_classification/pytorch-llama_3_2_1b_instruct-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  llama/sequence_classification/pytorch-llama_3_2_3b-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  llama/sequence_classification/pytorch-llama_3_2_3b_instruct-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  qwen_3/causal_lm/pytorch-4b-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  qwen_3/causal_lm/pytorch-1_7b-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  qwen_2_5_coder/pytorch-3b-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  qwen_3/causal_lm/pytorch-0_6b-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  qwen_2_5/causal_lm/pytorch-3b-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  qwen_2_5/causal_lm/pytorch-3b_instruct-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  qwen_2_5_coder/pytorch-3b_instruct-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  qwen_2_5_coder/pytorch-1_5b-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  retinanet/pytorch-retinanet_rn34fpn-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  qwen_2_5/causal_lm/pytorch-1_5b_instruct-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  retinanet/pytorch-retinanet_rn18fpn-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  retinanet/pytorch-retinanet_rn152fpn-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  retinanet/pytorch-retinanet_rn50fpn-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  retinanet/pytorch-retinanet_rn101fpn-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-
-  inception/pytorch-inception_v4-single_device-full-inference:
-    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9682327508926392. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  inception/pytorch-inception_v4.tf_in1k-single_device-full-inference:
-    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9682327508926392. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  qwen_2_5_coder/pytorch-1_5b_instruct-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-
-  qwen_2_5_coder/pytorch-0_5b-single_device-full-inference:
-    required_pcc: 0.945 # AssertionError: PCC comparison failed. Calculated: pcc=0.9509297013282776. Required: pcc=0.96. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750 // tt-torch has this at 0.97
-    status: EXPECTED_PASSING
-
-  qwen_2_5/causal_lm/pytorch-0_5b-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        required_pcc: 0.97  # https://github.com/tenstorrent/tt-torch/issues/1192
-
-  llama/causal_lm/pytorch-llama_3_2_1b-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  llama/causal_lm/pytorch-llama_3_2_3b-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-
-  llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-full-inference:
-    required_pcc: 0.97 # Previously 0.98, changed to 0.97 due to change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
-    status: EXPECTED_PASSING
-
-  llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  yolov6/pytorch-yolov6n-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  yolov6/pytorch-yolov6s-single_device-full-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890339970588684. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  yolov6/pytorch-yolov6m-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-
-  yolov6/pytorch-yolov6l-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  yolov7/pytorch-yolov7x-single_device-full-inference:
-    status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "PCC comparison failed. Calculated: pcc=0.9886450171470642. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2237"
-
-  yolov7/pytorch-yolov7-single_device-full-inference:
-    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9570515751838684. Required: pcc=0.99."
-    assert_pcc: false
-    bringup_status: INCORRECT_RESULT
-
-  yolov7/pytorch-yolov7-w6-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
-
-  yolov7/pytorch-yolov7-e6-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
-
-  yolov7/pytorch-yolov7-d6-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
-
-  yolov7/pytorch-yolov7-e6e-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
-
-  yolox/pytorch-yolox_nano-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
-
-  yolox/pytorch-yolox_tiny-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
-
-  yolox/pytorch-yolox_s-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-
-  yolox/pytorch-yolox_m-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-
-  yolox/pytorch-yolox_l-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
-
-  yolox/pytorch-yolox_darknet-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
-
-  yolox/pytorch-yolox_x-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
-
-  mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9898824691772461. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
-
-  mobilenetv2/pytorch-mobilenetv2_100-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  mobilenetv3/pytorch-mobilenet_v3_large-single_device-full-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9846240878105164. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  mobilenetv3/pytorch-mobilenetv3_large_100-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  resnet/pytorch-resnet101-single_device-full-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890337586402893. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  resnet/pytorch-resnet18-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  swin/image_classification/pytorch-microsoft/swinv2-tiny-patch4-window8-256-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  swin/masked_image_modeling/pytorch-microsoft/swinv2-tiny-patch4-window8-256-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  vit/pytorch-vit_b_16-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  vit/pytorch-vit_h_14-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  vit/pytorch-vit_l_16-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  vit/pytorch-vit_l_32-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9611120820045471. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
-
-  mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-full-inference:
-    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9673609137535095. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9587556719779968. Required: pcc=0.96 - https://github.com/tenstorrent/tt-xla/issues/2201"
-
-  mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-full-inference:
-    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9657779932022095. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-single_device-full-inference:
-    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9717883467674255. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  mobilenetv3/pytorch-mobilenet_v3_small-single_device-full-inference:
-    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9698505401611328. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  mobilenetv3/pytorch-mobilenetv3_small_100-single_device-full-inference:
-    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9751501083374023. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  resnet/pytorch-resnet152-single_device-full-inference:
-    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9712052941322327. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  resnet/pytorch-resnet34-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-
-  resnet/pytorch-resnet50-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-
-  vit/pytorch-vit_b_32-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-
-  resnext/pytorch-resnext14_32x4d_osmr-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  resnext/pytorch-resnext26_32x4d_osmr-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  resnext/pytorch-resnext101_64x4d_osmr-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  inception/pytorch-inceptionv4-single_device-full-inference:
-    status: EXPECTED_PASSING
-    required_pcc: 0.97
-
-  regnet/pytorch-regnet_y_400mf-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_y_800mf-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_y_1_6gf-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_y_3_2gf-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_y_8gf-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_y_16gf-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_y_32gf-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_x_400mf-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_x_800mf-single_device-full-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9883829355239868. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_x_1_6gf-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_x_3_2gf-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_x_8gf-single_device-full-inference:
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  regnet/pytorch-regnet_x_16gf-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_x_32gf-single_device-full-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9864852428436279. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
-
-  fpn/pytorch-resnet50_fpn_v2-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  ssd300_resnet50/pytorch-base-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  stable_diffusion_unet/pytorch-base-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433"
-
-  unet_for_conditional_generation/pytorch-base-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  mlp_mixer/pytorch-mixer_github-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  rcnn/pytorch-alexnet-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  dla/pytorch-dla34.in1k-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  googlenet/pytorch-googlenet-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  vovnet/pytorch-ese_vovnet19b_dw-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  vovnet/pytorch-ese_vovnet39b-single_device-full-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9872968792915344. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2201"
-
-  vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  resnext/pytorch-resnext50_32x4d-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  deepseek/deepseek_coder/pytorch-1_3b_instruct-single_device-full-inference:
-    status: EXPECTED_PASSING
-
-  deepseek/deepseek_ocr/pytorch-deepseek_ocr-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
-
-  # deepseek/pytorch-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-  #   reason: "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266"
-
-  # gemma/pytorch-google/gemma-1.1-2b-it-single_device-full-inference:
+  # opt/sequence_classification/pytorch-facebook/opt-350m-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
-  # nbeats/pytorch-generic_basis-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL
-  #   reason : "patoolib.util.PatoolError: error extracting STORAGE/datasets/electricity/LD2011_2014.txt.zip - https://github.com/tenstorrent/tt-xla/issues/2185"
-
-  # nbeats/pytorch-seasonality_basis-single_device-full-inference:
+  # opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
-  # nbeats/pytorch-trend_basis-single_device-full-inference:
+  # perceiver/pytorch-deepmind/language-perceiver-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
-  # gpt2/pytorch-gpt2-single_device-full-inference:
-  #   markers: ["push", "weekly"]
+  # beit/pytorch-base-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
-  # gpt2/pytorch-gpt2_sequence_classification-single_device-full-inference:
+  # beit/pytorch-large-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
-  # # yolov9/pytorch-single_device-full-inference:
-  # #   status: EXPECTED_PASSING
+  # deepcogito/pytorch-v1_preview_llama_3b-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
-  # unet/pytorch-unet_cityscapes-single_device-full-inference:
+  # segformer/semantic_segmentation/pytorch-b0_finetuned_ade_512_512-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # albert/token_classification/pytorch-base_v1-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # albert/token_classification/pytorch-large_v1-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # albert/token_classification/pytorch-xxlarge_v1-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.96  # tt-torch has this at 0.99
+
+  # albert/masked_lm/pytorch-base_v1-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # albert/masked_lm/pytorch-large_v1-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # albert/masked_lm/pytorch-xlarge_v1-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # albert/masked_lm/pytorch-xxlarge_v1-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # albert/question_answering/pytorch-squad2-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # albert/sequence_classification/pytorch-imdb-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # fuyu/pytorch-adept/fuyu-8b-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # phi1/causal_lm/pytorch-microsoft/phi-1-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # phi1/token_classification/pytorch-microsoft/phi-1-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolos/pytorch-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+  #   assert_pcc: false  # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168 AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96. Later on Sept 2 started failing in WH too: AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
+  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2"
+
+  # perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-inference:
+  #   required_pcc: 0.98
+  #   status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
+  #   reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
+  #   bringup_status: FAILED_RUNTIME
+
+  # t5/pytorch-t5-small-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # albert/token_classification/pytorch-large_v2-single_device-full-inference:
+  #   status: EXPECTED_PASSING
   #   arch_overrides:
   #     p150:
-  #       status: KNOWN_FAILURE_XFAIL
-  #       reason: "PCC comparison failed. Calculated: pcc=0.9891136288642883. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
-  #     n150:
-  #       status: EXPECTED_PASSING
+  #       required_pcc: 0.98
 
-  # ghostnet/pytorch-ghostnetv2_100.in1k-single_device-full-inference:
+  # albert/token_classification/pytorch-xlarge_v1-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-single_device-full-inference:
+  #   required_pcc: 0.98
+  #   assert_pcc: false  # FIXME - PCC drop to 0.96 on Aug6 due to tt-mlir/tt-xla uplift (passed locally before it)
+  #   status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
+  #   reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
+  #   bringup_status: FAILED_RUNTIME
+
+  # # yolov8/pytorch-yolov8x-single_device-full-inference:
+  # #   status: EXPECTED_PASSING
+
+  # albert/token_classification/pytorch-base_v2-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
-  # wide_resnet/pytorch-wide_resnet101_2.timm-single_device-full-inference:
-  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9892194867134094. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
-
-  # efficientnet/pytorch-timm_efficientnet_b0-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # efficientnet/pytorch-timm_efficientnet_b4-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # vgg/pytorch-bn_vgg19-single_device-full-inference:
-  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9889203310012817. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
-
-  # vgg/pytorch-timm_vgg19_bn-single_device-full-inference:
-  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9893799424171448. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
-
-  # vgg/pytorch-torchvision_vgg11-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # vgg/pytorch-torchvision_vgg13-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # vgg/pytorch-torchvision_vgg16-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # vgg/pytorch-torchvision_vgg19-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # vgg/pytorch-torchvision_vgg19_bn-single_device-full-inference:
-  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9898343086242676. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
-
-  # vgg/pytorch-hf_vgg19-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   markers: ["push", "weekly"]
-
-  # segformer/semantic_segmentation/pytorch-b1_finetuned_ade_512_512-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # segformer/semantic_segmentation/pytorch-b2_finetuned_ade_512_512-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # segformer/semantic_segmentation/pytorch-b3_finetuned_ade_512_512-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # segformer/semantic_segmentation/pytorch-b4_finetuned_ade_512_512-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-full-inference:
-  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.987201988697052. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
-
-  # efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-full-inference:
-  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9885184168815613. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
-
-  # hrnet/pytorch-hrnet_w18_small_v2-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # hrnet/pytorch-hrnetv2_w18_osmr-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # hrnet/pytorch-hrnetv2_w30_osmr-single_device-full-inference:
-  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9887874722480774. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
-
-  # hrnet/pytorch-hrnetv2_w32_osmr-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   required_pcc: 0.985
-
-  # hrnet/pytorch-hrnetv2_w40_osmr-single_device-full-inference:
-  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9895844459533691. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
-
-  # vovnet/pytorch-vovnet39-single_device-full-inference:
+  # albert/token_classification/pytorch-xxlarge_v2-single_device-full-inference:
   #   assert_pcc: false
   #   status: EXPECTED_PASSING
-  #   reason: "PCC comparison failed. Calculated: pcc=0.964539647102356. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
+  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.958276593048647. Required: pcc=0.99"
 
-  # vovnet/pytorch-vovnet57-single_device-full-inference:
+  # opt/causal_lm/pytorch-facebook/opt-1.3b-single_device-full-inference:
   #   assert_pcc: false
   #   status: EXPECTED_PASSING
-  #   reason: "PCC comparison failed. Calculated: pcc=0.9755112528800964. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
+  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99"
 
-  # vovnet/pytorch-ese_vovnet99b-single_device-full-inference:
-  #   assert_pcc: false  # Exposed by removal of consteval on host
+  # perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-full-inference:
+  #   assert_pcc: false  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
+  #   status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
+  #   reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
+  #   bringup_status: FAILED_RUNTIME
+
+  # opt/qa/pytorch-facebook/opt-1.3b-single_device-full-inference:
+  #   assert_pcc: false
   #   status: EXPECTED_PASSING
-  #   reason: "PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1242"
+  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9410670165223607. Required: pcc=0.99"
 
-  # gemma/pytorch-google/gemma-2-2b-it-single_device-full-inference:
+  # # yolov8/pytorch-yolov8n-single_device-full-inference:
+  # #   status: EXPECTED_PASSING
+
+  # stereo/pytorch-small-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
-  # wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-inference:
+  # albert/token_classification/pytorch-xlarge_v2-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.872334097539835. Required: pcc=0.99"
+
+  # t5/pytorch-t5-base-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # t5/pytorch-t5-large-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # stereo/pytorch-medium-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3149577673900601. Required: pcc=0.99"
+
+  # monodepth2/pytorch-mono_640x192-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # monodepth2/pytorch-stereo_no_pt_640x192-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # monodepth2/pytorch-stereo_640x192-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # monodepth2/pytorch-stereo_1024x320-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # monodepth2/pytorch-mono_no_pt_640x192-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # monodepth2/pytorch-mono_1024x320-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # monodepth2/pytorch-mono+stereo_no_pt_640x192-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # monodepth2/pytorch-mono+stereo_640x192-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # monodepth2/pytorch-mono+stereo_1024x320-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # stereo/pytorch-large-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=-0.43084077321771863. Required: pcc=0.99"
+
+  # qwen_3/embedding/pytorch-embedding_0_6b-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # qwen_3/embedding/pytorch-embedding_4b-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # # yolov5/pytorch-yolov5n-single_device-full-inference:
+  # #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+  # #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+
+  # # yolov5/pytorch-yolov5m-single_device-full-inference:
+  # #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+  # #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+
+  # # yolov5/pytorch-yolov5l-single_device-full-inference:
+  # #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+  # #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+
+  # # yolov5/pytorch-yolov5x-single_device-full-inference:
+  # #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+  # #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+
+  # qwen_1_5/causal_lm/pytorch-0_5b-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5_vl/pytorch-72b_instruct-single_device-full-inference:
+  #   status: NOT_SUPPORTED_SKIP
+  #   reason: "Too large for single chip"
+  #   bringup_status: FAILED_RUNTIME
+
+  # qwen_2_5_vl/pytorch-3b_instruct-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+
+  # qwen_2_5_vl/pytorch-7b_instruct-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+
+  # llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-llama_3_2_1b_instruct-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-llama_3_2_3b-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-llama_3_2_3b_instruct-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # qwen_3/causal_lm/pytorch-4b-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # qwen_3/causal_lm/pytorch-1_7b-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5_coder/pytorch-3b-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # qwen_3/causal_lm/pytorch-0_6b-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-3b-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-3b_instruct-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5_coder/pytorch-3b_instruct-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5_coder/pytorch-1_5b-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # retinanet/pytorch-retinanet_rn34fpn-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-1_5b_instruct-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # retinanet/pytorch-retinanet_rn18fpn-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # retinanet/pytorch-retinanet_rn152fpn-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # retinanet/pytorch-retinanet_rn50fpn-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # retinanet/pytorch-retinanet_rn101fpn-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+
+  # inception/pytorch-inception_v4-single_device-full-inference:
+  #   required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9682327508926392. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # inception/pytorch-inception_v4.tf_in1k-single_device-full-inference:
+  #   required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9682327508926392. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5_coder/pytorch-1_5b_instruct-single_device-full-inference:
+  #   required_pcc: 0.98
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5_coder/pytorch-0_5b-single_device-full-inference:
+  #   required_pcc: 0.945 # AssertionError: PCC comparison failed. Calculated: pcc=0.9509297013282776. Required: pcc=0.96. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750 // tt-torch has this at 0.97
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-0_5b-single_device-full-inference:
   #   required_pcc: 0.98
   #   status: EXPECTED_PASSING
   #   arch_overrides:
   #     p150:
+  #       required_pcc: 0.97  # https://github.com/tenstorrent/tt-torch/issues/1192
+
+  # llama/causal_lm/pytorch-llama_3_2_1b-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # llama/causal_lm/pytorch-llama_3_2_3b-single_device-full-inference:
+  #   required_pcc: 0.98
+  #   status: EXPECTED_PASSING
+
+  # llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-full-inference:
+  #   required_pcc: 0.97 # Previously 0.98, changed to 0.97 due to change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
+  #   status: EXPECTED_PASSING
+
+  # llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov6/pytorch-yolov6n-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov6/pytorch-yolov6s-single_device-full-inference:
+  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890339970588684. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # yolov6/pytorch-yolov6m-single_device-full-inference:
+  #   required_pcc: 0.98
+  #   status: EXPECTED_PASSING
+
+  # yolov6/pytorch-yolov6l-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov7/pytorch-yolov7x-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+  #   arch_overrides:
+  #     p150:
   #       status: KNOWN_FAILURE_XFAIL
-  #       reason: "Bad PCC on blackhole - Calculated: pcc=0.978913426399231. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1434"
+  #       reason: "PCC comparison failed. Calculated: pcc=0.9886450171470642. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2237"
 
-  # vgg/pytorch-bn_vgg19b-single_device-full-inference:
-  #   required_pcc: 0.96
-  #   status: EXPECTED_PASSING
-
-  # resnet/pytorch-resnet50_timm-single_device-full-inference:
-  #   required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9798884391784668. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
-
-  # resnet/pytorch-resnet_50_hf_high_res-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # resnet/pytorch-resnet50_timm_high_res-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # resnet/pytorch-resnet50_high_res-single_device-full-inference:
-  #   required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9867953658103943. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1916
-  #   status: EXPECTED_PASSING
-
-  # hrnet/pytorch-hrnetv2_w44_osmr-single_device-full-inference:
-  #   required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9663628935813904. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-  #   status: EXPECTED_PASSING
-
-  # # yolov10/pytorch-yolov10x-single_device-full-inference:
-  # #   status: EXPECTED_PASSING
-
-  # # yolov10/pytorch-yolov10n-single_device-full-inference:
-  # #   status: EXPECTED_PASSING
-
-  # gemma/pytorch-google/gemma-2b-single_device-full-inference:
+  # yolov7/pytorch-yolov7-single_device-full-inference:
+  #   reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9570515751838684. Required: pcc=0.99."
   #   assert_pcc: false
-  #   status: EXPECTED_PASSING
+  #   bringup_status: INCORRECT_RESULT
 
-  # autoencoder/pytorch-conv-single_device-full-inference:
-  #   assert_pcc: false
-  #   status: EXPECTED_PASSING
-
-  # phi3/phi_3_5/pytorch-mini_instruct-single_device-full-inference:
-  #   assert_pcc: false
-  #   status: EXPECTED_PASSING
-
-  # bi_lstm_crf/pytorch-default-single_device-full-inference:
+  # yolov7/pytorch-yolov7-w6-single_device-full-inference:
   #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
+  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  # flux/pytorch-schnell-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9095736145973206. Required: pcc=0.99"
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip" # (flux.1-schnell is 12B param model)
-  #       bringup_status: FAILED_RUNTIME
-
-  # flux/pytorch-dev-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       status: EXPECTED_PASSING
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip" # (flux.1-dev is 12B param model)
-  #       bringup_status: FAILED_RUNTIME
-
-  # gliner/pytorch-urchade/gliner_multi-v2.1-single_device-full-inference:
+  # yolov7/pytorch-yolov7-e6-single_device-full-inference:
   #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "TypeError: GLiNER.compile() got an unexpected keyword argument 'backend'"
+  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  # gemma/pytorch-google/gemma-1.1-7b-it-single_device-full-inference:
-  #   supported_archs: ["p150"]
-  #   assert_pcc: false
-  #   status: EXPECTED_PASSING
-  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99"
-
-  # stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-full-inference:
+  # yolov7/pytorch-yolov7-d6-single_device-full-inference:
   #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - Model initialization failed"
+  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  # oft/pytorch-single_device-full-inference:
+  # yolov7/pytorch-yolov7-e6e-single_device-full-inference:
   #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
+  #   reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
-  # mistral/pixtral/pytorch-single_device-full-inference:
-  #   required_pcc: 0.97 # AssertionError: PCC comparison failed. Calculated: pcc=0.9778134226799011. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip" # (mistral-community/pixtral-12b is 12B param model)
-  #       bringup_status: FAILED_RUNTIME
-
-  # phi4/causal_lm/pytorch-microsoft/phi-4-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9552884697914124. Required: pcc=0.99"
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
-  #       bringup_status: FAILED_RUNTIME
-
-  # phi4/seq_cls/pytorch-microsoft/phi-4-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
-  #       bringup_status: FAILED_RUNTIME
-
-  # phi4/token_cls/pytorch-microsoft/phi-4-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
-  #       bringup_status: FAILED_RUNTIME
-
-  # phi3/phi_3_5_vision/pytorch-instruct-single_device-full-inference:
-  #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "TypeError: Phi3VForCausalLM.forward() got an unexpected keyword argument 'max_new_tokens'"
-
-  # phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
-  #   assert_pcc: false
-  #   status: EXPECTED_PASSING
-  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.36258700489997864. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
-
-  # phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
-  #   assert_pcc: false
-  #   status: EXPECTED_PASSING
-  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
-
-  # phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
-  #   assert_pcc: false
-  #   status: EXPECTED_PASSING
-  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.23872360587120056. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
-
-  # phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
-  #   assert_pcc: false
-  #   status: EXPECTED_PASSING
-  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3322090804576874. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
-
-  # phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
-  #   assert_pcc: false
-  #   status: EXPECTED_PASSING
-  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
-
-  # phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-
-  # glpn_kitti/pytorch-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       status: EXPECTED_PASSING
-
-  #     n150:
-  #       status: KNOWN_FAILURE_XFAIL
-  #       reason: "RuntimeError: Out of Memory: Not enough space to allocate 49971200 B L1 buffer across 64 banks"
-
-  # stable_diffusion_1_4/pytorch-base-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Hangs or takes forever to run - not known to be compile clean anyways."
+  # yolox/pytorch-yolox_nano-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+  #   reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
   #   bringup_status: FAILED_FE_COMPILATION
 
-  # qwen_3/embedding/pytorch-embedding_8b-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  # yolox/pytorch-yolox_tiny-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+  #   reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+  #   bringup_status: FAILED_FE_COMPILATION
 
-  # gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-full-inference:
+  # yolox/pytorch-yolox_s-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+  #   reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+
+  # yolox/pytorch-yolox_m-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+  #   reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+
+  # yolox/pytorch-yolox_l-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+  #   reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+  #   bringup_status: FAILED_FE_COMPILATION
+
+  # yolox/pytorch-yolox_darknet-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+  #   reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+  #   bringup_status: FAILED_FE_COMPILATION
+
+  # yolox/pytorch-yolox_x-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+  #   reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+  #   bringup_status: FAILED_FE_COMPILATION
+
+  # mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
-  # gpt_neo/sequence_classification/pytorch-gpt_neo_1_3B-single_device-full-inference:
+  # mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-full-inference:
+  #   required_pcc: 0.98
+  #   status: EXPECTED_PASSING
+  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9898824691772461. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
+
+  # mobilenetv2/pytorch-mobilenetv2_100-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
-  # gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-single_device-full-inference:
+  # mobilenetv3/pytorch-mobilenet_v3_large-single_device-full-inference:
+  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9846240878105164. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
   #   status: EXPECTED_PASSING
 
-  # detr3d/pytorch-single_device-full-inference:
+  # mobilenetv3/pytorch-mobilenetv3_large_100-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # resnet/pytorch-resnet101-single_device-full-inference:
+  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890337586402893. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # resnet/pytorch-resnet18-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # swin/image_classification/pytorch-microsoft/swinv2-tiny-patch4-window8-256-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # swin/masked_image_modeling/pytorch-microsoft/swinv2-tiny-patch4-window8-256-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # vit/pytorch-vit_b_16-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # vit/pytorch-vit_h_14-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # vit/pytorch-vit_l_16-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # vit/pytorch-vit_l_32-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9611120820045471. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
+
+  # mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-full-inference:
+  #   required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9673609137535095. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   reason: "PCC comparison failed. Calculated: pcc=0.9587556719779968. Required: pcc=0.96 - https://github.com/tenstorrent/tt-xla/issues/2201"
+
+  # mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-full-inference:
+  #   required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9657779932022095. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-single_device-full-inference:
+  #   required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9717883467674255. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # mobilenetv3/pytorch-mobilenet_v3_small-single_device-full-inference:
+  #   required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9698505401611328. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # mobilenetv3/pytorch-mobilenetv3_small_100-single_device-full-inference:
+  #   required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9751501083374023. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # resnet/pytorch-resnet152-single_device-full-inference:
+  #   required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9712052941322327. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # resnet/pytorch-resnet34-single_device-full-inference:
+  #   required_pcc: 0.98
+  #   status: EXPECTED_PASSING
+
+  # resnet/pytorch-resnet50-single_device-full-inference:
+  #   required_pcc: 0.98
+  #   status: EXPECTED_PASSING
+
+  # vit/pytorch-vit_b_32-single_device-full-inference:
+  #   required_pcc: 0.98
+  #   status: EXPECTED_PASSING
+
+  # resnext/pytorch-resnext14_32x4d_osmr-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # resnext/pytorch-resnext26_32x4d_osmr-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # resnext/pytorch-resnext101_64x4d_osmr-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # inception/pytorch-inceptionv4-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.97
+
+  # regnet/pytorch-regnet_y_400mf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_y_800mf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_y_1_6gf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_y_3_2gf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_y_8gf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_y_16gf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_y_32gf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_x_400mf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_x_800mf-single_device-full-inference:
+  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9883829355239868. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_x_1_6gf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_x_3_2gf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_x_8gf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # regnet/pytorch-regnet_x_16gf-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # regnet/pytorch-regnet_x_32gf-single_device-full-inference:
+  #   required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9864852428436279. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+  #   status: EXPECTED_PASSING
+
+  # fpn/pytorch-resnet50_fpn_v2-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # ssd300_resnet50/pytorch-base-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # stable_diffusion_unet/pytorch-base-single_device-full-inference:
   #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353"
+  #   reason: "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433"
 
-  # vadv2/pytorch-single_device-full-inference:
+  # unet_for_conditional_generation/pytorch-base-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # mlp_mixer/pytorch-mixer_github-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # rcnn/pytorch-alexnet-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # dla/pytorch-dla34.in1k-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # googlenet/pytorch-googlenet-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # vovnet/pytorch-ese_vovnet19b_dw-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # vovnet/pytorch-ese_vovnet39b-single_device-full-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   reason: "PCC comparison failed. Calculated: pcc=0.9872968792915344. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2201"
+
+  # vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # resnext/pytorch-resnext50_32x4d-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # deepseek/deepseek_coder/pytorch-1_3b_instruct-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # deepseek/deepseek_ocr/pytorch-deepseek_ocr-single_device-full-inference:
   #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
+  #   reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
 
-  # huggyllama/pytorch-llama_7b-single_device-full-inference:
+  deepseek/pytorch-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266"
+
+  gemma/pytorch-google/gemma-1.1-2b-it-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  nbeats/pytorch-generic_basis-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason : "patoolib.util.PatoolError: error extracting STORAGE/datasets/electricity/LD2011_2014.txt.zip - https://github.com/tenstorrent/tt-xla/issues/2185"
+
+  nbeats/pytorch-seasonality_basis-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  nbeats/pytorch-trend_basis-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  gpt2/pytorch-gpt2-single_device-full-inference:
+    markers: ["push", "weekly"]
+    status: EXPECTED_PASSING
+
+  gpt2/pytorch-gpt2_sequence_classification-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  # yolov9/pytorch-single_device-full-inference:
   #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
 
-  # llama/causal_lm/pytorch-huggyllama_7b-single_device-full-inference:
+  unet/pytorch-unet_cityscapes-single_device-full-inference:
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "PCC comparison failed. Calculated: pcc=0.9891136288642883. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
+      n150:
+        status: EXPECTED_PASSING
+
+  ghostnet/pytorch-ghostnetv2_100.in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  wide_resnet/pytorch-wide_resnet101_2.timm-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9892194867134094. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-timm_efficientnet_b0-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-timm_efficientnet_b4-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-bn_vgg19-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9889203310012817. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-timm_vgg19_bn-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9893799424171448. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-torchvision_vgg11-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-torchvision_vgg13-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-torchvision_vgg16-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-torchvision_vgg19-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-torchvision_vgg19_bn-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9898343086242676. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-hf_vgg19-single_device-full-inference:
+    status: EXPECTED_PASSING
+    markers: ["push", "weekly"]
+
+  segformer/semantic_segmentation/pytorch-b1_finetuned_ade_512_512-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-b2_finetuned_ade_512_512-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-b3_finetuned_ade_512_512-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-b4_finetuned_ade_512_512-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.987201988697052. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9885184168815613. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w18_small_v2-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnetv2_w18_osmr-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnetv2_w30_osmr-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9887874722480774. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnetv2_w32_osmr-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.985
+
+  hrnet/pytorch-hrnetv2_w40_osmr-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9895844459533691. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  vovnet/pytorch-vovnet39-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.964539647102356. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
+
+  vovnet/pytorch-vovnet57-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.9755112528800964. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
+
+  vovnet/pytorch-ese_vovnet99b-single_device-full-inference:
+    assert_pcc: false  # Exposed by removal of consteval on host
+    status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1242"
+
+  gemma/pytorch-google/gemma-2-2b-it-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-inference:
+    required_pcc: 0.98
+    status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Bad PCC on blackhole - Calculated: pcc=0.978913426399231. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1434"
+
+  vgg/pytorch-bn_vgg19b-single_device-full-inference:
+    required_pcc: 0.96
+    status: EXPECTED_PASSING
+
+  resnet/pytorch-resnet50_timm-single_device-full-inference:
+    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9798884391784668. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  resnet/pytorch-resnet_50_hf_high_res-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnet/pytorch-resnet50_timm_high_res-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnet/pytorch-resnet50_high_res-single_device-full-inference:
+    required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9867953658103943. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1916
+    status: EXPECTED_PASSING
+
+  hrnet/pytorch-hrnetv2_w44_osmr-single_device-full-inference:
+    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9663628935813904. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  # yolov10/pytorch-yolov10x-single_device-full-inference:
   #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
 
-  # llama/causal_lm/pytorch-llama_3_1_70b-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Too large for single chip"
-  #   bringup_status: FAILED_RUNTIME
-
-  # llama/causal_lm/pytorch-llama_3_1_70b_instruct-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Too large for single chip"
-  #   bringup_status: FAILED_RUNTIME
-
-  # llama/causal_lm/pytorch-llama_3_1_8b-single_device-full-inference:
+  # yolov10/pytorch-yolov10n-single_device-full-inference:
   #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
 
-  # llama/causal_lm/pytorch-llama_3_1_8b_instruct-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  gemma/pytorch-google/gemma-2b-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
 
-  # llama/causal_lm/pytorch-llama_3_1_405b-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Too large for single chip"
-  #   bringup_status: FAILED_RUNTIME
+  autoencoder/pytorch-conv-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
 
-  # llama/causal_lm/pytorch-llama_3_3_70b_instruct-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Too large for single chip"
-  #   bringup_status: FAILED_RUNTIME
+  phi3/phi_3_5/pytorch-mini_instruct-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
 
-  # llama/causal_lm/pytorch-llama_3_8b-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  bi_lstm_crf/pytorch-default-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
 
-  # llama/causal_lm/pytorch-llama_3_8b_instruct-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  flux/pytorch-schnell-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9095736145973206. Required: pcc=0.99"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (flux.1-schnell is 12B param model)
+        bringup_status: FAILED_RUNTIME
 
-  # llama/sequence_classification/pytorch-huggyllama_7b-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  flux/pytorch-dev-single_device-full-inference:
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (flux.1-dev is 12B param model)
+        bringup_status: FAILED_RUNTIME
 
-  # llama/sequence_classification/pytorch-llama_3_1_70b-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Too large for single chip"
-  #   bringup_status: FAILED_RUNTIME
+  gliner/pytorch-urchade/gliner_multi-v2.1-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: GLiNER.compile() got an unexpected keyword argument 'backend'"
 
-  # llama/sequence_classification/pytorch-llama_3_1_70b_instruct-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Too large for single chip"
-  #   bringup_status: FAILED_RUNTIME
+  gemma/pytorch-google/gemma-1.1-7b-it-single_device-full-inference:
+    supported_archs: ["p150"]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99"
 
-  # llama/sequence_classification/pytorch-llama_3_1_8b-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - Model initialization failed"
 
-  # llama/sequence_classification/pytorch-llama_3_1_8b_instruct-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  oft/pytorch-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
 
-  # llama/sequence_classification/pytorch-llama_3_3_70b_instruct-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Too large for single chip"
-  #   bringup_status: FAILED_RUNTIME
+  mistral/pixtral/pytorch-single_device-full-inference:
+    required_pcc: 0.97 # AssertionError: PCC comparison failed. Calculated: pcc=0.9778134226799011. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (mistral-community/pixtral-12b is 12B param model)
+        bringup_status: FAILED_RUNTIME
 
-  # llama/sequence_classification/pytorch-llama_3_8b-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1472"
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  phi4/causal_lm/pytorch-microsoft/phi-4-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9552884697914124. Required: pcc=0.99"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
+        bringup_status: FAILED_RUNTIME
 
-  # llama/sequence_classification/pytorch-llama_3_8b_instruct-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  phi4/seq_cls/pytorch-microsoft/phi-4-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
+        bringup_status: FAILED_RUNTIME
 
-  # mistral/pytorch-7b-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.35885828733444214. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  phi4/token_cls/pytorch-microsoft/phi-4-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
+        bringup_status: FAILED_RUNTIME
 
-  # mistral/pytorch-7b_instruct_v03-single_device-full-inference:
-  #   status: EXPECTED_PASSING
-  #   arch_overrides:
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  phi3/phi_3_5_vision/pytorch-instruct-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: Phi3VForCausalLM.forward() got an unexpected keyword argument 'max_new_tokens'"
 
-  # mistral/pytorch-ministral_8b_instruct-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2924256920814514. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
+  phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.36258700489997864. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
-  # qwen_2_5/causal_lm/pytorch-14b-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.23872360587120056. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
-  # qwen_2_5/causal_lm/pytorch-14b_instruct-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8147078156471252. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3322090804576874. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
-  # qwen_2_5/causal_lm/pytorch-14b_instruct_1m-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7706121206283569. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
-  # qwen_2_5/causal_lm/pytorch-32b_instruct-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Too large for single chip"
-  #   bringup_status: FAILED_RUNTIME
+  phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
+    status: EXPECTED_PASSING
 
-  # qwen_2_5/causal_lm/pytorch-7b-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  glpn_kitti/pytorch-single_device-full-inference:
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
 
-  # qwen_2_5/causal_lm/pytorch-7b_instruct-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7253174185752869. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "RuntimeError: Out of Memory: Not enough space to allocate 49971200 B L1 buffer across 64 banks"
 
-  # qwen_2_5/causal_lm/pytorch-7b_instruct_1m-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8598132729530334. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  stable_diffusion_1_4/pytorch-base-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hangs or takes forever to run - not known to be compile clean anyways."
+    bringup_status: FAILED_FE_COMPILATION
 
-  # qwen_2_5/causal_lm/pytorch-math_7b-single_device-full-inference:
-  #   arch_overrides:
-  #     p150:
-  #       assert_pcc: false
-  #       status: EXPECTED_PASSING
-  #       reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-  #     n150:
-  #       status: NOT_SUPPORTED_SKIP
-  #       reason: "Too large for single chip"
-  #       bringup_status: FAILED_RUNTIME
+  qwen_3/embedding/pytorch-embedding_8b-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
 
-  # qwen_2_5_coder/pytorch-32b_instruct-single_device-full-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "Too large for single chip"
-  #   bringup_status: FAILED_RUNTIME
+  gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  gpt_neo/sequence_classification/pytorch-gpt_neo_1_3B-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  detr3d/pytorch-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353"
+
+  vadv2/pytorch-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
+
+  huggyllama/pytorch-llama_7b-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-huggyllama_7b-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_70b-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_70b_instruct-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_8b-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_8b_instruct-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_405b-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_3_70b_instruct-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_8b-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_8b_instruct-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-huggyllama_7b-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_1_70b-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_1_70b_instruct-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_1_8b-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_1_8b_instruct-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_3_70b_instruct-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_8b-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1472"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  llama/sequence_classification/pytorch-llama_3_8b_instruct-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  mistral/pytorch-7b-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.35885828733444214. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  mistral/pytorch-7b_instruct_v03-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  mistral/pytorch-ministral_8b_instruct-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2924256920814514. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
+
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/pytorch-14b-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/pytorch-14b_instruct-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8147078156471252. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/pytorch-14b_instruct_1m-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7706121206283569. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/pytorch-32b_instruct-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/pytorch-7b-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/pytorch-7b_instruct-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7253174185752869. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/pytorch-7b_instruct_1m-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8598132729530334. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/pytorch-math_7b-single_device-full-inference:
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/pytorch-32b_instruct-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Too large for single chip"
+    bringup_status: FAILED_RUNTIME
 
   # qwen_2_5_coder/pytorch-7b-single_device-full-inference:
   #   arch_overrides:
