@@ -16,6 +16,7 @@ from infra.utilities import (
     Tensor,
     enable_shardy,
     random_tensor,
+    sanitize_test_name,
 )
 from infra.workloads import JaxMultichipWorkload, Workload
 from jax.experimental.shard_map import shard_map
@@ -326,7 +327,6 @@ def serialize_jax_multichip_op_with_random_inputs(
         maxval: Maximum value for random inputs (default: 1.0)
         compiler_config: Compiler configuration options
     """
-    from infra.utilities.utils import sanitize_test_name
 
     clean_name = sanitize_test_name(test_name)
     output_prefix = f"output_artifact/{clean_name}"

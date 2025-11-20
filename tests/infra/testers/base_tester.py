@@ -9,8 +9,7 @@ from typing import Optional
 
 from infra.comparators import Comparator, ComparatorFactory, ComparisonConfig
 from infra.runners import DeviceRunner, DeviceRunnerFactory
-from infra.utilities import Framework
-from infra.utilities.utils import sanitize_test_name
+from infra.utilities import Framework, sanitize_test_name
 from infra.workloads import Workload
 
 
