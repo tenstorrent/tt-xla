@@ -453,6 +453,10 @@ test_config:
   unet/pytorch-carvana_unet-single_device-full-inference:
     status: EXPECTED_PASSING
 
+  unet/pytorch-carvana_unet_480x640-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 2537856 B L1_SMALL buffer across 72 banks, where each bank needs to store 35248 B, but bank size is only 65536 B"
+
   vgg/pytorch-torchvision_vgg11_bn-single_device-full-inference:
     status: EXPECTED_PASSING
 
@@ -1485,7 +1489,7 @@ test_config:
 
   phi3/phi_3_5_vision/pytorch-instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "TypeError: Phi3VForCausalLM.forward() got an unexpected keyword argument 'max_new_tokens'"
+    reason: "Out of Memory: Not enough space to allocate 52428800 B DRAM buffer across 12 banks, where each bank needs to store 4370432 B, but bank size is only 1073741792 B"
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     assert_pcc: false
