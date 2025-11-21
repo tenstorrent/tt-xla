@@ -1551,6 +1551,11 @@ test_config:
     reason: "Hangs or takes forever to run - not known to be compile clean anyways."
     bringup_status: FAILED_FE_COMPILATION
 
+  boltz2/pytorch-boltz2-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hangs or takes forever to run"
+    bringup_status: FAILED_RUNTIME
+
   qwen_3/embedding/pytorch-embedding_8b-single_device-full-inference:
     status: EXPECTED_PASSING
     arch_overrides:
