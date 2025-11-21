@@ -28,6 +28,7 @@ jobs:
       run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
       run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
       only-run-forge-models: ${{ steps.inspect.outputs.only-run-forge-models }}
+      run-uplift-model-tests: ${{ steps.inspect.outputs.run-uplift-model-tests }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/inspect-changes
