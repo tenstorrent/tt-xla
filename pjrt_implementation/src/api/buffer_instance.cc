@@ -283,8 +283,23 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
                         *src_buffer->m_host_runtime_tensor);
     tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
   } else if (src_buffer->m_prepared_runtime_tensor != std::nullopt) {
+    DLOG_F(WARNING,
+           "BufferInstance::copyFromBuffer: Device-Device transfer is "
+           "inefficient due to PJRT device modeling limitations. This will "
+           "actually copy src to host, and fill dst host tensor, because at "
+           "this callsite we do not know what dst device is.");
+    std::vector<tt::runtime::Tensor> host_runtime_tensors = tt::runtime::toHost(
+        src_buffer->m_prepared_runtime_tensor.value(), /*untilize=*/true);
+
+    if (host_runtime_tensors.size() != 1) {
+      throw std::runtime_error("Expected single host tensor when copying from "
+                               "device buffer to device buffer.");
+    }
+    tt::runtime::Tensor single_host_tensor = host_runtime_tensors[0];
     m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
         /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
+    tt::runtime::memcpy(*m_host_runtime_tensor, single_host_tensor);
+    tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
   } else {
     throw std::runtime_error("Source buffer has no data to copy from.");
   }
