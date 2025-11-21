@@ -107,7 +107,7 @@ jobs:
       wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
 
   test_models_on_uplift:
-    if: needs.inspect-changes.outputs.run-uplift-model-tests
+    if: needs.inspect-changes.outputs.run-uplift-model-tests == 'true'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ inspect-changes, build-image, build-ttxla-release ]
