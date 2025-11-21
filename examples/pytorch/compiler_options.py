@@ -26,12 +26,8 @@ def mnist_with_compiler_options():
 
     device = xm.xla_device()
 
-    # Define compiler options
     options = {
-        "enable_optimizer": "true",
-        "enable_memory_layout_analysis": "true",
-        "enable_l1_interleaved": "true",
-        "enable_fusing_conv2d_with_multiply_pattern": "true",
+        "optimization_level": 2,
     }
 
     # Set compile options
