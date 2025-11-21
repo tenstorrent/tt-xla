@@ -8,6 +8,7 @@ import ast
 import glob
 import os
 import sys
+import time
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from dataclasses import dataclass
@@ -107,6 +108,17 @@ def parse_junit_xml(xml_file: str) -> Dict[str, TestResult]:
         print(f"File not found: {xml_file}", file=sys.stderr)
         return results
 
+    if (
+        "p150-not_weekly_and_p150_and_expected_passing" not in xml_file
+        and "n150-not_weekly_and_n150_and_expected_passing" not in xml_file
+    ):
+        return results
+
+    print(
+        f"Parsing XML file: {xml_file} with {len(root.findall('.//testcase'))} testcases"
+    )
+
+    # return results
     for testcase in root.findall(".//testcase"):
         name = testcase.get("name", "")
         # Preserve full testcase name; only use bracket key later when touching YAML
@@ -131,8 +143,18 @@ def parse_junit_xml(xml_file: str) -> Dict[str, TestResult]:
         pcc_assertion_enabled = tags.get("pcc_assertion_enabled")
         arch = tags.get("arch")
 
+        # Hack to only focus on some models
+        if group_value != "red" or "qwen" not in name:
+            continue
+
+        if (
+            "qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-full-inference"
+            not in name
+        ):
+            continue
+
         print(
-            f"parsing testcase: {name} in file: {xml_file} arch: {arch} -> param_key: {bracket_key}"
+            f"Parsing testcase. arch: {arch} name: {name}  pcc_value: {pcc_value} pcc_assertion_enabled: {pcc_assertion_enabled}"
         )
 
         # Normalize optional floats/bools
@@ -146,6 +168,8 @@ def parse_junit_xml(xml_file: str) -> Dict[str, TestResult]:
             pcc_threshold = None
         if isinstance(pcc_assertion_enabled, str):
             pcc_assertion_enabled = pcc_assertion_enabled.lower() == "true"
+
+        # Probably need to make arch a dict key here to not conflict.
 
         results[name] = TestResult(
             key=name,
@@ -187,8 +211,6 @@ def map_test_to_config_file(test_name: str) -> Optional[str]:
         "-data_parallel-full-inference": "test_config_inference_data_parallel.yaml",
         "-single_device-full-training": "test_config_training_single_device.yaml",
     }
-
-    print(f"test_name: {test_name}")
 
     for suffix, fname in suffix_to_filename.items():
         if suffix in test_name:
@@ -246,6 +268,7 @@ def build_promotion_plan(results: Dict[str, TestResult]) -> PromotionPlan:
 
     for test_name, res in results.items():
         config_path = map_test_to_config_file(test_name)
+
         if not config_path:
             continue
 
@@ -414,9 +437,9 @@ def main() -> None:
         help="Path(s) or glob pattern(s) to JUnit XML file(s)",
     )
     parser.add_argument(
-        "--promote-tests",
+        "--update",
         action="store_true",
-        help="When set, write proposed changes back to original YAML. Otherwise, dry-run only.",
+        help="When set, write updated test_config files back to original YAML. Otherwise, dry-run only.",
     )
 
     args = parser.parse_args()
@@ -432,10 +455,16 @@ def main() -> None:
         # Merge; last writer wins for simplicity
         aggregate_results.update(res)
 
+    # Calculate time it took for these steps:
+    start_time = time.time()
+    print(f"Going to build promotion plan with {len(aggregate_results)} results")
     plan = build_promotion_plan(aggregate_results)
+    end_time = time.time()
+    print(f"Time taken to build promotion plan: {end_time - start_time} seconds")
+
     print_plan(plan)
 
-    if args.promote_tests:
+    if args.update:
         written = apply_plan(plan, write_files=True)
         if not written:
             print("No files written (no changes).")
