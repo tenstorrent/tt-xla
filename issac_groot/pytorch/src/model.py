@@ -389,15 +389,12 @@ class GR00T_N1_5(PreTrainedModel):
                 k: convert_numpy_to_tensor(v) for k, v in backbone_inputs.items()
             }
             backbone_inputs = BatchFeature(backbone_dict)
-            # Then use .to() to move to device (keeps original dtypes)
-            backbone_inputs = backbone_inputs.to(self.device)
+
         else:
             # For non-BatchFeature, use tree.map_structure
             def to_device(x):
                 if isinstance(x, np.ndarray):
                     x = torch.from_numpy(x)
-                if isinstance(x, torch.Tensor):
-                    return x.to(self.device)
                 return x
 
             backbone_inputs = tree.map_structure(to_device, backbone_inputs)
@@ -409,8 +406,6 @@ class GR00T_N1_5(PreTrainedModel):
                 k: convert_numpy_to_tensor(v) for k, v in action_inputs.items()
             }
             action_inputs = BatchFeature(action_dict)
-            # Move to device first
-            action_inputs = action_inputs.to(self.device)
             # Then cast floating point tensors to action_head dtype
             action_dict = {}
             for k, v in action_inputs.items():
@@ -426,9 +421,7 @@ class GR00T_N1_5(PreTrainedModel):
                     x = torch.from_numpy(x)
                 if isinstance(x, torch.Tensor):
                     if torch.is_floating_point(x):
-                        return x.to(self.device, dtype=self.action_head.dtype)
-                    else:
-                        return x.to(self.device)
+                        return x.to(dtype=self.action_head.dtype)
                 return x
 
             action_inputs = tree.map_structure(to_device_with_dtype, action_inputs)
@@ -516,7 +509,6 @@ class Gr00tPolicy(BasePolicy):
         modality_config: Dict[str, ModalityConfig],
         modality_transform: ComposedModalityTransform,
         denoising_steps: Optional[int] = None,
-        device: Union[int, str] = "cpu",
     ):
         """
         Initialize the Gr00tPolicy.
@@ -527,7 +519,6 @@ class Gr00tPolicy(BasePolicy):
             modality_transform (ComposedModalityTransform): The modality transform for the model.
             embodiment_tag (Union[str, EmbodimentTag]): The embodiment tag for the model.
             denoising_steps: Number of denoising steps to use for the action head.
-            device (Union[int, str]): Device to run the model on.
         """
         try:
             # NOTE(YL) this returns the local path to the model which is normally
@@ -543,7 +534,6 @@ class Gr00tPolicy(BasePolicy):
         self._modality_transform = modality_transform
         self._modality_transform.eval()  # set this to eval mode
         self.model_path = Path(model_path)
-        self.device = device
 
         # Convert string embodiment tag to EmbodimentTag enum if needed
         if isinstance(embodiment_tag, str):
@@ -720,8 +710,6 @@ class Gr00tPolicy(BasePolicy):
             model.config.action_horizon = expected_action_horizon
             model.action_horizon = expected_action_horizon
             model.config.action_head_cfg["action_horizon"] = expected_action_horizon
-
-        model.to(device=self.device)  # type: ignore
 
         self.model = model
 
@@ -936,7 +924,6 @@ class Eagle2_5_VLImageProcessorFast(BaseImageProcessorFast):
         videos: VideoInput,
         do_convert_rgb: Optional[bool] = None,
         input_data_format: Optional[Union[str, ChannelDimension]] = None,
-        device: Optional["torch.device"] = None,
     ) -> list["torch.Tensor"]:
         """
         Prepare the input images for processing.
@@ -946,7 +933,6 @@ class Eagle2_5_VLImageProcessorFast(BaseImageProcessorFast):
             self._process_image,
             do_convert_rgb=do_convert_rgb,
             input_data_format=input_data_format,
-            device=device,
         )
         # todo: yoni - check if we can parallelize this efficiently
         processed_videos = []
@@ -1252,14 +1238,13 @@ class Eagle2_5_VLImageProcessorFast(BaseImageProcessorFast):
         # Extract parameters that are only used for preparing the input images
         do_convert_rgb = kwargs.pop("do_convert_rgb")
         input_data_format = kwargs.pop("input_data_format")
-        device = kwargs.pop("device")
+        kwargs.pop("device")
         # Prepare input images
         if images is not None:
             images = self._prepare_input_images(
                 images=images,
                 do_convert_rgb=do_convert_rgb,
                 input_data_format=input_data_format,
-                device=device,
             )
 
         if videos is not None:
@@ -1267,7 +1252,6 @@ class Eagle2_5_VLImageProcessorFast(BaseImageProcessorFast):
                 images=videos,
                 do_convert_rgb=do_convert_rgb,
                 input_data_format=input_data_format,
-                device=device,
             )
 
         # Update kwargs that need further processing before being validated
@@ -2549,7 +2533,6 @@ class Gr00tPolicyModule(nn.Module):
         modality_config: Dict[str, ModalityConfig],
         modality_transform: ComposedModalityTransform,
         denoising_steps: Optional[int] = None,
-        device: Union[int, str] = "cpu",
     ):
         """
         Initialize the Gr00tPolicyModule.
@@ -2560,7 +2543,6 @@ class Gr00tPolicyModule(nn.Module):
             modality_config: The modality config for the model
             modality_transform: The modality transform for the model
             denoising_steps: Number of denoising steps for diffusion inference
-            device: Device to run the model on (cpu, cuda, or device index)
         """
         super().__init__()
 
@@ -2571,14 +2553,12 @@ class Gr00tPolicyModule(nn.Module):
             modality_config=modality_config,
             modality_transform=modality_transform,
             denoising_steps=denoising_steps,
-            device=device,
         )
 
         # Register the model as a submodule so parameters are tracked
         self.model = self.policy.model
 
         # Store config
-        self._device = device
         self._embodiment_tag = embodiment_tag
 
     def preprocess(self, observations: Dict[str, Any]) -> Dict[str, torch.Tensor]:
@@ -2693,7 +2673,7 @@ class Gr00tPolicyModule(nn.Module):
             >>> # Get raw action tensor (no postprocessing)
             >>> raw_action = policy_module(observations, return_raw=True)
         """
-        # Handle case where observations are passed as keyword arguments
+        device = kwargs["state"].device
         if observations is None:
             observations = kwargs
         elif kwargs:
@@ -2706,6 +2686,11 @@ class Gr00tPolicyModule(nn.Module):
             # Preprocess
             normalized_input = self.preprocess(observations)
             # Forward
+
+            for k, v in normalized_input.items():
+                if isinstance(v, np.ndarray):
+                    normalized_input[k] = torch.from_numpy(v).to(device)
+
             return self.forward_from_normalized(normalized_input, return_raw=return_raw)
 
     def get_action(self, observations: Dict[str, Any]) -> Dict[str, Any]:

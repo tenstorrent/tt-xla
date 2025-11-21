@@ -409,7 +409,7 @@ class ViTPatchGenerator(nn.Module):
         self.pos_dropout = pos_dropout
         self.return_pos_enc = return_pos_enc
 
-        factory = dict(device=device, dtype=dtype)
+        factory = dict(dtype=dtype)
 
         self.patch_size = patch_size
         self.abs_pos = abs_pos
@@ -1566,7 +1566,12 @@ class LeRobotSingleDataset(Dataset):
             self._metadata.statistics.action[
                 "task_progress"
             ] = DatasetStatisticalValues(
-                max=[1.0], min=[0.0], mean=[0.5], std=[0.2887], q01=[0.01], q99=[0.99]
+                max=[1.0],
+                min=[0.0],
+                mean=[0.5],
+                std=[0.2887],
+                q01=[0.01],
+                q99=[0.99],
             )
 
         self.set_transforms_metadata(self.metadata)
@@ -3153,7 +3158,6 @@ class Eagle2_5_VLForConditionalGeneration(Eagle2_5_VLPreTrainedModel, Generation
             shift_logits = shift_logits.view(-1, self.language_model.config.vocab_size)
             shift_labels = shift_labels.view(-1)
             # Enable model parallelism
-            shift_labels = shift_labels.to(shift_logits.device)
             loss = loss_fct(shift_logits, shift_labels)
 
         if not return_dict:
@@ -3241,7 +3245,7 @@ class Eagle2_5_VLForConditionalGeneration(Eagle2_5_VLPreTrainedModel, Generation
             input_ids = input_ids.reshape(B * N)
             selected = input_ids == self.config.image_token_index
             assert selected.sum() != 0
-            input_embeds[selected] = vit_embeds.reshape(-1, C).to(input_embeds.device)
+            input_embeds[selected] = vit_embeds.reshape(-1, C)
 
             input_embeds = input_embeds.reshape(B, N, C)
         else:
@@ -3301,11 +3305,10 @@ class SinusoidalPositionalEncoding(nn.Module):
         timesteps = timesteps.float()  # ensure float
 
         B, T = timesteps.shape
-        device = timesteps.device
 
         half_dim = self.embedding_dim // 2
         # typical log space frequencies for sinusoidal encoding
-        exponent = -torch.arange(half_dim, dtype=torch.float, device=device) * (
+        exponent = -torch.arange(half_dim, dtype=torch.float) * (
             torch.log(torch.tensor(10000.0)) / half_dim
         )
         # Expand timesteps to (B, T, 1) then multiply
@@ -3977,7 +3980,7 @@ class FlowmatchingActionHead(nn.Module):
                 self.model.eval()
 
     def sample_time(self, batch_size, device, dtype):
-        sample = self.beta_dist.sample([batch_size]).to(device, dtype=dtype)
+        sample = self.beta_dist.sample([batch_size]).to(dtype=dtype)
         return (self.config.noise_s - sample) / self.config.noise_s
 
     def prepare_input(self, batch: dict) -> BatchFeature:
@@ -4085,11 +4088,9 @@ class FlowmatchingActionHead(nn.Module):
 
         # Set initial actions as the sampled noise.
         batch_size = vl_embs.shape[0]
-        device = vl_embs.device
         actions = torch.randn(
             size=(batch_size, self.config.action_horizon, self.config.action_dim),
             dtype=vl_embs.dtype,
-            device=device,
         )
 
         num_steps = self.num_inference_timesteps
@@ -4101,17 +4102,13 @@ class FlowmatchingActionHead(nn.Module):
             t_discretized = int(t_cont * self.num_timestep_buckets)
 
             # Embed noised action trajectory.
-            timesteps_tensor = torch.full(
-                size=(batch_size,), fill_value=t_discretized, device=device
-            )
+            timesteps_tensor = torch.full(size=(batch_size,), fill_value=t_discretized)
             action_features = self.action_encoder(
                 actions, timesteps_tensor, embodiment_id
             )
             # Maybe add position embedding.
             if self.config.add_pos_embed:
-                pos_ids = torch.arange(
-                    action_features.shape[1], dtype=torch.long, device=device
-                )
+                pos_ids = torch.arange(action_features.shape[1], dtype=torch.long)
                 pos_embs = self.position_embedding(pos_ids).unsqueeze(0)
                 action_features = action_features + pos_embs
 
@@ -4160,7 +4157,7 @@ def get_frames_by_indices(
         if not TORCHCODEC_AVAILABLE:
             raise ImportError("torchcodec is not available.")
         decoder = torchcodec.decoders.VideoDecoder(
-            video_path, device="cpu", dimension_order="NHWC", num_ffmpeg_threads=0
+            video_path, dimension_order="NHWC", num_ffmpeg_threads=0
         )
         return decoder.get_frames_at(indices=indices).data.numpy()
     elif video_backend == "opencv":
@@ -4209,7 +4206,7 @@ def get_frames_by_timestamps(
         if not TORCHCODEC_AVAILABLE:
             raise ImportError("torchcodec is not available.")
         decoder = torchcodec.decoders.VideoDecoder(
-            video_path, device="cpu", dimension_order="NHWC", num_ffmpeg_threads=0
+            video_path, dimension_order="NHWC", num_ffmpeg_threads=0
         )
         return decoder.get_frames_played_at(seconds=timestamps).data.numpy()
     elif video_backend == "opencv":
@@ -4308,7 +4305,7 @@ def get_all_frames(
         if not TORCHCODEC_AVAILABLE:
             raise ImportError("torchcodec is not available.")
         decoder = torchcodec.decoders.VideoDecoder(
-            video_path, device="cpu", dimension_order="NHWC", num_ffmpeg_threads=0
+            video_path, dimension_order="NHWC", num_ffmpeg_threads=0
         )
         frames = decoder.get_frames_at(indices=range(len(decoder)))
         return frames.data.numpy(), frames.pts_seconds.numpy()
@@ -4443,7 +4440,12 @@ class LeRobotSingleDataset(Dataset):
             self._metadata.statistics.action[
                 "task_progress"
             ] = DatasetStatisticalValues(
-                max=[1.0], min=[0.0], mean=[0.5], std=[0.2887], q01=[0.01], q99=[0.99]
+                max=[1.0],
+                min=[0.0],
+                mean=[0.5],
+                std=[0.2887],
+                q01=[0.01],
+                q99=[0.99],
             )
 
         self.set_transforms_metadata(self.metadata)

@@ -117,7 +117,6 @@ class ModelLoader(ForgeModel):
             modality_config=self._modality_config,
             modality_transform=self._modality_transform,
             denoising_steps=self.denoising_steps,
-            device="cpu",
         )
         policy.eval()
 
