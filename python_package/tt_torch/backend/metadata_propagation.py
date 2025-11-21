@@ -317,6 +317,9 @@ class MetadataDispatchMode(TorchDispatchMode):
         if self.operation_index < len(self.node_info):
             module_hierarchy = self.node_info[self.operation_index]
             self._set_metadata(res, module_hierarchy)
+        else:
+            # TODO: See how often this occurs and potentially treat as an error
+            pass
 
         # increment counter (critical for correctness)
         self.operation_index += 1
@@ -335,10 +338,8 @@ class MetadataDispatchMode(TorchDispatchMode):
         in the HLO IR. Since all outputs come from the same operation node, setting metadata
         on one output is sufficient to label the entire operation.
         """
-        pass
         if isinstance(result, torch.Tensor):
             self._set_tensor_metadata(result, module_hierarchy)
-            # pass
         elif isinstance(result, (tuple, list)):
             for item in result:
                 if isinstance(item, torch.Tensor):
@@ -346,7 +347,6 @@ class MetadataDispatchMode(TorchDispatchMode):
                         break  # One output labels the entire operation node
 
     def _set_tensor_metadata(self, tensor: torch.Tensor, module_hierarchy: str) -> bool:
-        # assert False, "Not implemented"
         try:
             if "xla" in str(tensor.device):
                 torch_xla._XLAC._set_xla_custom_op_name_prefix(
