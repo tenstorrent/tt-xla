@@ -73,7 +73,9 @@ class EmitLoc:
             modules_list.append(f"{mod.module_class}[{mod.module_name}]")
         # Add separator to the end of the modules_str
         modules_str = SEPARATOR.join(modules_list) + SEPARATOR if modules_list else ""
-        return f"{modules_str}{self.func_path}{SEPARATOR}{self.func_name}{SEPARATOR}{self.op_line_num}{SEPARATOR}{self.op_name}"
+        # Don't print op name, it gets added later by torch-xla
+        # return f"{modules_str}{self.func_path}{SEPARATOR}{self.func_name}{SEPARATOR}{self.op_line_num}{SEPARATOR}{self.op_name}"
+        return f"{modules_str}{self.func_path}{SEPARATOR}{self.func_name}{SEPARATOR}{self.op_line_num}{SEPARATOR}"
 
     def __repr__(self) -> str:
         return self.to_string()
@@ -163,81 +165,67 @@ def _extract_source_and_module_hierarchy_info(node: torch.fx.Node) -> EmitLoc:
     # Process in reverse to get deepest (innermost) call first
     lines = node.meta["stack_trace"].strip().split("\n")
     DEBUG_PRINT and print(f"Printing lines:")
-    for line in reversed(lines):
-        if len(lines) > 1:
-            print(f"********************************************************* FOUND LINES: {len(lines)}")
 
-        DEBUG_PRINT and print(f"  line: {line}")
-        stripped = line.strip()
+    # Find the first (deepest) valid stack trace line
+    line = next(
+        (line for line in reversed(lines)
+         if (stripped := line.strip()).startswith('File "') and len(stripped.split(",")) >= 3),
+        None
+    )
 
-        if not stripped.startswith('File "'):
-            continue
+    if line is None:
+        return EmitLoc.make_unknown()
 
-        parts = stripped.split(",")
-        if len(parts) < 3:
-            continue
+    DEBUG_PRINT and print(f"  line: {line}")
+    stripped = line.strip()
+    parts = stripped.split(",")
 
-        # Parse: File "/path/file.py", line 42, in forward
-        full_path = parts[0].split('"')[1]
-        file_name = full_path.split("/")[-1]
-        line_num = int(parts[1].split()[-1])
-        func_name = parts[2].split()[-1]
-        func_path, func_name = _find_enclosing_function(full_path, line_num)
-        func_path_ast, func_name_ast = _find_enclosing_function(full_path, line_num, mode='ast')
-        if func_path != func_path_ast:
-            DEBUG_PRINT and print(f"  func_path: {func_path}, {func_name}")
-            DEBUG_PRINT and print(f"  func_path_ast: {func_path_ast}, {func_name_ast}")
-            raise ValueError(f"Function path mismatch for {full_path}:{line_num} between simple and ast modes")
+    # Parse the line to get the full path, line number, and function name
+    # File "/path/file.py", line 42, in forward
+    full_path = parts[0].split('"')[1]
+    line_num = int(parts[1].split()[-1])
+    func_name = parts[2].split()[-1]
+    func_path, found_func_name = _find_enclosing_function(full_path, line_num)
+    func_path_ast, found_func_name_ast = _find_enclosing_function(full_path, line_num, mode='ast')
+    if func_name != found_func_name:
+        DEBUG_PRINT and print(f"  func_name mismatch: {func_name}, {found_func_name}")
+        raise ValueError(f"Function name mismatch between stack_trace and found_func_name modes")
+    if func_path != func_path_ast:
+        DEBUG_PRINT and print(f"  func_path: {func_path}, {found_func_name}")
+        DEBUG_PRINT and print(f"  func_path_ast: {func_path_ast}, {found_func_name_ast}")
+        raise ValueError(f"Function path mismatch for {full_path}:{line_num} between simple and ast modes")
 
-        location_codegen = EmitLoc(
-            modules=[],
-            func_path=func_path,
-            func_name=func_name,
-            op_line_num=line_num,
-            op_name="",
-        )
+    # Extract module hierarchy from node's nn_module_stack metadata.
+    extracted_modules = []
+    if "nn_module_stack" in node.meta and node.meta["nn_module_stack"]:
+        # Sort by path length to get hierarchy order (shorter = outer, longer = inner modules)
+        # Format: (path, class_name) e.g., ("L['self'].inner.linear", "torch.nn.modules.linear.Linear")
+        modules = sorted(node.meta["nn_module_stack"].values(), key=lambda x: len(x[0]))
 
-        # return file_name, line_num, func_name
-        # return full_path, line_num, func_path, func_name
-        return location_codegen
+        DEBUG_PRINT and print(f"    Printing modules:")
+        for path, class_name in modules:
+            DEBUG_PRINT and print(f"      path: {path}")
+            DEBUG_PRINT and print(f"      class_name: {class_name}")
+            module_class = class_name.split(".")[-1] if "." in class_name else class_name
 
-    return EmitLoc.make_unknown()
+            # Extract instance from path (e.g., "L['self'].inner.linear" → "inner.linear")
+            module_name = (
+                path.replace("L['self'].", "").replace("L['self']", "") if path else ""
+            )
+            module_name = module_name if module_name else module_class.lower()
 
+            extracted_modules.append(EmitModuleLoc(module_class, module_name))
 
-def _extract_module_hierarchy(node: torch.fx.Node, location_codegen: LocationCodegen) -> LocationCodegen:
-    """
-    Extract module hierarchy from node's nn_module_stack metadata.
-
-    Returns:
-        LocationCodegen
-    """
-    global DEBUG_PRINT
-
-    if "nn_module_stack" not in node.meta or not node.meta["nn_module_stack"]:
-        return location_codegen
-
-    # Sort by path length to get hierarchy order (shorter = outer, longer = inner modules)
-    # Format: (path, class_name) e.g., ("L['self'].inner.linear", "torch.nn.modules.linear.Linear")
-    modules = sorted(node.meta["nn_module_stack"].values(), key=lambda x: len(x[0]))
-
-    DEBUG_PRINT and print(f"    node.name: {node.name}")
-    DEBUG_PRINT and print(f"    Printing modules:")
-    for path, class_name in modules:
-        DEBUG_PRINT and print(f"      path: {path}")
-        DEBUG_PRINT and print(f"      class_name: {class_name}")
-        module_class = class_name.split(".")[-1] if "." in class_name else class_name
-
-        # Extract instance from path (e.g., "L['self'].inner.linear" → "inner.linear")
-        module_name = (
-            path.replace("L['self'].", "").replace("L['self']", "") if path else ""
-        )
-        module_name = module_name if module_name else module_class.lower()
-        location_codegen.modules.append(LocationModuleCodegen(module_class, module_name))
-
-    return location_codegen
+    return EmitLoc(
+        modules=extracted_modules,
+        func_path=func_path,
+        func_name=func_name,
+        op_line_num=line_num,
+        op_name=node.name,
+    )
 
 
-def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[EmitLoc]:
+def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
     global DEBUG_PRINT
 
     emit_locs = []
@@ -277,7 +265,7 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[EmitLoc]:
         # Build location string if we have any metadata
         emit_locs.append(emit_loc)
 
-    return emit_locs
+    return [emit_loc.to_string() for emit_loc in emit_locs]
 
 
 class MetadataDispatchMode(TorchDispatchMode):
@@ -322,19 +310,12 @@ class MetadataDispatchMode(TorchDispatchMode):
     def __torch_dispatch__(self, func, types, args=(), kwargs={}):
         res = func(*args, **kwargs)
 
-        # print(f"{func} -  {self.node_info[self.operation_index]}")
-
-        # Get semantic location for this operation
-        module_hierarchy = UNKNOWN_LOCATION
-        if self.operation_index < len(self.node_info):
-            module_hierarchy = self.node_info[self.operation_index]
-
         # Set metadata only for computation nodes since they have module hierarchy info.
         # XLA nodes without location info inherit from parent/child nodes, which works
         # perfectly since computation nodes always have locations.
-        if module_hierarchy != UNKNOWN_LOCATION:
-            # print(f"  SETTING metadata for node.name: {func}")
-            # print(f"  module_hierarchy: {module_hierarchy}")
+        module_hierarchy = EmitLoc.make_unknown().to_string()
+        if self.operation_index < len(self.node_info):
+            module_hierarchy = self.node_info[self.operation_index]
             self._set_metadata(res, module_hierarchy)
 
         # increment counter (critical for correctness)
