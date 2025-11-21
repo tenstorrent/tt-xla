@@ -1194,9 +1194,7 @@ test_config:
     markers: ["extended"]
 
   vovnet/pytorch-ese_vovnet39b-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9872968792915344. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2410,3 +2408,9 @@ test_config:
   efficientdet/pytorch-d7x-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 5760 B L1_SMALL buffer across 36 banks, where each bank needs to store 160 B, but bank size is only 65536 B"
+
+  unet/pytorch-torchhub_brain_unet-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  ultra_fast_lane_detection/pytorch-tusimple_resnet34-single_device-full-inference:
+    status: EXPECTED_PASSING
