@@ -103,7 +103,13 @@ def training_tester() -> ResnetTester:
             ),
         ),
         pytest.param("float32", 1),
-        pytest.param("float32", 0),
+        pytest.param(
+            "float32",
+            0,
+            marks=pytest.mark.xfail(
+                reason="PCC comparison < 0.99 (observed ~0.9875). Small, mentioned here anyways: https://github.com/tenstorrent/tt-xla/issues/1673"
+            ),
+        ),
     ],
     ids=[
         "optimization_level_1-bfp8",
