@@ -36,11 +36,10 @@ MODEL_NAME = build_model_name(
 # ----- Fixtures -----
 
 
-def create_inference_tester(format: str, enable_optimizer: bool) -> ResnetTester:
-    """Create inference tester with specified format and optimizer settings."""
+def create_inference_tester(format: str, optimization_level: int) -> ResnetTester:
+    """Create inference tester with specified format and optimization level."""
     compiler_config = CompilerConfig(
-        enable_optimizer=enable_optimizer,
-        enable_fusing_conv2d_with_multiply_pattern=True,
+        optimization_level=optimization_level,
     )
     return create_torch_inference_tester(
         ResnetTester, VARIANT_NAME, format, compiler_config=compiler_config
@@ -51,7 +50,7 @@ def create_inference_tester(format: str, enable_optimizer: bool) -> ResnetTester
 def trace_tester(monkeypatch: MonkeyPatch) -> ResnetTester:
     monkeypatch.setenv("TT_RUNTIME_TRACE_REGION_SIZE", "10000000")
 
-    compiler_config = CompilerConfig(enable_optimizer=True, enable_trace=True)
+    compiler_config = CompilerConfig(optimization_level=1, enable_trace=True)
     return ResnetTester(VARIANT_NAME, compiler_config=compiler_config)
 
 
@@ -73,47 +72,50 @@ def training_tester() -> ResnetTester:
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
 @pytest.mark.parametrize(
-    "format,enable_optimizer",
+    "format,optimization_level",
     [
         pytest.param(
             "bfp8",
-            True,
+            1,
             marks=pytest.mark.xfail(
-                reason="bfp8 with optimizer_on has hudge data mismatch. Tracking issue: https://github.com/tenstorrent/tt-xla/issues/1673"
+                reason="bfp8 with optimization_level_1 has hudge data mismatch. Tracking issue: https://github.com/tenstorrent/tt-xla/issues/1673"
             ),
         ),
         pytest.param(
             "bfp8",
-            False,
+            0,
             marks=pytest.mark.xfail(
                 reason="ttnn.maximum not supported for bfp8. This op should be fused to ReLU. Tracking mlir issue: https://github.com/tenstorrent/tt-mlir/issues/5329 "
             ),
         ),
         pytest.param(
             "bfloat16",
-            True,
-        ),
-        pytest.param(
-            "bfloat16",
-            False,
+            1,
             marks=pytest.mark.xfail(
                 reason="PCC comparison < 0.99 (observed ~0.982-0.984)"
             ),
         ),
-        pytest.param("float32", True),
-        pytest.param("float32", False),
+        pytest.param(
+            "bfloat16",
+            0,
+            marks=pytest.mark.xfail(
+                reason="PCC comparison < 0.99 (observed ~0.982-0.984)"
+            ),
+        ),
+        pytest.param("float32", 1),
+        pytest.param("float32", 0),
     ],
     ids=[
-        "optimizer_on-bfp8",
-        "optimizer_off-bfp8",
-        "optimizer_on-bfloat16",
-        "optimizer_off-bfloat16",
-        "optimizer_on-float32",
-        "optimizer_off-float32",
+        "optimization_level_1-bfp8",
+        "optimization_level_0-bfp8",
+        "optimization_level_1-bfloat16",
+        "optimization_level_0-bfloat16",
+        "optimization_level_1-float32",
+        "optimization_level_0-float32",
     ],
 )
-def test_torch_resnet_inference(format: str, enable_optimizer: bool):
-    tester = create_inference_tester(format, enable_optimizer)
+def test_torch_resnet_inference(format: str, optimization_level: int):
+    tester = create_inference_tester(format, optimization_level)
     tester.test()
 
 

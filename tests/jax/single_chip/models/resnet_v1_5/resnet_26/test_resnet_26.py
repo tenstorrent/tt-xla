@@ -26,7 +26,7 @@ def inference_tester_optimizer() -> ResNetTester:
     return ResNetTester(
         VARIANT_NAME,
         run_mode=RunMode.INFERENCE,
-        compiler_config=CompilerConfig(enable_optimizer=True),
+        compiler_config=CompilerConfig(optimization_level=1),
     )
 
 

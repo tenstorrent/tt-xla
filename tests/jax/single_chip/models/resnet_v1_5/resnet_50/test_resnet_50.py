@@ -26,7 +26,7 @@ def trace_tester(monkeypatch: MonkeyPatch) -> ResNetTester:
     # These need to be set before the tester is created
     monkeypatch.setenv("TT_RUNTIME_TRACE_REGION_SIZE", "10000000")
 
-    cc = CompilerConfig(enable_optimizer=True, enable_trace=True)
+    cc = CompilerConfig(optimization_level=1, enable_trace=True)
     return ResNetTester(VARIANT_NAME, compiler_config=cc)
 
 
