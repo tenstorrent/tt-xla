@@ -297,6 +297,14 @@ class ModelLoader(ForgeModel):
                     parts = name.split("_")
                     # Capitalize first letter of each part and join with underscore
                     capitalized_parts = [p.capitalize() for p in parts]
+
+                    # Workaround because this logic does not work as advertised.
+                    # https://github.com/tenstorrent/tt-forge-models/issues/293
+                    capitalized_parts = [
+                        p.replace("Efficientnet", "EfficientNet")
+                        for p in capitalized_parts
+                    ]
+
                     return "_".join(capitalized_parts) + "_Weights"
 
                 self._preprocessor = VisionPreprocessor(
