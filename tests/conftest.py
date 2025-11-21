@@ -392,8 +392,8 @@ def initialize_device_connectors():
 
     Done to make sure it is executed before any other jax command during tests.
     """
-    DeviceConnectorFactory.create_connector(Framework.JAX)
-    DeviceConnectorFactory.create_connector(Framework.TORCH)
+    #DeviceConnectorFactory.create_connector(Framework.JAX)
+    #DeviceConnectorFactory.create_connector(Framework.TORCH)
 
 
 CACHE_DIRECTORIES = [

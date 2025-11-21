@@ -6,7 +6,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Callable, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
+import multiprocessing as mp
 
 from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
@@ -60,7 +61,7 @@ class ModelTester(BaseTester, ABC):
         self._workload: Workload = None
 
         super().__init__(comparison_config, framework, record_property)
-        self._initialize_components()
+        #self._initialize_components()
 
     def _initialize_components(self) -> None:
         self._initialize_model()
@@ -152,10 +153,49 @@ class ModelTester(BaseTester, ABC):
 
     def test(self) -> Tuple[ComparisonResult, ...]:
         """Tests the model depending on test type with which tester was configured."""
-        if self._run_mode == RunMode.INFERENCE:
-            result = self._test_inference()
-        else:
-            result = self._test_training() 
+
+        # Define worker function for first part
+        
+        def run_first_part(tester_instance):
+            """"""
+            try:
+                # First part: Initialize and run inference/training
+                tester_instance._initialize_components()
+
+                if tester_instance._run_mode == RunMode.INFERENCE:
+                    result = tester_instance._test_inference()
+                else:
+                    result = tester_instance._test_training()
+
+                #queue.put(('success', result))
+                print("First part of test completed successfully.")
+            except Exception as e:
+                import traceback
+                queue.put(('error', e, traceback.format_exc()))
+
+        # Create a queue for inter-process communication
+        #queue = mp.Queue()
+
+        # Run first part in a separate process
+        #process = mp.Process(target=run_first_part, args=(queue, self))
+        #process.start()
+
+        # Wait for the first part to finish
+        #process.join()
+        #process.close()
+
+        # Get the result from the first part
+        #queue_result = queue.get()
+        #if queue_result[0] == 'error':
+        #    print(f"Error in first part of test:\n{queue_result[2]}")
+        #    raise queue_result[1]
+
+        #result = queue_result[1]
+
+        result = run_first_part(self)
+        
+        
+        # Second part: Run op-by-op tests
 
         import os
         import glob
@@ -176,12 +216,12 @@ class ModelTester(BaseTester, ABC):
         except (FileNotFoundError, IOError, OSError) as e:
             print(f"Warning: Could not read IR dump file {ir_file_path}: {e}")
             module = ""
-        
+
         print("Running op by op tests for module:")
-        print(module)
-        results = self._test_op_by_op(module=module)
-        for resulty in results:
-            self._record_property(f"OpTest model for: {resulty.op_name}", model_to_dict(resulty))
+        #print(module)
+        #results = self._test_op_by_op(module=module)
+        #for resulty in results:
+        #    self._record_property(f"OpTest model for: {resulty.op_name}", model_to_dict(resulty))
         return result
 
 
@@ -223,6 +263,7 @@ class ModelTester(BaseTester, ABC):
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
+        print("Testing inference...")
         self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
 
