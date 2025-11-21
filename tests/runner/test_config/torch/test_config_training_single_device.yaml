@@ -5,12 +5,10 @@
 test_config:
   mnist/image_classification/pytorch-cnn_dropout-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "PCC check enabled. Calculated: pcc=0.4345083236694336. Required: pcc=0.99."
     markers: [push]
 
   mnist/image_classification/pytorch-cnn_nodropout-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "PCC check enabled. Calculated: pcc=NaN. Required: pcc=0.99."
     markers: [push]
 
   autoencoder/pytorch-linear-single_device-full-training:
@@ -362,7 +360,7 @@ test_config:
     markers: [weekly]
 
   yolox/pytorch-yolox_m-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Model expects targets to be passed while in training mode"
     markers: [weekly]
@@ -768,7 +766,6 @@ test_config:
 
   dla/pytorch-dla46x_c-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   dla/pytorch-dla60-single_device-full-training:
@@ -777,12 +774,10 @@ test_config:
 
   dla/pytorch-dla60x-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   dla/pytorch-dla60x_c-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   dla/pytorch-dla102-single_device-full-training:
@@ -791,12 +786,10 @@ test_config:
 
   dla/pytorch-dla102x-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   dla/pytorch-dla102x2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   dla/pytorch-dla169-single_device-full-training:
@@ -833,7 +826,6 @@ test_config:
 
   squeezebert/pytorch-squeezebert-mnli-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-full-training:
@@ -981,17 +973,14 @@ test_config:
 
   mamba/pytorch-mamba-370m-hf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   mamba/pytorch-mamba-790m-hf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   mamba/pytorch-mamba-1.4b-hf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   roberta/masked_lm/pytorch-xlm_base-single_device-full-training:
@@ -1006,10 +995,14 @@ test_config:
 
   vilt/masked_lm/pytorch-mlm-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Fatal Python error: Floating point exception"
     markers: [weekly]
 
   vilt/question_answering/pytorch-vqa-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Fatal Python error: Floating point exception"
     markers: [weekly]
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-training:
@@ -1048,17 +1041,14 @@ test_config:
 
   resnext/pytorch-resnext101_32x8d-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   resnext/pytorch-resnext101_32x8d_wsl-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   resnext/pytorch-resnext14_32x4d_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   resnext/pytorch-resnext26_32x4d_osmr-single_device-full-training:
@@ -1067,12 +1057,10 @@ test_config:
 
   resnext/pytorch-resnext50_32x4d_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   resnext/pytorch-resnext101_64x4d_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   rcnn/pytorch-alexnet-single_device-full-training:
@@ -1115,7 +1103,6 @@ test_config:
 
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got X input channels and Y in the weight tensor."
     markers: [weekly]
 
   inception/pytorch-inception_v4-single_device-full-training:
@@ -1547,7 +1534,6 @@ test_config:
 
   openpose/v2/pytorch-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 128 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   hrnet/pytorch-hrnet_w18_small-single_device-full-training:
@@ -1647,32 +1633,26 @@ test_config:
 
   segformer/pytorch-mit_b0-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1024 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   segformer/pytorch-mit_b1-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   segformer/pytorch-mit_b2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   segformer/pytorch-mit_b3-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   segformer/pytorch-mit_b4-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   segformer/pytorch-mit_b5-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   ghostnet/pytorch-ghostnet_100-single_device-full-training:
@@ -1689,27 +1669,22 @@ test_config:
 
   efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1152 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1152 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1248 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1392 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1632 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   monodepth2/pytorch-mono_640x192-single_device-full-training:
@@ -1750,87 +1725,70 @@ test_config:
 
   efficientnet/pytorch-efficientnet_b0-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1152 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-efficientnet_b1-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1920 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-efficientnet_b2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3072 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-efficientnet_b3-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3840 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-efficientnet_b4-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3072 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-efficientnet_b5-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3072 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-efficientnet_b6-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3456 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-efficientnet_b7-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3072 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-timm_efficientnet_b0-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-timm_efficientnet_b4-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1152 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1632 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2688 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   mobilenetv1/pytorch-mobilenet_v1-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1024 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-full-training:
@@ -1883,27 +1841,22 @@ test_config:
 
   mobilenetv3/pytorch-mobilenet_v3_small-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 576 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   mobilenetv3/pytorch-mobilenetv3_large_100-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 960 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   mobilenetv3/pytorch-mobilenetv3_small_100-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 576 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   xception/pytorch-xception41-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1536 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   xception/pytorch-xception65-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1536 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   xception/pytorch-xception71-single_device-full-training:
@@ -1912,22 +1865,18 @@ test_config:
 
   xception/pytorch-xception71.tf_in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1536 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_y_040-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1088 input channels and 64 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_y_064-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1296 input channels and 72 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_y_080-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2016 input channels and 56 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_y_120-single_device-full-training:
@@ -1936,7 +1885,6 @@ test_config:
 
   regnet/pytorch-regnet_y_160-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3024 input channels and 112 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_y_320-single_device-full-training:
@@ -1946,7 +1894,6 @@ test_config:
 
   regnet/pytorch-regnet_y_400mf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 440 input channels and 8 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_y_800mf-single_device-full-training:
@@ -1955,27 +1902,22 @@ test_config:
 
   regnet/pytorch-regnet_y_1_6gf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 888 input channels and 24 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_y_3_2gf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1512 input channels and 24 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_y_8gf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3456 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_y_16gf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3024 input channels and 112 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_y_32gf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3712 input channels and 232 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_y_128gf-single_device-full-training:
@@ -1984,12 +1926,10 @@ test_config:
 
   regnet/pytorch-regnet_x_400mf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 400 input channels and 16 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_x_800mf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 672 input channels and 16 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_x_1_6gf-single_device-full-training:
@@ -2002,12 +1942,10 @@ test_config:
 
   regnet/pytorch-regnet_x_8gf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1920 input channels and 120 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_x_16gf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 2048 input channels and 128 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   regnet/pytorch-regnet_x_32gf-single_device-full-training:
@@ -2016,32 +1954,26 @@ test_config:
 
   mobilenetv2/pytorch-mobilenet_v2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 960 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 336 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 720 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 960 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   mobilenetv2/pytorch-mobilenetv2_100-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 960 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 960 input channels and 1 in the weight tensor. https://github.com/tenstorrent/tt-mlir/issues/5784"
     markers: [weekly]
 
   qwen_3/causal_lm/pytorch-1_7b-single_device-full-training:
