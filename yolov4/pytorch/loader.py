@@ -9,7 +9,8 @@ from datasets import load_dataset
 from torchvision import transforms
 from typing import Optional
 import os
-from ...tools.utils import get_file
+from PIL import Image
+from ...tools.utils import get_file, VisionPreprocessor
 
 from ...config import (
     ModelConfig,
@@ -56,6 +57,8 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
+        self.model = None
+        self._preprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None):
@@ -100,49 +103,87 @@ class ModelLoader(ForgeModel):
         model.load_state_dict(new_state_dict)
         model.eval()
 
+        # Store model for potential use in input preprocessing
+        self.model = model
+
+        # Update preprocessor with cached model if it exists
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
         # Apply dtype override if needed
         if dtype_override is not None:
             model = model.to(dtype_override)
 
         return model
 
-    def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the YOLOv4 model with default settings.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            dtype_override: Optional torch.dtype to override the inputs' default dtype.
-                           If not provided, inputs will use the default dtype (typically float32).
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default dataset image).
 
         Returns:
-            torch.Tensor: Sample input tensor that can be fed to the model.
+            torch.Tensor: Preprocessed input tensor.
         """
+        if self._preprocessor is None:
+            # YOLOv4 uses custom preprocessing: resize to 480x640 and ToTensor
+            def custom_preprocess_fn(img: Image.Image) -> torch.Tensor:
+                transform = transforms.Compose(
+                    [
+                        transforms.Resize((480, 640)),
+                        transforms.ToTensor(),
+                    ]
+                )
+                return transform(img)
 
-        # Load dataset
-        dataset = load_dataset(
-            "huggingface/cats-image", split="test"
-        )  # cats-image is a dataset of 1000 images of cats
+            self._preprocessor = VisionPreprocessor(
+                model_source=ModelSource.CUSTOM,
+                model_name="yolov4",
+                custom_preprocess_fn=custom_preprocess_fn,
+            )
 
-        # Get first image from dataset
-        image = dataset[0]["image"]
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
 
-        # Preprocess the image
-        transform = transforms.Compose(
-            [
-                transforms.Resize((480, 640)),
-                transforms.ToTensor(),
-            ]
+        # If image is None, use huggingface cats-image dataset (backward compatibility)
+        if image is None:
+            dataset = load_dataset("huggingface/cats-image", split="test[:1]")
+            image = dataset[0]["image"]
+
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
         )
 
-        img_tensor = [transform(image).unsqueeze(0)]  # Add batch dimension
-        batch_tensor = torch.cat(img_tensor, dim=0)
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs (backward compatibility wrapper for input_preprocess).
 
-        # Only convert dtype if explicitly requested
-        if dtype_override is not None:
-            batch_tensor = batch_tensor.to(dtype_override)
+        Args:
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
 
-        return batch_tensor
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
+        """
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
 
-    def post_processing(self, co_out):
+    def output_postprocess(self, co_out):
+        """Post-process YOLOv4 model outputs for object detection.
+
+        Args:
+            co_out: Model output tensor from YOLOv4 forward pass.
+
+        Returns:
+            Post-processed detection results path.
+        """
         y1, y2, y3 = gen_yolov4_boxes_confs(co_out)
         output = get_region_boxes([y1, y2, y3])
         results = post_processing(0.3, 0.4, output)

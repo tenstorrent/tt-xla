@@ -8,7 +8,6 @@ EfficientNet model loader implementation
 import torch
 from typing import Optional
 from dataclasses import dataclass
-from PIL import Image
 
 from ...config import (
     ModelConfig,
@@ -20,14 +19,14 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from loguru import logger
 import torchvision.models as models
 from torchvision.models._api import WeightsEnum
-from ...tools.utils import get_file, print_compiled_model_results, get_state_dict
-from torchvision import transforms
+from ...tools.utils import (
+    get_state_dict,
+    VisionPreprocessor,
+    VisionPostprocessor,
+)
 import timm
-from timm.data import resolve_data_config
-from timm.data.transforms_factory import create_transform
 
 
 @dataclass
@@ -208,6 +207,9 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
         self._cached_model = None
+        self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -226,9 +228,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="efficientnet",
             variant=variant,
-            group=ModelGroup.RED
-            if variant == ModelVariant.B0
-            else ModelGroup.GENERALITY,
+            group=(
+                ModelGroup.RED if variant == ModelVariant.B0 else ModelGroup.GENERALITY
+            ),
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
@@ -262,8 +264,8 @@ class ModelLoader(ForgeModel):
             model = timm.create_model(model_name, pretrained=True)
 
         model.eval()
-        # Cache model for use in load_inputs (to avoid reloading for timm transforms)
         self._cached_model = model
+        self.model = model
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
@@ -271,80 +273,119 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the EfficientNet model with this instance's variant settings.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            dtype_override: Optional torch.dtype to override the inputs' default dtype.
-                           If not provided, inputs will use the default dtype (typically float32).
-            batch_size: Optional batch size to override the default batch size of 1.
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default image).
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for EfficientNet.
+            torch.Tensor: Preprocessed input tensor.
         """
-        # Determine which image to use based on variant
-        use_1k_labels = self._variant_config.use_1k_labels
-        source = self._variant_config.source
+        if self._preprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
 
-        if source == ModelSource.TIMM:
-            # Use cached model if available, otherwise load it
-            if hasattr(self, "_cached_model") and self._cached_model is not None:
-                model_for_config = self._cached_model
-            else:
-                model_for_config = self.load_model(dtype_override)
-            try:
-                if use_1k_labels:
-                    file_path = get_file(
-                        "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/beignets-task-guide.png"
-                    )
-                    img = Image.open(file_path).convert("RGB")
-                else:
-                    file_path = get_file(
-                        "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-                    )
-                    img = Image.open(file_path).convert("RGB")
-                config = resolve_data_config({}, model=model_for_config)
-                timm_transforms = create_transform(**config)
-                inputs = timm_transforms(img).unsqueeze(0)
-            except:
-                logger.warning(
-                    "Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date"
+            # For TORCHVISION, use standard ImageNet preprocessing
+            if source == ModelSource.TORCHVISION:
+
+                def weight_class_name_fn(name: str) -> str:
+                    # Handle efficientnet_b0 -> EfficientNet_B0_Weights
+                    # Split by underscore and capitalize each part, then join with underscore
+                    parts = name.split("_")
+                    # Capitalize first letter of each part and join with underscore
+                    capitalized_parts = [p.capitalize() for p in parts]
+                    return "_".join(capitalized_parts) + "_Weights"
+
+                self._preprocessor = VisionPreprocessor(
+                    model_source=source,
+                    model_name=model_name,
+                    weight_class_name_fn=weight_class_name_fn,
                 )
-                inputs = torch.rand(1, 3, 224, 224)
-        else:
-            image_file = get_file(
-                "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-            )
-            image = Image.open(image_file)
+            else:
+                self._preprocessor = VisionPreprocessor(
+                    model_source=source,
+                    model_name=model_name,
+                )
 
-            # Use standard torchvision preprocessing
-            preprocess = transforms.Compose(
-                [
-                    transforms.Resize(256),
-                    transforms.CenterCrop(224),
-                    transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                    ),
-                ]
-            )
-            inputs = preprocess(image).unsqueeze(0)
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
 
-        # Replicate tensors for batch size
-        inputs = inputs.repeat_interleave(batch_size, dim=0)
+        model_for_config = None
+        if self._variant_config.source == ModelSource.TIMM:
+            if hasattr(self, "model") and self.model is not None:
+                model_for_config = self.model
 
-        # Only convert dtype if explicitly requested
-        if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
+        )
 
-        return inputs
-
-    def print_cls_results(self, compiled_model_out):
-        """Print classification results.
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs (backward compatibility wrapper for input_preprocess).
 
         Args:
-            compiled_model_out: Output from the compiled model
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
+
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
         """
-        # Determine label set based on variant
-        use_1k_labels = self._variant_config.use_1k_labels
-        print_compiled_model_results(compiled_model_out, use_1k_labels=use_1k_labels)
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
+
+    def output_postprocess(
+        self,
+        output=None,
+        co_out=None,
+        framework_model=None,
+        compiled_model=None,
+        inputs=None,
+        dtype_override=None,
+    ):
+        """Post-process model outputs.
+
+        Args:
+            output: Model output tensor (returns dict if provided).
+            co_out: Compiled model outputs (legacy, prints results).
+            framework_model: Original framework model (legacy).
+            compiled_model: Compiled model (legacy).
+            inputs: Input images (legacy).
+            dtype_override: Optional dtype override (legacy).
+
+        Returns:
+            dict or None: Prediction dict if output provided, else None (prints results).
+        """
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+            use_1k_labels = self._variant_config.use_1k_labels
+
+            self._postprocessor = VisionPostprocessor(
+                model_source=source,
+                model_name=model_name,
+                model_instance=self.model,
+                use_1k_labels=use_1k_labels,
+            )
+
+        # New usage: return dict from output tensor
+        if output is not None:
+            return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
+
+        # Legacy usage: print results (backward compatibility)
+        self._postprocessor.print_results(
+            co_out=co_out,
+            framework_model=framework_model,
+            compiled_model=compiled_model,
+            inputs=inputs,
+            dtype_override=dtype_override,
+        )
+        return None
