@@ -157,7 +157,6 @@ class XLAExecutor:
                 output = self.module(*args)
         else:
             output = self.module(*args)
-
         gm_has_functional_output_kind: bool = True
 
         for el in self.signature.output_specs:
