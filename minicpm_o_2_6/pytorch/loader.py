@@ -15,7 +15,7 @@ from PIL import Image
 import requests
 from io import BytesIO
 
-from tt_forge_models.config import (
+from ...config import (
     ModelConfig,
     ModelInfo,
     ModelGroup,
@@ -24,7 +24,7 @@ from tt_forge_models.config import (
     Framework,
     StrEnum,
 )
-from tt_forge_models.base import ForgeModel
+from ...base import ForgeModel
 
 
 # Fix parallel styles issue for torch 2.7.0+ compatibility - works fine in torch 2.3.1
@@ -93,11 +93,12 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[StrEnum] = None) -> ModelInfo:
         """Get model information for MiniCPM-o-2_6."""
         return ModelInfo(
-            name="MiniCPM-o-2_6",
+            model="MiniCPM-o-2_6",
+            variant=variant,
             group=ModelGroup.RED,
-            task=ModelTask.IMAGE_TO_TEXT,
-            source=ModelSource.HUGGINGFACE,
-            framework=Framework.PYTORCH,
+            task=ModelTask.CV_IMAGE_TO_TEXT,
+            source=ModelSource.HUGGING_FACE,
+            framework=Framework.TORCH,
         )
 
     def load_model(self, **kwargs):
