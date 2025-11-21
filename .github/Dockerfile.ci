@@ -5,7 +5,7 @@ ARG MLIR_TAG=latest
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:${MLIR_TAG} AS ci-build-with-venv
 
 # make dummy image without venv
-FROM ci-buid-with-venv AS ci-build
+FROM ci-build-with-venv AS ci-build
 
 # In the ci-build stage, create a clean copy without venv
 RUN mkdir -p /tmp/clean-toolchain && \
