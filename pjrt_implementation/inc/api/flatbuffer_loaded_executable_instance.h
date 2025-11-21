@@ -23,6 +23,7 @@
 #include "api/device_instance.h"
 #include "api/executable_image.h"
 #include "api/loaded_executable_instance.h"
+#include "client_instance.h"
 #include "utils/status.h"
 
 namespace tt::pjrt {
