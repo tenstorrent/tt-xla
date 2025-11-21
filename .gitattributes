@@ -1,0 +1,10 @@
+device_out_conv.pt filter=lfs diff=lfs merge=lfs -text
+device_out_sig.pt filter=lfs diff=lfs merge=lfs -text
+golden_out_comb_0.pt filter=lfs diff=lfs merge=lfs -text
+golden_out_comb_1.pt filter=lfs diff=lfs merge=lfs -text
+golden_out_conv.pt filter=lfs diff=lfs merge=lfs -text
+golden_out_sig.pt filter=lfs diff=lfs merge=lfs -text
+device_out_comb_0.pt filter=lfs diff=lfs merge=lfs -text
+device_out_comb_1.pt filter=lfs diff=lfs merge=lfs -text
+conv_ip.pt filter=lfs diff=lfs merge=lfs -text
+sig_ip.pt filter=lfs diff=lfs merge=lfs -text
