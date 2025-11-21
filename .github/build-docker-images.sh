@@ -13,7 +13,7 @@ if [[ "$2" == "--check-only" ]]; then
 fi
 
 # Get tt-mlir and ensure the required docker image exists
-TT_MLIR_PATH=.tt-mlir
+TT_MLIR_PATH=.tmp/tt-mlir
 cwd=$(pwd)
 if [ ! -d $TT_MLIR_PATH ]; then
     git clone https://github.com/tenstorrent/tt-mlir.git $TT_MLIR_PATH --quiet
@@ -32,7 +32,7 @@ fi
 
 if [ "$CHECK_ONLY" = false ]; then
     echo "Ensure tt-mlir docker images with tag: $MLIR_DOCKER_TAG exist"
-    ./.github/build-docker-image.sh ci
+    ./.github/build-docker-images.sh ci
 fi
 
 cd $cwd
