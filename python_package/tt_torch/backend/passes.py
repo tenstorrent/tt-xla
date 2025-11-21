@@ -13,9 +13,6 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     This must be done before graph decompositions because we are replacing
     torch operations directly.
     """
-    if not composite_ops.COMPOSITE_OPS_ALLOWED:
-        return
-
     for node in gm.graph.nodes:
         if node.target in composite_ops.replacements:
             node.target = composite_ops.replacements[node.target]

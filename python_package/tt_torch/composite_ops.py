@@ -22,9 +22,6 @@ Since we want to run torch models wihout modifying them, we will substitute torc
 anything in model in order to get performance improvement.
 """
 
-# Boolean flag to allow/disable handle_composite_ops
-COMPOSITE_OPS_ALLOWED = False
-
 
 def composite_gelu(input: Tensor, approximate: str = "none") -> Tensor:
     """

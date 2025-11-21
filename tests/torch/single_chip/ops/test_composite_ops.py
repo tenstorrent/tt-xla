@@ -4,8 +4,8 @@
 
 import pytest
 import torch
+import torch_xla
 import torch_xla.core.xla_model as xm
-import tt_torch.composite_ops as composite_ops
 from infra.comparators.torch_comparator import TorchComparator
 from infra.utilities.types import Framework
 from torch.nn import functional as F
@@ -26,7 +26,8 @@ def test_composite_gelu(approx):
             return composite_gelu(x, approx)
 
     # Disable handle_composite_ops for this test
-    composite_ops.COMPOSITE_OPS_ALLOWED = False
+    options = {"enable_composite_ops": False}
+    torch_xla.set_custom_compile_options(options)
 
     input = torch.randn(32, 32)
 
@@ -53,7 +54,8 @@ def test_composite_gelu_eager(approx):
             return composite_gelu(x, approx)
 
     # Disable handle_composite_ops for this test
-    composite_ops.COMPOSITE_OPS_ALLOWED = False
+    options = {"enable_composite_ops": False}
+    torch_xla.set_custom_compile_options(options)
 
     input = torch.randn(32, 32)
 
@@ -82,7 +84,8 @@ def test_patched_gelu(approx):
             return F.gelu(input=x, approximate=approx)
 
     # Enable handle_composite_ops for this test
-    composite_ops.COMPOSITE_OPS_ALLOWED = True
+    options = {"enable_composite_ops": True}
+    torch_xla.set_custom_compile_options(options)
 
     input = torch.randn(32, 32)
 
@@ -110,7 +113,8 @@ def test_patched_gelu_eager(approx):
             return F.gelu(input=x, approximate=approx)
 
     # Enable handle_composite_ops for this test
-    composite_ops.COMPOSITE_OPS_ALLOWED = True
+    options = {"enable_composite_ops": True}
+    torch_xla.set_custom_compile_options(options)
 
     input = torch.randn(32, 32)
 
@@ -138,7 +142,8 @@ def test_patched_gelu_op_test(approx):
         return F.gelu(x, approximate=approx)
 
     # Enable handle_composite_ops for this test
-    composite_ops.COMPOSITE_OPS_ALLOWED = True
+    options = {"enable_composite_ops": True}
+    torch_xla.set_custom_compile_options(options)
 
     run_op_test_with_random_inputs(
         gelu_with_approx, [(32, 32)], framework=Framework.TORCH
@@ -157,7 +162,8 @@ def test_rmsnorm(use_weight):
             return torch.nn.functional.rms_norm(x, self.normalized_shape, weight)
 
     # Enable handle_composite_ops for this test
-    composite_ops.COMPOSITE_OPS_ALLOWED = True
+    options = {"enable_composite_ops": True}
+    torch_xla.set_custom_compile_options(options)
 
     normalized_shape = (32,)
     input_shape = (4, 32)
@@ -192,7 +198,8 @@ def test_composite_rms_norm(use_weight):
             return composite_rms_norm(x, self.normalized_shape, weight)
 
     # Disable handle_composite_ops for this test
-    composite_ops.COMPOSITE_OPS_ALLOWED = False
+    options = {"enable_composite_ops": False}
+    torch_xla.set_custom_compile_options(options)
 
     normalized_shape = (32,)
     input_shape = (4, 32)
