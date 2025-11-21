@@ -31,17 +31,55 @@ Correct usage pattern:
     nodes_info = extract_nodes_info(graph)  # Extract after finalization
 
 """
+import ast
 import torch
 import torch_xla
 import types
 from torch.utils._python_dispatch import TorchDispatchMode
 from dataclasses import dataclass
 
-UNKNOWN_LOCATION = "unknown/unknown(unknown:0)/"
 
 DEBUG_PRINT = True
 
-import ast
+
+@dataclass
+class EmitModuleLoc:
+    module_class: str
+    module_name: str
+
+@dataclass
+class EmitLoc:
+    modules: list[EmitModuleLoc]
+    func_path: str
+    func_name: str
+    op_line_num: int
+    op_name: str
+
+    # Not sure if should just use UnknownLoc instead of making our own
+    @staticmethod
+    def make_unknown() -> 'EmitLoc':
+        return EmitLoc(
+            modules=[],
+            func_path="unknown",
+            func_name="unknown",
+            op_line_num=-1,
+            op_name="unknown",
+        )
+
+    def to_string(self) -> str:
+        SEPARATOR = "|"
+        modules_list = []
+        for mod in self.modules:
+            modules_list.append(f"{mod.module_class}[{mod.module_name}]")
+        # Add separator to the end of the modules_str
+        modules_str = SEPARATOR.join(modules_list) + SEPARATOR if modules_list else ""
+        return f"{modules_str}{self.func_path}{SEPARATOR}{self.func_name}{SEPARATOR}{self.op_line_num}{SEPARATOR}{self.op_name}"
+
+    def __repr__(self) -> str:
+        return self.to_string()
+
+    def __str__(self) -> str:
+        return self.to_string()
 
 def _find_enclosing_function(full_path: str, line_num: int, mode: str = 'simple') -> str:
     """
@@ -115,56 +153,10 @@ def _find_enclosing_function(full_path: str, line_num: int, mode: str = 'simple'
     else:
         raise ValueError('Invalid mode for _find_enclosing_function: choose "simple" or "ast"')
 
-@dataclass
-class LocationModuleCodegen:
-    module_class: str
-    module_name: str
 
-@dataclass
-class LocationCodegen:
-    modules: list[LocationModuleCodegen]
-    func_path: str
-    func_name: str
-    op_line_num: int
-    op_name: str
-
-    @staticmethod
-    def make_unknown() -> 'LocationCodegen':
-        return LocationCodegen(
-            modules=[],
-            func_path="unknown",
-            func_name="unknown",
-            op_line_num=-1,
-            op_name="unknown",
-        )
-
-    def to_string(self) -> str:
-        SEPARATOR = "|"
-        modules_list = []
-        for mod in self.modules:
-            modules_list.append(f"{mod.module_class}[{mod.module_name}]")
-        # Add separator to the end of the modules_str
-        modules_str = SEPARATOR.join(modules_list) + SEPARATOR if modules_list else ""
-        return f"{modules_str}{self.func_path}{SEPARATOR}{self.func_name}{SEPARATOR}{self.op_line_num}{SEPARATOR}{self.op_name}"
-
-    def __repr__(self) -> str:
-        return self.to_string()
-
-    def __str__(self) -> str:
-        return self.to_string()
-
-
-def _extract_source_info(node: torch.fx.Node) -> LocationCodegen:
-    """
-    Extract source file, line number, and function name from node's stack trace.
-    Processes the stack trace in reverse to find the DEEPEST call (innermost module).
-    Stack trace line format: '  File "/path/to/file.py", line 42, in forward'
-
-    Returns:
-        LocationCodegen
-    """
+def _extract_source_and_module_hierarchy_info(node: torch.fx.Node) -> EmitLoc:
     if "stack_trace" not in node.meta or not node.meta["stack_trace"]:
-        return LocationCodegen.make_unknown()
+        return EmitLoc.make_unknown()
 
     global DEBUG_PRINT
 
@@ -172,6 +164,9 @@ def _extract_source_info(node: torch.fx.Node) -> LocationCodegen:
     lines = node.meta["stack_trace"].strip().split("\n")
     DEBUG_PRINT and print(f"Printing lines:")
     for line in reversed(lines):
+        if len(lines) > 1:
+            print(f"********************************************************* FOUND LINES: {len(lines)}")
+
         DEBUG_PRINT and print(f"  line: {line}")
         stripped = line.strip()
 
@@ -194,7 +189,7 @@ def _extract_source_info(node: torch.fx.Node) -> LocationCodegen:
             DEBUG_PRINT and print(f"  func_path_ast: {func_path_ast}, {func_name_ast}")
             raise ValueError(f"Function path mismatch for {full_path}:{line_num} between simple and ast modes")
 
-        location_codegen = LocationCodegen(
+        location_codegen = EmitLoc(
             modules=[],
             func_path=func_path,
             func_name=func_name,
@@ -206,7 +201,7 @@ def _extract_source_info(node: torch.fx.Node) -> LocationCodegen:
         # return full_path, line_num, func_path, func_name
         return location_codegen
 
-    return LocationCodegen.make_unknown()
+    return EmitLoc.make_unknown()
 
 
 def _extract_module_hierarchy(node: torch.fx.Node, location_codegen: LocationCodegen) -> LocationCodegen:
@@ -242,22 +237,10 @@ def _extract_module_hierarchy(node: torch.fx.Node, location_codegen: LocationCod
     return location_codegen
 
 
-def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
-    """
-    Extract node metadata from FX graph nodes.
-
-    Returns ordered list of module hierarchy for call_function nodes only.
-    Filtering matches dispatch behavior: only call_function nodes dispatch operations.
-
-    Format: "ModuleClass[instance]/SubModule[instance]/func_name(file.py:line)/"
-
-    This prefix is concatenated with operation type by torch-xla:
-    "Linear[linear]/forward(model.py:42)/" + "aten__mm"
-    → "Linear[linear]/forward(model.py:42)/aten__mm"
-    """
+def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[EmitLoc]:
     global DEBUG_PRINT
 
-    nodes_info = []
+    emit_locs = []
 
     for node in graph_module.graph.nodes:
 
@@ -274,30 +257,27 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
             DEBUG_PRINT and print(f"  SKIPPING node: {node.op} - {node.name}")
             continue
 
+        # If no metadata is available, use unknown location
         if not hasattr(node, "meta") or not node.meta:
             DEBUG_PRINT and print(f"  NO meta for node: {node.op} - {node.name}")
-            nodes_info.append(UNKNOWN_LOCATION)
+            emit_locs.append(EmitLoc.make_unknown())
             continue
 
-        # Check if node.target is <class 'builtin_function_or_method'>
+        # Skip if node.target is <class 'builtin_function_or_method'>
         if isinstance(node.target, types.BuiltinFunctionType):
             DEBUG_PRINT and print(f"  SKIPPING node: {node.op} - {node.name} because it is a builtin function")
-            # nodes_info.append(UNKNOWN_LOCATION)
             continue
         DEBUG_PRINT and print(f"  node.target: {node.target}")
 
         # Extract metadata components
-        location_codegen = _extract_source_info(node)
-        location_codegen = _extract_module_hierarchy(node, location_codegen)
+        emit_loc = _extract_source_and_module_hierarchy_info(node)
 
-        # if location_codegen.op_name == "aten__convolution_overrideable_input":
-        DEBUG_PRINT and print(f"  HERE!!")
-        DEBUG_PRINT and print(f"  location_codegen: {location_codegen}")
+        DEBUG_PRINT and print(f"  here emit_loc: {emit_loc}")
 
         # Build location string if we have any metadata
-        nodes_info.append(location_codegen.to_string())
+        emit_locs.append(emit_loc)
 
-    return nodes_info
+    return emit_locs
 
 
 class MetadataDispatchMode(TorchDispatchMode):
