@@ -252,6 +252,22 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
           src_buffer->m_data_type);
+  DLOG_F(LOG_DEBUG,
+         "BufferInstance::copyFromBuffer: src UID=%zu (device_id=%s) -> dst "
+         "UID=%zu (device_id=%s). src detail: shape=%s, "
+         "host_runtime_tensor.has_value()=%d, "
+         "prepared_runtime_tensor.has_value()=%d.",
+         src_buffer->m_uid,
+         src_buffer->m_device_id.has_value()
+             ? std::to_string(src_buffer->m_device_id.value()).c_str()
+             : "null",
+         m_uid,
+         m_device_id.has_value() ? std::to_string(m_device_id.value()).c_str()
+                                 : "null",
+         tt::pjrt::utils::to_string(src_buffer->m_dimensions).c_str(),
+         src_buffer->m_host_runtime_tensor.has_value(),
+         src_buffer->m_prepared_runtime_tensor.has_value());
+
   std::uint32_t element_size =
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   std::vector<std::uint32_t> shape = calculateShape(
@@ -259,12 +275,19 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
   std::vector<std::uint32_t> strides = calculateStrides(
       src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
 
-  m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
-      /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
+  if (src_buffer->m_host_runtime_tensor != std::nullopt) {
+    m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
+        /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
 
-  tt::runtime::memcpy(*m_host_runtime_tensor,
-                      *src_buffer->m_host_runtime_tensor);
-  tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
+    tt::runtime::memcpy(*m_host_runtime_tensor,
+                        *src_buffer->m_host_runtime_tensor);
+    tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
+  } else if (src_buffer->m_prepared_runtime_tensor != std::nullopt) {
+    m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
+        /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
+  } else {
+    throw std::runtime_error("Source buffer has no data to copy from.");
+  }
 
   markAsDataReady();
 }
