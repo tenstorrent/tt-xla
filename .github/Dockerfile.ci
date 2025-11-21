@@ -8,6 +8,7 @@ FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:${MLIR_TAG} AS ci-build
 FROM ci-build-with-venv AS ci-build
 
 # In the ci-build stage, create a clean copy without venv
+ENV TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
 RUN mkdir -p /tmp/clean-toolchain && \
     rsync -av --exclude='venv/' $TTMLIR_TOOLCHAIN_DIR/ /tmp/clean-toolchain/
 
