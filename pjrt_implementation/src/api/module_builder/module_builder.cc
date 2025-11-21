@@ -832,19 +832,13 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Optimizer passes are not supported in distributed runtime.
   if (tt::runtime::getCurrentHostRuntime() ==
           tt::runtime::HostRuntime::Distributed &&
-      compile_options.enable_optimizer) {
+      compile_options.optimization_level > 0) {
     DLOG_F(ERROR, "Optimizer passes are not supported in distributed runtime");
     return tt_pjrt_status::kInternal;
   }
 
-  options.optimizerPassEnabled = compile_options.enable_optimizer;
-  options.memoryLayoutAnalysisEnabled =
-      compile_options.enable_memory_layout_analysis;
-  options.l1InterleavedFallbackAnalysisEnabled =
-      compile_options.enable_l1_interleaved;
+  options.optimizationLevel = compile_options.optimization_level;
   options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
-  options.enableFusingConv2dWithMultiplyPattern =
-      compile_options.enable_fusing_conv2d_with_multiply_pattern;
   options.enableTrace = compile_options.enable_trace;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
@@ -860,7 +854,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   // Use the `options.devicePtr` to pass the device pointer to the optimizer in
   // order to avoid closing and reopening the device afterwards.
-  if (compile_options.enable_optimizer) {
+  // Optimizer is enabled for optimization_level >= 1
+  if (compile_options.optimization_level >= 1) {
     tt::runtime::Device submesh_for_optim =
         client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
     options.devicePtr =
