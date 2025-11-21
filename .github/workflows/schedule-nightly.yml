@@ -80,9 +80,23 @@ jobs:
     secrets: inherit
     with:
       project: tt-xla
-      docker-image: ${{ needs.build-image.outputs.docker-image }}
+      run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      run_id_source: tt-xla
       ref: main
 
+  release-nightly:
+    needs: 
+      - build-image
+      - build-ttxla
+      # - test-forge-models-passing
+    
+    uses: tenstorrent/tt-forge/.github/workflows/release.yml@main
+    secrets: inherit
+    with:
+      repo: ${{ github.repository }}
+      release_type: nightly
+      run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+  
   fail-notify:
     if: always()
     needs:
