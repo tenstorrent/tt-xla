@@ -9,6 +9,7 @@ permissions:
   packages: write
   checks: write
   id-token: write
+  actions: write
 
 jobs:
   build-image:
@@ -79,7 +80,7 @@ jobs:
     secrets: inherit
     with:
       project: tt-xla
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker-image: ${{ needs.build-image.outputs.docker-image }}
       ref: main
 
   fail-notify:
