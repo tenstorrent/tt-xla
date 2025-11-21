@@ -21,7 +21,7 @@ from transformers.models.llama.modeling_llama import (
 )
 from utils import failed_runtime
 
-from tests.utils import is_llmbox
+from tests.utils import is_dual_chip, is_llmbox
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader as BertModelLoader,
 )
@@ -355,7 +355,7 @@ def test_llama_create_heads(variant, variant_config, seq_len, request):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@pytest.mark.dual_chip
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -363,7 +363,7 @@ def test_llama_create_heads(variant, variant_config, seq_len, request):
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 def test_llama_attention(variant, variant_config, seq_len, request):
-    if "70b" in str(variant) and not is_llmbox(request):
+    if "70b" in str(variant) and not is_dual_chip(request):
         pytest.xfail("70B models don't fit on device")
 
     if "405b" in str(variant):
@@ -423,7 +423,7 @@ def test_llama_attention(variant, variant_config, seq_len, request):
     dropout = 0.0
     scaling = attention.scaling
 
-    if is_llmbox(request):
+    if is_dual_chip(request):
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -1065,7 +1065,7 @@ def test_bert_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@pytest.mark.dual_chip
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1073,7 +1073,7 @@ def test_bert_create_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
-    if not is_llmbox(request) and (
+    if not is_dual_chip(request) and (
         str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
     ):
         pytest.xfail("Variant doesn't fit on device")
@@ -1085,7 +1085,7 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, request):
     attention = model.model.layers[0].self_attn
 
     # Determine batch size and mesh configuration based on attention heads
-    if is_llmbox(request):
+    if is_dual_chip(request):
         num_devices = xr.global_runtime_device_count()
         num_heads = model.config.num_attention_heads
 
@@ -1243,14 +1243,14 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@pytest.mark.dual_chip
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_attention_decode(variant, variant_config, request):
-    if not is_llmbox(request) and (
+    if not is_dual_chip(request) and (
         str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
     ):
         pytest.xfail("Variant doesn't fit on device")
@@ -1262,7 +1262,7 @@ def test_qwen2_5_attention_decode(variant, variant_config, request):
     attention = model.model.layers[0].self_attn
 
     # Determine batch size and mesh configuration based on attention heads
-    if is_llmbox(request):
+    if is_dual_chip(request):
         num_devices = xr.global_runtime_device_count()
         num_heads = model.config.num_attention_heads
 
@@ -1339,7 +1339,7 @@ def test_qwen2_5_attention_decode(variant, variant_config, request):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@pytest.mark.dual_chip
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1347,7 +1347,7 @@ def test_qwen2_5_attention_decode(variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_attention(variant, variant_config, seq_len, request):
-    if not is_llmbox(request) and (
+    if not is_dual_chip(request) and (
         str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
     ):
         pytest.xfail("Variant doesn't fit on device")
@@ -1386,7 +1386,7 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, request):
     attention = model.model.layers[0].self_attn
 
     # Determine batch size and mesh configuration based on attention heads
-    if is_llmbox(request):
+    if is_dual_chip(request):
         num_devices = xr.global_runtime_device_count()
         num_heads = model.config.num_attention_heads
 
@@ -1475,7 +1475,7 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, request):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@pytest.mark.dual_chip
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1483,7 +1483,7 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, request):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_attention_prefill(seq_len, variant, variant_config, request):
-    if not is_llmbox(request) and (str(variant) == "google/gemma-2-27b-it"):
+    if not is_dual_chip(request) and (str(variant) == "google/gemma-2-27b-it"):
         pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
@@ -1505,7 +1505,7 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, request):
 
     past_key_states = None
 
-    if is_llmbox(request):
+    if is_dual_chip(request):
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -1597,14 +1597,14 @@ def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@pytest.mark.dual_chip
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gemma").items(),
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_attention_decode(variant, variant_config, request):
-    if not is_llmbox(request) and (str(variant) == "google/gemma-2-27b-it"):
+    if not is_dual_chip(request) and (str(variant) == "google/gemma-2-27b-it"):
         pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
@@ -1635,7 +1635,7 @@ def test_gemma_attention_decode(variant, variant_config, request):
     )
     past_key_states = static_cache
 
-    if is_llmbox(request):
+    if is_dual_chip(request):
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -1663,7 +1663,7 @@ def test_gemma_attention_decode(variant, variant_config, request):
 
 
 @pytest.mark.nightly
-@pytest.mark.llmbox
+@pytest.mark.dual_chip
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1671,7 +1671,7 @@ def test_gemma_attention_decode(variant, variant_config, request):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_attention(variant, variant_config, seq_len, request):
-    if not is_llmbox(request) and (str(variant) == "google/gemma-2-27b-it"):
+    if not is_dual_chip(request) and (str(variant) == "google/gemma-2-27b-it"):
         pytest.xfail("Variant doesn't fit on device")
 
     xr.set_device_type("TT")
@@ -1728,7 +1728,7 @@ def test_gemma_attention(variant, variant_config, seq_len, request):
     dropout = 0.0
     scaling = attention.scaling
 
-    if is_llmbox(request):
+    if is_dual_chip(request):
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
