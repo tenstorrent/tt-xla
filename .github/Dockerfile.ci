@@ -1,33 +1,15 @@
 ARG FROM_TAG=latest
+ARG MLIR_TAG=latest
 
-FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci-build
-SHELL ["/bin/bash", "-c"]
+# tt-mlir ci with full toolchain
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:${MLIR_TAG} AS ci-build-with-venv
 
-# Create a directory for the build and toolchain
-ENV PROJECT_NAME=tt-xla
-ENV BUILD_DIR=/home/build
-ENV TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+# make dummy image without venv
+FROM ci-buid-with-venv AS ci-build
 
-RUN echo "Building $PROJECT_NAME at $GIT_SHA"
-
-RUN mkdir -p $BUILD_DIR && \
-    mkdir -p $TTMLIR_TOOLCHAIN_DIR
-
-# Copy the project from host, cloned in build-image.yml
-COPY . $BUILD_DIR/$PROJECT_NAME
-
-WORKDIR $BUILD_DIR/$PROJECT_NAME
-
-# Show last commit
-RUN git log -1
-
-# Build the toolchain
-RUN cmake -B toolchain -DTOOLCHAIN=ON third_party/ && \
-    cd third_party/tt-mlir/src/tt-mlir/ && \
-    source env/activate && \
-    cmake -B env/build env && \
-    cmake --build env/build && \
-    chmod -R 777 $TTMLIR_TOOLCHAIN_DIR
+# In the ci-build stage, create a clean copy without venv
+RUN mkdir -p /tmp/clean-toolchain && \
+    rsync -av --exclude='venv/' $TTMLIR_TOOLCHAIN_DIR/ /tmp/clean-toolchain/
 
 # CI image build
 FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci
@@ -35,11 +17,9 @@ FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci
 # Copy the TTMLIR_TOOLCHAIN_DIR from the previous stage
 ENV TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
 RUN echo "Copying from ci-build stage $TTMLIR_TOOLCHAIN_DIR"
-COPY --from=ci-build $TTMLIR_TOOLCHAIN_DIR $TTMLIR_TOOLCHAIN_DIR
-RUN rm -rf $TTMLIR_TOOLCHAIN_DIR/venv
+COPY --from=ci-build /tmp/clean-toolchain $TTMLIR_TOOLCHAIN_DIR
 
 RUN du -h --max-depth=2 $TTMLIR_TOOLCHAIN_DIR
-
 
 # Ird image build
 FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ird
@@ -49,7 +29,7 @@ SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
 RUN echo "Copying from ci-build stage $TTMLIR_TOOLCHAIN_DIR"
-COPY --from=ci-build $TTMLIR_TOOLCHAIN_DIR $TTMLIR_TOOLCHAIN_DIR
+COPY --from=ci-build-with-venv $TTMLIR_TOOLCHAIN_DIR $TTMLIR_TOOLCHAIN_DIR
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
