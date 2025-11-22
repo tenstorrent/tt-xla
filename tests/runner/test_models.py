@@ -130,9 +130,10 @@ def test_all_models_torch(
                 Comparator._assert_on_results(comparison_result)
 
         except Exception as e:
+            out = capteesys.readouterr().out
             err = capteesys.readouterr().err
             # Record runtime failure info so it can be reflected in report properties
-            update_test_metadata_for_exception(test_metadata, e, stderr=err)
+            update_test_metadata_for_exception(test_metadata, e, stdout=out, stderr=err)
             raise
         finally:
             # If there are multiple comparison results, only record the first one because the

@@ -199,7 +199,7 @@ def parse_last_bringup_stage() -> BringupStatus | None:
 
 
 def update_test_metadata_for_exception(
-    test_metadata, exc: Exception, stderr: str
+    test_metadata, exc: Exception, stdout: str, stderr: str
 ) -> None:
     """
     Inspect exception message and set `failing_reason` and `runtime_reason` on `test_metadata`.
@@ -210,7 +210,9 @@ def update_test_metadata_for_exception(
         message = repr(exc)
 
     # Find failing reason by raised exception
-    failing_reason = FailingReasonsFinder.find_reason_by_exception(exc)
+    failing_reason = FailingReasonsFinder.find_reason_by_exception(
+        exc, stdout=stdout, stderr=stderr
+    )
 
     # TODO: remove this once we have a better way to set the reason dynamically.
     # and handle it in record_model_test_properties.
