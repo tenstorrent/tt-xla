@@ -30,21 +30,24 @@ jobs:
     outputs:
       docker-image: ${{ steps.check.outputs.docker-image }}
       docker-image-base: ${{ steps.check.outputs.docker-image-base }}
+      tt-mlir-sha: ${{ steps.check.outputs.tt-mlir-sha }}
     steps:
       - uses: actions/checkout@v4
-      - name: Override tt-mlir SHA mlir_override is set
-        if: ${{ inputs.mlir_override }}
-        shell: bash
-        run: |
-            # Update the CMakeLists.txt file with the new SHA
-            sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
       - name: Check if Docker image already exists
         id: check
         shell: bash
         run: |
+          if [ -z "${{ inputs.mlir_override }}" ]; then
+            tt_mlir_sha=$(grep -oP 'set\(TT_MLIR_VERSION "\K[^"]+' third_party/CMakeLists.txt)
+            echo "No mlir_override provided, using tt-mlir version from CMakeLists.txt: $tt_mlir_sha"
+          else
+            tt_mlir_sha="${{ inputs.mlir_override }}"
+            echo "Using tt-mlir with override: $tt_mlir_sha"
+          fi
+          echo "tt-mlir-sha=$tt_mlir_sha" >> $GITHUB_OUTPUT
           # Output the image name
           set +e  # Don't exit on command failure
-          .github/build-docker-images.sh --check-only | tee docker.log
+          .github/build-docker-images.sh $tt_mlir_sha --check-only | tee docker.log
           EXIT_CODE=$?
           if [ $EXIT_CODE -eq 0 ]; then
             DOCKER_CI_IMAGE=$(tail -n 1 docker.log)
@@ -58,19 +61,15 @@ jobs:
   build-image:
     needs: check-if-docker-exist
     if: needs.check-if-docker-exist.outputs.docker-image == ''
-    runs-on: tt-ubuntu-2204-large-stable
+    runs-on: docker-builder
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
       docker-image-base: ${{ steps.build.outputs.docker-image-base }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Override tt-mlir SHA mlir_override is set
-        if: ${{ inputs.mlir_override }}
-        shell: bash
-        run: |
-            # Update the CMakeLists.txt file with the new SHA
-            sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
+      - name: Fix workspace permissions issue
+        run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
 
+      - uses: actions/checkout@v4
       - name: Verify third_party directory
         shell: bash
         run: |
@@ -90,7 +89,7 @@ jobs:
         run: |
           # Output the image name
           set pipefail
-          .github/build-docker-images.sh | tee docker.log
+          .github/build-docker-images.sh "${{needs.check-if-docker-exist.outputs.tt-mlir-sha}}" | tee docker.log
           DOCKER_CI_IMAGE=$(tail -n 1 docker.log)
           echo "DOCKER_CI_IMAGE $DOCKER_CI_IMAGE"
           echo "docker-image=$DOCKER_CI_IMAGE" >> "$GITHUB_OUTPUT"
