@@ -13,6 +13,7 @@ import torch.nn as nn
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
+from tt_torch import codegen_py
 
 # Set up XLA runtime for TT backend.
 xr.set_device_type("TT")
@@ -32,26 +33,14 @@ class Model(nn.Module):
         return torch.sum(x**2)
 
 
-# Set up compile options to trigger code generation.
-options = {
-    # Code generation options
-    "backend": "codegen_py",
-    # Optimizer options
+# Any compile options you could specify when executing the model normally can also be used with codegen.
+extra_options = {
     # "enable_optimizer": True,
     # "enable_memory_layout_analysis": True,
     # "enable_l1_interleaved": False,
-    # Tensor dumping options
-    # "export_tensors": True,
-    "export_path": "model",
 }
-torch_xla.set_custom_compile_options(options)
 
-# Compile for TT, then move the model and it's inputs to device.
-device = xm.xla_device()
 model = Model()
-model.compile(backend="tt")
-model = model.to(device)
-x = torch.randn(32, 32).to(device)
+x = torch.randn(32, 32)
 
-# Run the model. This triggers code generation.
-output = model(x)
+codegen_py(model, x, export_path="model", compiler_options=extra_options)
