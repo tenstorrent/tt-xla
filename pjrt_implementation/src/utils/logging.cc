@@ -25,7 +25,9 @@ void initializeLogging() {
     return;
   }
 
-  if (strcmp(loguru_verbosity, "VERBOSE") == 0) {
+  if (strcmp(loguru_verbosity, "VERBOSE_TREE") == 0) {
+    loguru::g_stderr_verbosity = LOG_VERBOSE_TREE;
+  } else if (strcmp(loguru_verbosity, "VERBOSE") == 0) {
     loguru::g_stderr_verbosity = LOG_VERBOSE;
   } else if (strcmp(loguru_verbosity, "DEBUG") == 0) {
     loguru::g_stderr_verbosity = LOG_DEBUG;

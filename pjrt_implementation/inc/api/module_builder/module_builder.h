@@ -239,7 +239,14 @@ private:
                           const std::string &stage_name);
 
   // Enables IR printing between passes with VERBOSE or higher logger level.
-  static void enableVerboseIRPrinting(mlir::PassManager &pm);
+  static void enableVerboseIRPrinting(
+      mlir::PassManager &pm,
+      std::optional<std::string> source_name = std::nullopt,
+      std::optional<std::string> pipeline_name = std::nullopt);
+
+  // Extract source file name from MLIR module location information.
+  std::string
+  extractSourceName(const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) const;
 
   // Checks if a particular type is scalar.
   static bool isScalarType(mlir::Type type);
