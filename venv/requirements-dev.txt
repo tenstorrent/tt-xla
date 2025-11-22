@@ -50,7 +50,7 @@ ase==3.24.0 # For hippynn
 hippynn==0.0.3
 pycocotools # for yolox
 
-surya-ocr==0.13.0
+surya-ocr==0.15.4
 peft
 bi-lstm-crf==0.2.1
 yolov5
