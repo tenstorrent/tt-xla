@@ -54,7 +54,9 @@ def test_embed_qwen3():
 
     output_embedding = model.embed(prompts)
 
-    path = os.path.join(os.path.dirname(__file__), "qwen3_embedding_baseline.pt")
+    path = os.path.join(
+        os.path.dirname(__file__), "baseline/qwen3_embedding_baseline.pt"
+    )
     loaded_data = torch.load(path)
 
     for idx, (prompt, output) in enumerate(zip(prompts, output_embedding)):
