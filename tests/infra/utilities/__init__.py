@@ -10,4 +10,4 @@ from .jax_multichip_utils import (
     make_partition_spec,
 )
 from .types import Device, Framework, Mesh, Model, PyTree, ShardSpec, Tensor
-from .utils import random_image, random_tensor
+from .utils import random_image, random_tensor, sanitize_test_name
