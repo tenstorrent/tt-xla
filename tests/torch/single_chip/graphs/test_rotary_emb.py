@@ -8,43 +8,65 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
+from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding
+from transformers.models.qwen3.modeling_qwen3 import Qwen3RotaryEmbedding
 
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
 )
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
-    ModelLoader as QwenModelLoader,
+    ModelLoader as Qwen3ModelLoader,
 )
 
-llama_available_variants = LlamaModelLoader.query_available_variants()
-qwen_available_variants = QwenModelLoader.query_available_variants()
+MODEL_LOADER_MAP = {
+    "llama": LlamaModelLoader,
+    "qwen3": Qwen3ModelLoader,
+}
+
+AVAILABLE_VARIANT_MAP = {
+    "llama": [
+        "llama_3_8b",
+        "llama_3_1_8b",
+        "llama_3_2_1b",
+        "llama_3_2_3b",
+        "huggyllama_7b",
+        "TinyLlama_v1.1",
+    ],
+    "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b"],
+}
+
+
+def get_available_variants(model_name):
+    ModelLoader = MODEL_LOADER_MAP[model_name]
+    available_variants = ModelLoader.query_available_variants()
+
+    # Filter to only include variants that match names in AVAILABLE_VARIANT_MAP
+    if model_name in AVAILABLE_VARIANT_MAP:
+        allowed_variant_names = set(AVAILABLE_VARIANT_MAP[model_name])
+        return {
+            variant_key: variant_config
+            for variant_key, variant_config in available_variants.items()
+            if str(variant_key) in allowed_variant_names
+        }
+
+    return available_variants
 
 
 @pytest.mark.push
 @pytest.mark.parametrize(
-    "variant, variant_config",
-    llama_available_variants.items(),
-    ids=[str(k) for k in llama_available_variants.keys()],
+    "variant,variant_config",
+    get_available_variants("llama").items(),
+    ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 @pytest.mark.parametrize("seq_len", [1024])
 def test_llama_RoPE(seq_len, variant, variant_config):
-    # Xfail 70B models that don't fit on device
-    if "70b" in str(variant):
-        pytest.xfail("70B models don't fit on device")
-
-    # Will download huge amount of data and run out of disk space.
-    if "405b" in str(variant):
-        pytest.skip("405B variants too large for device and disk space")
-
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-
-    # extract RoPE module from model
-    RoPE = model.model.rotary_emb
+    config = loader.load_config()
+    RoPE = LlamaRotaryEmbedding(config).to(torch.bfloat16)
 
     # Create query tensors and position_ids for RoPE to operate on
-    num_query_heads = model.config.num_attention_heads
-    head_dim = model.config.head_dim
+    num_query_heads = config.num_attention_heads
+    head_dim = config.head_dim
 
     query_states = torch.randn(
         (1, num_query_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -56,28 +78,20 @@ def test_llama_RoPE(seq_len, variant, variant_config):
 
 @pytest.mark.push
 @pytest.mark.parametrize(
-    "variant, variant_config",
-    llama_available_variants.items(),
-    ids=[str(k) for k in llama_available_variants.keys()],
+    "variant,variant_config",
+    get_available_variants("llama").items(),
+    ids=[str(k) for k in get_available_variants("llama").keys()],
 )
 @pytest.mark.parametrize("seq_len", [1024])
 def test_llama_apply_rotary_emb(seq_len, variant, variant_config):
-    # Xfail 70B models that don't fit on device
-    if "70b" in str(variant):
-        pytest.xfail("70B models don't fit on device")
-
-    # Will download huge amount of data and run out of disk space.
-    if "405b" in str(variant):
-        pytest.skip("405B variants too large for device and disk space")
-
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
+    config = loader.load_config()
 
     from transformers.models.llama.modeling_llama import apply_rotary_pos_emb
 
-    num_query_heads = model.config.num_attention_heads
-    num_key_value_heads = model.config.num_key_value_heads
-    head_dim = model.config.head_dim
+    num_query_heads = config.num_attention_heads
+    num_key_value_heads = config.num_key_value_heads
+    head_dim = config.head_dim
 
     query_states = torch.randn(
         (1, num_query_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -97,27 +111,19 @@ def test_llama_apply_rotary_emb(seq_len, variant, variant_config):
 
 @pytest.mark.push
 @pytest.mark.parametrize(
-    "variant, variant_config",
-    qwen_available_variants.items(),
-    ids=[str(k) for k in qwen_available_variants.keys()],
+    "variant,variant_config",
+    get_available_variants("qwen3").items(),
+    ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 @pytest.mark.parametrize("seq_len", [1024])
 def test_qwen_3_RoPE(seq_len, variant, variant_config):
-    # Xfail 32B and 30B models that don't fit on device
-    if "32b" in str(variant):
-        pytest.xfail("32B models don't fit on device")
-    if "30b" in str(variant):
-        pytest.xfail("30B models don't fit on device")
-
-    loader = QwenModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-
-    # extract RoPE module from model
-    RoPE = model.model.rotary_emb
+    loader = Qwen3ModelLoader(variant=variant)
+    config = loader.load_config()
+    RoPE = Qwen3RotaryEmbedding(config).to(torch.bfloat16)
 
     # Create query tensors and position_ids for RoPE to operate on
-    num_query_heads = model.config.num_attention_heads
-    head_dim = model.config.head_dim
+    num_query_heads = config.num_attention_heads
+    head_dim = config.head_dim
 
     query_states = torch.randn(
         (1, num_query_heads, seq_len, head_dim), dtype=torch.bfloat16
@@ -129,26 +135,20 @@ def test_qwen_3_RoPE(seq_len, variant, variant_config):
 
 @pytest.mark.push
 @pytest.mark.parametrize(
-    "variant, variant_config",
-    qwen_available_variants.items(),
-    ids=[str(k) for k in qwen_available_variants.keys()],
+    "variant,variant_config",
+    get_available_variants("qwen3").items(),
+    ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 @pytest.mark.parametrize("seq_len", [1024])
 def test_qwen_3_apply_rotary_emb(seq_len, variant, variant_config):
-    # Xfail 32B and 30B models that don't fit on device
-    if "32b" in str(variant):
-        pytest.xfail("32B models don't fit on device")
-    if "30b" in str(variant):
-        pytest.xfail("30B models don't fit on device")
-
-    loader = QwenModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
+    loader = Qwen3ModelLoader(variant=variant)
+    config = loader.load_config()
 
     from transformers.models.qwen3.modeling_qwen3 import apply_rotary_pos_emb
 
-    num_query_heads = model.config.num_attention_heads
-    num_key_value_heads = model.config.num_key_value_heads
-    head_dim = model.config.head_dim
+    num_query_heads = config.num_attention_heads
+    num_key_value_heads = config.num_key_value_heads
+    head_dim = config.head_dim
 
     query_states = torch.randn(
         (1, num_query_heads, seq_len, head_dim), dtype=torch.bfloat16

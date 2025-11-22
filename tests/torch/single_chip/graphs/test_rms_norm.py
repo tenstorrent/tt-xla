@@ -7,6 +7,7 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
+from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
@@ -19,18 +20,9 @@ MODEL_LOADER_MAP = {
 AVAILABLE_VARIANT_MAP = {
     "llama": [
         "llama_3_8b",
-        "llama_3_8b_instruct",
         "llama_3_1_8b",
-        "llama_3_1_8b_instruct",
-        "llama_3_1_70b",
-        "llama_3_1_70b_instruct",
-        "llama_3_1_405b",
-        "llama_3_1_405b_instruct",
         "llama_3_2_1b",
-        "llama_3_2_1b_instruct",
         "llama_3_2_3b",
-        "llama_3_2_3b_instruct",
-        "llama_3_3_70b_instruct",
         "huggyllama_7b",
         "TinyLlama_v1.1",
     ],
@@ -63,23 +55,16 @@ def get_available_variants(model_name):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_rms_norm(seq_len, variant, variant_config, request):
-    if "70b" in str(variant):
-        pytest.xfail("70B models don't fit on device")
-
-    # Will download huge amount of data and run out of disk space.
-    if "405b" in str(variant):
-        pytest.skip("405B variants too large for device and disk space")
-
+def test_llama_rms_norm(seq_len, variant, variant_config):
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
-    rms_norm = model.model.norm
+    config = loader.load_config()
+    rms_norm = LlamaRMSNorm(config.hidden_size).to(torch.bfloat16)
 
     batch_size = 1
     hidden_states = torch.randn(
-        (batch_size, seq_len, model.config.hidden_size), dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
 
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))

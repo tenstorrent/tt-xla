@@ -112,6 +112,9 @@ public:
   tt::runtime::Device
   getOrCreateMeshDevice(const std::vector<uint32_t> &target_mesh_shape);
 
+  // Closes currently opened mesh device and submesh device, if any.
+  void closeMeshDevice();
+
   // Returns the optimizer submesh device of the provided shape. If there is
   // already opened optimizer submesh and its shape matches the provided shape,
   // it is returned. Otherwise, we close any previously opened optimizer submesh
@@ -122,7 +125,10 @@ public:
   tt::runtime::Device
   getOrCreateOptimizerSubmesh(const std::vector<uint32_t> &target_mesh_shape);
 
-  // Closes the currently opened optimizer submesh device, if any.
+  // Closes currently opened parrent mesh device.
+  void closeParentMesh();
+
+  // Closes currently opened optimizer submesh device, if any.
   void closeOptimizerSubmesh();
 
   // Compiles given mlir program.

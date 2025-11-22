@@ -165,13 +165,7 @@ ClientInstance::ClientInstance()
 
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
-
-  closeOptimizerSubmesh();
-
-  if (m_parent_mesh.has_value()) {
-    tt::runtime::closeMeshDevice(*m_parent_mesh);
-  }
-
+  closeMeshDevice();
   std::remove(m_cached_system_descriptor_path.data());
 }
 
@@ -512,14 +506,15 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
   // parallel). However, similar as to the case with reshape API, there were
   // some issues when testing sub-meshes, so for now we are always closing and
   // re-opening the whole mesh.
-  if (m_optimizer_submesh.has_value()) {
-    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
-    m_optimizer_submesh.reset();
-  }
-  tt::runtime::closeMeshDevice(*m_parent_mesh);
+  closeMeshDevice();
   m_parent_mesh = openMeshDevice(target_mesh_shape);
 
   return *m_parent_mesh;
+}
+
+void ClientInstance::closeMeshDevice() {
+  closeOptimizerSubmesh();
+  closeParentMesh();
 }
 
 tt::runtime::Device
@@ -566,8 +561,17 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   return tt::runtime::openMeshDevice(options);
 }
 
+void ClientInstance::closeParentMesh() {
+  if (m_parent_mesh.has_value()) {
+    DLOG_F(LOG_DEBUG, "Closing parent mesh.");
+    tt::runtime::closeMeshDevice(*m_parent_mesh);
+    m_parent_mesh.reset();
+  }
+}
+
 void ClientInstance::closeOptimizerSubmesh() {
   if (m_optimizer_submesh.has_value()) {
+    DLOG_F(LOG_DEBUG, "Closing optimizer submesh.");
     tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
     m_optimizer_submesh.reset();
   }

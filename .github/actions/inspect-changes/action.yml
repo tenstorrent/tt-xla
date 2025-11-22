@@ -98,10 +98,14 @@ runs:
           run_pr_tests=true
         fi
 
-        # Check if branch name is "uplift"
-        if [[ ${{ github.event.pull_request.head.ref == 'uplift' }} ]]; then
+        # Check if branch name is "uplift" or "uplift-forge-models"
+        if [[ "${GITHUB_HEAD_REF}" == "uplift" || "${GITHUB_HEAD_REF}" == "uplift-forge-models" ]]; then
           run_uplift_model_tests=true
         fi
+
+        # Debug Purposes
+        echo "run-uplift-model-tests=$run_uplift_model_tests"
+        echo "GITHUB_HEAD_REF=${GITHUB_HEAD_REF}"
 
         echo "skip-build-and-test=$skip_build_and_test" >> "$GITHUB_OUTPUT"
         echo "run-pr-tests=$run_pr_tests" >> "$GITHUB_OUTPUT"
