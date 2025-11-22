@@ -28,12 +28,11 @@ from .passes import (
 def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool],
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
 
-    # Currently, handle_composite_ops causes regressions on multi-chip TP models:
-    # https://github.com/tenstorrent/tt-xla/issues/1616.
-    # TODO: Fix composite ops to support multi-chip models before uncommenting this.
-    # handle_composite_ops(gm)
+    if options.get("enable_composite_ops", True):
+        handle_composite_ops(gm)
 
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
@@ -181,7 +180,9 @@ class XLAExecutor:
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
     """TT backend for torch.compile."""
-    module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
+    module, graph_signature, node_info = torch_pass_pipeline(
+        gm, example_inputs, options
+    )
     experimental_compile_enabled = (
         options.get("tt_experimental_compile", False) if options else False
     )

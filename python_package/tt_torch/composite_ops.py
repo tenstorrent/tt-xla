@@ -43,7 +43,38 @@ def composite_gelu(input: Tensor, approximate: str = "none") -> Tensor:
     return input
 
 
+def composite_rms_norm(
+    input: Tensor, normalized_shape, weight=None, eps=None
+) -> Tensor:
+    """
+    Creates composite RMS norm operation for torch xla using StableHLOCompositeBuilder.
+    Note that operation name must be tenstorrent.rms_norm for MLIR to handle it.
+
+    Args:
+        input: Input tensor
+        normalized_shape: Shape over which to normalize (tuple of ints)
+        weight: Optional learnable weight parameter
+        eps: Epsilon for numerical stability (default: None)
+
+    Returns a tensor.
+    """
+    attr = {"normalized_shape": normalized_shape}
+    if eps is not None:
+        attr["epsilon"] = eps
+
+    builder = StableHLOCompositeBuilder(name="tenstorrent.rms_norm", attr=attr)
+
+    input = builder.mark_inputs(input)
+    input = torch.nn.functional.rms_norm(input, normalized_shape, weight, eps)
+    input = builder.mark_outputs(input)
+
+    return input
+
+
 """
 Dictionary holding replacement composite functions for torch functions.
 """
-replacements = {torch.nn.functional.gelu: composite_gelu}
+replacements = {
+    torch.nn.functional.gelu: composite_gelu,
+    torch.rms_norm: composite_rms_norm,
+}
