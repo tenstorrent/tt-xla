@@ -36,6 +36,14 @@ class CompilerConfig:
     # should provide and get tensors of common dtype.
     enable_bfp8_conversion: bool = False
 
+    # Enables experimental BFP8 weight conversion in MLIR optimizer passes.
+    experimental_bfp8_weights: bool = False
+
+    # Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
+    # TODO(sdjordjevicTT): This is a temporary option and will be removed once the underlying
+    # issue https://github.com/tenstorrent/tt-mlir/issues/4628 is fixed.
+    enable_fusing_conv2d_with_multiply_pattern: bool = False
+
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
@@ -53,6 +61,12 @@ class CompilerConfig:
 
         if self.enable_bfp8_conversion:
             options["enable_bfp8_conversion"] = "true"
+
+        if self.experimental_bfp8_weights:
+            options["experimental_bfp8_weights"] = "true"
+
+        if self.enable_fusing_conv2d_with_multiply_pattern:
+            options["enable_fusing_conv2d_with_multiply_pattern"] = "true"
 
         if self.enable_trace:
             options["enable_trace"] = "true"

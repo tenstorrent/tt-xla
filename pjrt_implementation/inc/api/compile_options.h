@@ -42,6 +42,15 @@ struct CompileOptions {
   // and user should provide and get tensors of common dtype.
   bool enable_bfp8_conversion = false;
 
+  // Enables experimental BFP8 weight conversion in MLIR.
+  bool experimental_bfp8_weights = false;
+
+  // Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
+  // TODO(sdjordjevicTT): This is a temporary option and will be removed once
+  // the underlying issue https://github.com/tenstorrent/tt-mlir/issues/4628 is
+  // fixed.
+  bool enable_fusing_conv2d_with_multiply_pattern = false;
+
   // Backend runtime which should be targeted for compilation and execution.
   BackendRuntime backend = BackendRuntime::TTNNFlatbuffer;
 
