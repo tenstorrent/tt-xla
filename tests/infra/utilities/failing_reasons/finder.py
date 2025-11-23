@@ -15,7 +15,11 @@ from .utils import ExceptionData, PyTestUtils
 class FailingReasonsFinder:
     @classmethod
     def build_ex_data(
-        cls, exception_value: Exception, exception_traceback: str
+        cls,
+        exception_value: Exception,
+        exception_traceback: str,
+        stdout: str = None,
+        stderr: str = None,
     ) -> ExceptionData:
         """Convert exception to ExceptionData object
 
@@ -36,6 +40,8 @@ class FailingReasonsFinder:
             class_name=ex_class_name,
             message=ex_message,
             error_log=exception_traceback,
+            stdout=stdout,
+            stderr=stderr,
         )
         return ex_data
 
@@ -59,13 +65,17 @@ class FailingReasonsFinder:
                 yield failing_reason
 
     @classmethod
-    def find_reason_by_exception(cls, exc: Exception) -> Optional["FailingReasons"]:
+    def find_reason_by_exception(
+        cls, exc: Exception, stdout: str, stderr: str
+    ) -> Optional["FailingReasons"]:
         """Find failing reason by exception"""
         # Get long representation of exception
         long_repr = PyTestUtils.get_long_repr(exc)
 
         # Build ExceptionData from exception
-        ex_data: ExceptionData = FailingReasonsFinder.build_ex_data(exc, long_repr)
+        ex_data: ExceptionData = FailingReasonsFinder.build_ex_data(
+            exc, long_repr, stdout, stderr
+        )
 
         # Find failing reason by ExceptionData
         failing_reason = FailingReasonsFinder.find_reason_by_ex_data(ex_data)
