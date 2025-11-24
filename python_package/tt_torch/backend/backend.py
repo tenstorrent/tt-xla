@@ -31,7 +31,7 @@ def torch_pass_pipeline(
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
 
-    # This is a temporary option to disable / enable composite ops.
+    # This is a temporary option to disable / enable composite ops
     # that will be removed once composite ops are more stable.
     # default to True if options are not given or if tt_enable_composite_ops is not present
     enable_composite_ops = options is None or options.get(
