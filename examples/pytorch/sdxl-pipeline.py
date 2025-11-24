@@ -41,10 +41,13 @@ class SDXLPipeline:
             self.MODEL_ID,
             subfolder="unet",
             variant="fp16",
-            torch_dtype=torch.float16,
+            torch_dtype=torch.bfloat16,
             device_map=self.device,
             trust_remote_code=True
         )
+        device = xm.xla_device()
+        self.unet = self.unet.to(device)
+        self.unet.compile(backend="tt")
 
         self.text_encoder = CLIPTextModel.from_pretrained(
             self.MODEL_ID,
@@ -166,10 +169,18 @@ class SDXLPipeline:
             # repeat for cond and uncond
             time_ids = time_ids.repeat(2, 1) # (2B, 6)
 
+            tt_cast = lambda x : x.to(xm.xla_device(), dtype=torch.bfloat16)
+            cpu_cast = lambda x : x.to('cpu').to(dtype=torch.float16)
+
             for i, timestep in enumerate(self.scheduler.timesteps):
                 print(f"Step {i} of {num_inference_steps}")
                 model_input = latents.repeat(2, 1, 1, 1) if do_cfg else latents # (2B, 4, H, W) if do_cfg else (B, 4, H, W)
                 model_input = self.scheduler.scale_model_input(model_input, timestep)
+                model_input = tt_cast(model_input)
+                timestep = tt_cast(timestep)
+                encoder_hidden_states = tt_cast(encoder_hidden_states)
+                pooled_text_embeds = tt_cast(pooled_text_embeds)
+                time_ids = tt_cast(time_ids)
                 unet_output = self.unet(model_input, timestep, encoder_hidden_states, added_cond_kwargs={"text_embeds": pooled_text_embeds, "time_ids": time_ids}).sample
                 #unet_output = torch.randn(2, 4, 64, 64, dtype=torch.float16) # working with hardcoded value to save time
                 
@@ -178,7 +189,10 @@ class SDXLPipeline:
                     model_output = uncond_output + (cond_output - uncond_output) * cfg_scale
                 else:
                     raise NotImplementedError("Only CFG is supported for now")
-                
+
+                model_output = cpu_cast(model_output)
+                timestep = cpu_cast(timestep)
+                latents = cpu_cast(latents)
                 latents = self.scheduler.step(model_output, timestep, latents).prev_sample
 
             # decode from latent space        
@@ -197,6 +211,7 @@ class SDXLPipeline:
             return images
                 
 if __name__ == "__main__":
+    xr.set_device_type("TT")
     pipeline = SDXLPipeline(device='cpu')
     pipeline.setup()
     
