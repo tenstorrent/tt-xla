@@ -5,11 +5,11 @@
 test_config:
   mnist/image_classification/pytorch-cnn_dropout-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [push, nightly]
+    markers: [push]
 
   mnist/image_classification/pytorch-cnn_nodropout-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [push, nightly]
+    markers: [push]
 
   autoencoder/pytorch-linear-single_device-full-training:
     status: EXPECTED_PASSING
@@ -103,11 +103,9 @@ test_config:
 
   phi1_5/token_classification/pytorch-microsoft/phi-1_5-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [nightly]
 
   phi1/token_classification/pytorch-microsoft/phi-1-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [nightly]
 
   nanogpt/pytorch-FinancialSupport/NanoGPT-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
@@ -1382,7 +1380,6 @@ test_config:
 
   albert/token_classification/pytorch-base_v2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [nightly]
 
   albert/token_classification/pytorch-large_v2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
