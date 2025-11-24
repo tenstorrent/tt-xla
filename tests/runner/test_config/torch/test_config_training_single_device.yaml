@@ -5,11 +5,11 @@
 test_config:
   mnist/image_classification/pytorch-cnn_dropout-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [push]
+    markers: [push, nightly]
 
   mnist/image_classification/pytorch-cnn_nodropout-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [push]
+    markers: [push, nightly]
 
   autoencoder/pytorch-linear-single_device-full-training:
     status: EXPECTED_PASSING
