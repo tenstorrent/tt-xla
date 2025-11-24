@@ -75,7 +75,7 @@ public:
   bool isDeleted();
 
   // Releases the resources this loaded executable uses.
-  void releaseResources();
+  virtual void releaseResources();
 
   // Runs execution of this loaded executable.
   virtual tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args) = 0;

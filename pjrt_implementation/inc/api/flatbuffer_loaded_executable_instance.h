@@ -41,7 +41,7 @@ public:
   std::shared_ptr<FlatbufferExecutableImage> getSharedExecutableImage() const;
 
   // Releases the resources this loaded executable uses.
-  void releaseResources();
+  void releaseResources() override;
 
   // Runs execution of this loaded executable.
   tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args) override;
