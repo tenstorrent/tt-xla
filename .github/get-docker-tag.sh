@@ -8,24 +8,14 @@
 
 # Exit immediately if a command exits with a non-zero status
 set -e
-MLIR_DOCKER_TAG=$(
-    # Read tt-mlir version from third_party/CMakeLists.txt
-    # clone tt-mlir version to tmp/third_party/tt-mlir
-    # Get the MLIR docker tag
-    TT_MLIR_PATH=tmp/third_party/tt-mlir
-    TT_MLIR_VERSION=$(grep -oP 'set\(TT_MLIR_VERSION "\K[^"]+' third_party/CMakeLists.txt)
-    if [ ! -d $TT_MLIR_PATH ]; then
-        git clone https://github.com/tenstorrent/tt-mlir.git $TT_MLIR_PATH --quiet
-    fi
-    cd $TT_MLIR_PATH
-    git fetch --quiet
-    git checkout $TT_MLIR_VERSION --quiet
-    if [ -f ".github/get-docker-tag.sh" ]; then
-        .github/get-docker-tag.sh
-    else
-        echo "default-tag"
-    fi
-)
+
+# Check if parameter $1 is provided
+if [ -z "$1" ]; then
+	echo "Error: MLIR_DOCKER_TAG parameter is required" >&2
+	exit 1
+fi
+
+MLIR_DOCKER_TAG=$1
 DOCKERFILE_HASH=$( (cat .github/Dockerfile.base .github/Dockerfile.ci venv/requirements-dev.txt python_package/requirements.txt | sha256sum) | cut -d ' ' -f 1)
 COMBINED_HASH=$( (echo $DOCKERFILE_HASH $MLIR_DOCKER_TAG | sha256sum) | cut -d ' ' -f 1)
 echo dt-$COMBINED_HASH
