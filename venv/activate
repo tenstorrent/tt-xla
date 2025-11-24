@@ -38,7 +38,7 @@ fi
 
 echo "Uninstalling existing torch-xla package if any and installing from local wheel"
 pip uninstall -y torch-xla
-pip install $(pwd)/dist/torch_xla-2.9.0+gitc5d647d-*.whl
+pip install $(pwd)/dist/torch_xla-2.9.0*.whl
 echo "Install complete."
 
 export TTXLA_ENV_ACTIVATED=1

@@ -77,7 +77,9 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
       m_device_id(std::nullopt), m_memory(memory),
       m_host_runtime_tensor(std::nullopt), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {}
+      m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {
+  DLOG_F(LOG_DEBUG, "BufferInstance constructed (input) with UID: %zu", m_uid);
+}
 
 BufferInstance::BufferInstance(
     const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
@@ -91,6 +93,7 @@ BufferInstance::BufferInstance(
       m_host_runtime_tensor(host_tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
       m_data_deleted(false), m_prepared_runtime_tensor(device_tensor) {
+  DLOG_F(LOG_DEBUG, "BufferInstance constructed (output) with UID: %zu", m_uid);
   // We want to be in control when buffers are deallocated, which happens during
   // buffer destruction or on delete/destroy API calls.
   if (m_host_runtime_tensor.has_value()) {
@@ -98,7 +101,10 @@ BufferInstance::BufferInstance(
   }
 }
 
-BufferInstance::~BufferInstance() { deleteData(); }
+BufferInstance::~BufferInstance() {
+  DLOG_F(LOG_DEBUG, "BufferInstance destroyed with UID: %zu", m_uid);
+  deleteData();
+}
 
 void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Destroy = internal::onBufferDestroy;
@@ -313,6 +319,7 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::copyToHost called for UID: %zu", m_uid);
 
   assert((m_prepared_runtime_tensor.has_value() ||
           m_host_runtime_tensor.has_value()) &&
