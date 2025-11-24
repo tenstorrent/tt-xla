@@ -71,6 +71,7 @@ def inference_tester(request) -> WhisperTester:
 
 
 @pytest.mark.nightly
+@pytest.mark.large
 def test_torch_whisper_inference(inference_tester: WhisperTester):
     inference_tester.test()
 
