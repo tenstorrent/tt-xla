@@ -7,20 +7,21 @@ import torch_xla.runtime as xr
 from diffusers import StableDiffusionXLPipeline, AutoencoderKL, UNet2DConditionModel
 from diffusers import EulerDiscreteScheduler
 from diffusers.models.embeddings import get_timestep_embedding
-from transformers import CLIPTextModel
+from transformers import CLIPTextModel, CLIPTextModelWithProjection
 
 from PIL import Image
 
 
+
 class SDXLPipeline:
     MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
-    WIDTH = 512
-    HEIGHT = 512
+    WIDTH = 1024
+    HEIGHT = 1024
     LATENTS_WIDTH = WIDTH // 8
     LATENTS_HEIGHT = HEIGHT // 8
 
-    def __init__(self):
-        pass
+    def __init__(self, device='cpu'):
+        self.device = device
 
     def setup(self):
         self.load_models()
@@ -31,25 +32,35 @@ class SDXLPipeline:
         self.vae = AutoencoderKL.from_pretrained(
             self.MODEL_ID,
             subfolder="vae",
-            torch_dtype=torch.float16,
+            torch_dtype=torch.float32,
+            device_map=self.device,
             trust_remote_code=True
         )
+
         self.unet = UNet2DConditionModel.from_pretrained(
             self.MODEL_ID,
             subfolder="unet",
+            variant="fp16",
             torch_dtype=torch.float16,
+            device_map=self.device,
             trust_remote_code=True
         )
+
         self.text_encoder = CLIPTextModel.from_pretrained(
             self.MODEL_ID,
             subfolder="text_encoder",
+            variant="fp16",
             torch_dtype=torch.float16,
+            device_map=self.device,
             trust_remote_code=True
         )
-        self.text_encoder_2 = CLIPTextModel.from_pretrained(
+
+        self.text_encoder_2 = CLIPTextModelWithProjection.from_pretrained(
             self.MODEL_ID,
             subfolder="text_encoder_2", 
+            variant="fp16",
             torch_dtype=torch.float16,
+            device_map=self.device,
             trust_remote_code=True
         )
 
@@ -116,18 +127,22 @@ class SDXLPipeline:
                         padding="max_length",
                         max_length=77).input_ids # (B, T)
                     
-                    cond_tokens = torch.tensor(cond_tokens, dtype=torch.long) # to device
-                    uncond_tokens = torch.tensor(uncond_tokens, dtype=torch.long) # to device
+                    cond_tokens = torch.tensor(cond_tokens, dtype=torch.long).to(device=self.device)
+                    uncond_tokens = torch.tensor(uncond_tokens, dtype=torch.long).to(device=self.device)
 
-                    cond_output = curr_text_encoder(cond_tokens)
-                    cond_hidden_state = cond_output.last_hidden_state # (B, T, D)
+                    cond_output = curr_text_encoder(cond_tokens, output_hidden_states=True)
+                     # "2" because SDXL always indexes from the penultimate layer.
+                     # for reference, check https://github.com/huggingface/diffusers/blob/main/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py:412-414
+                    cond_hidden_state = cond_output.hidden_states[-2] # (B, T, D)
 
-                    
-                    uncond_output = curr_text_encoder(uncond_tokens)
-                    uncond_hidden_state = uncond_output.last_hidden_state # (B, T, D)
+                    uncond_output = curr_text_encoder(uncond_tokens, output_hidden_states=True)
+                     # "2" because SDXL always indexes from the penultimate layer.
+                     # for reference, check https://github.com/huggingface/diffusers/blob/main/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py:412-414
+                    uncond_hidden_state = uncond_output.hidden_states[-2] # (B, T, D)
+
                     if curr_text_encoder == self.text_encoder_2:
-                        pooled_cond_text_embeds = cond_output.pooler_output # (B, D)
-                        pooled_uncond_text_embeds = uncond_output.pooler_output # (B, D)
+                        pooled_cond_text_embeds = cond_output.text_embeds # (B, D)
+                        pooled_uncond_text_embeds = uncond_output.text_embeds # (B, D)
                         pooled_text_embeds = torch.cat([pooled_uncond_text_embeds, pooled_cond_text_embeds], dim=0) # (2B, D)
 
                     curr_hidden_state = torch.cat([uncond_hidden_state, cond_hidden_state], dim=0) # (2B, T, Di)
@@ -142,11 +157,12 @@ class SDXLPipeline:
             
             latent_shape = (batch_size, 4, self.LATENTS_HEIGHT, self.LATENTS_WIDTH)
             # this is for text2image
-            latents = torch.randn(latent_shape, generator=generator, dtype=torch.float16) # to device
+            latents = torch.randn(latent_shape, generator=generator, dtype=torch.float16).to(device=self.device)
+            latents = latents * self.scheduler.init_noise_sigma # important to preset the stddev
 
             target_shape = orig_shape = (self.HEIGHT, self.WIDTH)
             crop_top_left = (0, 0)
-            time_ids = torch.tensor([*orig_shape, *crop_top_left, *target_shape]) # to device
+            time_ids = torch.tensor([*orig_shape, *crop_top_left, *target_shape]).to(device=self.device)
             # repeat for cond and uncond
             time_ids = time_ids.repeat(2, 1) # (2B, 6)
 
@@ -168,21 +184,22 @@ class SDXLPipeline:
             # decode from latent space        
             print(f"Decoding from latent space")    
             latents = latents / self.vae.config.scaling_factor # i assume this is needed?
+            latents = latents.to(dtype=torch.float32)
             images = self.vae.decode(latents).sample # (B, 4, Latent_Height, Latent_Width) -> (B, 3, Image_Height, Image_Width)
-            standardize = lambda x : ((x - x.min())/(x.max()-x.min())*255.).to(dtype=torch.uint8)
+            standardize = lambda x : (torch.clamp(x/2 + 0.5, 0., 1.)*255.).to(dtype=torch.uint8)
             images = standardize(images)
             images_np = images.cpu().squeeze().numpy()
             images_np = images_np.transpose(1, 2, 0)
             images_pil = Image.fromarray(images_np)
             images_pil.save("output.png")
                 
+                
             return images
                 
-
-
 if __name__ == "__main__":
-    pipeline = SDXLPipeline()
+    pipeline = SDXLPipeline(device='cpu')
     pipeline.setup()
+    
     pipeline.generate(
         prompt="a photo of a cat",
         uncond_prompt="a photo of a dog",
