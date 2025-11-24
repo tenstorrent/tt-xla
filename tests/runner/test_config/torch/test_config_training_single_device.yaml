@@ -541,10 +541,30 @@ test_config:
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
-  # yolov9/pytorch-single_device-full-training:
-  #   status: NOT_SUPPORTED_SKIP
-  #   bringup_status: FAILED_FE_COMPILATION
-  #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  yolov9/pytorch-t-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov9/pytorch-s-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov9/pytorch-m-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov9/pytorch-c-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+
+  yolov9/pytorch-e-single_device-full-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
 
   retinanet/pytorch-retinanet_rn18fpn-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
