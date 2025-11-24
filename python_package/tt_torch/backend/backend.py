@@ -28,9 +28,17 @@ from .passes import (
 def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
 
-    handle_composite_ops(gm)
+    # This is a temporary option to disable / enable composite ops.
+    # that will be removed once composite ops are more stable.
+    # default to True if options are not given or if tt_enable_composite_ops is not present
+    enable_composite_ops = options is None or options.get(
+        "tt_enable_composite_ops", True
+    )
+    if enable_composite_ops:
+        handle_composite_ops(gm)
 
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
@@ -178,7 +186,9 @@ class XLAExecutor:
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
     """TT backend for torch.compile."""
-    module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
+    module, graph_signature, node_info = torch_pass_pipeline(
+        gm, example_inputs, options
+    )
     experimental_compile_enabled = (
         options.get("tt_experimental_compile", False) if options else False
     )

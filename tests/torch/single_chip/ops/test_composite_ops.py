@@ -24,13 +24,15 @@ def test_composite_gelu(approx):
         def forward(self, x):
             return composite_gelu(x, approx)
 
+    options = {"tt_enable_composite_ops": False}
+
     input = torch.randn(32, 32)
 
     model = MM()
     golden = model(input)
 
     device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt")
+    model = torch.compile(model.to(device), backend="tt", options=options)
 
     output = model(input.to(device))
 
@@ -74,13 +76,15 @@ def test_patched_gelu(approx):
         def forward(self, x):
             return F.gelu(input=x, approximate=approx)
 
+    options = {"tt_enable_composite_ops": True}
+
     input = torch.randn(32, 32)
 
     model = MM()
     golden = model(input)
 
     device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt")
+    model = torch.compile(model.to(device), backend="tt", options=options)
 
     output = model(input.to(device))
 
@@ -140,6 +144,8 @@ def test_rmsnorm(use_weight):
         def forward(self, x, weight):
             return torch.nn.functional.rms_norm(x, self.normalized_shape, weight)
 
+    options = {"tt_enable_composite_ops": True}
+
     normalized_shape = (32,)
     input_shape = (4, 32)
     input_tensor = torch.randn(input_shape)
@@ -150,7 +156,7 @@ def test_rmsnorm(use_weight):
     golden = model(input_tensor, weight if use_weight else None)
 
     device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt")
+    model = torch.compile(model.to(device), backend="tt", options=options)
 
     output = model(input_tensor.to(device), weight.to(device) if use_weight else None)
 
@@ -172,6 +178,8 @@ def test_composite_rms_norm(use_weight):
         def forward(self, x, weight):
             return composite_rms_norm(x, self.normalized_shape, weight)
 
+    compile_options = {"tt_enable_composite_ops": False}
+
     normalized_shape = (32,)
     input_shape = (4, 32)
     input_tensor = torch.randn(input_shape)
@@ -181,7 +189,7 @@ def test_composite_rms_norm(use_weight):
     golden = model(input_tensor, weight if use_weight else None)
 
     device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt")
+    model = torch.compile(model.to(device), backend="tt", options=compile_options)
     output = model(input_tensor.to(device), weight.to(device) if use_weight else None)
 
     comparator = TorchComparator(ComparisonConfig())
