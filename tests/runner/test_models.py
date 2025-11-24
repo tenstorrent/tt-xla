@@ -12,6 +12,7 @@ from infra.testers.single_chip.model import (
 )
 
 from tests.infra.comparators.comparator import Comparator, ComparisonResult
+from tests.infra.utilities.filecheck_utils import *
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
@@ -105,6 +106,7 @@ def test_all_models_torch(
         succeeded = False
         comparison_result = None
         tester = None
+        filecheck_results = None
 
         try:
             # Only run the actual model test if not marked for skip. The record properties
@@ -119,15 +121,36 @@ def test_all_models_torch(
 
                 comparison_result = tester.test()
 
-                if request.config.getoption("--serialize", default=False):
+                # Check if filecheck patterns are specified
+                pattern_files = (
+                    test_metadata.filechecks
+                    if hasattr(test_metadata, "filechecks")
+                    else None
+                )
+
+                # Serialize if --serialize flag is set OR if pattern files are specified
+                # Serializing IR to disk is required for FileCheck
+                if (
+                    request.config.getoption("--serialize", default=False)
+                    or pattern_files
+                ):
                     tester.serialize_compilation_artifacts(request.node.name)
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
 
+                # Run FileCheck on generated IR files if test succeeded
+                if succeeded and pattern_files:
+                    filecheck_results = run_filecheck(
+                        test_node_name=request.node.name,
+                        irs_filepath="output_artifact",
+                        pattern_files=pattern_files,
+                    )
+
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
                 Comparator._assert_on_results(comparison_result)
+                validate_filecheck_results(filecheck_results)
 
         except Exception as e:
             out = capteesys.readouterr().out
@@ -229,6 +252,7 @@ def test_all_models_jax(
         succeeded = False
         comparison_result = None
         tester = None
+        filecheck_results = None
 
         try:
             # Only run the actual model test if not marked for skip. The record properties
@@ -250,15 +274,35 @@ def test_all_models_jax(
 
                 comparison_result = tester.test()
 
-                if request.config.getoption("--serialize", default=False):
+                # Check if filecheck patterns are specified
+                pattern_files = (
+                    test_metadata.filechecks
+                    if hasattr(test_metadata, "filechecks")
+                    else None
+                )
+
+                # Serialize if --serialize flag is set OR if pattern files are specified
+                if (
+                    request.config.getoption("--serialize", default=False)
+                    or pattern_files
+                ):
                     tester.serialize_compilation_artifacts(request.node.name)
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
 
+                # Run FileCheck on generated IR files if test succeeded
+                if succeeded and pattern_files:
+                    filecheck_results = run_filecheck(
+                        test_node_name=request.node.name,
+                        irs_filepath="output_artifact",
+                        pattern_files=pattern_files,
+                    )
+
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
                 Comparator._assert_on_results(comparison_result)
+                validate_filecheck_results(filecheck_results)
 
         except Exception as e:
             err = capteesys.readouterr().err

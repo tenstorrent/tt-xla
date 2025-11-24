@@ -110,6 +110,11 @@ class ModelTestConfig:
         # Execution pass for the model (e.g. "FORWARD" or "BACKWARD")
         self.execution_pass = self._resolve("execution_pass", default=None)
 
+        # Optional list of FileCheck pattern files to run (e.g. ["concatenate_heads.ttnn.mlir"])
+        self.filechecks = self._normalize_markers(
+            self._resolve("filechecks", default=[])
+        )
+
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
         if self.arch in overrides and key in overrides[self.arch]:
