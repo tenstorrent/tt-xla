@@ -1,0 +1,93 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+
+# Note: List of placeholder model names that are important, planned but not yet merged.
+# They will be consumed by test_placeholder_models and automatically generate reports
+# for dashboard with ModelGroup.RED and bringup_status=NOT_STARTED unless overriden
+# per model below. The key is model name which will be converted to lower case name,
+# and most fields will be default initialized.
+#
+# Important: When model is actually added to tt-forge-models and corresponding test_config_*.yaml
+# file to be run in CI, placeholder entries must be removed to prevent duplicated model reports.
+
+PLACEHOLDER_MODELS:
+  deepseek-ai/DeepSeek-V3:
+    bringup_status: NOT_STARTED
+  meta-llama/Llama-3.2-11B-Vision-Instruct:
+    bringup_status: NOT_STARTED
+  meta-llama/Llama-3.2-90B-Vision-Instruct:
+    bringup_status: NOT_STARTED
+  meta-llama/Llama-4-Maverick-17B-128E-Instruct:
+    bringup_status: NOT_STARTED
+  meta-llama/Llama-3.2-90B-Vision:
+    bringup_status: NOT_STARTED
+  deepseek-ai/DeepSeek-R1:
+    bringup_status: NOT_STARTED
+  panoptic deeplab:
+    bringup_status: NOT_STARTED
+  mistralai/Mistral-Small-3.1-24B-Instruct-2503:
+    bringup_status: NOT_STARTED
+  mistralai/Mistral-Small-3.2-24B-Instruct-2506:
+    bringup_status: NOT_STARTED
+  genmo/mochi-1-preview:
+    bringup_status: NOT_STARTED
+  openbmb/MiniCPM-o-2_6:
+    bringup_status: NOT_STARTED
+  mistralai/Mixtral-8x7B-Instruct-v0.1:
+    bringup_status: NOT_STARTED
+  openai/gpt-oss-20b:
+    bringup_status: NOT_STARTED
+  openai/gpt-oss-120b:
+    bringup_status: NOT_STARTED
+  Hiperglobal Shallow uNet:
+    bringup_status: NOT_STARTED
+  KLA K-SegNet:
+    bringup_status: NOT_STARTED
+  KLA Klassify:
+    bringup_status: NOT_STARTED
+  MiniMaxAI/MiniMax-Text-01:
+    bringup_status: NOT_STARTED
+  MiniMaxAI/MiniMax-VL-01:
+    bringup_status: NOT_STARTED
+  mistralai/Pixtral-Large-Instruct-2411:
+    bringup_status: NOT_STARTED
+  upstage/SOLAR-10.7B-Instruct-v1.0:
+    bringup_status: NOT_STARTED
+  Gaussian Splatting:
+    bringup_status: NOT_STARTED
+  Boltz2:
+    bringup_status: NOT_STARTED
+  Qwen/Qwen-Image:
+    bringup_status: NOT_STARTED
+  WhisperX:
+    bringup_status: NOT_STARTED
+  Gemma 3 9B:
+    bringup_status: NOT_STARTED
+  Gemma 3 27B:
+    bringup_status: NOT_STARTED
+  Command A Reasoning:
+    bringup_status: NOT_STARTED
+  SURYA OCR:
+    bringup_status: NOT_STARTED
+  SAM_large_sa1b:
+    bringup_status: NOT_STARTED
+  Motif-Technologies/Motif-Image-6B-Preview:
+    bringup_status: NOT_STARTED
+  Wan-AI/Wan2.2-Animate-14B:
+    bringup_status: NOT_STARTED
+  Isaac GROOT:
+    bringup_status: NOT_STARTED
+  PETR:
+    bringup_status: NOT_STARTED
+  3D_DenseUNet:
+    bringup_status: NOT_STARTED
+  Attention DenseUNet:
+    bringup_status: NOT_STARTED
+  EfficientDet:
+    bringup_status: NOT_STARTED
+  Yolov3_416:
+    bringup_status: NOT_STARTED
+  OpenVLA_OFT:
+    bringup_status: NOT_STARTED

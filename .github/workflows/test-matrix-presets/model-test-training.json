@@ -1,0 +1,4 @@
+[
+    { "runs-on": "n150", "name": "run_jax_training", "dir": "./tests/jax/single_chip", "test-mark": "test_forge_models_training and not large", "shared-runners": "true", "parallel-groups": 3 },
+    { "runs-on": "n150", "name": "run_large_jax_training", "dir": "./tests/jax/single_chip", "test-mark": "test_forge_models_training and large", "shared-runners": "true", "parallel-groups": 3 }
+]

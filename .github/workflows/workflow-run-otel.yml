@@ -1,0 +1,28 @@
+name: OpenTelemetry Trace
+run-name: "OpenTelemetry for run_id ${{ github.event.workflow_run.id }} attempt ${{ github.event.workflow_run.run_attempt }}"
+
+on:
+  workflow_run:
+    workflows: # List workflow that we want to collect data for
+      - "On PR"
+      - "On push"
+      - "On nightly"
+      - "On weekly"
+      - "Performance Benchmark"
+      - "On nightly Experimental"
+      - "Run Test Single"
+      - "Run Test"
+    types: [completed]
+
+jobs:
+  otel-export-trace:
+    name: OpenTelemetry Export Trace
+    runs-on: ubuntu-latest
+    steps:
+      - name: Export Workflow Trace
+        uses: corentinmusard/otel-cicd-action@v2
+        with:
+          otlpEndpoint: ${{ secrets.DASH0_OTLP_ENDPOINT }}
+          otlpHeaders: ${{ secrets.DASH0_OTLP_HEADERS }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          runId: ${{ github.event.workflow_run.id }}

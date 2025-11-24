@@ -1,90 +1,21 @@
-FROM ubuntu:22.04
+ARG MLIR_TAG=latest
+
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-base-ubuntu-22-04:${MLIR_TAG}
 SHELL ["/bin/bash", "-c"]
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install dependencies
+# Install XLA sepcific dependencies
+# Model dependencies:
+# - Whisper and Wav2Vec2 : ffmpeg
 RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    build-essential \
-    python3-dev \
-    python3-venv \
-    python3-pip \
-    git \
     git-lfs \
-    libhwloc-dev \
-    pandoc \
-    libtbb-dev \
-    libcapstone-dev \
-    pkg-config \
-    linux-tools-generic \
-    ninja-build \
-    wget \
-    libgtest-dev \
-    cmake \
-    ccache \
-    doxygen \
-    graphviz \
     patchelf \
-    libyaml-cpp-dev \
-    libboost-all-dev \
-    jq \
-    curl \
-    lcov \
-    unzip \
-    doxygen \
     protobuf-compiler \
     libprotobuf-dev \
     xxd \
-    sudo
-
-# Install clang 17
-RUN wget https://apt.llvm.org/llvm.sh && \
-    chmod u+x llvm.sh && \
-    ./llvm.sh 17 && \
-    apt install -y libc++-17-dev libc++abi-17-dev && \
-    ln -s /usr/bin/clang-17 /usr/bin/clang && \
-    ln -s /usr/bin/clang++-17 /usr/bin/clang++
-
-# Install python packages
-RUN pip install cmake
-
-# Install Googletest
-RUN git clone https://github.com/google/googletest.git -b release-1.12.1 && \
-    cd googletest && \
-    mkdir build && \
-    cd build && \
-    cmake .. -DBUILD_GMOCK=OFF && \
-    make && \
-    make install && \
-    cd ../.. && \
-    rm -rf googletest
-
-# Install mpi-ulfm from the tenstorrent repository
-RUN set -eux; \
-    apt-get update && \
-    apt-get install -y -f \
-        wget ca-certificates && \
-    TMP_DIR="$(mktemp -d)" && \
-    DEB_URL="https://github.com/dmakoviichuk-tt/mpi-ulfm/releases/download/v5.0.7-ulfm/openmpi-ulfm_5.0.7-1_amd64.deb" && \
-    wget -qO "$TMP_DIR/ompi.deb" "$DEB_URL" && \
-    apt-get install -f -y "$TMP_DIR/ompi.deb" && \
-    rm -rf "$TMP_DIR"
-
-# Install GitHub CLI
-RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    && apt update \
-    && apt install -y gh \
-    && gh --version \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python 3.11
-RUN add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update && \
-    apt-get install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
+    ffmpeg
 
 # Install requirements.txt as global Python 3.11 packages
 COPY python_package/requirements.txt /tmp/requirements.txt

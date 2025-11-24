@@ -6,11 +6,13 @@ from typing import Tuple
 
 import torch
 import torch_xla
+import torch_xla.core.dynamo_bridge as bridge
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 
 from .decompositions import CUSTOM_DECOMPOSITION_TABLE
+from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
 from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
@@ -26,7 +28,7 @@ from .passes import (
 def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
-) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature]:
+) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
 
     # Currently, handle_composite_ops causes regressions on multi-chip TP models:
     # https://github.com/tenstorrent/tt-xla/issues/1616.
@@ -57,7 +59,11 @@ def torch_pass_pipeline(
     # Recompile the GraphModule to ensure the modifications made by the above
     # passes are reflected during execution.
     compiled_graph.recompile()
-    return compiled_graph, program.graph_signature
+
+    # Extract metadata from FX nodes in order to inject them into locs
+    node_info = extract_nodes_info(compiled_graph)
+
+    return compiled_graph, program.graph_signature, node_info
 
 
 class XLAExecutor:
@@ -69,10 +75,18 @@ class XLAExecutor:
     """
 
     def __init__(
-        self, module: torch.fx.GraphModule, signature: torch.export.ExportGraphSignature
+        self,
+        module: torch.fx.GraphModule,
+        signature: torch.export.ExportGraphSignature,
+        node_info: list[str],
+        experimental_compile_enabled: bool,
     ):
         self.module = module
         self.signature = signature
+        self.node_info = node_info
+        # Inject metadata if xla debug is enabled and node_info is not empty
+        # We need xla debug to be enabled in order for torch-xla to inject metadata
+        self.inject_metadata = os.environ.get("XLA_HLO_DEBUG", "0") == "1" and node_info
 
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
@@ -82,10 +96,67 @@ class XLAExecutor:
             self.devices.add(tensor.device.type)
         self.devices = list(self.devices)
 
+        # Whether to enable experimental compile flow.
+        # The following group of fields will only be used if the experimental flow is enabled.
+        self.experimental_compile_enabled = experimental_compile_enabled
+        self.params_and_consts = None
+        self.compiled_graph = None
+
+    # Extract the param and consts from the exported program.
+    def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
+        sig = ep.graph_signature
+
+        # Export keeps a state dict for lifted params/buffers.
+        state = ep.state_dict
+
+        # Map from placeholder name -> tensor.
+        total_args = tuple()
+        encountered_user_input = False
+        for spec in sig.input_specs:
+            if spec.kind == InputKind.USER_INPUT:
+                encountered_user_input = True
+                continue
+            assert (
+                not encountered_user_input
+            ), "We expect user inputs to be last in the list of inputs."
+            assert spec.target is not None
+            total_args += (state[spec.target],)
+
+        return total_args
+
+    def _call_experimental_compile(self, *args):
+        if self.compiled_graph is None:
+            # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
+            # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
+            program = torch.export.export_for_training(
+                self.module, tuple(args), strict=False
+            )
+
+            # Collect the params and constants from the exported program.
+            self.params_and_consts = self._build_params_and_consts(program)
+
+            # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
+            # This helps us avoid tracing the graph on the subsequent model execution. On the next
+            # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
+            # without any tracing.
+            self.compiled_graph = bridge.extract_compiled_graph(
+                program.graph_module, self.params_and_consts + args
+            )
+
+        full_args = self.params_and_consts + args
+        return self.compiled_graph(*full_args)
+
     def __call__(self, *args):
+        if self.experimental_compile_enabled:
+            return self._call_experimental_compile(*args)
 
-        output = self.module(*args)
-
+        if self.inject_metadata:
+            # MetadataDispatchMode intercepts tensor operations via TorchDispatchMode and
+            # attaches FX metadata (module hierarchy, file, line) to XLA tensors.
+            with MetadataDispatchMode(self.node_info):
+                output = self.module(*args)
+        else:
+            output = self.module(*args)
         gm_has_functional_output_kind: bool = True
 
         for el in self.signature.output_specs:
@@ -109,6 +180,9 @@ class XLAExecutor:
 
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
-
-    module, graph_signature = torch_pass_pipeline(gm, example_inputs)
-    return XLAExecutor(module, graph_signature)
+    """TT backend for torch.compile."""
+    module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
+    experimental_compile_enabled = (
+        options.get("tt_experimental_compile", False) if options else False
+    )
+    return XLAExecutor(module, graph_signature, node_info, experimental_compile_enabled)

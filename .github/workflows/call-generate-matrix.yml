@@ -47,9 +47,10 @@ jobs:
         shell: bash
         run: |
           SCRIPT_PATH=".github/scripts/generate_test_matrix.py"
-          TEST_MATRIX_PATH=".github/workflows/test-matrix-presets/${{ steps.file-name-generate.outputs.test-suite-file }}"
+          TEST_SUITE_FILES="${{ steps.file-name-generate.outputs.test-suite-file }}"
+          PATH_PREFIX=".github/workflows/test-matrix-presets"
 
-          python $SCRIPT_PATH $TEST_MATRIX_PATH > modified-matrix.json
+          python $SCRIPT_PATH "$TEST_SUITE_FILES" "$PATH_PREFIX" > modified-matrix.json
 
           echo "Generated test matrix"
           cat modified-matrix.json

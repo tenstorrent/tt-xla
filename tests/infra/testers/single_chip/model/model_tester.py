@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Optional, Tuple
 
 from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
@@ -34,12 +34,14 @@ class ModelTester(BaseTester, ABC):
         run_mode: RunMode,
         framework: Framework,
         compiler_config: CompilerConfig = None,
+        dtype_override=None,
     ) -> None:
         """Protected constructor for subclasses to use."""
         if compiler_config is None:
             compiler_config = CompilerConfig()
         self._compiler_config = compiler_config
         self._run_mode = run_mode
+        self._dtype_override = dtype_override
 
         self._model: Model = None
         self._workload: Workload = None
@@ -49,6 +51,9 @@ class ModelTester(BaseTester, ABC):
 
     def _initialize_components(self) -> None:
         self._initialize_model()
+        self._set_model_dtype()
+        self._cache_model_inputs()
+        self._set_inputs_dtype()
         self._initialize_workload()
 
     def _initialize_model(self) -> None:
@@ -62,8 +67,6 @@ class ModelTester(BaseTester, ABC):
         self._model = self._get_model()
         # Configure it.
         self._configure_model()
-        # Cache model inputs.
-        self._cache_model_inputs()
 
     def _get_shard_specs_function(self) -> Optional[Callable[[Model], ShardSpec]]:
         """Optional: returns shard specs function if required; otherwise None."""
@@ -87,21 +90,37 @@ class ModelTester(BaseTester, ABC):
         else:
             self._configure_model_for_training()
 
-    @staticmethod
     @abstractmethod
-    def _configure_model_for_inference(model: Model) -> None:
+    def _configure_model_for_inference(self) -> None:
         """Configures `model` for inference."""
         raise NotImplementedError("Subclasses must implement this method")
 
-    @staticmethod
     @abstractmethod
-    def _configure_model_for_training(model: Model) -> None:
+    def _configure_model_for_training(self) -> None:
         """Configures `model` for training."""
         raise NotImplementedError("Subclasses must implement this method")
 
     @abstractmethod
     def _cache_model_inputs(self) -> None:
         """Caches model inputs."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def _set_model_dtype(self) -> None:
+        """Sets model dtype if dtype_override is provided."""
+        if self._dtype_override is not None:
+            self._apply_model_dtype()
+
+    def _set_inputs_dtype(self) -> None:
+        """Sets inputs dtype if dtype_override is provided."""
+        if self._dtype_override is not None:
+            self._apply_inputs_dtype()
+
+    def _apply_model_dtype(self) -> None:
+        """Applies dtype to model. Base implementation does nothing."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def _apply_inputs_dtype(self) -> None:
+        """Applies dtype to inputs. Base implementation does nothing."""
         raise NotImplementedError("Subclasses must implement this method")
 
     @abstractmethod
@@ -156,3 +175,25 @@ class ModelTester(BaseTester, ABC):
         forward results and gradients. Implementation is framework-specific.
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def serialize_on_device(self, output_prefix: str) -> None:
+        """
+        Serializes the model workload on TT device with proper compiler configuration.
+
+        Args:
+            output_prefix: Base path and filename prefix for output files
+        """
+        if self._workload is None:
+            self._initialize_workload()
+
+        # Get compiler options based on framework
+        if self._framework == Framework.JAX:
+            compiler_options = self._compiler_config.to_jax_compiler_options()
+        elif self._framework == Framework.TORCH:
+            compiler_options = self._compiler_config.to_torch_compile_options()
+        else:
+            raise ValueError(f"Unsupported framework: {self._framework}")
+
+        self._device_runner.serialize_on_device(
+            self._workload, output_prefix, compiler_options=compiler_options
+        )

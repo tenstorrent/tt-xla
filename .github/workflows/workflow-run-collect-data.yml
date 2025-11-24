@@ -6,10 +6,12 @@ on:
     workflows: # List workflow that we want to collect data for
       - "On PR"
       - "On push"
-      - "Build and Test"
       - "On nightly"
+      - "On weekly"
       - "Performance Benchmark"
       - "On nightly Experimental"
+      - "Run Test Single"
+      - "Run Test"
     types:
       - completed
   workflow_dispatch:

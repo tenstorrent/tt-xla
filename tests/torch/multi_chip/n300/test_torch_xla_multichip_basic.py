@@ -56,11 +56,10 @@ def setup_mesh(mesh_shape, axis_names):
 
 @pytest.mark.nightly
 @pytest.mark.push
-@pytest.mark.parametrize("mesh_shape", [(1, 2)])
 @pytest.mark.parametrize("axis_names", [("x", "y")])
 @pytest.mark.parametrize("input_shape", [(32, 32)])
 @pytest.mark.parametrize("sharding_mode", ["fully_replicated", "partially_sharded"])
-def test_linear(mesh_shape, axis_names, input_shape, sharding_mode):
+def test_linear(axis_names, input_shape, sharding_mode):
     class LinearModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -77,6 +76,7 @@ def test_linear(mesh_shape, axis_names, input_shape, sharding_mode):
             # Do not shard anything, fully replicated
             return {}
 
+    mesh_shape = (1, xr.global_runtime_device_count())
     mesh = setup_mesh(mesh_shape, axis_names)
     model_tester = TorchMultichipUnaryModelTester(
         model=LinearModel(),

@@ -23,9 +23,10 @@ class ResNetTester(JaxModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
         compiler_config: CompilerConfig = None,
+        dtype_override=None,
     ) -> None:
         self._model_loader = ModelLoader(variant_name)
-        super().__init__(comparison_config, run_mode, compiler_config)
+        super().__init__(comparison_config, run_mode, compiler_config, dtype_override)
 
     # @override
     def _get_model(self) -> Model:
@@ -34,3 +35,12 @@ class ResNetTester(JaxModelTester):
     # @override
     def _get_input_activations(self) -> Dict[str, jax.Array]:
         return self._model_loader.load_inputs()
+
+    # @override
+    def _wrapper_model(self, f):
+        def model(args, kwargs):
+            out = f(*args, **kwargs)
+            out = out[0]
+            return out.logits
+
+        return model

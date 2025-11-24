@@ -3,10 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import difflib
+import os
 
 import pytest
 
-from tests.runner.test_config import test_config
+from tests.runner.test_config.jax import test_config as jax_test_config
+from tests.runner.test_config.torch import test_config as torch_test_config
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
 # Global set to track collected test node IDs
@@ -14,6 +16,7 @@ _collected_nodeids = set()
 
 # Allowed architecture identifiers for arch_overrides and --arch option
 ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
+_BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
 def pytest_addoption(parser):
@@ -23,14 +26,31 @@ def pytest_addoption(parser):
         action="store",
         default=None,
         choices=sorted(ALLOWED_ARCHES),
-        help="Target architecture (e.g., n150, p150) for which to match via arch_overrides in test_config.py",
+        help="Target architecture (e.g., n150, p150) for which to match via arch_overrides in test_config files",
     )
     parser.addoption(
         "--validate-test-config",
         action="store_true",
         default=False,
-        help="Fail if test_config.py and collected test IDs are out of sync",
+        help="Fail if test_config files and collected test IDs are out of sync",
     )
+
+
+@pytest.fixture(autouse=True)
+def bringup_stage_file():
+    """Create and cleanup bringup stage file for each test when ENABLE_BRINGUP_STAGE_LOGGING=1."""
+    if os.environ.get("ENABLE_BRINGUP_STAGE_LOGGING") == "1":
+        # Setup: Create/truncate file before test
+        with open(_BRINGUP_STAGE_FILE, "w") as f:
+            f.write("FE_COMPILATION_START")
+
+    yield
+
+    # Teardown: Remove file after test
+    if os.environ.get("ENABLE_BRINGUP_STAGE_LOGGING") == "1" and os.path.exists(
+        _BRINGUP_STAGE_FILE
+    ):
+        os.remove(_BRINGUP_STAGE_FILE)
 
 
 @pytest.fixture
@@ -49,16 +69,20 @@ def pytest_collection_modifyitems(config, items):
     arch = config.getoption("--arch")
     validate_config = config.getoption("--validate-test-config")
 
+    # Merge torch and jax test configs once outside the loop
+    combined_test_config = torch_test_config | jax_test_config
+
     deselected = []
 
     for item in items:
+
         nodeid = item.nodeid
         if "[" in nodeid:
             nodeid = nodeid[nodeid.index("[") + 1 : -1]
 
         _collected_nodeids.add(nodeid)  # Track for final validation
 
-        meta = ModelTestConfig(test_config.get(nodeid), arch)
+        meta = ModelTestConfig(combined_test_config.get(nodeid), arch)
         item._test_meta = meta  # attach for fixture access
 
         # Uncomment this to print info for each test collected.
@@ -87,7 +111,17 @@ def pytest_collection_modifyitems(config, items):
         for marker_name in getattr(meta, "markers", []) or []:
             item.add_marker(getattr(pytest.mark, marker_name))
 
-        # Define default set of supported archs, which can be optionally overridden in test_config.py
+        # Apply marker based on bringup_status to enable filtering like: -m incorrect_result
+        bringup_status = getattr(meta, "bringup_status", None)
+        if bringup_status:
+            # Normalize enum or string to a pytest-safe, lowercase marker name
+            status_str = str(bringup_status)
+            # In case string includes enum class name, keep the last segment
+            status_str = status_str.split(".")[-1]
+            normalized_marker = status_str.lower()
+            item.add_marker(getattr(pytest.mark, normalized_marker))
+
+        # Define default set of supported archs, which can be optionally overridden in test_config files
         # by a model (ie. n300, n300-llmbox), and are applied as markers for filtering tests on CI.
         default_archs = ["n150", "p150"]
         archs_to_mark = getattr(meta, "supported_archs", None) or default_archs
@@ -115,9 +149,31 @@ def pytest_sessionfinish(session, exitstatus):
     print("VALIDATING TEST CONFIGURATIONS")
     print("=" * 60 + "\n")
 
+    # Determine which configs to validate based on collected tests
+    # Check if we collected torch tests, jax tests, or both
+    has_torch_tests = any(
+        "pytorch" in nodeid or "test_all_models_torch" in nodeid
+        for nodeid in _collected_nodeids
+    )
+    has_jax_tests = any(
+        "jax" in nodeid or "test_all_models_jax" in nodeid
+        for nodeid in _collected_nodeids
+    )
+
+    # Only validate configs for the frameworks that were actually collected
+    if has_torch_tests and has_jax_tests:
+        combined_test_config = torch_test_config | jax_test_config
+    elif has_torch_tests:
+        combined_test_config = torch_test_config
+    elif has_jax_tests:
+        combined_test_config = jax_test_config
+    else:
+        # No framework-specific tests collected, validate all configs
+        combined_test_config = torch_test_config | jax_test_config
+
     # Basic validation: ensure all arch_overrides keys use allowed arches
     invalid_arch_entries = []
-    for test_name, cfg in test_config.items():
+    for test_name, cfg in combined_test_config.items():
         if not isinstance(cfg, dict):
             continue
         overrides = cfg.get("arch_overrides")
@@ -137,14 +193,14 @@ def pytest_sessionfinish(session, exitstatus):
         print("\nAllowed arches:", ", ".join(sorted(ALLOWED_ARCHES)))
         print("\n" + "=" * 60)
         raise pytest.UsageError(
-            "test_config.py contains arch_overrides with unknown arches"
+            "test_config yaml files contain arch_overrides with unknown arches"
         )
     else:
         print("All arch_overrides entries are valid")
 
-    # Validate that entries in test_config.py are found in the collected tests. They can diverge if
+    # Validate that entries in test_config yaml files are found in the collected tests. They can diverge if
     # model variants are renamed, removed, have import errors, etc.
-    declared_nodeids = set(test_config.keys())
+    declared_nodeids = set(combined_test_config.keys())
     unknown = declared_nodeids - _collected_nodeids
     unlisted = _collected_nodeids - declared_nodeids
     print(
@@ -154,15 +210,15 @@ def pytest_sessionfinish(session, exitstatus):
 
     # Unlisted tests are just warnings, for informational purposes.
     if unlisted:
-        print("\nWARNING: The following tests are missing from test_config.py:")
+        print("\nWARNING: The following tests are missing from test_config yaml files:")
         for test_name in sorted(unlisted):
             print(f"  - {test_name}")
     else:
-        print("\nAll collected tests are properly defined in test_config.py")
+        print("\nAll collected tests are properly defined in test_config yaml files")
 
     # Unknown tests are tests listed that no longer exist, treat as error.
     if unknown:
-        msg = "test_config.py contains entries not found in collected tests."
+        msg = "test_config yaml files contain entries not found in collected tests."
         print(f"\nERROR: {msg}")
         for test_name in sorted(unknown):
             print(f"  - {test_name}")

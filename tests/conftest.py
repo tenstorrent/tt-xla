@@ -11,11 +11,11 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
 
 import psutil
 import pytest
 import torch
+import torch_xla.runtime as xr
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
 
@@ -32,6 +32,7 @@ def pytest_configure(config: pytest.Config):
 
         - Op tests:
             - `jax_op_name`: name of the operation in jax, e.g. `jax.numpy.exp`
+            - `torch_op_name`: name of the operation in torch, e.g. `torch.add`
             - `shlo_op_name`: name of the matching stablehlo operation
 
         - Model tests:
@@ -73,6 +74,7 @@ def pytest_collection_modifyitems(items):
         valid_keys = [
             "category",
             "jax_op_name",
+            "torch_op_name",
             "shlo_op_name",
             "model_name",
             "model_group",
@@ -177,15 +179,28 @@ def pytest_collection_modifyitems(items):
 
 def pytest_addoption(parser):
     """
-    Custom CLI pytest option to enable memory usage tracking in tests.
+    Custom CLI pytest options for tests.
 
-    Use it when calling pytest like `pytest --log-memory ...`.
+    Use it when calling pytest like `pytest --log-memory ...` or `pytest --serialize ...`.
     """
     parser.addoption(
         "--log-memory",
         action="store_true",
         default=False,
         help="Enable memory usage tracking for tests",
+    )
+    parser.addoption(
+        "--serialize",
+        action="store_true",
+        default=False,
+        help="Enable serialization of compilation artifacts during tests",
+    )
+
+    parser.addoption(
+        "--log-pid",
+        action="store_true",
+        default=False,
+        help="Append process PID to log file names specified in TT_XLA_LOGGER_FILE, TT_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE environment variables if set, to facilitate multiprocess debug logging.",
     )
 
 
@@ -198,10 +213,12 @@ def _is_on_CIv2() -> bool:
     """
     Check if we are on CIv2.
     """
-    is_on_civ1 = bool(os.environ.get("DOCKER_CACHE_ROOT"))
-    is_user_ird = bool(os.environ.get("IRD_ARCH_NAME"))
-    is_on_civ2 = not is_on_civ1 and not is_user_ird
-    return is_on_civ2
+    if bool(os.environ.get("TT_XLA_CI")):
+        is_on_civ1 = bool(os.environ.get("DOCKER_CACHE_ROOT"))
+        return not is_on_civ1
+
+    # We are not running in CI environment.
+    return False
 
 
 @contextmanager
@@ -231,6 +248,75 @@ def newline_logger():
             format=default_format,
             level="INFO",
         )
+
+
+@pytest.fixture(autouse=True)
+def setup_pid_logging(request):
+    """
+    A pytest fixture that monkeypatches TT_XLA_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE, and TT_LOGGER_FILE environment
+    variables to include the process PID before the file extension when --log-pid
+    is passed to pytest.
+
+    TT_LOGGER_FILE controls tt-metal's tt-logger log output filepath, see
+    https://github.com/tenstorrent/tt-logger?tab=readme-ov-file#environment-variables
+    for more information about tt-logger.
+
+    TTMLIR_RUNTIME_LOGGER_FILE controls tt-mlir-runtime's logging output filepath.
+    """
+    if not request.config.getoption("--log-pid"):
+        yield
+        return
+
+    # Store original values for restoration
+    original_tt_xla_logger_file = os.environ.get("TT_XLA_LOGGER_FILE")
+    original_tt_logger_file = os.environ.get("TT_LOGGER_FILE")
+    original_ttmlir_runtime_logger_file = os.environ.get("TTMLIR_RUNTIME_LOGGER_FILE")
+
+    def add_pid_to_filename(filepath):
+        """Add PID before file extension"""
+        if not filepath:
+            return filepath
+
+        path = Path(filepath)
+        pid = os.getpid()
+
+        if path.suffix:
+            # File has extension, insert PID before it
+            new_name = f"{path.stem}.{pid}{path.suffix}"
+        else:
+            # No extension, just append PID
+            new_name = f"{path.name}.{pid}"
+
+        return str(path.parent / new_name)
+
+    # Modify environment variables if they exist
+    if original_tt_xla_logger_file:
+        os.environ["TT_XLA_LOGGER_FILE"] = add_pid_to_filename(
+            original_tt_xla_logger_file
+        )
+
+    if original_tt_logger_file:
+        os.environ["TT_LOGGER_FILE"] = add_pid_to_filename(original_tt_logger_file)
+
+    if original_ttmlir_runtime_logger_file:
+        os.environ["TTMLIR_RUNTIME_LOGGER_FILE"] = add_pid_to_filename(
+            original_ttmlir_runtime_logger_file
+        )
+
+    try:
+        yield
+    finally:
+        # Restore original values
+        if original_tt_xla_logger_file:
+            os.environ["TT_XLA_LOGGER_FILE"] = original_tt_xla_logger_file
+
+        if original_tt_logger_file:
+            os.environ["TT_LOGGER_FILE"] = original_tt_logger_file
+
+        if original_ttmlir_runtime_logger_file:
+            os.environ["TTMLIR_RUNTIME_LOGGER_FILE"] = (
+                original_ttmlir_runtime_logger_file
+            )
 
 
 @pytest.fixture(autouse=True)
@@ -324,18 +410,16 @@ def cleanup_cache():
     """
     Cleans up cache directories if we are running on CIv2.
     """
-    if not _is_on_CIv2():
-        return
+    if _is_on_CIv2():
+        for cache_dir in CACHE_DIRECTORIES:
+            if not cache_dir.exists():
+                continue
 
-    for cache_dir in CACHE_DIRECTORIES:
-        if not cache_dir.exists():
-            continue
-
-        try:
-            shutil.rmtree(cache_dir)
-            logger.debug(f"Cleaned up cache directory: {cache_dir}")
-        except Exception as e:
-            logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
+            try:
+                shutil.rmtree(cache_dir)
+                logger.debug(f"Cleaned up cache directory: {cache_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up cache directory {cache_dir}: {e}")
 
 
 @pytest.fixture(autouse=True)
@@ -360,3 +444,13 @@ def run_around_tests():
     torch.manual_seed(0)
     yield
     torch._dynamo.reset()
+
+
+@pytest.fixture()
+def clear_torchxla_computation_cache():
+    """
+    Pytest fixture that clears the TorchXLA computation cache before each test.
+    This helps avoid consteval-associated DRAM leaks as described in https://github.com/tenstorrent/tt-xla/issues/1940
+    """
+    yield
+    xr.clear_computation_cache()

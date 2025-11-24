@@ -1,0 +1,349 @@
+// SPDX-FileCopyrightText: © 2025 Tenstorrent AI ULC
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#include "api/flatbuffer_loaded_executable_instance.h"
+
+// c++ standard library includes
+#include <cassert>
+
+// tt-mlir includes
+#define TTMLIR_ENABLE_STABLEHLO 1
+#include "tt/runtime/types.h"
+#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
+#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
+
+// tt-xla includes
+#include "api/buffer_instance.h"
+#include "api/error_instance.h"
+#include "api/event_instance.h"
+#include "api/executable_image.h"
+#include "utils/logging.h"
+#include "utils/utils.h"
+
+namespace tt::pjrt {
+
+std::unique_ptr<FlatbufferLoadedExecutableInstance>
+FlatbufferLoadedExecutableInstance::createInstance(
+    std::shared_ptr<FlatbufferExecutableImage> executable_image,
+    std::vector<DeviceInstance *> &&addressable_devices,
+    ClientInstance *client_instance) {
+  struct make_unique_enabler : public FlatbufferLoadedExecutableInstance {
+    make_unique_enabler(
+        std::shared_ptr<FlatbufferExecutableImage> executable_image,
+        std::vector<DeviceInstance *> &&addressable_devices,
+        ClientInstance *client_instance)
+        : FlatbufferLoadedExecutableInstance(std::move(executable_image),
+                                             std::move(addressable_devices),
+                                             client_instance) {}
+  };
+
+  return std::make_unique<make_unique_enabler>(std::move(executable_image),
+                                               std::move(addressable_devices),
+                                               client_instance);
+}
+
+FlatbufferLoadedExecutableInstance::FlatbufferLoadedExecutableInstance(
+    std::shared_ptr<FlatbufferExecutableImage> executable_image,
+    const std::vector<DeviceInstance *> &addressable_devices,
+    ClientInstance *client_instance)
+    : LoadedExecutableInstance(std::move(executable_image), addressable_devices,
+                               client_instance) {}
+
+std::optional<tt::runtime::Tensor>
+FlatbufferLoadedExecutableInstance::prepareInputTensor(
+    const std::vector<BufferInstance *> &arg_buffers,
+    tt::runtime::Device runtime_device, size_t num_devices,
+    std::uint32_t program_index, size_t arg_index) {
+  // Assert that all buffer instances have the same prepared tensor.
+  // NOTE: In case of sharded tensor we have multiple buffer instances on the
+  // PJRT side, but on our side (tt-mlir runtime) we prepare a single
+  // multi-device tensor.
+  assert(!arg_buffers.empty());
+  std::optional<tt::runtime::Tensor> prepared_tensor =
+      arg_buffers[0]->getPreparedTensor();
+  for (size_t i = 1; i < arg_buffers.size(); ++i) {
+    assert(arg_buffers[i]->getPreparedTensor().has_value() ==
+           prepared_tensor.has_value());
+    if (prepared_tensor.has_value()) {
+      assert(arg_buffers[i]->getPreparedTensor()->handle ==
+             prepared_tensor->handle);
+    }
+  }
+
+  FlatbufferExecutableImage *executable_image =
+      static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
+
+  // Check if we already have a prepared tensor corresponding to the buffer
+  // instance(s); i.e. a tensor with the layout which this executable is
+  // expecting. If so, we can just reuse this tensor.
+  tt::runtime::Layout expected_layout = tt::runtime::getLayout(
+      executable_image->getFlatbufferBinary(), program_index, arg_index);
+
+  bool has_cached_tensor = prepared_tensor.has_value();
+  bool has_expected_layout =
+      has_cached_tensor &&
+      tt::runtime::hasLayout(*prepared_tensor, expected_layout);
+  if (has_expected_layout) {
+    DLOG_F(LOG_DEBUG,
+           "Reusing already prepared input tensor for argument index %zu with "
+           "shape %s",
+           arg_index, arg_buffers[0]->toShapeStr().c_str());
+
+    // This prepared tensor may be from a previous graph output aliased to
+    // input, so
+    //  we should set its retention flag to true.
+    if (tt::runtime::getTensorRetain(*prepared_tensor) == false) {
+      DLOG_F(LOG_DEBUG,
+             "Prepared tensor for argument index %zu with shape %s had "
+             "retain=false; setting "
+             "to true to avoid deallocation during execution.",
+             arg_index, arg_buffers[0]->toShapeStr().c_str());
+    }
+    tt::runtime::setTensorRetain(*prepared_tensor, /*retain=*/true);
+    return *prepared_tensor;
+  }
+
+  // We might have a cached tensor in the wrong layout, for example
+  // if the cached tensor came from an output from a previous execution
+  // on a differently shaped mesh. An output BufferInstance will not have
+  // a host_runtime_tensor when reused in a future graph as input.
+  // In this case, we re-layout the cached tensor into the expected layout
+  // and return that while saving it back into the buffer instances for future
+  // reuse.
+  else if (!has_expected_layout && has_cached_tensor) {
+    DLOG_F(LOG_DEBUG,
+           "Re-laying out already prepared input tensor for argument index %zu "
+           "with shape %s.",
+           arg_index, arg_buffers[0]->toShapeStr().c_str());
+    tt::runtime::Tensor relaid_out_tensor = convertTensorLayout(
+        *prepared_tensor, program_index, arg_index, runtime_device);
+    for (size_t i = 0; i < arg_buffers.size(); ++i) {
+      arg_buffers[i]->setPreparedTensor(relaid_out_tensor);
+    }
+    tt::runtime::setTensorRetain(relaid_out_tensor, /*retain=*/true);
+    return relaid_out_tensor;
+  }
+
+  // We don't have an already prepared tensor so we need to prepare it now.
+  // This involves two steps:
+  // 1) Create a multi-device tensor from the input buffer instances
+  //   according to the sharding strategy (if needed).
+  // 2) Convert the layout of the tensor to the layout expected by the
+  //  executable.
+  mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
+      fillStrategyMapFromSharding(
+          m_executable_image->getInputSharding(arg_index), num_devices);
+  if (mlir::failed(strategy)) {
+    DLOG_F(ERROR, "Failed to fill strategy map from sharding");
+    return std::nullopt;
+  }
+
+  tt::runtime::Tensor input_tensor =
+      getTensorFromStrategy(arg_buffers, *strategy);
+
+  tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
+      input_tensor, program_index, arg_index, runtime_device);
+
+  // Save the prepared tensor (properly laid out tensor) inside of the buffer
+  // instance(s), so we can reuse it on subsequent executions of the same
+  // executable.
+  for (size_t i = 0; i < arg_buffers.size(); ++i) {
+    arg_buffers[i]->setPreparedTensor(laid_out_tensor);
+  }
+
+  return laid_out_tensor;
+}
+
+tt::runtime::Tensor FlatbufferLoadedExecutableInstance::convertTensorLayout(
+    tt::runtime::Tensor input_tensor, std::uint32_t program_index,
+    size_t arg_index, const tt::runtime::Device &runtime_device) {
+  FlatbufferExecutableImage *executable_image =
+      static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
+
+  tt::runtime::Layout layout = tt::runtime::getLayout(
+      executable_image->getFlatbufferBinary(), program_index, arg_index);
+
+  return tt::runtime::toLayout(input_tensor, runtime_device, layout,
+                               tt::runtime::getTensorRetain(input_tensor));
+}
+
+void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
+    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
+    PJRT_Buffer **const *output_lists,
+    const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
+  size_t n_prog_output_tensors = output_tensors.size();
+
+  // Iterate over the available tensors and devices, filling in the PJRT Buffer
+  // outputs. The output BufferInstance is initialized with a device tensor
+  // which is lazily returned to host when CopyToHost is called.
+  for (size_t output_index = 0; output_index < n_prog_output_tensors;
+       output_index++) {
+    tt::runtime::Tensor outputDeviceTensor = output_tensors[output_index];
+
+    for (int device_index = 0; device_index < num_devices; ++device_index) {
+      std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
+
+      // For a given output_index, each device will get the same
+      // outputDeviceTensor This is trivially correct for replicated outputs.
+      // For sharded outputs, the outputDeviceTensor is a multi-device tensor
+      // and represents all shards. Therefore, the outputDevice tensor will
+      // still be the same for each device, and the BufferInstance will store
+      // which shard to retrieve via the device index, when requested in
+      // CopyToHost.
+      std::unique_ptr<BufferInstance> output_buffer =
+          BufferInstance::createOutputBufferInstance(
+              outputDeviceTensor, std::move(output_shape),
+              m_addressable_devices[device_index],
+              m_addressable_devices[device_index]->getDefaultMemory(),
+              expected_output_data_types[output_index], device_index);
+      DLOG_F(LOG_DEBUG,
+             "Filled output at output_index %zu device_index %d with shape %s",
+             output_index, device_index, output_buffer->toShapeStr().c_str());
+
+      output_buffer->markAsDataReady();
+
+      // Releasing the ownership to the PJRT API caller since the caller is
+      // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
+      output_lists[device_index][output_index] = *output_buffer.release();
+    }
+  }
+}
+
+std::vector<std::uint32_t>
+FlatbufferLoadedExecutableInstance::getOutputShape(size_t output_index) {
+  std::vector<std::uint32_t> outputShape =
+      m_executable_image->getOutputShape(output_index);
+  const mlir::tt::sharding_utils::MeshSharding &outputSharding =
+      m_executable_image->getOutputSharding(output_index);
+
+  if (outputSharding.getShardType() ==
+          mlir::tt::ttcore::MeshShardType::Identity ||
+      outputSharding.getShardType() ==
+          mlir::tt::ttcore::MeshShardType::Replicate) {
+    return outputShape;
+  }
+  llvm::SmallVector<int64_t> output_sharding_shard_shape =
+      outputSharding.getShardShape();
+  assert(output_sharding_shard_shape.size() == outputShape.size() &&
+         "Output sharding shape doesn't match the output shape");
+
+  for (size_t i = 0; i < outputShape.size(); ++i) {
+    assert(outputShape[i] % output_sharding_shard_shape[i] == 0 &&
+           "Output shape is not divisible by the sharding shape");
+    outputShape[i] /= output_sharding_shard_shape[i];
+  }
+
+  return outputShape;
+}
+
+std::shared_ptr<FlatbufferExecutableImage>
+FlatbufferLoadedExecutableInstance::getSharedExecutableImage() const {
+  return std::static_pointer_cast<FlatbufferExecutableImage>(
+      m_executable_image);
+}
+
+void FlatbufferLoadedExecutableInstance::releaseResources() {
+  if (m_deleted) {
+    return;
+  }
+
+  std::lock_guard<std::mutex> deleted_lock(m_deleted_mutex);
+  if (m_deleted) {
+    return;
+  }
+
+  // Here we should drop executable's reference to the internal runtime object
+  // and associated resources, but we currently store no runtime objects so
+  // releasing only resources.
+  m_executable_image.reset();
+
+  m_deleted = true;
+}
+
+// TODO(mrakita): Make this method work in asynchronous fashion.
+tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
+    PJRT_LoadedExecutable_Execute_Args *args) {
+  DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute");
+  LOG_BRINGUP_STAGE("RUNTIME_EXECUTION_START");
+
+  if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
+    DLOG_F(ERROR, "Device count mismatch: %zu vs %zu", args->num_devices,
+           m_executable_image->getNumDevicesToUtilize());
+    return tt_pjrt_status::kInternal;
+  }
+
+  if (args->num_args != m_executable_image->getNumInputs()) {
+    DLOG_F(ERROR, "Argument count mismatch: %zu vs %zu", args->num_args,
+           m_executable_image->getNumInputs());
+    return tt_pjrt_status::kInternal;
+  }
+
+  std::optional<tt::runtime::Device> runtime_device =
+      getOrCreateMeshDevice(args->argument_lists, args->num_args,
+                            args->num_devices, args->execute_device);
+
+  if (!runtime_device) {
+    // Logging is done inside `getOrCreateMeshDevice`.
+    return tt_pjrt_status::kInternal;
+  }
+
+  // Assuming only one program per flatbuffer for now.
+  std::uint32_t program_index = 0;
+
+  std::vector<tt::runtime::Tensor> input_tensors;
+  input_tensors.reserve(args->num_args);
+  tt_pjrt_status status = getInputRuntimeTensors(
+      args->argument_lists, args->num_args, args->num_devices, *runtime_device,
+      program_index, input_tensors);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return status;
+  }
+
+  if (m_executable_image->getCompileOptions().export_tensors) {
+    dumpInputs(input_tensors);
+  }
+
+  FlatbufferExecutableImage *executable_image =
+      static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
+
+  auto r = utils::invoke(tt::runtime::submit, *runtime_device,
+                         executable_image->getFlatbufferBinary(), program_index,
+                         input_tensors);
+
+  if (!r) {
+    m_client_instance->closeMeshDevice();
+    return tt_pjrt_status::kInternal;
+  }
+
+  std::vector<tt::runtime::Tensor> &output_tensors = *r;
+
+  if (output_tensors.size() != m_executable_image->getNumOutputs()) {
+    DLOG_F(ERROR,
+           "Runtime produced different number of output tensors (%zu) than the "
+           "compiler estimated number of outputs (%zu)",
+           output_tensors.size(), m_executable_image->getNumOutputs());
+    return tt_pjrt_status::kInternal;
+  }
+
+  fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
+                      m_executable_image->getOutputTypes());
+
+  if (args->device_complete_events) {
+    for (int device_num = 0; device_num < args->num_devices; ++device_num) {
+      std::unique_ptr<EventInstance> device_complete_event =
+          EventInstance::createInstance();
+      device_complete_event->markAsReady(tt_pjrt_status::kSuccess);
+
+      // Releasing the ownership to the PJRT API caller since the caller is
+      // responsible for calling `PJRT_Event_Destroy` on the event.
+      args->device_complete_events[device_num] =
+          *device_complete_event.release();
+    }
+  }
+
+  return tt_pjrt_status::kSuccess;
+}
+
+} // namespace tt::pjrt

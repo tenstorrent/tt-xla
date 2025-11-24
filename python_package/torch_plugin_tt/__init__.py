@@ -8,7 +8,11 @@ from logging import Logger
 import torch
 import torch_xla
 import tt_torch  # registers "tt" backend for torch.compile
-from pjrt_plugin_tt import get_library_path, setup_tt_metal_home
+from pjrt_plugin_tt import (
+    get_library_path,
+    setup_tt_metal_home,
+    setup_tt_pjrt_plugin_dir,
+)
 from torch_xla.experimental.plugins import DevicePlugin
 
 
@@ -23,19 +27,13 @@ class TTPlugin(DevicePlugin):
 
     def __init__(self):
         super().__init__()
+        setup_tt_pjrt_plugin_dir()
         setup_tt_metal_home()
 
         # For using the PJRT plugin with `torch_xla` we need to set
         # `XLA_STABLEHLO_COMPILE` env variable to `1` to enable stablehlo compilation.
         # NOTE: This variable should soon be on by-default in `torch_xla`, but for now we need it.
         os.environ["XLA_STABLEHLO_COMPILE"] = "1"
-        # HLO Debug and IR Debug flags are required for TorchXLA to attach useful location information to IR.
-        # We rely on this for Codegen exporting.
-        os.environ["XLA_HLO_DEBUG"] = "1"
-        os.environ["XLA_IR_DEBUG"] = "1"
-        # In the pytorch-xla fork this enables the ConvertStableHloToSdy pass.
-        # The tt-mlir stablehlo compiler pipeline expects input shlo from pytorch/xla to contain shardy annotations.
-        os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
 
         print(
             f"WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly."

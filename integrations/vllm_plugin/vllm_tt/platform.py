@@ -1,16 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+# SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
-from tpu_info import device
 from vllm.inputs import ProcessorInputs, PromptType
-from vllm.logger import init_logger
+from vllm.platforms.interface import Platform, PlatformEnum, _Backend
 from vllm.sampling_params import SamplingParams, SamplingType
 from vllm.utils import DEFAULT_MAX_NUM_BATCHED_TOKENS
-
-from .interface import Platform, PlatformEnum, _Backend
 
 if TYPE_CHECKING:
     from vllm.config import BlockSize, ModelConfig, VllmConfig
@@ -21,24 +20,56 @@ else:
     VllmConfig = None
     PoolingParams = None
 
-logger = init_logger(__name__)
+from torch_xla import runtime as xrt
 
-USE_TPU_COMMONS = False
+from .logger import tt_init_logger
+
+logger = tt_init_logger(__name__)
 
 
-class TpuPlatform(Platform):
-    _enum = PlatformEnum.TPU
-    device_name: str = "tpu"
-    device_type: str = "tpu"
+@dataclass
+class TTConfig:
+    # We allow the user of the plugin to toggle consteval in tt-mlir. We would like for this to be on at all times as it results in a more performant model.
+    # However, the results of the consteval graphs are stored on device permanently. When pre-compiling multiple graphs for multiple sequence lengths, we
+    # will essentially end up storing the entire model on device once per graph. This can easily lead to OOM errors.
+    # There is an issue tracking this in tt-mlir: https://github.com/tenstorrent/tt-mlir/issues/3888
+    enable_const_eval: bool = True
+    min_context_len: int = 128
+    batch_size: int = 1
+    enable_precompile_all: bool = True
+
+    # Flag to enable data parallel execution of a model. It will require
+    # - batch_size > 1
+    # - max_num_seqs > 1
+    # Only supported for pooling/embedding models.
+    is_data_parallel: bool = False
+
+    def get_pjrt_compile_config(self) -> dict:
+        return {
+            "enable_const_eval": self.enable_const_eval,
+        }
+
+
+class TTPlatform(Platform):
+    _enum = PlatformEnum.OOT
+    device_name: str = "xla"
+    device_type: str = "xla"
     dispatch_key: str = "XLA"
-    ray_device_key: str = "TPU"
+    ray_device_key: str = "TT"
     dist_backend: str = "gloo"
-    device_control_env_var: str = "TPU_VISIBLE_CHIPS"
-    simple_compile_backend: str = "openxla"
+    device_control_env_var: str = "TT_VISIBLE_DEVICES"
+    simple_compile_backend: str = "tt"
 
-    supported_quantization: list[str] = ["fp8", "tpu_int8", "compressed-tensors"]
+    supported_quantization: list[str] = [
+        # "fp8", "tpu_int8", "compressed-tensors"
+    ]
 
-    additional_env_vars: list[str] = ["TPU_CHIPS_PER_HOST_BOUNDS", "TPU_HOST_BOUNDS"]
+    additional_env_vars: list[str] = [
+        # "TPU_CHIPS_PER_HOST_BOUNDS", "TPU_HOST_BOUNDS"
+    ]
+
+    def __post_init__(self):
+        torch._dynamo.config.ignore_logging_methods(logger.info)
 
     @classmethod
     def get_attn_backend_cls(
@@ -52,28 +83,21 @@ class TpuPlatform(Platform):
         use_mla: bool,
         has_sink,
     ) -> str:
-        if (
-            selected_backend != _Backend.PALLAS
-            and selected_backend != _Backend.PALLAS_VLLM_V1
-        ):
-            logger.info("Cannot use %s backend on TPU.", selected_backend)
-
         if not use_v1:
-            raise ValueError("TPU backend only supports V1.")
+            raise ValueError("TT backend only supports V1.")
         logger.info("Using Pallas V1 backend.")
-        return "vllm.v1.attention.backends.pallas.PallasAttentionBackend"
+        return "vllm_tt.attention.TTAttentionBackend"
 
     @classmethod
     def set_device(cls, device: torch.device) -> None:
         """
         Set the device for the current platform.
         """
-        torch.tpu.set_device(device)
+        cls.device = device
 
     @classmethod
     def get_device_name(cls, device_id: int = 0) -> str:
-        chip_type, _ = device.get_local_chips()
-        return f"TPU {chip_type.name}"
+        return f"xla:{device_id}"
 
     @classmethod
     def get_device_total_memory(cls, device_id: int = 0) -> int:
@@ -85,7 +109,8 @@ class TpuPlatform(Platform):
 
     @classmethod
     def get_punica_wrapper(cls) -> str:
-        return "vllm.lora.punica_wrapper.punica_tpu.PunicaWrapperTPU"
+        return NotImplementedError
+        # return "vllm.lora.punica_wrapper.punica_tpu.PunicaWrapperTPU"
 
     @classmethod
     def get_infinity_values(cls, dtype: torch.dtype) -> tuple[float, float]:
@@ -110,13 +135,13 @@ class TpuPlatform(Platform):
         cache_config = vllm_config.cache_config
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
-            cache_config.block_size = cast(BlockSize, 16)
+            cache_config.block_size = cast(BlockSize, 32)
         compilation_config = vllm_config.compilation_config
 
-        # TPU only supports DYNAMO_ONCE compilation level
+        # TT only supports DYNAMO_ONCE compilation level
         if compilation_config.level != CompilationLevel.DYNAMO_ONCE:
             logger.info(
-                "[TPU] Forcing DYNAMO_ONCE compilation level, and "
+                "[TT] Forcing DYNAMO_ONCE compilation level, and "
                 "disabling cudagraph."
             )
             compilation_config.level = CompilationLevel.DYNAMO_ONCE
@@ -127,16 +152,16 @@ class TpuPlatform(Platform):
             != CUDAGraphMode.NONE
         ):
             logger.info(
-                "[TPU] CUDA graph is not supported on TPU, " "disabling cudagraphs."
+                "[TT] CUDA graph is not supported on TT, " "disabling cudagraphs."
             )
             compilation_config.cudagraph_mode = CUDAGraphMode.NONE
 
         if compilation_config.backend == "":
-            compilation_config.backend = "openxla"
+            compilation_config.backend = "tt"
 
         assert (
             vllm_config.speculative_config is None
-        ), "TPU does not support speculative decoding"
+        ), "TT does not support speculative decoding"
 
         model_config = vllm_config.model_config
         if model_config is not None and model_config.dtype in (
@@ -144,33 +169,33 @@ class TpuPlatform(Platform):
             torch.float32,
         ):
             logger.warning(
-                "The TPU backend currently does not support %s. "
+                "The TT backend currently does not support %s. "
                 "Using bfloat16 instead.",
                 model_config.dtype,
             )
             model_config.dtype = torch.bfloat16
 
-        from vllm.v1.attention.backends.pallas import PallasAttentionBackend
+        from .attention import TTAttentionBackend
 
-        cache_config.block_size = PallasAttentionBackend.get_page_size(
+        cache_config.block_size = TTAttentionBackend.get_page_size(
             vllm_config
         )  # type: ignore[assignment]
 
         parallel_config = vllm_config.parallel_config
         scheduler_config = vllm_config.scheduler_config
         if parallel_config.worker_cls == "auto":
-            parallel_config.worker_cls = "vllm.v1.worker.tpu_worker.TPUWorker"
+            parallel_config.worker_cls = "vllm_tt.worker.TTWorker"
 
         assert (
             not vllm_config.speculative_config
-        ), "Speculative decoding is not yet supported for TPU backend"
+        ), "Speculative decoding is not yet supported for TT backend"
 
         if (
             scheduler_config.is_multimodal_model
             and not scheduler_config.disable_chunked_mm_input
         ):
             logger.warning(
-                "TPU does not support running Multimodal models"
+                "TT does not support running Multimodal models"
                 " without setting `--disable_chunked_mm_input`. "
                 "Forcing --disable_chunked_mm_input."
             )
@@ -190,7 +215,7 @@ class TpuPlatform(Platform):
 
     @classmethod
     def is_pin_memory_available(cls):
-        logger.warning("Pin memory is not supported on TPU.")
+        logger.warning("Pin memory is not supported on TT.")
         return False
 
     @classmethod
@@ -227,7 +252,7 @@ class TpuPlatform(Platform):
         return True
 
     @classmethod
-    @torch.compile(backend="openxla")
+    @torch.compile(backend="tt")
     def insert_blocks_to_device(
         cls,
         src_cache: torch.Tensor,
@@ -239,7 +264,7 @@ class TpuPlatform(Platform):
         dst_cache[dst_block_indices] = src_cache[src_block_indices].to(dst_cache.device)
 
     @classmethod
-    @torch.compile(backend="openxla")
+    @torch.compile(backend="tt")
     def swap_out_blocks_to_host(
         cls,
         src_cache: torch.Tensor,
@@ -250,13 +275,3 @@ class TpuPlatform(Platform):
         """tpu blocks to cpu blocks"""
         torch.ops.xla.dynamo_set_buffer_donor_(src_cache, True)
         dst_cache[dst_block_indices] = src_cache[src_block_indices].cpu()
-
-
-try:
-    from tpu_commons.platforms import TpuPlatform as TpuCommonsPlatform
-
-    TpuPlatform = TpuCommonsPlatform  # type: ignore
-    USE_TPU_COMMONS = True
-except ImportError:
-    logger.info("tpu_commons not found, using vLLM's TpuPlatform")
-    pass

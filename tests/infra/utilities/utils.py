@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from typing import Tuple, Union
 
 import jax
@@ -10,6 +11,31 @@ import torch
 from infra.runners import run_on_cpu
 from infra.utilities import Framework, Tensor
 from jax._src.typing import DTypeLike
+
+
+def sanitize_test_name(test_name: str) -> str:
+    """
+    Sanitize a test name for use in filenames by replacing special characters with underscores.
+
+    Replaces brackets, parentheses, commas, hyphens, spaces, and forward slashes with underscores
+    to create a filesystem-safe name without creating subdirectories.
+
+    Args:
+        test_name: Test name to sanitize (e.g., "test_model[param1,param2]/case1")
+
+    Returns:
+        Sanitized name safe for filenames (e.g., "test_model_param1_param2_case1")
+
+    Examples:
+        >>> sanitize_test_name("test_mnist[256-128-64]")
+        'test_mnist_256_128_64'
+        >>> sanitize_test_name("test_all_models/pytorch_wide_resnet50_2")
+        'test_all_models_pytorch_wide_resnet50_2'
+    """
+    # Replace special chars (including forward slashes) with underscores
+    clean_name = re.sub(r"[\[\](),\-\s/:]+", "_", test_name)
+    # Remove trailing underscores
+    return clean_name.rstrip("_")
 
 
 def random_image(image_size: int, framework: Framework = Framework.JAX) -> Tensor:
@@ -124,3 +150,49 @@ def random_torch_tensor(
         return torch.randint(0, 2, shape, dtype=torch.bool)
     else:
         raise TypeError(f"Unsupported dtype: {dtype_converted}")
+
+
+def create_jax_inference_tester(
+    model_tester_class, variant_or_args, format: str, compiler_config=None, **kwargs
+):
+    """Generic JAX inference tester creator."""
+    from infra.testers.compiler_config import CompilerConfig
+
+    if format == "float32":
+        dtype = jnp.float32
+    elif format == "bfloat16":
+        dtype = jnp.bfloat16
+    elif format == "bfp8":
+        dtype = jnp.bfloat16
+        if compiler_config is None:
+            compiler_config = CompilerConfig()
+        compiler_config.enable_bfp8_conversion = True
+
+    return model_tester_class(
+        variant_or_args, compiler_config=compiler_config, dtype_override=dtype, **kwargs
+    )
+
+
+def create_torch_inference_tester(
+    model_tester_class,
+    variant_or_args,
+    format: str,
+    compiler_config=None,
+    **kwargs,
+):
+    """Generic PyTorch inference tester creator."""
+    from infra.testers.compiler_config import CompilerConfig
+
+    if format == "float32":
+        dtype = None
+    elif format == "bfloat16":
+        dtype = torch.bfloat16
+    elif format == "bfp8":
+        dtype = torch.bfloat16
+        if compiler_config is None:
+            compiler_config = CompilerConfig()
+        compiler_config.enable_bfp8_conversion = True
+
+    return model_tester_class(
+        variant_or_args, compiler_config=compiler_config, dtype_override=dtype, **kwargs
+    )

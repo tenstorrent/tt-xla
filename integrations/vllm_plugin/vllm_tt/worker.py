@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
-"""A TPU worker class."""
+# SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
+
+"""A TT worker class."""
 
 import os
 from typing import Any, Optional
@@ -8,6 +10,10 @@ from typing import Any, Optional
 import torch
 import torch.distributed
 import torch.nn as nn
+import torch_xla
+import torch_xla.core.xla_model as xm
+import torch_xla.debug.profiler as xp
+import torch_xla.runtime as xr
 import vllm.envs as envs
 from vllm.config import VllmConfig
 from vllm.distributed import (
@@ -18,11 +24,9 @@ from vllm.distributed.kv_transfer import (
     ensure_kv_transfer_initialized,
     has_kv_transfer_group,
 )
-from vllm.logger import init_logger
 from vllm.lora.request import LoRARequest
 from vllm.model_executor import set_random_seed
 from vllm.platforms import current_platform
-from vllm.platforms.tpu import USE_TPU_COMMONS
 from vllm.tasks import SupportedTask
 from vllm.utils import STR_DTYPE_TO_TORCH_DTYPE, cdiv
 from vllm.v1.core.sched.output import SchedulerOutput
@@ -31,18 +35,16 @@ from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.utils import bind_kv_cache
 
-logger = init_logger(__name__)
+from .attention import TT_HEAD_SIZE_ALIGNMENT
+from .logger import tt_init_logger
+from .model_runner import TTModelRunner
+from .platform import TTConfig
+from .pooling_runner import TTPoolingModelRunner
 
-if not USE_TPU_COMMONS:
-    logger.info("tpu_commons not found, using vLLM's TPUWorker.")
-    import torch_xla.core.xla_model as xm
-    import torch_xla.debug.profiler as xp
-    import torch_xla.runtime as xr
-    from vllm.v1.attention.backends.pallas import TPU_HEAD_SIZE_ALIGNMENT
-    from vllm.v1.worker.tpu_model_runner import TPUModelRunner
+logger = tt_init_logger(__name__)
 
 
-class TPUWorker:
+class TTWorker:
     def __init__(
         self,
         vllm_config: VllmConfig,
@@ -58,7 +60,11 @@ class TPUWorker:
         self.lora_config = vllm_config.lora_config
         self.load_config = vllm_config.load_config
         self.parallel_config = vllm_config.parallel_config
-        self.use_spmd = envs.VLLM_XLA_USE_SPMD
+
+        self.tt_config = TTConfig(**vllm_config.additional_config)
+        data_parallel_inference = self.tt_config.is_data_parallel
+
+        self.use_spmd = envs.VLLM_XLA_USE_SPMD or data_parallel_inference
         self.original_parallel_config = None
         if self.use_spmd:
             # Under SPMD mode, distributed env is initialized as if there is
@@ -67,6 +73,13 @@ class TPUWorker:
             self.parallel_config.tensor_parallel_size = 1
             self.parallel_config.pipeline_parallel_size = 1
             self.parallel_config.world_size = 1
+
+            # torch-xla uses 'CONVERT_SHLO_TO_SHARDY' evn variable to enable
+            # conversion of sharding annotations (expressed in the shlo dialect)
+            # into the Shardy dialect representation, which is what Shardy uses
+            # for SPMD execution.
+            os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+
         self.scheduler_config = vllm_config.scheduler_config
         self.device_config = vllm_config.device_config
         self.speculative_config = vllm_config.speculative_config
@@ -90,12 +103,12 @@ class TPUWorker:
 
         # Delay profiler initialization to the start of the profiling.
         # This is because in vLLM V1, MP runtime is initialized before the
-        # TPU Worker is initialized. The profiler server needs to start after
+        # TT Worker is initialized. The profiler server needs to start after
         # MP runtime is initialized.
         self.profiler = None
         self.profile_dir = None
         if envs.VLLM_TORCH_PROFILER_DIR and self.rank < 1:
-            # For TPU, we can only have 1 active profiler session for 1 profiler
+            # For TT, we can only have 1 active profiler session for 1 profiler
             # server. So we only profile on rank0.
             self.profile_dir = envs.VLLM_TORCH_PROFILER_DIR
             logger.info(
@@ -110,18 +123,8 @@ class TPUWorker:
         self.cache_config.num_cpu_blocks = num_cpu_blocks
 
     def init_device(self):
-        os.environ["PJRT_DEVICE"] = "TPU"
-        # Note: Currently the XLA compiler wrongly uses 2D ring strategy on 1D
-        # ring, the xla tpu compiler flag
-        # `xla_tpu_force_1d_allreduce_at_chunk_count` is a temporary solution to
-        # fix this. It will be removed after the bug in XLA compiler is fixed.
-        os.environ["LIBTPU_INIT_ARGS"] = (
-            os.environ.get("LIBTPU_INIT_ARGS", "")
-            + " --xla_tpu_force_1d_allreduce_at_chunk_count=1"
-            " --xla_jf_conv_input_fusion=False"
-        )
-        # --xla_jf_conv_input_fusion=False is used to improve the perf of
-        # quantized matmul.
+        # os.environ["PJRT_DEVICE"] = "TT"
+        xr.set_device_type("TT")
         torch.set_grad_enabled(False)
         torch.set_default_dtype(self.model_config.dtype)
 
@@ -132,7 +135,7 @@ class TPUWorker:
 
         # Device initialization should happen after initializing
         # the distributed runtime.
-        self.device = xm.xla_device()
+        self.device = torch_xla.device()
         self.device_config.device = self.device
 
         # Set random seed.
@@ -163,7 +166,11 @@ class TPUWorker:
             xr.initialize_cache(per_rank_path, readonly=False)
 
         # Init ModelRunner here, so that we have access to self.device.
-        self.model_runner = TPUModelRunner(
+        ModelRunnerClass = TTModelRunner
+        if self.model_config.runner_type == "pooling":
+            ModelRunnerClass = TTPoolingModelRunner
+
+        self.model_runner = ModelRunnerClass(
             self.vllm_config, self.device, self.original_parallel_config
         )
 
@@ -172,6 +179,8 @@ class TPUWorker:
             report_usage_stats(self.vllm_config)
 
     def determine_available_memory(self) -> int:
+        if self.model_config.runner_type == "pooling":
+            return int(11596411699)
         kv_caches: dict[str, torch.Tensor] = {}
         kv_cache_spec = self.model_runner.get_kv_cache_spec()
         for layer_name, layer_spec in kv_cache_spec.items():
@@ -180,7 +189,7 @@ class TPUWorker:
 
                 # Use an empty tensor instead of `None`` to force Dynamo to pass
                 # it by reference, rather by specializing on the value ``None``.
-                tpu_kv_cache = torch.tensor([], dtype=dtype).to(self.device)
+                tpu_kv_cache = torch.tensor([0], dtype=dtype).to(self.device)
                 kv_caches[layer_name] = tpu_kv_cache
             else:
                 raise NotImplementedError(
@@ -211,21 +220,17 @@ class TPUWorker:
 
         # Get the maximum amount of memory used by the model weights and
         # intermediate activations.
-        if self.use_spmd:
-            # This is a workaround for the TPU SPMD mode. The get_memory_info
-            # API doesn't work with SPMD mode in PyTorch/XLA.
-            # TODO: use xm.get_memory_info for SPMD once it's supported in
-            # PyTorch/XLA.
-            import tpu_info
+        # TODO @LPanosTT: https://github.com/tenstorrent/tt-xla/issues/1414: we should find out if/how we
+        # can implement the PJRT API function(s) necessary to execute xm.get_memory_info,
+        # and implement them. I believe we must implement PJRT_Device_MemoryStats.
 
-            chip_type, _ = tpu_info.device.get_local_chips()
-            device_usage = tpu_info.metrics.get_chip_usage(chip_type)
-            total_memory_size = device_usage[0].total_memory
-            current_mem = device_usage[0].memory_usage
-        else:
-            m = xm.get_memory_info(self.device)
-            total_memory_size = m["bytes_limit"]
-            current_mem = m["bytes_used"]
+        # m = xm.get_memory_info(self.device)
+        # total_memory_size = m["bytes_limit"]
+        # current_mem = m["bytes_used"]
+        # @LPanosTT: For now we will always report that no memory has been used.
+        total_memory_size = 12 * 1024**3  # m["bytes_limit"]
+        current_mem = 0  # m["bytes_used"]
+
         # Ideally we would use profiled = m["peak_bytes_used"] to
         # get weights + activations. But there is memory used during
         # compilation / weight loading that impacts the peak and
@@ -241,7 +246,7 @@ class TPUWorker:
         head_size = self.model_config.get_head_size()
         if head_size > 0:
             padded_head_size = (
-                cdiv(head_size, TPU_HEAD_SIZE_ALIGNMENT) * TPU_HEAD_SIZE_ALIGNMENT
+                cdiv(head_size, TT_HEAD_SIZE_ALIGNMENT) * TT_HEAD_SIZE_ALIGNMENT
             )
             if padded_head_size != head_size:
                 logger.warning_once("head size is padded to %d", padded_head_size)
@@ -333,12 +338,3 @@ class TPUWorker:
         )
 
         ensure_kv_transfer_initialized(vllm_config)
-
-    def shutdown(self) -> None:
-        self.model_runner.ensure_kv_transfer_shutdown()
-
-
-if USE_TPU_COMMONS:
-    from tpu_commons.worker import TPUWorker as TPUCommonsWorker
-
-    TPUWorker = TPUCommonsWorker  # type: ignore

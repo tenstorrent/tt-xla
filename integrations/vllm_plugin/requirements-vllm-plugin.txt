@@ -1,0 +1,2 @@
+vllm@git+https://github.com/tenstorrent/vllm.git@forge/v0.10.1.1_patched
+transformers==4.55.0

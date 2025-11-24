@@ -4,34 +4,34 @@
 #
 
 if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
-  echo "TTMLIR_TOOLCHAIN_DIR not set. Please set it and re-run"
-else
-  export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRRARY_PATH
-  export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
-  export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES"
-  # pytest alias for venv interpreter
-  alias pytest='python -m pytest'
-
-  export TTMLIR_VENV_DIR="$(pwd)/venv"
-  if [ -d $TTMLIR_VENV_DIR/bin ]; then
-    [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
-  else
-    echo "Creating virtual environment in $TTMLIR_VENV_DIR"
-    python3.11 -m venv $TTMLIR_VENV_DIR
-    source $TTMLIR_VENV_DIR/bin/activate
-    pip install --upgrade pip
-    # Requirements for third party projects are installed during their build in `CMakeLists.txt`
-    pip install -r python_package/requirements.txt
-    # Install dev/test requirements
-    pip install -r venv/requirements-dev.txt
-  fi
-
-  export TTXLA_ENV_ACTIVATED=1
-  export TTMLIR_ENV_ACTIVATED=1
-  export TT_METAL_LOGGER_LEVEL="ERROR"
-  export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
-
-  export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:$PATH
-  export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
-  export TT_METAL_RUNTIME_ROOT="$(pwd)/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/"
+  echo "WARNING: TTMLIR_TOOLCHAIN_DIR not set. Using default value /opt/ttmlir-toolchain"
+  export TTMLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
 fi
+export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRARY_PATH
+export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
+export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/integrations/vllm_plugin:$(pwd)/third_party/tt-mlir/src/tt-mlir/build/python_packages"
+# pytest alias for venv interpreter
+alias pytest='python -m pytest'
+
+export TTMLIR_VENV_DIR="$(pwd)/venv"
+if [ -d $TTMLIR_VENV_DIR/bin ]; then
+  [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
+else
+  echo "Creating virtual environment in $TTMLIR_VENV_DIR"
+  python3.11 -m venv $TTMLIR_VENV_DIR
+  source $TTMLIR_VENV_DIR/bin/activate
+  pip install --upgrade pip
+  # Requirements for third party projects are installed during their build in `CMakeLists.txt`
+  pip install -r python_package/requirements.txt
+  # Install dev/test requirements
+  pip install -r venv/requirements-dev.txt
+fi
+
+export VLLM_TARGET_DEVICE="empty"
+
+export TTXLA_ENV_ACTIVATED=1
+export TTMLIR_ENV_ACTIVATED=1
+export TT_METAL_LOGGER_LEVEL="ERROR"
+export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
+export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
+export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:${TT_MLIR_HOME}/build/bin:$PATH

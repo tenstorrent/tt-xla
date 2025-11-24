@@ -9,7 +9,7 @@ from typing import Optional
 
 from infra.comparators import Comparator, ComparatorFactory, ComparisonConfig
 from infra.runners import DeviceRunner, DeviceRunnerFactory
-from infra.utilities import Framework
+from infra.utilities import Framework, sanitize_test_name
 from infra.workloads import Workload
 
 
@@ -60,4 +60,24 @@ class BaseTester(ABC):
     @abstractmethod
     def _compile_for_tt_device(self, workload: Workload) -> None:
         """Compiles `workload` for TT device."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def serialize_compilation_artifacts(self, test_name: str) -> None:
+        """Serialize the model with the appropriate output prefix.
+
+        Args:
+            test_name: Test name to generate output prefix from.
+        """
+        clean_name = sanitize_test_name(test_name)
+        output_prefix = f"output_artifact/{clean_name}"
+        self.serialize_on_device(output_prefix)
+
+    @abstractmethod
+    def serialize_on_device(self, output_prefix: str) -> None:
+        """
+        Serializes the model workload on TT device with proper compiler configuration.
+
+        Args:
+            output_prefix: Base path and filename prefix for output files
+        """
         raise NotImplementedError("Subclasses must implement this method.")

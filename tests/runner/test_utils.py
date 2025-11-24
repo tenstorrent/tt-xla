@@ -5,15 +5,18 @@
 import collections
 import importlib.util
 import inspect
+import numbers
 import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
 
 import numpy as np
+import pytest
 import torch
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
+from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
 from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
 
@@ -21,11 +24,38 @@ from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
+BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
-@dataclass
-class ModelTestEntry:
-    path: str
-    variant_info: tuple
+
+def fix_venv_isolation():
+    """
+    Fix venv isolation issue: ensure venv packages take precedence over system packages.
+
+    This function adjusts the Python path to prioritize virtual environment packages
+    over system packages, preventing package conflicts and ensuring proper isolation
+    during test execution.
+    """
+    venv_site = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "..",
+        "venv",
+        "lib",
+        "python3.11",
+        "site-packages",
+    )
+    if os.path.exists(venv_site) and venv_site not in sys.path:
+        sys.path.insert(0, os.path.abspath(venv_site))
+
+    # Remove system packages from path to ensure proper isolation
+    sys.path = [
+        p
+        for p in sys.path
+        if "/usr/local/lib/python3.11/dist-packages" not in p
+        or p == "/usr/local/lib/python3.11/dist-packages"
+    ]
+    # Re-add at the end as fallback
+    if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
+        sys.path.append("/usr/local/lib/python3.11/dist-packages")
 
 
 class ModelTestStatus(Enum):
@@ -67,12 +97,22 @@ class ModelTestConfig:
         self.reason = self._resolve("reason", default=None)
         self.bringup_status = self._resolve("bringup_status", default=None)
 
+        self.failing_reason = self._resolve("failing_reason", default=None)
+
         # Optional list of pytest markers to apply (e.g. ["push", "nightly"]) - normalized to list[str]
         self.markers = self._normalize_markers(self._resolve("markers", default=[]))
 
         # Optional list of supported architectures (e.g. ["p150", "n300", "n300-llmbox"]) - normalized to list[str]
         self.supported_archs = self._normalize_markers(
             self._resolve("supported_archs", default=[])
+        )
+
+        # Execution pass for the model (e.g. "FORWARD" or "BACKWARD")
+        self.execution_pass = self._resolve("execution_pass", default=None)
+
+        # Optional list of FileCheck pattern files to run (e.g. ["concatenate_heads.ttnn.mlir"])
+        self.filechecks = self._normalize_markers(
+            self._resolve("filechecks", default=[])
         )
 
     def _resolve(self, key, default=None):
@@ -133,241 +173,95 @@ class ModelTestConfig:
             return []
 
 
-# This attempts to classify various exception types but is not robust at all.
-# Soon https://github.com/tenstorrent/tt-xla/issues/1052 will improve bringup_status reporting
-# and this would be updated to use actual bringup_status achieved by a model.
+def parse_last_bringup_stage() -> BringupStatus | None:
+    """
+    Read the current stage from file and map to BringupStatus.
+
+    This function reads the structured logging marker written to ._bringup_stage.txt (at repo root)
+    by the C++ compilation/execution pipeline when ENABLE_BRINGUP_STAGE_LOGGING=1 is set.
+
+    Returns:
+        BringupStatus: The bringup status based on the last stage reached before failure.
+        None: If the file doesn't exist or cannot be read.
+    """
+    try:
+        with open(BRINGUP_STAGE_FILE, "r") as f:
+            stage_name = f.read().strip()
+    except (FileNotFoundError, IOError):
+        return None
+
+    if not stage_name:
+        return None
+
+    # Map stage to BringupStatus
+    stage_to_status = {
+        "FE_COMPILATION_START": BringupStatus.FAILED_FE_COMPILATION,
+        "TTMLIR_COMPILATION_START": BringupStatus.FAILED_TTMLIR_COMPILATION,
+        "RUNTIME_EXECUTION_START": BringupStatus.FAILED_RUNTIME,
+    }
+
+    return stage_to_status.get(stage_name)
+
+
 def update_test_metadata_for_exception(
-    test_metadata, exc: Exception, stderr: str
+    test_metadata, exc: Exception, stdout: str, stderr: str
 ) -> None:
     """
-    Inspect exception message, stderr and set `runtime_bringup_status` and `runtime_reason` on `test_metadata`.
+    Inspect exception message and set `failing_reason` and `runtime_reason` on `test_metadata`.
     """
     try:
         message = str(exc)
     except Exception:
         message = repr(exc)
 
-    msg = message.lower() if message else ""
-    err = (stderr or "").lower()
-    # print(f"Found exception: {repr(exc)} message: {msg} stderr: {err}")
+    # Find failing reason by raised exception
+    failing_reason = FailingReasonsFinder.find_reason_by_exception(
+        exc, stdout=stdout, stderr=stderr
+    )
 
-    if isinstance(exc, AssertionError) and "comparison failed" in msg:
-        status = BringupStatus.INCORRECT_RESULT
-    elif isinstance(exc, RuntimeError):
-        if (
-            "failed to legalize" in err
-            or "stablehlo" in err
-            or "mhlo" in err
-            or "mlir" in err
-        ):
-            status = BringupStatus.FAILED_TTMLIR_COMPILATION
-        elif "bad statusor access" in msg or "internal: error code: 13" in msg:
-            status = BringupStatus.FAILED_RUNTIME
-        else:
-            status = BringupStatus.FAILED_RUNTIME
-    else:
-        status = BringupStatus.UNKNOWN
-
-    setattr(test_metadata, "runtime_bringup_status", status)
+    # TODO: remove this once we have a better way to set the reason dynamically.
+    # and handle it in record_model_test_properties.
     setattr(test_metadata, "runtime_reason", message)
+    setattr(test_metadata, "failing_reason", failing_reason)
 
 
-def get_models_root(project_root):
-    """Return the filesystem path to the given module, supporting both installed and source-tree use cases."""
-    module_name = "third_party.tt_forge_models"
-    spec = importlib.util.find_spec(module_name)
-    if spec:
-        if spec.submodule_search_locations:
-            return spec.submodule_search_locations[0]
-        elif spec.origin:
-            return os.path.dirname(os.path.abspath(spec.origin))
+# This is needed for combination of pytest-forked and using ruamel.yaml
+# ruamel returns ScalarFloat/ScalarString types (subclasses of float/str).
+# pytest-forked uses Python's marshal, which rejects non-builtin subclasses inside the
+# test report's user_properties, causing ValueError: unmarshallable object.
+def _to_marshal_safe(value):
+    """Recursively convert values to marshal-safe builtin types for pytest-forked."""
+    # None stays None
+    if value is None:
+        return None
 
-    # Derive filesystem path from module name
-    rel_path = os.path.join(*module_name.split("."))
-    fallback = os.path.join(project_root, rel_path)
-    print(f"No installed {module_name}; falling back to {fallback}")
-    return fallback
+    # Enums -> string representation
+    if isinstance(value, Enum):
+        return str(value)
 
+    # Numpy scalar types -> corresponding python scalar
+    if isinstance(value, np.generic):
+        return value.item()
 
-def import_model_loader(loader_path, models_root):
-    """Dynamically import and return ModelLoader class from a loader.py path, ensuring relative imports work."""
-    # Import the base module first to ensure it's available
-    models_parent = os.path.dirname(models_root)
-    if models_parent not in sys.path:
-        sys.path.insert(0, models_parent)
+    # Primitive scalars, ensure builtin types
+    # Note: bool must be checked before Integral (since bool is a subclass of int)
+    if isinstance(value, bool):
+        return bool(value)
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if isinstance(value, numbers.Real):
+        return float(value)
+    if isinstance(value, (str, bytes)):
+        return value.decode() if isinstance(value, bytes) else value
 
-    # Get the relative path from models_root to construct proper module name
-    rel_path = os.path.relpath(loader_path, models_root)
-    rel_path_without_ext = rel_path.replace(".py", "")
+    # Collections
+    if isinstance(value, dict):
+        return {str(k): _to_marshal_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_marshal_safe(v) for v in value]
 
-    # Use different/dummy module name to avoid conflicts with real package name
-    module_path = "tt-forge-models." + rel_path_without_ext.replace(os.sep, ".")
-
-    spec = importlib.util.spec_from_file_location(module_path, location=loader_path)
-    mod = importlib.util.module_from_spec(spec)
-
-    # Set the module's __package__ for relative imports to work
-    loader_dir = os.path.dirname(loader_path)
-    package_name = "tt_forge_models." + os.path.relpath(
-        loader_dir, models_root
-    ).replace(os.sep, ".")
-    mod.__package__ = package_name
-    mod.__name__ = module_path
-
-    # Add the module to sys.modules to support relative imports
-    sys.modules[module_path] = mod
-    spec.loader.exec_module(mod)
-
-    return mod.ModelLoader
-
-
-def get_model_variants(loader_path, loader_paths, models_root):
-    """Fill loader_paths[loader_path] with (variant_name, ModelLoader) tuples by querying the loader; on failure, log and continue."""
-    try:
-        # Import the ModelLoader class from the module
-        ModelLoader = import_model_loader(loader_path, models_root)
-        variants = ModelLoader.query_available_variants()
-
-        # Store variant_name, ModelLoader together for usage, or empty one if no variants found.
-        if variants:
-            for variant_name in variants.keys():
-                loader_paths[loader_path].append((variant_name, ModelLoader))
-        else:
-            loader_paths[loader_path].append((None, ModelLoader))
-
-    except Exception as e:
-        print(f"Cannot import path: {loader_path}: {e}")
-
-
-def generate_test_id(test_entry, models_root):
-    """Generate test ID from test entry with optional variant."""
-    model_path = os.path.relpath(os.path.dirname(test_entry.path), models_root)
-    variant_info = test_entry.variant_info
-    variant_name = variant_info[0] if variant_info else None
-    return f"{model_path}-{variant_name}" if variant_name else model_path
-
-
-class DynamicTorchModelTester(TorchModelTester):
-    def __init__(
-        self,
-        run_mode: RunMode,
-        *,
-        loader,
-        comparison_config: ComparisonConfig | None = None,
-        parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
-    ) -> None:
-        self.loader = loader
-        # Optional: store requested parallelism for reporting/consumers
-        self.parallelism = parallelism
-
-        super().__init__(
-            comparison_config=comparison_config or ComparisonConfig(),
-            run_mode=run_mode,
-            parallelism=self.parallelism,
-        )
-
-    # --- TorchModelTester interface implementations ---
-
-    def _get_model(self):
-        sig = inspect.signature(self.loader.load_model)
-        if "dtype_override" in sig.parameters:
-            return self.loader.load_model(dtype_override=torch.bfloat16)
-        return self.loader.load_model()
-
-    def _get_input_activations(self):
-        sig = inspect.signature(self.loader.load_inputs)
-        if "dtype_override" in sig.parameters:
-            return self.loader.load_inputs(dtype_override=torch.bfloat16)
-        return self.loader.load_inputs()
-
-    def _get_shard_specs_function(self):
-        return self.loader.load_shard_spec
-
-    def _get_mesh(self):
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape, mesh_names = self.loader.get_mesh_config(num_devices)
-        return get_mesh(mesh_shape, mesh_names)
-
-
-def setup_models_path(project_root):
-    """Setup models root path and add to sys.path for imports."""
-    models_root = get_models_root(project_root)
-
-    # Add the models root to sys.path so relative imports work
-    if models_root not in sys.path:
-        sys.path.insert(0, models_root)
-
-    return models_root
-
-
-def discover_loader_paths(models_root):
-    """Discover all pytorch (for now) loader.py files in the models directory, with exclusions."""
-    loader_paths = {}
-
-    # TODO(kmabee) - Temporary workaround to exclude models with fatal issues.
-    # Surya OCR imports and initializes torch_xla runtime which causes issues
-    # https://github.com/tenstorrent/tt-xla/issues/1166
-    excluded_model_dirs = {"suryaocr"}
-
-    for root, dirs, files in os.walk(models_root):
-
-        model_dir_name = os.path.basename(os.path.dirname(root))
-        if model_dir_name in excluded_model_dirs:
-            print(
-                f"Workaround to exclude model: {model_dir_name} from discovery. Issue #1166",
-                flush=True,
-            )
-            continue
-
-        if os.path.basename(root) == "pytorch" and "loader.py" in files:
-            loader_paths[os.path.join(root, "loader.py")] = []
-
-    # Populate variants for each loader path
-    for path in loader_paths.keys():
-        get_model_variants(path, loader_paths, models_root)
-
-    return loader_paths
-
-
-def create_test_entries(loader_paths):
-    """Create test entries combining loader paths and variants."""
-    test_entries = []
-
-    # Development / Debug workaround to collect only red models.
-    red_only = os.environ.get("TT_XLA_RED_ONLY", "0") == "1"
-
-    # Store variant tuple along with the ModelLoader
-    for loader_path, variant_tuples in loader_paths.items():
-        for variant_info in variant_tuples:
-
-            if red_only:
-                model_info = variant_info[1].get_model_info(variant_info[0])
-                if model_info.group.value != "red":
-                    continue
-
-            test_entries.append(
-                ModelTestEntry(path=loader_path, variant_info=variant_info)
-            )
-
-    return test_entries
-
-
-def setup_test_discovery(project_root):
-    """Complete test discovery setup - combines all the setup steps."""
-    models_root = setup_models_path(project_root)
-    loader_paths = discover_loader_paths(models_root)
-    test_entries = create_test_entries(loader_paths)
-    return models_root, test_entries
-
-
-def create_test_id_generator(models_root):
-    """Create a function for generating test IDs."""
-
-    def _generate_test_id(test_entry):
-        """Generate test ID from test entry using the utility function."""
-        return generate_test_id(test_entry, models_root)
-
-    return _generate_test_id
+    # Fallback to string to avoid unmarshallable objects
+    return str(value)
 
 
 def record_model_test_properties(
@@ -387,38 +281,72 @@ def record_model_test_properties(
 
     - Always records tags (including test_name, specific_test_case, category, model_name, run_mode, bringup_status),
       plus owner and group properties.
-    - Passing tests (test_passed=True) always record bringup_status=PASSED, ignoring configured/static values.
-    - Failing tests classify bringup info in this order:
-      1) Static: use test_metadata.bringup_status/reason from config when both are present
-      2) Runtime: else use test_metadata.runtime_bringup_status/runtime_reason when both are present
-      3) Default: else use UNKNOWN/"Not specified"
-    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status from static/default logic and call pytest.skip(reason).
-    - If test_metadata.status is KNOWN_FAILURE_XFAIL, leave execution to xfail via marker; properties still reflect runtime/static/default classification.
+    - Passing tests (test_passed=True) set bringup_status based on PCC comparison.
+    - Failing tests classify bringup info based on the last stage reached before failure.
+    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status and reason from config and call pytest.skip(reason).
+    - If test_metadata.bringup_status is NOT_STARTED, its just recorded as NOT_STARTED - test_placeholder_models uses this.
+    - If test_metadata.status is KNOWN_FAILURE_XFAIL, call pytest.xfail(reason) at the end.
+    - If test_metadata.failing_reason is set, use it to set the failing reason.
     """
 
-    # Determine bringup status and reason based on runtime/test outcome
-    reason = None
-    static_bringup_status = getattr(test_metadata, "bringup_status", None)
-    static_reason = getattr(test_metadata, "reason", None)
+    reason = ""
+    arch = getattr(test_metadata, "arch", None)
+    failing_reason = getattr(test_metadata, "failing_reason", None)
+    config_bringup_status = getattr(test_metadata, "bringup_status", None)
 
-    if test_passed:
-        # If custom bringup_status and reason are provided, use them.
-        reason = static_reason or None
-        bringup_status = static_bringup_status or BringupStatus.PASSED
+    if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
+        bringup_status = config_bringup_status
+        reason = getattr(test_metadata, "reason", "")
+        # Record a standardized failing reason for skipped-not-supported tests
+        failing_reason = FailingReasons.find_by_description(
+            "Model is not supported (skipped)"
+        )
+        if failing_reason is not None:
+            try:
+                setattr(test_metadata, "failing_reason", failing_reason)
+            except Exception as e:
+                assert False, f"Failed to set failing_reason on test_metadata: {e}"
+
+    elif config_bringup_status == BringupStatus.NOT_STARTED:
+        bringup_status = config_bringup_status
+        reason = getattr(test_metadata, "reason", "")
+
+    elif comparison_result is not None:
+        pcc = comparison_result.pcc
+        required_pcc = comparison_config.pcc.required_pcc
+        if np.isnan(pcc) or pcc < required_pcc:
+            bringup_status = BringupStatus.INCORRECT_RESULT
+            required_pcc = comparison_config.pcc.required_pcc
+            pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"
+            reason = f"Test marked w/ INCORRECT_RESULT. PCC check {pcc_check_str}. Calculated: pcc={pcc}. Required: pcc={required_pcc}."
+            if not comparison_config.pcc.enabled:
+                failing_reason = FailingReasons.find_by_description(
+                    "Test marked w/ INCORRECT_RESULT. PCC check disabled."
+                )
+                if failing_reason is not None:
+                    try:
+                        setattr(test_metadata, "failing_reason", failing_reason)
+                    except Exception as e:
+                        assert (
+                            False
+                        ), f"Failed to set failing_reason on test_metadata: {e}"
+        elif test_passed:
+            bringup_status = BringupStatus.PASSED
 
     else:
-        runtime_bringup_status = getattr(test_metadata, "runtime_bringup_status", None)
+        # If test fails, use the bringup status from the last stage reached before failure.
+        # TODO: add better way to set the reason dynamically.
+        static_reason = getattr(test_metadata, "reason", None)
         runtime_reason = getattr(test_metadata, "runtime_reason", None)
 
-        if static_bringup_status and static_reason:
-            bringup_status = static_bringup_status
-            reason = static_reason
-        elif runtime_bringup_status and runtime_reason:
-            bringup_status = runtime_bringup_status
-            reason = runtime_reason or "Runtime failure"
+        if comparison_result is None:
+            bringup_status = parse_last_bringup_stage()
+            if bringup_status is None:
+                bringup_status = BringupStatus.UNKNOWN
         else:
-            bringup_status = BringupStatus.UNKNOWN
-            reason = "Not specified"
+            bringup_status = BringupStatus.INCORRECT_RESULT
+
+        reason = static_reason or runtime_reason or "Not specified"
 
     tags = {
         "test_name": str(request.node.originalname),
@@ -428,8 +356,27 @@ def record_model_test_properties(
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
         "bringup_status": str(bringup_status),
+        "failing_reason": (
+            {
+                "name": failing_reason.name,
+                "description": failing_reason.value.description,
+                "component": failing_reason.value.component_checker_description,
+            }
+            if failing_reason
+            else {
+                "name": None,
+                "description": None,
+                "component": None,
+            }
+        ),
         "parallelism": str(parallelism),
+        "arch": arch,
     }
+
+    # Add execution_pass if available
+    execution_pass = getattr(test_metadata, "execution_pass", None)
+    if execution_pass is not None:
+        tags["execution_pass"] = str(execution_pass)
 
     # Add comparison result metrics if available
     if comparison_result is not None:
@@ -454,20 +401,16 @@ def record_model_test_properties(
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
     if reason:
-        record_property("error_message", reason)
+        record_property("error_message", _to_marshal_safe(reason))
 
     # Write properties
-    record_property("tags", tags)
+    record_property("tags", _to_marshal_safe(tags))
     record_property("owner", "tt-xla")
     if hasattr(model_info, "group") and model_info.group is not None:
         record_property("group", str(model_info.group))
 
     # Control flow for skipped and xfailed tests is handled by pytest.
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
-        import pytest
-
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
-        import pytest
-
         pytest.xfail(reason)
