@@ -264,7 +264,7 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
          m_uid,
          m_device_id.has_value() ? std::to_string(m_device_id.value()).c_str()
                                  : "null",
-         tt::pjrt::utils::to_string(src_buffer->m_dimensions).c_str(),
+         src_buffer->toShapeStr().c_str(),
          src_buffer->m_host_runtime_tensor.has_value(),
          src_buffer->m_prepared_runtime_tensor.has_value());
 
@@ -274,6 +274,18 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
       src_buffer->getDimensionsRaw(), src_buffer->getNumberOfDimensions());
   std::vector<std::uint32_t> strides = calculateStrides(
       src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
+
+  // This function is expected to be used for device-to-device buffer
+  // initialization of a new buffer instance, so destination buffer must not
+  // have data yet, or it will be overwritten.
+  if (m_host_runtime_tensor.has_value() ||
+      m_prepared_runtime_tensor.has_value()) {
+    throw std::runtime_error("Destination buffer with shape " + toShapeStr() +
+                             " and UID " + std::to_string(m_uid) +
+                             " already has data.");
+  }
+
+  tt::runtime::Tensor source_host_runtime_tensor;
 
   if (src_buffer->m_prepared_runtime_tensor != std::nullopt) {
     DLOG_F(WARNING,
@@ -288,21 +300,17 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
       throw std::runtime_error("Expected single host tensor when copying from "
                                "device buffer to device buffer.");
     }
-    tt::runtime::Tensor single_host_tensor = host_runtime_tensors[0];
-    m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
-        /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
-    tt::runtime::memcpy(*m_host_runtime_tensor, single_host_tensor);
-    tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
+    source_host_runtime_tensor = host_runtime_tensors[0];
   } else if (src_buffer->m_host_runtime_tensor != std::nullopt) {
-    m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
-        /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
-
-    tt::runtime::memcpy(*m_host_runtime_tensor,
-                        *src_buffer->m_host_runtime_tensor);
-    tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
+    source_host_runtime_tensor = *src_buffer->m_host_runtime_tensor;
   } else {
     throw std::runtime_error("Source buffer has no data to copy from.");
   }
+
+  m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
+      /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
+  tt::runtime::memcpy(*m_host_runtime_tensor, source_host_runtime_tensor);
+  tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
 
   markAsDataReady();
 }
