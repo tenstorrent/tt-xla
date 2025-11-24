@@ -1233,8 +1233,26 @@ test_config:
   gpt2/pytorch-gpt2_sequence_classification-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  # yolov9/pytorch-single_device-full-inference:
-  #   status: EXPECTED_PASSING
+  yolov9/pytorch-t-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/pytorch-s-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/pytorch-m-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/pytorch-c-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/pytorch-e-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
 
   unet/pytorch-unet_cityscapes-single_device-full-inference:
     arch_overrides:
