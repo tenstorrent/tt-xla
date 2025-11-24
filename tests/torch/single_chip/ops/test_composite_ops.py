@@ -178,7 +178,7 @@ def test_composite_rms_norm(use_weight):
         def forward(self, x, weight):
             return composite_rms_norm(x, self.normalized_shape, weight)
 
-    compile_options = {"tt_enable_composite_ops": False}
+    options = {"tt_enable_composite_ops": False}
 
     normalized_shape = (32,)
     input_shape = (4, 32)
@@ -189,7 +189,7 @@ def test_composite_rms_norm(use_weight):
     golden = model(input_tensor, weight if use_weight else None)
 
     device = xm.xla_device()
-    model = torch.compile(model.to(device), backend="tt", options=compile_options)
+    model = torch.compile(model.to(device), backend="tt", options=options)
     output = model(input_tensor.to(device), weight.to(device) if use_weight else None)
 
     comparator = TorchComparator(ComparisonConfig())
