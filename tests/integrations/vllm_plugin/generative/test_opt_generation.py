@@ -9,12 +9,13 @@ import vllm
 def test_opt_generation():
     prompts = [
         "Hello, my name is",
+        "Paris is the capital of",
     ]
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
     llm_args = {
         "model": "facebook/opt-125m",
         "max_num_batched_tokens": 128,
-        "max_num_seqs": 1,
+        "max_num_seqs": 2,
         "max_model_len": 128,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
@@ -24,6 +25,8 @@ def test_opt_generation():
     }
     llm = vllm.LLM(**llm_args)
 
-    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
+    output_text1 = llm.generate(prompts, sampling_params)[0].outputs[0].text
+    output_text2 = llm.generate(prompts, sampling_params)[1].outputs[0].text
     # output = llm.embed(prompts)
-    print(f"prompt: {prompts[0]}, output: {output_text}")
+    print(f"prompt: {prompts[0]}, output: {output_text1}")
+    print(f"prompt: {prompts[1]}, output: {output_text2}")

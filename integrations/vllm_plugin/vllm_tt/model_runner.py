@@ -261,9 +261,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         # InputBatch needs to work with sampling tensors greater than padding
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
-        assert (
-            scheduler_config.max_num_seqs == 1
-        ), f"The TT plugin only supports max_num_seqs == 1 currently, received: max_num_seqs: {scheduler_config.max_num_seqs}"
+        # assert (
+        #     scheduler_config.max_num_seqs == 1
+        # ), f"The TT plugin only supports max_num_seqs == 1 currently, received: max_num_seqs: {scheduler_config.max_num_seqs}"
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
@@ -274,6 +274,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             min_token_size=self.tt_config.min_context_len,
             max_token_size=scheduler_config.max_num_batched_tokens,
             padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
+            max_num_reqs=self.max_num_reqs,
         )
 
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
@@ -1363,6 +1364,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (num_tokens, self.hidden_size), dtype=self.dtype, device=self.device
             )
         else:
+            print(
+                f"num_tokens: {num_tokens}, num_reqs: {num_reqs}, num_blocks: {num_blocks}"
+            )
             input_ids = torch.zeros((num_tokens), dtype=torch.int32).to(self.device)
             inputs_embeds = None
 
@@ -2020,7 +2024,7 @@ def _get_padded_num_reqs_with_upper_limit(x: int, upper_limit: int) -> int:
 
 
 def _get_token_paddings(
-    min_token_size: int, max_token_size: int, padding_gap: int
+    min_token_size: int, max_token_size: int, padding_gap: int, max_num_reqs: int
 ) -> list[int]:
     """Generate a list of padding size, starting from min_token_size,
     ending with a number that can cover max_token_size
@@ -2033,7 +2037,7 @@ def _get_token_paddings(
     """
     # assert min_token_size is power of 2
     assert (min_token_size & (min_token_size - 1) == 0) and min_token_size > 0
-    paddings = [1]  # We need to support 1 token requests for decode graphs.
+    paddings = [max_num_reqs]  # We need to support 1 token requests for decode graphs.
     num = min_token_size
 
     if padding_gap == 0:

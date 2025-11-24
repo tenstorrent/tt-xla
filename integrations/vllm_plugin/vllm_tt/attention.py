@@ -136,6 +136,9 @@ def fill_cache_workaround(
     return new_cache
 
 
+import pdb
+
+
 @dataclass
 class TTMetadata:
     # Used in the TTAttentionBackendImpl
@@ -231,35 +234,38 @@ class TTAttentionBackendImpl(AttentionImpl):
             value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
             output: shape = [batch_size, num_tokens, num_heads * head_size]
         """
-        is_batched = query.ndim > 2
-        query_hidden_size = query.shape[-1]
-        query_num_tokens = query.shape[-2]
-        query_batch_size = query.shape[0] if is_batched else 1
+        num_users = attn_metadata.cache_position.shape[0]
+        is_prefill = query.shape[0] == num_users
 
-        kv_hidden_size = key.shape[-1]
-        kv_num_tokens = key.shape[-2]
-        kv_batch_size = key.shape[0] if is_batched else 1
+        # is_batched = query.ndim > 2
+        # query_hidden_size = query.shape[-1]
+        query_num_tokens = query.shape[0]
+        # query_batch_size = query.shape[0] if is_batched else 1
+
+        # kv_hidden_size = key.shape[-1]
+        kv_num_tokens = key.shape[0]
+        # kv_batch_size = key.shape[0] if is_batched else 1
 
         query = query.reshape(
-            query_batch_size,
+            1,
             query_num_tokens,
-            query_hidden_size // self.head_size,
+            query.shape[-1] // self.head_size,
             self.head_size,
-        ).transpose(
-            -3, -2
-        )  # [batch, num_tokens, num_heads, head_size]
+        )
+        if kv_cache.numel() <= 1:
+            query = query.transpose(-3, -2)  # [batch, num_tokens, num_heads, head_size]
         key = key.reshape(
-            kv_batch_size,
+            1,
             kv_num_tokens,
-            kv_hidden_size // self.head_size,
+            key.shape[-1] // self.head_size,
             self.head_size,
         ).transpose(
             -3, -2
         )  # [batch, num_tokens, num_kv_heads, head_size]
         value = value.reshape(
-            kv_batch_size,
+            1,
             kv_num_tokens,
-            kv_hidden_size // self.head_size,
+            value.shape[-1] // self.head_size,
             self.head_size,
         ).transpose(
             -3, -2
@@ -270,7 +276,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             k_cache = kv_cache[0]
             v_cache = kv_cache[1]
 
-            if query.shape[-2] == 1:
+            if not is_prefill:
                 # Transpose (1, num_heads, 1, head_size) to (1, 1, num_heads, head_size)
                 key = key.transpose(1, 2)
                 value = value.transpose(1, 2)
@@ -298,8 +304,8 @@ class TTAttentionBackendImpl(AttentionImpl):
 
             kv_cache.copy_(new_kv_cache)
 
-        if query.shape[-2] == 1:
-            query = query.reshape(1, query.shape[0], query.shape[1], query.shape[3])
+        if kv_cache.numel() > 1:
+            # query = query.reshape(1, query.shape[0], query.shape[1], query.shape[3])
             out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
                 query,
                 k_cache,
@@ -310,7 +316,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 attn_mask=attn_metadata.attn_mask,
             )
             out = out.transpose(-3, -2)
-            out = out.reshape(query_num_tokens, query_hidden_size)
+            out = out.reshape(query_num_tokens, -1)
             return out
         else:
             output = torch.ops.tt.scaled_dot_product_attention(
@@ -320,12 +326,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 is_causal=attn_metadata.is_causal,
                 attn_mask=attn_metadata.attn_mask,
             ).transpose(-3, -2)
-            if is_batched:
-                return output.reshape(
-                    query_batch_size, query_num_tokens, query_hidden_size
-                )
-            else:
-                return output.reshape(query_num_tokens, query_hidden_size)
+            return output.reshape(query_num_tokens, -1)
 
 
 def write_to_kv_cache(
