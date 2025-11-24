@@ -895,7 +895,7 @@ test_config:
 
   swin/image_classification/pytorch-swin_t-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: TT_FATAL circular_buffer"
+    reason: "RuntimeError: TT_FATAL conv2d"
     markers: [weekly]
 
   swin/image_classification/pytorch-swin_s-single_device-full-training:
@@ -927,7 +927,6 @@ test_config:
 
   deit/pytorch-base_distilled-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: TT_FATAL circular_buffer"
     markers: [weekly]
 
   deit/pytorch-small-single_device-full-training:
