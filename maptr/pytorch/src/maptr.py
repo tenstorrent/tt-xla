@@ -3974,12 +3974,8 @@ class SparseEncoder(nn.Module):
         )
         x = self.conv_input(input_sp_tensor)
 
-        encode_features = []
-        for encoder_layer in self.encoder_layers:
-            x = encoder_layer(x)
-            encode_features.append(x)
-
-        out = self.conv_out(encode_features[-1])
+        x = self.encoder_layers(x)
+        out = self.conv_out(x)
         spatial_features = out.dense()
         N, C, H, W, D = spatial_features.shape
         spatial_features = spatial_features.permute(0, 1, 4, 2, 3).contiguous()
@@ -5519,7 +5515,10 @@ class BEVFormerEncoder(TransformerLayerSequence):
         for img_meta in img_metas:
             lidar2img.append(img_meta["lidar2img"])
         lidar2img = np.asarray(lidar2img)
-        lidar2img = reference_points.new_tensor(lidar2img)
+
+        lidar2img = torch.as_tensor(
+            lidar2img, device=reference_points.device, dtype=reference_points.dtype
+        )  # (B, N, 4, 4)
         reference_points = reference_points.clone()
 
         reference_points[..., 0:1] = (
@@ -5772,11 +5771,24 @@ class MapTRPerceptionTransformer(BaseModule):
         )
         shift_y = shift_y * self.use_shift
         shift_x = shift_x * self.use_shift
-        shift = bev_queries.new_tensor([shift_x, shift_y]).permute(1, 0)
 
-        can_bus = bev_queries.new_tensor(
-            [each["can_bus"] for each in kwargs["img_metas"]]
+        shift_x_t = torch.as_tensor(
+            shift_x, device=bev_queries.device, dtype=bev_queries.dtype
         )
+        shift_y_t = torch.as_tensor(
+            shift_y, device=bev_queries.device, dtype=bev_queries.dtype
+        )
+        shift = torch.stack([shift_x_t, shift_y_t], dim=0).permute(1, 0)
+
+        can_bus_list = [each["can_bus"] for each in kwargs["img_metas"]]
+        if torch.is_tensor(can_bus_list[0]):
+            can_bus = torch.stack(can_bus_list, dim=0).to(
+                device=bev_queries.device, dtype=bev_queries.dtype
+            )
+        else:
+            can_bus = torch.as_tensor(
+                can_bus_list, device=bev_queries.device, dtype=bev_queries.dtype
+            )  # [:, :]
         can_bus = self.can_bus_mlp(can_bus[:, : self.len_can_bus])[None, :, :]
         bev_queries = bev_queries + can_bus * self.use_can_bus
 
