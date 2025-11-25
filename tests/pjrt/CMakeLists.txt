@@ -9,7 +9,7 @@
 
 include(FetchContent)
 
-# TODO(acicovic): Investigate why this is needed here and in {root}/third_party.
+# TODO(acicovic): Investigate why this is needed here and in /third_party/.
 if(CMAKE_C_COMPILER MATCHES "clang-17")
     set(CMAKE_C_COMPILER "/usr/bin/clang-17" CACHE STRING "" FORCE)
 endif()
@@ -17,7 +17,9 @@ if(CMAKE_CXX_COMPILER MATCHES "clang\\+\\+-17")
     set(CMAKE_CXX_COMPILER "/usr/bin/clang++-17" CACHE STRING "" FORCE)
 endif()
 
-# TODO(acicovic): Include this in third_party/?
+# DEVNOTE: googletest is a CMake project with well-exposed targets and a
+# dependency needed only for testing, so it will not be added to this repository
+# as an external source tree in /third_party.
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
@@ -28,7 +30,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 add_executable(TTPJRTTests
-    test_basic.cc
     test_utils.cc
 )
 
@@ -42,7 +43,6 @@ target_link_libraries(TTPJRTTests
         GTest::gmock
     PUBLIC
         TTPJRTApi
-        TTPJRTUtils
 )
 
 # Register tests with CTest.
