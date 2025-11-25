@@ -359,7 +359,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // Needs to be locked for each BufferInstance since multiple framework
   // threads can concurrently call copyToHost on the same BufferInstance,
   // and it is UB for multiple threads to join the same thread.
-  std::unique_lock<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
+  std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
     m_copy_to_host_thread.reset();
@@ -377,7 +377,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
         // all BufferInstances since any metal dispatch in this async thread
         // will cause ND segfaults as metal is not thread safe. This lock is
         // released once it falls out of scope.
-        std::unique_lock<std::mutex> copy_to_host_internal_lock(
+        std::lock_guard<std::mutex> copy_to_host_internal_lock(
             s_copy_to_host_internal_mutex);
 
         tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;

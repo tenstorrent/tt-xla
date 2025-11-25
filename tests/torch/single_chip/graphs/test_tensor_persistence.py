@@ -474,12 +474,18 @@ def test_input_not_modified_reused_in_another_graph():
 @pytest.mark.push
 @pytest.mark.nightly
 def test_concurrent_buffer_instance_transfer():
+    """
+    Test scenario: Input A participates in some graph, and is concurrently copied to host
+    by multiple framework threads.
+
+    This tests for race conditions in the copyToHost thread instance mutex management.
+    """
+
     class ProgramA(torch.nn.Module):
         def forward(self, A):
             return A + 1
 
     input_a_cpu = torch.randn(32, 32, dtype=torch.float32)
-    input_b_cpu = torch.randn(32, 32, dtype=torch.float32)
 
     program_a = ProgramA()
 
@@ -508,6 +514,15 @@ def test_concurrent_buffer_instance_transfer():
 @pytest.mark.push
 @pytest.mark.nightly
 def test_concurrent_multi_buffer_instance_transfer():
+    """
+    Test scenario: Inputs A and B participates in some graph, and are concurrently copied to host
+    by multiple framework threads.
+
+    This tests for race conditions in the copyToHost thread instance mutex management, and that
+    there are not multiple concurrent calls to tt::runtime::submit triggering metal race conditions,
+    as guarded by the static copyToHost internal mutex.
+    """
+
     class ProgramAB(torch.nn.Module):
         def forward(self, A, B):
             return A + 1, B + 1
