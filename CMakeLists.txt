@@ -32,6 +32,7 @@ endif()
 
 project(TT_PJRT)
 cmake_policy(SET CMP0069 NEW)
+enable_testing()
 set(TTPJRT_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 set(TTMLIR_TOOLCHAIN_DIR $ENV{TTMLIR_TOOLCHAIN_DIR})
 
@@ -84,3 +85,4 @@ endif()
 add_subdirectory(pjrt_implementation/src)
 add_subdirectory(third_party)
 add_subdirectory(docs)
+add_subdirectory(tests/pjrt)
