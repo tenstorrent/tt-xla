@@ -20,7 +20,7 @@ from third_party.tt_forge_models.tools.utils import get_file
 # Test run
 # --------------------------------
 def resnet_dp():
-    # Setup SPMD and get number of devices.
+    # Set SPMD mode and get number of devices.
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
     xr.use_spmd()
 
@@ -43,7 +43,7 @@ def resnet_dp():
     image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
     images = [
         Image.open(image_file).convert("RGB")
-    ] * num_devices  # batch_size = num_devices
+    ] * num_devices  # batch_size = num_devices (must be a multiple of num_devices)
     inputs = image_processor(images=images, return_tensors="pt").pixel_values
     inputs = inputs.to(torch.bfloat16)
 
