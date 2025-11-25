@@ -14,6 +14,9 @@ These tests are expected to produce program crashes (eg. Buffer is not allocated
 rather than numerical errors if tensor persistence is not handled correctly.
 """
 
+import threading
+import time
+
 import pytest
 import torch
 import torch_xla.core.xla_model as xm
@@ -466,3 +469,69 @@ def test_input_not_modified_reused_in_another_graph():
     # Compare results
     assert torch.allclose(output_g.cpu(), expected_g, rtol=1e-5, atol=1e-5)
     assert torch.allclose(output_h.cpu(), expected_h, rtol=1e-5, atol=1e-5)
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+def test_concurrent_buffer_instance_transfer():
+    class ProgramA(torch.nn.Module):
+        def forward(self, A):
+            return A + 1
+
+    input_a_cpu = torch.randn(32, 32, dtype=torch.float32)
+    input_b_cpu = torch.randn(32, 32, dtype=torch.float32)
+
+    program_a = ProgramA()
+
+    result = run_model_on_device(program_a, [input_a_cpu])
+
+    # Create multiple threads that all print the same result concurrently
+    def print_result(thread_id):
+        print(f"Thread {thread_id}: {result}")
+        # time.sleep(0.1)  # Small delay to increase chance of concurrent access
+        print(f"Thread {thread_id}: Shape = {result.shape}")
+
+    threads = []
+    num_threads = 10
+
+    # Start multiple threads
+    for i in range(num_threads):
+        thread = threading.Thread(target=print_result, args=(i,))
+        threads.append(thread)
+        thread.start()
+
+    # Wait for all threads to complete
+    for thread in threads:
+        thread.join()
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+def test_concurrent_multi_buffer_instance_transfer():
+    class ProgramAB(torch.nn.Module):
+        def forward(self, A, B):
+            return A + 1, B + 1
+
+    input_a_cpu = torch.randn(32, 32, dtype=torch.float32)
+    input_b_cpu = torch.randn(32, 32, dtype=torch.float32)
+
+    program_ab = ProgramAB()
+
+    res_a, res_b = run_model_on_device(program_ab, [input_a_cpu, input_b_cpu])
+
+    def print_result(thread_id, _result):
+        print(f"Result from thread_id {thread_id} = {_result}")
+
+    threads = []
+    num_threads = 10
+    for i in range(num_threads):
+        thread_a = threading.Thread(target=print_result, args=(i, res_a))
+        thread_b = threading.Thread(target=print_result, args=(i, res_b))
+
+        threads.append(thread_a)
+        threads.append(thread_b)
+        thread_a.start()
+        thread_b.start()
+
+    for thread in threads:
+        thread.join()
