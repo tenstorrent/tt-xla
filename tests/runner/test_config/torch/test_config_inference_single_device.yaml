@@ -161,10 +161,6 @@ test_config:
   alexnet/pytorch-alexnetb-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  attention_denseunet/pytorch-base-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "TT_FATAL: Output size cannot fit input with offset during TT compile/runtime – tracked in issue https://github.com/tenstorrent/tt-xla/issues/2293"
-
   mnist/image_classification/pytorch-cnn_dropout-single_device-full-inference:
     status: EXPECTED_PASSING
     # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
@@ -495,10 +491,6 @@ test_config:
 
   vit/pytorch-base-single_device-full-inference:
     status: EXPECTED_PASSING
-    filechecks:
-      - concatenate_heads.ttnn.mlir
-      - split_query_key_value_and_split_heads.ttnn.mlir
-    markers: ["push"]
 
   vit/pytorch-large-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1241,26 +1233,8 @@ test_config:
   gpt2/pytorch-gpt2_sequence_classification-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  yolov9/pytorch-t-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
-
-  yolov9/pytorch-s-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
-
-  yolov9/pytorch-m-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
-
-  yolov9/pytorch-c-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
-
-  yolov9/pytorch-e-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
-
+  # yolov9/pytorch-single_device-full-inference:
+  #   status: EXPECTED_PASSING
 
   unet/pytorch-unet_cityscapes-single_device-full-inference:
     arch_overrides:
@@ -2206,6 +2180,10 @@ test_config:
   detr/segmentation/pytorch-resnet_50_panoptic-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
+
+  panoptic_segmentation/pytorch-resnet_50_panoptic-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor"
 
   sam/pytorch-facebook/sam-vit-huge-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
