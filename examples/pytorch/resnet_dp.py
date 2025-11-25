@@ -15,6 +15,27 @@ from transformers import AutoImageProcessor, ResNetForImageClassification
 
 from third_party.tt_forge_models.tools.utils import get_file
 
+# Known valid COCO 2017 validation image IDs.
+# To run with batch_size > 16, extend the list below.
+BASE_IMAGE_IDS = [
+    39769,
+    37777,
+    252219,
+    87038,
+    289343,
+    581781,
+    284623,
+    456559,
+    397133,
+    42296,
+    184321,
+    403817,
+    6818,
+    480985,
+    458755,
+    331352,
+]
+
 
 # --------------------------------
 # Test run
@@ -35,15 +56,19 @@ def resnet_dp():
     model = model.eval()
     compiled_model = torch.compile(model, backend="tt")
 
+    # Create a batch of images.
+    batch_size = 16  # Must be a multiple of num_devices
+    images = []
+    for i in range(batch_size):
+        image_file = get_file(
+            f"http://images.cocodataset.org/val2017/0000{BASE_IMAGE_IDS[i]:08d}.jpg"
+        )
+        images.append(Image.open(image_file).convert("RGB"))
+
     # Prepare inputs.
     image_processor = AutoImageProcessor.from_pretrained(
         model_name, dtype=torch.bfloat16
     )
-
-    image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-    images = [
-        Image.open(image_file).convert("RGB")
-    ] * num_devices  # batch_size = num_devices (must be a multiple of num_devices)
     inputs = image_processor(images=images, return_tensors="pt").pixel_values
     inputs = inputs.to(torch.bfloat16)
 
