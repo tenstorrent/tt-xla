@@ -360,12 +360,10 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // threads can concurrently call copyToHost on the same BufferInstance,
   // and it is UB for multiple threads to join the same thread.
   std::unique_lock<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
-  DLOG_F(LOG_DEBUG, "Copy to host main thread locked BID %zu", m_uid);
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
     m_copy_to_host_thread.reset();
   }
-  DLOG_F(LOG_DEBUG, "Copy to host main thread unlocked BID %zu", m_uid);
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
