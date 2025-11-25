@@ -249,24 +249,10 @@ void BufferInstance::copyFromHost(
 }
 
 void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
           src_buffer->m_data_type);
-  DLOG_F(LOG_DEBUG,
-         "BufferInstance::copyFromBuffer: src UID=%zu (device_id=%s) -> dst "
-         "UID=%zu (device_id=%s). src detail: shape=%s, "
-         "host_runtime_tensor.has_value()=%d, "
-         "prepared_runtime_tensor.has_value()=%d.",
-         src_buffer->m_uid,
-         src_buffer->m_device_id.has_value()
-             ? std::to_string(src_buffer->m_device_id.value()).c_str()
-             : "null",
-         m_uid,
-         m_device_id.has_value() ? std::to_string(m_device_id.value()).c_str()
-                                 : "null",
-         src_buffer->toShapeStr().c_str(),
-         src_buffer->m_host_runtime_tensor.has_value(),
-         src_buffer->m_prepared_runtime_tensor.has_value());
 
   std::uint32_t element_size =
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
@@ -278,12 +264,9 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
   // This function is expected to be used for device-to-device buffer
   // initialization of a new buffer instance, so destination buffer must not
   // have data yet, or it will be overwritten.
-  if (m_host_runtime_tensor.has_value() ||
-      m_prepared_runtime_tensor.has_value()) {
-    throw std::runtime_error("Destination buffer with shape " + toShapeStr() +
-                             " and UID " + std::to_string(m_uid) +
-                             " already has data.");
-  }
+  assert((!m_host_runtime_tensor.has_value() &&
+          !m_prepared_runtime_tensor.has_value()) &&
+         "Destination buffer already has data");
 
   tt::runtime::Tensor source_host_runtime_tensor;
 
@@ -296,15 +279,14 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
     std::vector<tt::runtime::Tensor> host_runtime_tensors = tt::runtime::toHost(
         src_buffer->m_prepared_runtime_tensor.value(), /*untilize=*/true);
 
-    if (host_runtime_tensors.size() != 1) {
-      throw std::runtime_error("Expected single host tensor when copying from "
-                               "device buffer to device buffer.");
-    }
+    assert(host_runtime_tensors.size() == 1 &&
+           "Expected single host tensor when copying from device buffer");
+
     source_host_runtime_tensor = host_runtime_tensors[0];
   } else if (src_buffer->m_host_runtime_tensor != std::nullopt) {
     source_host_runtime_tensor = *src_buffer->m_host_runtime_tensor;
   } else {
-    throw std::runtime_error("Source buffer has no data to copy from.");
+    assert(false && "Source buffer has no data to copy from");
   }
 
   m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
