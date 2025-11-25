@@ -55,16 +55,23 @@ def qwen3_tp():
     inputs = inputs.to(device)
     model = model.to(device)
 
-    # Mark sharding for attention and mlp layers.
+    # Tensor-parallel sharding:
+    # Linear weight layout (out_features, in_features).
+    # column-parallel: shard rows (out_features) -> each device computes a distinct output slice.
+    # row-parallel: shard columns (in_features) -> devices compute partial outputs that require an all-reduce.
     shard_specs = {}
     for layer in model.layers:
+        # MLP expansion -> column-parallel
         shard_specs[layer.mlp.up_proj.weight] = ("model", None)
         shard_specs[layer.mlp.gate_proj.weight] = ("model", None)
+        # MLP contraction -> row-parallel
         shard_specs[layer.mlp.down_proj.weight] = (None, "model")
 
+        # Attention per-head projections -> column-parallel
         shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
         shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
         shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        # Attention mix-heads projection -> row-parallel
         shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
 
     for tensor, shard_spec in shard_specs.items():
