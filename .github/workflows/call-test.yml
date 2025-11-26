@@ -114,6 +114,9 @@ jobs:
           tests
           venv
 
+    - name: Create FileCheck symlink
+      run: sudo ln -sf /usr/bin/FileCheck-17 /usr/bin/FileCheck
+
     - name: Fetch job id
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
