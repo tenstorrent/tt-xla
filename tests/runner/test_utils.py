@@ -482,6 +482,7 @@ def record_model_test_properties(
 def create_measurement(
     step_name: str,
     measurement_name: str,
+    step_warm_up_num_iterations: int = 1,
     iteration: int = 1,
     value: float = 0.0,
     target: float = -1.0,
@@ -490,9 +491,9 @@ def create_measurement(
     return {
         "step_name": step_name,
         "measurement_name": measurement_name,
-        "value": value,
+        "step_warm_up_num_iterations": step_warm_up_num_iterations,
         "iteration": iteration,
-        "step_warm_up_num_iterations": 0,
+        "value": value,
         "target": target,
     }
 
@@ -526,8 +527,8 @@ def create_benchmark_result(
         perf_iters = perf_stats["perf_iters"]
         
         # We want to report these specific metrics
-        metric_list.append(create_measurement("e2e_perf", "total_time", perf_stats["total_time"], perf_iters, warmup_iters))
-        metric_list.append(create_measurement("e2e_perf", "avg_time", perf_stats["avg_time"], perf_iters, warmup_iters))
+        metric_list.append(create_measurement("e2e_perf", "total_time", warmup_iters, perf_iters, perf_stats["total_time"]))
+        metric_list.append(create_measurement("e2e_perf", "avg_time", warmup_iters, perf_iters, perf_stats["avg_time"]))
        
     config = {
         "model_size": "small",
