@@ -21,8 +21,8 @@ class JaxComparator(Comparator):
     def _match_data_types(tensors: PyTree) -> PyTree:
         return tree_map(
             lambda tensor: (
-                tensor.astype("float32")
-                if isinstance(tensor, jax.Array) and tensor.dtype.str != "float32"
+                tensor.astype("float64")
+                if isinstance(tensor, jax.Array) and tensor.dtype.str != "float64"
                 else tensor
             ),
             tensors,
