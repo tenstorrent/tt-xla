@@ -847,7 +847,10 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
       BufferInstance::createInputBufferInstance(args->type, args->dims,
                                                 args->num_dims, device_instance,
                                                 memory_instance);
-
+  DLOG_F(LOG_DEBUG,
+         "Created buffer instance for host to device buffer copy, buffer "
+         "instance: %p with uid %llu and shape <%s>",
+         buffer.get(), buffer->getUID(), buffer->toShapeStr().c_str());
   buffer->copyFromHost(
       args->data, args->type, args->dims, args->num_dims, args->byte_strides,
       args->num_byte_strides, args->host_buffer_semantics,
