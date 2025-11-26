@@ -13,9 +13,140 @@ import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModel, AutoTokenizer
 
+"""
+Overview of tensor parallelism (TP) strategy for LLM MLP and attention layers:
+
+For MLP, we want to shard in a way that minimizes CCLs. The most common method is megatron style,
+where we shard the up and gate weights on column parallel and the down weights on row parallel. This
+will produce a column sharded intermediate tensor after up and gate, and a partial result on each
+device after proj that will be all_reduced at the end of MLP.
+
+For attention, we want to do something similar, with the caveat that the sharded intermediate after
+QKV projection must be aligned with the attention heads. To state another way, the number of heads
+must be divisible by the number of devices. The added benefit of this shard scheme (head parallel)
+is that both QKV projection and self-attention (MM+softmax+MM) can happen locally without any CCLs.
+
+- Column-parallel sharding splits the rows across devices. Each device computes its local output fully,
+  producing distinct output chunks.
+
+- Row-parallel sharding splits the columns across devices. Each device computes a partial output, and
+  then an all-reduce (sum) merges partial results to form the final output.
+
+
+
+Devices:  [Device 0]           [Device 1]           ...           [Device N-1]
+Inputs X replicated on all devices
+================================================================================
+1) MLP (Megatron-style)
+--------------------------------------------------------------------------------
+up_proj, gate_proj → column-parallel
+down_proj          → row-parallel + ALL-REDUCE
+--------------------------------------------------------------------------------
+                        ┌──────────────────────────────────────────┐
+                        │                MLP Block                 │
+                        └──────────────────────────────────────────┘
+
+                 [Device 0]            [Device 1]                   [Device N-1]
+X (replicated)      |                     |                               |
+                    v                     v                               v
+              ┌──────────┐         ┌──────────┐                     ┌──────────┐
+              │ up_proj0 │         │ up_proj1 │          ...        │ up_projN │
+              │ (column) │         │ (column) │                     │ (column) │
+              └──────────┘         └──────────┘                     └──────────┘
+                    |                     |                               |
+                    |                     |                               |
+              ┌──────────┐         ┌──────────┐                     ┌──────────┐
+              │gate_proj0│         │gate_proj1│          ...        │gate_projN│
+              │ (column) │         │ (column) │                     │ (column) │
+              └──────────┘         └──────────┘                     └──────────┘
+                    |                     |                               |
+                    v                     v                               v
+                H_0 (local)           H_1 (local)           ...       H_{N-1} (local)
+        (distinct intermediate slices; no communication)
+
+                    |                     |                               |
+                    v                     v                               v
+              ┌──────────┐         ┌──────────┐                     ┌──────────┐
+              │down_proj0│         │down_proj1│          ...        │down_projN│
+              │   (row)  │         │   (row)  │                     │   (row)  │
+              └──────────┘         └──────────┘                     └──────────┘
+                    |                     |                               |
+                    v                     v                               v
+             Partial O_0             Partial O_1            ...     Partial O_{N-1}
+           (each is a partial output that must be summed)
+
+                    \                     |                               /
+                     \____________________|______________________________/
+                                          v
+                              ┌──────────────────────────┐
+                              │    ALL-REDUCE (sum)      │
+                              └──────────────────────────┘
+                                          |
+                                          v
+                                      Final O
+
+================================================================================
+2) Attention (Head-parallel Q/K/V, Row-parallel o_proj)
+--------------------------------------------------------------------------------
+Requires: num_heads % num_devices == 0
+q_proj / k_proj / v_proj → column-parallel (head-parallel)
+Self-attention per device → local, no CCL
+o_proj                    → row-parallel + ALL-REDUCE
+--------------------------------------------------------------------------------
+                        ┌──────────────────────────────────────────┐
+                        │               Attention Block            │
+                        └──────────────────────────────────────────┘
+
+                 [Device 0]            [Device 1]                   [Device N-1]
+X (replicated)      |                     |                               |
+                    v                     v                               v
+              ┌──────────┐         ┌──────────┐                     ┌──────────┐
+              │  q_proj0 │         │  q_proj1 │          ...        │  q_projN │
+              │ (column) │         │ (column) │                     │ (column) │
+              ├──────────┤         ├──────────┤                     ├──────────┤
+              │  k_proj0 │         │  k_proj1 │          ...        │  k_projN │
+              │ (column) │         │ (column) │                     │ (column) │
+              ├──────────┤         ├──────────┤                     ├──────────┤
+              │  v_proj0 │         │  v_proj1 │          ...        │  v_projN │
+              │ (column) │         │ (column) │                     │ (column) │
+              └──────────┘         └──────────┘                     └──────────┘
+                    |                     |                               |
+                    v                     v                               v
+        Heads H_0 (local)     Heads H_1 (local)           ...    Heads H_{N-1} (local)
+     (Each device owns disjoint attention heads; head-parallel)
+
+                    |                     |                               |
+                    v                     v                               v
+            ┌──────────────────── Self-Attention (local) ─────────────────────┐
+            │  Q*K^T, softmax, (·V) executed locally on assigned heads        │
+            │  No cross-device communication required (“no CCL”).             │
+            └─────────────────────────────────────────────────────────────────┘
+
+                    |                     |                               |
+                    v                     v                               v
+              ┌──────────┐         ┌──────────┐                     ┌──────────┐
+              │  o_proj0 │         │  o_proj1 │          ...        │  o_projN │
+              │   (row)  │         │   (row)  │                     │   (row)  │
+              └──────────┘         └──────────┘                     └──────────┘
+                    |                     |                               |
+                    v                     v                               v
+             Partial O_0             Partial O_1            ...     Partial O_{N-1}
+           (partial outputs; require summation)
+
+                    \                     |                               /
+                     \____________________|______________________________/
+                                          v
+                              ┌──────────────────────────┐
+                              │    ALL-REDUCE (sum)      │
+                              └──────────────────────────┘
+                                          |
+                                          v
+                                      Final O
+"""
+
 
 # --------------------------------
-# Test run
+# Qwen3 TP example
 # --------------------------------
 def qwen3_tp():
     # Set SPMD mode and get number of devices.
@@ -55,24 +186,26 @@ def qwen3_tp():
     inputs = inputs.to(device)
     model = model.to(device)
 
+    # Validate attention heads divisibility for head-parallel sharding.
+    num_attention_heads = model.config.num_attention_heads
+    if num_attention_heads % num_devices != 0:
+        raise ValueError(
+            f"Number of attention heads ({num_attention_heads}) must be divisible by number of devices ({num_devices}) for head-parallel sharding."
+        )
+
     # Tensor-parallel sharding:
-    # Linear weight layout (out_features, in_features).
-    # column-parallel: shard rows (out_features) -> each device computes a distinct output slice.
-    # row-parallel: shard columns (in_features) -> devices compute partial outputs that require an all-reduce.
     shard_specs = {}
     for layer in model.layers:
-        # MLP expansion -> column-parallel
-        shard_specs[layer.mlp.up_proj.weight] = ("model", None)
-        shard_specs[layer.mlp.gate_proj.weight] = ("model", None)
-        # MLP contraction -> row-parallel
-        shard_specs[layer.mlp.down_proj.weight] = (None, "model")
+        # MLP
+        shard_specs[layer.mlp.up_proj.weight] = ("model", None)  # column-parallel
+        shard_specs[layer.mlp.gate_proj.weight] = ("model", None)  # column-parallel
+        shard_specs[layer.mlp.down_proj.weight] = (None, "model")  # row-parallel
 
-        # Attention per-head projections -> column-parallel
-        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
-        # Attention mix-heads projection -> row-parallel
-        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        # Attention
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)  # column-parallel
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)  # column-parallel
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)  # column-parallel
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")  # row-parallel
 
     for tensor, shard_spec in shard_specs.items():
         xs.mark_sharding(tensor, mesh, shard_spec)
@@ -126,9 +259,6 @@ def postprocessing(last_hidden_states, attention_mask, sample_queries):
     print(scores.tolist())
 
 
-# --------------------------------
-# main
-# --------------------------------
 if __name__ == "__main__":
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
