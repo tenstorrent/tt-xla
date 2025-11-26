@@ -196,18 +196,21 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           repo="${{ github.repository }}"
-          wf_name="On nightly"
+          wf_name="schedule-nightly.yml"
+
+          curr_wf_id="${{ github.event.workflow_run.id || inputs.workflow_run_id }}"
 
           # get json of the last 10 workflow runs
           gh run list --workflow $wf_name -R $repo -b main -L 10 --status completed --json attempt,conclusion,databaseId,headSha >runs.json
 
-          curr_wf_id=$(jq -r '.[0].databaseId' runs.json)
+          # Remove entries from runs.json up to the entry with curr_wf_id
+          jq --argjson curr_id "$curr_wf_id" 'map(select(.databaseId <= $curr_id))' runs.json > temp_runs.json
+          mv temp_runs.json runs.json
+
           # check if current workflow ID is the one form workflow_run context (if workflow_run context is available)
-          if [ -n "${{ github.event.workflow_run.id }}" ]; then
-            if [ "${{ github.event.workflow_run.id }}" -ne "$curr_wf_id" ]; then
-              echo "Current workflow ID does not match the workflow_run context ID. Exiting."
-              exit 1
-            fi
+          if [ "${{ github.event.workflow_run.id || inputs.workflow_run_id }}" -ne "$curr_wf_id" ]; then
+            echo "Current workflow ID does not match the workflow_run context ID. Exiting."
+            exit 1
           fi
 
           # check if the latest workflow run failed
@@ -215,11 +218,18 @@ jobs:
             echo "The latest workflow run did not fail. Exiting."
             exit 1
           fi
+
           # Filter runs.json to include only entries where "conclusion" is "failure" or "success"
           jq '[.[] | select(.conclusion == "failure" or .conclusion == "success")]' runs.json >filtered_runs.json
           mv filtered_runs.json runs.json
+
+          # check if runs.json has at least 2 entries
+          if [ "$(jq 'length' runs.json)" -lt 2 ]; then
+            echo "Not enough workflow runs found (need at least 2). Exiting."
+            exit 1
+          fi
+
           echo "Extracted runs: $(cat runs.json)"
-          curr_wf_id=$(jq -r '.[0].databaseId' runs.json)
           curr_head_sha=$(jq -r '.[0].headSha' runs.json)
           prev_wf_id=$(jq -r '.[1].databaseId' runs.json)
           prev_head_sha=$(jq -r '.[1].headSha' runs.json)
@@ -232,20 +242,6 @@ jobs:
 
           # save current nightly workflow ID and attempt
           echo "curr_wf_id=$curr_wf_id" >> $GITHUB_OUTPUT
-          echo "curr_wf_attempt=$(jq -r '.[0].attempt' runs.json)" >> $GITHUB_OUTPUT
-
-          # get list of commits between last 2 workflow runs
-          echo "Get list of commits between last $prev_wf_id and $curr_wf_id workflow runs"
-          git fetch --all
-          git switch main
-          git checkout $prev_head_sha
-          git submodule update --init --recursive
-          if git show-ref --verify --quiet refs/remotes/origin/main; then
-            git rev-list --reverse $prev_head_sha..$curr_head_sha >commits.txt
-          else
-            echo "ERROR: The main branch is not available in the repository."
-            exit 1
-          fi
 
           # cleanup before processing
           rm -rf log-a
@@ -255,60 +251,20 @@ jobs:
           gh run download $prev_wf_id --pattern "test-reports-*" -R $repo -D log-a || true
           gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D log-b
 
+          # find newly failed tests
+          rm -rf log-out
+          mkdir -p log-out
+          python .github/scripts/new_failed_tests_bymachine.py log-a log-b log-out $prev_head_sha $curr_head_sha
 
-          # this should be done in python
-          # as xml reports
+          # cleanup
+          rm -rf log-a
+          rm -rf log-b
+          rm -f runs.json
 
-          # # get machine names
-          # find log-a -type d -name 'test-reports-*' | sed -E 's|.*/test-reports-[^-]+-[^-]+-([^/-]+)-.*|\1|' | sort -u >machines-a.log
-          # find log-b -type d -name 'test-reports-*' | sed -E 's|.*/test-reports-[^-]+-[^-]+-([^/-]+)-.*|\1|' | sort -u >machines-b.log
-          # cat machines-a.log machines-b.log | sort -u >machines.log
-          # echo "Machines: $(cat machines.log)"
-
-          # while read -r machine; do
-          #   for dir in log-a/test-log-"$machine"-*/; do
-          #     sed -n '/=========================== short test summary info ============================/,$p' "$dir/pytest.log" >temp.log || true
-          #     grep '^FAILED ' "temp.log" | sed 's/^FAILED //; s/^\(.*\) - .*/\1/; s/^\(.*\]\).*/\1/' >>a-"$machine".log || true
-          #   done
-          #   for dir in log-b/test-log-"$machine"-*/; do
-          #     sed -n '/=========================== short test summary info ============================/,$p' "$dir/pytest.log" >temp.log || true
-          #     grep '^FAILED ' "temp.log" | sed 's/^FAILED //; s/^\(.*\) - .*/\1/; s/^\(.*\]\).*/\1/' >>b-"$machine".log || true
-          #   done
-          #   echo "----Current  Tests for machine $machine: $(cat b-"$machine".log)"
-          #   echo "----Previous Tests for machine $machine: $(cat b-"$machine".log)"
-          #   # get only the lines that are in b.log but not in a.log
-          #   if [ ! -s a-"$machine".log ]; then
-          #     cp b-"$machine".log tests-"$machine".log
-          #   fi
-          #   if [ ! -s b-"$machine".log ]; then
-          #     echo "List of failed tests for machine '$machine' is empty, nothing to do."
-          #   else
-          #     grep -Fxv -f a-"$machine".log b-"$machine".log >tests-"$machine".log || true
-          #     echo "----Tests for machine $machine: $(cat tests-"$machine".log)"
-          #   fi
-          # done <machines.log
-
-          # # Filter out machines with empty test logs
-          # cp machines.log filtered_machines.log
-          # while read -r machine; do
-          #   if [ ! -s tests-"$machine".log ]; then
-          #     echo "No failed tests for machine $machine, removing from list."
-          #     sed -i "/^$machine$/d" filtered_machines.log
-          #     rm -f tests-"$machine".log
-          #   fi
-          # done <machines.log
-          # if [ ! -s filtered_machines.log ]; then
-          #   echo "No new failed tests found."
-          #   exit 0
-          # fi
-
-          # # cleanup
-          # rm -rf log-a
-          # rm -rf log-b
-          # rm -f a-*.log
-          # rm -f b-*.log
-          # rm -f machines-*.log
-          # mv filtered_machines.log machines.log
+          echo "Resulting upload list:"
+          cat .upload_list.json
+          echo "Resulting matrix:"
+          cat .matrix.json
 
           # # prepare build-test matrix
           # rm -rf matrix.log
@@ -328,8 +284,7 @@ jobs:
           # echo "matrix=[$(cat matrix.log)]" >>$GITHUB_OUTPUT
           # rm -f matrix.log
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tests-to-run
-          path: tests-*.log
-          if-no-files-found: ignore
+      # - uses: tenstorrent/upload-multiple-artifacts@main
+      #   with:
+      #     continue-on-error: 'false'
+      #     config: .upload_list.json
