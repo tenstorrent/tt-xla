@@ -46,41 +46,37 @@ down_proj          → row-parallel + ALL-REDUCE
                         │                MLP Block                 │
                         └──────────────────────────────────────────┘
 
-                 [Device 0]            [Device 1]                   [Device N-1]
-X (replicated)      |                     |                               |
-                    v                     v                               v
-              ┌──────────┐         ┌──────────┐                     ┌──────────┐
-              │ up_proj0 │         │ up_proj1 │          ...        │ up_projN │
-              │ (column) │         │ (column) │                     │ (column) │
-              └──────────┘         └──────────┘                     └──────────┘
-                    |                     |                               |
-                    |                     |                               |
-              ┌──────────┐         ┌──────────┐                     ┌──────────┐
-              │gate_proj0│         │gate_proj1│          ...        │gate_projN│
-              │ (column) │         │ (column) │                     │ (column) │
-              └──────────┘         └──────────┘                     └──────────┘
-                    |                     |                               |
-                    v                     v                               v
-                H_0 (local)           H_1 (local)           ...       H_{N-1} (local)
-        (distinct intermediate slices; no communication)
+              [Device 0]              [Device 1]                    [Device N-1]
+            X (replicated)          X (replicated)                 X (replicated)
+                  |                       |                               |
+                  v                       v                               v
+       ┌──────────┐──────────┐ ┌──────────┐──────────┐         ┌──────────┐──────────┐
+       │ up_proj0 │gate_proj0│ │ up_proj1 │gate_proj1│   ...   │ up_projN │gate_projN│
+       │ (column) │ (column) │ │ (column) │ (column) │         │ (column) │ (column) │
+       └──────────┘──────────┘ └──────────┘──────────┘         └──────────┘──────────┘
+              \_______/               \_______/                       \_______/
+                  |                       |                               |
+                  v                       v                               v
+             H_0 (local)             H_1 (local)           ...     H_{N-1} (local)
+           (distinct intermediate slices; no communication)
 
-                    |                     |                               |
-                    v                     v                               v
-              ┌──────────┐         ┌──────────┐                     ┌──────────┐
-              │down_proj0│         │down_proj1│          ...        │down_projN│
-              │   (row)  │         │   (row)  │                     │   (row)  │
-              └──────────┘         └──────────┘                     └──────────┘
-                    |                     |                               |
-                    v                     v                               v
+                  |                       |                               |
+                  v                       v                               v
+             ┌──────────┐            ┌──────────┐                    ┌──────────┐
+             │down_proj0│            │down_proj1│         ...        │down_projN│
+             │   (row)  │            │   (row)  │                    │   (row)  │
+             └──────────┘            └──────────┘                    └──────────┘
+                  |                       |                               |
+                  v                       v                               v
              Partial O_0             Partial O_1            ...     Partial O_{N-1}
            (each is a partial output that must be summed)
 
-                    \                     |                               /
-                     \____________________|______________________________/
+                   \                      |                              /
+                    \_____________________|_____________________________/
                                           v
-                              ┌──────────────────────────┐
-                              │    ALL-REDUCE (sum)      │
-                              └──────────────────────────┘
+                            ┌──────────────────────────┐
+                            │     ALL-REDUCE (sum)     │
+                            └──────────────────────────┘
                                           |
                                           v
                                       Final O
@@ -93,55 +89,49 @@ q_proj / k_proj / v_proj → column-parallel (head-parallel)
 Self-attention per device → local, no CCL
 o_proj                    → row-parallel + ALL-REDUCE
 --------------------------------------------------------------------------------
-                        ┌──────────────────────────────────────────┐
-                        │               Attention Block            │
-                        └──────────────────────────────────────────┘
+                              ┌──────────────────────────────────────────┐
+                              │             Attention Block              │
+                              └──────────────────────────────────────────┘
 
-                 [Device 0]            [Device 1]                   [Device N-1]
-X (replicated)      |                     |                               |
-                    v                     v                               v
-              ┌──────────┐         ┌──────────┐                     ┌──────────┐
-              │  q_proj0 │         │  q_proj1 │          ...        │  q_projN │
-              │ (column) │         │ (column) │                     │ (column) │
-              ├──────────┤         ├──────────┤                     ├──────────┤
-              │  k_proj0 │         │  k_proj1 │          ...        │  k_projN │
-              │ (column) │         │ (column) │                     │ (column) │
-              ├──────────┤         ├──────────┤                     ├──────────┤
-              │  v_proj0 │         │  v_proj1 │          ...        │  v_projN │
-              │ (column) │         │ (column) │                     │ (column) │
-              └──────────┘         └──────────┘                     └──────────┘
-                    |                     |                               |
-                    v                     v                               v
-        Heads H_0 (local)     Heads H_1 (local)           ...    Heads H_{N-1} (local)
-     (Each device owns disjoint attention heads; head-parallel)
+             [Device 0]                       [Device 1]                             [Device N-1]
+            X (replicated)                  X (replicated)                          X (replicated)
+                 |                                 |                                      |
+                 v                                 v                                      v
+┌──────────┐──────────┐──────────┐ ┌──────────┐──────────┐──────────┐     ┌──────────┐──────────┐──────────┐
+│ q_proj0  │ k_proj0  │ v_proj0  │ │ q_proj1  │ k_proj1  │ v_proj1  │ ... │ q_projN  │ k_projN  │ v_projN  │
+│ (column) │ (column) │ (column) │ │ (column) │ (column) │ (column) │     │ (column) │ (column) │ (column) │
+└──────────┘──────────┘──────────┘ └──────────┘──────────┘──────────┘     └──────────┘──────────┘──────────┘
+        \________|________/               \________|________/                    \________|________/
+                 v                                 v                                      v
+         Heads H_0 (local)                 Heads H_1 (local)          ...       Heads H_{N-1} (local)
+       (Each device owns disjoint attention heads; head-parallel)
 
-                    |                     |                               |
-                    v                     v                               v
-            ┌──────────────────── Self-Attention (local) ─────────────────────┐
-            │  Q*K^T, softmax, (·V) executed locally on assigned heads        │
-            │  No cross-device communication required (“no CCL”).             │
-            └─────────────────────────────────────────────────────────────────┘
-
-                    |                     |                               |
-                    v                     v                               v
-              ┌──────────┐         ┌──────────┐                     ┌──────────┐
-              │  o_proj0 │         │  o_proj1 │          ...        │  o_projN │
-              │   (row)  │         │   (row)  │                     │   (row)  │
-              └──────────┘         └──────────┘                     └──────────┘
-                    |                     |                               |
-                    v                     v                               v
-             Partial O_0             Partial O_1            ...     Partial O_{N-1}
+                 |                                 |                                      |
+                 v                                 v                                      v
+            ┌─────────┐ ┌────────────────── Self-Attention (local) ─────────────────┐ ┌─────────┐
+            |  Self-  | │  Q*K^T, softmax, (·V) executed locally on assigned heads  │ |  Self-  |
+            |Attention| │  No cross-device communication required (“no CCL”).       │ |Attention|
+            └─────────┘ └───────────────────────────────────────────────────────────┘ └─────────┘
+                 |                                 |                                      |
+                 v                                 v                                      v
+            ┌──────────┐                      ┌──────────┐                           ┌──────────┐
+            │ o_proj0  │                      │ o_proj1  │            ...            │ o_projN  │
+            │  (row)   │                      │  (row)   │                           │  (row)   │
+            └──────────┘                      └──────────┘                           └──────────┘
+                 |                                 |                                      |
+                 v                                 v                                      v
+             Partial O_0                       Partial O_1           ...           Partial O_{N-1}
            (partial outputs; require summation)
 
-                    \                     |                               /
-                     \____________________|______________________________/
-                                          v
-                              ┌──────────────────────────┐
-                              │    ALL-REDUCE (sum)      │
-                              └──────────────────────────┘
-                                          |
-                                          v
-                                      Final O
+                  \                                |                                     /
+                   \_______________________________|____________________________________/
+                                                   v
+                                      ┌──────────────────────────┐
+                                      │     ALL-REDUCE (sum)     │
+                                      └──────────────────────────┘
+                                                   |
+                                                   v
+                                                Final O
 """
 
 
