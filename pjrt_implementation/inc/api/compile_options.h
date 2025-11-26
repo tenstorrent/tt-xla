@@ -43,7 +43,7 @@ struct CompileOptions {
   bool enable_bfp8_conversion = false;
 
   // Enables experimental BFP8 weight conversion in MLIR.
-  bool experimental_bfp8_weights = false;
+  bool experimental_enable_weight_bfp8_conversion = false;
 
   // Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
   // TODO(sdjordjevicTT): This is a temporary option and will be removed once

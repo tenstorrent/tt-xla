@@ -839,7 +839,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   options.optimizationLevel = compile_options.optimization_level;
   options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
-  options.experimentalBfp8Weights = compile_options.experimental_bfp8_weights;
+  options.experimentalBfp8Weights =
+      compile_options.experimental_enable_weight_bfp8_conversion;
   options.enableFusingConv2dWithMultiplyPattern =
       compile_options.enable_fusing_conv2d_with_multiply_pattern;
   options.enableTrace = compile_options.enable_trace;

@@ -27,12 +27,14 @@ class Matmul(torch.nn.Module):
 @pytest.mark.parametrize("lhs_outer", [32, 64])
 @pytest.mark.parametrize("rhs_outer", [32, 64])
 @pytest.mark.parametrize("inner", [32, 64])
-@pytest.mark.parametrize("experimental_bfp8_weights", [False, True])
-def test_matmul_rhs_as_param(lhs_outer, rhs_outer, inner, experimental_bfp8_weights):
+@pytest.mark.parametrize("experimental_enable_weight_bfp8_conversion", [False, True])
+def test_matmul_rhs_as_param(
+    lhs_outer, rhs_outer, inner, experimental_enable_weight_bfp8_conversion
+):
     dtype = torch.bfloat16
     matmul = Matmul(inner, rhs_outer, dtype=dtype)
     compiler_config = CompilerConfig(
-        experimental_bfp8_weights=experimental_bfp8_weights
+        experimental_enable_weight_bfp8_conversion=experimental_enable_weight_bfp8_conversion
     )
 
     run_op_test_with_random_inputs(

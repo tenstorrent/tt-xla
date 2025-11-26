@@ -26,12 +26,18 @@ class Linear(torch.nn.Module):
 @pytest.mark.parametrize("in_features", [32, 64])
 @pytest.mark.parametrize("out_features", [32, 64])
 @pytest.mark.parametrize("bias", [False, True])
-@pytest.mark.parametrize("experimental_bfp8_weights", [False, True])
-def test_linear(batch_size, in_features, out_features, bias, experimental_bfp8_weights):
+@pytest.mark.parametrize("experimental_enable_weight_bfp8_conversion", [False, True])
+def test_linear(
+    batch_size,
+    in_features,
+    out_features,
+    bias,
+    experimental_enable_weight_bfp8_conversion,
+):
     dtype = torch.bfloat16
     linear = Linear(in_features, out_features, bias=bias, dtype=dtype)
     compiler_config = CompilerConfig(
-        experimental_bfp8_weights=experimental_bfp8_weights
+        experimental_enable_weight_bfp8_conversion=experimental_enable_weight_bfp8_conversion
     )
 
     run_op_test_with_random_inputs(
