@@ -12,6 +12,7 @@
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
+#include "tt/runtime/utils.h"
 
 // tt-xla includes
 #include "api/buffer_instance.h"
