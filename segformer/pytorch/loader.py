@@ -9,9 +9,7 @@ from typing import Optional
 from transformers import (
     SegformerConfig,
     SegformerForImageClassification,
-    AutoImageProcessor,
 )
-from PIL import Image
 
 from ...config import (
     ModelConfig,
@@ -23,7 +21,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
+from ...tools.utils import VisionPreprocessor, VisionPostprocessor
 
 
 class ModelVariant(StrEnum):
@@ -73,8 +71,9 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self.image_processor = None
         self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -92,9 +91,11 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="segformer",
             variant=variant,
-            group=ModelGroup.RED
-            if variant == ModelVariant.MIT_B0
-            else ModelGroup.GENERALITY,
+            group=(
+                ModelGroup.RED
+                if variant == ModelVariant.MIT_B0
+                else ModelGroup.GENERALITY
+            ),
             task=ModelTask.CV_IMAGE_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -124,8 +125,16 @@ class ModelLoader(ForgeModel):
         )
         model.eval()
 
-        # Store model for potential use in post_processing
+        # Store model for potential use in input preprocessing and postprocessing
         self.model = model
+
+        # Update preprocessor with cached model (for TIMM models)
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
+        # Update postprocessor with model instance (for HuggingFace models)
+        if self._postprocessor is not None:
+            self._postprocessor.set_model_instance(model)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
@@ -133,42 +142,106 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the Segformer model with this instance's variant settings.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            dtype_override: Optional torch.dtype to override the inputs' default dtype.
-                           If not provided, inputs will use the default dtype (typically float32).
-            batch_size: Optional batch size to override the default batch size of 1.
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default COCO image).
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for Segformer.
+            torch.Tensor: Preprocessed input tensor.
         """
-        # Get the pretrained model name from the instance's variant config
-        model_name = self._variant_config.pretrained_model_name
+        if self._preprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            # All segformer models are from HuggingFace
+            source = ModelSource.HUGGING_FACE
 
-        # Get the Image
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_file)
+            self._preprocessor = VisionPreprocessor(
+                model_source=source,
+                model_name=model_name,
+            )
 
-        # Initialize image processor if not already done
-        if self.image_processor is None:
-            self.image_processor = AutoImageProcessor.from_pretrained(model_name)
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
 
-        # Create tokenized inputs
-        inputs = self.image_processor(images=image, return_tensors="pt").pixel_values
+        model_for_config = None
+        # Segformer models are from HuggingFace, not TIMM, so model_for_config is not needed
 
-        # Replicate tensors for batch size
-        inputs = inputs.repeat_interleave(batch_size, dim=0)
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
+        )
 
-        # Only convert dtype if explicitly requested
-        if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs (backward compatibility wrapper for input_preprocess).
 
-        return inputs
+        Args:
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
+
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
+        """
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
+
+    def output_postprocess(
+        self,
+        output=None,
+        co_out=None,
+        framework_model=None,
+        compiled_model=None,
+        inputs=None,
+        dtype_override=None,
+    ):
+        """Post-process model outputs.
+
+        Args:
+            output: Model output tensor (returns dict if provided).
+            co_out: Compiled model outputs (legacy, prints results).
+            framework_model: Original framework model (legacy).
+            compiled_model: Compiled model (legacy).
+            inputs: Input images (legacy).
+            dtype_override: Optional dtype override (legacy).
+
+        Returns:
+            dict or None: Prediction dict if output provided, else None (prints results).
+        """
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            # All segformer models are from HuggingFace
+            source = ModelSource.HUGGING_FACE
+
+            self._postprocessor = VisionPostprocessor(
+                model_source=source,
+                model_name=model_name,
+                model_instance=self.model,
+            )
+
+        # New usage: return dict from output tensor
+        if output is not None:
+            return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
+
+        # Legacy usage: print results (backward compatibility)
+        self._postprocessor.print_results(
+            co_out=co_out,
+            framework_model=framework_model,
+            compiled_model=compiled_model,
+            inputs=inputs,
+            dtype_override=dtype_override,
+        )
+        return None
 
     def post_processing(self, co_out):
-        """Post-process the model outputs.
+        """Post-process the model outputs (backward compatibility wrapper).
 
         Args:
             co_out: Compiled model outputs
@@ -176,7 +249,4 @@ class ModelLoader(ForgeModel):
         Returns:
             None: Prints the predicted class
         """
-
-        logits = co_out[0]
-        predicted_label = logits.argmax(-1).item()
-        print("Predicted class:", self.model.config.id2label[predicted_label])
+        self.output_postprocess(co_out=co_out)

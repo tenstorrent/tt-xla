@@ -6,7 +6,7 @@ UNet model loader implementation with multiple sources (OSMR, TorchHub, SMP).
 """
 import numpy as np
 import torch
-from typing import Optional
+from typing import Optional, Callable
 from dataclasses import dataclass
 from PIL import Image
 from torchvision import transforms
@@ -21,7 +21,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
+from ...tools.utils import get_file, VisionPreprocessor
 
 
 @dataclass
@@ -99,6 +99,8 @@ class ModelLoader(ForgeModel):
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
+        self.model = None
+        self._preprocessor = None
 
     def load_model(self, dtype_override=None):
         cfg = self._variant_config
@@ -141,78 +143,151 @@ class ModelLoader(ForgeModel):
 
         model.eval()
 
+        # Store model for potential use in input preprocessing
+        self.model = model
+
+        # Update preprocessor with cached model (for TIMM models)
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
         if dtype_override is not None:
             model = model.to(dtype_override)
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def _create_custom_preprocess_fn(self) -> Callable:
+        """Create a custom preprocessing function based on the variant."""
         cfg = self._variant_config
         source = cfg.source
 
         if source == ModelSource.OSMR:
             # Random input consistent with previous OSMR test
-            inputs = torch.randn(1, 3, 224, 224)
+            def preprocess_fn(image: Image.Image) -> torch.Tensor:
+                return torch.randn(1, 3, 224, 224)
 
         elif source == ModelSource.TORCH_HUB and cfg.hub_repo is not None:
             # TorchHub brain segmentation sample preprocessing
-            file_path = get_file(
-                "https://github.com/mateuszbuda/brain-segmentation-pytorch/raw/master/assets/TCGA_CS_4944.png",
-            )
-            input_image = Image.open(file_path)
-            m, s = np.mean(input_image, axis=(0, 1)), np.std(input_image, axis=(0, 1))
-            preprocess = transforms.Compose(
-                [
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=m, std=s),
-                ]
-            )
-            input_tensor = preprocess(input_image)
-            inputs = input_tensor.unsqueeze(0)
+            def preprocess_fn(image: Image.Image) -> torch.Tensor:
+                m, s = np.mean(image, axis=(0, 1)), np.std(image, axis=(0, 1))
+                preprocess = transforms.Compose(
+                    [
+                        transforms.ToTensor(),
+                        transforms.Normalize(mean=m, std=s),
+                    ]
+                )
+                return preprocess(image)
 
         elif source == ModelSource.TORCH_HUB and cfg.smp_encoder_name is not None:
             # SMP preprocessing using encoder params
             import segmentation_models_pytorch as smp
 
-            file_path = get_file(
-                "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-            )
-            img = Image.open(file_path).convert("RGB")
-
             params = smp.encoders.get_preprocessing_params(cfg.smp_encoder_name)
             std = torch.tensor(params["std"]).view(1, 3, 1, 1)
             mean = torch.tensor(params["mean"]).view(1, 3, 1, 1)
 
-            img_tensor = transforms.ToTensor()(img).unsqueeze(0)
+            def preprocess_fn(image: Image.Image) -> torch.Tensor:
+                img = image.convert("RGB")
+                img_tensor = transforms.ToTensor()(img).unsqueeze(0)
 
-            # Ensure dimensions are divisible by 32 (UNet output stride requirement)
-            # Pad the image to the next multiple of 32
-            _, _, h, w = img_tensor.shape
-            output_stride = 32
-            new_h = ((h - 1) // output_stride + 1) * output_stride
-            new_w = ((w - 1) // output_stride + 1) * output_stride
+                # Ensure dimensions are divisible by 32 (UNet output stride requirement)
+                # Pad the image to the next multiple of 32
+                _, _, h, w = img_tensor.shape
+                output_stride = 32
+                new_h = ((h - 1) // output_stride + 1) * output_stride
+                new_w = ((w - 1) // output_stride + 1) * output_stride
 
-            # Pad if needed
-            if h != new_h or w != new_w:
-                pad_h = new_h - h
-                pad_w = new_w - w
-                # Pad: (left, right, top, bottom)
-                img_tensor = torch.nn.functional.pad(
-                    img_tensor, (0, pad_w, 0, pad_h), mode="constant", value=0
-                )
+                # Pad if needed
+                if h != new_h or w != new_w:
+                    pad_h = new_h - h
+                    pad_w = new_w - w
+                    # Pad: (left, right, top, bottom)
+                    img_tensor = torch.nn.functional.pad(
+                        img_tensor, (0, pad_w, 0, pad_h), mode="constant", value=0
+                    )
 
-            inputs = (img_tensor - mean) / std
+                return (img_tensor - mean) / std
 
         elif self._variant == ModelVariant.CARVANA_UNET_480x640:
-            inputs = torch.rand(1, 3, 480, 640)
+
+            def preprocess_fn(image: Image.Image) -> torch.Tensor:
+                return torch.rand(1, 3, 480, 640)
 
         else:
-            inputs = torch.rand(1, 3, 224, 224)
 
-        if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
+            def preprocess_fn(image: Image.Image) -> torch.Tensor:
+                return torch.rand(1, 3, 224, 224)
 
-        # Replicate tensors for batch size
-        inputs = inputs.repeat_interleave(batch_size, dim=0)
+        return preprocess_fn
 
-        return inputs
+    def _get_default_image_for_variant(self) -> Optional[str]:
+        """Get default image URL for variants that need it."""
+        cfg = self._variant_config
+        source = cfg.source
+
+        if source == ModelSource.TORCH_HUB and cfg.hub_repo is not None:
+            return "https://github.com/mateuszbuda/brain-segmentation-pytorch/raw/master/assets/TCGA_CS_4944.png"
+        elif source == ModelSource.TORCH_HUB and cfg.smp_encoder_name is not None:
+            return "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
+        else:
+            # For random input variants, return None to use random generation
+            return None
+
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
+
+        Args:
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default for variant).
+
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
+        """
+        if self._preprocessor is None:
+            cfg = self._variant_config
+            source = cfg.source
+
+            # Get default image URL for this variant
+            default_image_url = self._get_default_image_for_variant()
+
+            # Create custom preprocessing function
+            custom_preprocess_fn = self._create_custom_preprocess_fn()
+
+            self._preprocessor = VisionPreprocessor(
+                model_source=ModelSource.CUSTOM,
+                model_name=cfg.pretrained_model_name,
+                default_image_url=default_image_url,
+                custom_preprocess_fn=custom_preprocess_fn,
+            )
+
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
+
+        # For variants with None default_image_url (random input generation),
+        # provide a dummy PIL Image when image=None to avoid errors in preprocessor
+        if image is None and self._get_default_image_for_variant() is None:
+            # Create a dummy image - the custom preprocessor will generate random tensors anyway
+            image = Image.new("RGB", (224, 224), color=(128, 128, 128))
+
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
+
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs (backward compatibility wrapper for input_preprocess).
+
+        Args:
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
+
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
+        """
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
