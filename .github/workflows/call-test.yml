@@ -238,7 +238,7 @@ jobs:
         # NOTE: Forked not used for multichip machines until https://github.com/tenstorrent/tt-xla/issues/1824
         # is fixed. This is accomplished by specifically excluding run_forge_models_multichip from the list here.
         PYTEST_FORKED=""
-        for n in run_torch run_large_jax_models run_forge_models run_jax_training run_large_jax_training extended_models run_large_torch_models; do
+        for n in run_torch run_large_jax_models run_forge_models run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
             PYTEST_FORKED="--forked"; break
           fi
