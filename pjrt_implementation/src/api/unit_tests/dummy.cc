@@ -11,6 +11,4 @@
 #include <filesystem>
 #include <vector>
 
-TEST(APIDummyTests, TestThatAllwaysSucceeds) {
-    EXPECT_TRUE(true);
-}
+TEST(APIDummyTests, TestThatAllwaysSucceeds) { EXPECT_TRUE(true); }
