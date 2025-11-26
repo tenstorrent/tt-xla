@@ -1,3 +1,4 @@
 [
-  { "runs-on": "n300", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "data_parallel and expected_passing", "parallel-groups": 7 }
+  { "runs-on": "n300", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "data_parallel and expected_passing and not large", "parallel-groups": 7 },
+  { "runs-on": "n300-high-memory", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "data_parallel and expected_passing and large", "parallel-groups": 1 }
 ]
