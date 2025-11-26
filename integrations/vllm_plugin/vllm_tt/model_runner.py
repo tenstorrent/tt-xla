@@ -1104,7 +1104,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.vllm_config,
                 num_tokens=scheduler_output.total_num_scheduled_tokens,
             ):
-
                 hidden_states = self.model(
                     input_ids=input_ids,
                     positions=self.position_ids,
@@ -1359,22 +1358,40 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.no_grad()
     def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
         if self.supports_mm_inputs:
-            input_ids = None
-            inputs_embeds = torch.zeros(
-                (num_tokens, self.hidden_size), dtype=self.dtype, device=self.device
+            input_ids = torch.zeros(
+                (num_tokens, self.hidden_size),
+                dtype=torch.int32,
+                device=self.device,
             )
+            inputs_embeds = None
         else:
             print(
                 f"num_tokens: {num_tokens}, num_reqs: {num_reqs}, num_blocks: {num_blocks}"
             )
-            input_ids = torch.zeros((num_tokens), dtype=torch.int32).to(self.device)
+            input_ids = torch.zeros(
+                (num_tokens,),
+                dtype=torch.int32,
+                device=self.device,
+            )
             inputs_embeds = None
 
-        position_ids = torch.zeros(num_tokens, dtype=torch.int32).to(self.device)
-        page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
-            self.device
+        position_ids = torch.zeros(
+            (num_tokens,),
+            dtype=torch.int32,
+            device=self.device,
         )
-        cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
+
+        page_table = torch.zeros(
+            (num_reqs, num_blocks),
+            dtype=torch.int32,
+            device=self.device,
+        )
+        cache_position = torch.ones(
+            (num_reqs,),
+            dtype=torch.int32,
+            device=self.device,
+        )
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
@@ -1389,10 +1406,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         with self.maybe_select_dummy_loras(
             self.lora_config, np.array([num_tokens], dtype=np.int32)
-        ), set_forward_context(per_layer_attn_metadata, self.vllm_config, 0):
+        ), set_forward_context(
+            per_layer_attn_metadata,
+            self.vllm_config,
+            0,
+        ):
             out = self.model(
-                input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
+                input_ids=input_ids,
+                positions=position_ids,
+                inputs_embeds=inputs_embeds,
             )
+
         self._hidden_states_dtype = out.dtype
 
     def _set_active_loras(
@@ -1511,7 +1535,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (num_tokens, hsize), device=self.device, dtype=self._hidden_states_dtype
             )
             for num_reqs in self.num_reqs_paddings:
-                indices = torch.zeros(num_reqs, dtype=torch.int32, device=self.device)
+                indices = torch.zeros(num_reqs, dtype=torch.long)
+                indices = indices.to(self.device)
                 self.select_hidden_states(dummy_hidden, indices)
                 logger.info("  -- num_tokens: %d, num_seqs: %d", num_tokens, num_reqs)
                 # Requests can't be more than tokens. But do compile for the
@@ -1530,8 +1555,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         hsize = self.model_config.get_hidden_size()
         for num_reqs in self.num_reqs_paddings:
             dummy_hidden = torch.zeros(
-                (num_reqs, hsize), device=self.device, dtype=self._hidden_states_dtype
+                (num_reqs, hsize), dtype=self._hidden_states_dtype
             )
+            dummy_hidden = dummy_hidden.to(self.device)
             self.compute_logits(dummy_hidden)
             logger.info("  -- num_seqs: %d", num_reqs)
         xm.wait_device_ops()
@@ -1546,9 +1572,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for num_reqs in self.num_reqs_paddings:
             dummy_logits = torch.zeros(
                 (num_reqs, self.vocab_size),
-                device=self.device,
                 dtype=self._hidden_states_dtype,
             )
+            dummy_logits = dummy_logits.to(self.device)
             dummy_require_struct_decoding = self.require_structured_out_cpu[
                 :num_reqs
             ].to(self.device)
@@ -1607,9 +1633,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for num_reqs in self.num_reqs_paddings:
             dummy_logits = torch.zeros(
                 (num_reqs, self.vocab_size),
-                device=self.device,
                 dtype=self._hidden_states_dtype,
             )
+            dummy_logits = dummy_logits.to(self.device)
             dummy_tokens = torch.zeros((num_reqs, 1), dtype=torch.int64).to(self.device)
             with self.maybe_select_dummy_loras(
                 self.lora_config, np.array([num_reqs], dtype=np.int32)
@@ -1825,7 +1851,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.use_spmd:
             # Shard KV Cache
             for cache in self.kv_caches:
-                xs.mark_sharding(cache, self.mesh, (None, "x", None, None))
+                if cache.ndim == 5:
+                    xs.mark_sharding(cache, self.mesh, (None, None, "x", None, None))
+                else:
+                    xs.mark_sharding(cache, self.mesh, (None, "x", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
@@ -1846,12 +1875,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             compiled_model.compiled_codes.clear()
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    torch.compile(backend="tt", fullgraph=True, dynamic=False)
+
     def select_hidden_states(self, hidden_states, indices_do_sample):
-        device = hidden_states.device
-        indices_do_sample = indices_do_sample.to("cpu")
-        hidden_states = hidden_states.to("cpu")
-        return hidden_states[indices_do_sample].to(device)
+        return hidden_states[indices_do_sample]
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
@@ -1883,18 +1910,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         of logprobs as an alternative to having multiple pre-compiled graphs.
         Select the number of logprobs actually demanded by each request on CPU.
         """
-        device = logits.device
-        logprobs = self.sampler.compute_logprobs(logits.to("cpu"))
+        logprobs = self.sampler.compute_logprobs(logits)
         logprobTensors = self.sampler.gather_logprobs(
             logprobs,
             self.model_config.max_logprobs,
-            token_ids=sampled_tokens.to("cpu").squeeze(-1),
+            token_ids=sampled_tokens.squeeze(-1),
         )
 
         return LogprobsTensors(
-            logprob_token_ids=logprobTensors.logprob_token_ids.to(device),
-            logprobs=logprobTensors.logprobs.to(device),
-            selected_token_ranks=logprobTensors.selected_token_ranks.to(device),
+            logprob_token_ids=logprobTensors.logprob_token_ids,
+            logprobs=logprobTensors.logprobs,
+            selected_token_ranks=logprobTensors.selected_token_ranks,
         )
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -1905,19 +1931,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logits: torch.Tensor,
         arange: torch.Tensor,
     ) -> torch.Tensor:
-        device = logits.device
         return torch.where(
-            require_struct_decoding.to("cpu"),
-            self.apply_grammar_bitmask(
-                logits.to("cpu"), grammar_bitmask.to("cpu"), arange.to("cpu")
-            ),
-            logits.to("cpu"),
-        ).to(device)
+            require_struct_decoding,
+            self.apply_grammar_bitmask(logits, grammar_bitmask, arange),
+            logits,
+        )
 
     def apply_grammar_bitmask(
         self, logits: torch.Tensor, grammar_bitmask: torch.Tensor, arange: torch.Tensor
     ):
         assert logits.shape[0] == grammar_bitmask.shape[0]
+        device = logits.device
+        logits = logits.to("cpu")
+        grammar_bitmask = grammar_bitmask.to("cpu")
+        arange = arange.to("cpu")
+
         logits_cloned = logits.clone()
         for i in range(logits.shape[0]):
             unpacked_bitmask = (
@@ -1928,7 +1956,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logits_cloned[i] = logits_cloned[i].masked_fill(
                 unpacked_bitmask, -float("inf")
             )
-        return logits_cloned
+        return logits_cloned.to(device)
 
     def get_multimodal_embeddings(self, *args, **kwargs):
         return self.model.get_multimodal_embeddings(*args, **kwargs)

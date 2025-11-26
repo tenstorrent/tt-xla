@@ -234,99 +234,198 @@ class TTAttentionBackendImpl(AttentionImpl):
             value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
             output: shape = [batch_size, num_tokens, num_heads * head_size]
         """
-        num_users = attn_metadata.cache_position.shape[0]
-        is_prefill = query.shape[0] == num_users
 
-        # is_batched = query.ndim > 2
-        # query_hidden_size = query.shape[-1]
-        query_num_tokens = query.shape[0]
-        # query_batch_size = query.shape[0] if is_batched else 1
+        # === Common metadata ===
+        num_users = attn_metadata.cache_position.shape[0]  # logical batch size
+        orig_query_shape = query.shape
+        orig_query_ndim = query.ndim
 
-        # kv_hidden_size = key.shape[-1]
-        kv_num_tokens = key.shape[0]
-        # kv_batch_size = key.shape[0] if is_batched else 1
+        # ----- Reshape query to [users, tokens_per_user, hidden] -----
+        if orig_query_ndim == 3:
+            # [batch, seq, hidden]
+            users = query.shape[0]
+            query_num_tokens = query.shape[1]
+            hidden_size = query.shape[2]
+            assert users == num_users, (
+                f"query batch dim ({users}) and cache_position num_users "
+                f"({num_users}) mismatch."
+            )
+            query = query  # Already [users, query_num_tokens, hidden]
+        elif orig_query_ndim == 2:
+            # [total_tokens, hidden] (vLLM style)
+            total_tokens = query.shape[0]
+            hidden_size = query.shape[1]
+            users = num_users
+            assert (
+                total_tokens % users == 0
+            ), f"total_tokens ({total_tokens}) not divisible by num_users ({users})."
+            query_num_tokens = total_tokens // users  # tokens per user
+            query = query.view(users, query_num_tokens, hidden_size)
+        else:
+            raise ValueError(f"Unsupported query rank: {orig_query_ndim}")
 
-        query = query.reshape(
-            1,
-            query_num_tokens,
-            query.shape[-1] // self.head_size,
-            self.head_size,
-        )
-        if kv_cache.numel() <= 1:
-            query = query.transpose(-3, -2)  # [batch, num_tokens, num_heads, head_size]
+        # prefill vs decode: determined by number of tokens per user
+        is_prefill = query_num_tokens > 1
+
+        # ----- Reshape key/value to [users_kv, kv_num_tokens, hidden] -----
+        # key
+        if key.ndim == 3:
+            users_kv = key.shape[0]
+            kv_num_tokens = key.shape[1]
+            kv_hidden_size = key.shape[2]
+            # Usually users_kv should equal num_users
+        elif key.ndim == 2:
+            total_k_tokens = key.shape[0]
+            kv_hidden_size = key.shape[1]
+            users_kv = users  # Assume same users as query
+            assert (
+                total_k_tokens % users_kv == 0
+            ), f"total_k_tokens ({total_k_tokens}) not divisible by users_kv ({users_kv})."
+            kv_num_tokens = total_k_tokens // users_kv
+            key = key.view(users_kv, kv_num_tokens, kv_hidden_size)
+        else:
+            raise ValueError(f"Unsupported key rank: {key.ndim}")
+
+        # value
+        if value.ndim == 3:
+            users_v = value.shape[0]
+            v_num_tokens = value.shape[1]
+            v_hidden_size = value.shape[2]
+            assert (
+                users_v == users_kv and v_num_tokens == kv_num_tokens
+            ), "key/value shape mismatch."
+        elif value.ndim == 2:
+            total_v_tokens = value.shape[0]
+            v_hidden_size = value.shape[1]
+            users_v = users_kv
+            assert (
+                total_v_tokens % users_v == 0
+            ), f"total_v_tokens ({total_v_tokens}) not divisible by users_v ({users_v})."
+            v_num_tokens = total_v_tokens // users_v
+            assert v_num_tokens == kv_num_tokens, "key/value token count mismatch."
+            value = value.view(users_v, v_num_tokens, v_hidden_size)
+        else:
+            raise ValueError(f"Unsupported value rank: {value.ndim}")
+
+        # === Reshape Q/K/V to [batch(users), tokens, num_heads, head_size] ===
+        num_heads = hidden_size // self.head_size
+        assert hidden_size % self.head_size == 0
+
+        query = query.reshape(users, query_num_tokens, num_heads, self.head_size)
         key = key.reshape(
-            1,
-            kv_num_tokens,
-            key.shape[-1] // self.head_size,
-            self.head_size,
-        ).transpose(
-            -3, -2
-        )  # [batch, num_tokens, num_kv_heads, head_size]
+            users_kv, kv_num_tokens, kv_hidden_size // self.head_size, self.head_size
+        )
         value = value.reshape(
-            1,
-            kv_num_tokens,
-            value.shape[-1] // self.head_size,
-            self.head_size,
-        ).transpose(
-            -3, -2
-        )  # [batch, num_tokens, num_kv_heads, head_size]
+            users_kv, kv_num_tokens, v_hidden_size // self.head_size, self.head_size
+        )
 
-        if kv_cache.numel() > 1:
+        if kv_cache.numel() <= 1:
+            # non-paged path
+            # scaled_dot_product_attention expects [B, N_tokens, N_heads, H]
+            query_for_sdpa = query.transpose(
+                -3, -2
+            )  # [users, num_heads, tokens, head_size]
+            key_for_sdpa = key.transpose(-3, -2)
+            value_for_sdpa = value.transpose(-3, -2)
 
-            k_cache = kv_cache[0]
-            v_cache = kv_cache[1]
-
-            if not is_prefill:
-                # Transpose (1, num_heads, 1, head_size) to (1, 1, num_heads, head_size)
-                key = key.transpose(1, 2)
-                value = value.transpose(1, 2)
-
-                k_cache = torch.ops.tt.paged_update_cache(
-                    k_cache,
-                    key,
-                    attn_metadata.cache_position,
-                    attn_metadata.page_table,
-                )
-                v_cache = torch.ops.tt.paged_update_cache(
-                    v_cache,
-                    value,
-                    attn_metadata.cache_position,
-                    attn_metadata.page_table,
-                )
-            else:
-                k_cache = torch.ops.tt.paged_fill_cache(
-                    k_cache, key, attn_metadata.page_table
-                )
-                v_cache = torch.ops.tt.paged_fill_cache(
-                    v_cache, value, attn_metadata.page_table
-                )
-            new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
-
-            kv_cache.copy_(new_kv_cache)
-
-        if kv_cache.numel() > 1:
-            # query = query.reshape(1, query.shape[0], query.shape[1], query.shape[3])
-            out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
-                query,
-                k_cache,
-                v_cache,
-                attn_metadata.page_table,
-                cur_pos_tensor=attn_metadata.cache_position,
+            output = torch.ops.tt.scaled_dot_product_attention(
+                query_for_sdpa,
+                key_for_sdpa,
+                value_for_sdpa,
                 is_causal=attn_metadata.is_causal,
                 attn_mask=attn_metadata.attn_mask,
+            ).transpose(
+                -3, -2
+            )  # Back to [users, tokens, num_heads, head_size]
+
+            output = output.reshape(
+                users, query_num_tokens, -1
+            )  # Flatten to hidden dim
+
+            # Return to original query rank
+            if orig_query_ndim == 3:
+                # [batch, seq, hidden]
+                return output
+            else:
+                # [total_tokens, hidden]
+                total_tokens = users * query_num_tokens
+                return output.reshape(total_tokens, -1)
+
+        # === paged attention path ===
+        # When kv_cache exists
+        k_cache = kv_cache[0]
+        v_cache = kv_cache[1]
+
+        if not is_prefill:
+            key_for_update = key.transpose(
+                0, 1
+            )  # [users, num_heads, tokens, head_size]
+            value_for_update = value.transpose(0, 1)
+
+            k_cache = torch.ops.tt.paged_update_cache(
+                k_cache,
+                key_for_update,
+                attn_metadata.cache_position,
+                attn_metadata.page_table,
             )
-            out = out.transpose(-3, -2)
-            out = out.reshape(query_num_tokens, -1)
+            v_cache = torch.ops.tt.paged_update_cache(
+                v_cache,
+                value_for_update,
+                attn_metadata.cache_position,
+                attn_metadata.page_table,
+            )
+        else:
+            # prefill: filling multiple tokens at once
+            # paged_fill_cache assumes it receives [users, tokens, num_heads, head_size] directly
+            key_for_update = key.transpose(
+                1, 2
+            )  # [users, num_heads, tokens, head_size]
+            value_for_update = value.transpose(1, 2)
+            k_cache = torch.ops.tt.paged_fill_cache(
+                k_cache,
+                key_for_update,
+                attn_metadata.page_table,
+            )
+            v_cache = torch.ops.tt.paged_fill_cache(
+                v_cache,
+                value_for_update,
+                attn_metadata.page_table,
+            )
+
+        new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
+        kv_cache.copy_(new_kv_cache)
+
+        # ---- paged decode ----
+        # Adjust for decode kernel expecting query as [1, num_users, num_heads, head]
+        # Current query: [users, query_num_tokens, num_heads, head_size]
+        # In decode, query_num_tokens == 1 is normal
+        query_for_decode = query.transpose(
+            0, 1
+        )  # [query_num_tokens, users, num_heads, head_size]
+
+        out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
+            query_for_decode,
+            k_cache,
+            v_cache,
+            attn_metadata.page_table,
+            cur_pos_tensor=attn_metadata.cache_position,
+            is_causal=attn_metadata.is_causal,
+            attn_mask=attn_metadata.attn_mask,
+        )
+        # out: assumed to be [query_num_tokens, users, num_heads, head_size]
+        out = out.transpose(-3, -2)  # [query_num_tokens, users, head_size, num_heads]
+        out = out.transpose(0, 1)  # [users, query_num_tokens, head_size, num_heads]
+        out = out.reshape(
+            users, query_num_tokens, -1
+        )  # [users, query_num_tokens, hidden]
+
+        if orig_query_ndim == 3:
+            # Original [batch, seq, hidden]
             return out
         else:
-            output = torch.ops.tt.scaled_dot_product_attention(
-                query,
-                key,
-                value,
-                is_causal=attn_metadata.is_causal,
-                attn_mask=attn_metadata.attn_mask,
-            ).transpose(-3, -2)
-            return output.reshape(query_num_tokens, -1)
+            # Original [total_tokens, hidden]
+            total_tokens = users * query_num_tokens
+            return out.reshape(total_tokens, -1)
 
 
 def write_to_kv_cache(
