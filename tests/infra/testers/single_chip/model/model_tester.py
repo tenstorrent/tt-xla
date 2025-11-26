@@ -13,7 +13,6 @@ from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
 from loguru import logger
-from tests.runner.test_utils import create_benchmark_result
 from tests.infra.testers.compiler_config import CompilerConfig
 
 
