@@ -529,7 +529,11 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   // open/close the device, so we need to set the fabric config each time
   // (even if we always set it to the same value).
   if (num_devices > 1) {
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
+    if (mesh_shape[0] == 1 || mesh_shape[1] == 1) {
+      tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D_RING);
+    } else {
+      tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
+    }
   } else {
     tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
   }
