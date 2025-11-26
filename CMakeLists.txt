@@ -32,6 +32,7 @@ endif()
 
 project(TT_PJRT)
 cmake_policy(SET CMP0069 NEW)
+enable_testing()
 set(TTPJRT_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 set(TTMLIR_TOOLCHAIN_DIR $ENV{TTMLIR_TOOLCHAIN_DIR})
 
@@ -45,6 +46,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" OFF)
 option(TTMLIR_BUILD_TYPE "Build type for tt-mlir" Release)
 option(TTXLA_ENABLE_EXPLORER "Enable Explorer feature in tt-mlir" OFF)
+option(TTXLA_ENABLE_PJRT_TESTS "Enable PJRT tests" ON)
 
 if(TTXLA_ENABLE_EXPLORER)
     set(TTMLIR_ENABLE_PERF_TRACE ON)
@@ -84,3 +86,7 @@ endif()
 add_subdirectory(pjrt_implementation/src)
 add_subdirectory(third_party)
 add_subdirectory(docs)
+
+if(TTXLA_ENABLE_PJRT_TESTS)
+    add_subdirectory(tests/pjrt)
+endif()
