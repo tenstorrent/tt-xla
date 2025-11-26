@@ -3,7 +3,7 @@
       "runs-on": "n150",
       "name": "mnist_inference",
       "dir": "./tests/runner/test_models.py",
-      "args": "tests/runner/test_models.py::test_all_models_torch[mnist/pytorch-single_device-full-inference]",
+      "args": "tests/runner/test_models.py::test_all_models_torch[mnist/image_classification/pytorch-cnn_dropout-single_device-full-inference]",
       "test-mark": "model_test and inference and single_device",
       "parallel-groups": 1
     },
