@@ -318,6 +318,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
+        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
       shell: bash
       run: |
         source venv/activate
@@ -359,13 +360,13 @@ jobs:
         name: test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
 
-    # NEW ADDED STEP:Upload Benchmark JSONs
+    # NEW ADDED STEP: Upload Benchmark JSONs
     - name: Upload Benchmark Results
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
         # Use a distinct name to avoid collisions with the XML report artifact
-        name: benchmark-results-${{ steps.strings.outputs.matrix-hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: perf-reports-${{ steps.strings.outputs.matrix-hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         # Capture all JSON files in the directory we created in test_models.py
         path: test_reports_benchmarks/*.json
 
