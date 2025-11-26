@@ -476,3 +476,78 @@ def record_model_test_properties(
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         pytest.xfail(reason)
+
+def create_measurement(
+    step_name: str,
+    measurement_name: str,
+    iteration: int = 1,
+    value: float = 0.0,
+    target: float = -1.0,
+) -> Dict[str, Any]:
+    """Create a single perf measurement dictionary."""
+    return {
+        "step_name": step_name,
+        "measurement_name": measurement_name,
+        "value": value,
+        "iteration": iteration,
+        "step_warm_up_num_iterations": 0,
+        "target": target,
+    }
+
+def create_benchmark_result(
+    full_model_name: str,
+    measurements: List[Dict[str, Any]], 
+    model_type: str = "generic",
+    batch_size: int = 1,
+    training: bool = False,
+    optimization_level: int = 0,
+    model_info: str = "",
+    device_name: str = "",
+    arch: str = "",
+) -> Dict[str, Any]:
+    """Create a standardized benchmark result dictionary.
+
+    Args:
+        custom_measurements: List of additional measurement dictionaries to include.
+                           Each measurement should have keys: measurement_name, value, and optionally
+                           iteration, step_name, step_warm_up_num_iterations, target, device_power, device_temperature
+    """
+   
+    # Extract e2e stats from the passed measurements list
+    metric_list = []
+    
+    if measurements and len(measurements) > 0:
+        perf_stats = measurements[0]
+        warmup_iters = perf_stats["warmup_iters"]
+        perf_iters = perf_stats["perf_iters"]
+        
+        # We want to report these specific metrics
+        metric_list.append(create_measurement("e2e_perf", "total_time", perf_stats["total_time"], perf_iters, warmup_iters))
+        metric_list.append(create_measurement("e2e_perf", "avg_time", perf_stats["avg_time"], perf_iters, warmup_iters))
+       
+    config = {
+        "model_size": "small",
+        "optimization_level": optimization_level,
+        "model_info": model_info,
+    }
+
+
+    results = {
+        "model": full_model_name,
+        "model_type": model_type,
+        "run_type": f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}_{loop_count}",
+        "config": config,
+        "measurements": metric_list,
+        "device_info": {
+            "device_name": device_name,
+            "galaxy": galaxy,
+            "arch": arch,
+            "chips": chips,
+        },
+        "training": training,
+        "perf_analysis": False,
+        "project": "tt-xla", 
+    }
+    
+    return results
+
