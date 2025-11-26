@@ -8,18 +8,18 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+// C++ standard library includes
+#include <cstdlib>
+#include <filesystem>
+#include <vector>
+
 // GTest includes
-#include <gtest/gtest.h>
+#include "gtest/gtest.h"
 
 // PJRT implementation includes
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
-
-// C++ standard library includes
-#include <cstdlib>
-#include <filesystem>
-#include <vector>
 
 namespace tt::pjrt::tests {
 

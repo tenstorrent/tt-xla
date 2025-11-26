@@ -28,7 +28,7 @@ FetchContent_Declare(googletest
 
 FetchContent_MakeAvailable(googletest)
 
-add_executable(TTPJRTTests main.cc)
+add_executable(TTPJRTTests test_main.cc)
 
 # Gather all test sources (various unit test and mock test directories.)
 

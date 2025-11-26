@@ -8,10 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-// C++ standard library includes
-#include <cstdlib>
-
-// GTest includes
 #include "gtest/gtest.h"
 
-TEST(APIDummyTests, TestThatAllwaysSucceeds) { EXPECT_TRUE(true); }
+int main(int argc, char *argv[]) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
