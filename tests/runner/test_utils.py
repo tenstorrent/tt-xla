@@ -11,6 +11,8 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
+from typing import Dict, Any, Optional, List
+import json
 
 import numpy as np
 import pytest
@@ -500,10 +502,12 @@ def create_benchmark_result(
     model_type: str = "generic",
     batch_size: int = 1,
     training: bool = False,
-    optimization_level: int = 0,
     model_info: str = "",
-    device_name: str = "",
-    arch: str = "",
+    input_size: tuple = (1,1),
+    num_layers: int = 1,
+    loop_count: int = 1,
+    #device_name: str = "",
+    #arch: str = "",
 ) -> Dict[str, Any]:
     """Create a standardized benchmark result dictionary.
 
@@ -527,27 +531,44 @@ def create_benchmark_result(
        
     config = {
         "model_size": "small",
-        "optimization_level": optimization_level,
         "model_info": model_info,
     }
 
 
-    results = {
+    benchmark_results = {
         "model": full_model_name,
         "model_type": model_type,
         "run_type": f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}_{loop_count}",
         "config": config,
         "measurements": metric_list,
-        "device_info": {
-            "device_name": device_name,
-            "galaxy": galaxy,
-            "arch": arch,
-            "chips": chips,
-        },
+        #"device_info": {
+        #    "device_name": device_name,
+        #    "galaxy": galaxy,
+        #    "arch": arch,
+        #    "chips": chips,
+        #},
         "training": training,
         "perf_analysis": False,
         "project": "tt-xla", 
     }
+
+    # Setup output directory matching call-test.yml
+    benchmark_output_dir = "test_reports_benchmarks"
+    os.makedirs(benchmark_output_dir, exist_ok=True)
+
+    # Add metadata required for collect_data parser
+    benchmark_results["project"] = "tt-xla"
+    benchmark_results["model_rawname"] = full_model_name
     
-    return results
+    # Get JOB_ID from environment, default to a placeholder if running locally
+    job_id = os.environ.get("JOB_ID", "00000")
+    safe_model_name = full_model_name.replace("/", "_").replace(" ", "_")
+    json_filename = f"benchmark_results_{safe_model_name}_{job_id}.json"
+    # Ensure filename ends with _<job_id>.json as required by collect_data
+    json_path = os.path.join(benchmark_output_dir, json_filename)
+
+    with open(json_path, "w") as file:
+        json.dump(benchmark_results, file, indent=2)
+        print(f"Benchmark results saved to {json_path}")
+
 
