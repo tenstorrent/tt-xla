@@ -25,10 +25,12 @@ CompileOptions CompileOptions::parse(
       internal::parseBoolOption(compile_options,
                                 "experimental_enable_weight_bfp8_conversion")
           .value_or(options.experimental_enable_weight_bfp8_conversion);
-  options.enable_fusing_conv2d_with_multiply_pattern =
-      internal::parseBoolOption(compile_options,
-                                "enable_fusing_conv2d_with_multiply_pattern")
-          .value_or(options.enable_fusing_conv2d_with_multiply_pattern);
+  options.experimental_enable_fusing_conv2d_with_multiply_pattern =
+      internal::parseBoolOption(
+          compile_options,
+          "experimental_enable_fusing_conv2d_with_multiply_pattern")
+          .value_or(
+              options.experimental_enable_fusing_conv2d_with_multiply_pattern);
   options.backend = internal::parseBackendOption(compile_options, "backend")
                         .value_or(options.backend);
   options.enable_trace =

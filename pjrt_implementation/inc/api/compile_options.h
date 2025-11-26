@@ -49,7 +49,7 @@ struct CompileOptions {
   // TODO(sdjordjevicTT): This is a temporary option and will be removed once
   // the underlying issue https://github.com/tenstorrent/tt-mlir/issues/4628 is
   // fixed.
-  bool enable_fusing_conv2d_with_multiply_pattern = false;
+  bool experimental_enable_fusing_conv2d_with_multiply_pattern = false;
 
   // Backend runtime which should be targeted for compilation and execution.
   BackendRuntime backend = BackendRuntime::TTNNFlatbuffer;

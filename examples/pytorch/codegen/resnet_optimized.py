@@ -25,7 +25,7 @@ options = {
     # "enable_optimizer": True,
     # "enable_memory_layout_analysis": True,
     # "enable_l1_interleaved": False,
-    # "enable_fusing_conv2d_with_multiply_pattern": True,
+    # "experimental_enable_fusing_conv2d_with_multiply_pattern": True,
 }
 torch_xla.set_custom_compile_options(options)
 
