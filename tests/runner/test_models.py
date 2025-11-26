@@ -21,6 +21,7 @@ from tests.runner.test_utils import (
     fix_venv_isolation,
     record_model_test_properties,
     update_test_metadata_for_exception,
+    create_benchmark_result,
 )
 from tests.runner.testers import (
     DynamicJaxModelTester,
@@ -80,6 +81,7 @@ MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJEC
 )
 def test_all_models_torch(
     test_entry,
+    output,
     run_mode,
     op_by_op,
     parallelism,
@@ -170,12 +172,6 @@ def test_all_models_torch(
 
             comparison_config = tester._comparison_config if tester else None
 
-            perf_stats = getattr(tester, "get_perf_stats", None)
-            if callable(perf_stats):
-                perf_stats = perf_stats()
-            else:
-                perf_stats = getattr(tester, "_perf_stats", None)
-
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
             record_model_test_properties(
@@ -188,8 +184,38 @@ def test_all_models_torch(
                 test_passed=succeeded,
                 comparison_result=comparison_result,
                 comparison_config=comparison_config,
-                perf_stats=perf_stats,
             )
+            
+            # perf benchmarking
+            full_model_name = model_info.name
+            perf_stats = getattr(tester, "get_perf_stats", None)
+            if callable(perf_stats):
+                e2e_perf_stats = perf_stats()
+            else:
+                e2e_perf_stats = getattr(tester, "_perf_stats", None)
+            measurements = [
+                e2e_perf_stats,
+            ]
+
+            # create benchmark result
+            benchmark_results = create_benchmark_result(
+                full_model_name=full_model_name,
+                measurements=measurements,
+                model_type=model_type,
+                batch_size=batch_size,
+                training=False,
+                optimization_level= 0,
+                model_info=model_info,
+                device_name=socket.gethostname(),
+                arch=get_xla_device_arch(),
+            )
+            
+            if output:
+                benchmark_results["project"] = "tt-xla"
+                benchmark_results["model_rawname"] = loader.get_model_info(variant=model_variant).name
+
+                with open(output, "w") as file:
+                    json.dump(benchmark_results, file, indent=2)
 
 
 @pytest.mark.model_test

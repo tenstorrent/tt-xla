@@ -13,8 +13,9 @@ from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
 from loguru import logger
-
+from tests.runner.test_utils import create_benchmark_result
 from tests.infra.testers.compiler_config import CompilerConfig
+
 
 from ...base_tester import BaseTester
 
@@ -148,10 +149,6 @@ class ModelTester(BaseTester, ABC):
         else:
             return self._test_training()
 
-    def get_perf_stats(self) -> dict[str, float]:
-        """Returns performance statistics."""
-        return self._perf_stats
-
     def _test_inference(self) -> Tuple[ComparisonResult, ...]:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
@@ -161,7 +158,16 @@ class ModelTester(BaseTester, ABC):
         cpu_res = self._run_on_cpu(self._workload)
 
         self._compile_for_tt_device(self._workload)
+        self._perf_stats = self._test_e2e_perf()
+        tt_res = self._run_on_tt_device(self._workload)
 
+        return (self._compare(tt_res, cpu_res),)
+    
+    def get_perf_stats(self) -> dict[str, float]:
+        """Returns performance statistics."""
+        return self._perf_stats
+    
+    def _test_e2e_perf(self) -> dict[str, float]:
         warmup_iters = 3
         perf_iters = 2
 
@@ -183,14 +189,13 @@ class ModelTester(BaseTester, ABC):
             f"total_time={tt_total_time:.3f}s avg_time={avg_time:.4f}s"
         )
 
-        self._perf_stats = {
+        perf_stats = {
             "warmup_iters": warmup_iters,
             "perf_iters": perf_iters,
             "total_time": tt_total_time,
             "avg_time": avg_time,
         }
-
-        return (self._compare(tt_res, cpu_res),)
+        return perf_stats
 
     def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on CPU."""
