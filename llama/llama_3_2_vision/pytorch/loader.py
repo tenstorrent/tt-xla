@@ -134,6 +134,9 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input arguments that can be fed to the model.
         """
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
         # Ensure processor is initialized
         if self.processor is None:
             self._load_processor()
@@ -144,15 +147,20 @@ class ModelLoader(ForgeModel):
         )
         image = Image.open(image_file)
 
-        # Set up messages
-        self.messages = [
-            {"role": "user", "content": "<|image_1|>\nWhat is this image about?"},
-        ]
+        if pretrained_model_name == "meta-llama/Llama-3.2-11B-Vision":
+            # Base model: Use raw prompt
+            prompt = "<|image|><|begin_of_text|> What is this image about?"
 
-        # Apply chat template
-        prompt = self.tokenizer.apply_chat_template(
-            self.messages, tokenize=False, add_generation_prompt=True
-        )
+        elif pretrained_model_name == "meta-llama/Llama-3.2-11B-Vision-Instruct":
+            # Set up messages
+            self.messages = [
+                {"role": "user", "content": "<|image_1|>\nWhat is this image about?"},
+            ]
+
+            # Apply chat template
+            prompt = self.tokenizer.apply_chat_template(
+                self.messages, tokenize=False, add_generation_prompt=True
+            )
 
         # Process inputs
         device = self.model.device if self.model is not None else "cpu"
