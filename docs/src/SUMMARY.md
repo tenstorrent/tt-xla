@@ -12,3 +12,4 @@
     - [Troubleshooting](./troubleshooting_codegen.md)
 - [Tools](./tools.md)
     - [Explorer](./tt_explorer.md)
+    - [Chisel](./chisel.md)
