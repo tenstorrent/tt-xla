@@ -2156,8 +2156,7 @@ test_config:
 
   transfuser/pytorch-single_device-full-inference:
     assert_pcc: false
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Invalid head size: 54. The head size must be a multiple of the tile width (32). Please adjust the dimensions accordingly - https://github.com/tenstorrent/tt-xla/issues/2204"
+    status: EXPECTED_PASSING
 
   # yolov11/pytorch-yolo11n-single_device-full-inference:
   #   status: EXPECTED_PASSING
