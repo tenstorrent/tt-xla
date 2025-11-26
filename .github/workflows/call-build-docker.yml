@@ -11,6 +11,11 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir or branch name'
         required: false
         type: string
+      xla_sha_override:
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
+        required: false
+        type: string
+        default: ${{ github.sha }}
     outputs:
       docker-image:
         description: "Built docker image name"

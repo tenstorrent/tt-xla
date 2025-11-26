@@ -127,7 +127,14 @@ if __name__ == "__main__":
                 f.write(f"{test}\n")
 
         upload_list.append({"name": f"{machine}-test-to-run", "path": tests_file})
-        matrix.append({"runs-on": machine, "fromc": fromc, "toc": toc})
+        matrix.append(
+            {
+                "runs-on": machine,
+                "fromc": fromc,
+                "toc": toc,
+                "shared-runners": machine.startswith("tt-"),
+            }
+        )
 
     # Write upload_list to .upload_list.json file
     with open(".upload_list.json", "w") as f:
