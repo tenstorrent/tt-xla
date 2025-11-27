@@ -6,12 +6,11 @@ set -e -o pipefail
 
 long_sha=$(git rev-parse HEAD)
 # Use GitHub API to check for existing artifacts
-echo "Checking for existing artifacts named: $wheel_artifact_name"
-artifacts_run_id=$(curl -L \
-  -H "Accept: application/vnd.github+json" \
+echo "Checking for workflows for sha: $long_sha"
+artifacts_run_id=$(curl -L -H "Accept: application/vnd.github+json" \
   -H "Authorization: Bearer $GH_TOKEN" \
   "https://api.github.com/repos/tenstorrent/tt-xla/actions/runs?head_sha=$long_sha" | jq '.workflow_runs[] | select(.name == "On Push" or .name == "On Nightly") | .id')
-if [ -z "$artifacts_run_id" ] || [ "$artifacts_run_id" == "null" ]; then
+if [ -z "$artifacts_run_id" ]; then
   echo "No workflow run found for commit: $long_sha"
   exit 1
 fi
