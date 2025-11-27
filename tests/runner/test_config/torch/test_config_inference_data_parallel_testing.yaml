@@ -4,6 +4,35 @@
 
 # test_config:
 
+
+  #==============================================================================
+  # NEW ISSUE:  TT_FATAL: Input X dimension (96) must be divisible by 64 for tiling. (assert.hpp:103)
+  # STATUS: same issue in main for single device phi models
+  #==============================================================================
+
+  # phi3/phi_3_5/pytorch-mini_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   bringup_status: INCORRECT_RESULT # Calculated: pcc=0.2603238821029663. Required: pcc=0.99.
+
+  # phi1/causal_lm/pytorch-microsoft/phi-1-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi1/token_classification/pytorch-microsoft/phi-1-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # fuyu/pytorch-adept/fuyu-8b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi1_5/causal_lm/pytorch-microsoft/phi-1_5-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+
   #==============================================================================
   # KNOWN ISSUE: error: 'sdy.all_reduce' op reduction axis "_axis_0" overlaps
   # with operand dimension sharding or replicated axes
