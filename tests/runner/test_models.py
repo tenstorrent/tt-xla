@@ -257,7 +257,6 @@ def test_all_models_jax(
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
-                # Use DynamicJaxMultiChipModelTester for tensor parallel
                 if (
                     model_info.source.name == ModelSource.EASYDEL.name
                     and parallelism == Parallelism.SINGLE_DEVICE
@@ -271,7 +270,7 @@ def test_all_models_jax(
                     parallelism == Parallelism.TENSOR_PARALLEL
                     or parallelism == Parallelism.DATA_PARALLEL
                 ):
-                    ####INFRA SUPPORTS DATAPARALLEL SOLO WHEN RUN AS EASYDEL MODELS####
+                    ####DATAPARALLEL IS SUPPORTED SOLO FOR EASYDEL MODELS####
                     tester = DynamicJaxMultiChipModelTester(
                         model_loader=loader,
                         run_mode=run_mode,
