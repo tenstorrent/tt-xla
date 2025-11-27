@@ -77,6 +77,14 @@ struct CompileOptions {
   // https://github.com/tenstorrent/tt-mlir/issues/3888
   bool enable_const_eval = true;
 
+  // Enable collection of TTNN performance metrics during execution.
+  bool ttnn_perf_metrics_enabled = false;
+
+  // Output file path for TTNN performance metrics.
+  // If empty, metrics will be saved to the "perf_metrics" directory with a default name.
+  // Key metrics will also be included in the final performance report.
+  std::string ttnn_perf_metrics_output_file = "";
+
   // Path that will contain any exported artifacts.
   // This includes: codegen solutions, graph inputs and intermediate IRs.
   // Setting this will enable IR dumping.
