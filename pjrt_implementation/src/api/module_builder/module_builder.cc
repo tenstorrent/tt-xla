@@ -256,10 +256,54 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
-  status = collectOutputShardings(mlir_module, output_shardings);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
+  DLOG_F(LOG_DEBUG, "=== INPUT SHARDINGS (count=%zu) ===", input_shardings.size());
+  for (size_t i = 0; i < input_shardings.size(); ++i) {
+    const auto& sharding = input_shardings[i];
+    llvm::SmallVector<int64_t> mesh_shape = sharding.getMeshShape();
+    llvm::SmallVector<int64_t> shard_shape = sharding.getShardShape();
+    std::string mesh_shape_str = "[";
+    for (size_t j = 0; j < mesh_shape.size(); ++j) {
+      mesh_shape_str += std::to_string(mesh_shape[j]);
+      if (j < mesh_shape.size() - 1) mesh_shape_str += ", ";
+    }
+    mesh_shape_str += "]";
+    std::string shard_shape_str = "[";
+    for (size_t j = 0; j < shard_shape.size(); ++j) {
+      shard_shape_str += std::to_string(shard_shape[j]);
+      if (j < shard_shape.size() - 1) shard_shape_str += ", ";
+    }
+    shard_shape_str += "]";
+    DLOG_F(LOG_DEBUG, "  Input[%zu]: ShardType=%d, MeshShape=%s, ShardShape=%s",
+           i, static_cast<int>(sharding.getShardType()),
+           mesh_shape_str.c_str(), shard_shape_str.c_str());
+  }
+
+  std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings = input_shardings;
+  // status = collectOutputShardings(mlir_module, output_shardings);
+  // if (!tt_pjrt_status_is_ok(status)) {
+  //   return {status, nullptr};
+  // }
+
+  DLOG_F(LOG_DEBUG, "=== OUTPUT SHARDINGS (count=%zu) ===", output_shardings.size());
+  for (size_t i = 0; i < output_shardings.size(); ++i) {
+    const auto& sharding = output_shardings[i];
+    llvm::SmallVector<int64_t> mesh_shape = sharding.getMeshShape();
+    llvm::SmallVector<int64_t> shard_shape = sharding.getShardShape();
+    std::string mesh_shape_str = "[";
+    for (size_t j = 0; j < mesh_shape.size(); ++j) {
+      mesh_shape_str += std::to_string(mesh_shape[j]);
+      if (j < mesh_shape.size() - 1) mesh_shape_str += ", ";
+    }
+    mesh_shape_str += "]";
+    std::string shard_shape_str = "[";
+    for (size_t j = 0; j < shard_shape.size(); ++j) {
+      shard_shape_str += std::to_string(shard_shape[j]);
+      if (j < shard_shape.size() - 1) shard_shape_str += ", ";
+    }
+    shard_shape_str += "]";
+    DLOG_F(LOG_DEBUG, "  Output[%zu]: ShardType=%d, MeshShape=%s, ShardShape=%s",
+           i, static_cast<int>(sharding.getShardType()),
+           mesh_shape_str.c_str(), shard_shape_str.c_str());
   }
 
   NumArgumentsResult num_arguments;

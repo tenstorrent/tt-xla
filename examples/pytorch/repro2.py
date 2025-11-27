@@ -34,28 +34,32 @@ def main():
     x = torch.ones((32,16)).to(device)
     y = torch.ones((32,16)).to(device)
 
-
     xs.mark_sharding(x, mesh, (None, 'model'))
-
 
     print("PRE-EXECUTION")
     print("input sharding " + torch_xla._XLAC._get_xla_sharding_spec(x))
-    print("Tensor id x: ", torch_xla._XLAC._xla_get_tensor_id(x))
-    print("Tensor id y: ", torch_xla._XLAC._xla_get_tensor_id(y))
-    print("Tensor buffer donation x: ", torch_xla._XLAC._get_buffer_donation(x))
-    print("Tensor buffer donation y: ", torch_xla._XLAC._get_buffer_donation(y))
+    # print("Tensor id x: ", torch_xla._XLAC._xla_get_tensor_id(x))
+    # print("Tensor id y: ", torch_xla._XLAC._xla_get_tensor_id(y))
+    print(torch_xla._XLAC._get_xla_tensor_debug_info(x))
+    # print("Tensor buffer donation x: ", torch_xla._XLAC._get_buffer_donation(x))
+    # print("Tensor buffer donation y: ", torch_xla._XLAC._get_buffer_donation(y))
 
-    x+=y
+    x+=1
+    print(torch_xla._XLAC._get_xla_tensors_hlo([x]))
+
     torch_xla.sync()
 
-    print("POST-EXECUTION")
-    print("input sharding " + torch_xla._XLAC._get_xla_sharding_spec(x))
-    print("Tensor id x: ", torch_xla._XLAC._xla_get_tensor_id(x))
-    print("Tensor id y: ", torch_xla._XLAC._xla_get_tensor_id(y))
+    print("Post execution x device", x.device)
 
-    print("Tensor buffer donation x: ", torch_xla._XLAC._get_buffer_donation(x))
-    print("Tensor buffer donation y: ", torch_xla._XLAC._get_buffer_donation(y))
-    print(torch_xla._XLAC._get_xla_tensor_debug_info(x))
+
+    print("POST-EXECUTION")
+    print("output/input sharding " + torch_xla._XLAC._get_xla_sharding_spec(x))
+    # print("Tensor id x: ", torch_xla._XLAC._xla_get_tensor_id(x))
+    # print("Tensor id y: ", torch_xla._XLAC._xla_get_tensor_id(y))
+
+    # print("Tensor buffer donation x: ", torch_xla._XLAC._get_buffer_donation(x))
+    # print("Tensor buffer donation y: ", torch_xla._XLAC._get_buffer_donation(y))
+    # print(torch_xla._XLAC._get_xla_tensor_debug_info(x))
 
 
 

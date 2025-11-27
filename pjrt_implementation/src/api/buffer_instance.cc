@@ -121,7 +121,7 @@ void BufferInstance::bindApi(PJRT_Api *api) {
 size_t
 BufferInstance::getConvertedRuntimeTensorSize(const tt::runtime::Tensor &tensor,
                                               PJRT_Buffer_Type data_type) {
-  std::uint32_t tensor_volume = tt::runtime::getTensorVolume(tensor);
+  std::uint32_t tensor_volume = tt::runtime::getTensorLogicalVolume(tensor);
   std::uint32_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
       data_type_utils::convertPJRTToRuntimeDataType(data_type));
   std::uint32_t runtime_tensor_size = tensor_volume * dtype_element_size;
