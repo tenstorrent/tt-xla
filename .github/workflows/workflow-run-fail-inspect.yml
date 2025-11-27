@@ -322,7 +322,7 @@ jobs:
           submodules: recursive
 
       - name: Download test to run
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v5
         with:
           name: ${{ matrix.build.runs-on }}-test-to-run
 
