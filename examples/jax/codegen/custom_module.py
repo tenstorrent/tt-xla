@@ -5,6 +5,7 @@
 import flax.nnx as nnx
 import jax
 import jax.numpy as jnp
+from tt_jax import codegen_py
 
 """
 Demonstrates how to hook into compile options to use Codegen, from Jax
@@ -38,24 +39,11 @@ def forward(graphdef, state, x):
     return model(x)
 
 
-# Set up compile options to trigger code generation.
-options = {
-    # Code generation options
-    "backend": "codegen_py",
-    # Optimizer options
+# Any compile options you could specify when executing the model normally can also be used with codegen.
+extra_options = {
     # "enable_optimizer": True,
     # "enable_memory_layout_analysis": True,
     # "enable_l1_interleaved": False,
-    # Tensor dumping options
-    # "export_tensors": True,
-    "export_path": "model",
 }
 
-# Compile the model. Make sure to pass the code generation options.
-fun = jax.jit(
-    forward,
-    compiler_options=options,
-)
-
-# Run the model. This triggers code generation.
-fun(graphdef, state, x)
+codegen_py(forward, state, x, export_path="model", compiler_options=extra_options)
