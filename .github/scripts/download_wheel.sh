@@ -5,28 +5,29 @@
 set -e -o pipefail
 
 rm -rf wheels
-long_sha=$(git rev-parse HEAD)
-if [ -z "$GH_TOKEN" ]; then
-  echo "GH_TOKEN is not set. Exiting."
-  exit 1
-fi
-# Use GitHub API to check for existing artifacts
-echo "Checking for workflows for sha: $long_sha"
-artifacts_run_id=$(curl -L \
-  -H "Accept: application/vnd.github+json" \
-  -H "Authorization: Bearer $GH_TOKEN" \
-  "https://api.github.com/repos/tenstorrent/tt-xla/actions/runs?head_sha=$long_sha" | jq '.workflow_runs[] | select(.name == "On push" or .name == "On Nightly") | .id')
+# If no artifact found with short SHA, try with longer SHA
+for size in 7 8 9 10 11 12; do
+  echo "Checking for artifact with SHA size: $size"
+  wheel_artifact_name="xla-whl-release-$(git rev-parse --short=$size HEAD)"
+  response=$(curl -s -H "Authorization: token $GH_TOKEN" \
+    "https://api.github.com/repos/tenstorrent/tt-xla/actions/artifacts?name=$wheel_artifact_name")
+  total_count=$(echo "$response" | jq -r '.total_count')
+  if [ "$total_count" -gt 0 ]; then
+    echo "Found artifact!"
+    artifacts_run_id=$(echo "$response" | jq -r '.artifacts[0].workflow_run.id')
+    break
+  fi
+done
+
+# If still no artifact found
 if [ -z "$artifacts_run_id" ]; then
-  echo "No workflow run found for commit: $long_sha"
+  echo "No artifact found."
   exit 1
 fi
-gh run download "$artifacts_run_id" --repo "tenstorrent/tt-xla" --dir wheels --pattern "xla-whl-release-*"
-wheel_path=$(find wheels -name "*.whl" | head -n 1)
-if [ -z "$wheel_path" ]; then
-  echo "No wheel file found in downloaded artifacts."
-  exit 1
-fi
-echo "Installing wheel artifact: $wheel_path"
-pip install $wheel_path --upgrade
+
+echo "Downloading wheel from run_id $artifacts_run_id name $wheel_artifact_name"
+gh run download "$artifacts_run_id" --repo "tenstorrent/tt-xla" --dir wheels --name "$wheel_artifact_name"
+echo "Installing wheel artifact"
+pip install wheels/*.whl --upgrade
 rm -rf wheels
 exit 0
