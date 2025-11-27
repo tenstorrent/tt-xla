@@ -97,35 +97,12 @@ TTAlchemistHandler::~TTAlchemistHandler() {
 }
 
 std::optional<std::string> TTAlchemistHandler::findTTAlchemistLibraryPath() {
-  // HACK: Currently tt-alchemist is packaged as a python package that contains
-  // an .so file. We rely on python venv activate script always exporting
-  // VIRTUAL_ENV environment variable to find the .so file. Long term, this code
-  // should be made redundant once we think of a better way to package
-  // tt-alchemist. Packaging tracked at:
-  // https://github.com/tenstorrent/tt-mlir/issues/5250
+  const char *mlir_home = std::getenv("TT_MLIR_HOME");
 
-  const char *venv_cstr = std::getenv("VIRTUAL_ENV");
-  if (venv_cstr == nullptr) {
-    return std::nullopt;
-  }
-  std::string venv(venv_cstr);
-  if (venv.empty()) {
-    return std::nullopt;
-  }
+  std::string alchemist_lib_path = std::string(mlir_home) + "/build/lib/libtt-alchemist-lib.so";
 
-  // We can't assume it will be a python3.11 venv.
-  for (const auto &entry : std::filesystem::directory_iterator(venv + "/lib")) {
-    if (entry.is_directory() &&
-        entry.path().filename().string().find("python") == std::string::npos) {
-      continue;
-    }
-
-    std::string python_dir_path =
-        entry.path().string() +
-        "/site-packages/tt_alchemist/lib/libtt-alchemist-lib.so";
-    if (std::filesystem::exists(python_dir_path)) {
-      return python_dir_path;
-    }
+  if (std::filesystem::exists(alchemist_lib_path)) {
+    return alchemist_lib_path;
   }
 
   return std::nullopt;
