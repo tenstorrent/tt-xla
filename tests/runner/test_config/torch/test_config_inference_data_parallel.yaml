@@ -1194,14 +1194,14 @@ test_config:
   #   too large for 31 GB runner
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-data_parallel-full-inference:
-    supported_archs: [n300]
+    supported_archs: [n300-high-memory]
     assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.45505842566490173. Required: pcc=0.99.
     markers: ["large"]
 
   stereo/pytorch-large-data_parallel-full-inference:
-    supported_archs: [n300]
+    supported_archs: [n300-high-memory]
     assert_pcc: false
     status: EXPECTED_PASSING
     bringup_status: INCORRECT_RESULT # Calculated: pcc=0.2210359126329422. Required: pcc=0.99.
