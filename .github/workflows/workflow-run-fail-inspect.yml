@@ -329,15 +329,18 @@ jobs:
       - name: Bisect
         shell: bash
         run: |
+          mkdir -p .bisect-run
+          cp .github/scripts/download_wheel.sh .bisect-run/
+          cp .github/scripts/run_tests.py .bisect-run/
           source venv/activate
           git bisect start ${{ matrix.build.toc }} ${{ matrix.build.fromc }}
           while true; do
             git submodule update --init --recursive
 
             set +e
-            if .github/scripts/download_wheel.sh; then
+            if .bisect-run/download_wheel.sh; then
               # Run tests
-              if python .github/scripts/run_tests.py; then
+              if python .bisect-run/run_tests.py; then
                 git bisect good
               else
                 git bisect bad
