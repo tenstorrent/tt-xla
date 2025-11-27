@@ -268,7 +268,7 @@ jobs:
           cat .upload_list.json
           echo "Resulting matrix:"
           cat .matrix.json
-          echo "test_matrix=$(cat .matrix.json)" >> $GITHUB_OUTPUT
+          echo "test_matrix=$(cat .matrix.json|jq -c)" >> $GITHUB_OUTPUT
           echo "docker_sha=$curr_head_sha" >> $GITHUB_OUTPUT
 
       - uses: nsumrakTT/upload-multiple-artifacts@main
