@@ -256,13 +256,17 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
     def _get_model(self):
         """Get the model instance."""
         if self._model_loader is not None:
-            if hasattr(self._model_loader, "load_model"):
-                return self._model_loader.load_model()
-            else:
+            if hasattr(self._model_loader, "load_multichip_model"):
                 return self._model_loader.load_multichip_model(
                     axis_name=self.main_axis_name,
                     num_devices=self.num_devices,
                     train_mode=self._run_mode == RunMode.TRAINING,
+                )
+            elif hasattr(self._model_loader, "load_model"):
+                return self._model_loader.load_model()
+            else:
+                raise NotImplementedError(
+                    "Model loader must have either load_model or load_multichip_model method"
                 )
         else:
             raise NotImplementedError(

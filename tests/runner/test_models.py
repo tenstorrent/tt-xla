@@ -316,9 +316,11 @@ def test_all_models_jax(
                 validate_filecheck_results(filecheck_results)
 
         except Exception as e:
-            err = capteesys.readouterr().err
+            captured = capteesys.readouterr()
             # Record runtime failure info so it can be reflected in report properties
-            update_test_metadata_for_exception(test_metadata, e, stderr=err)
+            update_test_metadata_for_exception(
+                test_metadata, e, stdout=captured.out, stderr=captured.err
+            )
             raise
         finally:
             # If there are multiple comparison results, only record the first one because the
