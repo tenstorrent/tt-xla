@@ -286,7 +286,8 @@ jobs:
   test:
     needs: [ inspect, build-image ]
     strategy:
-      matrix: ${{ fromJson(needs.inspect.outputs.test-matrix) }}
+      matrix:
+        build: ${{ fromJson(needs.inspect.outputs.test-matrix) }}
       fail-fast: false
 
     runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on  }}
