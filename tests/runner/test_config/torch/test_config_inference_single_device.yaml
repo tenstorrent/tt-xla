@@ -2318,7 +2318,6 @@ test_config:
 
   owl_vit/pytorch-base_patch32-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](16) - https://github.com/tenstorrent/tt-xla/issues/1955"
 
   # yolov12/pytorch-yolo12n-single_device-full-inference:
   #   status: EXPECTED_PASSING
@@ -2367,7 +2366,6 @@ test_config:
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "ValueError: Cannot use chat template functions because tokenizer.chat_template is not set and no template argument was passed"
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
