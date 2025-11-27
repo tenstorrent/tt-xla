@@ -344,7 +344,7 @@ class FpnCombine(nn.Module):
             out = torch.stack(nodes, dim=-1) * normalized_weights
         elif self.weight_method == "fastattn":
             edge_weights = nn.functional.relu(self.edge_weights.to(dtype=dtype))
-            weights_sum = torch.sum(edge_weights)
+            weights_sum = torch.sum(edge_weights, dim=0)
             out = torch.stack(
                 [
                     (nodes[i] * edge_weights[i]) / (weights_sum + 0.0001)
