@@ -23,6 +23,7 @@ psutil
 pybind11
 pytest
 pytest-forked
+pytest-json-report
 pytest-split
 pytorchcv
 rjieba
