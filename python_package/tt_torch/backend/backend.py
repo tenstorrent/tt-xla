@@ -38,6 +38,9 @@ def torch_pass_pipeline(
     decompositions = torch._decomp.core_aten_decompositions()
     decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
 
+    # Don't decompose einsum
+    decompositions.pop(torch.ops.aten.einsum.default)
+
     # We use `export_for_training` here as we plan to use this flow to compile training graphs.
     # In addition to that, the functionality in `export_for_training` will become the default
     # functionality in torch.export in a future PyTorch release:

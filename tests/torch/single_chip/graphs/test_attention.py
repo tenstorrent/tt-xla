@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import torch
 import torch_xla.runtime as xr
+from torch_xla.distributed.spmd.xla_sharding import apply_xla_patch_to_nn_linear
 from infra import Framework, run_graph_test
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
@@ -1881,7 +1882,8 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     config = loader.load_config()
     attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
-    batch_size = 1
+    attention = apply_xla_patch_to_nn_linear(attention)
+    batch_size = 4
 
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16

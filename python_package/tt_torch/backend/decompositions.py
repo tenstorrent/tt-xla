@@ -255,6 +255,16 @@ def squeeze(input, dims):
     newshape = [s for i, s in enumerate(shape) if i not in dims]
     return input.reshape(newshape)
 
+def matmul(input: torch.Tensor,
+           weight: torch.Tensor,
+           bias: Optional[torch.Tensor] = None):
+    
+    # return torch.zeros((input.shape[0], input.shape[1], input.shape[2], weight.shape[-1]), device=input.device)
+    res = torch.einsum('abmk,abkn->abmn', input, weight)
+    if bias is not None:
+        res = res + bias
+    return res
+
 
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
@@ -286,6 +296,7 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
+        aten.matmul.default: matmul,
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls against constant tensors.
         # They are necessary as the default aten decompositions
