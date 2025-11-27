@@ -106,7 +106,7 @@ class JaxModelTester(ModelTester):
         args = self._get_forward_method_args()
         kwargs = self._get_forward_method_kwargs()
         forward_static_args = self._get_static_argnames()
-        
+
         assert (
             len(args) > 0 or len(kwargs) > 0
         ), f"Forward method args or kwargs or both must be provided"
@@ -117,7 +117,7 @@ class JaxModelTester(ModelTester):
             def forward_pass_method(state, inputs):
                 model_ = nnx.merge(graphdef, state)
                 return model_(inputs)
-            
+
         else:
             forward_method_name = self._get_forward_method_name()
             assert hasattr(

@@ -28,7 +28,7 @@ from tests.runner.testers import (
     DynamicTorchModelTester,
 )
 from tests.utils import BringupStatus
-from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.config import ModelSource, Parallelism
 
 # Setup test discovery using TorchDynamicLoader and JaxDynamicLoader
 TEST_DIR = os.path.dirname(__file__)
@@ -207,12 +207,11 @@ def test_all_models_torch(
             id="single_device",
             marks=pytest.mark.single_device,
         ),
-        # TODO(kmabee): Add when data_parallel is supported next.
-        # pytest.param(
-        #     Parallelism.DATA_PARALLEL,
-        #     id="data_parallel",
-        #     marks=pytest.mark.data_parallel,
-        # ),
+        pytest.param(
+            Parallelism.DATA_PARALLEL,
+            id="data_parallel",
+            marks=pytest.mark.data_parallel,
+        ),
         pytest.param(
             Parallelism.TENSOR_PARALLEL,
             id="tensor_parallel",
@@ -259,7 +258,20 @@ def test_all_models_jax(
             # function in finally block will always be called and handles the pytest.skip.
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
                 # Use DynamicJaxMultiChipModelTester for tensor parallel
-                if parallelism == Parallelism.TENSOR_PARALLEL:
+                if (
+                    model_info.source.name == ModelSource.EASYDEL.name
+                    and parallelism == Parallelism.SINGLE_DEVICE
+                ):
+                    tester = DynamicJaxMultiChipModelTester(
+                        model_loader=loader,
+                        comparison_config=test_metadata.to_comparison_config(),
+                        num_devices=1,
+                    )
+                elif (
+                    parallelism == Parallelism.TENSOR_PARALLEL
+                    or parallelism == Parallelism.DATA_PARALLEL
+                ):
+                    ####INFRA SUPPORTS DATAPARALLEL SOLO WHEN RUN AS EASYDEL MODELS####
                     tester = DynamicJaxMultiChipModelTester(
                         model_loader=loader,
                         run_mode=run_mode,

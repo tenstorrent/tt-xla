@@ -130,12 +130,10 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         results.
         """
         self._compile_for_cpu(self.cpu_multichip_workload)
-        self._model.config.set_model_mesh(self._cpu_mesh)
-        cpu_res = self._run_on_cpu(self.cpu_multichip_workload)
+        cpu_res = self._run_on_cpu()
 
         self._compile_for_tt_device(self.tt_device_multichip_workload)
-        self._model.config.set_model_mesh(self._device_mesh)
-        tt_res = self._run_on_tt_device(self.tt_device_multichip_workload)
+        tt_res = self._run_on_tt_device()
 
         return (self._compare(tt_res, cpu_res),)
 
@@ -158,19 +156,22 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         """
         assert isinstance(workload, JaxMultichipWorkload)
 
-        module_sharded_executable = shard_map(
-            workload.executable,
-            mesh=workload.device_mesh,
-            in_specs=workload.in_specs,
-            out_specs=workload.out_spec,
-            # For some reason this check doesn't like replicated outputs.
-            check_rep=False,
-        )
+        if not isinstance(workload.executable, nnx.Module):
+            module_sharded_executable = shard_map(
+                workload.executable,
+                mesh=workload.device_mesh,
+                in_specs=workload.in_specs,
+                out_specs=workload.out_spec,
+                # For some reason this check doesn't like replicated outputs.
+                check_rep=False,
+            )
+        else:
+            module_sharded_executable = workload.executable
+
         output_sharding = NamedSharding(workload.device_mesh, workload.out_spec)
 
         workload.compiled_executable = jax.jit(
             module_sharded_executable,
-            #workload.executable,
             out_shardings=output_sharding,
             static_argnames=workload.static_argnames,
             compiler_options=compiler_options,
@@ -218,12 +219,12 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         return ()
 
     # @override
-    def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
+    def _run_on_cpu(self) -> Tensor:
         """Runs workload on CPU."""
         return self._run_on_multichip_device(self.cpu_multichip_workload)
 
     # @override
-    def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
+    def _run_on_tt_device(self) -> Tensor:
         """Runs workload on TT device."""
         return self._run_on_multichip_device(self.tt_device_multichip_workload)
 
@@ -255,11 +256,14 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
     def _get_model(self):
         """Get the model instance."""
         if self._model_loader is not None:
-            return self._model_loader.load_multichip_model(
-                axis_name=self.main_axis_name,
-                num_devices=self.num_devices,
-                train_mode=self._run_mode == RunMode.TRAINING,
-            )
+            if hasattr(self._model_loader, "load_model"):
+                return self._model_loader.load_model()
+            else:
+                return self._model_loader.load_multichip_model(
+                    axis_name=self.main_axis_name,
+                    num_devices=self.num_devices,
+                    train_mode=self._run_mode == RunMode.TRAINING,
+                )
         else:
             raise NotImplementedError(
                 "Must provide model_loader or override _get_model"
@@ -267,10 +271,8 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
     def _get_forward_method_name(self) -> str:
         """Get the forward method name."""
-        if self._model_loader is not None:
-            return self._model_loader.get_forward_method_name()
-        else:
-            return "apply"
+        # This is solo used for Linen models (AlexNet and MNIST)
+        return "apply"
 
     def _get_input_activations(self):
         """Get input activations."""
@@ -285,7 +287,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         """Returns partition specs for the input activations."""
         if self._model_loader is not None:
             return self._model_loader.get_input_activations_partition_spec(
-                self.main_axis_name
+                self._cpu_mesh, axis_name=self.main_axis_name
             )
         else:
             raise NotImplementedError(
@@ -308,7 +310,9 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
     def _get_input_parameters(self) -> PyTree:
         """Returns the input parameters."""
-        if self._model_loader is not None:
+        if self._model_loader is not None and hasattr(
+            self._model_loader, "load_parameters"
+        ):
             return self._model_loader.load_parameters(
                 train=self._run_mode == RunMode.TRAINING,
                 inputs=self._input_activations,
