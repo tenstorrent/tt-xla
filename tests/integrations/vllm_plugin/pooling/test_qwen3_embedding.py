@@ -10,9 +10,22 @@ import vllm
 
 
 @pytest.mark.push
-def test_embed_qwen3():
+@pytest.mark.parametrize(
+    ["model_name", "baseline_path"],
+    [
+        pytest.param(
+            "Qwen/Qwen3-Embedding-4B",
+            "baseline/qwen3_embedding_4B_baseline.pt",
+        ),
+        pytest.param(
+            "Qwen/Qwen3-Embedding-0.6B",
+            "baseline/qwen3_embedding_0.6B_baseline.pt",
+        ),
+    ],
+)
+def test_embed_qwen3(model_name: str, baseline_path: str):
     """
-    Test the Qwen3-Embedding-4B model's embedding outputs for correctness
+    Test the Qwen3-Embedding models embedding outputs for correctness
     under different batching and padding scenarios.
 
     Test Setup:
@@ -31,9 +44,12 @@ def test_embed_qwen3():
     - Ensures Pearson Correlation Coefficient (PCC) > 0.99 for each embedding.
 
     Baseline Embeddings:
-    - Baseline embeddings are computed using vLLM on CPU backend and stored as
-      'qwen3_embeding_baseline.pt' file.
+    - Baseline embeddings are computed using vLLM on CPU backend and stored in
+      'baseline' directory.
     """
+
+    path = os.path.join(os.path.dirname(__file__), baseline_path)
+    loaded_data = torch.load(path)
 
     prompts = [
         "The quick-thinking engineer designed a compact neural processor that could adapt to changing data patterns in real time, optimizing energy use while maintaining exceptional computational accuracy as well.",
@@ -42,7 +58,7 @@ def test_embed_qwen3():
         "The capital of France is Paris",
     ]
     llm_args = {
-        "model": "Qwen/Qwen3-Embedding-4B",
+        "model": model_name,
         "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": 64,
@@ -53,11 +69,6 @@ def test_embed_qwen3():
     model = vllm.LLM(**llm_args)
 
     output_embedding = model.embed(prompts)
-
-    path = os.path.join(
-        os.path.dirname(__file__), "baseline/qwen3_embedding_baseline.pt"
-    )
-    loaded_data = torch.load(path)
 
     for idx, (prompt, output) in enumerate(zip(prompts, output_embedding)):
         embeds = output.outputs.embedding

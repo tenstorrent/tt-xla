@@ -181,6 +181,8 @@ private:
       std::optional<uint32_t> device_id = std::nullopt);
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
+  // Currently only used for device to device transfer in copy construction
+  // of new buffer instance.
   void copyFromBuffer(const BufferInstance *src_buffer);
 
   // Calculates required tensor shape.

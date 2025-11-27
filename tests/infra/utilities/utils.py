@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from typing import Tuple, Union
 
 import jax
@@ -10,6 +11,31 @@ import torch
 from infra.runners import run_on_cpu
 from infra.utilities import Framework, Tensor
 from jax._src.typing import DTypeLike
+
+
+def sanitize_test_name(test_name: str) -> str:
+    """
+    Sanitize a test name for use in filenames by replacing special characters with underscores.
+
+    Replaces brackets, parentheses, commas, hyphens, spaces, and forward slashes with underscores
+    to create a filesystem-safe name without creating subdirectories.
+
+    Args:
+        test_name: Test name to sanitize (e.g., "test_model[param1,param2]/case1")
+
+    Returns:
+        Sanitized name safe for filenames (e.g., "test_model_param1_param2_case1")
+
+    Examples:
+        >>> sanitize_test_name("test_mnist[256-128-64]")
+        'test_mnist_256_128_64'
+        >>> sanitize_test_name("test_all_models/pytorch_wide_resnet50_2")
+        'test_all_models_pytorch_wide_resnet50_2'
+    """
+    # Replace special chars (including forward slashes) with underscores
+    clean_name = re.sub(r"[\[\](),\-\s/:]+", "_", test_name)
+    # Remove trailing underscores
+    return clean_name.rstrip("_")
 
 
 def random_image(image_size: int, framework: Framework = Framework.JAX) -> Tensor:

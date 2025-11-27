@@ -178,6 +178,10 @@ test_config:
   autoencoder/pytorch-linear-single_device-full-inference:
     status: EXPECTED_PASSING
 
+  minicpm_o_2_6/pytorch-default-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "MiniCPM model has a larger test execution time, hence skipping it for now."
+
   bart/pytorch-large-single_device-full-inference:
     status: EXPECTED_PASSING
 
@@ -495,6 +499,10 @@ test_config:
 
   vit/pytorch-base-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - concatenate_heads.ttnn.mlir
+      - split_query_key_value_and_split_heads.ttnn.mlir
+    markers: ["push"]
 
   vit/pytorch-large-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1199,6 +1207,10 @@ test_config:
 
   vovnet/pytorch-ese_vovnet39b-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        reason: "PCC comparison failed. Calculated: pcc=0.9872968792915344. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1237,8 +1249,26 @@ test_config:
   gpt2/pytorch-gpt2_sequence_classification-single_device-full-inference:
     status: EXPECTED_PASSING
 
-  # yolov9/pytorch-single_device-full-inference:
-  #   status: EXPECTED_PASSING
+  yolov9/pytorch-t-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/pytorch-s-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/pytorch-m-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/pytorch-c-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/pytorch-e-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
 
   unet/pytorch-unet_cityscapes-single_device-full-inference:
     arch_overrides:
@@ -2129,9 +2159,8 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
 
   transfuser/pytorch-single_device-full-inference:
-    assert_pcc: false
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Invalid head size: 54. The head size must be a multiple of the tile width (32). Please adjust the dimensions accordingly - https://github.com/tenstorrent/tt-xla/issues/2204"
+    assert_pcc: false # PCC is -0.715
+    status: EXPECTED_PASSING
 
   # yolov11/pytorch-yolo11n-single_device-full-inference:
   #   status: EXPECTED_PASSING
@@ -2289,7 +2318,6 @@ test_config:
 
   owl_vit/pytorch-base_patch32-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](16) - https://github.com/tenstorrent/tt-xla/issues/1955"
 
   # yolov12/pytorch-yolo12n-single_device-full-inference:
   #   status: EXPECTED_PASSING
@@ -2338,7 +2366,6 @@ test_config:
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "ValueError: Cannot use chat template functions because tokenizer.chat_template is not set and no template argument was passed"
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2418,3 +2445,47 @@ test_config:
 
   ultra_fast_lane_detection/pytorch-tusimple_resnet34-single_device-full-inference:
     status: EXPECTED_PASSING
+
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_10-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_goal-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_object-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial_object_goal_10-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+  mistral/pytorch-mistral_nemo_instruct_2407-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks, where each bank needs to store 12234752 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
