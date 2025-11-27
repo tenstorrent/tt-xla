@@ -355,16 +355,19 @@ jobs:
               # Run tests
               echo "Running tests"
               if python .bisect-run/run_tests.py -v 2>&1; then
-                git bisect good || exit_code=$?
+                git bisect good
+                exit_code=$?
               else
-                git bisect bad || exit_code=$?
+                git bisect bad
+                exit_code=$?
               fi
             else
-              git bisect skip || exit_code=$?
+              git bisect skip
+              exit_code=$?
             fi
 
             # Check if bisect is complete
-            if [ $exit_code -eq 0 ]; then
+            if [ $exit_code -ne 0 ]; then
               echo "Bisect complete!"
               git bisect log
               break
