@@ -1,0 +1,19 @@
+Using PJRT plugin directory: /localdev/jameszianxu/tt-xla/python_package/pjrt_plugin_tt
+Using TT-Metal from the source tree: /localdev/jameszianxu/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+Created device mesh: (1, 8) with 8 devices
+input sharding {devices=[1,8]<=[8]}
+HloModule IrToHlo.8, entry_computation_layout={(f32[32,16]{1,0})->(f32[32,16]{1,0})}
+
+ENTRY %IrToHlo.8 (p0.3: f32[32,16]) -> (f32[32,16]) {
+  %p0.3 = f32[32,16]{1,0} parameter(0), sharding={devices=[1,8]<=[8]}
+  %constant.2 = f32[] constant(1)
+  %constant.1 = f32[] constant(1)
+  %multiply.4 = f32[] multiply(f32[] %constant.2, f32[] %constant.1)
+  %broadcast.5 = f32[32,16]{1,0} broadcast(f32[] %multiply.4), dimensions={}
+  %add.6 = f32[32,16]{1,0} add(f32[32,16]{1,0} %p0.3, f32[32,16]{1,0} %broadcast.5)
+  ROOT %tuple.7 = (f32[32,16]{1,0}) tuple(f32[32,16]{1,0} %add.6)
+}
+
+
+input sharding {replicated}

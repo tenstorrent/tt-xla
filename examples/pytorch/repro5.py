@@ -1,0 +1,93 @@
+import torch
+import torch.nn as nn
+import torch_xla
+import torch_xla.core.xla_model as xm
+
+import os
+import torch_xla.runtime as xr
+import torch_xla.distributed.spmd as xs
+from torch_xla.distributed.spmd import Mesh
+import numpy as np
+import torch_xla
+
+# use_tt = os.getenv("USE_TT") == 1
+use_tt = False
+
+def setup_xla_environment():
+    xr.use_spmd()
+
+def create_device_mesh() -> Mesh:
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (1, num_devices)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+    print(f"Created device mesh: {mesh_shape} with {num_devices} devices")
+    return mesh
+
+def main():
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+
+    if use_tt:
+        xr.set_device_type("TT")
+    else:
+        os.environ["CPU_NUM_DEVICES"] = "8"
+
+    setup_xla_environment()
+    mesh = create_device_mesh()
+    device = torch_xla.device()
+    x = torch.ones((32,16)).to(device)
+    xs.mark_sharding(x, mesh, (None, 'model'))
+
+    print("input sharding " + torch_xla._XLAC._get_xla_sharding_spec(x))
+    x += 1
+    print(torch_xla._XLAC._get_xla_tensors_hlo([x]))
+    torch_xla.sync()
+
+    print("input sharding " + torch_xla._XLAC._get_xla_sharding_spec(x))
+
+
+main()
+
+
+"""
+The generated HLO IR is otherwise identical.
+
+if use_tt = true, the sharding disappears
+
+Created device mesh: (1, 8) with 8 devices
+input sharding {devices=[1,8]<=[8]}
+HloModule IrToHlo.8, entry_computation_layout={(f32[32,16]{1,0})->(f32[32,16]{1,0})}
+
+ENTRY %IrToHlo.8 (p0.3: f32[32,16]) -> (f32[32,16]) {
+  %p0.3 = f32[32,16]{1,0} parameter(0), sharding={devices=[1,8]<=[8]}
+  %constant.2 = f32[] constant(1)
+  %constant.1 = f32[] constant(1)
+  %multiply.4 = f32[] multiply(f32[] %constant.2, f32[] %constant.1)
+  %broadcast.5 = f32[32,16]{1,0} broadcast(f32[] %multiply.4), dimensions={}
+  %add.6 = f32[32,16]{1,0} add(f32[32,16]{1,0} %p0.3, f32[32,16]{1,0} %broadcast.5)
+  ROOT %tuple.7 = (f32[32,16]{1,0}) tuple(f32[32,16]{1,0} %add.6)
+}
+
+
+input sharding {replicated}
+
+-------
+
+else the sharding is retained
+Created device mesh: (1, 8) with 8 devices
+input sharding {devices=[1,8]<=[8]}
+HloModule IrToHlo.8, entry_computation_layout={(f32[32,16]{1,0})->(f32[32,16]{1,0})}
+
+ENTRY %IrToHlo.8 (p0.3: f32[32,16]) -> (f32[32,16]) {
+  %p0.3 = f32[32,16]{1,0} parameter(0), sharding={devices=[1,8]<=[8]}
+  %constant.2 = f32[] constant(1)
+  %constant.1 = f32[] constant(1)
+  %multiply.4 = f32[] multiply(f32[] %constant.2, f32[] %constant.1)
+  %broadcast.5 = f32[32,16]{1,0} broadcast(f32[] %multiply.4), dimensions={}
+  %add.6 = f32[32,16]{1,0} add(f32[32,16]{1,0} %p0.3, f32[32,16]{1,0} %broadcast.5)
+  ROOT %tuple.7 = (f32[32,16]{1,0}) tuple(f32[32,16]{1,0} %add.6)
+}
+
+
+input sharding {devices=[1,8]<=[8]}
+"""
