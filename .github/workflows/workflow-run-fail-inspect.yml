@@ -328,10 +328,10 @@ jobs:
 
       - name: Bisect
         run: |
+          source venv/activate
           git bisect start ${{ matrix.build.toc }} ${{ matrix.build.fromc }}
           while true; do
             git submodule update --init --recursive
-            source venv/activate
 
             set +e
             if .github/scripts/download_wheel.sh; then
@@ -351,7 +351,6 @@ jobs:
               git bisect log
               break
             fi
-            deactivate
           done
 
           # Get the bad commit info
