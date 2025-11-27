@@ -4,24 +4,23 @@
 # SPDX-License-Identifier: Apache-2.0
 set -e -o pipefail
 
-wheel_artifact_name="xla-whl-release-$(git rev-parse --short HEAD)"
+long_sha=$(git rev-parse HEAD)
 # Use GitHub API to check for existing artifacts
 echo "Checking for existing artifacts named: $wheel_artifact_name"
-response=$(curl -s -H "Authorization: token $GH_TOKEN" \
-  "https://api.github.com/repos/tenstorrent/tt-xla/actions/artifacts?name=$wheel_artifact_name")
-total_count=$(echo "$response" | jq -r '.total_count')
-echo "Response from artifacts check: $response"
-if [ "$total_count" -gt 0 ]; then
-  # Get the download URL of the most recent artifact
-  artifacts_run_id=$(echo "$response" | jq -r '.artifacts[0].workflow_run.id')
-
-  echo "Downloading wheel artifact: $wheel_artifact_name from run ID: $artifacts_run_id"
-  gh run download $artifacts_run_id --repo "tenstorrent/tt-xla" --dir wheels --name $wheel_artifact_name
-
-  echo "Installing wheel artifact: $wheel_artifact_name"
-  pip install wheels/*.whl --force-reinstall
-  exit 0
-else
-  echo "No existing artifact found for: $wheel_artifact_name"
+artifacts_run_id=$(curl -L \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer $GH_TOKEN" \
+  "https://api.github.com/repos/tenstorrent/tt-xla/actions/runs?head_sha=$long_sha" | jq '.workflow_runs[] | select(.name == "On push") | .id')
+if [ -z "$artifacts_run_id" ] || [ "$artifacts_run_id" == "null" ]; then
+  echo "No workflow run found for commit: $long_sha"
   exit 1
 fi
+gh run download $artifacts_run_id --repo "tenstorrent/tt-xla" --dir wheels --pattern "xla-whl-release-*"
+wheel_path=$(find wheels -name "*.whl" | head -n 1)
+if [ -z "$wheel_path" ]; then
+  echo "No wheel file found in downloaded artifacts."
+  exit 1
+fi
+echo "Installing wheel artifact: $wheel_path"
+pip install wheels/*.whl --force-reinstall
+exit 0
