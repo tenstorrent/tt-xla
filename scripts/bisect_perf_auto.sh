@@ -16,6 +16,7 @@
 #   -c, --command COMMAND       Benchmark command to run
 #   -t, --threshold THRESHOLD   Performance threshold value
 #   -p, --pattern PATTERN       Grep pattern to extract metric
+#   -r, --revert COMMIT         Revert this tt-mlir commit if present in history (useful for isolating additional regressions)
 #   -l, --log-dir DIR           Log directory (default: /tmp/bisect_auto_TIMESTAMP)
 #   -h, --help                  Show this help message
 #
@@ -28,6 +29,9 @@
 #     -c "python ../tt-forge/benchmark/benchmark.py -p tt-xla -m vgg16 -bs 8 -df bfloat16 -lp 128" \
 #     -t 500
 #
+#   # Revert a known bad tt-mlir commit to isolate additional regressions
+#   ./scripts/bisect_perf_auto.sh -g 051ebb20 -b HEAD -r 70efb12f5f75c7b1642542e7c3ce330c472ea038
+#
 # EXIT CODES:
 #   0   - Successfully identified bad commit
 #   1   - Error during bisect process
@@ -38,6 +42,7 @@ BAD_COMMIT="HEAD"
 BENCHMARK_COMMAND="python ../tt-forge/benchmark/benchmark.py -p tt-xla -m resnet -bs 8 -df bfloat16 -lp 128"
 PERF_THRESHOLD=680
 METRIC_PATTERN="Sample per second:\s*\K[0-9.]+"
+REVERT_COMMIT=""
 LOG_DIR="/tmp/bisect_auto_$(date +%Y%m%d_%H%M%S)"
 
 show_help() {
@@ -66,6 +71,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -p|--pattern)
             METRIC_PATTERN="$2"
+            shift 2
+            ;;
+        -r|--revert)
+            REVERT_COMMIT="$2"
             shift 2
             ;;
         -l|--log-dir)
@@ -132,7 +141,12 @@ git bisect good "$GOOD_COMMIT"
 
 log "Running bisect with performance tests..."
 BISECT_SCRIPT="$SCRIPT_DIR/bisect_perf.sh"
-git bisect run "$BISECT_SCRIPT" -c "$BENCHMARK_COMMAND" -t "$PERF_THRESHOLD" -p "$METRIC_PATTERN" 2>&1 | tee -a "$MAIN_LOG"
+BISECT_ARGS="-c \"$BENCHMARK_COMMAND\" -t \"$PERF_THRESHOLD\" -p \"$METRIC_PATTERN\""
+if [ -n "$REVERT_COMMIT" ]; then
+    BISECT_ARGS="$BISECT_ARGS -r \"$REVERT_COMMIT\""
+    log "Will revert tt-mlir commit $REVERT_COMMIT if present during bisect"
+fi
+eval "git bisect run \"$BISECT_SCRIPT\" $BISECT_ARGS" 2>&1 | tee -a "$MAIN_LOG"
 
 # Capture the first bad commit
 FIRST_BAD_COMMIT=$(git bisect view --pretty=format:'%H' | head -1)
@@ -225,9 +239,13 @@ git bisect good "$GOOD_TTMLIR"
 
 log "Running tt-mlir bisect with performance tests..."
 TTMLIR_BISECT_SCRIPT="$SCRIPT_DIR/bisect_ttmlir_perf.sh"
+TTMLIR_BISECT_ARGS="-c \"$BENCHMARK_COMMAND\" -t \"$PERF_THRESHOLD\" -p \"$METRIC_PATTERN\""
+if [ -n "$REVERT_COMMIT" ]; then
+    TTMLIR_BISECT_ARGS="$TTMLIR_BISECT_ARGS -r \"$REVERT_COMMIT\""
+fi
 
 # Run the bisect and capture output
-git bisect run "$TTMLIR_BISECT_SCRIPT" -c "$BENCHMARK_COMMAND" -t "$PERF_THRESHOLD" -p "$METRIC_PATTERN" 2>&1 | tee -a "$MAIN_LOG"
+eval "git bisect run \"$TTMLIR_BISECT_SCRIPT\" $TTMLIR_BISECT_ARGS" 2>&1 | tee -a "$MAIN_LOG"
 
 # Capture the first bad tt-mlir commit
 FIRST_BAD_TTMLIR=$(git bisect view --pretty=format:'%H' | head -1)

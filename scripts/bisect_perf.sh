@@ -11,6 +11,7 @@
 #   -c, --command COMMAND       Benchmark command to run (required if no defaults)
 #   -t, --threshold THRESHOLD   Performance threshold value (required if no defaults)
 #   -p, --pattern PATTERN       Grep pattern to extract metric (default: "Sample per second:\s*\K[0-9.]+")
+#   -r, --revert COMMIT         Revert this tt-mlir commit if present in history (useful for isolating additional regressions)
 #   -h, --help                  Show this help message
 #
 # EXAMPLES:
@@ -31,6 +32,9 @@
 #     -t 500 \
 #     -p "Sample per second:\s*\K[0-9.]+"
 #
+#   # Revert a known bad tt-mlir commit to isolate additional regressions
+#   git bisect run ./scripts/bisect_perf.sh -r 70efb12f5f75c7b1642542e7c3ce330c472ea038
+#
 # EXIT CODES:
 #   0   - Good commit (performance >= threshold)
 #   1   - Bad commit (performance < threshold)
@@ -45,6 +49,7 @@ DEFAULT_PATTERN="Sample per second:\s*\K[0-9.]+"
 BENCHMARK_COMMAND=""
 PERF_THRESHOLD=""
 METRIC_PATTERN=""
+REVERT_COMMIT=""
 
 show_help() {
     sed -n '2,/^$/p' "$0" | grep '^#' | sed 's/^# \?//'
@@ -63,6 +68,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -p|--pattern)
             METRIC_PATTERN="$2"
+            shift 2
+            ;;
+        -r|--revert)
+            REVERT_COMMIT="$2"
             shift 2
             ;;
         -h|--help)
@@ -144,12 +153,53 @@ fi
 echo "Updating submodules..."
 git submodule update --init --recursive
 
+# Cleanup function (defined here for use throughout the script)
+cleanup() {
+    git checkout third_party/CMakeLists.txt 2>/dev/null || true
+    if [ -n "$REVERT_COMMIT" ]; then
+        # Reset tt-mlir submodule to undo the revert
+        TTMLIR_DIR="$TTXLA_ROOT/third_party/tt-mlir/src/tt-mlir"
+        if [ -d "$TTMLIR_DIR" ]; then
+            cd "$TTMLIR_DIR" 2>/dev/null || true
+            git reset --hard HEAD 2>/dev/null || true
+            cd "$TTXLA_ROOT" 2>/dev/null || true
+        fi
+    fi
+}
+
+# Check if we need to revert a specific tt-mlir commit
+if [ -n "$REVERT_COMMIT" ]; then
+    echo "Checking if revert commit $REVERT_COMMIT is in tt-mlir history..."
+    TTMLIR_DIR="$TTXLA_ROOT/third_party/tt-mlir/src/tt-mlir"
+    if [ -d "$TTMLIR_DIR" ]; then
+        cd "$TTMLIR_DIR"
+        if git merge-base --is-ancestor "$REVERT_COMMIT" HEAD 2>/dev/null; then
+            echo "Reverting tt-mlir commit $REVERT_COMMIT..."
+            if git revert --no-commit "$REVERT_COMMIT" 2>&1; then
+                echo "Successfully reverted $REVERT_COMMIT"
+                cd "$TTXLA_ROOT"
+            else
+                echo "Failed to revert $REVERT_COMMIT, marking as untestable"
+                git revert --abort 2>/dev/null || true
+                cd "$TTXLA_ROOT"
+                cleanup
+                exit 125
+            fi
+        else
+            echo "Commit $REVERT_COMMIT not in tt-mlir history, skipping revert"
+            cd "$TTXLA_ROOT"
+        fi
+    else
+        echo "tt-mlir directory not found, skipping revert"
+    fi
+fi
+
 # Build with CMake
 echo "Building project..."
 cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
 if ! cmake --build build; then
     echo "Build failed, marking as untestable"
-    git checkout third_party/CMakeLists.txt 2>/dev/null || true
+    cleanup
     exit 125  # Tell git bisect to skip this commit
 fi
 
@@ -161,7 +211,7 @@ echo "$BENCHMARK_OUTPUT"
 
 if [ $BENCHMARK_EXIT_CODE -ne 0 ]; then
     echo "Benchmark failed, marking as untestable"
-    git checkout third_party/CMakeLists.txt 2>/dev/null || true
+    cleanup
     exit 125
 fi
 
@@ -170,21 +220,20 @@ PERF_VALUE=$(echo "$BENCHMARK_OUTPUT" | grep -oP "$METRIC_PATTERN")
 
 if [ -z "$PERF_VALUE" ]; then
     echo "Could not extract performance metric, marking as untestable"
-    git checkout third_party/CMakeLists.txt 2>/dev/null || true
+    cleanup
     exit 125  # Tell git bisect to skip this commit
 fi
 
 echo ""
 echo "Performance: $PERF_VALUE (threshold: $PERF_THRESHOLD)"
 
-# Restore the file before exiting
-git checkout third_party/CMakeLists.txt 2>/dev/null || true
-
 # Compare performance (using awk since bc may not be available)
 if awk "BEGIN {exit !($PERF_VALUE >= $PERF_THRESHOLD)}"; then
     echo "✓ GOOD: Performance is above threshold"
+    cleanup
     exit 0
 else
     echo "✗ BAD: Performance is below threshold"
+    cleanup
     exit 1
 fi

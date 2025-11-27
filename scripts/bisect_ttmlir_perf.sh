@@ -13,6 +13,7 @@
 #   -c, --command COMMAND       Benchmark command to run (required if no defaults)
 #   -t, --threshold THRESHOLD   Performance threshold value (required if no defaults)
 #   -p, --pattern PATTERN       Grep pattern to extract metric (default: "Sample per second:\s*\K[0-9.]+")
+#   -r, --revert COMMIT         Revert this commit if present in history (useful for isolating additional regressions)
 #   -h, --help                  Show this help message
 #
 # EXAMPLES:
@@ -34,6 +35,10 @@
 #     -t 100 \
 #     -p "Throughput:\s*\K[0-9.]+"
 #
+#   # Revert a known bad commit to isolate additional regressions
+#   git bisect run ../../../../scripts/bisect_ttmlir_perf.sh \
+#     -r 70efb12f5f75c7b1642542e7c3ce330c472ea038
+#
 # EXIT CODES:
 #   0   - Good commit (performance >= threshold)
 #   1   - Bad commit (performance < threshold)
@@ -48,6 +53,7 @@ DEFAULT_PATTERN="Sample per second:\s*\K[0-9.]+"
 BENCHMARK_COMMAND=""
 PERF_THRESHOLD=""
 METRIC_PATTERN=""
+REVERT_COMMIT=""
 
 show_help() {
     sed -n '2,/^$/p' "$0" | grep '^#' | sed 's/^# \?//'
@@ -66,6 +72,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -p|--pattern)
             METRIC_PATTERN="$2"
+            shift 2
+            ;;
+        -r|--revert)
+            REVERT_COMMIT="$2"
             shift 2
             ;;
         -h|--help)
@@ -102,10 +112,39 @@ echo "Full commit: $TTMLIR_COMMIT_FULL" >> "$LOG_FILE"
 echo "Date: $(date)" >> "$LOG_FILE"
 echo "======================================" >> "$LOG_FILE"
 
+# Check if we need to revert a specific commit
+if [ -n "$REVERT_COMMIT" ]; then
+    echo "Checking if revert commit $REVERT_COMMIT is in history..." | tee -a "$LOG_FILE"
+    if git merge-base --is-ancestor "$REVERT_COMMIT" HEAD 2>/dev/null; then
+        echo "Reverting commit $REVERT_COMMIT..." | tee -a "$LOG_FILE"
+        if git revert --no-commit "$REVERT_COMMIT" >> "$LOG_FILE" 2>&1; then
+            echo "Successfully reverted $REVERT_COMMIT" | tee -a "$LOG_FILE"
+        else
+            echo "Failed to revert $REVERT_COMMIT, marking as untestable" | tee -a "$LOG_FILE"
+            git revert --abort 2>/dev/null || true
+            exit 125
+        fi
+    else
+        echo "Commit $REVERT_COMMIT not in history, skipping revert" | tee -a "$LOG_FILE"
+    fi
+fi
+
 # Go to tt-xla root (script is in scripts/ subdirectory of tt-xla)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TTXLA_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$TTXLA_ROOT"
+
+# Cleanup function (defined here for use throughout the script)
+cleanup() {
+    cd "$TTXLA_ROOT" 2>/dev/null || true
+    git checkout third_party/CMakeLists.txt 2>/dev/null || true
+    if [ -n "$REVERT_COMMIT" ]; then
+        # Reset tt-mlir submodule to undo the revert
+        cd "$TTXLA_ROOT/third_party/tt-mlir/src/tt-mlir" 2>/dev/null || true
+        git reset --hard HEAD 2>/dev/null || true
+        cd "$TTXLA_ROOT" 2>/dev/null || true
+    fi
+}
 
 # Activate the TT-XLA environment
 echo "Activating TT-XLA environment..." | tee -a "$LOG_FILE"
@@ -126,7 +165,7 @@ echo "Building project..." | tee -a "$LOG_FILE"
 cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release >> "$LOG_FILE" 2>&1
 if ! cmake --build build >> "$LOG_FILE" 2>&1; then
     echo "Build failed, marking as untestable" | tee -a "$LOG_FILE"
-    git checkout third_party/CMakeLists.txt 2>/dev/null || true
+    cleanup
     exit 125  # Tell git bisect to skip this commit
 fi
 echo "Build completed successfully" | tee -a "$LOG_FILE"
@@ -138,7 +177,7 @@ BENCHMARK_EXIT_CODE=${PIPESTATUS[0]}
 
 if [ $BENCHMARK_EXIT_CODE -ne 0 ]; then
     echo "Benchmark failed, marking as untestable" | tee -a "$LOG_FILE"
-    git checkout third_party/CMakeLists.txt 2>/dev/null || true
+    cleanup
     exit 125
 fi
 
@@ -147,21 +186,20 @@ PERF_VALUE=$(echo "$BENCHMARK_OUTPUT" | grep -oP "$METRIC_PATTERN")
 
 if [ -z "$PERF_VALUE" ]; then
     echo "Could not extract performance metric, marking as untestable" | tee -a "$LOG_FILE"
-    git checkout third_party/CMakeLists.txt 2>/dev/null || true
+    cleanup
     exit 125  # Tell git bisect to skip this commit
 fi
 
 echo "" | tee -a "$LOG_FILE"
 echo "Performance: $PERF_VALUE (threshold: $PERF_THRESHOLD)" | tee -a "$LOG_FILE"
 
-# Restore the file before exiting
-git checkout third_party/CMakeLists.txt 2>/dev/null || true
-
 # Compare performance (using awk since bc may not be available)
 if awk "BEGIN {exit !($PERF_VALUE >= $PERF_THRESHOLD)}"; then
     echo "✓ GOOD: Performance is above threshold" | tee -a "$LOG_FILE"
+    cleanup
     exit 0
 else
     echo "✗ BAD: Performance is below threshold" | tee -a "$LOG_FILE"
+    cleanup
     exit 1
 fi
