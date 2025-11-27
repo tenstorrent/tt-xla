@@ -15,12 +15,12 @@ from .tester import GPT2EasyDel
 
 @pytest.fixture
 def inference_tester() -> GPT2EasyDel:
-    return GPT2EasyDel(axis_names=("x", "y"), mesh_shape=(1, 1), run_mode=RunMode.INFERENCE)
+    return GPT2EasyDel(axis_names=("x",), mesh_shape=(1,), run_mode=RunMode.INFERENCE)
 
 
 @pytest.fixture
 def training_tester() -> GPT2EasyDel:
-    return GPT2EasyDel(axis_names=("x", "y"), mesh_shape=(1, 1), run_mode=RunMode.TRAINING)
+    return GPT2EasyDel(axis_names=("x",), mesh_shape=(1,), run_mode=RunMode.TRAINING)
 
 
 # ----- Tests -----
@@ -30,9 +30,8 @@ def training_tester() -> GPT2EasyDel:
 def test_simple_mlp_inference(inference_tester: GPT2EasyDel):
     inference_tester.test()
 
-@pytest.mark.skip(
-    reason=("Easydel training not supported yet")
-)
+
+@pytest.mark.skip(reason=("Easydel training not supported yet"))
 @pytest.mark.push
 def test_simple_mlp_training(training_tester: GPT2EasyDel):
     training_tester.test()
