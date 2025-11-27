@@ -11,9 +11,14 @@ if [ -z "$GH_TOKEN" ]; then
 fi
 # Use GitHub API to check for existing artifacts
 echo "Checking for workflows for sha: $long_sha"
-artifacts_run_id=$(curl -L -H "Accept: application/vnd.github+json" \
+artifacts_run_id=$(curl -L \
+  -H "Accept: application/vnd.github+json" \
   -H "Authorization: Bearer $GH_TOKEN" \
-  "https://api.github.com/repos/tenstorrent/tt-xla/actions/runs?head_sha=$long_sha" | jq '.workflow_runs[] | select(.name == "On Push" or .name == "On Nightly") | .id')
+  "https://api.github.com/repos/tenstorrent/tt-xla/actions/runs?head_sha=$long_sha" | jq '.workflow_runs[] | select(.name == "On push" or .name == "On Nightly") | .id')
+# $(curl -L \
+#   -H "Accept: application/vnd.github+json" \
+#   -H "Authorization: Bearer $GH_TOKEN" \
+#   "https://api.github.com/repos/tenstorrent/tt-xla/actions/runs?head_sha=$long_sha" | jq '.workflow_runs[] | select(.name == "On Push" or .name == "On Nightly") | .id')
 if [ -z "$artifacts_run_id" ]; then
   echo "No workflow run found for commit: $long_sha"
   exit 1
