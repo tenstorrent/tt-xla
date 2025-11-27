@@ -81,8 +81,9 @@ struct CompileOptions {
   bool ttnn_perf_metrics_enabled = false;
 
   // Output file path for TTNN performance metrics.
-  // If empty, metrics will be saved to the "perf_metrics" directory with a default name.
-  // Key metrics will also be included in the final performance report.
+  // If empty, metrics will be saved to the "perf_metrics" directory with a
+  // default name. Key metrics will also be included in the final performance
+  // report.
   std::string ttnn_perf_metrics_output_file = "";
 
   // Path that will contain any exported artifacts.

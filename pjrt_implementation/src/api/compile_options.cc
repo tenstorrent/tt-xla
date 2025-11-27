@@ -47,7 +47,8 @@ CompileOptions CompileOptions::parse(
       internal::parseBoolOption(compile_options, "ttnn_perf_metrics_enabled")
           .value_or(false);
   options.ttnn_perf_metrics_output_file =
-      internal::parseStringOption(compile_options, "ttnn_perf_metrics_output_file")
+      internal::parseStringOption(compile_options,
+                                  "ttnn_perf_metrics_output_file")
           .value_or("");
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
