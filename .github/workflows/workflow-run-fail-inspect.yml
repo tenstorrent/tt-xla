@@ -345,11 +345,14 @@ jobs:
           source venv/activate
           git bisect start ${{ matrix.build.toc }} ${{ matrix.build.fromc }}
           while true; do
+            echo "New iteration of bisect, updating submodules"
             git submodule update --init --recursive
 
+            echo "Going with download"
             set +e
             if .bisect-run/download_wheel.sh; then
               # Run tests
+              echo "Running tests"
               if python .bisect-run/run_tests.py -v 2>&1; then
                 git bisect good
               else
