@@ -327,6 +327,7 @@ jobs:
           name: ${{ matrix.build.runs-on }}-test-to-run
 
       - name: Bisect
+        shell: bash
         run: |
           source venv/activate
           git bisect start ${{ matrix.build.toc }} ${{ matrix.build.fromc }}
