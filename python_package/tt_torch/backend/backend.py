@@ -11,7 +11,7 @@ from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 
-from .decompositions import CUSTOM_DECOMPOSITION_TABLE
+from .decompositions import populate_decompositions
 from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
 from .passes import (
     bypass_assert_tensor_metadata,
@@ -35,8 +35,7 @@ def torch_pass_pipeline(
     # TODO: Fix composite ops to support multi-chip models before uncommenting this.
     # handle_composite_ops(gm)
 
-    decompositions = torch._decomp.core_aten_decompositions()
-    decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
+    decompositions = populate_decompositions()
 
     # We use `export_for_training` here as we plan to use this flow to compile training graphs.
     # In addition to that, the functionality in `export_for_training` will become the default
