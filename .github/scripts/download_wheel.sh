@@ -5,7 +5,10 @@
 set -e -o pipefail
 
 long_sha=$(git rev-parse HEAD)
-echo "token '$GH_TOKEN'"
+if [ -z "$GH_TOKEN" ]; then
+  echo "GH_TOKEN is not set. Exiting."
+  exit 1
+fi
 # Use GitHub API to check for existing artifacts
 echo "Checking for workflows for sha: $long_sha"
 artifacts_run_id=$(curl -L -H "Accept: application/vnd.github+json" \
