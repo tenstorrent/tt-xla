@@ -340,7 +340,7 @@ jobs:
             set +e
             if .bisect-run/download_wheel.sh; then
               # Run tests
-              if python .bisect-run/run_tests.py -v; then
+              if python .bisect-run/run_tests.py -v 2>&1; then
                 git bisect good
               else
                 git bisect bad
