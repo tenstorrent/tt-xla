@@ -94,6 +94,45 @@ TTXLA_ROOT=$(git rev-parse --show-toplevel)
 cd "$TTXLA_ROOT"
 source venv/activate
 
+# Check if torch-xla version changed and reinstall if needed
+echo "Checking torch-xla version..."
+REQUIRED_TORCH_XLA=$(grep 'torch-xla@' python_package/requirements.txt 2>/dev/null || echo "")
+
+if [ -n "$REQUIRED_TORCH_XLA" ]; then
+    # Extract the URL from the requirement
+    REQUIRED_URL=$(echo "$REQUIRED_TORCH_XLA" | sed 's/^torch-xla@//')
+
+    # Get currently installed torch-xla location
+    INSTALLED_LOCATION=$(pip show torch-xla 2>/dev/null | grep "^Location:" || echo "")
+    INSTALLED_VERSION=$(pip show torch-xla 2>/dev/null | grep "^Version:" || echo "")
+
+    # Extract version/git hash from required URL (e.g., 2.9.0+gita5be1f8)
+    # URL decode %2B to + for comparison
+    REQUIRED_VERSION_HASH=$(echo "$REQUIRED_URL" | grep -oP 'torch_xla-\K[^-]+' | sed 's/%2B/+/g' || echo "")
+
+    # Check if reinstall is needed
+    NEEDS_REINSTALL=0
+    if [ -z "$INSTALLED_VERSION" ]; then
+        echo "torch-xla not installed, installing..."
+        NEEDS_REINSTALL=1
+    elif ! echo "$INSTALLED_VERSION" | grep -q "$REQUIRED_VERSION_HASH"; then
+        echo "torch-xla version mismatch:"
+        echo "  Installed: $INSTALLED_VERSION"
+        echo "  Required:  $REQUIRED_VERSION_HASH"
+        NEEDS_REINSTALL=1
+    else
+        echo "torch-xla version matches, skipping reinstall"
+    fi
+
+    if [ $NEEDS_REINSTALL -eq 1 ]; then
+        if ! pip install --force-reinstall "$REQUIRED_URL"; then
+            echo "Failed to install torch-xla, marking as untestable"
+            exit 125
+        fi
+        echo "torch-xla reinstalled successfully"
+    fi
+fi
+
 # Apply the CMakeLists.txt fix for incremental builds
 echo "Applying CMakeLists.txt fix..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
