@@ -51,10 +51,14 @@ def test_rmsnorm(use_weight):
     model = torch.compile(model.to(device), backend="tt", options=options)
 
     # Mark sharding for inputs along batch dimension.
-    input_tensor.to(device)
+    input_tensor = input_tensor.to(device)
     xs.mark_sharding(input_tensor, mesh, ("batch", None))
 
-    output = model(input_tensor, weight.to(device) if use_weight else None)
+    if use_weight:
+        weight = weight.to(device)
+        xs.mark_sharding(weight, mesh, (None))
+
+    output = model(input_tensor, weight if use_weight else None)
 
     comparator = TorchComparator(ComparisonConfig())
     comparator.compare(output, golden)
