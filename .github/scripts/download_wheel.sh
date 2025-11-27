@@ -10,7 +10,7 @@ echo "Checking for existing artifacts named: $wheel_artifact_name"
 artifacts_run_id=$(curl -L \
   -H "Accept: application/vnd.github+json" \
   -H "Authorization: Bearer $GH_TOKEN" \
-  "https://api.github.com/repos/tenstorrent/tt-xla/actions/runs?head_sha=$long_sha" | jq '.workflow_runs[] | select(.name == "On push") | .id')
+  "https://api.github.com/repos/tenstorrent/tt-xla/actions/runs?head_sha=$long_sha" | jq '.workflow_runs[] | select(.name == "On Push" or .name == "On Nightly") | .id')
 if [ -z "$artifacts_run_id" ] || [ "$artifacts_run_id" == "null" ]; then
   echo "No workflow run found for commit: $long_sha"
   exit 1
