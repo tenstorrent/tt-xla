@@ -34,24 +34,9 @@ import os
 from typing import Optional
 import torch
 import click
-from rdkit import Chem
 from dataclasses import asdict, is_dataclass
 from types import MethodType
 
-from boltz.model.models.boltz2 import Boltz2
-from boltz.data.module.inferencev2 import Boltz2InferenceDataModule
-from boltz.data.types import Manifest
-from boltz.main import (
-    download_boltz2,
-    PairformerArgsV2,
-    MSAModuleArgs,
-    Boltz2DiffusionParams,
-    BoltzSteeringParams,
-    process_inputs,
-    filter_inputs_structure,
-    BoltzProcessedInput,
-    check_inputs,
-)
 from third_party.tt_forge_models.tools.utils import get_file
 
 BOLTZ_CACHE_DIR = (Path.home() / ".cache/url_cache").expanduser().resolve()
@@ -67,6 +52,17 @@ def load_boltz2_inputs(dtype_override: Optional[torch.dtype] = torch.float32):
       • Runs full preprocessing (MSA retrieval, templates, constraints, molecules)
       • Loads the processed manifest and constructs input batches
     """
+    from rdkit import Chem
+    from boltz.data.module.inferencev2 import Boltz2InferenceDataModule
+    from boltz.data.types import Manifest
+    from boltz.main import (
+        download_boltz2,
+        process_inputs,
+        filter_inputs_structure,
+        BoltzProcessedInput,
+        check_inputs,
+    )
+
     torch.set_grad_enabled(False)
     torch.set_float32_matmul_precision("highest")
     Chem.SetDefaultPickleProperties(Chem.PropertyPickleOptions.AllProps)
@@ -201,6 +197,15 @@ def load_boltz2_model(checkpoint: Optional[str | Path] = None):
       • Instantiates the Boltz-2 model with predefined diffusion, MSA, steering,
         and Pairformer configuration arguments
     """
+    from boltz.model.models.boltz2 import Boltz2
+    from boltz.main import (
+        download_boltz2,
+        PairformerArgsV2,
+        MSAModuleArgs,
+        Boltz2DiffusionParams,
+        BoltzSteeringParams,
+    )
+
     # Unified cache directory
     cache = BOLTZ_CACHE_DIR
     cache.mkdir(parents=True, exist_ok=True)

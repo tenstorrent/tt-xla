@@ -68,4 +68,4 @@ class ModelLoader(ForgeModel):
         return load_boltz2_model()
 
     def load_inputs(self, dtype_override: Optional[torch.dtype] = torch.float32):
-        return load_boltz2_inputs(dtype_override=dtype_override)
+        return load_boltz2_inputs(dtype_override=torch.float32)

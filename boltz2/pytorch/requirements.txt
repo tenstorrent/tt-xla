@@ -1,0 +1,5 @@
+# Boltz2 Inference Requirements
+boltz==2.2.1
+numpy==1.26.4
+numba==0.61.0
+rdkit==2025.9.1
