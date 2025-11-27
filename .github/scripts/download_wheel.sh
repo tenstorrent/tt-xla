@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 set -e -o pipefail
 
+rm -rf wheels
 long_sha=$(git rev-parse HEAD)
 if [ -z "$GH_TOKEN" ]; then
   echo "GH_TOKEN is not set. Exiting."
@@ -27,4 +28,5 @@ if [ -z "$wheel_path" ]; then
 fi
 echo "Installing wheel artifact: $wheel_path"
 pip install $wheel_path --upgrade
+rm -rf wheels
 exit 0
