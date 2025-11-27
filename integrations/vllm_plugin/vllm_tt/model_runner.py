@@ -2072,7 +2072,7 @@ def _get_token_paddings(
         logger.info("Using exponential token paddings:")
         while True:
             logger.info("    %d", num)
-            paddings.append(num)
+            paddings.append(num * max_num_reqs)
             if num >= max_token_size:
                 break
             if num == 1:

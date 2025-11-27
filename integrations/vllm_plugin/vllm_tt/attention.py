@@ -319,7 +319,59 @@ class TTAttentionBackendImpl(AttentionImpl):
             users_kv, kv_num_tokens, v_hidden_size // self.head_size, self.head_size
         )
 
-        if kv_cache.numel() <= 1:
+        if kv_cache.numel() > 1:
+            # === paged attention path ===
+            # When kv_cache exists
+            k_cache = kv_cache[0]
+            v_cache = kv_cache[1]
+
+            if not is_prefill:
+                key_for_update = key.transpose(
+                    0, 1
+                )  # [users, num_heads, tokens, head_size]
+                value_for_update = value.transpose(0, 1)
+
+                k_cache = torch.ops.tt.paged_update_cache(
+                    k_cache,
+                    key_for_update,
+                    attn_metadata.cache_position,
+                    attn_metadata.page_table,
+                )
+                v_cache = torch.ops.tt.paged_update_cache(
+                    v_cache,
+                    value_for_update,
+                    attn_metadata.cache_position,
+                    attn_metadata.page_table,
+                )
+            else:
+                # prefill: filling multiple tokens at once
+                # paged_fill_cache assumes it receives [users, tokens, num_heads, head_size] directly
+                key_for_update = key.transpose(
+                    1, 2
+                )  # [users, num_heads, tokens, head_size]
+                value_for_update = value.transpose(1, 2)
+                for batch_idx in range(users):
+                    k_cache = torch.ops.tt.paged_fill_cache(
+                        k_cache,
+                        key_for_update[batch_idx : batch_idx + 1],
+                        attn_metadata.page_table,
+                        batch_idx=torch.tensor(
+                            [batch_idx], dtype=torch.int32, device=k_cache.device
+                        ),
+                    )
+                    v_cache = torch.ops.tt.paged_fill_cache(
+                        v_cache,
+                        value_for_update[batch_idx : batch_idx + 1],
+                        attn_metadata.page_table,
+                        batch_idx=torch.tensor(
+                            [batch_idx], dtype=torch.int32, device=v_cache.device
+                        ),
+                    )
+
+            new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
+            kv_cache.copy_(new_kv_cache)
+
+        if is_prefill:
             # non-paged path
             # scaled_dot_product_attention expects [B, N_tokens, N_heads, H]
             query_for_sdpa = query.transpose(
@@ -338,9 +390,9 @@ class TTAttentionBackendImpl(AttentionImpl):
                 -3, -2
             )  # Back to [users, tokens, num_heads, head_size]
 
-            output = output.reshape(
-                users, query_num_tokens, -1
-            )  # Flatten to hidden dim
+            # output = output.reshape(
+            #     users, query_num_tokens, -1
+            # )  # Flatten to hidden dim
 
             # Return to original query rank
             if orig_query_ndim == 3:
@@ -350,50 +402,6 @@ class TTAttentionBackendImpl(AttentionImpl):
                 # [total_tokens, hidden]
                 total_tokens = users * query_num_tokens
                 return output.reshape(total_tokens, -1)
-
-        # === paged attention path ===
-        # When kv_cache exists
-        k_cache = kv_cache[0]
-        v_cache = kv_cache[1]
-
-        if not is_prefill:
-            key_for_update = key.transpose(
-                0, 1
-            )  # [users, num_heads, tokens, head_size]
-            value_for_update = value.transpose(0, 1)
-
-            k_cache = torch.ops.tt.paged_update_cache(
-                k_cache,
-                key_for_update,
-                attn_metadata.cache_position,
-                attn_metadata.page_table,
-            )
-            v_cache = torch.ops.tt.paged_update_cache(
-                v_cache,
-                value_for_update,
-                attn_metadata.cache_position,
-                attn_metadata.page_table,
-            )
-        else:
-            # prefill: filling multiple tokens at once
-            # paged_fill_cache assumes it receives [users, tokens, num_heads, head_size] directly
-            key_for_update = key.transpose(
-                1, 2
-            )  # [users, num_heads, tokens, head_size]
-            value_for_update = value.transpose(1, 2)
-            k_cache = torch.ops.tt.paged_fill_cache(
-                k_cache,
-                key_for_update,
-                attn_metadata.page_table,
-            )
-            v_cache = torch.ops.tt.paged_fill_cache(
-                v_cache,
-                value_for_update,
-                attn_metadata.page_table,
-            )
-
-        new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
-        kv_cache.copy_(new_kv_cache)
 
         # ---- paged decode ----
         # Adjust for decode kernel expecting query as [1, num_users, num_heads, head]
