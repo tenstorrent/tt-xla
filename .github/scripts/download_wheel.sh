@@ -15,10 +15,6 @@ artifacts_run_id=$(curl -L \
   -H "Accept: application/vnd.github+json" \
   -H "Authorization: Bearer $GH_TOKEN" \
   "https://api.github.com/repos/tenstorrent/tt-xla/actions/runs?head_sha=$long_sha" | jq '.workflow_runs[] | select(.name == "On push" or .name == "On Nightly") | .id')
-# $(curl -L \
-#   -H "Accept: application/vnd.github+json" \
-#   -H "Authorization: Bearer $GH_TOKEN" \
-#   "https://api.github.com/repos/tenstorrent/tt-xla/actions/runs?head_sha=$long_sha" | jq '.workflow_runs[] | select(.name == "On Push" or .name == "On Nightly") | .id')
 if [ -z "$artifacts_run_id" ]; then
   echo "No workflow run found for commit: $long_sha"
   exit 1
@@ -30,5 +26,5 @@ if [ -z "$wheel_path" ]; then
   exit 1
 fi
 echo "Installing wheel artifact: $wheel_path"
-pip install wheels/*.whl --force-reinstall
+pip install $wheel_path --force-reinstall
 exit 0
