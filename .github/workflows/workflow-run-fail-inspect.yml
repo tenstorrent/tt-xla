@@ -306,6 +306,10 @@ jobs:
         - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
         - /mnt/dockercache:/mnt/dockercache
 
+    env:
+      TT_XLA_CI: 1
+      GH_TOKEN: ${{ secrets.GH_TOKEN }} # for gh cli tool
+
     steps:
       - name: Mark repo as safe for git
         run: |
@@ -322,10 +326,17 @@ jobs:
         with:
           name: ${{ matrix.build.runs-on }}-test-to-run
 
+      - name: Set caching env variables
+        shell: bash
+        run: |
+          shared_runners=${{ matrix.build.shared-runners }}
+          if [[ "$shared_runners" == "" || "$shared_runners" == "false" ]]; then
+            echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
+          else
+            echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
+          fi
+
       - name: Bisect
-        env:
-          TT_XLA_CI: 1
-          GH_TOKEN: ${{ secrets.GH_TOKEN }} # for gh cli tool
         shell: bash
         run: |
           mkdir -p .bisect-run
