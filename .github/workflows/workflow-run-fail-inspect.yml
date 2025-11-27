@@ -349,21 +349,22 @@ jobs:
             git submodule update --init --recursive
 
             echo "Going with download"
+            exit_code=0
             set +e
             if .bisect-run/download_wheel.sh; then
               # Run tests
               echo "Running tests"
               if python .bisect-run/run_tests.py -v 2>&1; then
-                git bisect good
+                git bisect good || exit_code=$?
               else
-                git bisect bad
+                git bisect bad || exit_code=$?
               fi
             else
-              git bisect skip
+              git bisect skip || exit_code=$?
             fi
 
             # Check if bisect is complete
-            if [ $? -eq 0 ]; then
+            if [ $exit_code -eq 0 ]; then
               echo "Bisect complete!"
               git bisect log
               break
