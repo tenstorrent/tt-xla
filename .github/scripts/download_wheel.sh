@@ -26,5 +26,5 @@ if [ -z "$wheel_path" ]; then
   exit 1
 fi
 echo "Installing wheel artifact: $wheel_path"
-pip install $wheel_path --force-reinstall
+pip install $wheel_path --upgrade
 exit 0
