@@ -112,6 +112,8 @@ public:
   tt::runtime::Device
   getOrCreateMeshDevice(const std::vector<uint32_t> &target_mesh_shape);
 
+  std::optional<tt::runtime::Device> &getMeshDevice() { return m_parent_mesh; }
+
   // Closes currently opened mesh device and submesh device, if any.
   void closeMeshDevice();
 

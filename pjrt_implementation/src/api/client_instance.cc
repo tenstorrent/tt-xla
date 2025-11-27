@@ -476,6 +476,7 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
 
   if (!m_parent_mesh.has_value()) {
     m_parent_mesh = openMeshDevice(target_mesh_shape);
+    tt::runtime::clearProgramCache(*m_parent_mesh);
     return *m_parent_mesh;
   }
 
@@ -508,6 +509,7 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
   // re-opening the whole mesh.
   closeMeshDevice();
   m_parent_mesh = openMeshDevice(target_mesh_shape);
+  tt::runtime::clearProgramCache(*m_parent_mesh);
 
   return *m_parent_mesh;
 }

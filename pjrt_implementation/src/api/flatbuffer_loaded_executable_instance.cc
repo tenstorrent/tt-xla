@@ -4,6 +4,7 @@
 //
 
 #include "api/flatbuffer_loaded_executable_instance.h"
+#include "tt/runtime/runtime.h"
 
 // c++ standard library includes
 #include <cassert>
@@ -256,9 +257,11 @@ void FlatbufferLoadedExecutableInstance::releaseResources() {
     return;
   }
 
-  // Here we should drop executable's reference to the internal runtime object
-  // and associated resources, but we currently store no runtime objects so
-  // releasing only resources.
+  tt::runtime::clearProgramCache(*m_client_instance->getMeshDevice());
+
+  // Here we should drop executable's reference to the internal runtime
+  // object and associated resources, but we currently store no runtime
+  // objects so releasing only resources.
   m_executable_image.reset();
 
   m_deleted = true;

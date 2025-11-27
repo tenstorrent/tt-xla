@@ -105,7 +105,8 @@ else()
           -DTTMLIR_ENABLE_OPMODEL=ON
           -DTTMLIR_ENABLE_EXPLORER=${TTXLA_ENABLE_EXPLORER}
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
-        GIT_TAG ${TT_MLIR_VERSION}
+        # GIT_TAG ${TT_MLIR_VERSION}
+        GIT_TAG acolic/clearing-program-cache
         GIT_PROGRESS ON
     )
 
