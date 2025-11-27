@@ -291,3 +291,43 @@ class ModelLoader(ForgeModel):
             dtype_override=dtype_override,
             batch_size=batch_size,
         )
+
+    def output_postprocess(
+        self,
+        output=None,
+        co_out=None,
+        framework_model=None,
+        compiled_model=None,
+        inputs=None,
+        dtype_override=None,
+    ):
+        """Post-process model outputs for segmentation tasks.
+
+        Args:
+            output: Model output tensor (returns dict if provided).
+            co_out: Compiled model outputs (legacy, prints results).
+            framework_model: Original framework model (legacy).
+            compiled_model: Compiled model (legacy).
+            inputs: Input images (legacy).
+            dtype_override: Optional dtype override (legacy).
+
+        Returns:
+            dict or None: For segmentation, returns dict with output shape info if output provided,
+                        else None (for backward compatibility).
+        """
+        if output is not None:
+            if isinstance(output, torch.Tensor):
+                return {
+                    "output_shape": list(output.shape),
+                    "output_dtype": str(output.dtype),
+                }
+            elif isinstance(output, (list, tuple)) and len(output) > 0:
+                # Handle tuple/list outputs (common in segmentation)
+                if isinstance(output[0], torch.Tensor):
+                    return {
+                        "output_shape": list(output[0].shape),
+                        "output_dtype": str(output[0].dtype),
+                    }
+            return {"output": str(type(output))}
+
+        return None
