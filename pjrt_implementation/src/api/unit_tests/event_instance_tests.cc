@@ -83,7 +83,7 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_IsReady) {
   PJRT_Event_IsReady_Args args;
   args.struct_size = PJRT_Event_IsReady_Args_STRUCT_SIZE;
   args.event = *event;
-  args.is_ready = true; // intentionally initialize to the opposite value
+  args.is_ready = true; // intentionally initialized to the opposite value
 
   PJRT_Error *result = internal::onEventIsReady(&args);
   EXPECT_EQ(result, nullptr);

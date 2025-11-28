@@ -11,11 +11,11 @@
 // GTest headers
 #include "gtest/gtest.h"
 
-// PJRT implementation headers
-#include "api/device_description.h"
-
 // tt-mlir headers
 #include "ttmlir/Target/Common/types_generated.h"
+
+// PJRT implementation headers
+#include "api/device_description.h"
 
 namespace tt::pjrt::tests {
 
@@ -48,8 +48,6 @@ TEST(DeviceDescriptionUnitTests, unwrapPJRTDeviceDescription) {
   DeviceDescription *unwrapped = DeviceDescription::unwrap(pjrt_desc);
   ASSERT_NE(unwrapped, nullptr);
   EXPECT_EQ(unwrapped, &description);
-  EXPECT_EQ(unwrapped->getDeviceId(), description.getDeviceId());
-  EXPECT_EQ(unwrapped->getDeviceKind(), description.getDeviceKind());
 }
 
 // Tests getting and setting the process index.
@@ -78,7 +76,7 @@ TEST(DeviceDescriptionUnitTests, API_PJRT_DeviceDescription_Id) {
   PJRT_DeviceDescription_Id_Args args;
   args.struct_size = PJRT_DeviceDescription_Id_Args_STRUCT_SIZE;
   args.device_description = description; // implicit pointer conversion
-  args.id = -1; // intentionally set to a different value
+  args.id = TT_DEVICE_HOST + 1; // intentionally set to a different value
 
   PJRT_Error *result = internal::onDeviceDescriptionId(&args);
   ASSERT_EQ(result, nullptr);

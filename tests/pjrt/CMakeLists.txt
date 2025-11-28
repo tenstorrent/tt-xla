@@ -39,6 +39,11 @@ if(API_UNIT_TESTS_DIR)
         PRIVATE
             ${API_UNIT_TESTS_SRC}
     )
+    # TODO(acicovic): Can we avoid enforcing a directory name for include files?
+    target_include_directories(TTPJRTTests
+        PRIVATE
+            ${API_UNIT_TESTS_DIR}/inc
+    )
 endif()
 
 get_target_property(UTILS_UNIT_TESTS_DIR TTPJRTUtils UNIT_TESTS_DIR)

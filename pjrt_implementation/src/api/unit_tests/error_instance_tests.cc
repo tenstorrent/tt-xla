@@ -51,7 +51,6 @@ TEST(ErrorInstanceUnitTests, unwrapPJRTError) {
   ASSERT_NE(unwrapped, nullptr);
   EXPECT_EQ(unwrapped, error.get());
   EXPECT_EQ(unwrapped->getStatus(), tt_pjrt_status::kAborted);
-  EXPECT_EQ(unwrapped->getMessage(), error->getMessage());
 }
 
 // Tests that different status codes produce different messages.
