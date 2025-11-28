@@ -42,7 +42,7 @@ pytest --collect-only -q tests/runner/test_models.py -m "tensor_parallel and exp
 
 - Run a specific collected test node id exactly:
 ```bash
-pytest -vv tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-inference] |& tee test.log
+pytest -vv tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_2_1b-single_device-inference] |& tee test.log
 ```
 
 - Validate test_config files for typos, model name changes, useful when making updates:
@@ -54,13 +54,13 @@ pytest -svv --validate-test-config tests/runner/test_models.py |& tee validate.l
 ```bash
 pytest -q --collect-only -k "llama" tests/runner/test_models.py -m "n150 and expected_passing and inference" |& tee tests.log
 
-tests/runner/test_models.py::test_all_models[deepcogito/pytorch-v1_preview_llama_3b-single_device-full-inference]
-tests/runner/test_models.py::test_all_models[huggyllama/pytorch-llama_7b-single_device-full-inference]
-tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_8b_instruct-single_device-full-inference]
-tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_1_8b-single_device-full-inference]
-tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_8b-single_device-full-inference]
-tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_8b_instruct-single_device-full-inference]
-tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_1_8b-single_device-full-inference]
+tests/runner/test_models.py::test_all_models[deepcogito/pytorch-v1_preview_llama_3b-single_device-inference]
+tests/runner/test_models.py::test_all_models[huggyllama/pytorch-llama_7b-single_device-inference]
+tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_8b_instruct-single_device-inference]
+tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_1_8b-single_device-inference]
+tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_8b-single_device-inference]
+tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_8b_instruct-single_device-inference]
+tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_1_8b-single_device-inference]
 <snip>
 21/3048 tests collected (3027 deselected) in 3.53s
 ```
@@ -76,10 +76,10 @@ tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_1_8
 
 ## Test IDs and filtering
 
-- Test ID format: `<relative_model_path>-<variant_name>-<parallelism>-full-<run_mode>`
+- Test ID format: `<relative_model_path>-<variant_name>-<parallelism>-<run_mode>`
 - Examples:
-  - `squeezebert/pytorch-squeezebert-mnli-single_device-full-inference`
-  - `...-data_parallel-full-training`
+  - `squeezebert/pytorch-squeezebert-mnli-single_device-inference`
+  - `...-data_parallel-training`
 - Filter by substring with `-k` or by markers with `-m`:
 ```bash
 pytest -q -k "qwen_2_5_vl/pytorch-3b_instruct" tests/runner/test_models.py
@@ -152,7 +152,7 @@ Examples
 
 - Passing with a tuned PCC threshold if reasonable / understood decrease:
 ```python
-"resnet/pytorch-resnet_50_hf-single_device-full-inference": {
+"resnet/pytorch-resnet_50_hf-single_device-inference": {
   "status": ModelTestStatus.EXPECTED_PASSING,
   "required_pcc": 0.98,
 }
@@ -160,7 +160,7 @@ Examples
 
 - Known compile failure (xfail) with issue link:
 ```python
-"clip/pytorch-openai/clip-vit-base-patch32-single_device-full-inference": {
+"clip/pytorch-openai/clip-vit-base-patch32-single_device-inference": {
   "status": ModelTestStatus.KNOWN_FAILURE_XFAIL,
   "bringup_status": BringupStatus.FAILED_TTMLIR_COMPILATION,
   "reason": "Error Message - Github issue link",
@@ -169,7 +169,7 @@ Examples
 
 - If minor unexpected PCC mismatch, open ticket, decrease threshold and set bringup_status/reason as:
 ```python
-"wide_resnet/pytorch-wide_resnet101_2-single_device-full-inference": {
+"wide_resnet/pytorch-wide_resnet101_2-single_device-inference": {
   "status": ModelTestStatus.EXPECTED_PASSING,
   "required_pcc": 0.96,
   "bringup_status": BringupStatus.INCORRECT_RESULT,
@@ -179,7 +179,7 @@ Examples
 
 - If severe unexpected PCC mismatch, open ticket, disable pcc check and set bringup_status/reason as:
 ```python
-"gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-single_device-full-inference": {
+"gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-single_device-inference": {
   "status": ModelTestStatus.EXPECTED_PASSING,
   "assert_pcc": False,
   "bringup_status": BringupStatus.INCORRECT_RESULT,
@@ -189,7 +189,7 @@ Examples
 
 - Architecture-specific overrides (e.g., pcc thresholds, status, etc):
 ```python
-"qwen_3/embedding/pytorch-embedding_8b-single_device-full-inference": {
+"qwen_3/embedding/pytorch-embedding_8b-single_device-inference": {
     "status": ModelTestStatus.EXPECTED_PASSING,
     "arch_overrides": {
         "n150": {

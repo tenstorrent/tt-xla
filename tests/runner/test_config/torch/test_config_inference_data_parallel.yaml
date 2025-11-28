@@ -3,319 +3,319 @@
 # SPDX-License-Identifier: Apache-2.0
 
 test_config:
-  vit/pytorch-base-data_parallel-full-inference:
+  vit/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  swin/image_classification/pytorch-swin_t-data_parallel-full-inference:
+  swin/image_classification/pytorch-swin_t-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_s32_224-data_parallel-full-inference:
+  mlp_mixer/pytorch-mixer_s32_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  t5/pytorch-t5-small-data_parallel-full-inference:
+  t5/pytorch-t5-small-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b0-data_parallel-full-inference:
+  segformer/pytorch-mit_b0-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/masked_lm/pytorch-base_v1-data_parallel-full-inference:
+  albert/masked_lm/pytorch-base_v1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/token_classification/pytorch-base_v1-data_parallel-full-inference:
+  albert/token_classification/pytorch-base_v1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-data_parallel-full-inference:
+  bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  deit/pytorch-base_distilled-data_parallel-full-inference:
+  deit/pytorch-base_distilled-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-multiset-base-data_parallel-full-inference:
+  dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-multiset-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  swin/masked_image_modeling/pytorch-microsoft/swinv2-tiny-patch4-window8-256-data_parallel-full-inference:
+  swin/masked_image_modeling/pytorch-microsoft/swinv2-tiny-patch4-window8-256-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_b32_224-data_parallel-full-inference:
+  mlp_mixer/pytorch-mixer_b32_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b4-data_parallel-full-inference:
+  segformer/pytorch-mit_b4-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  beit/pytorch-large-data_parallel-full-inference:
+  beit/pytorch-large-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/masked_lm/pytorch-xlarge_v1-data_parallel-full-inference:
+  albert/masked_lm/pytorch-xlarge_v1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/token_classification/pytorch-xlarge_v1-data_parallel-full-inference:
+  albert/token_classification/pytorch-xlarge_v1-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9775277376174927. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1844"
 
-  mnist/image_classification/pytorch-cnn_dropout-data_parallel-full-inference:
+  mnist/image_classification/pytorch-cnn_dropout-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mnist/image_classification/pytorch-cnn_nodropout-data_parallel-full-inference:
+  mnist/image_classification/pytorch-cnn_nodropout-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vit/pytorch-large-data_parallel-full-inference:
+  vit/pytorch-large-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  swin/image_classification/pytorch-swin_v2_b-data_parallel-full-inference:
+  swin/image_classification/pytorch-swin_v2_b-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b1-data_parallel-full-inference:
+  segformer/pytorch-mit_b1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/masked_lm/pytorch-base_v2-data_parallel-full-inference:
+  albert/masked_lm/pytorch-base_v2-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
-  yolov6/pytorch-yolov6l-data_parallel-full-inference:
+  yolov6/pytorch-yolov6l-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg16-data_parallel-full-inference:
+  vgg/pytorch-torchvision_vgg16-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  deit/pytorch-small-data_parallel-full-inference:
+  deit/pytorch-small-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  autoencoder/pytorch-linear-data_parallel-full-inference:
+  autoencoder/pytorch-linear-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  squeezebert/pytorch-squeezebert-mnli-data_parallel-full-inference:
+  squeezebert/pytorch-squeezebert-mnli-data_parallel-inference:
     supported_archs: [n300]
     status: KNOWN_FAILURE_XFAIL  # Affected by change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
     bringup_status: FAILED_FE_COMPILATION
 
-  swin/image_classification/pytorch-swin_v2_t-data_parallel-full-inference:
+  swin/image_classification/pytorch-swin_v2_t-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b3-data_parallel-full-inference:
+  segformer/pytorch-mit_b3-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  beit/pytorch-base-data_parallel-full-inference:
+  beit/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/masked_lm/pytorch-large_v2-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  albert/token_classification/pytorch-large_v2-data_parallel-full-inference:
+  albert/masked_lm/pytorch-large_v2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  vgg/pytorch-torchvision_vgg19-data_parallel-full-inference:
+  albert/token_classification/pytorch-large_v2-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  vgg/pytorch-torchvision_vgg19-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  fuyu/pytorch-adept/fuyu-8b-data_parallel-full-inference:
+  fuyu/pytorch-adept/fuyu-8b-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  gpt2/pytorch-gpt2-data_parallel-full-inference:
+  gpt2/pytorch-gpt2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-single-nq-base-data_parallel-full-inference:
+  dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-single-nq-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_github-data_parallel-full-inference:
+  mlp_mixer/pytorch-mixer_github-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b5-data_parallel-full-inference:
+  segformer/pytorch-mit_b5-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/masked_lm/pytorch-xlarge_v2-data_parallel-full-inference:
+  albert/masked_lm/pytorch-xlarge_v2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-vgg11-data_parallel-full-inference:
+  vgg/pytorch-vgg11-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-hf_vgg19-data_parallel-full-inference:
+  vgg/pytorch-hf_vgg19-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  bert/masked_lm/pytorch-bert-base-uncased-data_parallel-full-inference:
+  bert/masked_lm/pytorch-bert-base-uncased-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dpr/question_encoder/pytorch-facebook/dpr-question_encoder-multiset-base-data_parallel-full-inference:
+  dpr/question_encoder/pytorch-facebook/dpr-question_encoder-multiset-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-data_parallel-full-inference:
+  swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/token_classification/pytorch-xxlarge_v1-data_parallel-full-inference:
+  albert/token_classification/pytorch-xxlarge_v1-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9593995213508606. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
-  vgg/pytorch-vgg13-data_parallel-full-inference:
+  vgg/pytorch-vgg13-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-data_parallel-full-inference:
+  bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  swin/image_classification/pytorch-swin_v2_s-data_parallel-full-inference:
+  swin/image_classification/pytorch-swin_v2_s-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_b16_224_miil-data_parallel-full-inference:
+  mlp_mixer/pytorch-mixer_b16_224_miil-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b2-data_parallel-full-inference:
+  segformer/pytorch-mit_b2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/masked_lm/pytorch-large_v1-data_parallel-full-inference:
+  albert/masked_lm/pytorch-large_v1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/token_classification/pytorch-large_v1-data_parallel-full-inference:
+  albert/token_classification/pytorch-large_v1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  deit/pytorch-tiny-data_parallel-full-inference:
+  deit/pytorch-tiny-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  swin/image_classification/pytorch-swin_s-data_parallel-full-inference:
+  swin/image_classification/pytorch-swin_s-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_s16_224-data_parallel-full-inference:
+  mlp_mixer/pytorch-mixer_s16_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  perceiver/pytorch-deepmind/language-perceiver-data_parallel-full-inference:
+  perceiver/pytorch-deepmind/language-perceiver-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/sequence_classification/pytorch-imdb-data_parallel-full-inference:
+  albert/sequence_classification/pytorch-imdb-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg13-data_parallel-full-inference:
+  vgg/pytorch-torchvision_vgg13-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-data_parallel-full-inference:
+  bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  alexnet/pytorch-alexnetb-data_parallel-full-inference:
+  alexnet/pytorch-alexnetb-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  deit/pytorch-base-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  dpr/question_encoder/pytorch-facebook/dpr-question_encoder-single-nq-base-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  swin/image_classification/pytorch-microsoft/swinv2-tiny-patch4-window8-256-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  deepseek/deepseek_coder/pytorch-1_3b_instruct-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  mgp_str_base/pytorch-data_parallel-full-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  albert/masked_lm/pytorch-xxlarge_v2-data_parallel-full-inference:
+  deit/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  vgg/pytorch-vgg16-data_parallel-full-inference:
+  dpr/question_encoder/pytorch-facebook/dpr-question_encoder-single-nq-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg11-data_parallel-full-inference:
+  swin/image_classification/pytorch-microsoft/swinv2-tiny-patch4-window8-256-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  bert/question_answering/pytorch-phiyodr/bert-large-finetuned-squad2-data_parallel-full-inference:
+  deepseek/deepseek_coder/pytorch-1_3b_instruct-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  swin/image_classification/pytorch-swin_b-data_parallel-full-inference:
+  mgp_str_base/pytorch-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  rcnn/pytorch-alexnet-data_parallel-full-inference:
+  albert/masked_lm/pytorch-xxlarge_v2-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  vgg/pytorch-vgg16-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_l32_224-data_parallel-full-inference:
+  vgg/pytorch-torchvision_vgg11-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  albert/question_answering/pytorch-squad2-data_parallel-full-inference:
+  bert/question_answering/pytorch-phiyodr/bert-large-finetuned-squad2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-vgg19-data_parallel-full-inference:
+  swin/image_classification/pytorch-swin_b-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  rcnn/pytorch-alexnet-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mlp_mixer/pytorch-mixer_l32_224-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  albert/question_answering/pytorch-squad2-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  vgg/pytorch-vgg19-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.975  # Decreased after https://github.com/tenstorrent/tt-forge-models/pull/87
 
-  bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-data_parallel-full-inference:
+  bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  alexnet/pytorch-alexnet-data_parallel-full-inference:
+  alexnet/pytorch-alexnet-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
