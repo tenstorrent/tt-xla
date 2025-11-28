@@ -363,6 +363,7 @@ jobs:
               out=$(git bisect skip || true)
             fi
 
+            # Check if bisect is complete
             first_line="$(printf '%s\n' "$out" | head -n1)"
             case "$first_line" in
               *"is the first bad commit"*)
@@ -383,12 +384,6 @@ jobs:
                 break
                 ;;
             esac
-            # Check if bisect is complete
-            if [ $exit_code -ne 0 ]; then
-              echo "Bisect complete!"
-              git bisect log
-              break
-            fi
           done
 
           # Get the bad commit info
