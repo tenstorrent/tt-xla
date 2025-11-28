@@ -203,6 +203,13 @@ def pytest_addoption(parser):
         help="Append process PID to log file names specified in TT_XLA_LOGGER_FILE, TT_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE environment variables if set, to facilitate multiprocess debug logging.",
     )
 
+    parser.addoption(
+        "--dump-irs",
+        action="store_true",
+        default=False,
+        help="Enable IR dumping during model tests",
+    )
+
 
 # DOCKER_CACHE_ROOT is only meaningful on CIv1 and its presence indicates CIv1 usage.
 # TODO: Consider using a more explicit way to differentiate CIv2-specific environment
