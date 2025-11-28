@@ -6,13 +6,13 @@ import collections
 import importlib.util
 import inspect
 import math
+import json
 import numbers
 import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Any, Optional, List
-import json
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pytest
@@ -334,7 +334,7 @@ def record_model_test_properties(
     test_passed: bool = False,
     comparison_result=None,
     comparison_config=None,
-    perf_stats= None,
+    perf_stats=None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -431,7 +431,6 @@ def record_model_test_properties(
         ),
         "parallelism": str(parallelism),
         "arch": arch,
-
     }
 
     # Add execution_pass if available
@@ -479,6 +478,7 @@ def record_model_test_properties(
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         pytest.xfail(reason)
 
+
 def create_measurement(
     step_name: str,
     measurement_name: str,
@@ -497,60 +497,56 @@ def create_measurement(
         "target": target,
     }
 
+
 def create_benchmark_result(
     full_model_name: str,
-    measurements: List[Dict[str, Any]], 
+    measurements: List[Dict[str, Any]],
     model_type: str = "generic",
-    batch_size: int = 1,
     training: bool = False,
     model_info: str = "",
-    input_size: tuple = (1,1),
-    num_layers: int = 1,
-    loop_count: int = 1,
-    #device_name: str = "",
-    #arch: str = "",
+    device_name: str = "",
 ) -> Dict[str, Any]:
-    """Create a standardized benchmark result dictionary.
+    """Create a standardized benchmark result dictionary."""
 
-    Args:
-        custom_measurements: List of additional measurement dictionaries to include.
-                           Each measurement should have keys: measurement_name, value, and optionally
-                           iteration, step_name, step_warm_up_num_iterations, target, device_power, device_temperature
-    """
-   
     # Extract e2e stats from the passed measurements list
     metric_list = []
-    
+
     if measurements and len(measurements) > 0:
+        # extract e2e perf stats and create measurements using them
         perf_stats = measurements[0]
         warmup_iters = perf_stats["warmup_iters"]
         perf_iters = perf_stats["perf_iters"]
-        
-        # We want to report these specific metrics
-        metric_list.append(create_measurement("e2e_perf", "total_time", warmup_iters, perf_iters, perf_stats["total_time"]))
-        metric_list.append(create_measurement("e2e_perf", "avg_time", warmup_iters, perf_iters, perf_stats["avg_time"]))
-       
+        metric_list.append(
+            create_measurement(
+                "e2e_perf",
+                "total_time",
+                warmup_iters,
+                perf_iters,
+                perf_stats["total_time"],
+            )
+        )
+        metric_list.append(
+            create_measurement(
+                "e2e_perf", "avg_time", warmup_iters, perf_iters, perf_stats["avg_time"]
+            )
+        )
+
     config = {
         "model_size": "small",
         "model_info": model_info,
     }
 
-
     benchmark_results = {
         "model": full_model_name,
         "model_type": model_type,
-        "run_type": f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}_{loop_count}",
+        "run_type": f"{'_'.join(full_model_name.split())}_{device_name}",
         "config": config,
         "measurements": metric_list,
-        #"device_info": {
-        #    "device_name": device_name,
-        #    "galaxy": galaxy,
-        #    "arch": arch,
-        #    "chips": chips,
-        #},
+        "device_info": {
+            "device_name": device_name,
+        },
         "training": training,
-        "perf_analysis": False,
-        "project": "tt-xla", 
+        "project": "tt-xla",
     }
 
     # Setup output directory matching call-test.yml
@@ -560,7 +556,7 @@ def create_benchmark_result(
     # Add metadata required for collect_data parser
     benchmark_results["project"] = "tt-xla"
     benchmark_results["model_rawname"] = full_model_name
-    
+
     # Get JOB_ID from environment, default to a placeholder if running locally
     job_id = os.environ.get("JOB_ID", "00000")
     safe_model_name = full_model_name.replace("/", "_").replace(" ", "_")
@@ -571,5 +567,3 @@ def create_benchmark_result(
     with open(json_path, "w") as file:
         json.dump(benchmark_results, file, indent=2)
         print(f"Benchmark results saved to {json_path}")
-
-

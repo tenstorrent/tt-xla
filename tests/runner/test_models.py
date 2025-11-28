@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import socket
 
 import pytest
 from infra import RunMode
@@ -18,10 +19,10 @@ from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
+    create_benchmark_result,
     fix_venv_isolation,
     record_model_test_properties,
     update_test_metadata_for_exception,
-    create_benchmark_result,
 )
 from tests.runner.testers import (
     DynamicJaxModelTester,
@@ -184,40 +185,20 @@ def test_all_models_torch(
                 comparison_result=comparison_result,
                 comparison_config=comparison_config,
             )
-            
+
             # perf benchmarking
             full_model_name = model_info.name
-            perf_stats = getattr(tester, "get_perf_stats", None)
-            if callable(perf_stats):
-                e2e_perf_stats = perf_stats()
-            else:
-                e2e_perf_stats = getattr(tester, "_perf_stats", None)
-            measurements = [
-                e2e_perf_stats,
-            ]
-
-            # dummy values to just test workflow
-            batch_size = 1
-            input_size = (1,1)
-            num_layers = 1
-            loop_count = 1
+            measurements = getattr(tester, "_perf_measurements", None)
 
             # create benchmark result
             create_benchmark_result(
                 full_model_name=full_model_name,
                 measurements=measurements,
                 model_type="generic",
-                batch_size=batch_size,
                 training=False,
                 model_info=full_model_name,
-                input_size=input_size,
-                num_layers=num_layers,
-                loop_count=loop_count,
-                #device_name=socket.gethostname(),
-                #arch=get_xla_device_arch(),
+                device_name=socket.gethostname(),
             )
-            
-           
 
 
 @pytest.mark.model_test
