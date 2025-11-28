@@ -364,14 +364,13 @@ jobs:
             fi
 
             # Check if bisect is complete
+            echo "$out"
             first_line="$(printf '%s\n' "$out" | head -n1)"
             case "$first_line" in
               *"is the first bad commit"*)
-                bad_sha="$(git rev-parse HEAD)"
                 echo "FOUND IT: $first_line"
-                echo "Commit: $bad_sha"
-                echo "Title : $(git log -1 --pretty=%s "$bad_sha")"
                 found=true
+                break
                 ;;
               *"There are only 'skip'ped commits left to test."*)
                 echo "Bisect inconclusive: only skipped commits left."
@@ -388,6 +387,15 @@ jobs:
 
           # Get the bad commit info
           bad_commit=$(git rev-parse HEAD)
-          echo "First bad commit: $bad_commit"
-          echo "bad_commit=$bad_commit" >> $GITHUB_OUTPUT
+          if [ "$found" = true ]; then
+            echo "!$bad_commit" >.bisect-result.txt
+          else
+            echo "?$bad_commit" >.bisect-result.txt
+          fi
           git bisect reset
+
+      - name: Upload bisect result
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ matrix.build.runs-on }}-bisect-result
+          path: .bisect-result.txt
