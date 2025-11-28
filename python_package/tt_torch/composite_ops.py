@@ -64,11 +64,15 @@ def composite_rms_norm(
 
     builder = StableHLOCompositeBuilder(name="tenstorrent.rms_norm", attr=attr)
 
-    input = builder.mark_inputs(input)
-    input = torch.nn.functional.rms_norm(input, normalized_shape, weight, eps)
-    input = builder.mark_outputs(input)
+    if weight is not None:
+        input, weight = builder.mark_inputs(input, weight)
+    else:
+        input = builder.mark_inputs(input)
 
-    return input
+    output = torch.nn.functional.rms_norm(input, normalized_shape, weight, eps)
+    output = builder.mark_outputs(output)
+
+    return output
 
 
 """

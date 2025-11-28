@@ -56,7 +56,7 @@ def test_rmsnorm(use_weight):
 
     if use_weight:
         weight = weight.to(device)
-        xs.mark_sharding(weight, mesh, (None))
+        xs.mark_sharding(weight, mesh, (None,))
 
     output = model(input_tensor, weight if use_weight else None)
 
