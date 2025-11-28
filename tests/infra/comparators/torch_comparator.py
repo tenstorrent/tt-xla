@@ -20,8 +20,8 @@ class TorchComparator(Comparator):
     def _match_data_types(tensors: PyTree) -> PyTree:
         return tree_map(
             lambda tensor: (
-                tensor.to(torch.float64)
-                if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float64
+                tensor.to(torch.float32)
+                if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float32
                 else tensor
             ),
             tensors,
