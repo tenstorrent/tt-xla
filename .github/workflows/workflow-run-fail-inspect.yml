@@ -214,10 +214,10 @@ jobs:
           if [ "${{ github.event.workflow_run.id || inputs.workflow_run_id }}" -ne "$curr_wf_id" ]; then
             echo "Current workflow ID does not match the workflow_run context ID. Exiting."
             exit 1
+          fi
 
-            # check if the latest workflow run failed
-            if [ "$(jq -r '.[0].conclusion' runs.json)" != "failure" ]; then
-            fi
+          # check if the latest workflow run failed
+          if [ "$(jq -r '.[0].conclusion' runs.json)" != "failure" ]; then
             echo "The latest workflow run did not fail. Exiting."
             exit 1
           fi
