@@ -214,10 +214,10 @@ jobs:
           if [ "${{ github.event.workflow_run.id || inputs.workflow_run_id }}" -ne "$curr_wf_id" ]; then
             echo "Current workflow ID does not match the workflow_run context ID. Exiting."
             exit 1
-          fi
 
-          # check if the latest workflow run failed
-          if [ "$(jq -r '.[0].conclusion' runs.json)" != "failure" ]; then
+            # check if the latest workflow run failed
+            if [ "$(jq -r '.[0].conclusion' runs.json)" != "failure" ]; then
+            fi
             echo "The latest workflow run did not fail. Exiting."
             exit 1
           fi
@@ -387,11 +387,15 @@ jobs:
 
           # Get the bad commit info
           bad_commit=$(git rev-parse HEAD)
+          echo "$bad_commit" > .bisect-result.txt
+          echo "Title: $(git log -1 --pretty=%s "$bad_commit")" >> .bisect-result.txt
           if [ "$found" = true ]; then
-            echo "!$bad_commit" >.bisect-result.txt
+            echo "found" >> .bisect-result.txt
           else
-            echo "?$bad_commit" >.bisect-result.txt
+            echo "inconclusive" >> .bisect-result.txt
           fi
+          echo "Tests:" >> .bisect-result.txt
+          cat .test-to-run >> .bisect-result.txt
           git bisect reset
 
       - name: Upload bisect result
@@ -399,3 +403,57 @@ jobs:
         with:
           name: ${{ matrix.build.runs-on }}-bisect-result
           path: .bisect-result.txt
+
+  deduct:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - uses: actions/checkout@v6
+
+      - name: Deduct bad commits
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          gh run download ${{ github.run_id }} --pattern "*-bisect-result" -D bisect-results
+
+          # Create associative array to group by bad commit
+          declare -A commit_groups
+
+          find bisect-results -name ".bisect-result.txt" | while read -r file; do
+            bad_commit=$(head -n1 "$file")
+            tests=$(tail -n +5 "$file")
+
+            # Add tests to the commit group
+            if [[ -n "${commit_groups[$bad_commit]}" ]]; then
+              commit_groups[$bad_commit]+=$'\n'"$tests"
+            else
+              commit_groups[$bad_commit]="$tests"
+            fi
+          done
+
+          # Create markdown file for this commit
+          echo "# Bad Commit Analysis" > .bisect-report.md
+          echo "" >> .bisect-report.md
+          for commit in "${!commit_groups[@]}"; do
+            # get commit image link
+            html=$(curl -s "https://github.com/$repo/commit/$commit")
+            commitimg=$(echo "$html" | grep -oP '(?<=<meta name="twitter:image" content=")[^"]*')
+
+            echo "- Commit: [$commit](https://github.com/${{ github.repository }}/commit/$commit) <img src=\"$commitimg\" width=\"25%\" align=\"right\"/>" >> .bisect-report.md
+            echo "  <details>" >> .bisect-report.md
+            echo "  <summary>Failed Tests</summary>" >> .bisect-report.md
+            echo "" >> .bisect-report.md
+            echo "\`\`\`" >> .bisect-report.md
+            echo "${commit_groups[$commit]}" >> .bisect-report.md
+            echo "\`\`\`" >> .bisect-report.md
+            echo "" >> .bisect-report.md
+            echo "</details>" >> .bisect-report.md
+            echo "" >> .bisect-report.md
+          done
+          cat .bisect-report.md >> $GITHUB_STEP_SUMMARY
