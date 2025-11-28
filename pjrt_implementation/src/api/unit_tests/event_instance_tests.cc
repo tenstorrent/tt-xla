@@ -9,15 +9,15 @@
 // https://llvm.org/LICENSE.txt
 
 // C++ standard library headers
-#include <thread>
 #include <chrono>
+#include <thread>
 
 // GTest headers
 #include "gtest/gtest.h"
 
 // PJRT implementation headers
-#include "api/event_instance.h"
 #include "api/error_instance.h"
+#include "api/event_instance.h"
 #include "utils/status.h"
 
 namespace tt::pjrt::tests {
@@ -65,7 +65,8 @@ TEST(EventInstanceUnitTests, markAsReady_errorStatus) {
   EXPECT_TRUE(event->isReady());
   PJRT_Error *pjrt_error = event->getErrorFromStatus();
   ASSERT_NE(pjrt_error, nullptr);
-  EXPECT_EQ(ErrorInstance::unwrap(pjrt_error)->getStatus(), tt_pjrt_status::kAborted);
+  EXPECT_EQ(ErrorInstance::unwrap(pjrt_error)->getStatus(),
+            tt_pjrt_status::kAborted);
 }
 
 // Tests marking an event as indestructible.
@@ -97,16 +98,13 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Error) {
   args.struct_size = PJRT_Event_Error_Args_STRUCT_SIZE;
   args.event = *event;
 
-  EXPECT_THROW(
-        internal::onEventError(&args),
-        std::runtime_error);
+  EXPECT_THROW(internal::onEventError(&args), std::runtime_error);
 
   event->markAsReady(tt_pjrt_status::kDeadlineExceeded);
   PJRT_Error *error = internal::onEventError(&args);
   ASSERT_NE(error, nullptr);
-  EXPECT_EQ(
-    ErrorInstance::unwrap(error)->getStatus(),
-    tt_pjrt_status::kDeadlineExceeded);
+  EXPECT_EQ(ErrorInstance::unwrap(error)->getStatus(),
+            tt_pjrt_status::kDeadlineExceeded);
 }
 
 // Tests that PJRT API to await returns immediately for ready events.
@@ -130,7 +128,8 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Await_notReady) {
 
   // this thread will mark the event as ready after a short delay
   std::thread signal_thread([&]() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(dummy_task_duration_ms));
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(dummy_task_duration_ms));
     event->markAsReady(tt_pjrt_status::kSuccess);
   });
 
@@ -145,9 +144,9 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Await_notReady) {
   EXPECT_TRUE(event->isReady());
 
   signal_thread.join();
-  auto elapsed_time_ms =
-    std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time)
-    .count();
+  auto elapsed_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             end_time - start_time)
+                             .count();
   EXPECT_GE(elapsed_time_ms, dummy_task_duration_ms);
 }
 

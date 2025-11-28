@@ -23,9 +23,9 @@ TEST(ErrorInstanceUnitTests, makeError_successCase) {
   ASSERT_NE(error, nullptr);
   EXPECT_EQ(error->getStatus(), tt_pjrt_status::kUnknown);
   EXPECT_FALSE(error->getMessage().empty());
-  EXPECT_EQ(
-    error->getMessage(),
-    "Error code: " + std::to_string(static_cast<int>(tt_pjrt_status::kUnknown)));
+  EXPECT_EQ(error->getMessage(),
+            "Error code: " +
+                std::to_string(static_cast<int>(tt_pjrt_status::kUnknown)));
 }
 
 // Tests the invalid case of error instance creation.
@@ -57,8 +57,8 @@ TEST(ErrorInstanceUnitTests, unwrapPJRTError) {
 // Tests that different status codes produce different messages.
 TEST(ErrorInstanceUnitTests, getMessage_differentStatusDifferentMessage) {
   EXPECT_NE(
-    ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)->getMessage(),
-    ErrorInstance::makeError(tt_pjrt_status::kNotFound)->getMessage());
+      ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)->getMessage(),
+      ErrorInstance::makeError(tt_pjrt_status::kNotFound)->getMessage());
 }
 
 // Tests PJRT API for getting the error code.
