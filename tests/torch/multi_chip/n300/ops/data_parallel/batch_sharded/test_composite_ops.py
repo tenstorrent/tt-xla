@@ -14,6 +14,7 @@ from infra.comparators.torch_comparator import TorchComparator
 from tests.infra.comparators.comparison_config import ComparisonConfig
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("use_weight", [True, False])
 def test_rmsnorm(use_weight):
 

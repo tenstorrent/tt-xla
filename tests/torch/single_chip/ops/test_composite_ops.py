@@ -14,6 +14,7 @@ from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("approx", ["none", "tanh"])
 def test_composite_gelu(approx):
     """
@@ -65,6 +66,7 @@ def test_composite_gelu_eager(approx):
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("approx", ["none", "tanh"])
 def test_patched_gelu(approx):
     """
@@ -133,6 +135,7 @@ def test_patched_gelu_op_test(approx):
     )
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("use_weight", [True, False])
 def test_rmsnorm(use_weight):
 
@@ -164,6 +167,7 @@ def test_rmsnorm(use_weight):
     comparator.compare(output, golden)
 
 
+@pytest.mark.push
 @pytest.mark.parametrize("use_weight", [True, False])
 def test_composite_rms_norm(use_weight):
     """
