@@ -232,6 +232,13 @@ def disable_perf_measurement(request):
     if request.config.getoption("--disable-perf-measurement"):
         os.environ["DISABLE_PERF_MEASUREMENT"] = "1"
 
+    parser.addoption(
+        "--dump-irs",
+        action="store_true",
+        default=False,
+        help="Enable IR dumping during model tests",
+    )
+
 
 # DOCKER_CACHE_ROOT is only meaningful on CIv1 and its presence indicates CIv1 usage.
 # TODO: Consider using a more explicit way to differentiate CIv2-specific environment
