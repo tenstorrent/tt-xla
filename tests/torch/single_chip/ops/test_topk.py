@@ -6,6 +6,7 @@ import pytest
 import torch
 from infra import Framework, run_op_test_with_random_inputs
 from utils import Category, TTArch, get_torch_device_arch
+from infra.testers.single_chip.op.op_tester import run_op_test_with_saved_inputs
 
 
 def check_device_compatibility(input_shape: tuple, k: int):
@@ -61,4 +62,30 @@ def test_topk_indices(input_shape: tuple, k: int):
 
     run_op_test_with_random_inputs(
         model, [input_shape], dtype=torch.float32, framework=Framework.TORCH
+    )
+
+
+
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.OP_TEST,
+    torch_op_name="torch.topk",
+)
+
+def test_topk_indices_transfuser():
+    """Test topk operation returning indices."""
+
+
+    class TopKIndices(torch.nn.Module):
+        def __init__(self, k):
+            super().__init__()
+            self.k = k
+
+        def forward(self, x):
+            return torch.topk(x, self.k)[1]
+
+    model = TopKIndices(k=100)
+    
+    run_op_test_with_saved_inputs(
+        model, [torch.load("topk_ip.pt")], framework=Framework.TORCH
     )

@@ -9,6 +9,7 @@ from torch.utils._pytree import tree_flatten, tree_map
 
 from .comparator import Comparator
 from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
+from loguru import logger
 
 
 class TorchComparator(Comparator):
@@ -55,22 +56,21 @@ class TorchComparator(Comparator):
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
+            if torch.allclose(
+                x, y, rtol=pcc_config.allclose.rtol, atol=pcc_config.allclose.atol
+            ):
+                return torch.tensor(1.0)
+            
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
             denom = vx.norm() * vy.norm()
 
             return torch.tensor(float("nan")) if denom == 0 else (vx @ vy) / denom
 
-        # If tensors are really close, pcc will be nan. Handle that before calculating
-        # pcc by checking allclose first.
-        if TorchComparator._compare_allclose(
-            device_output, golden_output, pcc_config.allclose
-        ):
-            return 1.0  # Perfect correlation when values are essentially identical
-
         # Calculate PCC for non-identical values
         leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
+        logger.info("flat_pccs={}",flat_pccs)
         pcc = min(flat_pccs)
         return float(pcc)
 

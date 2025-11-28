@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import re
-from typing import Callable, Sequence
+from typing import Callable, Sequence, List
 
 import jax
 import torch
@@ -18,6 +18,7 @@ from jax._src.typing import DTypeLike
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from ...base_tester import BaseTester
+from loguru import logger
 
 
 class OpTester(BaseTester):
@@ -133,6 +134,17 @@ class OpTester(BaseTester):
             )
             for shape in input_shapes
         ]
+        workload = Workload(framework=self._framework, executable=f, args=inputs)
+        self.test(workload)
+        
+    def test_with_saved_inputs(self, f: Callable, inputs: List) -> None:
+
+        logger.info("inputs={}", inputs)
+        for idx, inp in enumerate(inputs):
+            logger.info(
+                f"Input[{idx}] -> dtype: {inp.dtype}, shape: {tuple(inp.shape)}"
+            )
+
         workload = Workload(framework=self._framework, executable=f, args=inputs)
         self.test(workload)
 
@@ -260,3 +272,15 @@ def run_op_test_with_random_inputs(
         compiler_config = CompilerConfig()
     tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
     tester.test_with_random_inputs(op, input_shapes, minval, maxval, dtype)
+
+def run_op_test_with_saved_inputs(
+    op: Callable,
+    inputs: List,
+    comparison_config: ComparisonConfig = ComparisonConfig(),
+    framework: Framework = Framework.JAX,
+    compiler_config: CompilerConfig = None,
+) -> None:
+    if compiler_config is None:
+        compiler_config = CompilerConfig()
+    tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
+    tester.test_with_saved_inputs(op, inputs)

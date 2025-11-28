@@ -19,19 +19,13 @@ from tt_torch import codegen_py
 xr.set_device_type("TT")
 
 
-class Model(nn.Module):
-    def __init__(self):
+class TopKIndices(torch.nn.Module):
+    def __init__(self, k):
         super().__init__()
-        self.A = nn.Linear(32, 128)
-        self.B = nn.Linear(128, 64)
+        self.k = k
 
     def forward(self, x):
-        x = self.A(x)
-        x = nn.functional.relu(x)
-        x = self.B(x)
-        x = torch.tanh(x)
-        return torch.sum(x**2)
-
+        return torch.topk(x, self.k)[1]
 
 # Any compile options you could specify when executing the model normally can also be used with codegen.
 extra_options = {
@@ -40,7 +34,8 @@ extra_options = {
     # "enable_l1_interleaved": False,
 }
 
-model = Model()
-x = torch.randn(32, 32)
+model = TopKIndices(k=100)
+model.eval()
+x = torch.load("topk_ip.pt")
 
-codegen_py(model, x, export_path="model", compiler_options=extra_options)
+codegen_py(model, x, export_path="topk", compiler_options=extra_options)
