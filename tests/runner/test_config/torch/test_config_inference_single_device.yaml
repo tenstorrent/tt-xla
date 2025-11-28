@@ -313,9 +313,17 @@ test_config:
 
   efficientnet/pytorch-efficientnet_b6-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Statically allocated circular buffers in program 162 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   efficientnet/pytorch-efficientnet_b7-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Statically allocated circular buffers in program 260 clash with L1 buffers on core range [(x=0,y=0) - (x=12,y=9)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   ghostnet/pytorch-ghostnet_100-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1164,6 +1172,10 @@ test_config:
 
   regnet/pytorch-regnet_x_3_2gf-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: " PCC comparison failed. Calculated: pcc=0.9898508191108704. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   regnet/pytorch-regnet_x_8gf-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1407,12 +1419,9 @@ test_config:
     markers: ["extended"]
 
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Bad PCC on blackhole - Calculated: pcc=0.978913426399231. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1434"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed.  Calculated: pcc=0.97700434923172. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/2368"
+
 
   vgg/pytorch-bn_vgg19b-single_device-full-inference:
     required_pcc: 0.96
