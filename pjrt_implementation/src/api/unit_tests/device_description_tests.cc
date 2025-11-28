@@ -93,7 +93,7 @@ TEST(DeviceDescriptionUnitTests, API_PJRT_DeviceDescription_ProcessIndex) {
   PJRT_DeviceDescription_ProcessIndex_Args args;
   args.struct_size = PJRT_DeviceDescription_ProcessIndex_Args_STRUCT_SIZE;
   args.device_description = description; // implicit pointer conversion
-  args.process_index = -1; // intentionally set to different value
+  args.process_index = -1;               // intentionally set to different value
 
   PJRT_Error *result = internal::onDeviceDescriptionProcessIndex(&args);
   ASSERT_EQ(result, nullptr);

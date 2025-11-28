@@ -40,18 +40,16 @@ class DeviceInstanceUnitTests : public ::testing::Test {
 protected:
   // Runs before every test.
   void SetUp() override {
-    device_ = DeviceInstance::createInstance(TT_DEVICE_HOST,
-                                             /*is_addressable=*/true,
-                                             LOCAL_HARDWARE_ID_UNDEFINED,
-                                             TT_ARCH_WH);
+    device_ = DeviceInstance::createInstance(
+        TT_DEVICE_HOST,
+        /*is_addressable=*/true, LOCAL_HARDWARE_ID_UNDEFINED, TT_ARCH_WH);
 
     device_as_vector_.push_back(device_.get());
 
     // DEVNOTE: Intentionally not set to device during setup.
-    default_memory_ = MemoryInstance::createInstance(
-                                device_as_vector_,
-                                DEFAULT_MEMORY_ID,
-                                /*is_host_memory=*/true);
+    default_memory_ =
+        MemoryInstance::createInstance(device_as_vector_, DEFAULT_MEMORY_ID,
+                                       /*is_host_memory=*/true);
   }
 
   // Device that is unique per-test.
@@ -149,14 +147,16 @@ TEST_F(DeviceInstanceUnitTests, API_PJRT_Device_LocalHardwareId) {
 
 // Tests PJRT API for getting addressable memories.
 TEST_F(DeviceInstanceUnitTests, API_PJRT_Device_AddressableMemories) {
-  device_->addAddressableMemory(MemoryInstance::createInstance(
-                                device_as_vector_,
-                                /*id=*/10,
-                                /*is_host_memory=*/true).get());
-  device_->addAddressableMemory(MemoryInstance::createInstance(
-                                device_as_vector_,
-                                /*id=*/11,
-                                /*is_host_memory=*/true).get());
+  device_->addAddressableMemory(
+      MemoryInstance::createInstance(device_as_vector_,
+                                     /*id=*/10,
+                                     /*is_host_memory=*/true)
+          .get());
+  device_->addAddressableMemory(
+      MemoryInstance::createInstance(device_as_vector_,
+                                     /*id=*/11,
+                                     /*is_host_memory=*/true)
+          .get());
 
   PJRT_Device_AddressableMemories_Args args;
   args.struct_size = PJRT_Device_AddressableMemories_Args_STRUCT_SIZE;
