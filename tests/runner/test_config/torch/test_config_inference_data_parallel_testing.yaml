@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# test_config:
+test_config:
 
 
   #==============================================================================
@@ -143,99 +143,99 @@
   # #==============================================================================
   # # NEW ISSUE: error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal
   # #==============================================================================
-  # hrnet/pytorch-hrnetv2_w44_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
-  #   required_pcc: 0.96
+  hrnet/pytorch-hrnetv2_w44_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
 
-  # resnext/pytorch-resnext26_32x4d_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  resnext/pytorch-resnext26_32x4d_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
-  # hrnet/pytorch-hrnet_w18_small_v1_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  hrnet/pytorch-hrnet_w18_small_v1_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
-  # hrnet/pytorch-hrnetv2_w48_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
-  #   required_pcc: 0.985
+  hrnet/pytorch-hrnetv2_w48_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.985
 
-  # ghostnet/pytorch-ghostnetv2_100.in1k-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  ghostnet/pytorch-ghostnetv2_100.in1k-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
-  # resnext/pytorch-resnext50_32x4d_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  resnext/pytorch-resnext50_32x4d_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
-  # inception/pytorch-inceptionv4-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
-  #   required_pcc: 0.97
+  inception/pytorch-inceptionv4-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.97
 
-  # hrnet/pytorch-hrnetv2_w18_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  hrnet/pytorch-hrnetv2_w18_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
-  # hrnet/pytorch-hrnet_w18_small_v2_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  hrnet/pytorch-hrnet_w18_small_v2_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
-  # vovnet/pytorch-vovnet27s-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  vovnet/pytorch-vovnet27s-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
-  # hrnet/pytorch-hrnetv2_w30_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
-  #   required_pcc: 0.98
+  hrnet/pytorch-hrnetv2_w30_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
 
-  # vovnet/pytorch-vovnet39-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
-  #   required_pcc: 0.98
+  vovnet/pytorch-vovnet39-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
 
-  # hrnet/pytorch-hrnetv2_w32_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
-  #   required_pcc: 0.985
+  hrnet/pytorch-hrnetv2_w32_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.985
 
-  # resnext/pytorch-resnext101_64x4d_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  resnext/pytorch-resnext101_64x4d_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
-  # hrnet/pytorch-hrnetv2_w40_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
-  #   required_pcc: 0.98
+  hrnet/pytorch-hrnetv2_w40_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
 
-  # vovnet/pytorch-vovnet57-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
-  #   required_pcc: 0.98
+  vovnet/pytorch-vovnet57-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
 
-  # resnext/pytorch-resnext14_32x4d_osmr-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  resnext/pytorch-resnext14_32x4d_osmr-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
-  # densenet/pytorch-densenet121-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  densenet/pytorch-densenet121-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
-  # densenet/pytorch-densenet161-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
+  densenet/pytorch-densenet161-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
 
-  # densenet/pytorch-densenet169-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
-  #   required_pcc: 0.98
+  densenet/pytorch-densenet169-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
 
-  # densenet/pytorch-densenet201-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
-  #   required_pcc: 0.98
+  densenet/pytorch-densenet201-data_parallel-full-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
 
   # yolov9/pytorch-data_parallel-full-inference:
   #   supported_archs: [n300]
