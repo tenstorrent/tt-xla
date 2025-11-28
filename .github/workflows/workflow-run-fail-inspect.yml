@@ -342,30 +342,47 @@ jobs:
           mkdir -p .bisect-run
           cp .github/scripts/download_wheel.sh .bisect-run/
           cp .github/scripts/run_tests.py .bisect-run/
-          source venv/activate
+          source venv/activate >/dev/null
+          found=false
           git bisect start ${{ matrix.build.toc }} ${{ matrix.build.fromc }}
           while true; do
             echo "New iteration of bisect, updating submodules"
             git submodule update --init --recursive
 
             echo "Going with download"
-            exit_code=0
-            set +e
+            out=""
             if .bisect-run/download_wheel.sh; then
               # Run tests
               echo "Running tests"
               if python .bisect-run/run_tests.py -v 2>&1; then
-                git bisect good
-                exit_code=$?
+                out=$(git bisect good || true)
               else
-                git bisect bad
-                exit_code=$?
+                out=$(git bisect bad || true)
               fi
             else
-              git bisect skip
-              exit_code=$?
+              out=$(git bisect skip || true)
             fi
 
+            first_line="$(printf '%s\n' "$out" | head -n1)"
+            case "$first_line" in
+              *"is the first bad commit"*)
+                bad_sha="$(git rev-parse HEAD)"
+                echo "FOUND IT: $first_line"
+                echo "Commit: $bad_sha"
+                echo "Title : $(git log -1 --pretty=%s "$bad_sha")"
+                found=true
+                ;;
+              *"There are only 'skip'ped commits left to test."*)
+                echo "Bisect inconclusive: only skipped commits left."
+                echo "Last bisect output: $first_line"
+                break
+                ;;
+              "")
+                echo "git bisect produced no output; stopping to avoid an infinite loop."
+                echo "Last bisect output: $first_line"
+                break
+                ;;
+            esac
             # Check if bisect is complete
             if [ $exit_code -ne 0 ]; then
               echo "Bisect complete!"

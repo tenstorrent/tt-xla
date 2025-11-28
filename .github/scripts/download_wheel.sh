@@ -28,6 +28,6 @@ fi
 echo "Downloading wheel from run_id $artifacts_run_id name $wheel_artifact_name"
 gh run download "$artifacts_run_id" --repo "tenstorrent/tt-xla" --dir wheels --name "$wheel_artifact_name"
 echo "Installing wheel artifact"
-pip install wheels/*.whl --upgrade
+pip install wheels/*.whl --upgrade --quiet
 rm -rf wheels
 exit 0
