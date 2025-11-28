@@ -88,8 +88,35 @@ def make_easydel_parameters_partition_specs(
     """
     import re
 
+    def jax_path_to_string(path) -> str:
+        """Convert JAX tree path to string representation.
+
+        Args:
+            path: JAX tree path from tree_flatten_with_path
+
+        Returns:
+            String representation of the path (e.g., "transformer/h/0/attn/c_attn/kernel")
+        """
+        return "/".join(
+            (
+                key.name
+                if hasattr(key, "name")
+                else (
+                    str(key.key)
+                    if hasattr(key, "key")
+                    else str(key.idx) if hasattr(key, "idx") else str(key)
+                )
+            )
+            for key in path
+        )
+
     def get_partition_spec_for_param(param_path: str) -> PartitionSpec:
-        """Match param path against partition rules and return appropriate spec."""
+        """Match param path against partition rules and return appropriate spec.
+
+        Note: Partition rules should be ordered from most specific to most general.
+        Put general rules (like r".*") at the end to avoid conflicts between rules.
+        The first matching pattern will be used.
+        """
         for pattern, spec in partition_rules:
             if re.match(pattern, param_path):
                 return spec
@@ -102,20 +129,7 @@ def make_easydel_parameters_partition_specs(
     # Create partition specs for each parameter
     partition_specs = []
     for path, _ in flat_state:
-        # Convert JAX path to string (e.g., "transformer/h/0/attn/c_attn/kernel")
-        # Handle different key types: GetAttrKey has .name, DictKey has .key, SequenceKey has .idx
-        param_path = "/".join(
-            (
-                key.name
-                if hasattr(key, "name")
-                else (
-                    str(key.key)
-                    if hasattr(key, "key")
-                    else str(key.idx) if hasattr(key, "idx") else str(key)
-                )
-            )
-            for key in path
-        )
+        param_path = jax_path_to_string(path)
         spec = get_partition_spec_for_param(param_path)
         partition_specs.append(spec)
 

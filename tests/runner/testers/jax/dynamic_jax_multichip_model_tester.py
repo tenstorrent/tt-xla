@@ -274,8 +274,11 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
             )
 
     def _get_forward_method_name(self) -> str:
-        """Get the forward method name."""
-        # This is solo used for Linen models (AlexNet and MNIST)
+        """Get the forward method name.
+
+        Currently used for our hand-written models (AlexNet and MNIST).
+        """
+
         return "apply"
 
     def _get_input_activations(self):
