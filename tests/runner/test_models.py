@@ -258,30 +258,28 @@ def test_all_models_jax(
             # function in finally block will always be called and handles the pytest.skip.
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
                 if (
-                    model_info.source.name == ModelSource.EASYDEL.name
-                    and parallelism == Parallelism.SINGLE_DEVICE
-                ):
-                    tester = DynamicJaxMultiChipModelTester(
-                        model_loader=loader,
-                        comparison_config=test_metadata.to_comparison_config(),
-                        num_devices=1,
-                    )
-                elif (
                     parallelism == Parallelism.TENSOR_PARALLEL
                     or parallelism == Parallelism.DATA_PARALLEL
                 ):
-                    ####DATAPARALLEL IS SUPPORTED SOLO FOR EASYDEL MODELS####
                     tester = DynamicJaxMultiChipModelTester(
                         model_loader=loader,
                         run_mode=run_mode,
                         comparison_config=test_metadata.to_comparison_config(),
                     )
                 else:
-                    tester = DynamicJaxModelTester(
-                        run_mode,
-                        loader=loader,
-                        comparison_config=test_metadata.to_comparison_config(),
-                    )
+                    if model_info.source.name == ModelSource.EASYDEL.name:
+                        # In EasyDel, single-device models use multi-chip setup with (1,1) mesh
+                        tester = DynamicJaxMultiChipModelTester(
+                            model_loader=loader,
+                            comparison_config=test_metadata.to_comparison_config(),
+                            num_devices=1,
+                        )
+                    else:
+                        tester = DynamicJaxModelTester(
+                            run_mode,
+                            loader=loader,
+                            comparison_config=test_metadata.to_comparison_config(),
+                        )
 
                 comparison_result = tester.test()
 
