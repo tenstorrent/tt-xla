@@ -36,7 +36,7 @@ def get_distributed_worker_path():
 @pytest.mark.multi_host_cluster
 @pytest.mark.parametrize(
     "model_variant",
-    ["llama/causal_lm/pytorch-llama_3_1_8b-tensor_parallel-full-inference"],
+    ["llama/causal_lm/pytorch-llama_3_1_8b-tensor_parallel-inference"],
 )
 def test_multihost_models(model_variant):
     distributed_env = os.environ.copy()
