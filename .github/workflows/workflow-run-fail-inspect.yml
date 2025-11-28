@@ -395,7 +395,7 @@ jobs:
             echo "inconclusive" >> .bisect-result.txt
           fi
           echo "Tests:" >> .bisect-result.txt
-          cat .test-to-run >> .bisect-result.txt
+          cat .tests_to_run >> .bisect-result.txt
           git bisect reset
 
       - name: Upload bisect result
