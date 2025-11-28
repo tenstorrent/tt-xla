@@ -140,7 +140,7 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Await_notReady) {
   auto start_time = std::chrono::steady_clock::now();
   PJRT_Error *error = internal::onEventAwait(&args); // must block for a while
   auto end_time = std::chrono::steady_clock::now();
-  EXPECT_EQ(error, nullptr);
+  ASSERT_EQ(error, nullptr);
   EXPECT_TRUE(event->isReady());
 
   signal_thread.join();
@@ -175,6 +175,7 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_ready) {
 
 // Tests the PJRT API to register a callback for an event that
 // is not immediately ready.
+// TODO(acicovic): Enable the test.
 TEST(EventInstanceUnitTests, DISABLED_API_PJRT_Event_OnReady_notReady) {
   auto event = EventInstance::createInstance();
 
