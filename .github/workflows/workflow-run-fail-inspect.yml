@@ -401,7 +401,7 @@ jobs:
       - name: Upload bisect result
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ matrix.build.runs-on }}-bisect-result
+          name: bisect-result-${{ matrix.build.runs-on }}
           path: .bisect-result.txt
 
   deduct:
@@ -420,7 +420,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          gh run download ${{ github.run_id }} --pattern "*-bisect-result" -D bisect-results
+          gh run download ${{ github.run_id }} -R ${{ github.repository }} --pattern "bisect-result-*" -D bisect-results
 
           # Create associative array to group by bad commit
           declare -A commit_groups
