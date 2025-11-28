@@ -6,6 +6,7 @@ import socket
 
 import pytest
 from infra import RunMode
+from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import (
     DynamicLoader,
     JaxDynamicLoader,
@@ -51,11 +52,6 @@ MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJEC
     ],
 )
 @pytest.mark.parametrize(
-    "op_by_op",
-    [None],
-    ids=["full"],  # When op-by-op flow is required/supported, add here.
-)
-@pytest.mark.parametrize(
     "parallelism",
     [
         pytest.param(
@@ -83,7 +79,6 @@ MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJEC
 def test_all_models_torch(
     test_entry,
     run_mode,
-    op_by_op,
     parallelism,
     record_property,
     test_metadata,
@@ -105,6 +100,12 @@ def test_all_models_torch(
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
+        ir_dump_path = ""
+        # Check if --dump-irs option is enabled
+        if request.config.getoption("--dump-irs", default=False):
+            ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
+        compiler_config = CompilerConfig(export_path=ir_dump_path)
+
         succeeded = False
         comparison_result = None
         tester = None
@@ -118,6 +119,7 @@ def test_all_models_torch(
                     run_mode,
                     loader=loader,
                     comparison_config=test_metadata.to_comparison_config(),
+                    compiler_config=compiler_config,
                     parallelism=parallelism,
                 )
 
@@ -213,11 +215,6 @@ def test_all_models_torch(
     ],
 )
 @pytest.mark.parametrize(
-    "op_by_op",
-    [None],
-    ids=["full"],  # When op-by-op flow is required/supported, add here.
-)
-@pytest.mark.parametrize(
     "parallelism",
     [
         pytest.param(
@@ -245,7 +242,6 @@ def test_all_models_torch(
 def test_all_models_jax(
     test_entry,
     run_mode,
-    op_by_op,
     parallelism,
     record_property,
     test_metadata,
@@ -266,6 +262,12 @@ def test_all_models_jax(
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
+        ir_dump_path = ""
+        # Check if --dump-irs option is enabled
+        if request.config.getoption("--dump-irs", default=False):
+            ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
+        compiler_config = CompilerConfig(export_path=ir_dump_path)
+
         succeeded = False
         comparison_result = None
         tester = None
@@ -283,6 +285,7 @@ def test_all_models_jax(
                         model_loader=loader,
                         run_mode=run_mode,
                         comparison_config=test_metadata.to_comparison_config(),
+                        compiler_config=compiler_config,
                     )
                 else:
                     if model_info.source.name == ModelSource.EASYDEL.name:
@@ -291,12 +294,14 @@ def test_all_models_jax(
                             model_loader=loader,
                             comparison_config=test_metadata.to_comparison_config(),
                             num_devices=1,
+                            #compiler_config=compiler_config
                         )
                     else:
                         tester = DynamicJaxModelTester(
                             run_mode,
                             loader=loader,
                             comparison_config=test_metadata.to_comparison_config(),
+                            compiler_config=compiler_config,
                         )
 
                 comparison_result = tester.test()
