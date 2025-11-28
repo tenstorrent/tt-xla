@@ -786,6 +786,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 end_index = start_index + self.num_reqs_most_model_len
             else:
                 end_index = num_reqs
+        print(f"self.num_reqs_most_model_len: {self.num_reqs_most_model_len}")
+        print(f"self.num_reqs_max_model_len: {self.num_reqs_max_model_len}")
+        print(f"use_max_model_len: {use_max_model_len}")
+        print(f"num_scheduled_tokens_per_req: {num_scheduled_tokens_per_req}")
         max_num_scheduled_tokens_all_reqs = max(num_scheduled_tokens_per_req)
         num_scheduled_tokens_per_req = np.array(
             num_scheduled_tokens_per_req, dtype=np.int32
@@ -890,7 +894,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
-
+        print(f"page_table: {page_table}")
+        print(f"cache_position: {cache_position}")
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
