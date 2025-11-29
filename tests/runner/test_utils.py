@@ -5,11 +5,13 @@
 import collections
 import importlib.util
 import inspect
+import json
 import numbers
 import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pytest
@@ -275,6 +277,7 @@ def record_model_test_properties(
     test_passed: bool = False,
     comparison_result=None,
     comparison_config=None,
+    perf_stats=None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -397,7 +400,15 @@ def record_model_test_properties(
                 "atol_assertion_enabled": comparison_config.atol.enabled,
             }
         )
-
+    if perf_stats is not None:
+        tags.update(
+            {
+                "e2e_perf_warmup_iters": perf_stats["warmup_iters"],
+                "e2e_perf_iters": perf_stats["perf_iters"],
+                "e2e_perf_total_time": perf_stats["total_time"],
+                "e2e_perf_avg_time": perf_stats["avg_time"],
+            }
+        )
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
     if reason:
@@ -414,3 +425,93 @@ def record_model_test_properties(
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         pytest.xfail(reason)
+
+
+def create_measurement(
+    step_name: str,
+    measurement_name: str,
+    step_warm_up_num_iterations: int = 1,
+    iteration: int = 1,
+    value: float = 0.0,
+    target: float = -1.0,
+) -> Dict[str, Any]:
+    """Create a single perf measurement dictionary."""
+    return {
+        "step_name": step_name,
+        "measurement_name": measurement_name,
+        "step_warm_up_num_iterations": step_warm_up_num_iterations,
+        "iteration": iteration,
+        "value": value,
+        "target": target,
+    }
+
+
+def create_benchmark_result(
+    full_model_name: str,
+    measurements: List[Dict[str, Any]],
+    model_type: str = "generic",
+    training: bool = False,
+    model_info: str = "",
+    device_name: str = "",
+) -> Dict[str, Any]:
+    """Create a standardized benchmark result dictionary."""
+
+    # Extract e2e stats from the passed measurements list
+    metric_list = []
+
+    if measurements and len(measurements) > 0:
+        # extract e2e perf stats and create measurements using them
+        perf_stats = measurements[0]
+        warmup_iters = perf_stats["warmup_iters"]
+        perf_iters = perf_stats["perf_iters"]
+        metric_list.append(
+            create_measurement(
+                "e2e_perf",
+                "total_time",
+                warmup_iters,
+                perf_iters,
+                perf_stats["total_time"],
+            )
+        )
+        metric_list.append(
+            create_measurement(
+                "e2e_perf", "avg_time", warmup_iters, perf_iters, perf_stats["avg_time"]
+            )
+        )
+
+    config = {
+        "model_size": "small",
+        "model_info": model_info,
+    }
+
+    benchmark_results = {
+        "model": full_model_name,
+        "model_type": model_type,
+        "run_type": f"{'_'.join(full_model_name.split())}_{device_name}",
+        "config": config,
+        "measurements": metric_list,
+        "device_info": {
+            "device_name": device_name,
+        },
+        "training": training,
+        "project": "tt-xla",
+    }
+
+    # Setup output directory matching call-test.yml
+    benchmark_output_dir = "test_reports_benchmarks"
+    os.makedirs(benchmark_output_dir, exist_ok=True)
+
+    # Add metadata required for collect_data parser
+    benchmark_results["project"] = "tt-xla"
+    benchmark_results["model_rawname"] = full_model_name
+
+    # Get JOB_ID from environment, default to a placeholder if running locally
+    job_id = os.environ.get("JOB_ID", "00000")
+    safe_model_name = full_model_name.replace("/", "_").replace(" ", "_")
+    json_filename = f"benchmark_results_{safe_model_name}_{job_id}.json"
+    # Ensure filename ends with _<job_id>.json as required by collect_data
+    json_path = os.path.join(benchmark_output_dir, json_filename)
+
+    with open(json_path, "w") as file:
+        json.dump(benchmark_results, file, indent=2)
+        print(f"Benchmark results saved to {json_path}")

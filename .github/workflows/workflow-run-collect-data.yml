@@ -40,6 +40,9 @@ jobs:
           run_attempt: ${{ github.event.workflow_run.run_attempt }}
           sftp_host: ${{ secrets.SFTP_CICD_WRITER_HOSTNAME }}
           sftp_user: ${{ secrets.SFTP_CICD_WRITER_USERNAME }}
+          # ADDED: Performance data upload credentials
+          sftp_perf_host: ${{ secrets.SFTP_PERF_WRITER_HOSTNAME }}
+          sftp_perf_user: ${{ secrets.SFTP_PERF_WRITER_USERNAME }}
           ssh-private-key: ${{ secrets.SFTP_CICD_WRITER_KEY }}
 
       - name: Collect CI/CD data (from workflow_dispatch)
@@ -51,4 +54,7 @@ jobs:
           run_attempt: ${{ github.event.inputs.run_attempt }}
           sftp_host: ${{ secrets.SFTP_CICD_WRITER_HOSTNAME }}
           sftp_user: ${{ secrets.SFTP_CICD_WRITER_USERNAME }}
+          # ADDED: Performance data upload credentials
+          sftp_perf_host: ${{ secrets.SFTP_PERF_WRITER_HOSTNAME }}
+          sftp_perf_user: ${{ secrets.SFTP_PERF_WRITER_USERNAME }}
           ssh-private-key: ${{ secrets.SFTP_CICD_WRITER_KEY }}
