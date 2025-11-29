@@ -52,3 +52,7 @@ PUBLIC
 target_link_directories(TTPJRTApi PUBLIC
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib
 )
+
+set_target_properties(TTPJRTApi PROPERTIES
+    UNIT_TESTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/unit_tests"
+)

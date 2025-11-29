@@ -20,8 +20,7 @@ endif()
 # DEVNOTE: googletest is a CMake project with well-exposed targets and a
 # dependency needed only for testing, so it will not be added to this repository
 # as an external source tree in /third_party.
-FetchContent_Declare(
-    googletest
+FetchContent_Declare(googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
     GIT_TAG v1.14.0
     GIT_SHALLOW ON
@@ -29,13 +28,34 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(googletest)
 
-add_executable(TTPJRTTests
-    test_utils.cc
-)
+add_executable(TTPJRTTests test_main.cc)
+
+# Gather all test sources (various unit test and mock test directories.)
+
+get_target_property(API_UNIT_TESTS_DIR TTPJRTApi UNIT_TESTS_DIR)
+if(API_UNIT_TESTS_DIR)
+    file(GLOB API_UNIT_TESTS_SRC CONFIGURE_DEPENDS ${API_UNIT_TESTS_DIR}/*.cc)
+    target_sources(TTPJRTTests
+        PRIVATE
+            ${API_UNIT_TESTS_SRC}
+    )
+    # TODO(acicovic): Can we avoid enforcing a directory name for include files?
+    target_include_directories(TTPJRTTests
+        PRIVATE
+            ${API_UNIT_TESTS_DIR}/inc
+    )
+endif()
+
+get_target_property(UTILS_UNIT_TESTS_DIR TTPJRTUtils UNIT_TESTS_DIR)
+if(UTILS_UNIT_TESTS_DIR)
+    file(GLOB UTILS_UNIT_TESTS_SRC CONFIGURE_DEPENDS ${UTILS_UNIT_TESTS_DIR}/*.cc)
+    target_sources(TTPJRTTests
+        PRIVATE
+            ${UTILS_UNIT_TESTS_SRC}
+    )
+endif()
 
 # Link with gtest and TT's PJRT libraries.
-# DEVNOTE: TTPJRTApi has a dependency on TTPJRTUtils, which will not be linked
-# explicitly, but it will be covered by a test suite.
 target_link_libraries(TTPJRTTests
     PRIVATE
         GTest::gtest
@@ -43,6 +63,7 @@ target_link_libraries(TTPJRTTests
         GTest::gmock
     PUBLIC
         TTPJRTApi
+        TTPJRTUtils
 )
 
 # Register tests with CTest.

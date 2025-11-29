@@ -47,16 +47,8 @@ Use CTest (CMake's test driver) to run all tests:
 ctest --test-dir build/ -R PJRT -V
 ```
 
-> TODO(acicovic): We should alias these commands somehow in venv.
+TODO(acicovic): We should alias these commands somehow in venv.
 
 ## CI
 
 TODO(acicovic).
-
-## Not Yet Implemented
-
-These tests don't require TT hardware, and could be built and executed locally:
-
-- Would help speed-up PJRT PRs, including refactors.
-- Would help speed-up testing / investigation of specific error situations
-that are hard to trigger in integration tests.
