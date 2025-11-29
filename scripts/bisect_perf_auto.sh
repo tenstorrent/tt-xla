@@ -264,32 +264,182 @@ TTMLIR_COMMIT_DATE=$(git log --format='%ad' -n 1 "$FIRST_BAD_TTMLIR")
 
 git bisect reset
 
+# Check if the bad tt-mlir commit is a tt-metal uplift
+log ""
+log "Checking if tt-mlir commit is a tt-metal uplift..."
+
+# Navigate to tt-mlir third_party directory to check TT_METAL_VERSION
+TTMLIR_THIRD_PARTY_DIR="$TTMLIR_DIR/third_party"
+cd "$TTMLIR_THIRD_PARTY_DIR"
+
+# Extract TT_METAL_VERSION from bad commit and its parent
+git checkout "$FIRST_BAD_TTMLIR" --quiet 2>/dev/null || true
+BAD_TTMETAL_VERSION=$(grep 'set(TT_METAL_VERSION' CMakeLists.txt | grep -oP '"\K[^"]+' | head -1 | tr -d '\n\r')
+log "Bad commit TT_METAL_VERSION: '$BAD_TTMETAL_VERSION'"
+
+git checkout "${FIRST_BAD_TTMLIR}^" --quiet 2>/dev/null || true
+PARENT_TTMETAL_VERSION=$(grep 'set(TT_METAL_VERSION' CMakeLists.txt | grep -oP '"\K[^"]+' | head -1 | tr -d '\n\r')
+log "Parent commit TT_METAL_VERSION: '$PARENT_TTMETAL_VERSION'"
+
+# Return to bad commit
+git checkout "$FIRST_BAD_TTMLIR" --quiet 2>/dev/null || true
+
+# Compare versions
+IS_TTMETAL_UPLIFT=0
+if [ -n "$BAD_TTMETAL_VERSION" ] && [ -n "$PARENT_TTMETAL_VERSION" ]; then
+    BAD_LEN=${#BAD_TTMETAL_VERSION}
+    PARENT_LEN=${#PARENT_TTMETAL_VERSION}
+    MIN_LEN=$((BAD_LEN < PARENT_LEN ? BAD_LEN : PARENT_LEN))
+
+    BAD_PREFIX="${BAD_TTMETAL_VERSION:0:$MIN_LEN}"
+    PARENT_PREFIX="${PARENT_TTMETAL_VERSION:0:$MIN_LEN}"
+
+    log "Comparing prefixes (length $MIN_LEN): '$PARENT_PREFIX' vs '$BAD_PREFIX'"
+
+    if [ "$BAD_PREFIX" != "$PARENT_PREFIX" ]; then
+        log "✓ Detected tt-metal version change: $PARENT_TTMETAL_VERSION -> $BAD_TTMETAL_VERSION"
+        IS_TTMETAL_UPLIFT=1
+    else
+        log "Versions are the same (no tt-metal uplift detected)"
+    fi
+else
+    log "Could not extract TT_METAL_VERSION from one or both commits"
+fi
+
 # Return to tt-xla root
 cd "$TTXLA_ROOT"
 git checkout "$BAD_COMMIT" --quiet
 
-# Final summary
+if [ $IS_TTMETAL_UPLIFT -eq 0 ]; then
+    # Final summary - tt-mlir regression
+    log ""
+    log "════════════════════════════════════════"
+    log "FINAL RESULT"
+    log "════════════════════════════════════════"
+    log ""
+    log "Root Cause Found in tt-mlir:"
+    log "  Commit:  $FIRST_BAD_TTMLIR_SHORT"
+    log "  Author:  $TTMLIR_COMMIT_AUTHOR"
+    log "  Date:    $TTMLIR_COMMIT_DATE"
+    log "  Message: $TTMLIR_COMMIT_MSG"
+    log ""
+    log "This commit was introduced to tt-xla in:"
+    log "  Commit:  $FIRST_BAD_COMMIT_SHORT"
+    log "  Message: $COMMIT_MSG"
+    log ""
+    log "View tt-mlir commit: cd $TTMLIR_DIR && git show $FIRST_BAD_TTMLIR_SHORT"
+    log "View tt-xla commit:  git show $FIRST_BAD_COMMIT_SHORT"
+    log ""
+    log "All logs saved to: $LOG_DIR"
+    log "Main log: $MAIN_LOG"
+    log "tt-mlir test logs: /tmp/bisect_ttmlir_*.log"
+    log "════════════════════════════════════════"
+    exit 0
+fi
+
+# Phase 3: Bisect tt-metal
+log ""
+log_separator
+log "PHASE 3: Bisecting tt-metal commits"
+log_separator
+
+# Good and bad tt-metal versions already extracted
+GOOD_TTMETAL="$PARENT_TTMETAL_VERSION"
+BAD_TTMETAL="$BAD_TTMETAL_VERSION"
+
+log "Good tt-metal version: $GOOD_TTMETAL"
+log "Bad tt-metal version: $BAD_TTMETAL"
+
+if [ "$GOOD_TTMETAL" = "$BAD_TTMETAL" ]; then
+    log "ERROR: tt-metal versions are the same in good and bad commits!"
+    log "Cannot bisect tt-metal."
+    exit 1
+fi
+
+# Go to tt-metal submodule
+TTMETAL_DIR="$TTMLIR_DIR/third_party/tt-metal/src/tt-metal"
+if [ ! -d "$TTMETAL_DIR" ]; then
+    log "ERROR: tt-metal directory not found: $TTMETAL_DIR"
+    exit 1
+fi
+
+cd "$TTMETAL_DIR"
+log "Changed to tt-metal directory: $(pwd)"
+
+# Ensure we have the commits
+git fetch origin 2>&1 | tee -a "$MAIN_LOG"
+
+# Start bisect in tt-metal
+log ""
+log "Starting git bisect in tt-metal..."
+git bisect start
+git bisect bad "$BAD_TTMETAL"
+git bisect good "$GOOD_TTMETAL"
+
+log "Running tt-metal bisect with performance tests..."
+TTMETAL_BISECT_SCRIPT="$SCRIPT_DIR/bisect_ttmetal_perf.sh"
+TTMETAL_BISECT_ARGS="-c \"$BENCHMARK_COMMAND\" -t \"$PERF_THRESHOLD\" -p \"$METRIC_PATTERN\""
+
+# Use the tt-mlir uplift commit as reference for fixing build failures
+TTMETAL_BISECT_ARGS="$TTMETAL_BISECT_ARGS -f \"$FIRST_BAD_TTMLIR\""
+log "Using tt-mlir commit $FIRST_BAD_TTMLIR_SHORT as build fix reference"
+
+if [ -n "$REVERT_COMMIT" ]; then
+    TTMETAL_BISECT_ARGS="$TTMETAL_BISECT_ARGS -r \"$REVERT_COMMIT\""
+fi
+
+# Run the bisect and capture output
+eval "git bisect run \"$TTMETAL_BISECT_SCRIPT\" $TTMETAL_BISECT_ARGS" 2>&1 | tee -a "$MAIN_LOG"
+
+# Capture the first bad tt-metal commit
+FIRST_BAD_TTMETAL=$(git bisect view --pretty=format:'%H' | head -1)
+FIRST_BAD_TTMETAL_SHORT=$(git rev-parse --short "$FIRST_BAD_TTMETAL")
+
+log ""
+log_separator
+log "tt-metal bisect completed!"
+log "First bad tt-metal commit: $FIRST_BAD_TTMETAL_SHORT"
+log_separator
+
+# Get commit details
+TTMETAL_COMMIT_MSG=$(git log --format=%s -n 1 "$FIRST_BAD_TTMETAL")
+TTMETAL_COMMIT_AUTHOR=$(git log --format='%an' -n 1 "$FIRST_BAD_TTMETAL")
+TTMETAL_COMMIT_DATE=$(git log --format='%ad' -n 1 "$FIRST_BAD_TTMETAL")
+
+git bisect reset
+
+# Return to tt-xla root
+cd "$TTXLA_ROOT"
+git checkout "$BAD_COMMIT" --quiet
+
+# Final summary - tt-metal regression
 log ""
 log "════════════════════════════════════════"
 log "FINAL RESULT"
 log "════════════════════════════════════════"
 log ""
-log "Root Cause Found in tt-mlir:"
+log "Root Cause Found in tt-metal:"
+log "  Commit:  $FIRST_BAD_TTMETAL_SHORT"
+log "  Author:  $TTMETAL_COMMIT_AUTHOR"
+log "  Date:    $TTMETAL_COMMIT_DATE"
+log "  Message: $TTMETAL_COMMIT_MSG"
+log ""
+log "This commit was introduced to tt-mlir in:"
 log "  Commit:  $FIRST_BAD_TTMLIR_SHORT"
-log "  Author:  $TTMLIR_COMMIT_AUTHOR"
-log "  Date:    $TTMLIR_COMMIT_DATE"
 log "  Message: $TTMLIR_COMMIT_MSG"
 log ""
-log "This commit was introduced to tt-xla in:"
+log "Which was introduced to tt-xla in:"
 log "  Commit:  $FIRST_BAD_COMMIT_SHORT"
 log "  Message: $COMMIT_MSG"
 log ""
+log "View tt-metal commit: cd $TTMETAL_DIR && git show $FIRST_BAD_TTMETAL_SHORT"
 log "View tt-mlir commit: cd $TTMLIR_DIR && git show $FIRST_BAD_TTMLIR_SHORT"
 log "View tt-xla commit:  git show $FIRST_BAD_COMMIT_SHORT"
 log ""
 log "All logs saved to: $LOG_DIR"
 log "Main log: $MAIN_LOG"
-log "Individual test logs: $LOG_DIR/bisect_ttmlir_*.log"
+log "tt-mlir test logs: /tmp/bisect_ttmlir_*.log"
+log "tt-metal test logs: /tmp/bisect_ttmetal_*.log"
 log "════════════════════════════════════════"
 
 exit 0
