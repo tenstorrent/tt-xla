@@ -36,6 +36,7 @@ jobs:
             echo "working for $wf_name"
             # get json of the last $num workflow runs
             gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
+            cat runs.json
 
             counter=0
             while true; do
