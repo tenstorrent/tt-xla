@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 from loguru import logger
 
+from tests.infra.utilities.types import Framework
+
 
 @dataclass
 class ModelTestEntry:
@@ -21,6 +23,7 @@ class ModelTestEntry:
 
     path: str
     variant_info: tuple
+    framework: Framework
 
 
 class DynamicLoader:
@@ -299,7 +302,11 @@ class DynamicLoader:
                         continue
 
                 test_entries.append(
-                    ModelTestEntry(path=loader_path, variant_info=variant_info)
+                    ModelTestEntry(
+                        path=loader_path,
+                        variant_info=variant_info,
+                        framework=cls.framework,
+                    )
                 )
 
         return test_entries
@@ -344,6 +351,8 @@ class TorchDynamicLoader(DynamicLoader):
     This class provides PyTorch-specific test discovery functionality,
     particularly for discovering PyTorch model loader files.
     """
+
+    framework = Framework.TORCH
 
     def load_model(self) -> Any:
         """Load model from the loader with dtype override support for bfloat16.
@@ -443,6 +452,8 @@ class JaxDynamicLoader(DynamicLoader):
     This class provides JAX-specific test discovery functionality,
     particularly for discovering JAX model loader files.
     """
+
+    framework = Framework.JAX
 
     @classmethod
     def discover_loader_paths(cls, models_root: str) -> Dict:
