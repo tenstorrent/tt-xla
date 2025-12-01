@@ -28,10 +28,18 @@ test_config:
   vovnet/pytorch-vovnet39_th-single_device-full-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
   vovnet/pytorch-vovnet57_th-single_device-full-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
   hardnet/pytorch-single_device-full-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -1242,8 +1250,8 @@ test_config:
     reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
 
   deepseek/pytorch-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266"
+    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    reason: "ttir.scatter does not work - https://github.com/tenstorrent/tt-xla/issues/2391"
 
   gemma/pytorch-google/gemma-1.1-2b-it-single_device-full-inference:
     status: EXPECTED_PASSING
