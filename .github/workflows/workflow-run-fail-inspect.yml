@@ -453,23 +453,13 @@ jobs:
               commit=$(basename "$commit_file")
               tests=$(cat "$commit_file")
 
-              # get commit image link
-              html=$(curl -s "https://github.com/${{ github.repository}}/commit/$commit")
-              commitimg=$(echo "$html" | grep -oP '(?<=<meta name="twitter:image" content=")[^"]*')
-              echo "$commit, imgurl: $commitimg, tests: $tests"
-
-              echo "## Commit: [$commit](https://github.com/${{ github.repository }}/commit/$commit)<img src=\"$commitimg\" width=\"25%\" align=\"right\"/>" >> .bisect-report.md
-              echo "" >> .bisect-report.md
-              echo "### Failed Tests" >> .bisect-report.md
-              echo "" >> .bisect-report.md
-              echo "\`\`\`" >> .bisect-report.md
-              echo "$tests" >> .bisect-report.md
-              echo "\`\`\`" >> .bisect-report.md
-              echo "" >> .bisect-report.md
-
               echo "\"commit$commit_count\": \"$commit\",\"tests$commit_count\": \"$(echo "$tests")\"," >> .bisect-msg.json
               ((commit_count++))
             fi
+          done
+          while [[ $commit_count -lt 7 ]]; do
+            echo "\"commit$commit_count\": \"\",\"tests$commit_count\": \"\"," >> .bisect-msg.json
+            ((commit_count++))
           done
           cat .bisect-report.md >> $GITHUB_STEP_SUMMARY
           rm -rf bisect-commits
