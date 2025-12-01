@@ -389,21 +389,21 @@ jobs:
           bad_commit=$(git rev-parse HEAD)
           title=$(git log -1 --pretty=%s "$bad_commit")
           git bisect reset
-          echo "$bad_commit" > .bisect-result.txt
-          echo "Title: $title" >> .bisect-result.txt
+          echo "$bad_commit" > .bisect-run/.bisect-result.txt
+          echo "Title: $title" >> .bisect-run/.bisect-result.txt
           if [ "$found" = true ]; then
-            echo "found" >> .bisect-result.txt
+            echo "found" >> .bisect-run/.bisect-result.txt
           else
-            echo "inconclusive" >> .bisect-result.txt
+            echo "inconclusive" >> .bisect-run/.bisect-result.txt
           fi
-          echo "Tests:" >> .bisect-result.txt
-          cat .tests_to_run >> .bisect-result.txt
+          echo "Tests:" >> .bisect-run/.bisect-result.txt
+          cat .tests_to_run >> .bisect-run/.bisect-result.txt
 
       - name: Upload bisect result
         uses: actions/upload-artifact@v5
         with:
           name: bisect-result-${{ matrix.build.runs-on }}
-          path: .bisect-result.txt
+          path: .bisect-run/.bisect-result.txt
 
   deduct:
     needs: test
