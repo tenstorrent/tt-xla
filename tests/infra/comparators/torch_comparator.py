@@ -69,7 +69,13 @@ class TorchComparator(Comparator):
             return 1.0  # Perfect correlation when values are essentially identical
 
         # Calculate PCC for non-identical values
-        leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
+        logits = getattr(device_output, "logits", None)
+        if logits is not None:
+            leaf_pccs = tree_map(
+                compute_pcc, device_output.logits, golden_output.logits
+            )
+        else:
+            leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
         pcc = min(flat_pccs)
         return float(pcc)
