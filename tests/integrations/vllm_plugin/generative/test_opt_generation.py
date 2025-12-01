@@ -23,10 +23,11 @@ def test_opt_generation():
             "min_context_len": 32,
         },
     }
+    
     llm = vllm.LLM(**llm_args)
-
-    output_text1 = llm.generate(prompts, sampling_params)[0].outputs[0].text
-    output_text2 = llm.generate(prompts, sampling_params)[1].outputs[0].text
+    output = llm.generate(prompts, sampling_params)
+    output_text1 = output[0].outputs[0].text
+    output_text2 = output[1].outputs[0].text
     # output = llm.embed(prompts)
     print(f"prompt: {prompts[0]}, output: {output_text1}")
     print(f"prompt: {prompts[1]}, output: {output_text2}")

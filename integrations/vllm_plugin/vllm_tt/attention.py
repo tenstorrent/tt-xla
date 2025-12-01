@@ -421,7 +421,6 @@ class TTAttentionBackendImpl(AttentionImpl):
             attn_mask=attn_metadata.attn_mask,
         )
         # out: assumed to be [query_num_tokens, users, num_heads, head_size]
-        out = out.transpose(-3, -2)  # [query_num_tokens, users, head_size, num_heads]
         out = out.transpose(0, 1)  # [users, query_num_tokens, head_size, num_heads]
         out = out.reshape(
             users, query_num_tokens, -1

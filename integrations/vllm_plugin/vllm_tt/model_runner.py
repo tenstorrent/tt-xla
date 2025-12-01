@@ -87,7 +87,6 @@ from .attention import (
 from .logger import tt_init_logger
 from .platform import TTConfig
 
-
 def add_kv_sharing_layers_to_kv_cache_groups(
     shared_kv_cache_layers: dict[str, str],
     kv_cache_groups: list[KVCacheGroupSpec],
@@ -197,7 +196,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         device: torch.device,
         original_parallel_config: Optional[ParallelConfig] = None,
     ):
-
         self.tt_config = TTConfig(**vllm_config.additional_config)
         torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
 
@@ -786,6 +784,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 end_index = start_index + self.num_reqs_most_model_len
             else:
                 end_index = num_reqs
+
         print(f"self.num_reqs_most_model_len: {self.num_reqs_most_model_len}")
         print(f"self.num_reqs_max_model_len: {self.num_reqs_max_model_len}")
         print(f"use_max_model_len: {use_max_model_len}")
@@ -894,6 +893,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
+        print(f"req_ids in this batch: {self.input_batch.req_ids[start_index:end_index]}")
         print(f"page_table: {page_table}")
         print(f"cache_position: {cache_position}")
         attn_metadata = TTMetadata(

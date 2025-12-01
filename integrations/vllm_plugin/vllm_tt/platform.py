@@ -26,7 +26,6 @@ from .logger import tt_init_logger
 
 logger = tt_init_logger(__name__)
 
-
 @dataclass
 class TTConfig:
     # We allow the user of the plugin to toggle consteval in tt-mlir. We would like for this to be on at all times as it results in a more performant model.
@@ -48,8 +47,6 @@ class TTConfig:
         return {
             "enable_const_eval": self.enable_const_eval,
         }
-
-
 class TTPlatform(Platform):
     _enum = PlatformEnum.OOT
     device_name: str = "xla"
@@ -131,7 +128,8 @@ class TTPlatform(Platform):
     @classmethod
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationLevel, CUDAGraphMode
-
+        from .AscendScheduler import AscendScheduler
+        vllm_config.scheduler_config.scheduler_cls = "vllm_tt.AscendScheduler.AscendScheduler"
         cache_config = vllm_config.cache_config
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
