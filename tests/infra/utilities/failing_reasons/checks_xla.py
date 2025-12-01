@@ -7,7 +7,7 @@
 from enum import Enum
 from typing import Optional
 
-from .utils import ExceptionCheck, FailingReason, M
+from .utils import ME, ExceptionCheck, FailingReason, M
 
 
 class ComponentChecker(Enum):
@@ -478,6 +478,12 @@ class FailingReasons(Enum):
                     ),
                     M.last_line(M.contains("tt_torch/backend/backend.py:")),
                 ],
+                summary=[
+                    ME.regex(
+                        "(# This tells torch-xla to cut the graph at only what is required to)"
+                    ),
+                    ME.regex("(# compute all tensors in the `output` list.)"),
+                ],
             ),
         ],
     )
@@ -556,6 +562,11 @@ class FailingReasons(Enum):
                         M.regex(
                             "Out of Memory: Not enough space to allocate .* B (?:L1|L1_SMALL|DRAM) buffer across .* banks"
                         ),
+                    ),
+                ],
+                summary=[
+                    ME.regex(
+                        ME.regex("\\s+info:\\s*\\nE\\s+(Out of Memory:[^\\n]*)"),
                     ),
                 ],
             ),
