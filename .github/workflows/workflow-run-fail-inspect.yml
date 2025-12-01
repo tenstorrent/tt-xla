@@ -427,7 +427,8 @@ jobs:
           gh run download ${{ github.run_id }} -R ${{ github.repository }} --pattern "bisect-result-*" -D bisect-results
 
           # Create associative array to group by bad commit
-          declare -A commit_groups
+          rm -rf .bisect-commits
+          mkdir -p .bisect-commits
 
           find bisect-results -name ".bisect-result.txt" | while read -r file; do
             bad_commit=$(head -n1 "$file")
@@ -436,32 +437,38 @@ jobs:
             echo "Tests:"
             echo "$tests"
 
-            # Add tests to the commit group
-            if [[ -n "${commit_groups[$bad_commit]}" ]]; then
-              commit_groups[$bad_commit]+=$'\n'"$tests"
+            # Check if commit file already exists
+            if [[ -f ".bisect-commits/$bad_commit" ]]; then
+              echo "$tests" >> ".bisect-commits/$bad_commit"
             else
-              commit_groups[$bad_commit]="$tests"
+              echo "$tests" > ".bisect-commits/$bad_commit"
             fi
           done
 
           # Create markdown file for this commit
           echo "# Bad Commit Analysis" > .bisect-report.md
           echo "" >> .bisect-report.md
-          for commit in "${!commit_groups[@]}"; do
-            # get commit image link
-            html=$(curl -s "https://github.com/${{ github.repository}}/commit/$commit")
-            commitimg=$(echo "$html" | grep -oP '(?<=<meta name="twitter:image" content=")[^"]*')
-            echo "$commit, imgurl: $commitimg, tests: ${commit_groups[$commit]}"
+          for commit_file in .bisect-commits/*; do
+            if [[ -f "$commit_file" ]]; then
+              commit=$(basename "$commit_file")
+              tests=$(cat "$commit_file")
 
-            echo "- Commit: [$commit](https://github.com/${{ github.repository }}/commit/$commit) <img src=\"$commitimg\" width=\"25%\" align=\"right\"/>" >> .bisect-report.md
-            echo "  <details>" >> .bisect-report.md
-            echo "  <summary>Failed Tests</summary>" >> .bisect-report.md
-            echo "" >> .bisect-report.md
-            echo "\`\`\`" >> .bisect-report.md
-            echo "${commit_groups[$commit]}" >> .bisect-report.md
-            echo "\`\`\`" >> .bisect-report.md
-            echo "" >> .bisect-report.md
-            echo "</details>" >> .bisect-report.md
-            echo "" >> .bisect-report.md
+              # get commit image link
+              html=$(curl -s "https://github.com/${{ github.repository}}/commit/$commit")
+              commitimg=$(echo "$html" | grep -oP '(?<=<meta name="twitter:image" content=")[^"]*')
+              echo "$commit, imgurl: $commitimg, tests: $tests"
+
+              echo "- Commit: [$commit](https://github.com/${{ github.repository }}/commit/$commit) <img src=\"$commitimg\" width=\"25%\" align=\"right\"/>" >> .bisect-report.md
+              echo "  <details>" >> .bisect-report.md
+              echo "  <summary>Failed Tests</summary>" >> .bisect-report.md
+              echo "" >> .bisect-report.md
+              echo "\`\`\`" >> .bisect-report.md
+              echo "$tests" >> .bisect-report.md
+              echo "\`\`\`" >> .bisect-report.md
+              echo "" >> .bisect-report.md
+              echo "</details>" >> .bisect-report.md
+              echo "" >> .bisect-report.md
+            fi
           done
           cat .bisect-report.md >> $GITHUB_STEP_SUMMARY
+          rm -rf bisect-commits
