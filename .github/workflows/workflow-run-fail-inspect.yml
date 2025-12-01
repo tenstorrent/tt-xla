@@ -400,10 +400,6 @@ jobs:
           cat .tests_to_run >> .bisect-run/.bisect-result.txt
           echo "Bisect result:"
           cat .bisect-run/.bisect-result.txt
-          echo "ls workspace"
-          ls -la ${GITHUB_WORKSPACE}
-          echo "ls .bisect-run/"
-          ls -la .bisect-run/
 
       - name: Upload bisect result
         uses: actions/upload-artifact@v5
@@ -436,6 +432,9 @@ jobs:
           find bisect-results -name ".bisect-result.txt" | while read -r file; do
             bad_commit=$(head -n1 "$file")
             tests=$(tail -n +5 "$file")
+            echo "Bad commit: $bad_commit"
+            echo "Tests:"
+            echo "$tests"
 
             # Add tests to the commit group
             if [[ -n "${commit_groups[$bad_commit]}" ]]; then
@@ -450,8 +449,9 @@ jobs:
           echo "" >> .bisect-report.md
           for commit in "${!commit_groups[@]}"; do
             # get commit image link
-            html=$(curl -s "https://github.com/$repo/commit/$commit")
+            html=$(curl -s "https://github.com/${{ github.repository}}/commit/$commit")
             commitimg=$(echo "$html" | grep -oP '(?<=<meta name="twitter:image" content=")[^"]*')
+            echo "$commit, imgurl: $commitimg, tests: ${commit_groups[$commit]}"
 
             echo "- Commit: [$commit](https://github.com/${{ github.repository }}/commit/$commit) <img src=\"$commitimg\" width=\"25%\" align=\"right\"/>" >> .bisect-report.md
             echo "  <details>" >> .bisect-report.md
