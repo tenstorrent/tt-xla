@@ -412,13 +412,6 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Setup python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - uses: actions/checkout@v6
-
       - name: Deduct bad commits
         shell: bash
         env:
@@ -458,16 +451,15 @@ jobs:
               commitimg=$(echo "$html" | grep -oP '(?<=<meta name="twitter:image" content=")[^"]*')
               echo "$commit, imgurl: $commitimg, tests: $tests"
 
-              echo "- Commit: [$commit](https://github.com/${{ github.repository }}/commit/$commit) <img src=\"$commitimg\" width=\"25%\" align=\"right\"/>" >> .bisect-report.md
-              echo "  <details>" >> .bisect-report.md
-              echo "  <summary>Failed Tests</summary>" >> .bisect-report.md
+              echo "<details><summary>Commit: [$commit](https://github.com/${{ github.repository }}/commit/$commit)</summary>" >> .bisect-report.md
               echo "" >> .bisect-report.md
+              echo "### Failed Tests" >> .bisect-report.md
+              echo "" >> .bisect-report.md
+              echo "<img src=\"$commitimg\" width=\"25%\" align=\"right\"/>" >> .bisect-report.md
               echo "\`\`\`" >> .bisect-report.md
               echo "$tests" >> .bisect-report.md
               echo "\`\`\`" >> .bisect-report.md
-              echo "" >> .bisect-report.md
               echo "</details>" >> .bisect-report.md
-              echo "" >> .bisect-report.md
             fi
           done
           cat .bisect-report.md >> $GITHUB_STEP_SUMMARY
