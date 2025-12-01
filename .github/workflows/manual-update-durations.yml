@@ -32,7 +32,6 @@ jobs:
             local conclusions="$2"
             local num=5
 
-            echo "working for $wf_name"
             # get json of the last $num workflow runs
             gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
 
@@ -85,8 +84,8 @@ jobs:
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           base: main
-          commit-message: "Update test durations based on latest nightly ${{ steps.get-test-durations.outputs.TODAY }}"
-          title: "Update test durations based on latest nightly ${{ steps.get-test-durations.outputs.TODAY }}"
+          commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
+          title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
           body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
           labels: tooling
           delete-branch: true
