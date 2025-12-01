@@ -398,12 +398,18 @@ jobs:
           fi
           echo "Tests:" >> .bisect-run/.bisect-result.txt
           cat .tests_to_run >> .bisect-run/.bisect-result.txt
+          echo "Bisect result:"
+          cat .bisect-run/.bisect-result.txt
+          echo "ls workspace"
+          ls -la ${GITHUB_WORKSPACE}
+          echo "ls .bisect-run/"
+          ls -la .bisect-run/
 
       - name: Upload bisect result
         uses: actions/upload-artifact@v5
         with:
           name: bisect-result-${{ matrix.build.runs-on }}
-          path: .bisect-run/.bisect-result.txt
+          path: ./.bisect-run/.bisect-result.txt
 
   deduct:
     needs: test
