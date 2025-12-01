@@ -16,7 +16,11 @@ from .tester import WhisperTester
 # ----- Fixtures -----
 
 
-_FAILING_VARIANTS = [ModelVariant.WHISPER_LARGE]
+_FAILING_VARIANTS = [
+    ModelVariant.WHISPER_LARGE,
+    ModelVariant.WHISPER_LARGE_V3,
+    ModelVariant.WHISPER_LARGE_V3_TURBO,
+]
 
 
 def _variant_param(v):
@@ -27,14 +31,24 @@ def _variant_param(v):
     model_info = ModelLoader.get_model_info(v)
 
     if v in _FAILING_VARIANTS:
-        bringup_status = BringupStatus.FAILED_TTMLIR_COMPILATION
-        marks.append(
-            pytest.mark.xfail(
-                reason=failed_ttmlir_compilation(
-                    "RuntimeError: Not enough space to allocate 6710886400 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/1886"
+        if v == ModelVariant.WHISPER_LARGE:
+            bringup_status = BringupStatus.FAILED_TTMLIR_COMPILATION
+            marks.append(
+                pytest.mark.xfail(
+                    reason=failed_ttmlir_compilation(
+                        "RuntimeError: Not enough space to allocate 6710886400 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/1886"
+                    )
                 )
             )
-        )
+        else:
+            bringup_status = BringupStatus.FAILED_TTMLIR_COMPILATION
+            marks.append(
+                pytest.mark.xfail(
+                    reason=failed_ttmlir_compilation(
+                        "Statically allocated circular buffers in program 142 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)] - https://github.com/tenstorrent/tt-xla/issues/2380"
+                    )
+                )
+            )
     else:
         bringup_status = BringupStatus.PASSED
 

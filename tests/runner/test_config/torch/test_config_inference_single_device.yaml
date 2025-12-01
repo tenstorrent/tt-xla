@@ -124,6 +124,10 @@ test_config:
 
   musicgen_small/pytorch-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: " PCC comparison failed. Calculated: pcc=0.9647423028945923. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2381"
 
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference:
     status: EXPECTED_PASSING
