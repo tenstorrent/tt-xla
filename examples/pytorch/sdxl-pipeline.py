@@ -205,19 +205,17 @@ class SDXLPipeline:
                 time_ids = tt_cast(time_ids)
                 unet_output = self.unet(model_input, timestep, encoder_hidden_states, added_cond_kwargs={"text_embeds": pooled_text_embeds, "time_ids": time_ids})
                 unet_output = cpu_cast(unet_output.sample)
-                #unet_output = torch.randn(2, 4, 64, 64, dtype=torch.float16) # working with hardcoded value to save time
-                
+
+                xr.clear_computation_cache() # turns out that consteval cache is accumulating in DRAM which causes DRAM OOM. This is a temp workaround.
+
                 if do_cfg:
                     uncond_output, cond_output = unet_output.chunk(2)
                     model_output = uncond_output + (cond_output - uncond_output) * cfg_scale
                 else:
                     raise NotImplementedError("Only CFG is supported for now")
 
-                pooled_text_embeds = cpu_cast(pooled_text_embeds)
-                encoder_hidden_states = cpu_cast(encoder_hidden_states)
                 timestep = cpu_cast(timestep)
                 latents = cpu_cast(latents)
-                time_ids = cpu_cast(time_ids)
                 latents = self.scheduler.step(model_output, timestep, latents).prev_sample
 
             # decode from latent space        
