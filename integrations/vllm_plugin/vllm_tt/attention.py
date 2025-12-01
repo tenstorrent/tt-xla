@@ -390,9 +390,9 @@ class TTAttentionBackendImpl(AttentionImpl):
                 -3, -2
             )  # Back to [users, tokens, num_heads, head_size]
 
-            # output = output.reshape(
-            #     users, query_num_tokens, -1
-            # )  # Flatten to hidden dim
+            output = output.reshape(
+                users, query_num_tokens, -1
+            )  # Flatten to hidden dim
 
             # Return to original query rank
             if orig_query_ndim == 3:
