@@ -50,7 +50,7 @@ pytest -v tests/jax/single_chip          # Single-chip JAX tests
 pytest -v tests/jax/multi_chip/n300      # Multi-chip JAX tests (n300 card)
 
 # PyTorch tests
-pytest -v tests/torch/single_chip        # Single-chip PyTorch tests
+pytest -v tests/torch/single_host -m single_device        # Single-chip PyTorch tests
 
 # Individual test with verbose output
 pytest -svv path/to/test
