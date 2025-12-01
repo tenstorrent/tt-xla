@@ -1324,7 +1324,6 @@ test_config:
 
   phi1_5/causal_lm/pytorch-microsoft/phi-1_5-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Input X dimension (32) must be divisible by 64 for tiling."
     markers: [weekly]
 
   gpt_neo/causal_lm/pytorch-gpt_neo_125M-single_device-full-training:
@@ -1333,12 +1332,10 @@ test_config:
 
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Input X dimension (32) must be divisible by 64 for tiling."
     markers: [weekly]
 
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Input X dimension (32) must be divisible by 64 for tiling."
     markers: [weekly]
 
   albert/masked_lm/pytorch-base_v1-single_device-full-training:
@@ -1444,12 +1441,10 @@ test_config:
 
   beit/pytorch-large-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Input X dimension (32) must be divisible by 64 for tiling."
     markers: [weekly]
 
   phi1/causal_lm/pytorch-microsoft/phi-1-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Input X dimension (32) must be divisible by 64 for tiling."
     markers: [weekly]
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-full-training:
@@ -1573,8 +1568,8 @@ test_config:
     markers: [weekly]
 
   hrnet/pytorch-hrnet_w40-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Input X dimension (32) must be divisible by 64 for tiling."
+    status: NOT_SUPPORTED_SKIP
+    reason: "SEGFAULT"
     markers: [weekly]
 
   hrnet/pytorch-hrnet_w44-single_device-full-training:
@@ -1595,7 +1590,7 @@ test_config:
 
   hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Input X dimension (32) must be divisible by 64 for tiling."
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
     markers: [weekly]
 
   hrnet/pytorch-hrnet_w18_small_v2_osmr-single_device-full-training:
@@ -1905,7 +1900,7 @@ test_config:
 
   regnet/pytorch-regnet_y_320-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Input X dimension (32) must be divisible by 64 for tiling."
+    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3712 input channels and 232 in the weight tensor."
     markers: [weekly]
 
   regnet/pytorch-regnet_y_400mf-single_device-full-training:
