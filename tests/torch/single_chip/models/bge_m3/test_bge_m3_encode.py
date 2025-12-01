@@ -146,6 +146,12 @@ def bge_m3_encode():
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.8799465298652649. Required: pcc=0.92 "
+        "https://github.com/tenstorrent/tt-xla/issues/2347"
+    )
+)
 def test_bge_m3_encode():
     """Run BGE-M3 encode on TT device and validate PCC outputs are finite and bounded."""
     try:

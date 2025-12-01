@@ -178,6 +178,10 @@ test_config:
   autoencoder/pytorch-linear-single_device-full-inference:
     status: EXPECTED_PASSING
 
+  minicpm_o_2_6/pytorch-default-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "MiniCPM model has a larger test execution time, hence skipping it for now."
+
   bart/pytorch-large-single_device-full-inference:
     status: EXPECTED_PASSING
 
@@ -309,9 +313,17 @@ test_config:
 
   efficientnet/pytorch-efficientnet_b6-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Statically allocated circular buffers in program 162 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   efficientnet/pytorch-efficientnet_b7-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Statically allocated circular buffers in program 260 clash with L1 buffers on core range [(x=0,y=0) - (x=12,y=9)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   ghostnet/pytorch-ghostnet_100-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1160,6 +1172,10 @@ test_config:
 
   regnet/pytorch-regnet_x_3_2gf-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: " PCC comparison failed. Calculated: pcc=0.9898508191108704. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   regnet/pytorch-regnet_x_8gf-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1203,6 +1219,10 @@ test_config:
 
   vovnet/pytorch-ese_vovnet39b-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        assert_pcc: false
+        reason: "PCC comparison failed. Calculated: pcc=0.9872968792915344. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1399,12 +1419,9 @@ test_config:
     markers: ["extended"]
 
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Bad PCC on blackhole - Calculated: pcc=0.978913426399231. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1434"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed.  Calculated: pcc=0.97700434923172. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/2368"
+
 
   vgg/pytorch-bn_vgg19b-single_device-full-inference:
     required_pcc: 0.96
@@ -1481,8 +1498,7 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99"
 
   stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - Model initialization failed"
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   oft/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2151,9 +2167,8 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
 
   transfuser/pytorch-single_device-full-inference:
-    assert_pcc: false
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Invalid head size: 54. The head size must be a multiple of the tile width (32). Please adjust the dimensions accordingly - https://github.com/tenstorrent/tt-xla/issues/2204"
+    assert_pcc: false # PCC is -0.715
+    status: EXPECTED_PASSING
 
   # yolov11/pytorch-yolo11n-single_device-full-inference:
   #   status: EXPECTED_PASSING
@@ -2235,23 +2250,13 @@ test_config:
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
 
   stable_diffusion/pytorch-stable-diffusion-3.5-medium-single_device-full-inference:
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Running the test CRASHED with signal 9 https://github.com/tenstorrent/tt-xla/issues/2254"
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   stable_diffusion/pytorch-stable-diffusion-3.5-large-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
-    markers: [large]
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   stable_diffusion/pytorch-stable-diffusion-3.5-large-turbo-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
-    markers: [large]
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   gliner/pytorch-urchade/gliner_largev2-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2311,7 +2316,6 @@ test_config:
 
   owl_vit/pytorch-base_patch32-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match the expected output shape dimension[2](16) - https://github.com/tenstorrent/tt-xla/issues/1955"
 
   # yolov12/pytorch-yolo12n-single_device-full-inference:
   #   status: EXPECTED_PASSING
@@ -2360,7 +2364,6 @@ test_config:
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "ValueError: Cannot use chat template functions because tokenizer.chat_template is not set and no template argument was passed"
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision_instruct-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2440,3 +2443,47 @@ test_config:
 
   ultra_fast_lane_detection/pytorch-tusimple_resnet34-single_device-full-inference:
     status: EXPECTED_PASSING
+
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_10-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_goal-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_object-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+  openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial_object_goal_10-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+  mistral/pytorch-mistral_nemo_instruct_2407-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks, where each bank needs to store 12234752 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"

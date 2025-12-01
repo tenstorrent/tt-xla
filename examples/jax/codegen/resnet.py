@@ -6,6 +6,7 @@
 
 import jax
 from transformers import FlaxResNetForImageClassification
+from tt_jax import codegen_py
 
 with jax.default_device(jax.devices("cpu")[0]):
     # Load ResNet-50 from HuggingFace
@@ -20,16 +21,4 @@ def forward(params, x):
     return model(pixel_values=x, params=params)
 
 
-compiler_options = {
-    "backend": "codegen_py",
-    "export_path": "resnet50_codegen",
-}
-
-# Compile the model. Make sure to pass the code generation options.
-fun = jax.jit(
-    forward,
-    compiler_options=compiler_options,
-)
-
-# Run the model. This triggers code generation.
-fun(model.params, x)
+codegen_py(forward, model.params, x, export_path="resnet50_codegen")

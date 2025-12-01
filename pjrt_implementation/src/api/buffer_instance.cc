@@ -249,9 +249,11 @@ void BufferInstance::copyFromHost(
 }
 
 void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
           src_buffer->m_data_type);
+
   std::uint32_t element_size =
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   std::vector<std::uint32_t> shape = calculateShape(
@@ -259,11 +261,37 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
   std::vector<std::uint32_t> strides = calculateStrides(
       src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
 
+  // This function is expected to be used for device-to-device buffer
+  // initialization of a new buffer instance, so destination buffer must not
+  // have data yet, or it will be overwritten.
+  assert((!m_host_runtime_tensor.has_value() &&
+          !m_prepared_runtime_tensor.has_value()) &&
+         "Destination buffer already has data");
+
+  tt::runtime::Tensor source_host_runtime_tensor;
+
+  if (src_buffer->m_prepared_runtime_tensor != std::nullopt) {
+    DLOG_F(WARNING,
+           "BufferInstance::copyFromBuffer: Device-Device transfer is "
+           "inefficient due to PJRT device modeling limitations. This will "
+           "actually copy src to host, and fill dst host tensor, because at "
+           "this callsite we do not know what dst device is.");
+    std::vector<tt::runtime::Tensor> host_runtime_tensors = tt::runtime::toHost(
+        src_buffer->m_prepared_runtime_tensor.value(), /*untilize=*/true);
+
+    assert(host_runtime_tensors.size() == 1 &&
+           "Expected single host tensor when copying from device buffer");
+
+    source_host_runtime_tensor = host_runtime_tensors[0];
+  } else if (src_buffer->m_host_runtime_tensor != std::nullopt) {
+    source_host_runtime_tensor = *src_buffer->m_host_runtime_tensor;
+  } else {
+    assert(false && "Source buffer has no data to copy from");
+  }
+
   m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
       /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
-
-  tt::runtime::memcpy(*m_host_runtime_tensor,
-                      *src_buffer->m_host_runtime_tensor);
+  tt::runtime::memcpy(*m_host_runtime_tensor, source_host_runtime_tensor);
   tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
 
   markAsDataReady();
@@ -347,7 +375,8 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       [](std::unique_lock<std::mutex> copy_lock, void *host_buffer,
          tt::runtime::Tensor runtime_tensor, EventInstance *event,
          PJRT_Buffer_Type data_type, size_t host_buffer_size,
-         std::optional<uint32_t> device_id, bool already_on_host) {
+         std::optional<uint32_t> device_id, bool already_on_host,
+         uint64_t buffer_uid) {
         // Acquire lock to serialize all copy-to-host operations across all
         // BufferInstances since any metal dispatch in this async thread will
         // cause ND segfaults as metal is not thread safe.
@@ -368,9 +397,9 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
           }
           DLOG_F(LOG_DEBUG,
                  "Returning tensor to host with host_runtime_tensors ct = %ld "
-                 "from device %d",
+                 "from device %d with buffer UID %zu",
                  host_runtime_tensors.size(),
-                 device_id.has_value() ? device_id.value() : 0);
+                 device_id.has_value() ? device_id.value() : 0, buffer_uid);
 
           // If device_id is not set, we are returning a replicated input
           // buffer instance to host (eg. cache position for update). This means
@@ -411,7 +440,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       },
       std::move(copy_lock), host_buffer, runtime_tensor_to_retrieve,
       event.get(), m_data_type, host_buffer_size, m_device_id,
-      is_tensor_on_host);
+      is_tensor_on_host, m_uid);
 
   // responsible for calling `PJRT_Event_Destroy` on the event.
   *out_copy_done_event = event.release();

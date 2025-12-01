@@ -440,27 +440,6 @@ class FailingReasons(Enum):
         ],
     )
 
-    BAD_STATUS0R_ACCESS = FailingReason(
-        description="Bad StatusOr access",
-        checks=[
-            # E           RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
-            # env/venv/xla/lib/python3.11/site-packages/tt_torch/backend/backend.py:99: RuntimeError
-            ExceptionCheck(
-                class_name="RuntimeError",
-                component=ComponentChecker.XLA.value,
-                message=[
-                    M.contains("Bad StatusOr access: INTERNAL: Error code: 13"),
-                ],
-                error_log=[
-                    M.any(
-                        M.last_line(M.contains("tt_torch/backend/backend.py:")),
-                        M.last_line(M.contains("infra/runners/torch_device_runner.py")),
-                    ),
-                ],
-            ),
-        ],
-    )
-
     ERROR_CODE_13_TO_DEVICE = FailingReason(
         description="Error code 13 in to(device) call",
         checks=[
@@ -578,6 +557,13 @@ class FailingReasons(Enum):
                             "Out of Memory: Not enough space to allocate .* B (?:L1|L1_SMALL|DRAM) buffer across .* banks"
                         ),
                     ),
+                ],
+            ),
+            # Fallback: classify OOM when message is a StatusOr INTERNAL:13 error
+            ExceptionCheck(
+                message=[
+                    M.contains("Bad StatusOr access"),
+                    M.contains("Error code: 13"),
                 ],
             ),
         ],
@@ -1377,6 +1363,27 @@ class FailingReasons(Enum):
                 ],
                 error_log=[
                     M.last_line(M.contains("torch/utils/_pytree.py:")),
+                ],
+            ),
+        ],
+    )
+
+    BAD_STATUS0R_ACCESS = FailingReason(
+        description="Bad StatusOr access",
+        checks=[
+            # E           RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+            # env/venv/xla/lib/python3.11/site-packages/tt_torch/backend/backend.py:99: RuntimeError
+            ExceptionCheck(
+                class_name="RuntimeError",
+                component=ComponentChecker.XLA.value,
+                message=[
+                    M.contains("Bad StatusOr access: INTERNAL: Error code: 13"),
+                ],
+                error_log=[
+                    M.any(
+                        M.last_line(M.contains("tt_torch/backend/backend.py:")),
+                        M.last_line(M.contains("infra/runners/torch_device_runner.py")),
+                    ),
                 ],
             ),
         ],

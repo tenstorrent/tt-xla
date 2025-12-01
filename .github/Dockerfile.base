@@ -22,6 +22,7 @@ COPY python_package/requirements.txt /tmp/requirements.txt
 COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
 
 # Now do the actual installation
+RUN ln -sf /usr/bin/FileCheck-17 /usr/bin/FileCheck
 RUN python3.11 -m pip install --upgrade pip --no-cache-dir && \
     python3.11 -m pip install --index-url https://download.pytorch.org/whl/cpu $(grep 'torch==' /tmp/requirements.txt) && \
     python3.11 -m pip install --index-url https://download.pytorch.org/whl/cpu $(grep 'torchvision==' /tmp/requirements-dev.txt) && \
