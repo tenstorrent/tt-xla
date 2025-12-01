@@ -7,7 +7,7 @@
 from enum import Enum
 from typing import Optional
 
-from .utils import ExceptionCheck, FailingReason, M
+from .utils import ExceptionCheck, FailingReason, M, ME
 
 
 class ComponentChecker(Enum):
@@ -556,6 +556,11 @@ class FailingReasons(Enum):
                         M.regex(
                             "Out of Memory: Not enough space to allocate .* B (?:L1|L1_SMALL|DRAM) buffer across .* banks"
                         ),
+                    ),
+                ],
+                summary=[
+                    ME.regex(
+                        ME.regex("\\s+info:\\s*\\nE\\s+(Out of Memory:[^\\n]*)"),
                     ),
                 ],
             ),
