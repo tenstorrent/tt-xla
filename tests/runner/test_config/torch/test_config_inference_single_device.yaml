@@ -1251,6 +1251,7 @@ test_config:
 
   deepseek/pytorch-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ttir.scatter does not work - https://github.com/tenstorrent/tt-xla/issues/2391"
 
   gemma/pytorch-google/gemma-1.1-2b-it-single_device-full-inference:
