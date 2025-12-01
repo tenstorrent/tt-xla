@@ -410,6 +410,7 @@ jobs:
         with:
           name: bisect-result-${{ matrix.build.runs-on }}
           path: ./.bisect-run/.bisect-result.txt
+          include-hidden-files: true
 
   deduct:
     needs: test
