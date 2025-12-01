@@ -25,6 +25,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
+          set -x pipefail
           repo="tenstorrent/tt-xla"
 
           get_test_results_from_wf() {
@@ -32,6 +33,7 @@ jobs:
             local conclusions="$2"
             local num=5
 
+            echo "working for $wf_name"
             # get json of the last $num workflow runs
             gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
 
