@@ -12,7 +12,7 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pytest
@@ -334,7 +334,6 @@ def record_model_test_properties(
     test_passed: bool = False,
     comparison_result=None,
     comparison_config=None,
-    perf_stats=None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -486,7 +485,7 @@ def create_measurement(
     iteration: int = 1,
     value: float = 0.0,
     target: float = -1.0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create a single perf measurement dictionary."""
     return {
         "step_name": step_name,
@@ -500,13 +499,20 @@ def create_measurement(
 
 def create_benchmark_result(
     full_model_name: str,
-    measurements: List[Dict[str, Any]],
+    measurements: list[dict[str, Any]],
     model_type: str = "generic",
     training: bool = False,
     model_info: str = "",
     device_name: str = "",
-) -> Dict[str, Any]:
-    """Create a standardized benchmark result dictionary."""
+) -> dict[str, Any]:
+    """
+    Create a benchmark result dictionary and write it to a JSON file.
+
+    Builds a standardized benchmark result containing model metadata and
+    performance measurements, then writes it to the `test_reports_benchmarks/`
+    directory. The filename follows the format:
+        benchmark_results_<model_name>_<job_id>.json
+    """
 
     # Extract e2e stats from the passed measurements list
     metric_list = []
