@@ -25,7 +25,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          set -x pipefail
           repo="tenstorrent/tt-xla"
 
           get_test_results_from_wf() {
@@ -36,7 +35,6 @@ jobs:
             echo "working for $wf_name"
             # get json of the last $num workflow runs
             gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
-            cat runs.json
 
             counter=0
             while true; do
@@ -89,7 +87,7 @@ jobs:
           base: main
           commit-message: "Update test durations based on latest nightly ${{ steps.get-test-durations.outputs.TODAY }}"
           title: "Update test durations based on latest nightly ${{ steps.get-test-durations.outputs.TODAY }}"
-          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
+          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
           labels: tooling
           delete-branch: true
           token: ${{ secrets.GH_TOKEN }}
