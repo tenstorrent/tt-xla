@@ -890,37 +890,34 @@ test_config:
 
   gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.scatter' that was explicitly marked illegal"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [weekly]
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: TT_FATAL rotary_embedding"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [weekly]
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: TT_FATAL rotary_embedding"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [weekly]
 
   albert/sequence_classification/pytorch-imdb-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: TT_FATAL rotary_embedding"
     markers: [weekly]
 
   phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: TT_FATAL rotary_embedding"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [weekly]
 
   swin/image_classification/pytorch-swin_t-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: TT_FATAL conv2d"
     markers: [weekly]
 
   swin/image_classification/pytorch-swin_s-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: TT_FATAL rotary_embedding"
     markers: [weekly]
 
   swin/image_classification/pytorch-swin_b-single_device-full-training:
@@ -933,7 +930,6 @@ test_config:
 
   swin/image_classification/pytorch-swin_v2_s-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: TT_FATAL rotary_embedding"
     markers: [weekly]
 
   swin/image_classification/pytorch-swin_v2_b-single_device-full-training:
@@ -942,7 +938,6 @@ test_config:
 
   deit/pytorch-base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: TT_FATAL rotary_embedding"
     markers: [weekly]
 
   deit/pytorch-base_distilled-single_device-full-training:
@@ -959,7 +954,7 @@ test_config:
 
   bart/pytorch-large-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.scatter' that was explicitly marked illegal"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [weekly]
 
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-full-training:
@@ -1024,32 +1019,32 @@ test_config:
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.scatter'"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [weekly]
 
   llama/sequence_classification/pytorch-llama_3_2_1b_instruct-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.scatter'"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [weekly]
 
   opt/sequence_classification/pytorch-facebook/opt-125m-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.scatter'"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [weekly]
 
   opt/sequence_classification/pytorch-facebook/opt-350m-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.scatter'"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [weekly]
 
   opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.scatter'"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [weekly]
 
   gpt2/pytorch-gpt2_sequence_classification-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.scatter'"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [weekly]
 
   resnext/pytorch-resnext50_32x4d-single_device-full-training:
