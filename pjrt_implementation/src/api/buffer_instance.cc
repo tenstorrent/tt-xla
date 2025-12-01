@@ -151,6 +151,7 @@ void BufferInstance::deleteData() {
   std::unique_lock<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
   if (m_copy_to_host_thread) {
     m_copy_to_host_thread->join();
+    m_copy_to_host_thread.reset();
   }
   copy_lock.unlock();
 
