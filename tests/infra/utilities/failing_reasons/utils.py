@@ -14,7 +14,7 @@ from pytest import ExceptionInfo
 if TYPE_CHECKING:
     # ComponentChecker is only imported for type checking to avoid circular imports
     from .checks_xla import ComponentChecker
-
+    from .checks_xla import FailingReasons
 
 @dataclass
 class ExceptionData:
@@ -25,7 +25,15 @@ class ExceptionData:
     stderr: Optional[str] = None
 
 
+@dataclass
+class ExceptionReason:
+    # failing_reason: Optional["FailingReason"] = None
+    failing_reasons: Optional["FailingReasons"] = None
+    summary: Optional[str] = None
+
+
 MessageCheckerType = Callable[[str], bool]
+MessageExtractorType = Callable[[str], str]
 
 
 class MessageChecker:
@@ -71,10 +79,28 @@ class MessageChecker:
         return lambda ex_message: checker(
             ex_message.splitlines()[-1] if ex_message else ex_message
         )
+    
+
+class MessageExtractor:
+    @staticmethod
+    def regex(pattern: str) -> str:
+        """Extract a substring from the message using the given regex pattern."""
+
+        def extractor(ex_message: str) -> Optional[str]:
+            print(f"Extracting with pattern: {pattern}\n")
+            m = re.search(pattern, ex_message)
+            print(f"Extraction result: {m.group(1) if m else None}\n")
+            return m.group(1) if m else None
+
+        return extractor
+
 
 
 # Short alias for MessageChecker used in failing reasons definitions
 M = MessageChecker
+
+# Short alias for MessageExtractor used in failing reasons definitions
+ME = MessageExtractor
 
 
 @dataclass
@@ -89,6 +115,7 @@ class ExceptionCheck:
     error_log: List[MessageCheckerType] = field(default_factory=list)
     stdout: List[MessageCheckerType] = field(default_factory=list)
     stderr: List[MessageCheckerType] = field(default_factory=list)
+    summary: List[MessageExtractorType] = field(default_factory=list)
 
     def __contains__(self, ex: ExceptionData) -> bool:
         """
@@ -125,6 +152,14 @@ class ExceptionCheck:
             if ex.stderr is None or not message_check(ex.stderr):
                 return False
         return True
+    
+    def extract_summary(self, ex: ExceptionData) -> str:
+        message = ""
+        for message_extract in self.summary:
+            message += message_extract(ex.error_log) + "\n"
+        if not message:
+            message = None
+        return message
 
 
 @dataclass
@@ -170,14 +205,12 @@ class FailingReason:
         component_checker = self.component_checker
         return component_checker.description if component_checker else None
 
-    def __contains__(self, ex: ExceptionData) -> bool:
-        return self.check(ex)
-
-    def check(self, ex: ExceptionData) -> bool:
+    def check(self, ex: ExceptionData) -> Optional[ExceptionReason]:
         for check in self.checks:
             if ex in check:
-                return True
-        return False
+                summary = check.extract_summary(ex)
+                return ExceptionReason(summary=summary)
+        return None
 
     def __repr__(self) -> str:
         return f"FailingReason(description={self.description!r})"
