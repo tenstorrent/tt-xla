@@ -705,16 +705,16 @@ class VisionPostprocessor:
         """
         if hasattr(output, "logits"):
             # HuggingFace ModelOutput object
-            return output.logits
+            return output.logits.to("cpu")
         elif isinstance(output, (list, tuple)):
             # Some models return tuple/list of outputs
             if len(output) > 0:
-                return output[0]
+                return output[0].to("cpu")
             else:
                 raise ValueError("Empty output list/tuple")
         elif isinstance(output, torch.Tensor):
             # Already a tensor
-            return output
+            return output.to("cpu")
         else:
             raise TypeError(
                 f"Unsupported output type: {type(output)}. "
