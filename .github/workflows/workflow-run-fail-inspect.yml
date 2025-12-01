@@ -387,8 +387,10 @@ jobs:
 
           # Get the bad commit info
           bad_commit=$(git rev-parse HEAD)
+          title=$(git log -1 --pretty=%s "$bad_commit")
+          git bisect reset
           echo "$bad_commit" > .bisect-result.txt
-          echo "Title: $(git log -1 --pretty=%s "$bad_commit")" >> .bisect-result.txt
+          echo "Title: $title" >> .bisect-result.txt
           if [ "$found" = true ]; then
             echo "found" >> .bisect-result.txt
           else
@@ -396,7 +398,6 @@ jobs:
           fi
           echo "Tests:" >> .bisect-result.txt
           cat .tests_to_run >> .bisect-result.txt
-          git bisect reset
 
       - name: Upload bisect result
         uses: actions/upload-artifact@v5
