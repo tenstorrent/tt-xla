@@ -190,8 +190,8 @@ class SDXLPipeline:
             time_ids = torch.tensor([*orig_shape, *crop_top_left, *target_shape]).to(device=self.device)
             # repeat for cond and uncond
             time_ids = time_ids.repeat(2, 1) # (2B, 6)
-
-            tt_cast = lambda x : x.to(xm.xla_device(), dtype=torch.bfloat16)
+            tt_device = xm.xla_device()
+            tt_cast = lambda x : x.to(tt_device, dtype=torch.bfloat16)
             cpu_cast = lambda x : x.to('cpu').to(dtype=torch.float16)
 
             for i, timestep in enumerate(self.scheduler.timesteps):
@@ -203,7 +203,8 @@ class SDXLPipeline:
                 encoder_hidden_states = tt_cast(encoder_hidden_states)
                 pooled_text_embeds = tt_cast(pooled_text_embeds)
                 time_ids = tt_cast(time_ids)
-                unet_output = self.unet(model_input, timestep, encoder_hidden_states, added_cond_kwargs={"text_embeds": pooled_text_embeds, "time_ids": time_ids}).sample
+                unet_output = self.unet(model_input, timestep, encoder_hidden_states, added_cond_kwargs={"text_embeds": pooled_text_embeds, "time_ids": time_ids})
+                unet_output = cpu_cast(unet_output.sample)
                 #unet_output = torch.randn(2, 4, 64, 64, dtype=torch.float16) # working with hardcoded value to save time
                 
                 if do_cfg:
@@ -212,9 +213,11 @@ class SDXLPipeline:
                 else:
                     raise NotImplementedError("Only CFG is supported for now")
 
-                model_output = cpu_cast(model_output)
+                pooled_text_embeds = cpu_cast(pooled_text_embeds)
+                encoder_hidden_states = cpu_cast(encoder_hidden_states)
                 timestep = cpu_cast(timestep)
                 latents = cpu_cast(latents)
+                time_ids = cpu_cast(time_ids)
                 latents = self.scheduler.step(model_output, timestep, latents).prev_sample
 
             # decode from latent space        
