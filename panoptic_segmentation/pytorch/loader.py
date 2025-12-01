@@ -10,13 +10,8 @@ from dataclasses import dataclass
 import torch
 import numpy as np
 
-from .src.model import (
-    get_cfg,
-    DefaultPredictor,
-    MetadataCatalog,
-    get_config_file,
-    get_checkpoint_url,
-)
+# Lazy imports - for test being collected
+
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -28,9 +23,6 @@ from ...config import (
 )
 from ...base import ForgeModel
 from ...tools.utils import get_file
-import cv2
-import urllib.request
-import numpy as np
 
 
 @dataclass
@@ -260,6 +252,14 @@ class ModelLoader(ForgeModel):
         Returns:
             DefaultPredictor: The predictor instance ready for inference
         """
+        # Lazy import - only import when actually loading the model
+        from .src.model import (
+            get_cfg,
+            DefaultPredictor,
+            get_config_file,
+            get_checkpoint_url,
+        )
+
         # Get configuration
         cfg = get_cfg()
         config = self._variant_config
@@ -268,8 +268,14 @@ class ModelLoader(ForgeModel):
         config_file = get_config_file(config.config_file)
         cfg.merge_from_file(config_file)
 
-        # Set model weights from checkpoint URL
-        cfg.MODEL.WEIGHTS = get_checkpoint_url(config.config_file)
+        # Download and cache checkpoint weights using get_file utility
+        # This prevents hanging on network requests during DefaultPredictor initialization
+        checkpoint_url = get_checkpoint_url(config.config_file)
+        checkpoint_path = get_file(checkpoint_url)
+
+        # Set model weights to local cached file path instead of URL
+        # yacs configs only accept builtin types, so store path as string
+        cfg.MODEL.WEIGHTS = str(checkpoint_path)
 
         # Set device
         cfg.MODEL.DEVICE = "cpu"
@@ -278,16 +284,23 @@ class ModelLoader(ForgeModel):
         cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.5
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
 
-        # Create predictor
+        # Create predictor (handles model construction + weight loading)
         self.predictor = DefaultPredictor(cfg)
 
-        # Setup metadata
+        # Keep reference to the underlying torch.nn.Module for tester expectations
+        self._model = self.predictor.model
+
+        # Setup metadata for downstream decoding/support tooling
         self._setup_metadata(cfg)
 
-        return self.predictor
+        # Tests expect a torch.nn.Module instance
+        return self._model
 
     def _setup_metadata(self, cfg):
         """Setup metadata for COCO panoptic dataset like in panoptic_seg.py."""
+        # Lazy import - only import when actually setting up metadata
+        from .src.model import MetadataCatalog
+
         dataset_names = list(cfg.DATASETS.TRAIN) + list(cfg.DATASETS.TEST)
         for name in dataset_names:
             if not name:
@@ -315,16 +328,22 @@ class ModelLoader(ForgeModel):
         batch_size = kwargs.get("batch_size", 1)
         image_size = kwargs.get("image_size", config.image_size)
 
-        inputs = []
-        for i in range(batch_size):
+        batched_inputs: List[Dict[str, Any]] = []
+        for _ in range(batch_size):
             # Create random tensor in (C, H, W) format expected by the model
-            # Use more realistic values (normalized between 0 and 1)
             tensor_input = torch.rand(
                 3, image_size[0], image_size[1], dtype=dtype_override
             )
-            inputs.append(tensor_input)
+            batched_inputs.append(
+                {
+                    "image": tensor_input,
+                    "height": image_size[0],
+                    "width": image_size[1],
+                }
+            )
 
-        return inputs
+        # Detectron2 models expect a single argument (list of dicts)
+        return (batched_inputs,)
 
     def predict(self, image_path: Optional[str] = None) -> Dict[str, Any]:
         """Run inference on an image using the loaded predictor.
@@ -335,6 +354,10 @@ class ModelLoader(ForgeModel):
         Returns:
             Dict containing panoptic segmentation results
         """
+        # Lazy imports - only import when actually running prediction
+        import cv2
+        import urllib.request
+
         if self.predictor is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
 
