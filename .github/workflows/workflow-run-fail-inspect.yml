@@ -451,11 +451,10 @@ jobs:
               commitimg=$(echo "$html" | grep -oP '(?<=<meta name="twitter:image" content=")[^"]*')
               echo "$commit, imgurl: $commitimg, tests: $tests"
 
-              echo "<details><summary>Commit: [$commit](https://github.com/${{ github.repository }}/commit/$commit)</summary>" >> .bisect-report.md
+              echo "## Commit: [$commit](https://github.com/${{ github.repository }}/commit/$commit)<img src=\"$commitimg\" width=\"25%\" align=\"right\"/>" >> .bisect-report.md
               echo "" >> .bisect-report.md
               echo "### Failed Tests" >> .bisect-report.md
               echo "" >> .bisect-report.md
-              echo "<img src=\"$commitimg\" width=\"25%\" align=\"right\"/>" >> .bisect-report.md
               echo "\`\`\`" >> .bisect-report.md
               echo "$tests" >> .bisect-report.md
               echo "\`\`\`" >> .bisect-report.md
