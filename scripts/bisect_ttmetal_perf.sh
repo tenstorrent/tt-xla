@@ -100,7 +100,12 @@ METRIC_PATTERN="${METRIC_PATTERN:-$DEFAULT_PATTERN}"
 
 TTMETAL_COMMIT=$(git rev-parse --short HEAD)
 TTMETAL_COMMIT_FULL=$(git rev-parse HEAD)
-LOG_FILE="/tmp/bisect_ttmetal_${TTMETAL_COMMIT}.log"
+
+# Create .bisect-run directory in tt-xla root for all bisect artifacts
+BISECT_RUN_DIR="$TTXLA_ROOT/.bisect-run"
+mkdir -p "$BISECT_RUN_DIR"
+
+LOG_FILE="$BISECT_RUN_DIR/bisect_ttmetal_${TTMETAL_COMMIT}.log"
 
 echo "======================================"
 echo "Testing tt-metal commit: $TTMETAL_COMMIT"
@@ -340,8 +345,8 @@ DO NOT:
 
 VERIFY your fixes by building before finishing."
 
-            # Save prompt to file in tt-xla directory (not /tmp) for Claude access
-            PROMPT_FILE="$TTXLA_ROOT/fix_build_prompt_${TTMETAL_COMMIT}.txt"
+            # Save prompt to file in .bisect-run directory
+            PROMPT_FILE="$BISECT_RUN_DIR/fix_build_prompt_${TTMETAL_COMMIT}.txt"
             echo "$FIX_PROMPT" > "$PROMPT_FILE"
 
             # Invoke Claude CLI to fix the build
@@ -350,7 +355,7 @@ VERIFY your fixes by building before finishing."
             echo "=====================================" | tee -a "$LOG_FILE"
 
             # Save Claude's output separately for debugging
-            CLAUDE_OUTPUT_LOG="$TTXLA_ROOT/claude_output_${TTMETAL_COMMIT}.log"
+            CLAUDE_OUTPUT_LOG="$BISECT_RUN_DIR/claude_output_${TTMETAL_COMMIT}.log"
 
             cd "$TTXLA_ROOT"
             # Use timeout to prevent hanging (10 minutes max), pass prompt with -p flag

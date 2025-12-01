@@ -35,4 +35,4 @@ pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @n
 /integrations/vllm_plugin/ @AleksKnezevic @LPanosTT @mmanzoorTT @ljovanovicTT
 
 # Scripts
-/scripts/ @rpavlovicTT @odjuricTT
+/scripts/ @rpavlovicTT @odjuriciTT @AleksKnezevic @mrakitaTT @nvukobratTT

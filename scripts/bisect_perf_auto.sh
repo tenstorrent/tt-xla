@@ -17,7 +17,7 @@
 #   -t, --threshold THRESHOLD   Performance threshold value
 #   -p, --pattern PATTERN       Grep pattern to extract metric
 #   -r, --revert COMMIT         Revert this tt-mlir commit if present in history (useful for isolating additional regressions)
-#   -l, --log-dir DIR           Log directory (default: /tmp/bisect_auto_TIMESTAMP)
+#   -l, --log-dir DIR           Log directory (default: .bisect-run/bisect_auto_TIMESTAMP)
 #   -h, --help                  Show this help message
 #
 # EXAMPLES:
@@ -43,7 +43,10 @@ BENCHMARK_COMMAND="python ../tt-forge/benchmark/benchmark.py -p tt-xla -m resnet
 PERF_THRESHOLD=680
 METRIC_PATTERN="Sample per second:\s*\K[0-9.]+"
 REVERT_COMMIT=""
-LOG_DIR="/tmp/bisect_auto_$(date +%Y%m%d_%H%M%S)"
+# Use .bisect-run directory in tt-xla root
+BISECT_RUN_DIR="$(pwd)/.bisect-run"
+mkdir -p "$BISECT_RUN_DIR"
+LOG_DIR="$BISECT_RUN_DIR/bisect_auto_$(date +%Y%m%d_%H%M%S)"
 
 show_help() {
     sed -n '2,/^$/p' "$0" | grep '^#' | sed 's/^# \?//'
@@ -124,6 +127,17 @@ log_separator
 # Find tt-xla root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TTXLA_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Copy bisect scripts to .bisect-run directory to preserve them during git operations
+log "Copying bisect scripts to $BISECT_RUN_DIR/scripts for safety..."
+mkdir -p "$BISECT_RUN_DIR/scripts"
+cp "$SCRIPT_DIR"/bisect*.sh "$BISECT_RUN_DIR/scripts/"
+log "Scripts copied to: $BISECT_RUN_DIR/scripts/"
+
+# Update script paths to use copied versions
+BISECT_PERF_SCRIPT="$BISECT_RUN_DIR/scripts/bisect_perf.sh"
+BISECT_TTMLIR_SCRIPT="$BISECT_RUN_DIR/scripts/bisect_ttmlir_perf.sh"
+BISECT_TTMETAL_SCRIPT="$BISECT_RUN_DIR/scripts/bisect_ttmetal_perf.sh"
 cd "$TTXLA_ROOT"
 
 log "Working directory: $(pwd)"
@@ -140,7 +154,7 @@ git bisect bad "$BAD_COMMIT"
 git bisect good "$GOOD_COMMIT"
 
 log "Running bisect with performance tests..."
-BISECT_SCRIPT="$SCRIPT_DIR/bisect_perf.sh"
+BISECT_SCRIPT="$BISECT_PERF_SCRIPT"
 BISECT_ARGS="-c \"$BENCHMARK_COMMAND\" -t \"$PERF_THRESHOLD\" -p \"$METRIC_PATTERN\""
 if [ -n "$REVERT_COMMIT" ]; then
     BISECT_ARGS="$BISECT_ARGS -r \"$REVERT_COMMIT\""
@@ -238,7 +252,7 @@ git bisect bad "$BAD_TTMLIR"
 git bisect good "$GOOD_TTMLIR"
 
 log "Running tt-mlir bisect with performance tests..."
-TTMLIR_BISECT_SCRIPT="$SCRIPT_DIR/bisect_ttmlir_perf.sh"
+TTMLIR_BISECT_SCRIPT="$BISECT_TTMLIR_SCRIPT"
 TTMLIR_BISECT_ARGS="-c \"$BENCHMARK_COMMAND\" -t \"$PERF_THRESHOLD\" -p \"$METRIC_PATTERN\""
 if [ -n "$REVERT_COMMIT" ]; then
     TTMLIR_BISECT_ARGS="$TTMLIR_BISECT_ARGS -r \"$REVERT_COMMIT\""
@@ -332,7 +346,7 @@ if [ $IS_TTMETAL_UPLIFT -eq 0 ]; then
     log ""
     log "All logs saved to: $LOG_DIR"
     log "Main log: $MAIN_LOG"
-    log "tt-mlir test logs: /tmp/bisect_ttmlir_*.log"
+    log "tt-mlir test logs: $BISECT_RUN_DIR/bisect_ttmlir_*.log"
     log "════════════════════════════════════════"
     exit 0
 fi
@@ -377,7 +391,7 @@ git bisect bad "$BAD_TTMETAL"
 git bisect good "$GOOD_TTMETAL"
 
 log "Running tt-metal bisect with performance tests..."
-TTMETAL_BISECT_SCRIPT="$SCRIPT_DIR/bisect_ttmetal_perf.sh"
+TTMETAL_BISECT_SCRIPT="$BISECT_TTMETAL_SCRIPT"
 TTMETAL_BISECT_ARGS="-c \"$BENCHMARK_COMMAND\" -t \"$PERF_THRESHOLD\" -p \"$METRIC_PATTERN\""
 
 # Use the tt-mlir uplift commit as reference for fixing build failures
@@ -438,8 +452,8 @@ log "View tt-xla commit:  git show $FIRST_BAD_COMMIT_SHORT"
 log ""
 log "All logs saved to: $LOG_DIR"
 log "Main log: $MAIN_LOG"
-log "tt-mlir test logs: /tmp/bisect_ttmlir_*.log"
-log "tt-metal test logs: /tmp/bisect_ttmetal_*.log"
+log "tt-mlir test logs: $BISECT_RUN_DIR/bisect_ttmlir_*.log"
+log "tt-metal test logs: $BISECT_RUN_DIR/bisect_ttmetal_*.log"
 log "════════════════════════════════════════"
 
 exit 0
