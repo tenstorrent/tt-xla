@@ -88,12 +88,12 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   if (has_expected_layout) {
     DLOG_F(LOG_DEBUG,
            "Reusing already prepared input tensor for argument index %zu with "
-           "shape %s",
-           arg_index, arg_buffers[0]->toShapeStr().c_str());
+           "shape %s and UID %zu",
+           arg_index, arg_buffers[0]->toShapeStr().c_str(),
+           arg_buffers[0]->getUID());
 
     // This prepared tensor may be from a previous graph output aliased to
-    // input, so
-    //  we should set its retention flag to true.
+    // input, so  we should set its retention flag to true.
     if (tt::runtime::getTensorRetain(*prepared_tensor) == false) {
       DLOG_F(LOG_DEBUG,
              "Prepared tensor for argument index %zu with shape %s had "
