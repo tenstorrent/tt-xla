@@ -474,8 +474,10 @@ jobs:
           cat .bisect-report.md >> $GITHUB_STEP_SUMMARY
           rm -rf bisect-commits
           echo "\"unfurl_links\": false, \"unfurl_media\": false }" >> .bisect-msg.json
+          echo "Bisect msg JSON:"
+          cat .bisect-msg.json
 
-          echo "send_msg=$(cat .bisect-msg.json)" >>$GITHUB_OUTPUT
+          echo "send_msg=$(cat .bisect-msg.json | jq -Rs .)" >>$GITHUB_OUTPUT
 
       - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ steps.deduct.outputs.send_msg }}
