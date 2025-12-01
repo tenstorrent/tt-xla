@@ -27,6 +27,8 @@ jobs:
     outputs:
       test-matrix: ${{ steps.success-failed.outputs.test_matrix }}
       docker_sha: ${{ steps.success-failed.outputs.docker_sha }}
+      curr_wf_id: ${{ steps.success-failed.outputs.curr_wf_id }}
+      curr_wf_attempt: ${{ steps.success-failed.outputs.curr_wf_attempt }}
     runs-on: ubuntu-latest
     steps:
 
@@ -210,8 +212,8 @@ jobs:
           jq --argjson curr_id "$curr_wf_id" 'map(select(.databaseId <= $curr_id))' runs.json > temp_runs.json
           mv temp_runs.json runs.json
 
-          # check if current workflow ID is the one form workflow_run context (if workflow_run context is available)
-          if [ "${{ github.event.workflow_run.id || inputs.workflow_run_id }}" -ne "$curr_wf_id" ]; then
+          # check if current workflow ID is the one form workflow_run context
+          if [ "$(jq -r '.[0].databaseId' runs.json)" -ne "$curr_wf_id" ]; then
             echo "Current workflow ID does not match the workflow_run context ID. Exiting."
             exit 1
           fi
@@ -233,6 +235,7 @@ jobs:
           fi
 
           echo "Extracted runs: $(cat runs.json)"
+          curr_wf_attempt=$(jq -r '.[0].attempt' runs.json)
           curr_head_sha=$(jq -r '.[0].headSha' runs.json)
           prev_wf_id=$(jq -r '.[1].databaseId' runs.json)
           prev_head_sha=$(jq -r '.[1].headSha' runs.json)
@@ -245,6 +248,7 @@ jobs:
 
           # save current nightly workflow ID and attempt
           echo "curr_wf_id=$curr_wf_id" >> $GITHUB_OUTPUT
+          echo "curr_wf_attempt=$curr_wf_attempt" >> $GITHUB_OUTPUT
 
           # cleanup before processing
           rm -rf log-a
@@ -409,10 +413,11 @@ jobs:
           include-hidden-files: true
 
   deduct:
-    needs: test
+    needs: [ inspect, test ]
     runs-on: ubuntu-latest
     steps:
       - name: Deduct bad commits
+        id: deduct
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -439,7 +444,7 @@ jobs:
           done
 
           # Create markdown file for this commit
-          echo "# Bad Commit Analysis" > .bisect-report.md
+          echo "# Bad Commit Analysis [Nightly](<https://github.com/$repo/actions/runs/${{ needs.inspect.outputs.curr_wf_id }}/attempts/${{ needs.inspect.outputs.curr_wf_attempt }}}>)" > .bisect-report.md
           echo "" >> .bisect-report.md
           for commit_file in .bisect-commits/*; do
             if [[ -f "$commit_file" ]]; then
@@ -458,8 +463,17 @@ jobs:
               echo "\`\`\`" >> .bisect-report.md
               echo "$tests" >> .bisect-report.md
               echo "\`\`\`" >> .bisect-report.md
-              echo "</details>" >> .bisect-report.md
+              echo "" >> .bisect-report.md
             fi
           done
           cat .bisect-report.md >> $GITHUB_STEP_SUMMARY
           rm -rf bisect-commits
+          escaped_report=$(cat .bisect-report.md | jq -Rs .)
+          echo "send_msg={\"text\": \"$escaped_report\", \"job_link\": \"https://github.com/${{ github.repository }}/actions/runs/${{ needs.inspect.outputs.curr_wf_id }}/attempts/${{ needs.inspect.outputs.curr_wf_attempt }}\", \"unfurl_links\": false, \"unfurl_media\": false }" >>$GITHUB_OUTPUT
+
+      - uses: slackapi/slack-github-action@v1.26.0
+        if: ${{ steps.deduct.outputs.send_msg }}
+        with:
+          payload: ${{ steps.deduct.outputs.send_msg }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_INSPECT }}
