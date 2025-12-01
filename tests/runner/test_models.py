@@ -15,6 +15,7 @@ from infra.testers.single_chip.model import (
 
 from tests.infra.comparators.comparator import Comparator, ComparisonResult
 from tests.infra.utilities.filecheck_utils import *
+from tests.infra.utilities.types import Framework
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
@@ -42,50 +43,23 @@ MODELS_ROOT_TORCH, test_entries_torch = TorchDynamicLoader.setup_test_discovery(
 MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJECT_ROOT)
 
 
-@pytest.mark.model_test
-@pytest.mark.no_auto_properties
-@pytest.mark.parametrize(
-    "run_mode",
-    [
-        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
-        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
-    ],
-)
-@pytest.mark.parametrize(
-    "parallelism",
-    [
-        pytest.param(
-            Parallelism.SINGLE_DEVICE,
-            id="single_device",
-            marks=pytest.mark.single_device,
-        ),
-        pytest.param(
-            Parallelism.DATA_PARALLEL,
-            id="data_parallel",
-            marks=pytest.mark.data_parallel,
-        ),
-        pytest.param(
-            Parallelism.TENSOR_PARALLEL,
-            id="tensor_parallel",
-            marks=pytest.mark.tensor_parallel,
-        ),
-    ],
-)
-@pytest.mark.parametrize(
-    "test_entry",
-    test_entries_torch,
-    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
-)
-def test_all_models_torch(
+def _run_model_test_impl(
     test_entry,
-    run_mode,
-    parallelism,
+    run_mode: RunMode,
+    parallelism: Parallelism,
+    framework: Framework,
     record_property,
-    test_metadata,
+    test_metadata: ModelTestConfig,
     request,
     captured_output_fixture,
-    clear_torchxla_computation_cache,
-):
+    compiler_config: CompilerConfig = None,
+    **kwargs,  # Extra fixtures like clear_torchxla_computation_cache
+) -> None:
+    """Core implementation for running a model test.
+
+    This function contains the shared logic for both JAX and Torch tests.
+    It's extracted to avoid duplication between test_all_models_jax/torch.
+    """
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     fix_venv_isolation()
 
@@ -101,10 +75,12 @@ def test_all_models_torch(
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
         ir_dump_path = ""
-        # Check if --dump-irs option is enabled
+        # Dump all collected IRs if --dump-irs option is enabled
         if request.config.getoption("--dump-irs", default=False):
             ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
-        compiler_config = CompilerConfig(export_path=ir_dump_path)
+
+        if compiler_config is None and ir_dump_path:
+            compiler_config = CompilerConfig(export_path=ir_dump_path)
 
         succeeded = False
         comparison_result = None
@@ -115,13 +91,44 @@ def test_all_models_torch(
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
-                tester = DynamicTorchModelTester(
-                    run_mode,
-                    loader=loader,
-                    comparison_config=test_metadata.to_comparison_config(),
-                    compiler_config=compiler_config,
-                    parallelism=parallelism,
-                )
+                # Framework-specific tester creation
+                if framework == Framework.TORCH:
+                    tester = DynamicTorchModelTester(
+                        run_mode,
+                        loader=loader,
+                        comparison_config=test_metadata.to_comparison_config(),
+                        compiler_config=compiler_config,
+                        parallelism=parallelism,
+                    )
+                elif framework == Framework.JAX:
+                    if (
+                        parallelism == Parallelism.TENSOR_PARALLEL
+                        or parallelism == Parallelism.DATA_PARALLEL
+                    ):
+                        tester = DynamicJaxMultiChipModelTester(
+                            model_loader=loader,
+                            run_mode=run_mode,
+                            comparison_config=test_metadata.to_comparison_config(),
+                            compiler_config=compiler_config,
+                        )
+                    else:
+                        if model_info.source.name == ModelSource.EASYDEL.name:
+                            # In EasyDel, single-device models use multi-chip setup with (1,1) mesh
+                            tester = DynamicJaxMultiChipModelTester(
+                                model_loader=loader,
+                                comparison_config=test_metadata.to_comparison_config(),
+                                num_devices=1,
+                                #compiler_config=compiler_config
+                            )
+                        else:
+                            tester = DynamicJaxModelTester(
+                                run_mode,
+                                loader=loader,
+                                comparison_config=test_metadata.to_comparison_config(),
+                                compiler_config=compiler_config,
+                            )
+                else:
+                    raise ValueError(f"Unknown framework: {framework}")
 
                 comparison_result = tester.test()
 
@@ -236,6 +243,64 @@ def test_all_models_torch(
 )
 @pytest.mark.parametrize(
     "test_entry",
+    test_entries_torch,
+    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+)
+def test_all_models_torch(
+    test_entry,
+    run_mode,
+    parallelism,
+    record_property,
+    test_metadata,
+    request,
+    captured_output_fixture,
+    clear_torchxla_computation_cache,
+):
+    """PyTorch model test - delegates to shared implementation."""
+    _run_model_test_impl(
+        test_entry=test_entry,
+        run_mode=run_mode,
+        parallelism=parallelism,
+        framework=Framework.TORCH,
+        request=request,
+        record_property=record_property,
+        test_metadata=test_metadata,
+        captured_output_fixture=captured_output_fixture,
+        clear_torchxla_computation_cache=clear_torchxla_computation_cache,
+    )
+
+
+@pytest.mark.model_test
+@pytest.mark.no_auto_properties
+@pytest.mark.parametrize(
+    "run_mode",
+    [
+        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
+    ],
+)
+@pytest.mark.parametrize(
+    "parallelism",
+    [
+        pytest.param(
+            Parallelism.SINGLE_DEVICE,
+            id="single_device",
+            marks=pytest.mark.single_device,
+        ),
+        pytest.param(
+            Parallelism.DATA_PARALLEL,
+            id="data_parallel",
+            marks=pytest.mark.data_parallel,
+        ),
+        pytest.param(
+            Parallelism.TENSOR_PARALLEL,
+            id="tensor_parallel",
+            marks=pytest.mark.tensor_parallel,
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "test_entry",
     test_entries_jax,
     ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_JAX),
 )
@@ -248,125 +313,17 @@ def test_all_models_jax(
     request,
     captured_output_fixture,
 ):
-    # Fix venv isolation issue: ensure venv packages take precedence over system packages
-    fix_venv_isolation()
-
-    loader_path = test_entry.path
-    variant, ModelLoader = test_entry.variant_info
-
-    # Ensure per-model requirements are installed, and roll back after the test
-    with RequirementsManager.for_loader(loader_path):
-
-        # Get the model loader and model info from desired model, variant.
-        loader = ModelLoader(variant=variant)
-        model_info = ModelLoader.get_model_info(variant=variant)
-        print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
-
-        ir_dump_path = ""
-        # Check if --dump-irs option is enabled
-        if request.config.getoption("--dump-irs", default=False):
-            ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
-        compiler_config = CompilerConfig(export_path=ir_dump_path)
-
-        succeeded = False
-        comparison_result = None
-        tester = None
-        filecheck_results = None
-
-        try:
-            # Only run the actual model test if not marked for skip. The record properties
-            # function in finally block will always be called and handles the pytest.skip.
-            if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
-                if (
-                    parallelism == Parallelism.TENSOR_PARALLEL
-                    or parallelism == Parallelism.DATA_PARALLEL
-                ):
-                    tester = DynamicJaxMultiChipModelTester(
-                        model_loader=loader,
-                        run_mode=run_mode,
-                        comparison_config=test_metadata.to_comparison_config(),
-                        compiler_config=compiler_config,
-                    )
-                else:
-                    if model_info.source.name == ModelSource.EASYDEL.name:
-                        # In EasyDel, single-device models use multi-chip setup with (1,1) mesh
-                        tester = DynamicJaxMultiChipModelTester(
-                            model_loader=loader,
-                            comparison_config=test_metadata.to_comparison_config(),
-                            num_devices=1,
-                            #compiler_config=compiler_config
-                        )
-                    else:
-                        tester = DynamicJaxModelTester(
-                            run_mode,
-                            loader=loader,
-                            comparison_config=test_metadata.to_comparison_config(),
-                            compiler_config=compiler_config,
-                        )
-
-                comparison_result = tester.test()
-
-                # Check if filecheck patterns are specified
-                pattern_files = (
-                    test_metadata.filechecks
-                    if hasattr(test_metadata, "filechecks")
-                    else None
-                )
-
-                # Serialize if --serialize flag is set OR if pattern files are specified
-                if (
-                    request.config.getoption("--serialize", default=False)
-                    or pattern_files
-                ):
-                    tester.serialize_compilation_artifacts(request.node.name)
-
-                # All results must pass for the test to succeed
-                succeeded = all(result.passed for result in comparison_result)
-
-                # Run FileCheck on generated IR files if test succeeded
-                if succeeded and pattern_files:
-                    filecheck_results = run_filecheck(
-                        test_node_name=request.node.name,
-                        irs_filepath="output_artifact",
-                        pattern_files=pattern_files,
-                    )
-
-                # Trigger assertion after comparison_result is cached, and
-                #     fallthrough to finally block on failure.
-                Comparator._assert_on_results(comparison_result)
-                validate_filecheck_results(filecheck_results)
-
-        except Exception as e:
-            captured = captured_output_fixture.readouterr()
-            update_test_metadata_for_exception(
-                test_metadata, e, stdout=captured.out, stderr=captured.err
-            )
-            raise
-        finally:
-            # If there are multiple comparison results, only record the first one because the
-            #     DB only supports single comparison result for now
-            if comparison_result is not None and len(comparison_result) > 0:
-                if len(comparison_result) > 1:
-                    print(
-                        f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
-                    )
-                comparison_result = comparison_result[0]
-
-            comparison_config = tester._comparison_config if tester else None
-
-            # If we mark tests with xfail at collection time, then this isn't hit.
-            # Always record properties and handle skip/xfail cases uniformly
-            record_model_test_properties(
-                record_property,
-                request,
-                model_info=model_info,
-                test_metadata=test_metadata,
-                run_mode=run_mode,
-                test_passed=succeeded,
-                parallelism=parallelism,
-                comparison_result=comparison_result,
-                comparison_config=comparison_config,
-            )
+    """JAX model test - delegates to shared implementation."""
+    _run_model_test_impl(
+        test_entry=test_entry,
+        run_mode=run_mode,
+        parallelism=parallelism,
+        framework=Framework.JAX,
+        request=request,
+        record_property=record_property,
+        test_metadata=test_metadata,
+        captured_output_fixture=captured_output_fixture,
+    )
 
 
 # A test to generate placeholder model reports for models not yet added to tt-forge-models
