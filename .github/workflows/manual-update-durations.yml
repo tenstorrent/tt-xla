@@ -67,7 +67,7 @@ jobs:
           get_test_results_from_wf "push-main.yml" "success" "push"
 
           # get test results from the last nightly that was success or failure
-          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "nightly"
+          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
 
           python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
           echo "" >> .test_durations
