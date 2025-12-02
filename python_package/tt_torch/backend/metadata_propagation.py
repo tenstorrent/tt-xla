@@ -32,6 +32,7 @@ Correct usage pattern:
 
 """
 import ast
+import os
 import torch
 import torch_xla
 import types
@@ -39,7 +40,7 @@ from torch.utils._python_dispatch import TorchDispatchMode
 from dataclasses import dataclass
 
 
-DEBUG_PRINT = True
+DEBUG_PRINT = False
 
 
 @dataclass
@@ -55,15 +56,21 @@ class EmitLoc:
     op_line_num: int
     op_name: str
 
+    # DEBUG
+    is_debug: bool = False
+    op_index: int = -1
+
     # Not sure if should just use UnknownLoc instead of making our own
     @staticmethod
-    def make_unknown() -> 'EmitLoc':
+    def make_unknown(is_debug: bool, op_index: int = -1) -> 'EmitLoc':
+    # def make_unknown(debug: bool = False) -> 'EmitLoc':
         return EmitLoc(
             modules=[],
             func_path="unknown",
             func_name="unknown",
             op_line_num=-1,
             op_name="unknown",
+            is_debug=is_debug,
         )
 
     def to_string(self) -> str:
@@ -75,7 +82,10 @@ class EmitLoc:
         modules_str = SEPARATOR.join(modules_list) + SEPARATOR if modules_list else ""
         # Don't print op name, it gets added later by torch-xla
         # return f"{modules_str}{self.func_path}{SEPARATOR}{self.func_name}{SEPARATOR}{self.op_line_num}{SEPARATOR}{self.op_name}"
-        return f"{modules_str}{self.func_path}{SEPARATOR}{self.func_name}{SEPARATOR}{self.op_line_num}{SEPARATOR}"
+        debug_prefix = ""
+        if self.is_debug:
+            debug_prefix = f"DEBUG|{self.op_index}|"
+        return f"{debug_prefix}{modules_str}{self.func_path}{SEPARATOR}{self.func_name}{SEPARATOR}{self.op_line_num}{SEPARATOR}"
 
     def __repr__(self) -> str:
         return self.to_string()
@@ -156,9 +166,9 @@ def _find_enclosing_function(full_path: str, line_num: int, mode: str = 'simple'
         raise ValueError('Invalid mode for _find_enclosing_function: choose "simple" or "ast"')
 
 
-def _extract_source_and_module_hierarchy_info(node: torch.fx.Node) -> EmitLoc:
+def _extract_source_and_module_hierarchy_info(node: torch.fx.Node, is_debug: bool = False, op_index: int = -1) -> EmitLoc:
     if "stack_trace" not in node.meta or not node.meta["stack_trace"]:
-        return EmitLoc.make_unknown()
+        return EmitLoc.make_unknown(is_debug, op_index)
 
     global DEBUG_PRINT
 
@@ -174,7 +184,7 @@ def _extract_source_and_module_hierarchy_info(node: torch.fx.Node) -> EmitLoc:
     )
 
     if line is None:
-        return EmitLoc.make_unknown()
+        return EmitLoc.make_unknown(is_debug, op_index)
 
     DEBUG_PRINT and print(f"  line: {line}")
     stripped = line.strip()
@@ -222,6 +232,8 @@ def _extract_source_and_module_hierarchy_info(node: torch.fx.Node) -> EmitLoc:
         func_name=func_name,
         op_line_num=line_num,
         op_name=node.name,
+        is_debug=is_debug,
+        op_index=op_index,
     )
 
 
@@ -229,6 +241,10 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
     global DEBUG_PRINT
 
     emit_locs = []
+
+    import os
+    emit_ttnn_debug_loc = os.environ.get("EMIT_TTNN_DEBUG_LOC", False)
+    op_index = 0
 
     for node in graph_module.graph.nodes:
 
@@ -248,7 +264,7 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
         # If no metadata is available, use unknown location
         if not hasattr(node, "meta") or not node.meta:
             DEBUG_PRINT and print(f"  NO meta for node: {node.op} - {node.name}")
-            emit_locs.append(EmitLoc.make_unknown())
+            emit_locs.append(EmitLoc.make_unknown(emit_ttnn_debug_loc, op_index))
             continue
 
         # Skip if node.target is <class 'builtin_function_or_method'>
@@ -258,12 +274,13 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
         DEBUG_PRINT and print(f"  node.target: {node.target}")
 
         # Extract metadata components
-        emit_loc = _extract_source_and_module_hierarchy_info(node)
+        emit_loc = _extract_source_and_module_hierarchy_info(node, emit_ttnn_debug_loc, op_index)
 
         DEBUG_PRINT and print(f"  here emit_loc: {emit_loc}")
 
         # Build location string if we have any metadata
         emit_locs.append(emit_loc)
+        op_index += 1
 
     return [emit_loc.to_string() for emit_loc in emit_locs]
 
@@ -310,10 +327,12 @@ class MetadataDispatchMode(TorchDispatchMode):
     def __torch_dispatch__(self, func, types, args=(), kwargs={}):
         res = func(*args, **kwargs)
 
+        is_debug = "EMIT_TTNN_DEBUG_LOC" in os.environ
+
         # Set metadata only for computation nodes since they have module hierarchy info.
         # XLA nodes without location info inherit from parent/child nodes, which works
         # perfectly since computation nodes always have locations.
-        module_hierarchy = EmitLoc.make_unknown().to_string()
+        module_hierarchy = EmitLoc.make_unknown(is_debug=is_debug, op_index=-2).to_string()
         if self.operation_index < len(self.node_info):
             module_hierarchy = self.node_info[self.operation_index]
             self._set_metadata(res, module_hierarchy)
