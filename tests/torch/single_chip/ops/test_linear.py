@@ -47,3 +47,36 @@ def test_linear(
         framework=Framework.TORCH,
         compiler_config=compiler_config,
     )
+
+
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(category=Category.OP_TEST)
+def test_linear_torch_override():
+    """
+    Test linear with 4D input tensor to ensure torch function override transposes the
+    weights properly by calling torch.einsum("...mk,...nk->...mn" ...) instead of
+    torch.einsum("...mk,...kn->...mn" ...).
+
+    This tests the override in eager mode (without torch.compile) since the override
+    has `not torch.compiler.is_compiling()` check.
+    """
+    import torch.nn.functional as F
+    from tt_torch.torch_overrides import TorchFunctionOverride
+
+    dtype = torch.bfloat16
+    in_features = 96
+    out_features = 384
+
+    input_tensor = torch.randn(1, 128, 128, in_features, dtype=dtype)
+    weight = torch.randn(out_features, in_features, dtype=dtype)
+    bias = torch.randn(out_features, dtype=dtype)
+
+    # Golden output
+    golden_output = torch.einsum("...mk,...nk->...mn", input_tensor, weight)
+    golden_output = golden_output + bias
+
+    # Compute actual output with override active (eager mode, not compiled)
+    with TorchFunctionOverride():
+        output = F.linear(input_tensor, weight, bias)
+
+    assert torch.allclose(output, golden_output)
