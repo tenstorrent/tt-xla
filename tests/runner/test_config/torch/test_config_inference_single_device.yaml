@@ -1464,7 +1464,7 @@ test_config:
     status: EXPECTED_PASSING
 
   autoencoder/pytorch-conv-single_device-full-inference:
-    assert_pcc: false
+    # assert_pcc: false
     status: EXPECTED_PASSING
 
   phi3/phi_3_5/pytorch-mini_instruct-single_device-full-inference:
