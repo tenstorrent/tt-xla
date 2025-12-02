@@ -30,21 +30,24 @@ jobs:
     outputs:
       docker-image: ${{ steps.check.outputs.docker-image }}
       docker-image-base: ${{ steps.check.outputs.docker-image-base }}
+      tt-mlir-sha: ${{ steps.check.outputs.tt-mlir-sha }}
     steps:
       - uses: actions/checkout@v4
-      - name: Override tt-mlir SHA mlir_override is set
-        if: ${{ inputs.mlir_override }}
-        shell: bash
-        run: |
-            # Update the CMakeLists.txt file with the new SHA
-            sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
       - name: Check if Docker image already exists
         id: check
         shell: bash
         run: |
+          if [ -z "${{ inputs.mlir_override }}" ]; then
+            tt_mlir_sha=$(grep -oP 'set\(TT_MLIR_VERSION "\K[^"]+' third_party/CMakeLists.txt)
+            echo "No mlir_override provided, using tt-mlir version from CMakeLists.txt: $tt_mlir_sha"
+          else
+            tt_mlir_sha="${{ inputs.mlir_override }}"
+            echo "Using tt-mlir with override: $tt_mlir_sha"
+          fi
+          echo "tt-mlir-sha=$tt_mlir_sha" >> $GITHUB_OUTPUT
           # Output the image name
           set +e  # Don't exit on command failure
-          .github/build-docker-images.sh --check-only | tee docker.log
+          .github/build-docker-images.sh $tt_mlir_sha --check-only | tee docker.log
           EXIT_CODE=$?
           if [ $EXIT_CODE -eq 0 ]; then
             DOCKER_CI_IMAGE=$(tail -n 1 docker.log)
@@ -55,48 +58,18 @@ jobs:
             echo "Docker image does not exist, proceeding to build"
           fi
 
-      # Run the next steps only when pushed to main. Docker image must already exist, tag it as latest
-      - name: Log in to GitHub Container Registry
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ github.token }}
-      - name: Set latest tag on the image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          DOCKER_CI_IMAGE=${{ steps.check.outputs.docker-image }}
-          if [ -z "$DOCKER_CI_IMAGE" ]; then
-            echo "Error: steps.check.outputs.docker-image is not set"
-            exit 1
-          fi
-          DOCKER_TAG=$(echo $DOCKER_CI_IMAGE | sed 's/^.*://')
-
-          CI_IMAGE_NAME=$(echo $DOCKER_CI_IMAGE | sed 's/:.*//')
-          echo "Setting latest tag on the image $CI_IMAGE_NAME:$DOCKER_TAG"
-          skopeo copy "docker://$CI_IMAGE_NAME:$DOCKER_TAG" "docker://$CI_IMAGE_NAME:latest"
-
-          IRD_IMAGE_NAME=$(echo $DOCKER_CI_IMAGE | sed 's/:.*//' | sed 's/-ci-/-ird-/')
-          echo "Setting latest tag on the image $IRD_IMAGE_NAME:$DOCKER_TAG"
-          skopeo copy "docker://$IRD_IMAGE_NAME:$DOCKER_TAG" "docker://$IRD_IMAGE_NAME:latest"
-
   build-image:
     needs: check-if-docker-exist
     if: needs.check-if-docker-exist.outputs.docker-image == ''
-    runs-on: tt-ubuntu-2204-large-stable
+    runs-on: docker-builder
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
       docker-image-base: ${{ steps.build.outputs.docker-image-base }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Override tt-mlir SHA mlir_override is set
-        if: ${{ inputs.mlir_override }}
-        shell: bash
-        run: |
-            # Update the CMakeLists.txt file with the new SHA
-            sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
+      - name: Fix workspace permissions issue
+        run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
 
+      - uses: actions/checkout@v4
       - name: Verify third_party directory
         shell: bash
         run: |
@@ -116,8 +89,42 @@ jobs:
         run: |
           # Output the image name
           set pipefail
-          .github/build-docker-images.sh | tee docker.log
+          .github/build-docker-images.sh "${{needs.check-if-docker-exist.outputs.tt-mlir-sha}}" | tee docker.log
           DOCKER_CI_IMAGE=$(tail -n 1 docker.log)
           echo "DOCKER_CI_IMAGE $DOCKER_CI_IMAGE"
           echo "docker-image=$DOCKER_CI_IMAGE" >> "$GITHUB_OUTPUT"
           echo "docker-image-base=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-/-base-/')" >> "$GITHUB_OUTPUT"
+
+  set-latest-tag:
+    needs: [check-if-docker-exist, build-image]
+    runs-on: ubuntu-latest
+    # Run the next steps only when pushed to main, tag docker image as latest.
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') && (!failure())
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Set latest tag on the image
+        run: |
+          DOCKER_CI_IMAGE=${{ needs.check-if-docker-exist.outputs.docker-image }}
+          if [ -z "$DOCKER_CI_IMAGE" ]; then
+          echo "Using docker image from build-image job"
+            DOCKER_CI_IMAGE=${{ needs.build-image.outputs.docker-image }}
+          fi
+          if [ -z "$DOCKER_CI_IMAGE" ]; then
+            echo "Error: No docker image available from either check-if-docker-exist or build-image"
+            exit 1
+          fi
+          DOCKER_TAG=$(echo $DOCKER_CI_IMAGE | sed 's/^.*://')
+
+          CI_IMAGE_NAME=$(echo $DOCKER_CI_IMAGE | sed 's/:.*//')
+          echo "Setting latest tag on the image $CI_IMAGE_NAME:$DOCKER_TAG"
+          skopeo copy "docker://$CI_IMAGE_NAME:$DOCKER_TAG" "docker://$CI_IMAGE_NAME:latest"
+
+          IRD_IMAGE_NAME=$(echo $DOCKER_CI_IMAGE | sed 's/:.*//' | sed 's/-ci-/-ird-/')
+          echo "Setting latest tag on the image $IRD_IMAGE_NAME:$DOCKER_TAG"
+          skopeo copy "docker://$IRD_IMAGE_NAME:$DOCKER_TAG" "docker://$IRD_IMAGE_NAME:latest"

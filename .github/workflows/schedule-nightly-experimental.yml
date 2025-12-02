@@ -28,10 +28,8 @@ jobs:
     needs: [ build-image, build-ttxla ]
     if: success() || failure()
     with:
-      timeout_minutes: 180
       test_suite: model-test-experimental.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      use-shared-runners: false # Run full model tests on Civ1
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
@@ -69,7 +67,8 @@ jobs:
             {
               "text": "<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
               "result": "${{ needs.fail-notify.outputs.failed == 'true' && 'FAILED' || 'SUCCEEDED' }}",
-              "channel": "C08GYB57C8M"
+              "channel": "C08GYB57C8M",
+              "unfurl_links": false, "unfurl_media": false
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_EXPERIMENTAL_NIGHTLY }}

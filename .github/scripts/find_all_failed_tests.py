@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 import glob
+import os
 import sys
 import xml.etree.ElementTree as ET
 

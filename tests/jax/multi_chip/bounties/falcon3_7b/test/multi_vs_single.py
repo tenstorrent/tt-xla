@@ -5,10 +5,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import torch
-from transformers import AutoTokenizer, AutoConfig
 from model.jax_config import *
-from utils.flax_utils import *
+from transformers import AutoConfig, AutoTokenizer
 from utils.data_utils import *
+from utils.flax_utils import *
 
 
 def prepare_input(flax_model, input_ids, attention_mask, max_len):

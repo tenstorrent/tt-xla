@@ -1,21 +1,19 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from jax import Array
-from flax import nnx
 import jax
 import jax.numpy as jnp
-from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
-
+from flax import nnx
 from flax.linen import combine_masks, make_causal_mask
-from jax import lax
-from dataclasses import dataclass
-from jax_config import cpu_devices, axis_name, num_devices, device_mesh
-
-from transformers.models.mixtral.configuration_mixtral import MixtralConfig
+from jax import Array, lax
+from jax.sharding import Mesh, NamedSharding
+from jax.sharding import PartitionSpec as P
+from jax_config import axis_name, cpu_devices, device_mesh, num_devices
 from transformers.modeling_flax_utils import ACT2FN
+from transformers.models.mixtral.configuration_mixtral import MixtralConfig
 
 
 @dataclass

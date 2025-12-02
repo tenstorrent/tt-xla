@@ -11,6 +11,12 @@ outputs:
   run-perf-tests:
     description: "True if performance-related files changed."
     value: ${{ steps.inspect.outputs.run-perf-tests }}
+  only-run-forge-models:
+    description: "True if only forge-models runner files changed."
+    value: ${{ steps.inspect.outputs.only-run-forge-models }}
+  run-uplift-model-tests:
+    description: "True if we need to run extended tests"
+    value: ${{ steps.inspect.outputs.run-uplift-model-tests }}
 runs:
   using: "composite"
   steps:
@@ -24,23 +30,95 @@ runs:
         skip_build_and_test=true
         run_pr_tests=false
         run_perf_tests=false
+        only_run_forge_models=false
+        run_uplift_model_tests=false
+        tt_mlir_version_changed=false
         if [ "${{ github.event_name }}" = "pull_request" ]; then
           CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # Define patterns for files that can skip build/test
+          # Only allow docs, markdown, gitignore, LICENSE, CODEOWNERS, and test config files
+          skip_patterns=(
+            "*.md"
+            "*.gitignore"
+            "*LICENSE*"
+            "docs/*"
+            "*CODEOWNERS*"
+            ".github/workflows/test-matrix-presets/basic-test-nightly.json"
+            ".github/workflows/test-matrix-presets/model-test-experimental.json"
+            ".github/workflows/test-matrix-presets/model-test-passing.json"
+            ".github/workflows/test-matrix-presets/model-test-xfail.json"
+            ".github/workflows/test-matrix-presets/model-test-passing-weekly.json"
+            ".github/workflows/test-matrix-presets/model-test-xfail-weekly.json"
+            ".github/workflows/schedule-*"
+            ".github/workflows/manual-test.yml"
+            ".github/workflows/manual-test-single.yml"
+            ".github/workflows/push-main.yml"
+            "tests/runner/*" # This goes with custom logic below.
+          )
+
           for file in $CHANGED_FILES; do
-            # Only allow docs, markdown, gitignore, LICENSE to skip build/test
-            if [[ ! $file =~ ^.*\.(md|gitignore)$ && $file != *"LICENSE"* && $file != docs/* ]]; then
+            # Check if file matches any skip pattern
+            file_can_skip=false
+            for pattern in "${skip_patterns[@]}"; do
+              if [[ $file == $pattern ]]; then
+                file_can_skip=true
+                break
+              fi
+            done
+
+            # If ANY file doesn't match skip patterns, we cannot skip build/test
+            if [[ $file_can_skip == false ]]; then
+              echo "Cannot skip test because of change to file: $file"
               skip_build_and_test=false
               run_pr_tests=true
             fi
+
             # Example: detect perf uplift (customize as needed)
             if [[ $file == *"perf"* ]]; then
               run_perf_tests=true
             fi
           done
+
+          # Just run forge tests if everything else is skipped but we detect changes under tests/runner/.
+          if [[ "$skip_build_and_test" == "true" ]]; then
+            for file in $CHANGED_FILES; do
+              if [[ $file == tests/runner/* ]]; then
+                echo "Detected only skippable files + tests/runner/, enabling forge-model tests."
+                skip_build_and_test=false
+                only_run_forge_models=true
+                break
+              fi
+            done
+          fi
+
+          # Detect TT-MLIR dependency updates in PRs.
+          if echo "$CHANGED_FILES" | grep -q "^third_party/CMakeLists.txt$"; then
+            TT_MLIR_DIFF=$(gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }} -- third_party/CMakeLists.txt || true)
+            if echo "$TT_MLIR_DIFF" | grep -qE '^[+-][[:space:]]*set\(TT_MLIR_VERSION'; then
+              echo "Detected TT_MLIR_VERSION change in PR diff."
+              tt_mlir_version_changed=true
+            fi
+          fi
+
         else
           skip_build_and_test=false
           run_pr_tests=true
         fi
+
+        if [[ "$tt_mlir_version_changed" == "true" ]]; then
+          echo "Enabling uplift model tests due to TT-MLIR dependency change."
+          run_uplift_model_tests=true
+        fi
+
+        # Debug Purposes
+        echo "run-uplift-model-tests=$run_uplift_model_tests"
+        echo "GITHUB_HEAD_REF=${GITHUB_HEAD_REF}"
+
         echo "skip-build-and-test=$skip_build_and_test" >> "$GITHUB_OUTPUT"
         echo "run-pr-tests=$run_pr_tests" >> "$GITHUB_OUTPUT"
         echo "run-perf-tests=$run_perf_tests" >> "$GITHUB_OUTPUT"
+        echo "only-run-forge-models=$only_run_forge_models" >> "$GITHUB_OUTPUT"
+        echo "run-uplift-model-tests=$run_uplift_model_tests" >> "$GITHUB_OUTPUT"

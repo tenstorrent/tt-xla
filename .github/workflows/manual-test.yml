@@ -18,6 +18,10 @@ on:
           - 'model-test-passing.json'
           - 'model-test-xfail.json'
           - 'model-test-experimental.json'
+          - 'model-test-training.json'
+          - 'model-test-extended.json'
+          - 'basic-test.json:model-test-push.json:model-test-extended.json' # used for uplifts
+          - 'vllm-model-tests.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'
@@ -50,7 +54,7 @@ jobs:
       mlir_override: ${{ inputs.mlir_override }}
 
   test:
-    if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
+    if: success() && !cancelled() && inputs.preset != 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
     needs: [ build-image, build-ttxla]
     secrets: inherit
@@ -60,4 +64,5 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
       codecov: false

@@ -2,17 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 from flax import linen as nn
-from flax.traverse_util import flatten_dict, unflatten_dict
 from flax.core import freeze, unfreeze
-from jax.sharding import Mesh
+from flax.traverse_util import flatten_dict, unflatten_dict
+from jax.sharding import Mesh, NamedSharding
 from jax.sharding import PartitionSpec as P
-from jax.sharding import NamedSharding
-from model.model_falcon3 import FlaxFalcon3ForCausalLM
 from model.configuration_falcon3 import Falcon3Config
+from model.model_falcon3 import FlaxFalcon3ForCausalLM
 
 global DEVICE_COUNT
 DEVICE_COUNT = None  # Global variable to hold the device count

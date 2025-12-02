@@ -4,11 +4,10 @@
 
 from __future__ import annotations
 
-from typing import Callable, Sequence, Dict
+from typing import Callable, Dict, Sequence
 
 import jax
 from infra.comparators import ComparisonConfig
-from tests.infra.testers.compiler_config import CompilerConfig
 from infra.connectors import JaxDeviceConnector
 from infra.runners import JaxDeviceRunner
 from infra.utilities import (
@@ -17,10 +16,13 @@ from infra.utilities import (
     Tensor,
     enable_shardy,
     random_tensor,
+    sanitize_test_name,
 )
 from infra.workloads import JaxMultichipWorkload, Workload
 from jax.experimental.shard_map import shard_map
 from jax.sharding import NamedSharding
+
+from tests.infra.testers.compiler_config import CompilerConfig
 
 from ...base_tester import BaseTester
 
@@ -191,6 +193,27 @@ class JaxMultichipOpTester(BaseTester):
             self._mesh_shape, self._axis_names
         )
 
+    def serialize_on_device(
+        self, workload: JaxMultichipWorkload, output_prefix: str
+    ) -> None:
+        """
+        Serializes a workload on TT device with proper compiler configuration.
+
+        Args:
+            workload: The workload to serialize
+            output_prefix: Base path and filename prefix for output files
+        """
+        compiler_options = self._compiler_config.to_jax_compiler_options()
+
+        # For multichip, we need to compile the workload first within the device mesh
+        with self._device_mesh:
+            self._compile(workload, compiler_options)
+
+        # Then serialize using the device runner
+        self._device_runner.serialize_on_device(
+            workload, output_prefix, compiler_options=compiler_options
+        )
+
 
 def run_jax_multichip_op_test_with_random_inputs(
     executable: Callable,
@@ -224,3 +247,103 @@ def run_jax_multichip_op_test_with_random_inputs(
         tester.test_with_random_inputs(
             executable, input_shapes, sharding_mode, minval, maxval
         )
+
+
+def serialize_jax_multichip_op(
+    executable: Callable,
+    inputs: Sequence[Tensor],
+    output_prefix: str,
+    mesh_shape: tuple,
+    axis_names: tuple,
+    in_specs: Sequence[jax.sharding.PartitionSpec],
+    out_specs: jax.sharding.PartitionSpec,
+    sharding_mode: ShardingMode,
+    compiler_config: CompilerConfig = None,
+) -> None:
+    """
+    Serializes a JAX multichip op with given inputs to disk.
+
+    Args:
+        executable: The operation/function to serialize
+        inputs: Input tensors for the operation
+        output_prefix: Base path and filename prefix for output files
+        mesh_shape: Shape of the device mesh
+        axis_names: Names of the mesh axes
+        in_specs: Input sharding specifications
+        out_specs: Output sharding specification
+        sharding_mode: The sharding mode to use
+        compiler_config: Compiler configuration options
+    """
+    if compiler_config is None:
+        compiler_config = CompilerConfig()
+
+    tester = JaxMultichipOpTester(
+        in_specs,
+        out_specs,
+        mesh_shape,
+        axis_names,
+        compiler_config=compiler_config,
+    )
+
+    workload = JaxMultichipWorkload(
+        executable=executable,
+        args=inputs,
+        device_mesh=tester._device_mesh,
+        in_specs=in_specs,
+        out_spec=out_specs,
+        sharding_mode=sharding_mode,
+    )
+
+    # Serialize workload on TT device
+    tester.serialize_on_device(workload, output_prefix)
+
+
+def serialize_jax_multichip_op_with_random_inputs(
+    executable: Callable,
+    input_shapes: Sequence[tuple],
+    test_name: str,
+    mesh_shape: tuple,
+    axis_names: tuple,
+    in_specs: Sequence[jax.sharding.PartitionSpec],
+    out_specs: jax.sharding.PartitionSpec,
+    sharding_mode: ShardingMode,
+    minval: float = 0.0,
+    maxval: float = 1.0,
+    compiler_config: CompilerConfig = None,
+) -> None:
+    """
+    Serializes a JAX multichip op with random inputs to disk.
+
+    Args:
+        executable: The operation/function to serialize
+        input_shapes: Shapes for random input generation
+        test_name: Test name to generate output prefix from
+        mesh_shape: Shape of the device mesh
+        axis_names: Names of the mesh axes
+        in_specs: Input sharding specifications
+        out_specs: Output sharding specification
+        sharding_mode: The sharding mode to use
+        minval: Minimum value for random inputs (default: 0.0)
+        maxval: Maximum value for random inputs (default: 1.0)
+        compiler_config: Compiler configuration options
+    """
+
+    clean_name = sanitize_test_name(test_name)
+    output_prefix = f"output_artifact/{clean_name}"
+
+    inputs = [
+        random_tensor(shape=shape, minval=minval, maxval=maxval)
+        for shape in input_shapes
+    ]
+
+    serialize_jax_multichip_op(
+        executable,
+        inputs,
+        output_prefix,
+        mesh_shape,
+        axis_names,
+        in_specs,
+        out_specs,
+        sharding_mode,
+        compiler_config,
+    )

@@ -38,7 +38,16 @@ jobs:
     needs: [ build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      debug_build: true
+      build_type: codecov
+
+  build-ttxla-explorer:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla with explorer"
+    secrets: inherit
+    needs: [ build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      build_type: explorer
 
   test:
     needs: [ build-image, build-ttxla, build-ttxla-codecov ]
@@ -49,6 +58,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
       artifact_codecov_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
       wheel_codecov_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
       build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
@@ -57,17 +67,15 @@ jobs:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
-    if: success() || failure()
     with:
       test_suite: model-test-push.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      use-shared-runners: false
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
   deploy-docs:
     needs: [ build-image, build-ttxla ]
-    uses: ./.github/workflows/call-build-docs.yml
+    uses: ./.github/workflows/call-build-and-deploy-docs.yml
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}

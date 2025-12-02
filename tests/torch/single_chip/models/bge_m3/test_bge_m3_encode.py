@@ -5,26 +5,23 @@
 # This test does not use the TorchModelTester infrastructure as it requires sentence inputs (not tensors) that cannot be moved onto device using `.to(device)`.
 # TODO: add support for such inputs and model types in TorchModelTester: https://github.com/tenstorrent/tt-xla/issues/1471
 
+import subprocess
+import sys
+
+import numpy as np
+import pytest
 import torch
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
-import numpy as np
-from torch.utils._pytree import tree_map
-import subprocess
-import sys
-import pytest
-from infra import Framework, RunMode, ComparisonConfig
+from infra import ComparisonConfig, Framework, RunMode
 from infra.comparators.torch_comparator import TorchComparator
-from utils import (
-    BringupStatus,
-    Category,
-    incorrect_result,
-)
+from torch.utils._pytree import tree_map
+from utils import BringupStatus, Category, incorrect_result
+
 from third_party.tt_forge_models.bge_m3.encode.pytorch.loader import (
     ModelLoader,
     ModelVariant,
 )
-
 
 VARIANT_NAME = ModelVariant.BASE
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)
@@ -148,6 +145,12 @@ def bge_m3_encode():
     model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "PCC comparison failed. Calculated: pcc=0.8799465298652649. Required: pcc=0.92 "
+        "https://github.com/tenstorrent/tt-xla/issues/2347"
+    )
 )
 def test_bge_m3_encode():
     """Run BGE-M3 encode on TT device and validate PCC outputs are finite and bounded."""

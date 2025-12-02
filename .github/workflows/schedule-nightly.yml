@@ -1,6 +1,7 @@
 name: On nightly
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
 
@@ -29,9 +30,9 @@ jobs:
       test_suite: basic-test-nightly.json
       codecov: false
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      use-shared-runners: false # Run nightly tests on Civ1
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
 
   test_full_model:
     uses: ./.github/workflows/call-test.yml
@@ -42,7 +43,6 @@ jobs:
     with:
       test_suite: model-test-full.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      use-shared-runners: false # Run full model tests on Civ1
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
@@ -54,10 +54,8 @@ jobs:
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
-      timeout_minutes: 180
       test_suite: model-test-passing.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      use-shared-runners: false # Run full model tests on Civ1
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
@@ -69,10 +67,8 @@ jobs:
     # This ensures the job runs regardless of success or failure of `nightly_tests`:
     if: success() || failure()
     with:
-      timeout_minutes: 180
       test_suite: model-test-xfail.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      use-shared-runners: false # Run full model tests on Civ1
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
@@ -112,7 +108,8 @@ jobs:
           payload: |
             {
               "text": "Bad bad nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
-              "channel": "C08GYB57C8M"
+              "channel": "C08GYB57C8M",
+              "unfurl_links": false, "unfurl_media": false
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
@@ -124,7 +121,8 @@ jobs:
           payload: |
             {
               "text": "Good nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
-              "channel": "C08GYB57C8M"
+              "channel": "C08GYB57C8M",
+              "unfurl_links": false, "unfurl_media": false
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_SUCCESS }}

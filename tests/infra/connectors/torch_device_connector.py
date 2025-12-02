@@ -5,6 +5,7 @@
 import os
 
 import torch
+import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra.utilities import Device
@@ -18,6 +19,11 @@ class TorchDeviceConnector(DeviceConnector):
     def __init__(self) -> None:
         super().__init__()
         xr.runtime.set_device_type("TT")
+        xr.initialize_cache(self.get_cache_dir())
+
+    @staticmethod
+    def get_cache_dir() -> str:
+        return f"{os.getcwd()}/tmp/"
 
     # @override
     def _connect_device(self, device_type: DeviceType, device_num: int = 0) -> Device:
@@ -25,7 +31,7 @@ class TorchDeviceConnector(DeviceConnector):
         # want to fallback to a regular CPU on host, which torch sees natively
         # through `torch.device("cpu")`.
         return (
-            xm.xla_device(device_num)
+            torch_xla.device(device_num)
             if device_type == DeviceType.TT
             else torch.device(device_type.value)
         )

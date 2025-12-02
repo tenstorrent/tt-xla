@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-def map_shared_runner(entry):
+def map_runner_name(entry):
     """
     Map runs-on value to shared runner equivalent if shared-runners is enabled.
 
@@ -20,6 +20,7 @@ def map_shared_runner(entry):
     shared_runner_mapping = {
         "n150": "tt-ubuntu-2204-n150-stable",
         "n300": "tt-ubuntu-2204-n300-stable",
+        "n300-high-memory": "tt-ubuntu-2204-n300-stable",
         "wormhole_b0": "tt-ubuntu-2204-n300-stable",
         "p150": "tt-ubuntu-2204-p150b-stable",
         "n300-llmbox": "tt-ubuntu-2204-n300-llmbox-stable",
@@ -28,7 +29,14 @@ def map_shared_runner(entry):
     if entry.get("shared-runners") == "true" or entry.get("shared-runners") is True:
         runs_on = entry.get("runs-on")
         if runs_on in shared_runner_mapping:
+            # Preserve the original runs-on so downstream consumers
+            # (e.g. --arch for test_models.py) can access non mapped arch.
+            entry["runs-on-original"] = runs_on
             entry["runs-on"] = shared_runner_mapping[runs_on]
+        else:
+            raise TypeError(
+                "Expected runs-on attribute to be one of the predefined values"
+            )
     return entry
 
 
@@ -51,9 +59,42 @@ def expand_parallel_entry(entry, expanded_matrix):
         expanded_matrix.append(entry)
 
 
-def process_test_matrix(matrix_file_path):
+def read_preset_test_entries(file_path: str):
     """
-    Process test matrix by expanding parallel groups and mapping shared runners.
+    Read JSON preset file and return only test entries (excluding metadata).
+    """
+    with open(file_path, "r") as f:
+        matrix = json.load(f)
+
+    if not isinstance(matrix, list):
+        raise ValueError("Expected JSON file to contain an array at the root level")
+
+    return [entry for entry in matrix if "_metadata" not in entry]
+
+
+def map_shared_runners_field(entry):
+    """
+    Maps shared_runner field from string represenation to boolean representation
+    """
+    shared_runners = entry.get("shared-runners")
+
+    if shared_runners is None:
+        return
+
+    if isinstance(shared_runners, str) and shared_runners == "true":
+        entry["shared-runners"] = True
+    if isinstance(shared_runners, str) and shared_runners == "false":
+        entry["shared-runners"] = False
+
+    if not isinstance(entry.get("shared-runners"), bool):
+        raise TypeError(
+            "Expected the shared-runners field to be a boolean or a string representation of a boolean"
+        )
+
+
+def process_test_matrix_list(matrix_file_paths: list[str]):
+    """
+    Process a list of test matrices by expanding parallel groups and mapping shared runners.
 
     For each entry with 'parallel-groups': n, creates n total entries
     (including the original) where each has a 'group-id' starting from 1.
@@ -62,17 +103,16 @@ def process_test_matrix(matrix_file_path):
     corresponding shared runner equivalents.
     """
 
-    # Read the input JSON file
-    with open(matrix_file_path, "r") as f:
-        matrix = json.load(f)
-
-    if not isinstance(matrix, list):
-        raise ValueError("Expected JSON file to contain an array at the root level")
+    test_entry_list = []
+    for matrix_file_path in matrix_file_paths:
+        test_entry_list.extend(read_preset_test_entries(matrix_file_path))
 
     expanded_matrix = []
 
-    for entry in matrix:
-        map_shared_runner(entry)
+    for entry in test_entry_list:
+        map_shared_runners_field(entry)
+
+        map_runner_name(entry)
 
         expand_parallel_entry(entry, expanded_matrix)
 
@@ -80,23 +120,42 @@ def process_test_matrix(matrix_file_path):
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python script.py <test-matrix-json-file>", file=sys.stderr)
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print(
+            "Usage: python generate_test_matrix.py <file.json[:file2.json:...]> [path_prefix]",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    matrix_file_path = sys.argv[1]
+    matrix_file_paths = sys.argv[1]
+    path_prefix = sys.argv[2] if len(sys.argv) == 3 else ""
 
-    if not Path(matrix_file_path).exists():
-        print(f"Error: File '{matrix_file_path}' not found", file=sys.stderr)
-        sys.exit(1)
+    matrix_file_path_list = matrix_file_paths.split(":")
+
+    # Apply path prefix to each file if provided
+    if path_prefix:
+        matrix_file_path_list = [
+            str(Path(path_prefix) / path) for path in matrix_file_path_list
+        ]
+
+    for i, path in enumerate(matrix_file_path_list):
+        if not Path(path).exists():
+            print(
+                f"Error: File '{path}' not found ({i+1} of {len(matrix_file_path_list)})",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     try:
-        expanded_matrix = process_test_matrix(matrix_file_path)
+        expanded_matrix = process_test_matrix_list(matrix_file_path_list)
 
         print(json.dumps(expanded_matrix, indent=2))
 
     except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON in '{matrix_file_path}': {e}", file=sys.stderr)
+        print(
+            f"Error: Invalid JSON in one of '{matrix_file_path_list}': {e}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

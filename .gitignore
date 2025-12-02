@@ -43,6 +43,9 @@ third_party/tt-mlir
 .cache/
 compile_commands.json
 
+# CTest
+Testing/
+
 # Python
 __pycache__/
 .env
@@ -57,3 +60,9 @@ venv/*
 
 # Packaging scripts write artifacts here.
 bindist/
+
+# temporary files
+._bringup_stage.txt
+
+# Bisect artifacts
+.bisect-run/

@@ -9,6 +9,7 @@ from typing import Callable, Optional
 import jax
 import jax.lax as jlx
 import jax.numpy as jnp
+import torch_xla
 from infra import Framework
 
 
@@ -28,6 +29,11 @@ class ModelGroup(StrEnum):
     RED = "red"
     PRIORITY = "priority"
     GENERALITY = "generality"
+
+
+class TTArch(StrEnum):
+    WORMHOLE_B0 = "wormhole_b0"
+    BLACKHOLE = "blackhole"
 
 
 class ModelTask(StrEnum):
@@ -163,3 +169,30 @@ def convert_output_to_bfloat16(f: Callable):
         return jlx.convert_element_type(res, jnp.bfloat16)
 
     return wrapper
+
+
+def is_single_device(request):
+    return request.node.get_closest_marker("single_device") is not None
+
+
+def is_dual_chip(request):
+    return request.node.get_closest_marker("dual_chip") is not None
+
+
+def is_llmbox(request):
+    return request.node.get_closest_marker("llmbox") is not None
+
+
+def is_galaxy(request):
+    return request.node.get_closest_marker("galaxy") is not None
+
+
+def get_torch_device_arch() -> TTArch:
+    """Returns the architecture of the connected TT device."""
+    device_kind = torch_xla._XLAC._xla_device_kind("xla")
+    if "Wormhole_b0" in device_kind:
+        return TTArch.WORMHOLE_B0
+    elif "Blackhole" in device_kind:
+        return TTArch.BLACKHOLE
+    else:
+        raise ValueError(f"Unknown TT device architecture: {device_kind}")

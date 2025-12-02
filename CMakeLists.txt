@@ -9,16 +9,16 @@
 
 # Here is the dependency graph to easily keep track of components involved:
 #
-# pjrt_plugin_tt.so (TTPJRTTTDylib) # src/tt/CMakeLists.txt
+# pjrt_plugin_tt.so (TTPJRTTTDylib) # pjrt_implementation/src/CMakeLists.txt
 # |                                 # This is the final product of the build, a dynamic
 # |                                 # lib imported by JAX as a plugin
 # │
-# ├── TTPJRTTT  # src/tt/CMakeLists.txt
-# │   └── TTPJRTCommon  # src/common/CMakeLists.txt
-# │       ├── TTPJRTCommonDylibPlatform   # src/common/CMakeLists.txt
+# ├── TTPJRTBindings  # pjrt_implementation/src/CMakeLists.txt
+# │   └── TTPJRTApi  # pjrt_implementation/src/api/CMakeLists.txt
 # │       ├── TTMLIRCompiler (tt-mlir dynamic lib, product of tt-mlir build)
 # │       ├── TTMLIRRuntime (tt-mlir dynamic lib, product of tt-mlir build)
-# │       └── loguru
+# │       └── TTPJRTUtils  # pjrt_implementation/src/utils/CMakeLists.txt
+# │           └── loguru
 # │
 # └── coverage_config   # CMakeLists.txt
 
@@ -32,17 +32,25 @@ endif()
 
 project(TT_PJRT)
 cmake_policy(SET CMP0069 NEW)
+enable_testing()
 set(TTPJRT_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 set(TTMLIR_TOOLCHAIN_DIR $ENV{TTMLIR_TOOLCHAIN_DIR})
 
 set(CMAKE_C_COMPILER clang-17)
-set(DCMAKE_CXX_COMPILER clang++-17)
+set(CMAKE_CXX_COMPILER clang++-17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
 option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" OFF)
+option(TTMLIR_BUILD_TYPE "Build type for tt-mlir" Release)
+option(TTXLA_ENABLE_EXPLORER "Enable Explorer feature in tt-mlir" OFF)
+option(TTXLA_ENABLE_PJRT_TESTS "Enable PJRT tests" ON)
+
+if(TTXLA_ENABLE_EXPLORER)
+    set(TTMLIR_ENABLE_PERF_TRACE ON)
+endif()
 
 # ----- coverage_config -----
 
@@ -75,6 +83,10 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInf
     add_definitions(-DLOGURU_DEBUG_LOGGING=1)
 endif()
 
-add_subdirectory(src)
+add_subdirectory(pjrt_implementation/src)
 add_subdirectory(third_party)
 add_subdirectory(docs)
+
+if(TTXLA_ENABLE_PJRT_TESTS)
+    add_subdirectory(tests/pjrt)
+endif()

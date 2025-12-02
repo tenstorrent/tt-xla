@@ -1,36 +1,17 @@
 ARG FROM_TAG=latest
+ARG MLIR_TAG=latest
 
-FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci-build
-SHELL ["/bin/bash", "-c"]
+# tt-mlir ci with full toolchain
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:${MLIR_TAG} AS ci-build-with-venv
 
-# Create a directory for the build and toolchain
-ENV PROJECT_NAME=tt-xla
-ENV BUILD_DIR=/home/build
+# make dummy image without venv
+FROM ci-build-with-venv AS ci-build
+
+# In the ci-build stage, create a clean copy without venv
 ENV TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+RUN rm -rf $TTMLIR_TOOLCHAIN_DIR/venv
 
-RUN echo "Building $PROJECT_NAME at $GIT_SHA"
-
-RUN mkdir -p $BUILD_DIR && \
-    mkdir -p $TTMLIR_TOOLCHAIN_DIR
-
-# Copy the project from host, cloned in build-image.yml
-COPY . $BUILD_DIR/$PROJECT_NAME
-
-WORKDIR $BUILD_DIR/$PROJECT_NAME
-
-# Show last commit
-RUN git log -1
-
-# Build the toolchain
-RUN cmake -B toolchain -DTOOLCHAIN=ON third_party/ && \
-    cd third_party/tt-mlir/src/tt-mlir/ && \
-    source env/activate && \
-    cmake -B env/build env && \
-    cmake --build env/build && \
-    rm -rf $TTMLIR_TOOLCHAIN_DIR/venv && \
-    chmod -R 777 $TTMLIR_TOOLCHAIN_DIR
-
-# Final stage
+# CI image build
 FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ci
 
 # Copy the TTMLIR_TOOLCHAIN_DIR from the previous stage
@@ -39,3 +20,43 @@ RUN echo "Copying from ci-build stage $TTMLIR_TOOLCHAIN_DIR"
 COPY --from=ci-build $TTMLIR_TOOLCHAIN_DIR $TTMLIR_TOOLCHAIN_DIR
 
 RUN du -h --max-depth=2 $TTMLIR_TOOLCHAIN_DIR
+
+# Ird image build
+FROM ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:${FROM_TAG} AS ird
+SHELL ["/bin/bash", "-c"]
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+RUN echo "Copying from ci-build stage $TTMLIR_TOOLCHAIN_DIR"
+COPY --from=ci-build-with-venv $TTMLIR_TOOLCHAIN_DIR $TTMLIR_TOOLCHAIN_DIR
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    ssh \
+    sudo \
+    wget \
+    vim \
+    nano \
+    tmux \
+    psmisc \
+    bash-completion
+
+# Install GDB 14.2
+RUN apt install libmpfr-dev -y && \
+    # wget https://ftp.gnu.org/gnu/gdb/gdb-14.2.tar.gz && \
+    # Mirror for ftp.gnu.org which is not reliable
+    wget https://mirror.csclub.uwaterloo.ca/gnu/gdb/gdb-14.2.tar.gz && \
+    tar -xvf gdb-14.2.tar.gz && \
+    cd gdb-14.2 && \
+    ./configure && \
+    make -j$(nproc) && \
+    make install && \
+    cd ..  && \
+    rm -rf gdb-14.2 gdb-14.2.tar.gz  && \
+    gdb --version
+
+# Add entrypoint script
+COPY .github/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

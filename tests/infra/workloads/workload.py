@@ -4,8 +4,14 @@
 
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
-from infra.utilities import Framework, Model
+
+from infra.connectors.torch_device_connector import TorchDeviceConnector
+from infra.utilities import Framework, Mesh, Model
+from tt_jax import serialize_compiled_artifacts_to_disk
+from tt_torch import parse_compiled_artifacts_from_cache_to_disk
 
 
 class Workload:
@@ -60,13 +66,52 @@ class Workload:
 
     def execute(self) -> Any:
         """Calls callable passing stored args and kwargs directly."""
-        if self.model is not None:
-            return self.model(*self.args, **self.kwargs)
-        elif self.compiled_executable is not None:
+        if self.compiled_executable is not None:
             return self.compiled_executable(*self.args, **self.kwargs)
+        elif self.model is not None:
+            return self.model(*self.args, **self.kwargs)
         elif self.executable is not None:
             return self.executable(*self.args, **self.kwargs)
         else:
             raise ValueError(
                 "No model, compiled_executable, or executable provided in Workload."
+            )
+
+    def serialize(self, output_prefix: str, compiler_options=None) -> None:
+        """Serialize the workload compilation artifacts to disk.
+
+        Args:
+            output_prefix: Base path and filename prefix for output files.
+            compiler_options: Optional JAX compiler options dict (ignored for Torch)
+        """
+        if self.is_jax:
+            # Get the executable to serialize
+            executable = self.model if self.model else self.executable
+            if executable is None:
+                raise ValueError("No executable or model to serialize")
+
+            # Serialize with the workload's args and kwargs
+            serialize_compiled_artifacts_to_disk(
+                executable,
+                *self.args,
+                output_prefix=output_prefix,
+                compiler_options=compiler_options,
+                **self.kwargs,
+            )
+        elif self.is_torch:
+            cache_dir = TorchDeviceConnector.get_cache_dir()
+            # TODO: This is a temporary fix, should be removed once
+            # https://github.com/tenstorrent/tt-xla/issues/2401 is fixed.
+
+            cache_dir_path = Path(cache_dir)
+            if cache_dir_path.exists():
+                shutil.rmtree(cache_dir_path)
+            cache_dir_path.mkdir(parents=True, exist_ok=True)
+
+            self.execute()
+            parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
+
+        else:
+            raise ValueError(
+                f"Unsupported framework for serialization: {self.framework}"
             )

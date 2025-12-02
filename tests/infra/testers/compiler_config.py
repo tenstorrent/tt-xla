@@ -15,8 +15,17 @@ class CompilerConfig:
     applied during model compilation for TT device.
     """
 
-    # Enable optimizer passes
-    enable_optimizer: bool = False
+    # Optimization level (0, 1, or 2) that controls multiple optimizer passes.
+    # Level 0 (default): All MLIR optimizer passes disabled
+    # Level 1: Basic optimizations
+    #     * Consteval prepare for conv2d weights
+    #     * Remove some op workarounds
+    #     * Enable conv2d + mul fusing
+    #     * Op level validation for inputs/outputs
+    # Level 2: Advanced optimizations
+    #     * All level 1 optimizations
+    #     * Memory layout optimizations (sharding)
+    optimization_level: int = 0
 
     # Enables automatic MLIR graph conversion into block fp8 format. This is
     # supported only when the graph is in bfloat16 format, to avoid loss in precision.
@@ -27,6 +36,17 @@ class CompilerConfig:
     # should provide and get tensors of common dtype.
     enable_bfp8_conversion: bool = False
 
+    # Enables experimental BFP8 weight conversion in MLIR optimizer passes.
+    experimental_enable_weight_bfp8_conversion: bool = False
+
+    # Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
+    # TODO(sdjordjevicTT): This is a temporary option and will be removed once the underlying
+    # issue https://github.com/tenstorrent/tt-mlir/issues/4628 is fixed.
+    experimental_enable_fusing_conv2d_with_multiply_pattern: bool = False
+
+    # Enables trace hoisting for TTNN pipeline.
+    enable_trace: bool = False
+
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
@@ -36,11 +56,20 @@ class CompilerConfig:
         """
         options = {}
 
-        if self.enable_optimizer:
-            options["enable_optimizer"] = "true"
+        if self.optimization_level:
+            options["optimization_level"] = str(self.optimization_level)
 
         if self.enable_bfp8_conversion:
             options["enable_bfp8_conversion"] = "true"
+
+        if self.experimental_enable_weight_bfp8_conversion:
+            options["experimental_enable_weight_bfp8_conversion"] = "true"
+
+        if self.experimental_enable_fusing_conv2d_with_multiply_pattern:
+            options["experimental_enable_fusing_conv2d_with_multiply_pattern"] = "true"
+
+        if self.enable_trace:
+            options["enable_trace"] = "true"
 
         return options
 

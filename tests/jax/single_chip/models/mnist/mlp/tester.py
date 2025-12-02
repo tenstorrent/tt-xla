@@ -2,15 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Sequence
+from typing import Dict, Optional, Sequence
 
 import jax
 from flax import linen as nn
-from infra import ComparisonConfig, JaxModelTester, RunMode, Model
+from infra import ComparisonConfig, JaxModelTester, Model, RunMode
+from infra.testers.compiler_config import CompilerConfig
 from jaxtyping import PyTree
+
 from third_party.tt_forge_models.mnist.image_classification.jax import (
     ModelLoader,
-    ModelArchitecture,
+    ModelVariant,
 )
 
 MNIST_MLP_PARAMS_INIT_SEED = 42
@@ -32,9 +34,11 @@ class MNISTMLPTester(JaxModelTester):
         hidden_sizes: Sequence[int],
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
+        compiler_config: CompilerConfig = None,
+        dtype_override=None,
     ) -> None:
-        self._model_loader = ModelLoader(ModelArchitecture.MLP, hidden_sizes)
-        super().__init__(comparison_config, run_mode)
+        self._model_loader = ModelLoader(ModelVariant.MLP_CUSTOM, hidden_sizes)
+        super().__init__(comparison_config, run_mode, compiler_config, dtype_override)
 
     # @override
     def _get_model(self) -> Model:
@@ -51,3 +55,11 @@ class MNISTMLPTester(JaxModelTester):
     # @override
     def _get_input_parameters(self) -> PyTree:
         return self._model_loader.load_parameters()
+
+    # @override
+    def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        return {}
+
+    # @override
+    def _get_static_argnames(self) -> Optional[Sequence[str]]:
+        return []

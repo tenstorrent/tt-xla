@@ -6,8 +6,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import run_op_test_with_random_inputs
-from tests.infra.testers.compiler_config import CompilerConfig
 from utils import Category
+
+from tests.infra.testers.compiler_config import CompilerConfig
 
 
 @pytest.mark.push

@@ -5,10 +5,12 @@ on:
     branches: [ "main" ]
 
 permissions:
+  contents: read
   packages: write
   checks: write
   pull-requests: write
   id-token: write
+  actions: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,13 +27,15 @@ jobs:
       skip-build-and-test: ${{ steps.inspect.outputs.skip-build-and-test }}
       run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
       run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
+      only-run-forge-models: ${{ steps.inspect.outputs.only-run-forge-models }}
+      run-uplift-model-tests: ${{ steps.inspect.outputs.run-uplift-model-tests }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/inspect-changes
         id: inspect
 
   build-image:
-    needs: [ pre-commit, inspect-changes ]
+    needs: [ inspect-changes ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
@@ -41,10 +45,10 @@ jobs:
     name: "Build tt-xla with code coverage"
     secrets: inherit
     needs: [ inspect-changes, build-image ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      debug_build: true
+      build_type: codecov
 
   build-ttxla-release:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
@@ -55,9 +59,19 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
+  build-ttxla-explorer:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla with explorer"
+    secrets: inherit
+    needs: [ inspect-changes, build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      build_type: explorer
+
   test:
     needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
@@ -67,10 +81,11 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       wheel_codecov_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
       wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_release_vllm_tt_artifact_name }}
       build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
 
   perf-benchmark:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')
     needs: [ inspect-changes, build-image, build-ttxla-release ]
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
@@ -81,16 +96,34 @@ jobs:
       ref: main
 
   test_forge_models_push:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && (success() || failure())
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ inspect-changes, build-image, build-ttxla-release ]
     with:
       test_suite: model-test-push.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      use-shared-runners: false
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+
+  test_models_on_uplift:
+    if: needs.inspect-changes.outputs.run-uplift-model-tests == 'true'
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    with:
+      test_suite: model-test-extended.json
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+
+  build-docs:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    uses: ./.github/workflows/call-check-docs-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
 
   check-all-green:
     if: always()
@@ -99,12 +132,14 @@ jobs:
       - build-image
       - build-ttxla-codecov
       - build-ttxla-release
+      - build-ttxla-explorer
       - test
       - test_forge_models_push
+      - build-docs
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, test, test_forge_models_push
+        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, build-ttxla-explorer, test, test_forge_models_push, build-docs
         jobs: ${{ toJSON(needs) }}

@@ -9,10 +9,11 @@ tokenizer configs.
 """
 
 import argparse
-import mistral_nnx
-from pathlib import Path
-from transformers import AutoTokenizer
 import shutil
+from pathlib import Path
+
+import mistral_nnx
+from transformers import AutoTokenizer
 
 
 def main():
