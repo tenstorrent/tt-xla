@@ -106,7 +106,7 @@ def find_new_failed_tests(dir_a, dir_b, filter):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 7:
+    if len(sys.argv) != 8:
         print(
             "Usage: python find_failed_bymachine_tests.py reports_dir_a reports_dir_b reports_dir_out form_commit to_commit test_filter num_runs"
         )
