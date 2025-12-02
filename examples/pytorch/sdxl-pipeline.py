@@ -1,8 +1,10 @@
+import logging
 import torch
 import torch.nn as nn
 import numpy as np
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
+import torch_xla
 
 from diffusers import StableDiffusionXLPipeline, AutoencoderKL, UNet2DConditionModel
 from diffusers import EulerDiscreteScheduler
@@ -13,6 +15,7 @@ from PIL import Image
 
 from enum import Enum
 
+logging.basicConfig(level=logging.INFO)
 class SDXLVariants(Enum):
     SDXL_IMG_1024 = "stabilityai/stable-diffusion-xl-base-1.0"
     SDXL_IMG_512 = "hotshotco/SDXL-512"
@@ -68,8 +71,9 @@ class SDXLPipeline:
             trust_remote_code=True
         )
         device = xm.xla_device()
-        self.unet = self.unet.to(device)
         self.unet.compile(backend="tt")
+        self.unet = self.unet.to(device)
+        
 
         self.text_encoder = CLIPTextModel.from_pretrained(
             self.model_id,
@@ -191,22 +195,31 @@ class SDXLPipeline:
             # repeat for cond and uncond
             time_ids = time_ids.repeat(2, 1) # (2B, 6)
             tt_device = xm.xla_device()
-            tt_cast = lambda x : x.to(tt_device, dtype=torch.bfloat16)
+            
+            def tt_cast(x):
+                x = x.to(dtype=torch.bfloat16)
+                if x.device == torch.device('cpu'):
+                    x = x.to(device=xm.xla_device())
+                return x
+
+
+            # torch_xla.set_custom_compile_options({'enable_const_eval': 'false'})
             cpu_cast = lambda x : x.to('cpu').to(dtype=torch.float16)
 
             for i, timestep in enumerate(self.scheduler.timesteps):
-                print(f"Step {i} of {num_inference_steps}")
+                logging.info(f"Step {i} of {num_inference_steps}")
                 model_input = latents.repeat(2, 1, 1, 1) if do_cfg else latents # (2B, 4, H, W) if do_cfg else (B, 4, H, W)
                 model_input = self.scheduler.scale_model_input(model_input, timestep)
                 model_input = tt_cast(model_input)
-                timestep = tt_cast(timestep)
+                timestep = tt_cast(timestep.unsqueeze(0))
                 encoder_hidden_states = tt_cast(encoder_hidden_states)
                 pooled_text_embeds = tt_cast(pooled_text_embeds)
                 time_ids = tt_cast(time_ids)
-                unet_output = self.unet(model_input, timestep, encoder_hidden_states, added_cond_kwargs={"text_embeds": pooled_text_embeds, "time_ids": time_ids})
-                unet_output = cpu_cast(unet_output.sample)
+                
+                unet_output = self.unet(model_input, timestep, encoder_hidden_states, added_cond_kwargs={"text_embeds": pooled_text_embeds, "time_ids": time_ids}).sample
+                unet_output = cpu_cast(unet_output)
 
-                xr.clear_computation_cache() # turns out that consteval cache is accumulating in DRAM which causes DRAM OOM. This is a temp workaround.
+                #xr.clear_computation_cache() # turns out that consteval cache is accumulating in DRAM which causes DRAM OOM. This is a temp workaround.
 
                 if do_cfg:
                     uncond_output, cond_output = unet_output.chunk(2)
