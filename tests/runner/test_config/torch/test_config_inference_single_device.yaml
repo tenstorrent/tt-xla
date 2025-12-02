@@ -912,7 +912,7 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-1_5b_instruct-single_device-full-inference:
-    assert_pcc: false
+    # assert_pcc: false
     status: EXPECTED_PASSING
 
   retinanet/pytorch-retinanet_rn18fpn-single_device-full-inference:
