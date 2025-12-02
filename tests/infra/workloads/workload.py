@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
 from infra.connectors.torch_device_connector import TorchDeviceConnector
@@ -100,8 +102,6 @@ class Workload:
             cache_dir = TorchDeviceConnector.get_cache_dir()
             # TODO: This is a temporary fix, should be removed once
             # https://github.com/tenstorrent/tt-xla/issues/2401 is fixed.
-            import shutil
-            from pathlib import Path
 
             cache_dir_path = Path(cache_dir)
             if cache_dir_path.exists():
