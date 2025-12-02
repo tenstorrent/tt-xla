@@ -95,7 +95,7 @@ class JaxModelTester(ModelTester):
             assert hasattr(self._model, "params")
             return self._model.params
         elif isinstance(self._model, nnx.Module):
-            return
+            return nnx.split(self._model)[1]
 
         raise NotImplementedError("Subclasses must implement this method.")
 
@@ -106,16 +106,25 @@ class JaxModelTester(ModelTester):
         args = self._get_forward_method_args()
         kwargs = self._get_forward_method_kwargs()
         forward_static_args = self._get_static_argnames()
-        forward_method_name = self._get_forward_method_name()
 
         assert (
             len(args) > 0 or len(kwargs) > 0
         ), f"Forward method args or kwargs or both must be provided"
-        assert hasattr(
-            self._model, forward_method_name
-        ), f"Model does not have method {forward_method_name}"
 
-        forward_pass_method = getattr(self._model, forward_method_name)
+        if isinstance(self._model, nnx.Module):
+            graphdef = nnx.split(self._model)[0]
+
+            def forward_pass_method(state, inputs):
+                model_ = nnx.merge(graphdef, state)
+                return model_(inputs)
+
+        else:
+            forward_method_name = self._get_forward_method_name()
+            assert hasattr(
+                self._model, forward_method_name
+            ), f"Model does not have method {forward_method_name}"
+
+            forward_pass_method = getattr(self._model, forward_method_name)
 
         self._workload = Workload(
             framework=self._framework,
@@ -132,9 +141,7 @@ class JaxModelTester(ModelTester):
         By default returns input parameters and activations for the Flax linen models,
         and empty list for other type of models.
         """
-        if isinstance(self._model, nnx.Module):
-            return [self._input_activations]
-        elif isinstance(self._model, linen.Module):
+        if isinstance(self._model, (linen.Module, nnx.Module)):
             return [self._input_parameters, self._input_activations]
 
         return []
