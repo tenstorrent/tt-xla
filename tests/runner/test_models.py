@@ -1,7 +1,10 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import glob
 import os
+import subprocess
+import sys
 
 import pytest
 from infra import RunMode
@@ -32,6 +35,44 @@ from tests.runner.testers import (
 from tests.utils import BringupStatus
 from third_party.tt_forge_models.config import Parallelism
 
+from op_by_op_infra.pydantic_models import OpTest, model_to_dict
+from op_by_op_infra.workflow import run_op_by_op_workflow
+
+from typing import List, Optional
+
+def _test_op_by_op(module: str, compile_before_split: bool = False, compile_each_submodule_after_split: bool = False, *, frontend: Optional[str] = "tt-xla", model_name: Optional[str] = None) -> List[OpTest]:
+    """
+    Tests the model on op by op basis.
+    To enable showing progress of the workflow, set env var `SHOW_WORKFLOW_PROGRESS=ON`
+
+    Parameters
+    ----------
+    module: Module | str
+        Original MLIR module (or module str) processed by the workflow.
+    compile_before_split: bool
+        If True, compiles the module before splitting.
+        NOTE if True `compile_each_submodule_after_split` cannot be True.
+    compile_each_submodule_after_split: bool
+        If True, compiles each submodule after splitting.
+        NOTE if True `compile_before_split` cannot be True.
+    frontend: Optional[str]
+        Name of the frontend using op by op infra.
+    model_name: Optional[str]
+        Name of the ML model which was passed as original MLIR module to the workflow.
+
+    Returns
+    -------
+    List[OpTest]
+        List of `OpTest` pydantic models
+    """
+    return run_op_by_op_workflow(
+        module=module,
+        compile_before_split=compile_before_split,
+        compile_each_submodule_after_split=compile_each_submodule_after_split,
+        frontend=frontend,
+        model_name=model_name,
+    )
+
 # Setup test discovery using TorchDynamicLoader and JaxDynamicLoader
 TEST_DIR = os.path.dirname(__file__)
 PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, "..", ".."))
@@ -40,6 +81,8 @@ MODELS_ROOT_TORCH, test_entries_torch = TorchDynamicLoader.setup_test_discovery(
 )
 MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJECT_ROOT)
 
+# Combine all test entries for unified tests
+all_test_entries = test_entries_torch + test_entries_jax
 
 def _run_model_test_impl(
     test_entry,
@@ -295,6 +338,121 @@ def test_all_models_jax(
         test_metadata=test_metadata,
         capteesys=capteesys,
     )
+
+
+@pytest.mark.model_test
+@pytest.mark.op_by_op
+@pytest.mark.no_auto_properties
+@pytest.mark.parametrize(
+    "run_mode",
+    [
+        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
+    ],
+)
+@pytest.mark.parametrize(
+    "parallelism",
+    [
+        pytest.param(
+            Parallelism.SINGLE_DEVICE,
+            id="single_device",
+            marks=pytest.mark.single_device,
+        ),
+        pytest.param(
+            Parallelism.DATA_PARALLEL,
+            id="data_parallel",
+            marks=pytest.mark.data_parallel,
+        ),
+        pytest.param(
+            Parallelism.TENSOR_PARALLEL,
+            id="tensor_parallel",
+            marks=pytest.mark.tensor_parallel,
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "test_entry",
+    all_test_entries,
+    ids=lambda e: DynamicLoader.generate_test_id(
+        e, MODELS_ROOT_TORCH if e.framework == Framework.TORCH else MODELS_ROOT_JAX
+    ),
+)
+def test_all_models_op_by_op(test_entry, run_mode, parallelism, record_property, request):
+    """Run model tests in op-by-op mode.
+
+    This test spawns a subprocess that executes the model test with --dump-irs flag to collect StableHLO IR.
+    Then it executes each op individually.
+
+    
+    # Determine which underlying test function to call
+    """
+    if test_entry.framework == Framework.TORCH:
+        test_func = "test_all_models_torch"
+        models_root = MODELS_ROOT_TORCH
+    else:
+        test_func = "test_all_models_jax"
+        models_root = MODELS_ROOT_JAX
+
+    # Construct the test ID for the underlying test
+    test_id = DynamicLoader.generate_test_id(test_entry, models_root)
+    variant, ModelLoader = test_entry.variant_info
+    model_info = ModelLoader.get_model_info(variant=variant)
+    """
+
+    # Build the full nodeid for pytest to execute
+    nodeid = (
+        f"tests/runner/test_models.py::{test_func}"
+        f"[{test_id}-{parallelism.value}-{run_mode.value}]"
+    )
+
+    # Construct pytest command
+    pytest_cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        nodeid,
+        "-v",
+        "--dump-irs",  # Custom flag to indicate op-by-op mode
+    ]
+
+    # Run the subprocess
+    result = subprocess.run(
+        pytest_cmd,
+        cwd=PROJECT_ROOT,
+        capture_output=False,  # Show output in real-time
+        text=True,
+    )
+
+    # Check if subprocess test passed
+    if result.returncode != 0:
+        pytest.fail(
+            f"Op-by-op test failed with exit code {result.returncode}\n"
+            f"Test: {nodeid}"
+        ) """
+
+    irs_dir = os.path.join("collected_irs", model_info.name, "irs")
+    pattern = os.path.join(irs_dir, "shlo_compiler*.mlir")
+
+    matches = glob.glob(pattern)
+    if not matches:
+        raise FileNotFoundError(f"No file matching {pattern}")
+
+    # If there are multiple, pick the newest one
+    ir_file_path = max(matches, key=os.path.getmtime)
+
+    try:
+        with open(ir_file_path, 'r') as f:
+            module = f.read()
+    except (FileNotFoundError, IOError, OSError) as e:
+        print(f"Warning: Could not read IR dump file {ir_file_path}: {e}")
+        module = ""
+    
+    print("Running op by op tests for module:")
+    print(module)
+
+    results = _test_op_by_op(module=module)
+    for resulty in results:
+        record_property(f"OpTest model for: {resulty.op_name}", model_to_dict(resulty))
 
 
 # A test to generate placeholder model reports for models not yet added to tt-forge-models
