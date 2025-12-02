@@ -18,7 +18,7 @@ from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
 
-from tests.utils import parametrize_multi_arch
+from tests.utils import parametrize_arch
 from third_party.tt_forge_models.falcon.pytorch.loader import (
     ModelLoader as FalconModelLoader,
 )
@@ -129,7 +129,7 @@ def get_available_variants(model_name):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -190,7 +190,7 @@ def test_qwen3_mlp(seq_len, variant, variant_config, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -243,7 +243,7 @@ def test_llama_mlp(seq_len, variant, variant_config, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -296,7 +296,7 @@ def test_gemma_mlp(seq_len, variant, variant_config, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -347,7 +347,7 @@ def test_mistral_mlp(seq_len, variant, variant_config, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -402,7 +402,7 @@ def test_qwen2_5_mlp(seq_len, variant, variant_config, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
