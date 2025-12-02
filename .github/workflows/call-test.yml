@@ -251,6 +251,9 @@ jobs:
           VERBOSITY="-sv"
         fi
 
+        # overriding verbosity to svv
+        VERBOSITY="-svv"
+
         # Pass arch to forge models tests to resolve arch_overrides in test_config files.
         ARCH=""
         if [[ "${{ steps.strings.outputs.forge-models-test }}" == "true" ]]; then
