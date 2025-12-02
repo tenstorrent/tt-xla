@@ -256,6 +256,19 @@ def squeeze(input, dims):
     return input.reshape(newshape)
 
 
+def matmul(
+    input: torch.Tensor, weight: torch.Tensor, bias: Optional[torch.Tensor] = None
+):
+
+    if len(input.shape) >= 4 or len(weight.shape) >= 4:
+        res = torch.einsum("...mk,...kn->...mn", input, weight)
+        if bias is not None:
+            res = res + bias
+        return res
+    else:
+        return NotImplemented
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
@@ -286,6 +299,7 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
+        aten.matmul.default: matmul,
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls against constant tensors.
         # They are necessary as the default aten decompositions
@@ -316,5 +330,14 @@ def _get_custom_decompositions() -> DecompositionTable:
     }
 
 
-CUSTOM_DECOMPOSITION_TABLE = get_decompositions(_get_default_decomposition_ops())
-CUSTOM_DECOMPOSITION_TABLE.update(_get_custom_decompositions())
+def populate_decompositions() -> DecompositionTable:
+    decompositions = torch._decomp.core_aten_decompositions()
+    # Pytorch folds batch dimensions of bmms https://github.com/pytorch/pytorch/blob/a5436a5e8e4ee42d1debf52c2786c7ae0043a434/aten/src/ATen/native/LinearAlgebra.cpp#L1999.
+    # This breaks how shard specs prapagate through them, and introduces an all_gather in head parallel attention layers.
+    # We add a custom decoposition of mm -> einsum. For this reason, remove einsum decomposition.
+    decompositions.pop(torch.ops.aten.einsum.default)
+
+    decompositions.update(get_decompositions(_get_default_decomposition_ops()))
+    decompositions.update(_get_custom_decompositions())
+
+    return decompositions

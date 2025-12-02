@@ -66,6 +66,9 @@ jobs:
           # get test results from the last successful push
           get_test_results_from_wf "push-main.yml" "success" "push"
 
+          # get test results from the last weekly that was success or failure
+          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
+
           python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
           echo "" >> .test_durations
           echo "----- NEW DURATIONS"
@@ -81,9 +84,9 @@ jobs:
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           base: main
-          commit-message: "Update test durations based on latest nightly ${{ steps.get-test-durations.outputs.TODAY }}"
-          title: "Update test durations based on latest nightly ${{ steps.get-test-durations.outputs.TODAY }}"
-          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
+          commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
+          title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
+          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
           labels: tooling
           delete-branch: true
           token: ${{ secrets.GH_TOKEN }}

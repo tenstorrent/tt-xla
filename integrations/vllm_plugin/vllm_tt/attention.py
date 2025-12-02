@@ -319,6 +319,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 value,
                 is_causal=attn_metadata.is_causal,
                 attn_mask=attn_metadata.attn_mask,
+                scale=self.scale,
             ).transpose(-3, -2)
             if is_batched:
                 return output.reshape(

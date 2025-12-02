@@ -43,6 +43,13 @@ CompileOptions CompileOptions::parse(
   options.enable_const_eval =
       internal::parseBoolOption(compile_options, "enable_const_eval")
           .value_or(true);
+  options.ttnn_perf_metrics_enabled =
+      internal::parseBoolOption(compile_options, "ttnn_perf_metrics_enabled")
+          .value_or(false);
+  options.ttnn_perf_metrics_output_file =
+      internal::parseStringOption(compile_options,
+                                  "ttnn_perf_metrics_output_file")
+          .value_or("");
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
 
