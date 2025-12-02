@@ -34,7 +34,7 @@ class LLMRunMode(Enum):
 
 
 @pytest.mark.push
-@pytest.mark.n300
+@pytest.mark.dual_chip
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
     model_name="meta-llama/Llama-3.2-3B",
