@@ -477,8 +477,8 @@ jobs:
           cat .bisect-report.md >> $GITHUB_STEP_SUMMARY
           rm -rf bisect-commits
 
+          echo "Message text: $(cat .bisect-msg.txt | jq -Rs .)"
           echo "send_msg={\"text\": $(cat .bisect-msg.txt | jq -Rs .), \"job_link\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}\", \"unfurl_links\": false, \"unfurl_media\": false }" >>$GITHUB_OUTPUT
-          echo "send_msg=" >>$GITHUB_OUTPUT
 
       - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ steps.deduct.outputs.send_msg }}
