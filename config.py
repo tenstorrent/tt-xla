@@ -79,6 +79,7 @@ class ModelSource(StrEnum):
     """Where the model was sourced from"""
 
     HUGGING_FACE = "huggingface"
+    EASYDEL = "easydel"
     TORCH_HUB = "torch_hub"
     CUSTOM = "custom"
     TORCHVISION = "torchvision"
@@ -141,6 +142,9 @@ class ModelInfo:
             "model_arch": self.model,
             "variant_name": str(self.variant),
         }
+
+    def is_easydel(self) -> bool:
+        return self.source == ModelSource.EASYDEL
 
 
 @dataclass

@@ -302,7 +302,7 @@ class ModelLoader(ForgeModel):
             param_dtype=param_dtype,
         )
 
-    def get_input_activations_partition_spec(self, axis_name="X"):
+    def get_input_activations_partition_spec(self, mesh, axis_name="X"):
         """Get partition specification for input activations.
 
         Args:
@@ -325,14 +325,6 @@ class ModelLoader(ForgeModel):
             PyTree: Model parameters initialized with random weights
         """
         return self.load_parameters()
-
-    def get_forward_method_name(self):
-        """Get the name of the forward method for the model.
-
-        Returns:
-            str: Name of the forward method (typically 'apply' for Flax models)
-        """
-        return "apply"
 
     def get_input_parameters(self, train=False):
         """Get input parameters for training or inference mode.

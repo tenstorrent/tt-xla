@@ -338,7 +338,7 @@ class ModelLoader(ForgeModel):
             param_dtype=param_dtype,
         )
 
-    def get_input_activations_partition_spec(self, axis_name="X"):
+    def get_input_activations_partition_spec(self, mesh, axis_name="X"):
         """Get partition specification for input activations.
 
         Args:

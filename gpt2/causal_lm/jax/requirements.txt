@@ -1,0 +1,3 @@
+git+https://github.com/erfanzar/EasyDeL.git@77ced9d2f2ab6a3d705936d26112eb97d9f9e64a
+
+eformer==0.0.62
