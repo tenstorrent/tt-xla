@@ -96,7 +96,12 @@ METRIC_PATTERN="${METRIC_PATTERN:-$DEFAULT_PATTERN}"
 
 TTMLIR_COMMIT=$(git rev-parse --short HEAD)
 TTMLIR_COMMIT_FULL=$(git rev-parse HEAD)
-LOG_FILE="/tmp/bisect_ttmlir_${TTMLIR_COMMIT}.log"
+
+# Create .bisect-run directory in tt-xla root for all bisect artifacts
+BISECT_RUN_DIR="$TTXLA_ROOT/.bisect-run"
+mkdir -p "$BISECT_RUN_DIR"
+
+LOG_FILE="$BISECT_RUN_DIR/bisect_ttmlir_${TTMLIR_COMMIT}.log"
 
 echo "======================================"
 echo "Testing tt-mlir commit: $TTMLIR_COMMIT"
