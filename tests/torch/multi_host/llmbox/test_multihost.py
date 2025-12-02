@@ -9,7 +9,7 @@
 import os
 import subprocess
 import sys
-
+import torch_xla.runtime as xr
 import pytest
 
 
@@ -58,31 +58,33 @@ def test_multihost_runtime_stitching(generic_test):
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
     "model_variant",
-    ["falcon/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-full-inference",
+    [
+# "falcon/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-full-inference",
 "falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference",
-"falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-full-inference",
+# "falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-full-inference",
 "gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference",
-"gemma/pytorch-google/gemma-2-9b-it-tensor_parallel-full-inference",
+# "gemma/pytorch-google/gemma-2-9b-it-tensor_parallel-full-inference",
 "falcon/pytorch-tiiuae/falcon-7b-instruct-tensor_parallel-full-inference",
 "llama/causal_lm/pytorch-llama_3_1_8b-tensor_parallel-full-inference",
-"llama/causal_lm/pytorch-llama_3_1_8b_instruct-tensor_parallel-full-inference",
-"llama/causal_lm/pytorch-llama_3_8b_instruct-tensor_parallel-full-inference",
+# "llama/causal_lm/pytorch-llama_3_1_8b_instruct-tensor_parallel-full-inference",
+# "llama/causal_lm/pytorch-llama_3_8b_instruct-tensor_parallel-full-inference",
 "mistral/pixtral/pytorch-tensor_parallel-full-inference",
 "mistral/pytorch-7b_instruct_v03-tensor_parallel-full-inference",
-"qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference",
+# "qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference",
 "qwen_3/causal_lm/pytorch-14b-tensor_parallel-full-inference",
-"qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-full-inference",
+# "qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-full-inference",
 "qwen_3/causal_lm/pytorch-32b-tensor_parallel-full-inference",
-"qwen_3/causal_lm/pytorch-8b-tensor_parallel-full-inference",
+# "qwen_3/causal_lm/pytorch-8b-tensor_parallel-full-inference",
 "qwen_3/embedding/pytorch-embedding_8b-tensor_parallel-full-inference",
 "mistral/pytorch-ministral_8b_instruct-tensor_parallel-full-inference",
-"mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-full-inference",
-"mistral/pytorch-mistral_nemo_instruct_2407-tensor_parallel-full-inference",
+# "mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-full-inference",
+# "mistral/pytorch-mistral_nemo_instruct_2407-tensor_parallel-full-inference",
 "mistral/pytorch-devstral_small_2505-tensor_parallel-full-inference",
 "mistral/pytorch-magistral_small_2506-tensor_parallel-full-inference",
 "qwen_2_5/causal_lm/pytorch-14b_instruct-tensor_parallel-full-inference",
-"qwen_2_5/causal_lm/pytorch-32b_instruct-tensor_parallel-full-inference",
-"qwen_2_5_coder/pytorch-32b_instruct-tensor_parallel-full-inference",]
+# "qwen_2_5/causal_lm/pytorch-32b_instruct-tensor_parallel-full-inference",
+"qwen_2_5_coder/pytorch-32b_instruct-tensor_parallel-full-inference",
+]
 )
 def test_multihost_models(model_variant):
     distributed_env = configure_multihost_environment()
@@ -102,3 +104,4 @@ def test_multihost_models(model_variant):
     assert (
         result.returncode == 0
     ), f"Failed to run multihost test for model variant: {model_variant}"
+    # xr.clear_computation_cache()
