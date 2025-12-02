@@ -138,6 +138,9 @@ class Comparator(ABC):
                     f"PCC comparison failed. "
                     f"Calculated: pcc={comparison_result.pcc}. Required: pcc={required_pcc}."
                 )
+            else:
+                # Print comparison result:
+                print(f"PCC comparison passed: pcc={comparison_result.pcc}")
 
         if (
             self._comparison_config.allclose.enabled
