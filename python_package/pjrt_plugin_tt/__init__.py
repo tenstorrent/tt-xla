@@ -46,7 +46,7 @@ def setup_tt_pjrt_plugin_dir():
     )
 
 
-def setup_tt_metal_home():
+def find_tt_metal_home() -> str:
     """
     Setup the `TT_METAL_RUNTIME_ROOT` environment variable by looking for the `tt-metal` installation.
     If user already has set the `TT_METAL_RUNTIME_ROOT` environment variable, we will not override it - we
@@ -90,11 +90,13 @@ def setup_tt_metal_home():
     # First priority is the path in the wheel package, if this doesn't exist - i.e. we are not installed via wheel,
     # then we use the path in the source tree.
     if tt_metal_path_in_whl.exists():
+        return tt_metal_path_in_whl
         os.environ["TT_METAL_RUNTIME_ROOT"] = str(tt_metal_path_in_whl)
         print(f"Using TT-Metal from wheel package: {tt_metal_path_in_whl}")
         return
 
     if tt_metal_path_in_source.exists():
+        return tt_metal_path_in_source
         os.environ["TT_METAL_RUNTIME_ROOT"] = str(tt_metal_path_in_source)
         print(f"Using TT-Metal from the source tree: {tt_metal_path_in_source}")
         return
@@ -104,6 +106,16 @@ def setup_tt_metal_home():
         f"This most likely indicates an issue with how {__package__} "
         f"was built or installed."
     )
+
+
+def setup_tt_metal_home():
+    """
+    Setup the `TT_METAL_RUNTIME_ROOT` environment variable by looking for the `tt-metal` installation.
+    If user already has set the `TT_METAL_RUNTIME_ROOT` environment variable, we will not override it - we
+    will only verify that the path exists and raise an error if it does not.
+    """
+    tt_metal_path = find_tt_metal_home()
+    os.environ["TT_METAL_RUNTIME_ROOT"] = str(tt_metal_path)
 
 
 def get_library_path() -> Path:

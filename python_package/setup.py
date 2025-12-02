@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import tomllib
 from dataclasses import dataclass, fields
 from pathlib import Path
 
@@ -215,6 +216,12 @@ def find_metal_packages() -> list[str]:
     packages = {}
     packages["ttnn"] = str((ttnn_dir / "ttnn").relative_to(file_dir))
 
+    # Figure out ttnn deps
+    with open(str(tt_metal_root_dir / "pyproject.toml"), "rb") as f:
+        data = tomllib.load(f)
+        requirements = data["project"]["dependencies"]
+        print(f"ttnn requirements: {requirements}")
+
     tools_packages = find_packages(
         where=tools_dir,
         include=["tracy"],
@@ -222,7 +229,7 @@ def find_metal_packages() -> list[str]:
     print(f"Found metal tools packages: {tools_packages}")
     packages["tracy"] = str((tools_dir / "tracy").relative_to(file_dir))
 
-    return (ttnn_packages + tools_packages, packages)
+    return (ttnn_packages + tools_packages, packages, requirements)
 
 
 class BdistWheel(bdist_wheel):
@@ -257,10 +264,12 @@ class BdistWheel(bdist_wheel):
         super().finalize_options()
         self.root_is_pure = False
 
-        (metal_packages, dirs) = find_metal_packages()
+        (metal_packages, metal_package_dirs, metal_requirements) = find_metal_packages()
+
+        self.distribution.install_requires.extend(metal_requirements)
+
         self.distribution.packages.extend(list(metal_packages))
-        # self.packages = (self.packages or []).extend(list(metal_packages))
-        self.distribution.package_dir.update(dirs)
+        self.distribution.package_dir.update(metal_package_dirs)
         print("packages:", self.distribution.packages)
         print("package dirs:", self.distribution.package_dir)
 
@@ -311,11 +320,21 @@ class CMakeBuildPy(build_py):
         # Continue with the rest of the Python build.
         super().run()
 
-    def build_cmake_project(self):
-        install_dir = (
+        # Move _ttnn.so into the `ttnn` package directory.
+        ttnn_package_dir = THIS_DIR / self.build_lib / "ttnn"
+        built_ttnn_so = self.install_dir / "lib" / "_ttnn.so"
+        print(
+            f"Moving `_ttnn.so` {built_ttnn_so} into the `ttnn` package directory {ttnn_package_dir}..."
+        )
+        shutil.copy2(built_ttnn_so, ttnn_package_dir / "_ttnn.so")
+
+    @property
+    def install_dir(self) -> Path:
+        return (
             THIS_DIR / self.build_lib / config.shared_device_package_target_dir_relpath
         )
 
+    def build_cmake_project(self):
         code_coverage = "OFF"
         enable_explorer = "OFF"
 
@@ -331,7 +350,7 @@ class CMakeBuildPy(build_py):
             "build",
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
-            "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
+            "-DCMAKE_INSTALL_PREFIX=" + str(self.install_dir),
         ]
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
@@ -375,6 +394,7 @@ setup(
         "jax_plugins": ["pjrt_plugin_tt = jax_plugin_tt"],
         # Entry point used by torch xla to register the plugin automatically.
         "torch_xla.plugins": ["tt = torch_plugin_tt:TTPlugin"],
+        "ttnn.set_custom_path": ["pjrt_plugin_tt = pjrt_plugin_tt:find_tt_metal_home"],
     },
     include_package_data=True,
     install_requires=config.requirements,

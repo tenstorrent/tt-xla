@@ -4,5 +4,6 @@ requires = [
     "wheel",
     "ninja",
     "cmake",
+    "tomllib"
 ]
 build-backend = "setuptools.build_meta"
