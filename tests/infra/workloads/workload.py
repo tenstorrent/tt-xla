@@ -98,6 +98,16 @@ class Workload:
             )
         elif self.is_torch:
             cache_dir = TorchDeviceConnector.get_cache_dir()
+            # TODO: This is a temporary fix, should be removed once
+            # https://github.com/tenstorrent/tt-xla/issues/2401 is fixed.
+            import shutil
+            from pathlib import Path
+
+            cache_dir_path = Path(cache_dir)
+            if cache_dir_path.exists():
+                shutil.rmtree(cache_dir_path)
+            cache_dir_path.mkdir(parents=True, exist_ok=True)
+
             self.execute()
             parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
 
