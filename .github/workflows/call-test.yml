@@ -118,7 +118,7 @@ jobs:
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-          key: "kernel"
+          key: "kernel ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }}"
 
     - name: Fetch job id
       id: fetch-job-id
