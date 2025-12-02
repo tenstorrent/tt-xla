@@ -4,7 +4,7 @@
 import os
 
 import torch
-import torch_xla.core.xla_model as xm
+import torch_xla
 import torch_xla.runtime as xr
 from diffusers import AutoencoderKLMochi
 
@@ -25,7 +25,7 @@ def run_vae_decoder():
     - Example: 37 frames @ 480x848 -> latents [1, 12, 7, 60, 106]
     """
     xr.set_device_type("TT")
-    device = xm.xla_device()
+    device = torch_xla.device()
 
     # Load ONLY the VAE (not the full pipeline!)
     # This loads ~362M params instead of ~15B params
@@ -33,12 +33,15 @@ def run_vae_decoder():
         "genmo/mochi-1-preview", subfolder="vae", torch_dtype=torch.bfloat16
     )
 
-    vae.enable_tiling(
-        tile_sample_min_height=120,  # Split 480 into 4 tiles
-        tile_sample_min_width=212,  # Split 848 into 4 tiles
-        tile_sample_stride_height=100,  # 20 pixel overlap
-        tile_sample_stride_width=180,  # 32 pixel overlap
-    )
+    enable_tiling = False
+
+    if enable_tiling:
+        vae.enable_tiling(
+            tile_sample_min_height=120,  # Split 480 into 4 tiles
+            tile_sample_min_width=212,  # Split 848 into 4 tiles
+            tile_sample_stride_height=100,  # 20 pixel overlap
+            tile_sample_stride_width=180,  # 32 pixel overlap
+        )
 
     # VAE decoder: [B, 12, t, h, w] → [B, 3, T, H, W]
     # For 24 frames @ 480x848 which is 1s of video at 24fps
@@ -76,12 +79,16 @@ def run_vae_decoder():
         )
         latent_normalized = latent / vae_std.view(1, 12, 1, 1, 1)
 
-        # output = model(latent_normalized)
-        output = vae.decode(latent_normalized)
+        # run just decoder forward pass
+        output = model(latent_normalized)
+
+        # run full pipeline forward pass including tiling as memory optimization
+        # output = vae.decode(latent_normalized)
 
     # print(f"VAE Decoder output shape: {output.shape}")
     print(f"Expected shape: [1, 3, 24, 480, 848]")
-    print(output)
+    torch_xla.sync()
+    print(f"Output: {output[0].shape}")
 
 
 if __name__ == "__main__":
