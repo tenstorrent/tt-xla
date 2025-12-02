@@ -992,13 +992,14 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
 }
 
 void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
+  // Multithreading must be disabled when printing at module scope
+  // to avoid interleaved output.
+  pm.getContext()->disableMultithreading();
+
   if (loguru::g_stderr_verbosity < LOG_VERBOSE) {
     return;
   }
 
-  // Multithreading must be disabled when printing at module scope
-  // to avoid interleaved output.
-  pm.getContext()->disableMultithreading();
   pm.enableIRPrinting();
 }
 
