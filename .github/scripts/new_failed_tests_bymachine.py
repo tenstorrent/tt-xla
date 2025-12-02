@@ -62,7 +62,7 @@ def print_failed_tests_by_machine(failed_tests):
         #     print(f"  {test}")
 
 
-def find_new_failed_tests(dir_a, dir_b):
+def find_new_failed_tests(dir_a, dir_b, filter):
     """
     Find newly failed tests removing all tests that are in dir_b and not in dir_a.
 
@@ -78,6 +78,15 @@ def find_new_failed_tests(dir_a, dir_b):
     print(f"------ Finding failed tests in {dir_b}")
     failed_b = find_xml_files(dir_b)
     print_failed_tests_by_machine(failed_b)
+
+    # Apply test filter if provided
+    if filter:
+        failed_a = {
+            k: [t for t in v if re.search(filter, t)] for k, v in failed_a.items()
+        }
+        failed_b = {
+            k: [t for t in v if re.search(filter, t)] for k, v in failed_b.items()
+        }
 
     # Bisect failed tests by removing all tests that are in dir_b and not in dir_a
     new_failed_tests = {}
@@ -97,9 +106,9 @@ def find_new_failed_tests(dir_a, dir_b):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         print(
-            "Usage: python find_failed_bymachine_tests.py reports_dir_a reports_dir_b reports_dir_out form_commit to_commit"
+            "Usage: python find_failed_bymachine_tests.py reports_dir_a reports_dir_b reports_dir_out form_commit to_commit test_filter"
         )
         sys.exit(1)
 
@@ -108,8 +117,9 @@ if __name__ == "__main__":
     dir_out = sys.argv[3]
     fromc = sys.argv[4]
     toc = sys.argv[5]
+    test_filter = sys.argv[6]
 
-    nft = find_new_failed_tests(dir_a, dir_b)
+    nft = find_new_failed_tests(dir_a, dir_b, test_filter)
     if not nft:
         print("No new failed tests found.")
         sys.exit(3)
