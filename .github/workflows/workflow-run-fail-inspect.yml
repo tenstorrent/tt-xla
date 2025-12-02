@@ -359,11 +359,14 @@ jobs:
               # Run tests
               echo "Running tests"
               if python .bisect-run/run_tests.py -v 2>&1; then
+                echo "Tests passed"
                 out=$(git bisect good || true)
               else
+                echo "Tests failed"
                 out=$(git bisect bad || true)
               fi
             else
+              echo "Download failed, skipping..."
               out=$(git bisect skip || true)
             fi
 
