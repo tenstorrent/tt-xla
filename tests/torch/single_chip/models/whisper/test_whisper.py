@@ -84,6 +84,9 @@ def inference_tester(request) -> WhisperTester:
     return WhisperTester(variant)
 
 
+# ----- Fixtures -----
+
+
 @pytest.mark.nightly
 @pytest.mark.large
 def test_torch_whisper_inference(inference_tester: WhisperTester):
@@ -91,7 +94,6 @@ def test_torch_whisper_inference(inference_tester: WhisperTester):
 
 
 @pytest.mark.training
-@pytest.fixture(params=_WHISPER_PARAMS, ids=_WHISPER_IDS)
 @pytest.mark.skip(reason="Support for training not implemented")
 def test_whisper_base_training(training_tester: WhisperTester):
     training_tester.test()
