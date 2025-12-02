@@ -14,6 +14,10 @@ on:
         description: 'Regex filter to apply to test names'
         required: false
         default: ''
+      num_runs:
+        description: 'Number of times to run each bisect'
+        required: false
+        default: '1'
   workflow_run:
     workflows: On nightly
     branches:
@@ -208,7 +212,6 @@ jobs:
           wf_name="schedule-nightly.yml"
 
           curr_wf_id="${{ github.event.workflow_run.id || inputs.workflow_run_id }}"
-          test_filter="${{ inputs.test_filter }}"
 
           # get json of the last 10 workflow runs
           gh run list --workflow $wf_name -R $repo -b main -L 10 --status completed --json attempt,conclusion,databaseId,headSha >runs.json
@@ -266,7 +269,7 @@ jobs:
           # find newly failed tests
           rm -rf log-out
           mkdir -p log-out
-          python .github/scripts/new_failed_tests_bymachine.py log-a log-b log-out $prev_head_sha $curr_head_sha "$test_filter"
+          python .github/scripts/new_failed_tests_bymachine.py log-a log-b log-out $prev_head_sha $curr_head_sha "${{ inputs.test_filter }}" "${{ inputs.num_runs || 1 }}"
 
           # cleanup
           rm -rf log-a
@@ -416,7 +419,7 @@ jobs:
       - name: Upload bisect result
         uses: actions/upload-artifact@v5
         with:
-          name: bisect-result-${{ matrix.build.runs-on }}
+          name: bisect-result-${{ matrix.build.run_no }}-${{ matrix.build.runs-on }}
           path: ./.bisect-run/.bisect-result.txt
           include-hidden-files: true
 

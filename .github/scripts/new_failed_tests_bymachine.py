@@ -108,7 +108,7 @@ def find_new_failed_tests(dir_a, dir_b, filter):
 if __name__ == "__main__":
     if len(sys.argv) != 7:
         print(
-            "Usage: python find_failed_bymachine_tests.py reports_dir_a reports_dir_b reports_dir_out form_commit to_commit test_filter"
+            "Usage: python find_failed_bymachine_tests.py reports_dir_a reports_dir_b reports_dir_out form_commit to_commit test_filter num_runs"
         )
         sys.exit(1)
 
@@ -118,6 +118,10 @@ if __name__ == "__main__":
     fromc = sys.argv[4]
     toc = sys.argv[5]
     test_filter = sys.argv[6]
+    num_runs = int(sys.argv[7])
+    if num_runs < 1:
+        print("WARNING: num_runs must be at least 1")
+        num_runs = 1
 
     nft = find_new_failed_tests(dir_a, dir_b, test_filter)
     if not nft:
@@ -137,14 +141,16 @@ if __name__ == "__main__":
                 f.write(f"{test}\n")
 
         upload_list.append({"name": f"{machine}-test-to-run", "path": tests_file})
-        matrix.append(
-            {
-                "runs-on": machine,
-                "fromc": fromc,
-                "toc": toc,
-                "shared-runners": machine.startswith("tt-"),
-            }
-        )
+        for i in range(num_runs):
+            matrix.append(
+                {
+                    "runs-on": machine,
+                    "fromc": fromc,
+                    "toc": toc,
+                    "shared-runners": machine.startswith("tt-"),
+                    "run_no": i,
+                }
+            )
 
     # Write upload_list to .upload_list.json file
     with open(".upload_list.json", "w") as f:
