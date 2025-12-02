@@ -571,7 +571,7 @@ test_config:
 
   mlp_mixer/pytorch-mixer_b16_224.goog_in21k-single_device-full-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false
+    # assert_pcc: false
 
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-full-inference:
     status: EXPECTED_PASSING
