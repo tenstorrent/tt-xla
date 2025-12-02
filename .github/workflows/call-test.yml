@@ -48,6 +48,7 @@ on:
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
+  TT_METAL_CCACHE_KERNEL_SUPPORT: 1
   TT_XLA_CI: 1
 
 jobs:
@@ -113,6 +114,11 @@ jobs:
           integrations/vllm_plugin/requirements-vllm-plugin.txt
           tests
           venv
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+          key: "kernel"
 
     - name: Fetch job id
       id: fetch-job-id
