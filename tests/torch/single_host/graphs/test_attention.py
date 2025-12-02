@@ -28,7 +28,7 @@ from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.xlm_roberta.modeling_xlm_roberta import XLMRobertaSelfAttention
 
-from tests.utils import parametrize_multi_arch
+from tests.utils import parametrize_arch
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader as BertModelLoader,
 )
@@ -134,7 +134,7 @@ def get_available_variants(model_name):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -214,7 +214,7 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
@@ -375,7 +375,7 @@ def test_llama_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -484,7 +484,7 @@ def test_llama_attention(variant, variant_config, seq_len, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -570,7 +570,7 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, arch):
 
 # Add single push test to ensure multi-chip graph tester has coverage.
 @pytest.mark.push
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", [Qwen3ModelVariant.QWEN_3_8B])
 def test_qwen3_attention_prefill_push(seq_len, variant, arch):
@@ -619,7 +619,7 @@ def test_qwen3_attention_prefill_push(seq_len, variant, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen3").items(),
@@ -794,7 +794,7 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1076,7 +1076,7 @@ def test_bert_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1171,7 +1171,7 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, arch):
 
 # Add single push test to ensure multi-chip graph tester has coverage.
 @pytest.mark.push
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", [Qwen2_5ModelVariant.QWEN_2_5_7B_INSTRUCT])
 def test_qwen2_5_attention_prefill_push(seq_len, variant, arch):
@@ -1256,7 +1256,7 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen2_5").items(),
@@ -1355,7 +1355,7 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1499,7 +1499,7 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1590,7 +1590,7 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, arch):
 
 # Add single push test to ensure multi-chip graph tester has coverage.
 @pytest.mark.push
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", [GemmaModelVariant.GEMMA_2_9B_IT])
 def test_gemma_attention_prefill_push(seq_len, variant, arch):
@@ -1642,7 +1642,7 @@ def test_gemma_attention_prefill_push(seq_len, variant, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gemma").items(),
@@ -1737,7 +1737,7 @@ def test_gemma_attention_decode(variant, variant_config, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1857,7 +1857,7 @@ def test_gemma_attention(variant, variant_config, seq_len, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -1912,7 +1912,7 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, arch):
 
 # Add single push test to ensure multi-chip graph tester has coverage.
 @pytest.mark.push
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", [MistralModelVariant.MISTRAL_7B])
 def test_mistral_attention_prefill_push(seq_len, variant, arch):
@@ -1962,7 +1962,7 @@ def test_mistral_attention_prefill_push(seq_len, variant, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("mistral").items(),
@@ -2024,7 +2024,7 @@ def test_mistral_attention_decode(variant, variant_config, arch):
 
 
 @pytest.mark.nightly
-@parametrize_multi_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
