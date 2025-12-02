@@ -5,7 +5,7 @@ This page explains how to break into the native source code of the PJRT plugin.
 ## Prerequisites
 
 - Clone and build the TT-XLA project.
-    - The build has to be of `Debug` type, e.g. `-DCMAKE_BUILD_TYPE=Debug`.
+    - The build has to be of the `Debug` type, e.g. `-DCMAKE_BUILD_TYPE=Debug`.
     - This is needed for native binaries to have debug symbols.
 - Verify `gdb` is installed by running `gdb --version`.
     - Needed for debugging of native code.
@@ -74,7 +74,7 @@ Now, replace the `Python: Current File` with a new profile for running tests,
       ],
       "console": "integratedTerminal",
       "justMyCode": false
-    },
+    }
   ]
 }
 ```
@@ -101,7 +101,7 @@ in `launch.json`:
 {
   "version": "0.2.0",
   "configurations": [
-    { // PyTest: Current File ...
+    { // PyTest: Current File (from Step 2)
     },
     { // Native: Attach to PJRT Client
       "name": "Native: Attach to PJRT Client",
@@ -127,7 +127,7 @@ Verify that this profile works:
     - At this point, the process running the test is stalled, and you have time
     to attach `gdb` to the process.
 4. Open a C++ file that you wish to debug, and put a breakpoint where you
-   wish to break. For excercise, almost all tests should pass through
+   wish to break. For exercise, almost all tests should pass through
    `ClientInstance::initialize`.
 5. Run the `Native: Attach to PJRT Client` debugging profile without stopping
    the existing `PyTest: Current File` profile (that would kill the test driver
