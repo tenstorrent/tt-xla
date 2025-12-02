@@ -17,7 +17,7 @@ from tt_torch.composite_ops import composite_gelu, composite_rms_norm
 
 from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
-from tests.utils import parametrize_multi_arch
+from tests.utils import parametrize_arch
 
 
 @pytest.mark.single_device
@@ -144,7 +144,7 @@ def test_patched_gelu_op_test(approx):
     )
 
 
-@parametrize_multi_arch(["single_device", "dual_chip"])
+@parametrize_arch(["single_device", "dual_chip"])
 @pytest.mark.parametrize("use_weight", [True, False])
 def test_rmsnorm(use_weight, arch):
 

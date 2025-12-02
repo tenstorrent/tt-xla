@@ -199,7 +199,7 @@ def get_torch_device_arch() -> TTArch:
         raise ValueError(f"Unknown TT device architecture: {device_kind}")
 
 
-def parametrize_multi_arch(archs=["single_device"]):
+def parametrize_arch(archs=["single_device"]):
     valid_archs = {"single_device", "dual_chip", "llmbox", "galaxy"}
     invalid_archs = set(archs) - valid_archs
 
