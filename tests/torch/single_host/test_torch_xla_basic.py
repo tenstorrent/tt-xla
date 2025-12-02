@@ -3,13 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 
+import numpy as np
 import pytest
 import torch
 import torch_xla.core.xla_model as xm
+import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra.comparators.torch_comparator import TorchComparator
 from infra.connectors.torch_device_connector import TorchDeviceConnector
+from torch_xla.distributed.spmd import Mesh
 
+from tests.infra import RunMode, TorchModelTester
 from tests.infra.comparators.comparison_config import AtolConfig, ComparisonConfig
 
 # TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/1137
