@@ -404,7 +404,7 @@ def setup_mesh(mesh_shape, axis_names):
 
 @pytest.mark.nightly
 @pytest.mark.push
-@pytest.mark.n300
+@pytest.mark.dual_chip
 @pytest.mark.parametrize("axis_names", [("x", "y")])
 @pytest.mark.parametrize("input_shape", [(32, 32)])
 @pytest.mark.parametrize("sharding_mode", ["fully_replicated", "partially_sharded"])
