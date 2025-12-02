@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <mutex>
 #include <numeric>
+#include <optional>
 #include <unordered_set>
 
 // tt-mlir includes
@@ -33,6 +34,16 @@
 #include "utils/logging.h"
 
 namespace tt::pjrt {
+
+// Clears program cache on instance destroy.
+LoadedExecutableInstance::~LoadedExecutableInstance() {
+  const std::optional<tt::runtime::Device> &device =
+      m_client_instance->parentMesh();
+  if (device && runtime::isProgramCacheEnabled(*device)) {
+    DLOG_F(LOG_DEBUG, "Clearing program cache.");
+    runtime::clearProgramCache(*device);
+  }
+}
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_LoadedExecutable_Destroy = internal::onLoadedExecutableDestroy;
