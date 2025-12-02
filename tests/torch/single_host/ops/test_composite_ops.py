@@ -12,6 +12,7 @@ from tt_torch.composite_ops import composite_gelu, composite_rms_norm
 
 from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
+from tests.utils import parametrize_multi_arch
 
 
 @pytest.mark.single_device
@@ -138,8 +139,9 @@ def test_patched_gelu_op_test(approx):
     )
 
 
+@parametrize_multi_arch(["single_device", "dual_chip"])
 @pytest.mark.parametrize("use_weight", [True, False])
-def test_rmsnorm(use_weight):
+def test_rmsnorm(use_weight, arch):
 
     class RMSNormModel(torch.nn.Module):
         def __init__(self, normalized_shape):
@@ -163,12 +165,33 @@ def test_rmsnorm(use_weight):
     device = xm.xla_device()
     model = torch.compile(model.to(device), backend="tt", options=options)
 
-    output = model(input_tensor.to(device), weight.to(device) if use_weight else None)
+    input_tensor = input_tensor.to(device)
+    weight = weight.to(device) if use_weight else None
+
+    if arch == "dual_chip":
+        # Set SPMD mode and get number of devices.
+        os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+        xr.use_spmd()
+
+        num_devices = xr.global_runtime_device_count()
+
+        # Create a mesh.
+        mesh_shape = (1, num_devices)
+        device_ids = np.array(range(num_devices))
+        mesh = xs.Mesh(device_ids, mesh_shape, ("model", "batch"))
+
+        # Mark sharding for inputs along batch dimension.
+        xs.mark_sharding(input_tensor, mesh, ("batch", None))
+        if use_weight:
+            xs.mark_sharding(weight, mesh, (None,))
+
+    output = model(input_tensor, weight)
 
     comparator = TorchComparator(ComparisonConfig())
     comparator.compare(output, golden)
 
 
+@pytest.mark.single_device
 @pytest.mark.parametrize("use_weight", [True, False])
 def test_composite_rms_norm(use_weight):
     """

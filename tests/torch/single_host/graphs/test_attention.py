@@ -28,6 +28,7 @@ from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.xlm_roberta.modeling_xlm_roberta import XLMRobertaSelfAttention
 
+from tests.utils import parametrize_multi_arch
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader as BertModelLoader,
 )
@@ -129,30 +130,19 @@ def get_available_variants(model_name):
     return available_variants
 
 
-# Mark tests to run on both llmbox and single device when shard spec setup is included
-def parametrize_is_llmbox():
-    return pytest.mark.parametrize(
-        "is_llmbox",
-        [
-            pytest.param(True, marks=pytest.mark.llmbox),
-            pytest.param(False, marks=pytest.mark.single_device),
-        ],
-    )
-
-
 """Llama attention tests"""
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_attention_prefill(seq_len, variant, variant_config, is_llmbox):
-    if "70b" in str(variant) and not is_llmbox:
+def test_llama_attention_prefill(seq_len, variant, variant_config, arch):
+    if "70b" in str(variant) and not arch == "llmbox":
         pytest.skip("70B models don't fit on a single device")
 
     xr.set_device_type("TT")
@@ -165,7 +155,7 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     num_heads = config.num_attention_heads
     num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
@@ -224,14 +214,14 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_attention_decode(variant, variant_config, is_llmbox):
-    if "70b" in str(variant) and not is_llmbox:
+def test_llama_attention_decode(variant, variant_config, arch):
+    if "70b" in str(variant) and not arch == "llmbox":
         pytest.skip("70B models don't fit on a single device")
 
     xr.set_device_type("TT")
@@ -246,7 +236,7 @@ def test_llama_attention_decode(variant, variant_config, is_llmbox):
     num_heads = config.num_attention_heads
     num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
@@ -385,15 +375,15 @@ def test_llama_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_attention(variant, variant_config, seq_len, is_llmbox):
-    if "70b" in str(variant) and not is_llmbox:
+def test_llama_attention(variant, variant_config, seq_len, arch):
+    if "70b" in str(variant) and not arch == "llmbox":
         pytest.skip("70B models don't fit on a single device")
 
     xr.set_device_type("TT")
@@ -437,7 +427,7 @@ def test_llama_attention(variant, variant_config, seq_len, is_llmbox):
     dropout = 0.0
     scaling = attention.scaling
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
@@ -494,15 +484,15 @@ def test_llama_attention(variant, variant_config, seq_len, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen3").items(),
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
-def test_qwen3_attention_prefill(seq_len, variant, variant_config, is_llmbox):
-    if not is_llmbox and (str(variant) == "32b" or str(variant) == "30b_a3b"):
+def test_qwen3_attention_prefill(seq_len, variant, variant_config, arch):
+    if not arch == "llmbox" and (str(variant) == "32b" or str(variant) == "30b_a3b"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -511,7 +501,7 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     config = loader.load_config()
     attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         # Qwen3-30B-A3B has 4 key value heads  so it would use 2x4 mesh
         # Thus, we need to see if 2x4 mesh is needed for all Qwen3 models
@@ -580,10 +570,10 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, is_llmbox):
 
 # Add single push test to ensure multi-chip graph tester has coverage.
 @pytest.mark.push
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", [Qwen3ModelVariant.QWEN_3_8B])
-def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
+def test_qwen3_attention_prefill_push(seq_len, variant, arch):
     xr.set_device_type("TT")
 
     batch_size = 1
@@ -601,7 +591,7 @@ def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
 
     past_key_states = None
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -629,14 +619,14 @@ def test_qwen3_attention_prefill_push(seq_len, variant, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen3").items(),
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
-def test_qwen3_attention_decode(variant, variant_config, is_llmbox):
-    if not is_llmbox and (str(variant) == "32b" or str(variant) == "30b_a3b"):
+def test_qwen3_attention_decode(variant, variant_config, arch):
+    if not arch == "llmbox" and (str(variant) == "32b" or str(variant) == "30b_a3b"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -645,7 +635,7 @@ def test_qwen3_attention_decode(variant, variant_config, is_llmbox):
     config = loader.load_config()
     attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         # Qwen3-30B-A3B has 4 key value heads  so it would use 2x4 mesh
         # Thus, we need to see if 2x4 mesh is needed for all Qwen3 models
@@ -804,15 +794,15 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen3").items(),
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
-def test_qwen3_attention(variant, variant_config, seq_len, is_llmbox):
-    if not is_llmbox and (str(variant) == "32b" or str(variant) == "30b_a3b"):
+def test_qwen3_attention(variant, variant_config, seq_len, arch):
+    if not arch == "llmbox" and (str(variant) == "32b" or str(variant) == "30b_a3b"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -849,7 +839,7 @@ def test_qwen3_attention(variant, variant_config, seq_len, is_llmbox):
     config = loader.load_config()
     attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         # Qwen3-30B-A3B has 4 key value heads  so it would use 2x4 mesh
         # Thus, we need to see if 2x4 mesh is needed for all Qwen3 models
@@ -1086,15 +1076,15 @@ def test_bert_create_heads(variant, variant_config, seq_len):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
-def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, is_llmbox):
-    if not is_llmbox and (
+def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, arch):
+    if not arch == "llmbox" and (
         str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
     ):
         pytest.skip("Variant doesn't fit on a single device")
@@ -1106,7 +1096,7 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         num_heads = config.num_attention_heads
         num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
@@ -1181,10 +1171,10 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, is_llmbox):
 
 # Add single push test to ensure multi-chip graph tester has coverage.
 @pytest.mark.push
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", [Qwen2_5ModelVariant.QWEN_2_5_7B_INSTRUCT])
-def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
+def test_qwen2_5_attention_prefill_push(seq_len, variant, arch):
     xr.set_device_type("TT")
 
     loader = Qwen2_5ModelLoader(variant=variant)
@@ -1192,7 +1182,7 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         num_heads = config.num_attention_heads
         num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
@@ -1266,14 +1256,14 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
-def test_qwen2_5_attention_decode(variant, variant_config, is_llmbox):
-    if not is_llmbox and (
+def test_qwen2_5_attention_decode(variant, variant_config, arch):
+    if not arch == "llmbox" and (
         str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
     ):
         pytest.skip("Variant doesn't fit on a single device")
@@ -1285,7 +1275,7 @@ def test_qwen2_5_attention_decode(variant, variant_config, is_llmbox):
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         num_heads = config.num_attention_heads
         num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
@@ -1365,15 +1355,15 @@ def test_qwen2_5_attention_decode(variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
-def test_qwen2_5_attention(variant, variant_config, seq_len, is_llmbox):
-    if not is_llmbox and (
+def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
+    if not arch == "llmbox" and (
         str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
     ):
         pytest.skip("Variant doesn't fit on a single device")
@@ -1412,7 +1402,7 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, is_llmbox):
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         num_heads = config.num_attention_heads
         num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
@@ -1509,15 +1499,15 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gemma").items(),
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
-def test_gemma_attention_prefill(seq_len, variant, variant_config, is_llmbox):
-    if not is_llmbox and (str(variant) == "google/gemma-2-27b-it"):
+def test_gemma_attention_prefill(seq_len, variant, variant_config, arch):
+    if not arch == "llmbox" and (str(variant) == "google/gemma-2-27b-it"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -1530,7 +1520,7 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     num_heads = config.num_attention_heads
     num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
@@ -1600,10 +1590,10 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, is_llmbox):
 
 # Add single push test to ensure multi-chip graph tester has coverage.
 @pytest.mark.push
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", [GemmaModelVariant.GEMMA_2_9B_IT])
-def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
+def test_gemma_attention_prefill_push(seq_len, variant, arch):
     xr.set_device_type("TT")
 
     batch_size = 1
@@ -1621,7 +1611,7 @@ def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
 
     past_key_states = None
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -1652,14 +1642,14 @@ def test_gemma_attention_prefill_push(seq_len, variant, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gemma").items(),
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
-def test_gemma_attention_decode(variant, variant_config, is_llmbox):
-    if not is_llmbox and (str(variant) == "google/gemma-2-27b-it"):
+def test_gemma_attention_decode(variant, variant_config, arch):
+    if not arch == "llmbox" and (str(variant) == "google/gemma-2-27b-it"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -1673,7 +1663,7 @@ def test_gemma_attention_decode(variant, variant_config, is_llmbox):
     num_heads = config.num_attention_heads
     num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
@@ -1747,15 +1737,15 @@ def test_gemma_attention_decode(variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gemma").items(),
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
-def test_gemma_attention(variant, variant_config, seq_len, is_llmbox):
-    if not is_llmbox and (str(variant) == "google/gemma-2-27b-it"):
+def test_gemma_attention(variant, variant_config, seq_len, arch):
+    if not arch == "llmbox" and (str(variant) == "google/gemma-2-27b-it"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -1799,7 +1789,7 @@ def test_gemma_attention(variant, variant_config, seq_len, is_llmbox):
     dropout = 0.0
     scaling = attention.scaling
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
@@ -1867,14 +1857,14 @@ def test_gemma_attention(variant, variant_config, seq_len, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("mistral").items(),
     ids=[str(k) for k in get_available_variants("mistral").keys()],
 )
-def test_mistral_attention_prefill(seq_len, variant, variant_config, is_llmbox):
+def test_mistral_attention_prefill(seq_len, variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = MistralModelLoader(variant=variant)
@@ -1893,7 +1883,7 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, is_llmbox):
 
     past_key_states = None
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -1922,10 +1912,10 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, is_llmbox):
 
 # Add single push test to ensure multi-chip graph tester has coverage.
 @pytest.mark.push
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", [MistralModelVariant.MISTRAL_7B])
-def test_mistral_attention_prefill_push(seq_len, variant, is_llmbox):
+def test_mistral_attention_prefill_push(seq_len, variant, arch):
     xr.set_device_type("TT")
 
     batch_size = 1
@@ -1944,7 +1934,7 @@ def test_mistral_attention_prefill_push(seq_len, variant, is_llmbox):
 
     past_key_states = None
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -1972,13 +1962,13 @@ def test_mistral_attention_prefill_push(seq_len, variant, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("mistral").items(),
     ids=[str(k) for k in get_available_variants("mistral").keys()],
 )
-def test_mistral_attention_decode(variant, variant_config, is_llmbox):
+def test_mistral_attention_decode(variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = MistralModelLoader(variant=variant)
@@ -2006,7 +1996,7 @@ def test_mistral_attention_decode(variant, variant_config, is_llmbox):
     )
     past_key_states = static_cache
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
@@ -2034,14 +2024,14 @@ def test_mistral_attention_decode(variant, variant_config, is_llmbox):
 
 
 @pytest.mark.nightly
-@parametrize_is_llmbox()  # True for llmbox, False for single device
+@parametrize_multi_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("mistral").items(),
     ids=[str(k) for k in get_available_variants("mistral").keys()],
 )
-def test_mistral_attention(variant, variant_config, seq_len, is_llmbox):
+def test_mistral_attention(variant, variant_config, seq_len, arch):
     xr.set_device_type("TT")
 
     def sdpa(
@@ -2098,7 +2088,7 @@ def test_mistral_attention(variant, variant_config, seq_len, is_llmbox):
     dropout = 0.0
     scaling = attention.scaling
 
-    if is_llmbox:
+    if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
