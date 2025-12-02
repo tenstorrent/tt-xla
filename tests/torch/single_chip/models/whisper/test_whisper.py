@@ -84,7 +84,7 @@ def inference_tester(request) -> WhisperTester:
     return WhisperTester(variant)
 
 
-# ----- Fixtures -----
+# ----- Tests -----
 
 
 @pytest.mark.nightly
