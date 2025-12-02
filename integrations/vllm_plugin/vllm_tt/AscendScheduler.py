@@ -26,6 +26,7 @@ from .logger import tt_init_logger
 
 logger = tt_init_logger(__name__)
 
+
 class AscendScheduler(Scheduler):
     """This Scheduler extends vllm's original v1 scheduler
     with prefill-first scheduling strategy."""

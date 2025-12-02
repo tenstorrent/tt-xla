@@ -128,7 +128,6 @@ class TTPlatform(Platform):
     @classmethod
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationLevel, CUDAGraphMode
-        from .AscendScheduler import AscendScheduler
         vllm_config.scheduler_config.scheduler_cls = "vllm_tt.AscendScheduler.AscendScheduler"
         cache_config = vllm_config.cache_config
         # For v0, the default block size is 16.

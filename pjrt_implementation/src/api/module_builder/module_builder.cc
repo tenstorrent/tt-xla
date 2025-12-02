@@ -700,6 +700,12 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     return tt_pjrt_status::kInternal;
   }
 
+  // llvm::errs()
+  //       << "------------------ START OF MLIR MODULE ------------------\n";
+  // mlir_module->print(llvm::errs());
+  //   llvm::errs()
+  //       << "------------------ END OF MLIR MODULE ------------------\n";
+
   return tt_pjrt_status::kSuccess;
 }
 

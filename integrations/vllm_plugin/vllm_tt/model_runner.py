@@ -502,6 +502,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # consecutive batches contain mostly the same requests. If batches
         # have low request overlap (e.g., alternating between two distinct
         # sets of requests), this optimization becomes very inefficient.
+        
         for req_id in unscheduled_req_ids:
             req_index = self.input_batch.remove_request(req_id)
             assert req_index is not None
@@ -1314,15 +1315,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     model = tpu_loader.load_model(
                         vllm_config=self.vllm_config,
                         model_config=self.vllm_config.model_config,
-                        mesh=self.mesh,
+                        mesh=None,
                     ).eval()
+                    # Shard KV Cache
                 else:
                     model_loader = get_model_loader(self.load_config)
                     logger.info("Loading model from scratch...")
                     model = model_loader.load_model(
                         vllm_config=self.vllm_config, model_config=self.model_config
                     )
-
                 model = model.to("xla")
             except RuntimeError as e:
                 raise RuntimeError(
