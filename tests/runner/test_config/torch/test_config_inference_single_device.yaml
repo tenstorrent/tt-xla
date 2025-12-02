@@ -27,19 +27,13 @@ test_config:
 
   vovnet/pytorch-vovnet39_th-single_device-full-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
-    status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
   vovnet/pytorch-vovnet57_th-single_device-full-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
-    status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
   hardnet/pytorch-single_device-full-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -1564,13 +1558,13 @@ test_config:
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.36258700489997864. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
     assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     assert_pcc: false
@@ -2181,7 +2175,8 @@ test_config:
 
   transfuser/pytorch-single_device-full-inference:
     assert_pcc: false # PCC is -0.715
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TorchRuntimeError: Dynamo failed to run FX node with fake tensors https://github.com/tenstorrent/tt-xla/issues/2396"
 
   # yolov11/pytorch-yolo11n-single_device-full-inference:
   #   status: EXPECTED_PASSING
@@ -2383,17 +2378,20 @@ test_config:
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
   arnold/pytorch-deathmatch_shotgun_rnn-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
 
   arnold/pytorch-vizdoom_2017_track1_rnn-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
 
   arnold/pytorch-defend_the_center_ff-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "PCC comparison failed. Calculated: pcc=0.9587238430976868. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
 
   arnold/pytorch-vizdoom_2017_track2_rnn-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
 
   petr/pytorch-vovnet_gridmask_p4_800x320-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2498,5 +2496,5 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
+        status: NOT_SUPPORTED_SKIP
         reason: "Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks, where each bank needs to store 12234752 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
