@@ -1,10 +1,9 @@
+# This file loads the parameters and returns them as a list of TTNN tensors
+
 import ttnn
 import utils
-import time
-import torch
-import numpy as np
-from transformers import CLIPVisionModelWithProjection, AutoProcessor
-from transformers.image_utils import load_image
+
+
 def load_inputs_for_clipvision_ttnn():
     utils_DeviceGetter_get_device_8 = utils.DeviceGetter.get_device((1, 1))
     utils_load_tensor_0 = utils.load_tensor(

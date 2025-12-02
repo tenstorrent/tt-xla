@@ -1,10 +1,8 @@
+# This file contains the model code for the CLIPVision model
+
 import ttnn
-import utils
-import time
-import torch
-import numpy as np
-from transformers import CLIPVisionModelWithProjection, AutoProcessor
-from transformers.image_utils import load_image
+
+
 def Linear_141_0(input):
     ttnn_reshape_221 = ttnn.reshape(
         input,
