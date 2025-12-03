@@ -8,6 +8,10 @@ import tt_torch.backend.backend
 # Import module so custom operations are registered
 import tt_torch.custom_ops
 
+# Import torch overrides so they are registered
+import tt_torch.torch_overrides
+
+from .codegen import codegen_cpp, codegen_py
 from .serialization import (
     parse_compiled_artifacts_from_cache,
     parse_compiled_artifacts_from_cache_to_disk,
