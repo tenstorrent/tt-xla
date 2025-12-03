@@ -15,3 +15,4 @@ test_config:
   gpt2/causal_lm/jax-xl-data_parallel-full-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
+    markers: [large]
