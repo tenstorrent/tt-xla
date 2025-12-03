@@ -82,6 +82,7 @@ class ModelTestConfig:
         # Arguments to ModelTester
         self.required_pcc = self._resolve("required_pcc", default=None)
         self.assert_pcc = self._resolve("assert_pcc", default=None)
+        self.assert_pcc = True
         # Enable/override absolute-tolerance comparator
         self.assert_atol = self._resolve("assert_atol", default=False)
         self.required_atol = self._resolve("required_atol", default=None)
