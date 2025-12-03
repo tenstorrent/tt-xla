@@ -27,11 +27,13 @@ test_config:
 
   vovnet/pytorch-vovnet39_th-single_device-full-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
   vovnet/pytorch-vovnet57_th-single_device-full-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
   hardnet/pytorch-single_device-full-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -124,6 +126,10 @@ test_config:
 
   musicgen_small/pytorch-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: " PCC comparison failed. Calculated: pcc=0.9647423028945923. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2381"
 
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -313,9 +319,17 @@ test_config:
 
   efficientnet/pytorch-efficientnet_b6-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Statically allocated circular buffers in program 162 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   efficientnet/pytorch-efficientnet_b7-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Statically allocated circular buffers in program 260 clash with L1 buffers on core range [(x=0,y=0) - (x=12,y=9)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   ghostnet/pytorch-ghostnet_100-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1164,6 +1178,10 @@ test_config:
 
   regnet/pytorch-regnet_x_3_2gf-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: " PCC comparison failed. Calculated: pcc=0.9898508191108704. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   regnet/pytorch-regnet_x_8gf-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1226,8 +1244,9 @@ test_config:
     reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
 
   deepseek/pytorch-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "error: failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/1266"
+    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ttir.scatter does not work - https://github.com/tenstorrent/tt-xla/issues/2391"
 
   gemma/pytorch-google/gemma-1.1-2b-it-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1407,12 +1426,9 @@ test_config:
     markers: ["extended"]
 
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Bad PCC on blackhole - Calculated: pcc=0.978913426399231. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1434"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed.  Calculated: pcc=0.97700434923172. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/2368"
+
 
   vgg/pytorch-bn_vgg19b-single_device-full-inference:
     required_pcc: 0.96
@@ -1489,8 +1505,7 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99"
 
   stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - Model initialization failed"
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   oft/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -1543,13 +1558,13 @@ test_config:
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.36258700489997864. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
     assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.4519438147544861. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     assert_pcc: false
@@ -2160,7 +2175,8 @@ test_config:
 
   transfuser/pytorch-single_device-full-inference:
     assert_pcc: false # PCC is -0.715
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TorchRuntimeError: Dynamo failed to run FX node with fake tensors https://github.com/tenstorrent/tt-xla/issues/2396"
 
   # yolov11/pytorch-yolo11n-single_device-full-inference:
   #   status: EXPECTED_PASSING
@@ -2242,23 +2258,13 @@ test_config:
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
 
   stable_diffusion/pytorch-stable-diffusion-3.5-medium-single_device-full-inference:
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Running the test CRASHED with signal 9 https://github.com/tenstorrent/tt-xla/issues/2254"
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   stable_diffusion/pytorch-stable-diffusion-3.5-large-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
-    markers: [large]
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   stable_diffusion/pytorch-stable-diffusion-3.5-large-turbo-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
-    markers: [large]
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   gliner/pytorch-urchade/gliner_largev2-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2372,17 +2378,20 @@ test_config:
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
   arnold/pytorch-deathmatch_shotgun_rnn-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
 
   arnold/pytorch-vizdoom_2017_track1_rnn-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
 
   arnold/pytorch-defend_the_center_ff-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "PCC comparison failed. Calculated: pcc=0.9587238430976868. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
 
   arnold/pytorch-vizdoom_2017_track2_rnn-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
 
   petr/pytorch-vovnet_gridmask_p4_800x320-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2487,5 +2496,5 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
+        status: NOT_SUPPORTED_SKIP
         reason: "Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks, where each bank needs to store 12234752 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"

@@ -1,0 +1,13 @@
+diff --git a/third_party/CMakeLists.txt b/third_party/CMakeLists.txt
+index 24d8f161..d7c72fac 100644
+--- a/third_party/CMakeLists.txt
++++ b/third_party/CMakeLists.txt
+@@ -85,7 +85,7 @@ else()
+         BINARY_DIR ${TTMLIR_BUILD_DIR}
+
+         BUILD_COMMAND env ${WITH_METAL_RUNTIME_ROOT_SET} ${CMAKE_COMMAND} --build <BINARY_DIR>
+-        COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist
++        COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR>
+
+         INSTALL_COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component SharedLib
+         COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component DistributedRuntime

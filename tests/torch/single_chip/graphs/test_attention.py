@@ -7,9 +7,13 @@ from typing import Callable
 import numpy as np
 import pytest
 import torch
+import torch_xla
+import torch_xla.core.xla_model as xm
+import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
+from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 from transformers.cache_utils import StaticCache
 from transformers.models.bert.modeling_bert import BertSelfAttention
@@ -2137,3 +2141,114 @@ def test_mistral_attention(variant, variant_config, seq_len, is_llmbox):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
+
+
+class MinimalAttention(torch.nn.Module):
+    def __init__(self, hidden_size, num_heads):
+        super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = hidden_size // num_heads
+
+        self.q_proj = torch.nn.Linear(hidden_size, hidden_size, bias=False)
+        self.k_proj = torch.nn.Linear(hidden_size, hidden_size, bias=False)
+        self.v_proj = torch.nn.Linear(hidden_size, hidden_size, bias=False)
+        self.o_proj = torch.nn.Linear(hidden_size, hidden_size, bias=False)
+
+    def forward(self, hidden_states):
+        batch_size, seq_len, _ = hidden_states.shape
+
+        # Q, K, V projections
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
+        value_states = self.v_proj(hidden_states)
+
+        # Reshape and transpose
+        query_states = query_states.view(
+            batch_size, seq_len, -1, self.head_dim
+        ).transpose(1, 2)
+        key_states = key_states.view(batch_size, seq_len, -1, self.head_dim).transpose(
+            1, 2
+        )
+        value_states = value_states.view(
+            batch_size, seq_len, -1, self.head_dim
+        ).transpose(1, 2)
+
+        # Attention computation
+        attn_weights = torch.matmul(query_states, key_states.transpose(-2, -1))
+        attn_weights = torch.softmax(attn_weights, dim=-1)
+        attn_output = torch.matmul(attn_weights, value_states)
+
+        # Reshape back
+        attn_output = attn_output.transpose(1, 2).contiguous()
+        attn_output = attn_output.view(batch_size, seq_len, -1)
+
+        # Output projection
+        output = self.o_proj(attn_output)
+
+        return output
+
+
+@pytest.mark.push
+@pytest.mark.llmbox
+def test_compiled_batched_attention():
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (1, num_devices)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(model, args, kwargs):
+        shard_specs = {}
+        shard_specs[model.q_proj.weight] = ("model", None)
+        shard_specs[model.k_proj.weight] = ("model", None)
+        shard_specs[model.v_proj.weight] = ("model", None)
+        shard_specs[model.o_proj.weight] = (None, "model")
+        return shard_specs
+
+    # Model config
+    hidden_size = 512
+    num_heads = 8
+    batch_size = 2
+    seq_len = 128
+    model = MinimalAttention(hidden_size, num_heads).to(torch.bfloat16)
+
+    hidden_states = torch.randn(batch_size, seq_len, hidden_size).to(torch.bfloat16)
+    run_graph_test(
+        model,
+        [
+            hidden_states,
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.push
+@pytest.mark.llmbox
+def test_eager_batched_attention():
+    # import tt_torch
+    enable_spmd()
+    xr.set_device_type("TT")
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (1, num_devices)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    # Model config
+    hidden_size = 512
+    num_heads = 8
+    batch_size = 2
+    seq_len = 128
+    device: torch.device = torch_xla.device()
+
+    model = MinimalAttention(hidden_size, num_heads).to(torch.bfloat16).to(device)
+
+    xs.mark_sharding(model.q_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(model.k_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(model.v_proj.weight, mesh, ("model", None))
+    xs.mark_sharding(model.o_proj.weight, mesh, (None, "model"))
+    hidden_states = (
+        torch.randn(batch_size, seq_len, hidden_size).to(torch.bfloat16).to(device)
+    )
+
+    output = model(hidden_states).to("cpu")

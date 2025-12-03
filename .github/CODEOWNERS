@@ -4,11 +4,11 @@
 * @mrakitaTT @nvukobratTT @AleksKnezevic
 
 # PJRT implementation
-/pjrt_implementation/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @sdjukicTT @sgligorijevicTT
+/pjrt_implementation/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @sdjukicTT @sgligorijevicTT @acicovicTT
 
 # Compiler integration
-/pjrt_implementation/inc/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT
-/pjrt_implementation/src/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT
+/pjrt_implementation/inc/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT @acicovicTT
+/pjrt_implementation/src/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT @acicovicTT
 
 # CI
 /.github/ @vmilosevic @jmcgrathTT @kmabeeTT @nsumrakTT @vvukomanTT
@@ -33,3 +33,6 @@ pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @n
 
 # Integrations
 /integrations/vllm_plugin/ @AleksKnezevic @LPanosTT @mmanzoorTT @ljovanovicTT
+
+# Scripts
+/scripts/ @rpavlovicTT @odjuriciTT @AleksKnezevic @mrakitaTT @nvukobratTT
