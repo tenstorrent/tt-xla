@@ -351,6 +351,7 @@ jobs:
       - name: Bisect
         shell: bash
         run: |
+          rm -rf .bisect-run
           mkdir -p .bisect-run
           cp .github/scripts/download_wheel.sh .bisect-run/
           cp .github/scripts/run_tests.py .bisect-run/
@@ -404,23 +405,23 @@ jobs:
           bad_commit=$(git rev-parse HEAD)
           title=$(git log -1 --pretty=%s "$bad_commit")
           git bisect reset
-          echo "$bad_commit" > .bisect-run/.bisect-result.txt
-          echo "Title: $title" >> .bisect-run/.bisect-result.txt
+          echo "$bad_commit" > .bisect-run/bisect-result.txt
+          echo "Title: $title" >> .bisect-run/bisect-result.txt
           if [ "$found" = true ]; then
-            echo "found" >> .bisect-run/.bisect-result.txt
+            echo "found" >> .bisect-run/bisect-result.txt
           else
-            echo "inconclusive" >> .bisect-run/.bisect-result.txt
+            echo "inconclusive" >> .bisect-run/bisect-result.txt
           fi
-          echo "Tests:" >> .bisect-run/.bisect-result.txt
-          cat .tests_to_run >> .bisect-run/.bisect-result.txt
+          echo "Tests:" >> .bisect-run/bisect-result.txt
+          cat .tests_to_run >> .bisect-run/bisect-result.txt
           echo "Bisect result:"
-          cat .bisect-run/.bisect-result.txt
+          cat .bisect-run/bisect-result.txt
 
       - name: Upload bisect result
         uses: actions/upload-artifact@v5
         with:
           name: bisect-result-${{ matrix.build.run_no }}-${{ matrix.build.runs-on }}
-          path: ./.bisect-run/.bisect-result.txt
+          path: .bisect-run/bisect-result.txt
           include-hidden-files: true
 
   deduct:
@@ -435,30 +436,25 @@ jobs:
         run: |
           gh run download ${{ github.run_id }} -R ${{ github.repository }} --pattern "bisect-result-*" -D bisect-results
 
-          # Create associative array to group by bad commit
-          rm -rf .bisect-commits
-          mkdir -p .bisect-commits
+          # Prepare bisect-commits directory
+          rm -rf bisect-commits
+          mkdir -p bisect-commits
 
-          find bisect-results -name ".bisect-result.txt" | while read -r file; do
+          find bisect-results -name "bisect-result.txt" | while read -r file; do
             bad_commit=$(head -n1 "$file")
             tests=$(tail -n +5 "$file")
             echo "Bad commit: $bad_commit"
             echo "Tests:"
             echo "$tests"
 
-            # Check if commit file already exists
-            if [[ -f ".bisect-commits/$bad_commit" ]]; then
-              echo "$tests" >> ".bisect-commits/$bad_commit"
-            else
-              echo "$tests" > ".bisect-commits/$bad_commit"
-            fi
+            echo "$tests" >> "bisect-commits/$bad_commit"
           done
 
           # Create markdown file for this commit
           echo "# Bad Commit Analysis [Nightly](<https://github.com/$repo/actions/runs/${{ needs.inspect.outputs.curr_wf_id }}/attempts/${{ needs.inspect.outputs.curr_wf_attempt }}>)" > .bisect-report.md
           echo "" >> .bisect-report.md
           echo "Bad Commit Analysis :arrow_heading_down:" > .bisect-msg.txt
-          for commit_file in .bisect-commits/*; do
+          for commit_file in bisect-commits/*; do
             if [[ -f "$commit_file" ]]; then
               commit=$(basename "$commit_file")
               tests=$(cat "$commit_file")
