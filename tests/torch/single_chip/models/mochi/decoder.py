@@ -8,7 +8,7 @@ import torch_xla
 import torch_xla.runtime as xr
 from diffusers import AutoencoderKLMochi
 
-# Enable HLO debug output
+os.environ["LOGGER_LEVEL"] = "DEBUG"
 os.environ["XLA_HLO_DEBUG"] = "1"
 
 
@@ -22,7 +22,7 @@ def run_vae_decoder():
     Mochi VAE specs:
     - 12 latent channels
     - 128x compression: 6x temporal, 8x8 spatial
-    - Example: 37 frames @ 480x848 -> latents [1, 12, 7, 60, 106]
+    - Example: 24 frames @ 480x848 -> latents [1, 12, 4, 60, 106]
     """
     xr.set_device_type("TT")
     device = torch_xla.device()
@@ -85,10 +85,9 @@ def run_vae_decoder():
         # run full pipeline forward pass including tiling as memory optimization
         # output = vae.decode(latent_normalized)
 
-    # print(f"VAE Decoder output shape: {output.shape}")
     print(f"Expected shape: [1, 3, 24, 480, 848]")
     torch_xla.sync()
-    print(f"Output: {output[0].shape}")
+    print(f"Got output shape: {output[0].shape}")
 
 
 if __name__ == "__main__":
