@@ -11,7 +11,11 @@ class TorchFunctionOverride(TorchFunctionMode):
             func.__name__ == "matmul" or func.__name__ == "linear"
         ):
             if len(args[0].shape) >= 4 or len(args[1].shape) >= 4:
-                res = torch.einsum("...mk,...kn->...mn", args[0], args[1])
+                if func.__name__ == "linear":
+                    # Linear function transposes args[1]
+                    res = torch.einsum("...mk,...nk->...mn", args[0], args[1])
+                else:
+                    res = torch.einsum("...mk,...kn->...mn", args[0], args[1])
                 if len(args) > 2 and args[2] is not None:
                     res = res + args[2]
                 return res
