@@ -93,7 +93,7 @@ test_config:
     markers: ["extended"]
 
   openpose/v2/pytorch-single_device-full-inference:
-    assert_pcc: false
+    # assert_pcc: false
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-xxlarge_v2-single_device-full-inference:

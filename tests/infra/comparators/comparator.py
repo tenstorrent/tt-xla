@@ -16,7 +16,7 @@ from .comparison_config import (
     EqualConfig,
     PccConfig,
 )
-
+from loguru import logger
 
 @dataclass
 class ComparisonResult:
@@ -95,6 +95,8 @@ class Comparator(ABC):
         """
         passed = True
         error_messages = []
+        
+        logger.info("comparison_result.pcc={}",comparison_result.pcc)
 
         # Check each enabled comparison type and collect all failures
         if self._comparison_config.equal.enabled and comparison_result.equal is False:
