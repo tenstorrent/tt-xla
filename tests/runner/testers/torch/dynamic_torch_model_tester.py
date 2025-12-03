@@ -12,6 +12,7 @@ import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
+from infra.testers.compiler_config import CompilerConfig
 
 from tests.runner.utils import TorchDynamicLoader
 from third_party.tt_forge_models.config import Parallelism
@@ -30,6 +31,7 @@ class DynamicTorchModelTester(TorchModelTester):
         *,
         loader,
         comparison_config: ComparisonConfig | None = None,
+        compiler_config: CompilerConfig | None = None,
         parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
     ) -> None:
         """Initialize DynamicTorchModelTester.
@@ -47,6 +49,7 @@ class DynamicTorchModelTester(TorchModelTester):
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
+            compiler_config=compiler_config,
             run_mode=run_mode,
             parallelism=self.parallelism,
         )
