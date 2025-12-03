@@ -222,7 +222,7 @@ def _extract_source_and_module_hierarchy_info(
         DBG_LOC and print(f"  func_path: {func_path}, {found_func_name}")
         DBG_LOC and print(f"  func_path_ast: {func_path_ast}, {found_func_name_ast}")
         raise ValueError(
-            f"Function path mismatch for {full_path}:{line_num} between simple and ast modes"
+            f"Function path mismatch for {full_path}:{line_num} between simple and ast modes\nSimple: {func_path}\n Ast   : {func_path_ast}"
         )
 
     # Extract module hierarchy from node's nn_module_stack metadata.
