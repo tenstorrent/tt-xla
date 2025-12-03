@@ -4,7 +4,7 @@
 * @mrakitaTT @nvukobratTT @AleksKnezevic
 
 # PJRT implementation
-/pjrt_implementation/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @jnie-TT @sdjukicTT @sgligorijevicTT @acicovicTT
+/pjrt_implementation/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @sdjukicTT @sgligorijevicTT @acicovicTT
 
 # Compiler integration
 /pjrt_implementation/inc/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT @acicovicTT
@@ -28,7 +28,7 @@ pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @n
 /python_package/tt_torch/ @nvukobratTT @dgolubovicTT @jameszianxuTT @LPanosTT @AleksKnezevic @mstojkovicTT @ppadjinTT @vkovinicTT
 
 # Third Party
-/third_party/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @jnie-TT @sdjukicTT @sgligorijevicTT
+/third_party/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @sdjukicTT @sgligorijevicTT
 /third_party/tt_forge_models @AleksKnezevic @kmabeeTT @mrakitaTT @nvukobratTT
 
 # Integrations
