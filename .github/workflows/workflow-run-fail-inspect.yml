@@ -403,7 +403,7 @@ jobs:
 
           # Get the bad commit info
           bad_commit=$(git rev-parse HEAD)
-          title=$(git log -1 --pretty=%s "$bad_commit")
+          title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
           git bisect reset
           echo "$bad_commit" > .bisect-run/bisect-result.txt
           echo "Title: $title" >> .bisect-run/bisect-result.txt
@@ -448,6 +448,44 @@ jobs:
             echo "$tests"
 
             echo "$tests" >> "bisect-commits/$bad_commit"
+
+            # detect uplift commits
+            title=$(head -n2 "$file")
+            if [[ "$title" == "Title: Uplift third_party/tt-mlir"* ]]; then
+              echo "Uplift commit detected!"
+              # Extract changes from the uplift commit
+              git show $bad_commit -- third_party/CMakeLists.txt > patch.txt
+
+              if [ -s patch.txt ]; then
+                from=$(grep '^-.*set(TT_MLIR_VERSION' patch.txt | sed 's/^-.*set(TT_MLIR_VERSION "\([^"]*\)".*/\1/')
+                to=$(grep '^+.*set(TT_MLIR_VERSION' patch.txt | sed 's/^+.*set(TT_MLIR_VERSION "\([^"]*\)".*/\1/')
+
+                if [ -n "$from" ] && [ -n "$to" ]; then
+                  echo "Uplift detected: from $from to $to"
+                  # Check if we already have uplift range set
+                  if [ -z "$uplift_from" ] && [ -z "$uplift_to" ]; then
+                    # First uplift found, set the range
+                    uplift_from="$from"
+                    uplift_to="$to"
+                    uplift_tests="$tests"
+                  else
+                    # Extend the range
+                    if [ "$from" = "$uplift_to" ]; then
+                      uplift_to="$to"
+                      uplift_tests="$uplift_tests"$'\n'"$tests"
+                    elsif [ "$to" = "$uplift_from" ]; then
+                      uplift_from="$from"
+                      uplift_tests="$uplift_tests"$'\n'"$tests"
+                    elsif [ "$to" = "$uplift_to" ] && [ "$from" = "$uplift_from" ]; then
+                      echo "Uplift matches existing range, adding tests."
+                      uplift_tests="$uplift_tests"$'\n'"$tests"
+                    else
+                      echo "Non-continuous uplift, ignoring..."
+                    fi
+                  fi
+                fi
+              fi
+            fi
           done
 
           # Create markdown file for this commit
