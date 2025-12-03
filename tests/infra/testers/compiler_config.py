@@ -76,10 +76,10 @@ class CompilerConfig:
 
         if self.enable_trace:
             options["enable_trace"] = "true"
-        
+
         if self.export_path:
             options["export_path"] = self.export_path
-        
+
         if self.export_tensors:
             options["export_tensors"] = "true"
 

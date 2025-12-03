@@ -10,9 +10,9 @@ from typing import Any
 import torch
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
+from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
-from infra.testers.compiler_config import CompilerConfig
 
 from tests.runner.utils import TorchDynamicLoader
 from third_party.tt_forge_models.config import Parallelism
