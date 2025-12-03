@@ -78,7 +78,7 @@ class ModelLoader(ForgeModel):
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
+                           NOTE: This parameter is currently ignored (model always uses float32).
 
         Returns:
             torch.nn.Module: The SSDLite320 MobileNetV3 model instance.
@@ -95,9 +95,9 @@ class ModelLoader(ForgeModel):
 
         model.eval()
 
-        # Only convert dtype if explicitly requested
         if dtype_override is not None:
-            model = model.to(dtype_override)
+            print("NOTE: dtype_override ignored - batched_nms lacks BFloat16 support")
+        #     model = model.to(dtype_override)
 
         return model
 
@@ -106,7 +106,7 @@ class ModelLoader(ForgeModel):
 
         Args:
             dtype_override: Optional torch.dtype to override the inputs' default dtype.
-                           If not provided, inputs will use the default dtype (typically float32).
+                           NOTE: This parameter is currently ignored (model always uses float32).
             batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
@@ -133,8 +133,8 @@ class ModelLoader(ForgeModel):
         # Replicate tensors for batch size
         inputs = inputs.repeat_interleave(batch_size, dim=0)
 
-        # Only convert dtype if explicitly requested
         if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
+            print("NOTE: dtype_override ignored - batched_nms lacks BFloat16 support")
+            # inputs = inputs.to(dtype_override)
 
         return inputs
