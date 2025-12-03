@@ -33,12 +33,12 @@ Correct usage pattern:
 """
 import ast
 import os
-import torch
-import torch_xla
 import types
-from torch.utils._python_dispatch import TorchDispatchMode
 from dataclasses import dataclass
 
+import torch
+import torch_xla
+from torch.utils._python_dispatch import TorchDispatchMode
 
 # Enable debug logging for location metadata
 DBG_LOC = False
@@ -48,6 +48,7 @@ DBG_LOC = False
 class EmitModuleLoc:
     module_class: str
     module_name: str
+
 
 @dataclass
 class EmitLoc:
@@ -62,7 +63,7 @@ class EmitLoc:
     op_index: int = -1
 
     @staticmethod
-    def make_unknown(is_debug: bool = False, op_index: int = -1) -> 'EmitLoc':
+    def make_unknown(is_debug: bool = False, op_index: int = -1) -> "EmitLoc":
         return EmitLoc(
             modules=[],
             func_path="unknown",
@@ -94,7 +95,10 @@ class EmitLoc:
     def __str__(self) -> str:
         return self.to_string()
 
-def _find_enclosing_function(full_path: str, line_num: int, mode: str = 'simple') -> str:
+
+def _find_enclosing_function(
+    full_path: str, line_num: int, mode: str = "simple"
+) -> str:
     """
     Given a file path and a line number, returns the full path (with line number) of the enclosing function.
     If not found or file cannot be opened, returns "unknown".
@@ -108,7 +112,7 @@ def _find_enclosing_function(full_path: str, line_num: int, mode: str = 'simple'
     Returns:
         str: tuple of (full_path:str, func_name:str) or ("unknown", "unknown")
     """
-    if mode == 'simple':
+    if mode == "simple":
         try:
             with open(full_path, "r") as f:
                 current_func_name = "unknown"
@@ -128,7 +132,7 @@ def _find_enclosing_function(full_path: str, line_num: int, mode: str = 'simple'
         except Exception:
             return "unknown", "unknown"
 
-    elif mode == 'ast':
+    elif mode == "ast":
         try:
             with open(full_path, "r") as f:
                 source = f.read()
@@ -143,7 +147,9 @@ def _find_enclosing_function(full_path: str, line_num: int, mode: str = 'simple'
 
                 def visit_FunctionDef(self, node):
                     if hasattr(node, "body") and node.lineno <= self.line <= (
-                        max(getattr(x, "lineno", node.lineno) for x in node.body) if node.body else node.lineno
+                        max(getattr(x, "lineno", node.lineno) for x in node.body)
+                        if node.body
+                        else node.lineno
                     ):
                         # Possibly nested, visit children to check for more specific (inner) function
                         for child in ast.iter_child_nodes(node):
@@ -164,10 +170,14 @@ def _find_enclosing_function(full_path: str, line_num: int, mode: str = 'simple'
         except Exception:
             return "unknown", "unknown"
     else:
-        raise ValueError('Invalid mode for _find_enclosing_function: choose "simple" or "ast"')
+        raise ValueError(
+            'Invalid mode for _find_enclosing_function: choose "simple" or "ast"'
+        )
 
 
-def _extract_source_and_module_hierarchy_info(node: torch.fx.Node, is_debug: bool = False, op_index: int = -1) -> EmitLoc:
+def _extract_source_and_module_hierarchy_info(
+    node: torch.fx.Node, is_debug: bool = False, op_index: int = -1
+) -> EmitLoc:
     if "stack_trace" not in node.meta or not node.meta["stack_trace"]:
         return EmitLoc.make_unknown(is_debug, op_index)
 
@@ -178,9 +188,13 @@ def _extract_source_and_module_hierarchy_info(node: torch.fx.Node, is_debug: boo
 
     # Find the first (deepest) valid stack trace line
     line = next(
-        (line for line in reversed(lines)
-         if (stripped := line.strip()).startswith('File "') and len(stripped.split(",")) >= 3),
-        None
+        (
+            line
+            for line in reversed(lines)
+            if (stripped := line.strip()).startswith('File "')
+            and len(stripped.split(",")) >= 3
+        ),
+        None,
     )
 
     if line is None:
@@ -196,14 +210,20 @@ def _extract_source_and_module_hierarchy_info(node: torch.fx.Node, is_debug: boo
     line_num = int(parts[1].split()[-1])
     func_name = parts[2].split()[-1]
     func_path, found_func_name = _find_enclosing_function(full_path, line_num)
-    func_path_ast, found_func_name_ast = _find_enclosing_function(full_path, line_num, mode='ast')
+    func_path_ast, found_func_name_ast = _find_enclosing_function(
+        full_path, line_num, mode="ast"
+    )
     if func_name != found_func_name:
         DBG_LOC and print(f"  function name mismatch: {func_name}, {found_func_name}")
-        raise ValueError(f"Function name mismatch between stack_trace and found_func_name modes")
+        raise ValueError(
+            f"Function name mismatch between stack_trace and found_func_name modes"
+        )
     if func_path != func_path_ast:
         DBG_LOC and print(f"  func_path: {func_path}, {found_func_name}")
         DBG_LOC and print(f"  func_path_ast: {func_path_ast}, {found_func_name_ast}")
-        raise ValueError(f"Function path mismatch for {full_path}:{line_num} between simple and ast modes")
+        raise ValueError(
+            f"Function path mismatch for {full_path}:{line_num} between simple and ast modes"
+        )
 
     # Extract module hierarchy from node's nn_module_stack metadata.
     extracted_modules = []
@@ -216,7 +236,9 @@ def _extract_source_and_module_hierarchy_info(node: torch.fx.Node, is_debug: boo
         for path, class_name in modules:
             DBG_LOC and print(f"    path: {path}")
             DBG_LOC and print(f"    class_name: {class_name}")
-            module_class = class_name.split(".")[-1] if "." in class_name else class_name
+            module_class = (
+                class_name.split(".")[-1] if "." in class_name else class_name
+            )
 
             # Extract instance from path (e.g., "L['self'].inner.linear" → "inner.linear")
             module_name = (
@@ -243,6 +265,7 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
     emit_locs = []
 
     import os
+
     emit_ttnn_debug_loc = os.environ.get("EMIT_TTNN_DEBUG_LOC", False)
     op_index = 0
 
@@ -264,12 +287,16 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
 
         # Skip if node.target is <class 'builtin_function_or_method'>
         if isinstance(node.target, types.BuiltinFunctionType):
-            DBG_LOC and print(f"  SKIPPING node: {node.op} - {node.name} - it is a builtin function")
+            DBG_LOC and print(
+                f"  SKIPPING node: {node.op} - {node.name} - it is a builtin function"
+            )
             continue
         DBG_LOC and print(f"  node.target: {node.target}")
 
         # Extract metadata components
-        emit_loc = _extract_source_and_module_hierarchy_info(node, emit_ttnn_debug_loc, op_index)
+        emit_loc = _extract_source_and_module_hierarchy_info(
+            node, emit_ttnn_debug_loc, op_index
+        )
 
         DBG_LOC and print(f"  EmitLoc: {emit_loc}")
 
@@ -327,7 +354,9 @@ class MetadataDispatchMode(TorchDispatchMode):
         # Set metadata only for computation nodes since they have module hierarchy info.
         # XLA nodes without location info inherit from parent/child nodes, which works
         # perfectly since computation nodes always have locations.
-        module_hierarchy = EmitLoc.make_unknown(is_debug=is_debug, op_index=-2).to_string()
+        module_hierarchy = EmitLoc.make_unknown(
+            is_debug=is_debug, op_index=-2
+        ).to_string()
         if self.operation_index < len(self.node_info):
             module_hierarchy = self.node_info[self.operation_index]
             self._set_metadata(res, module_hierarchy)
