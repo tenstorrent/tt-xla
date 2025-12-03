@@ -85,7 +85,6 @@ else()
         BINARY_DIR ${TTMLIR_BUILD_DIR}
 
         BUILD_COMMAND env ${WITH_METAL_RUNTIME_ROOT_SET} ${CMAKE_COMMAND} --build <BINARY_DIR>
-        COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist
 
         INSTALL_COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component SharedLib
         COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component DistributedRuntime
