@@ -4,9 +4,12 @@
 
 import pytest
 import torch
+import torch.nn.functional as F
 from infra import Framework, run_op_test_with_random_inputs
+from infra.comparators.torch_comparator import TorchComparator
 from utils import Category
 
+from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 
 
@@ -50,18 +53,17 @@ def test_linear(
 
 
 @pytest.mark.nightly
+@pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
 def test_linear_torch_override():
     """
-    Test linear with 4D input tensor to ensure torch function override transposes the
-    weights properly by calling torch.einsum("...mk,...nk->...mn" ...) instead of
-    torch.einsum("...mk,...kn->...mn" ...).
+    Test that TorchFunctionOverride produces correct results for linear operations with
+    4D input tensors by comparing override output against standard torch.nn.functional.linear.
 
     This tests the override in eager mode (without torch.compile) since the override
     has `not torch.compiler.is_compiling()` check.
     """
-    import torch.nn.functional as F
-    from tt_torch.torch_overrides import TorchFunctionOverride
+    from tt_torch.torch_overrides import torch_function_override
 
     dtype = torch.bfloat16
     in_features = 96
@@ -71,12 +73,15 @@ def test_linear_torch_override():
     weight = torch.randn(out_features, in_features, dtype=dtype)
     bias = torch.randn(out_features, dtype=dtype)
 
-    # Golden output
-    golden_output = torch.einsum("...mk,...nk->...mn", input_tensor, weight)
-    golden_output = golden_output + bias
+    # Temporarily disable the override to get golden output
+    torch_function_override.__exit__(None, None, None)
+    try:
+        golden = F.linear(input_tensor, weight, bias)
+    finally:
+        torch_function_override.__enter__()  # Always re-enable it
 
     # Compute actual output with override active (eager mode, not compiled)
-    with TorchFunctionOverride():
-        output = F.linear(input_tensor, weight, bias)
+    output = F.linear(input_tensor, weight, bias)
 
-    assert torch.allclose(output, golden_output)
+    comparator = TorchComparator(ComparisonConfig())
+    comparator.compare(output, golden)
