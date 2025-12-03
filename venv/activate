@@ -34,5 +34,7 @@ export TT_METAL_LOGGER_LEVEL="ERROR"
 export ARCH_NAME="${ARCH_NAME:-wormhole_b0}"
 export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
 export PATH=$TTMLIR_TOOLCHAIN_DIR/bin:${TT_MLIR_HOME}/build/bin:$PATH
-export TT_METAL_RUNTIME_ROOT="${TT_MLIR_HOME}/third_party/tt-metal/src/tt-metal"
-export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/integrations/vllm_plugin:${TT_MLIR_HOME}/build/python_packages:${TT_METAL_RUNTIME_ROOT}/ttnn:${TT_METAL_RUNTIME_ROOT}/tools"
+
+METAL_PATH_IN_SOURCE="${TT_MLIR_HOME}/third_party/tt-metal/src/tt-metal"
+
+export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/integrations/vllm_plugin:${TT_MLIR_HOME}/build/python_packages:${METAL_PATH_IN_SOURCE}/ttnn:${METAL_PATH_IN_SOURCE}/tools"
