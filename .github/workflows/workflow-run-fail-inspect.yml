@@ -473,10 +473,10 @@ jobs:
                     if [ "$from" = "$uplift_to" ]; then
                       uplift_to="$to"
                       uplift_tests="$uplift_tests"$'\n'"$tests"
-                    elsif [ "$to" = "$uplift_from" ]; then
+                    elif [ "$to" = "$uplift_from" ]; then
                       uplift_from="$from"
                       uplift_tests="$uplift_tests"$'\n'"$tests"
-                    elsif [ "$to" = "$uplift_to" ] && [ "$from" = "$uplift_from" ]; then
+                    elif [ "$to" = "$uplift_to" ] && [ "$from" = "$uplift_from" ]; then
                       echo "Uplift matches existing range, adding tests."
                       uplift_tests="$uplift_tests"$'\n'"$tests"
                     else
