@@ -50,6 +50,7 @@ env:
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
   TT_METAL_CCACHE_KERNEL_SUPPORT: 1
   CCACHE_DIR: /mnt/dockercache/.ccache
+  TT_METAL_CACHE: /mnt/dockercache/.ccache/tt-metal-cache
   TT_XLA_CI: 1
 
 jobs:
