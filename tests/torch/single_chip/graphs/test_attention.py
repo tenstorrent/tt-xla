@@ -27,6 +27,7 @@ from transformers.models.mistral.modeling_mistral import MistralAttention
 from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.xlm_roberta.modeling_xlm_roberta import XLMRobertaSelfAttention
+from transformers.models.deepseek_v3.modeling_deepseek_v3 import DeepseekV3Attention
 
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader as BertModelLoader,
@@ -61,6 +62,9 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelVariant as Qwen3ModelVariant,
 )
+from third_party.tt_forge_models.deepseek.pytorch.loader import (
+    ModelLoader as DeepSeekModelLoader,
+)
 
 MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
@@ -70,9 +74,13 @@ MODEL_LOADER_MAP = {
     "qwen2_5": Qwen2_5ModelLoader,
     "gemma": GemmaModelLoader,
     "mistral": MistralModelLoader,
+    "deepseek": DeepSeekModelLoader,
 }
 
 AVAILABLE_VARIANT_MAP = {
+    "deepseek": [
+        "DeepSeek-V3.2-Exp"
+    ],
     "llama": [
         "llama_3_8b",
         "llama_3_1_8b",
@@ -109,6 +117,9 @@ AVAILABLE_VARIANT_MAP = {
         "7b_instruct_v03",
         "ministral_3b_instruct",
         "ministral_8b_instruct",
+    ],
+    "deepseek": [
+        "base",
     ],
 }
 
@@ -2252,3 +2263,221 @@ def test_eager_batched_attention():
     )
 
     output = model(hidden_states).to("cpu")
+
+
+"""DeepSeek attention tests"""
+
+
+@pytest.mark.nightly
+@parametrize_is_llmbox()  # True for llmbox, False for single device
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("deepseek").items(),
+    ids=[str(k) for k in get_available_variants("deepseek").keys()],
+)
+def test_deepseek_attention_prefill(seq_len, variant, variant_config, is_llmbox):
+    xr.set_device_type("TT")
+
+    loader = DeepSeekModelLoader(variant=variant)
+    config = loader.load_config()
+    attention = DeepseekV3Attention(config, layer_idx=0).to(torch.bfloat16)
+
+    batch_size = 1
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
+            mesh_shape = (1, num_devices)
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.kv_b_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[args[0]] = ("batch", None, None)  # hidden_states
+                shard_specs[args[1][0]] = ("batch", None, None)  # cos
+                shard_specs[args[1][1]] = ("batch", None, None)  # sin
+                shard_specs[args[2]] = ("batch", None, None, None)  # mask
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.kv_b_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+    head_dim = config.qk_nope_head_dim + config.qk_rope_head_dim
+    cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    past_key_states = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@parametrize_is_llmbox()  # True for llmbox, False for single device
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("deepseek").items(),
+    ids=[str(k) for k in get_available_variants("deepseek").keys()],
+)
+def test_deepseek_attention_decode(variant, variant_config, is_llmbox):
+    xr.set_device_type("TT")
+
+    loader = DeepSeekModelLoader(variant=variant)
+    config = loader.load_config()
+    attention = DeepseekV3Attention(config, layer_idx=0).to(torch.bfloat16)
+
+    batch_size = 1
+    seq_len = 1
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
+            mesh_shape = (1, num_devices)
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.kv_b_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[args[0]] = ("batch", None, None)  # hidden_states
+                shard_specs[args[1][0]] = ("batch", None, None)  # cos
+                shard_specs[args[1][1]] = ("batch", None, None)  # sin
+                shard_specs[args[2]] = ("batch", None, None, None)  # mask
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.kv_b_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
+                return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+    head_dim = config.qk_nope_head_dim + config.qk_rope_head_dim
+    cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    max_cache_len = 16
+    static_cache: StaticCache = StaticCache(
+        config=config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+    past_key_states = static_cache
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+# Add single push test to ensure multi-chip graph tester has coverage.
+@pytest.mark.push
+@pytest.mark.parametrize(
+    "is_llmbox",
+    [
+        pytest.param(True, marks=pytest.mark.llmbox),
+        pytest.param(False, marks=pytest.mark.single_device),
+    ],
+)
+@pytest.mark.parametrize("seq_len", [1024])
+def test_deepseek_attention_prefill_push(seq_len, is_llmbox):
+    xr.set_device_type("TT")
+
+    batch_size = 1
+
+    loader = DeepSeekModelLoader(variant="base")
+    config = loader.load_config()
+    attention = DeepseekV3Attention(config, layer_idx=0).to(torch.bfloat16)
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+    head_dim = config.qk_nope_head_dim + config.qk_rope_head_dim
+    cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    past_key_states = None
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (1, num_devices)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            shard_specs = {}
+            shard_specs[attention.q_proj.weight] = ("model", None)
+            shard_specs[attention.kv_b_proj.weight] = ("model", None)
+            shard_specs[attention.o_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
