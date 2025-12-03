@@ -231,102 +231,311 @@ class TTAttentionBackendImpl(AttentionImpl):
             value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
             output: shape = [batch_size, num_tokens, num_heads * head_size]
         """
-        is_batched = query.ndim > 2
-        query_hidden_size = query.shape[-1]
-        query_num_tokens = query.shape[-2]
-        query_batch_size = query.shape[0] if is_batched else 1
 
-        kv_hidden_size = key.shape[-1]
-        kv_num_tokens = key.shape[-2]
-        kv_batch_size = key.shape[0] if is_batched else 1
+        # Prepare inputs and metadata
+        inputs = self._prepare_inputs(query, key, value, attn_metadata)
 
-        query = query.reshape(
-            query_batch_size,
-            query_num_tokens,
-            query_hidden_size // self.head_size,
-            self.head_size,
-        ).transpose(
-            -3, -2
-        )  # [batch, num_tokens, num_heads, head_size]
-        key = key.reshape(
-            kv_batch_size,
-            kv_num_tokens,
-            kv_hidden_size // self.head_size,
-            self.head_size,
-        ).transpose(
-            -3, -2
-        )  # [batch, num_tokens, num_kv_heads, head_size]
-        value = value.reshape(
-            kv_batch_size,
-            kv_num_tokens,
-            kv_hidden_size // self.head_size,
-            self.head_size,
-        ).transpose(
-            -3, -2
-        )  # [batch, num_tokens, num_kv_heads, head_size]
-
+        # Handle paged attention if KV cache exists
         if kv_cache.numel() > 1:
+            self._handle_paged_attention(inputs, kv_cache, attn_metadata)
 
-            k_cache = kv_cache[0]
-            v_cache = kv_cache[1]
+        # Compute attention based on prefill/decode mode
+        if inputs.is_prefill:
+            output = self._compute_prefill_attention(inputs, attn_metadata)
+        else:
+            output = self._compute_decode_attention(inputs, kv_cache, attn_metadata)
 
-            if query.shape[-2] == 1:
-                # Transpose (1, num_heads, 1, head_size) to (1, 1, num_heads, head_size)
-                key = key.transpose(1, 2)
-                value = value.transpose(1, 2)
+        # Finalize output shape to match original input
+        return self._finalize_output(output, inputs)
 
-                k_cache = torch.ops.tt.paged_update_cache(
-                    k_cache,
-                    key,
-                    attn_metadata.cache_position,
-                    attn_metadata.page_table,
-                )
-                v_cache = torch.ops.tt.paged_update_cache(
-                    v_cache,
-                    value,
-                    attn_metadata.cache_position,
-                    attn_metadata.page_table,
-                )
-            else:
+    def _prepare_inputs(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        attn_metadata: TTMetadata,
+    ):
+        """Prepare and reshape input tensors for attention computation."""
+        from collections import namedtuple
+
+        # Extract common metadata
+        # Handle case when cache_position is None (e.g., during profiling)
+        if attn_metadata is not None and attn_metadata.cache_position is not None:
+            num_users = attn_metadata.cache_position.shape[0]  # logical batch size
+        else:
+            # Fallback: infer from query shape
+            num_users = query.shape[0] if query.ndim > 2 else 1
+
+        orig_query_shape = query.shape
+        orig_query_ndim = query.ndim
+
+        # Reshape query to [users, tokens_per_user, hidden]
+        query, users, query_num_tokens, hidden_size = self._reshape_query(
+            query, num_users, orig_query_ndim
+        )
+
+        # Determine prefill vs decode mode
+        is_prefill = query_num_tokens > 1
+
+        # Reshape key/value to [users_kv, kv_num_tokens, hidden]
+        key, value, users_kv, kv_num_tokens = self._reshape_key_value(key, value, users)
+
+        # Reshape Q/K/V to [batch(users), tokens, num_heads, head_size]
+        query, key, value = self._reshape_to_attention_format(
+            query,
+            key,
+            value,
+            users,
+            users_kv,
+            query_num_tokens,
+            kv_num_tokens,
+            hidden_size,
+        )
+
+        # Create named tuple for inputs
+        AttentionInputs = namedtuple(
+            "AttentionInputs",
+            [
+                "query",
+                "key",
+                "value",
+                "orig_query_shape",
+                "orig_query_ndim",
+                "users",
+                "query_num_tokens",
+                "is_prefill",
+                "users_kv",
+                "kv_num_tokens",
+            ],
+        )
+
+        return AttentionInputs(
+            query=query,
+            key=key,
+            value=value,
+            orig_query_shape=orig_query_shape,
+            orig_query_ndim=orig_query_ndim,
+            users=users,
+            query_num_tokens=query_num_tokens,
+            is_prefill=is_prefill,
+            users_kv=users_kv,
+            kv_num_tokens=kv_num_tokens,
+        )
+
+    def _reshape_query(self, query: torch.Tensor, num_users: int, orig_query_ndim: int):
+        """Reshape query tensor to [users, tokens_per_user, hidden] format."""
+        if orig_query_ndim == 3:
+            # [batch, seq, hidden]
+            users = query.shape[0]
+            query_num_tokens = query.shape[1]
+            hidden_size = query.shape[2]
+            assert users == num_users, (
+                f"query batch dim ({users}) and cache_position num_users "
+                f"({num_users}) mismatch."
+            )
+            # Already in correct format
+        elif orig_query_ndim == 2:
+            # [total_tokens, hidden] (vLLM style)
+            total_tokens = query.shape[0]
+            hidden_size = query.shape[1]
+            users = num_users
+            assert (
+                total_tokens % users == 0
+            ), f"total_tokens ({total_tokens}) not divisible by num_users ({users})."
+            query_num_tokens = total_tokens // users  # tokens per user
+            query = query.view(users, query_num_tokens, hidden_size)
+        else:
+            raise ValueError(f"Unsupported query rank: {orig_query_ndim}")
+
+        return query, users, query_num_tokens, hidden_size
+
+    def _reshape_key_value(self, key: torch.Tensor, value: torch.Tensor, users: int):
+        """Reshape key and value tensors to [users_kv, kv_num_tokens, hidden] format."""
+        # Handle key tensor
+        if key.ndim == 3:
+            users_kv = key.shape[0]
+            kv_num_tokens = key.shape[1]
+            kv_hidden_size = key.shape[2]
+        elif key.ndim == 2:
+            total_k_tokens = key.shape[0]
+            kv_hidden_size = key.shape[1]
+            users_kv = users  # Assume same users as query
+            assert (
+                total_k_tokens % users_kv == 0
+            ), f"total_k_tokens ({total_k_tokens}) not divisible by users_kv ({users_kv})."
+            kv_num_tokens = total_k_tokens // users_kv
+            key = key.view(users_kv, kv_num_tokens, kv_hidden_size)
+        else:
+            raise ValueError(f"Unsupported key rank: {key.ndim}")
+
+        # Handle value tensor
+        if value.ndim == 3:
+            users_v = value.shape[0]
+            v_num_tokens = value.shape[1]
+            v_hidden_size = value.shape[2]
+            assert (
+                users_v == users_kv and v_num_tokens == kv_num_tokens
+            ), "key/value shape mismatch."
+        elif value.ndim == 2:
+            total_v_tokens = value.shape[0]
+            v_hidden_size = value.shape[1]
+            users_v = users_kv
+            assert (
+                total_v_tokens % users_v == 0
+            ), f"total_v_tokens ({total_v_tokens}) not divisible by users_v ({users_v})."
+            v_num_tokens = total_v_tokens // users_v
+            assert v_num_tokens == kv_num_tokens, "key/value token count mismatch."
+            value = value.view(users_v, v_num_tokens, v_hidden_size)
+        else:
+            raise ValueError(f"Unsupported value rank: {value.ndim}")
+
+        return key, value, users_kv, kv_num_tokens
+
+    def _reshape_to_attention_format(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        users: int,
+        users_kv: int,
+        query_num_tokens: int,
+        kv_num_tokens: int,
+        hidden_size: int,
+    ):
+        """Reshape Q/K/V tensors to [batch(users), tokens, num_heads, head_size] format."""
+        num_heads = hidden_size // self.head_size
+        assert hidden_size % self.head_size == 0
+
+        query = query.reshape(users, query_num_tokens, num_heads, self.head_size)
+        key = key.reshape(
+            users_kv, kv_num_tokens, key.shape[-1] // self.head_size, self.head_size
+        )
+        value = value.reshape(
+            users_kv, kv_num_tokens, value.shape[-1] // self.head_size, self.head_size
+        )
+
+        return query, key, value
+
+    def _handle_paged_attention(
+        self, inputs, kv_cache: torch.Tensor, attn_metadata: TTMetadata
+    ):
+        """Handle paged attention cache updates."""
+        k_cache = kv_cache[0]
+        v_cache = kv_cache[1]
+
+        if not inputs.is_prefill:
+            # Decode: update single token in cache
+            key_for_update = inputs.key.transpose(0, 1)
+            value_for_update = inputs.value.transpose(0, 1)
+
+            k_cache = torch.ops.tt.paged_update_cache(
+                k_cache,
+                key_for_update,
+                attn_metadata.cache_position,
+                attn_metadata.page_table,
+            )
+            v_cache = torch.ops.tt.paged_update_cache(
+                v_cache,
+                value_for_update,
+                attn_metadata.cache_position,
+                attn_metadata.page_table,
+            )
+        else:
+            # Prefill: fill multiple tokens at once
+            key_for_update = inputs.key.transpose(1, 2)
+            value_for_update = inputs.value.transpose(1, 2)
+
+            for batch_idx in range(inputs.users):
                 k_cache = torch.ops.tt.paged_fill_cache(
-                    k_cache, key, attn_metadata.page_table
+                    k_cache,
+                    key_for_update[batch_idx : batch_idx + 1],
+                    attn_metadata.page_table,
+                    batch_idx=torch.tensor(
+                        [batch_idx], dtype=torch.int32, device=k_cache.device
+                    ),
                 )
                 v_cache = torch.ops.tt.paged_fill_cache(
-                    v_cache, value, attn_metadata.page_table
+                    v_cache,
+                    value_for_update[batch_idx : batch_idx + 1],
+                    attn_metadata.page_table,
+                    batch_idx=torch.tensor(
+                        [batch_idx], dtype=torch.int32, device=v_cache.device
+                    ),
                 )
-            new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
 
-            kv_cache.copy_(new_kv_cache)
+        # Update the KV cache
+        new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
+        kv_cache.copy_(new_kv_cache)
 
-        if query.shape[-2] == 1:
-            query = query.reshape(1, query.shape[0], query.shape[1], query.shape[3])
-            out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
-                query,
-                k_cache,
-                v_cache,
-                attn_metadata.page_table,
-                cur_pos_tensor=attn_metadata.cache_position,
-                is_causal=attn_metadata.is_causal,
-                attn_mask=attn_metadata.attn_mask,
-            )
-            out = out.transpose(-3, -2)
-            out = out.reshape(query_num_tokens, query_hidden_size)
-            return out
-        else:
-            output = torch.ops.tt.scaled_dot_product_attention(
-                query,
-                key,
-                value,
-                is_causal=attn_metadata.is_causal,
-                attn_mask=attn_metadata.attn_mask,
-                scale=self.scale,
-            ).transpose(-3, -2)
-            if is_batched:
+    def _compute_prefill_attention(
+        self, inputs, attn_metadata: TTMetadata
+    ) -> torch.Tensor:
+        """Compute attention for prefill phase (non-paged)."""
+        # scaled_dot_product_attention expects [B, N_tokens, N_heads, H]
+        query_for_sdpa = inputs.query.transpose(-3, -2)
+        key_for_sdpa = inputs.key.transpose(-3, -2)
+        value_for_sdpa = inputs.value.transpose(-3, -2)
+
+        output = torch.ops.tt.scaled_dot_product_attention(
+            query_for_sdpa,
+            key_for_sdpa,
+            value_for_sdpa,
+            is_causal=attn_metadata.is_causal,
+            attn_mask=attn_metadata.attn_mask,
+        ).transpose(
+            -3, -2
+        )  # Back to [users, tokens, num_heads, head_size]
+
+        return output
+
+    def _compute_decode_attention(
+        self, inputs, kv_cache: torch.Tensor, attn_metadata: TTMetadata
+    ) -> torch.Tensor:
+        """Compute attention for decode phase (paged)."""
+        k_cache = kv_cache[0]
+        v_cache = kv_cache[1]
+
+        # Adjust for decode kernel expecting query as [1, num_users, num_heads, head]
+        # Current query: [users, query_num_tokens, num_heads, head_size]
+        # In decode, query_num_tokens == 1 is normal
+        query_for_decode = inputs.query.transpose(0, 1)
+
+        out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
+            query_for_decode,
+            k_cache,
+            v_cache,
+            attn_metadata.page_table,
+            cur_pos_tensor=attn_metadata.cache_position,
+            is_causal=attn_metadata.is_causal,
+            attn_mask=attn_metadata.attn_mask,
+        )
+        # out: assumed to be [query_num_tokens, users, num_heads, head_size]
+        out = out.transpose(0, 1)  # [users, query_num_tokens, head_size, num_heads]
+        out = out.reshape(inputs.users, inputs.query_num_tokens, -1)
+
+        return out
+
+    def _finalize_output(self, output: torch.Tensor, inputs) -> torch.Tensor:
+        """Finalize output shape to match original input dimensions."""
+        hidden_size = inputs.orig_query_shape[-1]
+
+        # Handle both 4D (prefill) and 3D (decode) outputs
+        if output.ndim == 4:
+            # Prefill output: [users, tokens, num_heads, head_size]
+            if inputs.orig_query_ndim == 3:
                 return output.reshape(
-                    query_batch_size, query_num_tokens, query_hidden_size
+                    inputs.users, inputs.query_num_tokens, hidden_size
                 )
             else:
-                return output.reshape(query_num_tokens, query_hidden_size)
+                total_tokens = inputs.users * inputs.query_num_tokens
+                return output.reshape(total_tokens, hidden_size)
+        else:
+            # Decode output: already [users, tokens, hidden]
+            if inputs.orig_query_ndim == 3:
+                return output
+            else:
+                total_tokens = inputs.users * inputs.query_num_tokens
+                return output.reshape(total_tokens, hidden_size)
 
 
 def write_to_kv_cache(
