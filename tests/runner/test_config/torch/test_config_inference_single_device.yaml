@@ -2230,6 +2230,18 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
+  panoptic_segmentation/pytorch-resnet101_3x_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
+
+  panoptic_segmentation/pytorch-resnet50_1x_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
+
+  panoptic_segmentation/pytorch-resnet50_3x_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
+
   sam/pytorch-facebook/sam-vit-huge-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 16777216 B L1 buffer across 8 banks, where each bank needs to store 2097152 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722"
