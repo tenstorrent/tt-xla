@@ -9,6 +9,7 @@
 // https://llvm.org/LICENSE.txt
 
 #include "api/loaded_executable_instance.h"
+#include "tt/runtime/types.h"
 
 // c++ standard library includes
 #include <cassert>
@@ -37,11 +38,13 @@ namespace tt::pjrt {
 
 // Clears program cache on instance destroy.
 LoadedExecutableInstance::~LoadedExecutableInstance() {
-  const std::optional<tt::runtime::Device> &device =
-      m_client_instance->parentMesh();
-  if (device && runtime::isProgramCacheEnabled(*device)) {
+  using namespace tt::runtime;
+
+  const std::optional<Device> &device = m_client_instance->parentMesh();
+  if (device && getCurrentHostRuntime() == HostRuntime::Local &&
+      isProgramCacheEnabled(*device)) {
     DLOG_F(LOG_DEBUG, "Clearing program cache.");
-    runtime::clearProgramCache(*device);
+    clearProgramCache(*device);
   }
 }
 
