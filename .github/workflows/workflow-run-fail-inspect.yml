@@ -450,7 +450,7 @@ jobs:
             echo "$tests" >> "bisect-commits/$bad_commit"
 
             # detect uplift commits
-            title=$(head -n2 "$file")
+            title=$(sed -n '2p' "$file")
             if [[ "$title" == "Title: Uplift third_party/tt-mlir"* ]]; then
               echo "Uplift commit detected!"
               # Extract changes from the uplift commit
