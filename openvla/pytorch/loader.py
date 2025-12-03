@@ -143,8 +143,18 @@ class ModelLoader(ForgeModel):
 
         repo_id = self._variant_config.pretrained_model_name
 
-        # Create a local folder name from the model name
-        model_path = repo_id.split("/")[-1].replace("-", "_") + "_weights"
+        # Use HF_HOME for model storage
+        hf_home = os.environ.get("HF_HOME")
+
+        if not hf_home:
+            # Fallback to default HuggingFace cache if HF_HOME is not set
+            # This uses ~/.cache/huggingface instead of current directory
+            hf_home = os.path.expanduser("~/.cache/huggingface")
+
+        # Create a local folder name from the model name under HF_HOME
+        model_path = os.path.join(
+            hf_home, "hub", repo_id.split("/")[-1].replace("-", "_") + "_weights"
+        )
 
         # create folder if it doesn't exist
         os.makedirs(model_path, exist_ok=True)
