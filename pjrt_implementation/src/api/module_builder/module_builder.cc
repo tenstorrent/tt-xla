@@ -98,6 +98,9 @@ TTAlchemistHandler::~TTAlchemistHandler() {
 
 std::optional<std::string> TTAlchemistHandler::findTTAlchemistLibraryPath() {
   const char *mlir_home = std::getenv("TT_MLIR_HOME");
+  if (mlir_home == nullptr) {
+    return std::nullopt;
+  }
 
   std::string alchemist_lib_path =
       std::string(mlir_home) + "/build/lib/libtt-alchemist-lib.so";
