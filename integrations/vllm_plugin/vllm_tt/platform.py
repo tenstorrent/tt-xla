@@ -132,14 +132,8 @@ class TTPlatform(Platform):
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationLevel, CUDAGraphMode
 
-        # Use AscendScheduler when max_num_seqs > 1 (multi-batch mode)
-        # This requires because the default scheduler is scheduling prefill and decode in a same request,
-        # which is not supported on TT backend. In multi-batch mode, prefill and decode are scheduled
-        # in separate requests in AscendScheduler.
-        if vllm_config.scheduler_config.max_num_seqs > 1:
-            vllm_config.scheduler_config.scheduler_cls = (
-                "vllm_tt.scheduler.AscendScheduler"
-            )
+        # Use AscendScheduler as the default scheduler for TT
+        vllm_config.scheduler_config.scheduler_cls = "vllm_tt.scheduler.AscendScheduler"
 
         cache_config = vllm_config.cache_config
         # For v0, the default block size is 16.
