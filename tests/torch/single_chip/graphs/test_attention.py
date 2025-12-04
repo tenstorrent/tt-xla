@@ -226,6 +226,67 @@ def test_llama_embedding_attention_prefill(seq_len, variant, variant_config, is_
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
+def test_llama_embedding(seq_len, variant, variant_config, is_llmbox):
+    if "70b" in str(variant) and not is_llmbox:
+        pytest.skip("70B models don't fit on a single device")
+
+    xr.set_device_type("TT")
+
+    loader = LlamaModelLoader(variant=variant)
+    config = loader.load_config()
+    class Wrapper(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embed_tokens = torch.nn.Embedding(config.vocab_size, config.hidden_size, 0)
+
+        def forward(self, input_ids):
+            embedding = self.embed_tokens(input_ids)
+            return embedding
+
+    wrapper = Wrapper().to(torch.bfloat16)
+    batch_size = 1
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+
+        batch_size = 2
+        mesh_shape = (2, num_devices // 2)
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None)  # input_ids
+            shard_specs[wrapper.embed_tokens.weight] = ("model", None)
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    input_ids = torch.randint(0, config.vocab_size, (batch_size, seq_len))
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
+
+    run_graph_test(
+        wrapper,
+        [input_ids],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+
+@pytest.mark.nightly
+@parametrize_is_llmbox()  # True for llmbox, False for single device
+@pytest.mark.parametrize("seq_len", [512])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("llama").items(),
+    ids=[str(k) for k in get_available_variants("llama").keys()],
+)
 def test_llama_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     if "70b" in str(variant) and not is_llmbox:
         pytest.skip("70B models don't fit on a single device")
@@ -267,10 +328,10 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, is_llmbox):
                 shard_specs[args[1][0]] = ("batch", None, None)  # cos
                 shard_specs[args[1][1]] = ("batch", None, None)  # sin
                 shard_specs[args[2]] = ("batch", None, None, None)  # mask
-                shard_specs[attention.q_proj.weight] = ("model", None)
-                shard_specs[attention.k_proj.weight] = ("model", None)
-                shard_specs[attention.v_proj.weight] = ("model", None)
-                shard_specs[attention.o_proj.weight] = (None, "model")
+                shard_specs[attention.q_proj.weight] = ("model", "batch")
+                shard_specs[attention.k_proj.weight] = ("model", "batch")
+                shard_specs[attention.v_proj.weight] = ("model", "batch")
+                shard_specs[attention.o_proj.weight] = ("batch", "model")
                 return shard_specs
 
     else:
