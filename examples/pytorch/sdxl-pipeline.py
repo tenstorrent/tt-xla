@@ -244,7 +244,9 @@ class SDXLPipeline:
                 )  # (2B, 4, H, W) if do_cfg else (B, 4, H, W)
                 model_input = self.scheduler.scale_model_input(model_input, timestep)
                 model_input = tt_cast(model_input)
-                timestep = tt_cast(timestep.unsqueeze(0))
+                timestep = tt_cast(
+                    timestep.unsqueeze(0)
+                )  # unsqueeze is necessary due to https://github.com/tenstorrent/tt-xla/issues/2408
                 encoder_hidden_states = tt_cast(encoder_hidden_states)
                 pooled_text_embeds = tt_cast(pooled_text_embeds)
                 time_ids = tt_cast(time_ids)
@@ -295,9 +297,12 @@ def save_image(image: torch.Tensor, filepath: str = "output.png"):
     standardize = lambda x: (torch.clamp(x / 2 + 0.5, 0.0, 1.0) * 255.0).to(
         dtype=torch.uint8
     )
-    images = standardize(image)
+    image = standardize(image)
     image_np = image.cpu().squeeze().numpy()
-    image_np = image_np.transpose(1, 2, 0)
+    assert image_np.ndim == 3, "Image must be 3D"
+
+    if image_np.shape[0] == 3:
+        image_np = image_np.transpose(1, 2, 0)  # (C, H, W) -> (H, W, C)
     image_pil = Image.fromarray(image_np)
     image_pil.save(filepath)
 
@@ -316,6 +321,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     xr.set_device_type("TT")
+
     # only 512x512 is supported for now
     config = SDXLConfig(width=512, height=512, device="cpu")
     pipeline = SDXLPipeline(config=config)
@@ -346,5 +352,4 @@ if __name__ == "__main__":
 
     end_time = time.time()
     print(f"Warm inference time taken: {end_time - start_time} seconds")
-
     save_image(img, args.output_path)
