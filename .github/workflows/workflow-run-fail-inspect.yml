@@ -214,11 +214,13 @@ jobs:
           curr_wf_id="${{ github.event.workflow_run.id || inputs.workflow_run_id }}"
 
           # get json of the last 10 workflow runs
-          gh run list --workflow $wf_name -R $repo -b main -L 10 --status completed --json attempt,conclusion,databaseId,headSha >runs.json
+          gh run list --workflow $wf_name -R $repo -b main -L 100 --status completed --json attempt,conclusion,databaseId,headSha >runs.json
 
           # Remove entries from runs.json up to the entry with curr_wf_id
           jq --argjson curr_id "$curr_wf_id" 'map(select(.databaseId <= $curr_id))' runs.json > temp_runs.json
           mv temp_runs.json runs.json
+
+          echo "Extracted runs: $(jq '.[:2]' runs.json)"
 
           # check if current workflow ID is the one form workflow_run context
           if [ "$(jq -r '.[0].databaseId' runs.json)" -ne "$curr_wf_id" ]; then
@@ -242,7 +244,6 @@ jobs:
             exit 1
           fi
 
-          echo "Extracted runs: $(cat runs.json)"
           curr_wf_attempt=$(jq -r '.[0].attempt' runs.json)
           curr_head_sha=$(jq -r '.[0].headSha' runs.json)
           prev_wf_id=$(jq -r '.[1].databaseId' runs.json)
