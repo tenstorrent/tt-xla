@@ -278,7 +278,6 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
         aten.native_group_norm,
         aten.split.Tensor,
         # aten.split_with_sizes,
-        aten.native_layer_norm,
         aten.masked_fill.Tensor,
         aten.masked_fill.Scalar,
         aten.t,
