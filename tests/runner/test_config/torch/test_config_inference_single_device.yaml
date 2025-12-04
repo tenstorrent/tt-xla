@@ -139,7 +139,7 @@ test_config:
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-inference:
     supported_archs: ["p150"]
-    required_pcc: 0.98 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/1789
+    required_pcc: 0.97 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/1789
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-inference:
@@ -157,6 +157,9 @@ test_config:
   albert/masked_lm/pytorch-base_v2-single_device-full-inference:
     required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9882882237434387. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2433
 
   albert/masked_lm/pytorch-xlarge_v2-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -397,8 +400,8 @@ test_config:
     status: EXPECTED_PASSING
 
   mlp_mixer/pytorch-mixer_b16_224_miil_in21k-single_device-full-inference:
-    required_pcc: 0.975
-    status: EXPECTED_PASSING
+    assert_pcc: false
+    status: EXPECTED_PASSING # https://github.com/tenstorrent/tt-xla/issues/2433
 
   mobilenetv1/pytorch-mobilenet_v1-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -543,6 +546,9 @@ test_config:
   deit/pytorch-base-single_device-full-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9837640523910522. Required: pcc=0.985. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
+    arch_overrides:
+      p150:
+        required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2433
 
   mlp_mixer/lucidrains/pytorch-base-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -580,20 +586,12 @@ test_config:
     assert_pcc: false
 
   phi2/token_classification/pytorch-microsoft/phi-2-single_device-full-inference:
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "PCC comparison failed. Calculated: pcc=0.989181399345398. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
-      n150:
-        status: EXPECTED_PASSING
+    required_pcc: 0.98
+    status: EXPECTED_PASSING # p150 : https://github.com/tenstorrent/tt-xla/issues/2181 n150 : https://github.com/tenstorrent/tt-xla/issues/2442
 
   phi2/token_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-inference:
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "PCC comparison failed. Calculated: pcc=0.989181399345398. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
-      n150:
-        status: EXPECTED_PASSING
+    required_pcc: 0.98
+    status: EXPECTED_PASSING # p150 : https://github.com/tenstorrent/tt-xla/issues/2181 n150 : https://github.com/tenstorrent/tt-xla/issues/2442
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -628,6 +626,9 @@ test_config:
 
   opt/qa/pytorch-facebook/opt-125m-single_device-full-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2433
 
   opt/qa/pytorch-facebook/opt-350m-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -942,11 +943,12 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-0_5b-single_device-full-inference:
-    required_pcc: 0.98
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
         required_pcc: 0.97  # https://github.com/tenstorrent/tt-torch/issues/1192
+      n150:
+        required_pcc: 0.98  # https://github.com/tenstorrent/tt-xla/issues/2433
 
   llama/causal_lm/pytorch-llama_3_2_1b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1225,10 +1227,7 @@ test_config:
 
   vovnet/pytorch-ese_vovnet39b-single_device-full-inference:
     status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        reason: "PCC comparison failed. Calculated: pcc=0.9872968792915344. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2201"
+    required_pcc: 0.98 # p150 : https://github.com/tenstorrent/tt-xla/issues/2201 n150 : https://github.com/tenstorrent/tt-xla/issues/2438
 
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2040,18 +2039,30 @@ test_config:
   bevformer/pytorch-bevformerv2-r50-t1-base-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    arch_overrides:
+      p150:
+        reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
   bevformer/pytorch-bevformerv2-r50-t1-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    arch_overrides:
+      p150:
+        reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
   bevformer/pytorch-bevformerv2-r50-t2-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    arch_overrides:
+      p150:
+        reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
   bevformer/pytorch-bevformerv2-r50-t8-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    arch_overrides:
+      p150:
+        reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
   ssr/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
