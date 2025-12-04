@@ -187,7 +187,7 @@ def test_llama_embedding_attention_prefill(seq_len, variant, variant_config, is_
             shard_specs[args[1][0]] = ("batch", None, None)  # cos
             shard_specs[args[1][1]] = ("batch", None, None)  # sin
             shard_specs[args[2]] = ("batch", None, None, None)  # mask
-            shard_specs[wrapper.embed_tokens.weight] = ("model", None)
+            shard_specs[wrapper.embed_tokens.weight] = (None, "model")
             shard_specs[wrapper.attention.q_proj.weight] = ("model", None)
             shard_specs[wrapper.attention.k_proj.weight] = ("model", None)
             shard_specs[wrapper.attention.v_proj.weight] = ("model", None)
@@ -251,13 +251,13 @@ def test_llama_embedding(seq_len, variant, variant_config, is_llmbox):
         device_ids = np.array(range(num_devices))
 
         batch_size = 2
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (batch_size, num_devices // batch_size)
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
             shard_specs[args[0]] = ("batch", None)  # input_ids
-            shard_specs[wrapper.embed_tokens.weight] = ("model", None)
+            shard_specs[wrapper.embed_tokens.weight] = (None, "model")
             return shard_specs
 
     else:
