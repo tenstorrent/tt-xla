@@ -414,7 +414,7 @@ jobs:
           git bisect reset
 
           # detect uplift commits
-          if [[ "$title" == "Title: Uplift third_party/tt-mlir"* ]]; then
+          if [[ "$title" == "Uplift third_party/tt-mlir"* ]]; then
             echo "Uplift commit detected!"
             # Extract changes from the uplift commit
             git show $bad_commit -- third_party/CMakeLists.txt > patch.txt
