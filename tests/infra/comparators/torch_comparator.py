@@ -10,7 +10,7 @@ from transformers import DynamicCache, EncoderDecoderCache
 
 from .comparator import Comparator
 from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
-
+from loguru import logger
 
 class TorchComparator(Comparator):
     """Comparator for Torch tensors/pytrees."""
