@@ -309,7 +309,7 @@ jobs:
     name: "test ${{ matrix.build.runs-on }} (sha ${{ matrix.build.fromc }} - ${{ matrix.build.toc }})"
 
     container:
-      image: ${{ !matrix.build.shared-runners && needs.build-image.outputs.docker-image-base || format('harbor.ci.tenstorrent.net/{0}', needs.build-image.outputs.docker-image-base) }}
+      image: ${{ !matrix.build.shared-runners && needs.build-image.outputs.docker-image || format('harbor.ci.tenstorrent.net/{0}', needs.build-image.outputs.docker-image) }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
