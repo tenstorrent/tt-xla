@@ -39,6 +39,8 @@ def gpt_oss():
 
     output_logits = output.logits.to("cpu")
     print("Output logits:", output_logits)
+    breakpoint()
+    print("gpt-oss test completed successfully.")
 
 
 def mark_sharding_on_inputs_and_model(model: torch.nn.Module, mesh: Mesh):
@@ -51,22 +53,18 @@ def mark_sharding_on_inputs_and_model(model: torch.nn.Module, mesh: Mesh):
         # q_proj weight shape: [2880, 4096]
         # Sharded colwise: [2880, 4096/num_devices]
         xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
-        print(f"Sharded q_proj: {layer.self_attn.q_proj.weight.shape}")
 
         # k_proj weight shape: [2880, 512]
         # Sharded colwise: [2880, 512/num_devices]
         xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
-        print(f"Sharded k_proj: {layer.self_attn.k_proj.weight.shape}")
 
         # v_proj weight shape: [2880, 512]
         # Sharded colwise: [2880, 512/num_devices]
         xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
-        print(f"Sharded v_proj: {layer.self_attn.v_proj.weight.shape}")
 
         # o_proj weight shape: [4096, 2880]
         # Sharded rowwise: [4096/num_devices, 2880]
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
-        print(f"Sharded o_proj: {layer.self_attn.o_proj.weight.shape}")
 
         # sinks shape: [4096] -> local. rowwise
         xs.mark_sharding(layer.self_attn.sinks, mesh, ("model",))
