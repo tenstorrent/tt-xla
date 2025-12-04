@@ -20,7 +20,7 @@ permissions:
 jobs:
 
   build-docs:
-    runs-on: tt-ubuntu-2204-large-stable
+    runs-on: ubuntu-latest
 
     container:
       image: ${{ inputs.docker_image }}
@@ -43,6 +43,9 @@ jobs:
 
     - name: Git safe dir
       run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
+
+    - name: Maximize space
+      uses: tenstorrent/tt-github-actions/.github/actions/maximize_space@main
 
     - name: Install system deps (Doxygen, Rust, Cargo)
       shell: bash
