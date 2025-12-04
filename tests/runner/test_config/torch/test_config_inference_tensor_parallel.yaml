@@ -13,7 +13,6 @@ test_config:
   falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    markers: [extended]
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -88,6 +87,7 @@ test_config:
   qwen_3/embedding/pytorch-embedding_8b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [extended]
 
   mistral/pytorch-ministral_8b_instruct-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
