@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+test_config:
+  transfuser/pytorch-single_device-full-inference:
+    assert_pcc: false # PCC is -0.715
+    status: EXPECTED_PASSING
+
+  arnold/pytorch-deathmatch_shotgun_rnn-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  arnold/pytorch-vizdoom_2017_track1_rnn-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  arnold/pytorch-vizdoom_2017_track2_rnn-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+
+  phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
