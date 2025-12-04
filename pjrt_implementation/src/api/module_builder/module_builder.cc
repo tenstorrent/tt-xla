@@ -221,6 +221,9 @@ ModuleBuilder::buildModule(
   }
 
   std::string original_mlir_code(mlir_code);
+  
+  std::string checkpointed_mlir_code;
+
 
   status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
@@ -257,6 +260,9 @@ ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
+
+  DLOG_F(LOG_DEBUG, "Extracting checkpointed MLIR code after SHLO Compiler pass");
+  checkpointed_mlir_code = getMlirCode(mlir_module);
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
@@ -297,7 +303,7 @@ ModuleBuilder::buildModule(
         std::move(num_arguments), num_devices_result, mesh_shape,
         input_shardings, output_shardings, output_types,
         std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-        std::move(compile_options));
+        std::move(checkpointed_mlir_code), std::move(compile_options));
   } else if (compile_options.backend == BackendRuntime::TTNNCodegenCpp ||
              compile_options.backend == BackendRuntime::TTNNCodegenPy) {
     return buildModuleForTTNNCodegen(
@@ -1102,6 +1108,7 @@ ModuleBuilder::buildModuleForTTNNRuntime(
     const std::vector<PJRT_Buffer_Type> &output_types,
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
+    std::string &&checkpointed_mlir_code,
     CompileOptions &&compile_options) {
   tt::runtime::Binary flatbuffer(nullptr);
   tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,
@@ -1118,8 +1125,8 @@ ModuleBuilder::buildModuleForTTNNRuntime(
   }
 
   auto executable_image = FlatbufferExecutableImage::createInstance(
-      flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
-      std::move(ttnn_mlir), std::move(executable_name),
+      flatbuffer, std::move(original_mlir_code), std::move(checkpointed_mlir_code),
+      std::move(ttir_mlir), std::move(ttnn_mlir), std::move(executable_name),
       num_arguments.num_inputs, num_arguments.num_outputs,
       std::move(num_arguments.output_dimensions),
       std::move(num_arguments.output_ranks),
