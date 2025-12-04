@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 # SPDX-FileCopyrightText: Copyright 2025 Huawei Technologies Co., Ltd.
+# SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 #
 # This file was copied and modified from the vllm-ascend project (original at
 # https://github.com/vllm-project/vllm-ascend/blob/main/vllm_ascend/core/scheduler.py @ df0ec55)  # noqa: E501
@@ -37,9 +38,14 @@ class AscendScheduler(Scheduler):
         include_finished_set: bool = False,
         log_stats: bool = False,
     ) -> None:
-        super().__init__(vllm_config, kv_cache_config,
-                         structured_output_manager, mm_registry,
-                         include_finished_set, log_stats)
+        super().__init__(
+            vllm_config,
+            kv_cache_config,
+            structured_output_manager,
+            mm_registry,
+            include_finished_set,
+            log_stats,
+        )
         self.scheduled_req_ids: set[str] = set()
         self.running: list[Request] = []
         # Optional execution mode gate (None=auto, 1=prefill, 0=decode)
@@ -51,8 +57,9 @@ class AscendScheduler(Scheduler):
         self._forced_mode = mode
 
     def schedule(self) -> SchedulerOutput:
-        if self.scheduler_config.chunked_prefill_enabled:
-            return super().schedule()
+        # Super's schedule handles chunked prefill which is schedule both prefill and decode in one request.
+        # if self.scheduler_config.chunked_prefill_enabled:
+        #     return super().schedule()
         scheduled_new_reqs: list[Request] = []
         scheduled_resumed_reqs: list[Request] = []
         scheduled_running_reqs: list[Request] = []
@@ -85,6 +92,7 @@ class AscendScheduler(Scheduler):
 
         # Schedule prefill requests first (unless decode is forced).
         req_index = 0
+        prefill_scheduled = 0
         while self.waiting and token_budget > 0 and self._forced_mode != 0:
             if len(self.running) == self.max_num_running_reqs:
                 break
@@ -118,9 +126,14 @@ class AscendScheduler(Scheduler):
 
             # Check that adding the request still respects the max_loras
             # constraint.
-            if (self.lora_config and request.lora_request and
-                (len(scheduled_loras) == self.lora_config.max_loras
-                 and request.lora_request.lora_int_id not in scheduled_loras)):
+            if (
+                self.lora_config
+                and request.lora_request
+                and (
+                    len(scheduled_loras) == self.lora_config.max_loras
+                    and request.lora_request.lora_int_id not in scheduled_loras
+                )
+            ):
                 # Scheduling would exceed max_loras, skip.
                 skip_cur_request()
                 continue
@@ -130,23 +143,25 @@ class AscendScheduler(Scheduler):
 
             # Get already-cached tokens.
             if request.num_computed_tokens == 0:
-                new_computed_blocks, num_new_local_computed_tokens = \
-                    self.kv_cache_manager.get_computed_blocks(
-                        request)
+                new_computed_blocks, num_new_local_computed_tokens = (
+                    self.kv_cache_manager.get_computed_blocks(request)
+                )
 
                 # Get externally-cached tokens if using a KVConnector.
                 if self.connector is not None:
                     num_external_computed_tokens, load_kv_async = (
                         self.connector.get_num_new_matched_tokens(
-                            request, num_new_local_computed_tokens))
+                            request, num_new_local_computed_tokens
+                        )
+                    )
 
                 # Total computed tokens (local + external).
-                num_computed_tokens = (num_new_local_computed_tokens +
-                                       num_external_computed_tokens)
+                num_computed_tokens = (
+                    num_new_local_computed_tokens + num_external_computed_tokens
+                )
             else:
                 # P/D: skip checking prefix cache if loaded from remote kvs.
-                new_computed_blocks = (
-                    self.kv_cache_manager.create_empty_block_list())
+                new_computed_blocks = self.kv_cache_manager.create_empty_block_list()
                 num_new_local_computed_tokens = 0
                 num_computed_tokens = request.num_computed_tokens
 
@@ -162,8 +177,9 @@ class AscendScheduler(Scheduler):
                 # `request.num_prompt_tokens` to consider the resumed
                 # requests, which have output tokens.
                 num_new_tokens = request.num_tokens - num_computed_tokens
-                max_tokens_in_kvcache = (self.kv_cache_config.num_blocks *
-                                         self.block_size)
+                max_tokens_in_kvcache = (
+                    self.kv_cache_config.num_blocks * self.block_size
+                )
                 prompt_limit = min(prompt_limit, max_tokens_in_kvcache)
 
                 # Finish request that exceeds prompt_limit or kv cache size.
@@ -176,7 +192,8 @@ class AscendScheduler(Scheduler):
                     )
                     request.status = RequestStatus.FINISHED_IGNORED
                     self.finished_req_ids.add(  # type: ignore
-                        request.request_id)  # type: ignore
+                        request.request_id
+                    )  # type: ignore
                     self.waiting.pop_request()
                     continue
 
@@ -188,8 +205,9 @@ class AscendScheduler(Scheduler):
                 blocks = new_computed_blocks.blocks[0]
 
             watermark = getattr(self.scheduler_config, "watermark", 0.01)
-            if not self._check_watermark_for_prefill(request, num_new_tokens,
-                                                     blocks, watermark):
+            if not self._check_watermark_for_prefill(
+                request, num_new_tokens, blocks, watermark
+            ):
                 # Scheduling would exceed watermark, skip.
                 skip_cur_request()
                 continue
@@ -200,7 +218,8 @@ class AscendScheduler(Scheduler):
                 num_new_local_computed_tokens,
                 new_computed_blocks=new_computed_blocks,
                 num_lookahead_tokens=self.num_lookahead_tokens,
-                delay_cache_blocks=load_kv_async)
+                delay_cache_blocks=load_kv_async,
+            )
             if new_blocks is None:
                 # The request cannot be scheduled.
                 break
@@ -225,8 +244,7 @@ class AscendScheduler(Scheduler):
 
             self.running.append(request)
             if self.log_stats:
-                request.record_event(EngineCoreEventType.SCHEDULED,
-                                     scheduled_timestamp)
+                request.record_event(EngineCoreEventType.SCHEDULED, scheduled_timestamp)
             self.scheduled_req_ids.add(request.request_id)
             # Check request status.
             if request.status == RequestStatus.WAITING:
@@ -243,7 +261,8 @@ class AscendScheduler(Scheduler):
             if self.lora_config and request.lora_request:
                 scheduled_loras.add(request.lora_request.lora_int_id)
             req_to_new_block_ids[request.request_id] = (
-                self.kv_cache_manager.get_block_ids(request.request_id))
+                self.kv_cache_manager.get_block_ids(request.request_id)
+            )
             # Update request info.
             num_scheduled_tokens[request.request_id] = num_new_tokens
             token_budget -= num_new_tokens
@@ -252,6 +271,10 @@ class AscendScheduler(Scheduler):
             # Count the number of prefix cached tokens.
             if request.num_cached_tokens < 0:
                 request.num_cached_tokens = num_computed_tokens
+            # TODO(sshon): Handle prefill scheduling for multi user requests.
+            prefill_scheduled += 1
+            if prefill_scheduled >= 1:
+                break
 
         # Put back any skipped requests at the head of the waiting queue
         if skipped_waiting_requests:
@@ -268,22 +291,27 @@ class AscendScheduler(Scheduler):
                     req_index += 1
                     continue
 
-                num_new_tokens = (request.num_tokens_with_spec -
-                                  request.num_computed_tokens)
+                num_new_tokens = (
+                    request.num_tokens_with_spec - request.num_computed_tokens
+                )
                 assert (request.num_tokens - request.num_computed_tokens) == 1
                 num_new_tokens = min(num_new_tokens, token_budget)
                 # Make sure the input position does not exceed the
                 # max model len.
                 # This is necessary when using spec decoding.
                 num_new_tokens = min(
-                    num_new_tokens,
-                    self.max_model_len - request.num_computed_tokens)
+                    num_new_tokens, self.max_model_len - request.num_computed_tokens
+                )
                 # Check that adding the request still respects the max_loras
                 # constraint.
-                if self.lora_config and request.lora_request and (
+                if (
+                    self.lora_config
+                    and request.lora_request
+                    and (
                         len(scheduled_loras) == self.lora_config.max_loras
-                        and request.lora_request.lora_int_id
-                        not in scheduled_loras):
+                        and request.lora_request.lora_int_id not in scheduled_loras
+                    )
+                ):
                     # Scheduling would exceed max_loras, skip.
                     num_new_tokens = 0
 
@@ -305,7 +333,8 @@ class AscendScheduler(Scheduler):
                     new_blocks = self.kv_cache_manager.allocate_slots(
                         request,
                         num_new_tokens,
-                        num_lookahead_tokens=self.num_lookahead_tokens)
+                        num_lookahead_tokens=self.num_lookahead_tokens,
+                    )
                     if new_blocks is None:
                         # The request cannot be scheduled.
                         # Preempt the lowest-priority request.
@@ -315,8 +344,8 @@ class AscendScheduler(Scheduler):
                         preempted_req.num_computed_tokens = 0
                         if self.log_stats:
                             preempted_req.record_event(
-                                EngineCoreEventType.PREEMPTED,
-                                scheduled_timestamp)
+                                EngineCoreEventType.PREEMPTED, scheduled_timestamp
+                            )
                         self.waiting.prepend_request(preempted_req)
                         preempted_reqs.append(preempted_req)
                         if preempted_req == request:
@@ -334,25 +363,26 @@ class AscendScheduler(Scheduler):
                 # Schedule the request.
                 scheduled_running_reqs.append(request)
                 if request.use_structured_output:
-                    structured_output_request_ids[
-                        request.request_id] = req_index
+                    structured_output_request_ids[request.request_id] = req_index
                 self.scheduled_req_ids.add(request.request_id)
-                req_to_new_block_ids[request.request_id] = (
-                    new_blocks.get_block_ids())
+                req_to_new_block_ids[request.request_id] = new_blocks.get_block_ids()
                 num_scheduled_tokens[request.request_id] = num_new_tokens
                 token_budget -= num_new_tokens
                 req_index += 1
 
                 # Speculative decode related.
                 if request.spec_token_ids:
-                    num_scheduled_spec_tokens = (num_new_tokens +
-                                                 request.num_computed_tokens -
-                                                 request.num_tokens)
+                    num_scheduled_spec_tokens = (
+                        num_new_tokens
+                        + request.num_computed_tokens
+                        - request.num_tokens
+                    )
                     if num_scheduled_spec_tokens > 0:
                         # Trim spec_token_ids list to num_scheduled_spec_tokens.
                         del request.spec_token_ids[num_scheduled_spec_tokens:]
                         scheduled_spec_decode_tokens[request.request_id] = (
-                            request.spec_token_ids)
+                            request.spec_token_ids
+                        )
 
                 # Record scheduled LoRA requests.
                 if self.lora_config and request.lora_request:
@@ -364,17 +394,21 @@ class AscendScheduler(Scheduler):
         assert token_budget >= 0
         assert len(self.running) <= self.max_num_running_reqs
         assert len(scheduled_new_reqs) + len(scheduled_resumed_reqs) + len(
-            scheduled_running_reqs) <= len(self.running)
+            scheduled_running_reqs
+        ) <= len(self.running)
 
         # Get the longest common prefix among all requests in the running queue.
         # This can be potentially used for cascade attention.
         num_common_prefix_blocks: list[int] = [0] * len(
-            self.kv_cache_config.kv_cache_groups)
+            self.kv_cache_config.kv_cache_groups
+        )
         if self.running:
             any_request = self.running[0]
             num_common_prefix_blocks = (
                 self.kv_cache_manager.get_num_common_prefix_blocks(
-                    any_request, len(self.running)))
+                    any_request, len(self.running)
+                )
+            )
 
         # Generate grammar bitmask for structured output requests
         grammar_bitmask = self.structured_output_manager.grammar_bitmask(
@@ -385,15 +419,17 @@ class AscendScheduler(Scheduler):
 
         # Construct the scheduler output.
         new_reqs_data = [
-            NewRequestData.from_request(req,
-                                        req_to_new_block_ids[req.request_id])
+            NewRequestData.from_request(req, req_to_new_block_ids[req.request_id])
             for req in scheduled_new_reqs
         ]
 
         cached_reqs_data = self._make_cached_request_data(
-            scheduled_running_reqs, scheduled_resumed_reqs,
-            num_scheduled_tokens, scheduled_spec_decode_tokens,
-            req_to_new_block_ids)
+            scheduled_running_reqs,
+            scheduled_resumed_reqs,
+            num_scheduled_tokens,
+            scheduled_spec_decode_tokens,
+            req_to_new_block_ids,
+        )
         scheduled_cached_reqs = cached_reqs_data
 
         scheduler_output = SchedulerOutput(
@@ -442,38 +478,35 @@ class AscendScheduler(Scheduler):
         self.finished_req_ids = set()  # type: ignore
         return scheduler_output
 
-    def _check_watermark_for_prefill(self,
-                                     request,
-                                     num_new_tokens,
-                                     computed_blocks,
-                                     watermark=0.01):
+    def _check_watermark_for_prefill(
+        self, request, num_new_tokens, computed_blocks, watermark=0.01
+    ):
         computed_blocks = computed_blocks or []
         watermark_blocks = self.kv_cache_config.num_blocks * watermark
-        num_computed_tokens = (request.num_computed_tokens +
-                               len(computed_blocks) * self.block_size)
-        num_required_blocks = cdiv(num_new_tokens + num_computed_tokens,
-                                   self.block_size)
-        req_blocks = self.kv_cache_manager.coordinator.get_blocks(
-            request.request_id)
-        num_new_blocks = (num_required_blocks - len(req_blocks) -
-                          len(computed_blocks))
-        num_evictable_computed_blocks = sum(1 for blk in computed_blocks
-                                            if blk.ref_cnt == 0)
+        num_computed_tokens = (
+            request.num_computed_tokens + len(computed_blocks) * self.block_size
+        )
+        num_required_blocks = cdiv(
+            num_new_tokens + num_computed_tokens, self.block_size
+        )
+        req_blocks = self.kv_cache_manager.coordinator.get_blocks(request.request_id)
+        num_new_blocks = num_required_blocks - len(req_blocks) - len(computed_blocks)
+        num_evictable_computed_blocks = sum(
+            1 for blk in computed_blocks if blk.ref_cnt == 0
+        )
         # If number of free blocks is less than water mark after allocating,
         # don't allocate.
-        return (self.kv_cache_manager.block_pool.get_num_free_blocks() -
-                num_evictable_computed_blocks -
-                num_new_blocks) >= watermark_blocks
+        return (
+            self.kv_cache_manager.block_pool.get_num_free_blocks()
+            - num_evictable_computed_blocks
+            - num_new_blocks
+        ) >= watermark_blocks
 
     def _get_prompt_limit(self, request: Request) -> int:
-        if (self.scheduler_config.chunked_prefill_enabled
-                and not self.scheduler_config.is_multi_step):
-            prompt_limit = self.scheduler_config.max_model_len
-        else:
-            prompt_limit = min(
-                self.scheduler_config.max_model_len,
-                self.scheduler_config.max_num_batched_tokens,
-            )
+        prompt_limit = min(
+            self.scheduler_config.max_model_len,
+            self.scheduler_config.max_num_batched_tokens,
+        )
 
         # Model is fine tuned with long context. Return the fine tuned max_len.
         if request.lora_request and request.lora_request.long_lora_max_len:
@@ -520,6 +553,4 @@ class AscendScheduler(Scheduler):
             if req_id in self.scheduled_req_ids:
                 self.scheduled_req_ids.remove(req_id)
 
-        return super().update_from_output(scheduler_output,
-                                          model_runner_output)
-    
+        return super().update_from_output(scheduler_output, model_runner_output)
