@@ -187,18 +187,19 @@ def test_all_models_torch(
             )
 
             # perf benchmarking
-            full_model_name = model_info.name
-            measurements = getattr(tester, "_perf_measurements", None)
+            if not request.config.getoption("--disable-perf"):
+                full_model_name = model_info.name
+                measurements = getattr(tester, "_perf_measurements", None)
 
-            # create benchmark result
-            create_benchmark_result(
-                full_model_name=full_model_name,
-                measurements=measurements,
-                model_type="generic",
-                training=False,
-                model_info=full_model_name,
-                device_name=socket.gethostname(),
-            )
+                # create benchmark result   if not disabled
+                create_benchmark_result(
+                    full_model_name=full_model_name,
+                    measurements=measurements,
+                    model_type="generic",
+                    training=False,
+                    model_info=full_model_name,
+                    device_name=socket.gethostname(),
+                )
 
 
 @pytest.mark.model_test
