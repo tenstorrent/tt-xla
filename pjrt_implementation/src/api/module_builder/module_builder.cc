@@ -221,8 +221,11 @@ ModuleBuilder::buildModule(
   }
 
   std::string original_mlir_code(mlir_code);
-  
+
   std::string checkpointed_mlir_code;
+
+  DLOG_F(LOG_DEBUG, "Extracting checkpointed MLIR code after VHLO Compiler pass");
+  checkpointed_mlir_code = getMlirCode(mlir_module);
 
 
   status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path);
@@ -261,8 +264,7 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  DLOG_F(LOG_DEBUG, "Extracting checkpointed MLIR code after SHLO Compiler pass");
-  checkpointed_mlir_code = getMlirCode(mlir_module);
+
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
