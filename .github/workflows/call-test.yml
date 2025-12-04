@@ -397,3 +397,8 @@ jobs:
         files: coverage.info
         disable_search: true
         token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Show ccache stats
+      shell: bash
+      run: |
+        ccache -s
