@@ -1745,9 +1745,7 @@ test_config:
   mistral/pytorch-7b-single_device-full-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
         status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.35885828733444214. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1764,9 +1762,7 @@ test_config:
   mistral/pytorch-ministral_8b_instruct-single_device-full-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
         status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2924256920814514. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
 
       n150:
         status: NOT_SUPPORTED_SKIP
