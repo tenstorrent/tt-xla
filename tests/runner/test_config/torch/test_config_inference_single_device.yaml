@@ -543,7 +543,6 @@ test_config:
 
   mistral/pytorch-ministral_3b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false
 
   mlp_mixer/pytorch-mixer_b16_224-single_device-full-inference:
     status: EXPECTED_PASSING
