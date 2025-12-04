@@ -17,6 +17,7 @@ from .comparison_config import (
     PccConfig,
 )
 
+from loguru import logger
 
 @dataclass
 class ComparisonResult:
@@ -93,6 +94,7 @@ class Comparator(ABC):
         - passed: True if all enabled comparisons passed their thresholds, False otherwise
         - error_message: None if passed, combined error message for all failures if any failed
         """
+        logger.info("pcc={}",comparison_result.pcc)
         passed = True
         error_messages = []
 
