@@ -1,4 +1,4 @@
-import logging
+import time
 import torch
 import torch.nn as nn
 import numpy as np
@@ -15,7 +15,6 @@ from PIL import Image
 
 from enum import Enum
 
-logging.basicConfig(level=logging.INFO)
 class SDXLVariants(Enum):
     SDXL_IMG_1024 = "stabilityai/stable-diffusion-xl-base-1.0"
     SDXL_IMG_512 = "hotshotco/SDXL-512"
@@ -36,6 +35,10 @@ class SDXLConfig:
         self.device = device
 
 class SDXLPipeline:
+    """
+    Pipeline for generating images with the SDXL model.
+    This pipeline (currently) only supports text2image generation.
+    """
     def __init__(self, config: SDXLConfig):
         self.config = config
         self.device = config.device
@@ -70,10 +73,8 @@ class SDXLPipeline:
             device_map=self.device,
             trust_remote_code=True
         )
-        device = xm.xla_device()
         self.unet.compile(backend="tt")
-        self.unet = self.unet.to(device)
-        
+        self.unet = self.unet.to(xm.xla_device())
 
         self.text_encoder = CLIPTextModel.from_pretrained(
             self.model_id,
@@ -185,29 +186,22 @@ class SDXLPipeline:
             self.scheduler.set_timesteps(num_inference_steps)
             
             latent_shape = (batch_size, 4, self.latents_height, self.latents_width)
-            # this is for text2image
+
             latents = torch.randn(latent_shape, generator=generator, dtype=torch.float16).to(device=self.device)
             latents = latents * self.scheduler.init_noise_sigma # important to preset the stddev
 
             target_shape = orig_shape = (self.height, self.width)
             crop_top_left = (0, 0)
             time_ids = torch.tensor([*orig_shape, *crop_top_left, *target_shape]).to(device=self.device)
-            # repeat for cond and uncond
+
             time_ids = time_ids.repeat(2, 1) # (2B, 6)
-            tt_device = xm.xla_device()
             
-            def tt_cast(x):
-                x = x.to(dtype=torch.bfloat16)
-                if x.device == torch.device('cpu'):
-                    x = x.to(device=xm.xla_device())
-                return x
-
-
-            # torch_xla.set_custom_compile_options({'enable_const_eval': 'false'})
+            tt_cast = lambda x : x.to(dtype=torch.bfloat16).to(device=xm.xla_device()) if x.device == torch.device('cpu') else x.to(dtype=torch.bfloat16)
             cpu_cast = lambda x : x.to('cpu').to(dtype=torch.float16)
 
+            start_time = time.time()
             for i, timestep in enumerate(self.scheduler.timesteps):
-                logging.info(f"Step {i} of {num_inference_steps}")
+                print(f"Step {i} of {num_inference_steps}")
                 model_input = latents.repeat(2, 1, 1, 1) if do_cfg else latents # (2B, 4, H, W) if do_cfg else (B, 4, H, W)
                 model_input = self.scheduler.scale_model_input(model_input, timestep)
                 model_input = tt_cast(model_input)
@@ -231,27 +225,52 @@ class SDXLPipeline:
                 latents = cpu_cast(latents)
                 latents = self.scheduler.step(model_output, timestep, latents).prev_sample
 
+            end_time = time.time()
+            print(f"UNet inference time taken: {end_time - start_time} seconds")
+
             # decode from latent space        
+            start_time = time.time()
             print(f"Decoding from latent space")    
-            latents = latents / self.vae.config.scaling_factor # i assume this is needed?
+            latents = latents / self.vae.config.scaling_factor
             latents = latents.to(dtype=torch.float32)
             images = self.vae.decode(latents).sample # (B, 4, Latent_Height, Latent_Width) -> (B, 3, Image_Height, Image_Width)
-            standardize = lambda x : (torch.clamp(x/2 + 0.5, 0., 1.)*255.).to(dtype=torch.uint8)
-            images = standardize(images)
-            images_np = images.cpu().squeeze().numpy()
-            images_np = images_np.transpose(1, 2, 0)
-            images_pil = Image.fromarray(images_np)
-            images_pil.save("output.png")
-                
-                
+            end_time = time.time()
+            print(f"VAE decode time taken: {end_time - start_time} seconds")                
             return images
-                
+
+
+def save_image(image: torch.Tensor, filepath: str = "output.png"):
+    """Helper function to rescale, reshape and save the image from pipeline output."""
+    standardize = lambda x : (torch.clamp(x/2 + 0.5, 0., 1.)*255.).to(dtype=torch.uint8)
+    images = standardize(image)
+    image_np = image.cpu().squeeze().numpy()
+    image_np = image_np.transpose(1, 2, 0)
+    image_pil = Image.fromarray(image_np)
+    image_pil.save(filepath)
+    
+
 if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--prompt", type=str, default="a photo of a cat")
+    parser.add_argument("--uncond_prompt", type=str, default="a photo of a dog")
+    parser.add_argument("--do_cfg", type=bool, default=True)
+    parser.add_argument("--cfg_scale", type=float, default=7.5)
+    parser.add_argument("--num_inference_steps", type=int, default=50)
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--output_path", type=str, default="output.png")
+    args = parser.parse_args()
+
+
     xr.set_device_type("TT")
+    # only 512x512 is supported for now
     config = SDXLConfig(width=512, height=512, device='cpu')
     pipeline = SDXLPipeline(config=config)
     pipeline.setup()
     
+    start_time = time.time()
+    # inference pass for warmup
     pipeline.generate(
         prompt="a photo of a cat",
         uncond_prompt="a photo of a dog",
@@ -260,3 +279,21 @@ if __name__ == "__main__":
         num_inference_steps=50,
         seed=42
     )
+    end_time = time.time()
+    print(f"Cold inference time taken: {end_time - start_time} seconds")
+
+    start_time = time.time()
+    img = pipeline.generate(
+        prompt=args.prompt,
+        uncond_prompt=args.uncond_prompt,
+        do_cfg=True,
+        cfg_scale=args.cfg_scale,
+        num_inference_steps=args.num_inference_steps,
+        seed=args.seed
+    )
+
+    end_time = time.time()
+    print(f"Warm inference time taken: {end_time - start_time} seconds")
+
+    save_image(img, args.output_path)
+
