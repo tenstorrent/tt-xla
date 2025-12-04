@@ -910,7 +910,7 @@ test_config:
     status: EXPECTED_PASSING
 
   retinanet/pytorch-retinanet_rn18fpn-single_device-full-inference:
-    assert_pcc: false
+    # assert_pcc: false
     status: EXPECTED_PASSING
 
   retinanet/pytorch-retinanet_rn152fpn-single_device-full-inference:

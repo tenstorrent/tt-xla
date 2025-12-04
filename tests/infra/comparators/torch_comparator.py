@@ -10,6 +10,7 @@ from torch.utils._pytree import tree_flatten, tree_map
 from .comparator import Comparator
 from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
 
+from loguru import logger
 
 class TorchComparator(Comparator):
     """Comparator for Torch tensors/pytrees."""
@@ -71,6 +72,7 @@ class TorchComparator(Comparator):
         # Calculate PCC for non-identical values
         leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
+        logger.info("flat_pccs={}",flat_pccs)
         pcc = min(flat_pccs)
         return float(pcc)
 
