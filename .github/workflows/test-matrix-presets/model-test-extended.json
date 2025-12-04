@@ -1,3 +1,4 @@
 [
-  { "runs-on": "n150", "name": "extended_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "extended and expected_passing", "parallel-groups": 2 }
+  { "runs-on": "n150", "name": "extended_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "extended and expected_passing", "parallel-groups": 2 },
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "tensor_parallel and n300-llmbox and expected_passing and extended", "parallel-groups": 1 }
 ]
