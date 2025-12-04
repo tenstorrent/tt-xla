@@ -555,7 +555,6 @@ test_config:
 
   mistral/pytorch-ministral_3b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false
 
   mlp_mixer/pytorch-mixer_b16_224-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1566,9 +1565,7 @@ test_config:
     reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.23872360587120056. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
     assert_pcc: false
@@ -1576,9 +1573,7 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3322090804576874. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1751,9 +1746,7 @@ test_config:
   mistral/pytorch-7b-single_device-full-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
         status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.35885828733444214. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1770,9 +1763,7 @@ test_config:
   mistral/pytorch-ministral_8b_instruct-single_device-full-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
         status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2924256920814514. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1473"
 
       n150:
         status: NOT_SUPPORTED_SKIP
