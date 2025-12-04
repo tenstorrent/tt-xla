@@ -4,6 +4,7 @@
 
 import collections
 import os
+from contextlib import contextmanager
 from typing import Any, Dict, Mapping, Sequence, Set, Tuple
 
 import torch
@@ -19,6 +20,33 @@ from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.config import Parallelism
 
 from .model_tester import ModelTester, RunMode
+
+
+@contextmanager
+def _mask_jax_accelerator():
+    """Temporarily hide jax accelerator to avoid inductor issues with no-tensor-input graphs.
+
+    When torchax is imported (via torch_xla's mark_sharding), it registers 'jax' as a PyTorch
+    accelerator. This causes inductor to fail when compiling graphs with no tensor inputs,
+    as it tries to call torch.accelerator.current_device_index() which isn't supported for jax.
+    """
+    original_fn = torch.accelerator.is_available
+
+    def masked_is_available():
+        try:
+            acc = torch.accelerator.current_accelerator()
+            # current_accelerator() returns device(type='jax'), need to check .type
+            if acc.type == "jax":
+                return False
+        except RuntimeError:
+            pass
+        return original_fn()
+
+    torch.accelerator.is_available = masked_is_available
+    try:
+        yield
+    finally:
+        torch.accelerator.is_available = original_fn
 
 
 class TorchModelTester(ModelTester):
@@ -132,6 +160,16 @@ class TorchModelTester(ModelTester):
         Compiles for inductor backend by default.
         """
         self._compile_for_backend(workload, backend="inductor")
+
+    # @override
+    def _run_on_cpu(self, compiled_workload: Workload) -> torch.Tensor:
+        """Runs workload on CPU with jax accelerator masked.
+
+        Uses _mask_jax_accelerator because torch.compile with inductor is lazy -
+        actual compilation happens during execution, not during torch.compile() call.
+        """
+        with _mask_jax_accelerator():
+            return super()._run_on_cpu(compiled_workload)
 
     # @override
     def _compile_for_tt_device(self, workload: Workload) -> None:
