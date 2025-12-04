@@ -469,6 +469,11 @@ jobs:
                   case "$first_line" in
                     *"is the first bad commit"*)
                       echo "FOUND IT: $first_line"
+                      # Get the bad commit info
+                      repo="tt-mlir"
+                      bad_commit=$(git rev-parse HEAD)
+                      title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
+                      git bisect reset
                       found=true
                       break
                       ;;
@@ -485,11 +490,7 @@ jobs:
                   esac
                 done
 
-                # Get the bad commit info
-                repo="tt-mlir"
-                bad_commit=$(git rev-parse HEAD)
-                title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
-                git bisect reset
+                cd $TT_XLA_SOURCE
                 rm -rf $TT_MLIR_PATH
               fi
             fi
@@ -541,7 +542,7 @@ jobs:
           done
 
           # Create markdown file for this commit
-          echo "# Bad Commit Analysis [Nightly](<https://github.com/$repo/actions/runs/${{ needs.inspect.outputs.curr_wf_id }}/attempts/${{ needs.inspect.outputs.curr_wf_attempt }}>)" > .bisect-report.md
+          echo "# Bad Commit Analysis [Nightly](<https://github.com/${{ github.repository }}/actions/runs/${{ needs.inspect.outputs.curr_wf_id }}/attempts/${{ needs.inspect.outputs.curr_wf_attempt }}>)" > .bisect-report.md
           echo "" >> .bisect-report.md
           echo "Bad Commit Analysis :arrow_heading_down:" > .bisect-msg.txt
           for commit_file in bisect-commits/*; do
