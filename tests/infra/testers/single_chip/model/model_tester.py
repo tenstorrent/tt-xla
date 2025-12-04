@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -48,6 +49,7 @@ class ModelTester(BaseTester, ABC):
         self._model: Model = None
         self._workload: Workload = None
 
+        self._disable_perf = os.environ.get("DISABLE_PERF", "0") == "1"
         self._perf_measurements: list[dict[str, float]] = []
 
         super().__init__(comparison_config, framework)
@@ -157,8 +159,11 @@ class ModelTester(BaseTester, ABC):
         cpu_res = self._run_on_cpu(self._workload)
 
         self._compile_for_tt_device(self._workload)
-        e2e_perf_stats = self._test_e2e_perf()
-        list.append(self._perf_measurements, e2e_perf_stats)
+
+        if not self._disable_perf:
+            e2e_perf_stats = self._test_e2e_perf()
+            list.append(self._perf_measurements, e2e_perf_stats)
+
         tt_res = self._run_on_tt_device(self._workload)
 
         return (self._compare(tt_res, cpu_res),)
