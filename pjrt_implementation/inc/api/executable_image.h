@@ -129,6 +129,8 @@ public:
   virtual std::unique_ptr<class LoadedExecutableInstance> toExecutableInstance(
       std::vector<class DeviceInstance *> &&addressable_devices,
       ClientInstance *client_instance) = 0;
+  
+  std::string m_checkpointed_mlir_code;
 
 protected:
   // Constructs executable image instance from the information given by the
@@ -244,9 +246,9 @@ public:
   // compiler.
   static std::shared_ptr<FlatbufferExecutableImage> createInstance(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
-      std::string &&ttnn_mlir_code, std::string &&executable_name,
-      size_t num_inputs, size_t num_outputs,
+      std::string &&original_mlir_code, std::string &&checkpointed_mlir_code,
+      std::string &&ttir_mlir_code, std::string &&ttnn_mlir_code,
+      std::string &&executable_name, size_t num_inputs, size_t num_outputs,
       std::vector<std::vector<std::uint32_t>> &&output_dimensions,
       std::vector<size_t> &&output_ranks,
       std::vector<std::int64_t> &&output_dimensions_flat, size_t num_partitions,
@@ -275,9 +277,9 @@ private:
   // compiler.
   FlatbufferExecutableImage(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
-      std::string &&ttnn_mlir_code, std::string &&executable_name,
-      size_t num_inputs, size_t num_outputs,
+      std::string &&original_mlir_code, std::string &&checkpointed_mlir_code,
+      std::string &&ttir_mlir_code, std::string &&ttnn_mlir_code,
+      std::string &&executable_name, size_t num_inputs, size_t num_outputs,
       std::vector<std::vector<std::uint32_t>> output_dimensions,
       std::vector<size_t> output_ranks,
       std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions,
