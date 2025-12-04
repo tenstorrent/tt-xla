@@ -1845,10 +1845,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.use_spmd:
             # Shard KV Cache
             for cache in self.kv_caches:
-                if cache.ndim == 5:
-                    xs.mark_sharding(cache, self.mesh, (None, None, "x", None, None))
-                else:
-                    xs.mark_sharding(cache, self.mesh, (None, "x", None, None))
+                assert cache.ndim == 5, "KV cache tensor must be 5D."
+                xs.mark_sharding(cache, self.mesh, (None, None, "x", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)

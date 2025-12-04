@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from setuptools import setup
+from setuptools import find_packages, setup
 from wheel.bdist_wheel import bdist_wheel
 
 
@@ -44,7 +44,7 @@ setup(
         "bdist_wheel": BdistWheel,
     },
     version="0.1",
-    packages=["vllm_tt"],
+    packages=find_packages(),
     install_requires=[
         "vllm@git+https://github.com/tenstorrent/vllm.git@forge/v0.10.1.1_patched",
         "transformers==4.55.0",
