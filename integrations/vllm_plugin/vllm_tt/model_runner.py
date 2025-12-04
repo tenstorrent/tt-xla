@@ -1305,7 +1305,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     model = tpu_loader.load_model(
                         vllm_config=self.vllm_config,
                         model_config=self.vllm_config.model_config,
-                        mesh=None,
+                        mesh=self.mesh,
                     ).eval()
                 else:
                     model_loader = get_model_loader(self.load_config)
