@@ -10,4 +10,5 @@ rm -rf third_party/tt-mlir
 
 cd python_package
 python setup.py bdist_wheel --build-type release
+pip install dist/pjrt_plugin_tt*.whl  --upgrade --quiet
 cd ..
