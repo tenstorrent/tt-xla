@@ -201,7 +201,7 @@ def test_qwen3_mlp(seq_len, variant, variant_config, is_llmbox):
 
 @pytest.mark.nightly
 @parametrize_is_llmbox()  # True for llmbox, False for single device
-@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize("seq_len", [512])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("llama").items(),
@@ -217,7 +217,7 @@ def test_llama_mlp(seq_len, variant, variant_config, is_llmbox):
     config = loader.load_config()
     mlp = LlamaMLP(config).to(torch.bfloat16)
 
-    batch_size = 1
+    batch_size = 2
 
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
@@ -225,12 +225,13 @@ def test_llama_mlp(seq_len, variant, variant_config, is_llmbox):
 
     if is_llmbox:
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
+        mesh_shape = (batch_size, num_devices//batch_size)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(mlp, args, kwargs):
             shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)  # hidden_states
             shard_specs[mlp.gate_proj.weight] = ("model", None)
             shard_specs[mlp.up_proj.weight] = ("model", None)
             shard_specs[mlp.down_proj.weight] = (None, "model")
