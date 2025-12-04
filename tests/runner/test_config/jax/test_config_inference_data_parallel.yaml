@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+test_config:
+  gpt2/causal_lm/jax-base-data_parallel-full-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+  gpt2/causal_lm/jax-large-data_parallel-full-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+  gpt2/causal_lm/jax-medium-data_parallel-full-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+  gpt2/causal_lm/jax-xl-data_parallel-full-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [large]
