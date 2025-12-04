@@ -260,8 +260,6 @@ class SDXLPipeline:
                 ).sample
                 unet_output = cpu_cast(unet_output)
 
-                # xr.clear_computation_cache() # turns out that consteval cache is accumulating in DRAM which causes DRAM OOM. This is a temp workaround.
-
                 if do_cfg:
                     uncond_output, cond_output = unet_output.chunk(2)
                     model_output = (
