@@ -3,5 +3,3 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .ascend_scheduler import AscendScheduler
-
-__all__ = ["ascend_scheduler"]

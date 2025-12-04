@@ -271,7 +271,7 @@ class AscendScheduler(Scheduler):
             # Count the number of prefix cached tokens.
             if request.num_cached_tokens < 0:
                 request.num_cached_tokens = num_computed_tokens
-            # TODO(sshon): Handle prefill scheduling for multi user requests.
+            # TODO(sshon): Handle prefill scheduling for multi user at same request.
             prefill_scheduled += 1
             if prefill_scheduled >= 1:
                 break
