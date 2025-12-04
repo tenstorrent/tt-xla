@@ -48,7 +48,6 @@ on:
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
-  TT_METAL_CACHE: /mnt/dockercache/.ccache/
   TT_XLA_CI: 1
 
 jobs:
