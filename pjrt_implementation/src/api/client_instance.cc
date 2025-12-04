@@ -328,6 +328,14 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
     const std::unordered_map<std::string, std::string> &compile_options) {
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
+  DLOG_F(LOG_DEBUG, "MLIR code size: %zu bytes", mlir_code.size());
+  if (loguru::g_stderr_verbosity >= LOG_DEBUG) {
+    printf("=== MLIR Code (size=%zu) ===\n%.*s\n=== End MLIR Code ===\n",
+           mlir_code.size(),
+           static_cast<int>(mlir_code.size()),
+           mlir_code.data());
+    fflush(stdout);
+  }
 
   std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>> compile_result =
       m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path,
