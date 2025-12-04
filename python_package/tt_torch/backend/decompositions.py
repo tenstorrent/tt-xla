@@ -255,21 +255,6 @@ def squeeze(input, dims):
     newshape = [s for i, s in enumerate(shape) if i not in dims]
     return input.reshape(newshape)
 
-def groupnorm(input, weight, bias, N, C, HxW, group, eps):
-    if input.dim() != 4:
-        return NotImplemented # routes to default impl
-
-    _, _, H, W = input.shape
-    newshape = [N, group, H * (C//group), W]
-    input = input.reshape(newshape)
-    input, out_mean, out_rstd = torch.ops.aten.native_layer_norm.default(input, newshape[-2:], weight=None, bias=None, eps=eps)
-    input = input.reshape(N, C, H, W)
-    if weight is None:
-        weight = torch.ones(C)
-    if bias is None:
-        bias = torch.zeros(C)
-    input = input * weight.reshape(1, C, 1, 1) + bias.reshape(1, C, 1, 1)
-    return input, out_mean.reshape(N,group), out_rstd.reshape(N,group)
 
 def matmul(
     input: torch.Tensor, weight: torch.Tensor, bias: Optional[torch.Tensor] = None
@@ -290,7 +275,7 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
     # default decompositions pulled from SHARK / torch._decomp
     return [
         aten.norm.ScalarOpt_dim,
-        #aten.native_group_norm,
+        aten.native_group_norm,
         aten.split.Tensor,
         # aten.split_with_sizes,
         aten.native_layer_norm,
@@ -342,7 +327,6 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
         torch.ops.prims.squeeze.default: squeeze,
-        aten.native_group_norm.default: groupnorm,
     }
 
 
