@@ -7,7 +7,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-from infra.utilities import Framework, ShardingMode
+from flax import nnx
+from infra.utilities import Framework, Model, ShardingMode
 from jax.sharding import Mesh, PartitionSpec
 
 from .workload import Workload
@@ -24,6 +25,7 @@ class JaxMultichipWorkload(Workload):
         self,
         executable: Callable,
         compiled_executable: Optional[Callable] = None,
+        model: Optional[Model] = None,
         args: Optional[Sequence[Any]] = None,
         kwargs: Optional[Mapping[str, Any]] = None,
         static_argnames: Optional[Sequence[str]] = None,
@@ -37,6 +39,7 @@ class JaxMultichipWorkload(Workload):
             framework=Framework.JAX,
             executable=executable,
             compiled_executable=compiled_executable,
+            model=model,
             args=args,
             kwargs=kwargs,
             static_argnames=static_argnames,
@@ -68,3 +71,11 @@ class JaxMultichipWorkload(Workload):
     def sharding_mode(self) -> ShardingMode:
         assert self._sharding_mode is not None
         return self._sharding_mode
+
+    def execute(self) -> Any:
+        if isinstance(self.model, nnx.Module):
+            self.model.config.set_model_mesh(self._device_mesh)
+            with self.device_mesh:
+                return super().execute()
+        else:
+            return super().execute()

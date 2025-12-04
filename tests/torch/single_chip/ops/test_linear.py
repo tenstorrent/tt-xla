@@ -4,9 +4,12 @@
 
 import pytest
 import torch
+import torch.nn.functional as F
 from infra import Framework, run_op_test_with_random_inputs
+from infra.comparators.torch_comparator import TorchComparator
 from utils import Category
 
+from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 
 
@@ -47,3 +50,38 @@ def test_linear(
         framework=Framework.TORCH,
         compiler_config=compiler_config,
     )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.OP_TEST)
+def test_linear_torch_override():
+    """
+    Test that TorchFunctionOverride produces correct results for linear operations with
+    4D input tensors by comparing override output against standard torch.nn.functional.linear.
+
+    This tests the override in eager mode (without torch.compile) since the override
+    has `not torch.compiler.is_compiling()` check.
+    """
+    from tt_torch.torch_overrides import torch_function_override
+
+    dtype = torch.bfloat16
+    in_features = 96
+    out_features = 384
+
+    input_tensor = torch.randn(1, 128, 128, in_features, dtype=dtype)
+    weight = torch.randn(out_features, in_features, dtype=dtype)
+    bias = torch.randn(out_features, dtype=dtype)
+
+    # Temporarily disable the override to get golden output
+    torch_function_override.__exit__(None, None, None)
+    try:
+        golden = F.linear(input_tensor, weight, bias)
+    finally:
+        torch_function_override.__enter__()  # Always re-enable it
+
+    # Compute actual output with override active (eager mode, not compiled)
+    output = F.linear(input_tensor, weight, bias)
+
+    comparator = TorchComparator(ComparisonConfig())
+    comparator.compare(output, golden)

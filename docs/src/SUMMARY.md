@@ -4,6 +4,7 @@
 - [Getting Started](./getting_started.md)
     - [Getting Started with Docker](./getting_started_docker.md)
     - [Getting Started with Building from Source](getting_started_build_from_source.md)
+    - [Breaking Into the Source With a Debugger](getting_started_debugging.md)
 - [Improving Model Performance](./performance.md)
 - [Test Infra](./test_infra.md)
 - [Model Auto-Discovery Tests](./model_auto_discovery_tests.md)

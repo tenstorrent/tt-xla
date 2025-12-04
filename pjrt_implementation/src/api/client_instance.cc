@@ -114,6 +114,36 @@ static tt_pjrt_status launchDistributedRuntime() {
   return tt_pjrt_status::kSuccess;
 }
 
+static tt_pjrt_status setMemoryLogLevel() {
+  const char *memory_log_level_env = std::getenv("TT_RUNTIME_MEMORY_LOG_LEVEL");
+  if (!memory_log_level_env) {
+    return tt_pjrt_status::kSuccess;
+  }
+
+  std::string memory_log_level_str(memory_log_level_env);
+  std::transform(memory_log_level_str.begin(), memory_log_level_str.end(),
+                 memory_log_level_str.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+
+  tt::runtime::MemoryLogLevel log_level;
+  if (memory_log_level_str == "none") {
+    log_level = tt::runtime::MemoryLogLevel::NONE;
+  } else if (memory_log_level_str == "program") {
+    log_level = tt::runtime::MemoryLogLevel::Program;
+  } else if (memory_log_level_str == "operation") {
+    log_level = tt::runtime::MemoryLogLevel::Operation;
+  } else if (memory_log_level_str == "any" || memory_log_level_str == "all") {
+    log_level = tt::runtime::MemoryLogLevel::ANY;
+  } else {
+    DLOG_F(ERROR, "Invalid memory logging level: %s", memory_log_level_env);
+    return tt_pjrt_status::kInternal;
+  }
+
+  tt::runtime::setMemoryLogLevel(log_level);
+
+  return tt_pjrt_status::kSuccess;
+}
+
 PJRT_Error *GlobalClientInstanceSingleton::initClient() {
   std::unique_ptr<ClientInstance> client = std::make_unique<ClientInstance>();
   PJRT_Error *error = client->initialize();
@@ -181,6 +211,11 @@ PJRT_Error *ClientInstance::initialize() {
     if (!tt_pjrt_status_is_ok(launch_result)) {
       return *ErrorInstance::makeError(launch_result).release();
     }
+  }
+
+  tt_pjrt_status memory_log_level_status = setMemoryLogLevel();
+  if (!tt_pjrt_status_is_ok(memory_log_level_status)) {
+    return *ErrorInstance::makeError(memory_log_level_status).release();
   }
 
   tt_pjrt_status device_status = populateDevices();
