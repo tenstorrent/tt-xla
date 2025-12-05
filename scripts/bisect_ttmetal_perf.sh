@@ -164,7 +164,7 @@ cleanup() {
     # Restore tt-mlir third_party/CMakeLists.txt
     cd "$TTMLIR_THIRD_PARTY_DIR" 2>/dev/null || true
     git checkout CMakeLists.txt 2>/dev/null || true
-    # Restore tt-xla third_party/CMakeLists.txt (from cmake_fix.patch)
+    # Restore tt-xla third_party/CMakeLists.txt
     cd "$TTXLA_ROOT" 2>/dev/null || true
     git checkout third_party/CMakeLists.txt 2>/dev/null || true
     # Restore tt-mlir to original commit if we checked out parent
@@ -186,13 +186,6 @@ cleanup() {
 # Activate the TT-XLA environment
 echo "Activating TT-XLA environment..." | tee -a "$LOG_FILE"
 source venv/activate
-
-# Apply the CMakeLists.txt fix for incremental builds
-echo "Applying CMakeLists.txt fix..." | tee -a "$LOG_FILE"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/cmake_fix.patch" ]; then
-    git apply "$SCRIPT_DIR/cmake_fix.patch" 2>/dev/null || echo "Patch already applied or not needed"
-fi
 
 # Modify tt-mlir third_party/CMakeLists.txt to use current tt-metal commit
 echo "Setting tt-metal version to $TTMETAL_COMMIT_FULL..." | tee -a "$LOG_FILE"
