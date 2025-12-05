@@ -41,26 +41,26 @@ class PJRTComponentUnitTests : public ::testing::Test {
 protected:
   // Runs before every test.
   void SetUp() override {
-    device_ = DeviceInstance::createInstance(
+    m_device = DeviceInstance::createInstance(
         TT_DEVICE_HOST,
         /*is_addressable=*/true, LOCAL_HARDWARE_ID_UNDEFINED, TT_ARCH_WH);
 
-    device_as_vector_.push_back(device_.get());
+    m_device_as_vector.push_back(m_device.get());
 
     // DEVNOTE: Intentionally not set to device during setup.
-    default_memory_ =
-        MemoryInstance::createInstance(device_as_vector_, DEFAULT_MEMORY_ID,
+    m_default_memory =
+        MemoryInstance::createInstance(m_device_as_vector, DEFAULT_MEMORY_ID,
                                        /*is_host_memory=*/true);
   }
 
   // Device that is unique per-test.
-  std::unique_ptr<DeviceInstance> device_;
+  std::unique_ptr<DeviceInstance> m_device;
 
   // A single element device vector.
-  std::vector<DeviceInstance *> device_as_vector_;
+  std::vector<DeviceInstance *> m_device_as_vector;
 
   // Default memory space for the device.
-  std::unique_ptr<MemoryInstance> default_memory_;
+  std::unique_ptr<MemoryInstance> m_default_memory;
 };
 
 } // namespace tt::pjrt::tests
