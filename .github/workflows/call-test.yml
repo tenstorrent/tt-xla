@@ -50,6 +50,7 @@ env:
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
   TT_METAL_CCACHE_KERNEL_SUPPORT: 1
   TT_XLA_CI: 1
+  CCACHE_DIR: ${{ github.workspace }}/.cache/ccache
 
 jobs:
   generate-matrix-test:
@@ -120,10 +121,12 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ccache
+        mkdir -p "$CCACHE_DIR"
+        ccache --set-config=cache_dir=$CCACHE_DIR
         ccache --set-config=max_size=15G
         ccache --set-config=compression=true
-        ccache --set-config=hash_dir=true
-        ccache --set-config=base_dir=$(pwd)
+        ccache --set-config=hash_dir=false
+        ccache --set-config=base_dir=$GITHUB_WORKSPACE
         ccache --set-config=debug=true
         ccache --set-config=log_file=/tmp/ccache.log
         touch /tmp/ccache.log
@@ -406,18 +409,6 @@ jobs:
         files: coverage.info
         disable_search: true
         token: ${{ secrets.CODECOV_TOKEN }}
-
-    - name: Print ccache debug log
-      if: ${{ always() }}
-      shell: bash
-      run: |
-        LOG_PATH="${CCACHE_LOG_FILE:-/tmp/ccache.log}"
-        if [[ -f "$LOG_PATH" ]]; then
-          echo "=== ccache debug log ==="
-          cat "$LOG_PATH"
-        else
-          echo "ccache log file not found at $LOG_PATH"
-        fi
 
     - name: Upload ccache debug log
       if: ${{ always() }}
