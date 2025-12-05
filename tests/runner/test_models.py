@@ -86,7 +86,7 @@ def test_all_models_torch(
     record_property,
     test_metadata,
     request,
-    capteesys,
+    # capteesys,
     clear_torchxla_computation_cache,
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
@@ -153,8 +153,9 @@ def test_all_models_torch(
                 validate_filecheck_results(filecheck_results)
 
         except Exception as e:
-            out = capteesys.readouterr().out
-            err = capteesys.readouterr().err
+            # out = capteesys.readouterr().out
+            # err = capteesys.readouterr().err
+            out, err = None, None
             # Record runtime failure info so it can be reflected in report properties
             update_test_metadata_for_exception(test_metadata, e, stdout=out, stderr=err)
             raise
@@ -232,7 +233,7 @@ def test_all_models_jax(
     record_property,
     test_metadata,
     request,
-    capteesys,
+    # capteesys,
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     fix_venv_isolation()

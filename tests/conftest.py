@@ -22,7 +22,7 @@ from loguru import logger
 from third_party.tt_forge_models.config import ModelInfo
 
 
-def pytest_configure(config: pytest.Config):
+def pytest_configure(config):
     """
     Registers custom pytest marker `record_test_properties(key1=val1, key2=val2, ...)`.
 
