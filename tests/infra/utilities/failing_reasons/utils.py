@@ -9,7 +9,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, ClassVar, List, Optional
 
 from loguru import logger
-from pytest import ExceptionInfo
+# from pytest import ExceptionInfo
+from _pytest._code.code import ExceptionInfo
 
 if TYPE_CHECKING:
     # ComponentChecker is only imported for type checking to avoid circular imports
