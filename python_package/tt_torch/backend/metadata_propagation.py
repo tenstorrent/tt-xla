@@ -98,7 +98,7 @@ class EmitLoc:
 
 def _find_enclosing_function(
     full_path: str, line_num: int, mode: str = "simple"
-) -> str:
+) -> tuple[str, str]:
     """
     Given a file path and a line number, returns the full path (with line number) of the enclosing function.
     If not found or file cannot be opened, returns "unknown".
@@ -267,8 +267,6 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
 
     emit_locs = []
 
-    import os
-
     emit_ttnn_debug_loc = os.environ.get("EMIT_TTNN_DEBUG_LOC", False)
     op_index = 0
 
@@ -381,10 +379,8 @@ class MetadataDispatchMode(TorchDispatchMode):
         in the HLO IR. Since all outputs come from the same operation node, setting metadata
         on one output is sufficient to label the entire operation.
         """
-        pass
         if isinstance(result, torch.Tensor):
             self._set_tensor_metadata(result, module_hierarchy)
-            # pass
         elif isinstance(result, (tuple, list)):
             for item in result:
                 if isinstance(item, torch.Tensor):
@@ -392,7 +388,6 @@ class MetadataDispatchMode(TorchDispatchMode):
                         break  # One output labels the entire operation node
 
     def _set_tensor_metadata(self, tensor: torch.Tensor, module_hierarchy: str) -> bool:
-        # assert False, "Not implemented"
         try:
             if "xla" in str(tensor.device):
                 torch_xla._XLAC._set_xla_custom_op_name_prefix(
