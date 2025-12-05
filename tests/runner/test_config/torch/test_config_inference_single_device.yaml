@@ -178,11 +178,11 @@ test_config:
     status: EXPECTED_PASSING
     # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
     required_pcc: 0.99
-    markers: ["push", "weekly"]
+    markers: ["push"]
 
   mnist/image_classification/pytorch-cnn_nodropout-single_device-full-inference:
     status: EXPECTED_PASSING
-    markers: ["push", "weekly"]
+    markers: ["push"]
 
   autoencoder/pytorch-linear-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -405,7 +405,7 @@ test_config:
 
   mobilenetv1/pytorch-mobilenet_v1-single_device-full-inference:
     status: EXPECTED_PASSING
-    markers: ["push", "weekly"]
+    markers: ["push"]
 
   mobilenetv2/pytorch-mobilenet_v2-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1261,8 +1261,8 @@ test_config:
     status: EXPECTED_PASSING
 
   gpt2/pytorch-gpt2-single_device-full-inference:
-    markers: ["push", "weekly"]
     status: EXPECTED_PASSING
+    markers: ["push"]
 
   gpt2/pytorch-gpt2_sequence_classification-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1353,7 +1353,7 @@ test_config:
 
   vgg/pytorch-hf_vgg19-single_device-full-inference:
     status: EXPECTED_PASSING
-    markers: ["push", "weekly"]
+    markers: ["push"]
 
   segformer/semantic_segmentation/pytorch-b1_finetuned_ade_512_512-single_device-full-inference:
     status: EXPECTED_PASSING

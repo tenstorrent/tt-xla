@@ -10,6 +10,7 @@ import pytest
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
+from third_party.tt_forge_models.config import ModelGroup
 
 # Global set to track collected test node IDs
 _collected_nodeids = set()
@@ -17,6 +18,29 @@ _collected_nodeids = set()
 # Allowed architecture identifiers for arch_overrides and --arch option
 ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
 _BRINGUP_STAGE_FILE = "._bringup_stage.txt"
+
+
+def _get_model_group_from_item(item) -> ModelGroup | None:
+    """Extract ModelGroup from a parametrized test item's test_entry parameter.
+
+    Args:
+        item: pytest test item
+
+    Returns:
+        ModelGroup if available, None otherwise
+    """
+    # Get the test_entry from parametrized test's callspec
+    if not hasattr(item, "callspec"):
+        return None
+
+    test_entry = item.callspec.params.get("test_entry")
+    if test_entry is None:
+        return None
+
+    # test_entry.variant_info is (variant_name, ModelLoader)
+    variant_name, ModelLoader = test_entry.variant_info
+    model_info = ModelLoader.get_model_info(variant=variant_name)
+    return model_info.group
 
 
 def pytest_addoption(parser):
@@ -107,9 +131,31 @@ def pytest_collection_modifyitems(config, items):
         elif meta.status == ModelTestStatus.UNSPECIFIED:
             item.add_marker(pytest.mark.unspecified)
 
-        # Apply any custom/extra markers from config (e.g., "push", "nightly")
-        for marker_name in getattr(meta, "markers", []) or []:
+        # Apply any custom/extra markers from config (e.g., "push", "nightly", "weekly")
+        config_markers = getattr(meta, "markers", []) or []
+        for marker_name in config_markers:
             item.add_marker(getattr(pytest.mark, marker_name))
+
+        # Apply default nightly/weekly marker based on ModelGroup if not already specified in config.
+        # RED and PRIORITY models run nightly, GENERALITY models run weekly.
+        # Config markers take precedence and can override this default behavior.
+        model_group = _get_model_group_from_item(item)
+        if model_group is not None:
+            # Add "red" marker for RED models to enable filtering like: -m red
+            if model_group == ModelGroup.RED:
+                item.add_marker(pytest.mark.red)
+
+            # Apply schedule markers if not already specified in config
+            has_schedule_marker = any(
+                m in config_markers for m in ("nightly", "weekly")
+            )
+            if not has_schedule_marker:
+                if model_group in (ModelGroup.RED, ModelGroup.PRIORITY):
+                    # RED and PRIORITY models run nightly
+                    item.add_marker(pytest.mark.nightly)
+                else:
+                    # GENERALITY models run weekly
+                    item.add_marker(pytest.mark.weekly)
 
         # Apply marker based on bringup_status to enable filtering like: -m incorrect_result
         bringup_status = getattr(meta, "bringup_status", None)
