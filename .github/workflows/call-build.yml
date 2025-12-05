@@ -149,13 +149,54 @@ jobs:
             cd ${{ steps.strings.outputs.work-dir }}/python_package
             python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
 
+      - name: convert the wheel to manylinux wheel
+        shell: bash
+        run: |
+            source venv/activate
+            cd ${{ steps.strings.outputs.work-dir }}/python_package
+            apt-get install -y patchelf zip
+            pip install auditwheel
+
+            # Run auditwheel repair
+            auditwheel repair --plat manylinux_2_35_x86_64 dist/pjrt_plugin_tt*.whl -w wheelhouse/
+
+            # Fix corrupted WHEEL metadata (auditwheel creates duplicate Root-Is-Purelib entries)
+            cd wheelhouse
+            whl=$(ls pjrt_plugin_tt*.whl)
+            echo "Fixing WHEEL metadata in $whl"
+            tmpdir=$(mktemp -d)
+            unzip -q "$whl" -d "$tmpdir"
+
+            # Find and fix the WHEEL file - replace Root-Is-Purelib value and remove duplicates
+            wheel_file=$(find "$tmpdir" -name "WHEEL" -path "*dist-info*")
+            echo "Original WHEEL file:"
+            cat "$wheel_file"
+            # Replace first Root-Is-Purelib with correct value, remove any duplicates
+            awk '/Root-Is-Purelib/ { if (!seen) { print "Root-Is-Purelib: false"; seen=1 } next } { print }' "$wheel_file" > "${wheel_file}.tmp"
+            mv "${wheel_file}.tmp" "$wheel_file"
+            echo "Fixed WHEEL file contents:"
+            cat "$wheel_file"
+
+            # Repack the wheel using absolute path
+            whl_abs="$(pwd)/$whl"
+            rm "$whl"
+            cd "$tmpdir"
+            zip -rq "$whl_abs" .
+            cd -
+            rm -rf "$tmpdir"
+            cd ..
+
+            # Delete the original wheel in favor of the manylinux wheel in wheelhouse directory
+            rm -rf ${{ steps.strings.outputs.work-dir }}/python_package/dist/*.whl
+
       - name: Validate build type of wheel build
         shell: bash
         run: |
             source venv/activate
+            cd ${{ steps.strings.outputs.work-dir }}/python_package/wheelhouse
             #Inspect the wheel build type on wheel file without installing the wheel
             pip install wheel-inspect
-            wheel_summary=$(wheel2json ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl | jq -r '.dist_info.metadata.summary')
+            wheel_summary=$(wheel2json pjrt_plugin_tt*.whl | jq -r '.dist_info.metadata.summary')
             match=$(echo "$wheel_summary" | grep -oP "build-type=${{ inputs.build_type }}" || true)
             echo "Wheel summary: $wheel_summary"
             if [ -z "$match" ]; then
@@ -168,7 +209,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
             name: ${{ needs.check-existing-artifact.outputs.wheel_artifact_name }}
-            path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
+            path: ${{ steps.strings.outputs.work-dir }}/python_package/wheelhouse/*.whl
 
       - name: Build vllm plugin wheel
         if: inputs.build_type == 'release'

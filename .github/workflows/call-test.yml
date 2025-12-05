@@ -316,6 +316,153 @@ jobs:
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
+    - name: run before tests
+      shell: bash
+      run: |
+        source venv/activate
+        pip show pjrt-plugin-tt
+        python -c "from importlib.metadata import entry_points; print(list(entry_points(group='jax_plugins')))"
+        python -c "import jax_plugin_tt; print('OK:', jax_plugin_tt.__file__)"
+        
+        # Debug: Check installed WHEEL metadata
+        echo "=== Installed WHEEL metadata ==="
+        cat venv/lib/python3.11/site-packages/pjrt_plugin_tt-*.dist-info/WHEEL
+        
+        # =======================================================================
+        # PROTOBUF SYMBOL CONFLICT DIAGNOSTIC
+        # =======================================================================
+        # ISSUE: JAX/jaxlib and tt-metal both bundle protobuf, causing symbol conflicts
+        #        when both are loaded in the same process.
+        # 
+        # ERROR: "CHECK failed: file != nullptr" in generated_message_reflection.cc
+        #        This causes "Unknown backend tt" errors because backend init fails.
+        # 
+        # ROOT CAUSE: Multiple protobuf versions with conflicting global symbols
+        # 
+        # DEPENDENCY CHAIN:
+        #   pjrt_plugin_tt.so → libTTMLIRRuntime.so → libtt_metal.so
+        #                                                   ↑
+        #                                         HAS 768 PROTOBUF SYMBOLS
+        #
+        # REQUIRED FIX (must be applied in BOTH repos):
+        #   1. tt-xla: Add -fvisibility=hidden + version script to pjrt_plugin_tt.so
+        #   2. tt-metal: Add -fvisibility=hidden + version script to libtt_metal.so
+        #
+        # See: https://github.com/tenstorrent/tt-xla/issues/XXX (TODO: create issue)
+        # =======================================================================
+        
+        echo ""
+        echo "======================================================================="
+        echo "PROTOBUF SYMBOL CONFLICT DIAGNOSTIC"
+        echo "======================================================================="
+        
+        PLUGIN_DIR="venv/lib/python3.11/site-packages/pjrt_plugin_tt"
+        
+        echo ""
+        echo "--- pjrt_plugin_tt.so (built by tt-xla) ---"
+        PLUGIN_SO=$(find venv -name "pjrt_plugin_tt.so" | head -1)
+        echo "Path: $PLUGIN_SO"
+        echo "Exported symbols (first 5):"
+        nm -D --defined-only "$PLUGIN_SO" 2>/dev/null | grep " T " | head -5
+        PROTO_COUNT_PLUGIN=$(nm -D "$PLUGIN_SO" 2>/dev/null | grep -c protobuf || echo 0)
+        echo "Protobuf symbol count: $PROTO_COUNT_PLUGIN"
+        if [ "$PROTO_COUNT_PLUGIN" -eq 0 ]; then
+            echo "✅ OK - no protobuf symbols exported"
+        else
+            echo "⚠️  Has $PROTO_COUNT_PLUGIN protobuf symbols (fix: add version script in tt-xla)"
+        fi
+        
+        echo ""
+        echo "--- libtt_metal.so (built by tt-metal) ---"
+        METAL_SO=$(find "$PLUGIN_DIR" -name "libtt_metal.so" 2>/dev/null | head -1)
+        PROTO_COUNT_METAL=0
+        if [ -n "$METAL_SO" ]; then
+            echo "Path: $METAL_SO"
+            PROTO_COUNT_METAL=$(nm -D "$METAL_SO" 2>/dev/null | grep -c protobuf || echo 0)
+            echo "Protobuf symbol count: $PROTO_COUNT_METAL"
+            if [ "$PROTO_COUNT_METAL" -gt 0 ]; then
+                echo "⚠️  Has $PROTO_COUNT_METAL protobuf symbols (fix: add version script in tt-metal)"
+                echo "   This is the PRIMARY cause of 'CHECK failed: file != nullptr' errors"
+            else
+                echo "✅ OK - no protobuf symbols exported"
+            fi
+        else
+            echo "libtt_metal.so not found in $PLUGIN_DIR"
+        fi
+        
+        echo ""
+        echo "--- libTTMLIRRuntime.so (built by tt-mlir) ---"
+        RUNTIME_SO=$(find "$PLUGIN_DIR" -name "libTTMLIRRuntime.so" | head -1)
+        if [ -n "$RUNTIME_SO" ]; then
+            echo "Path: $RUNTIME_SO"
+            PROTO_COUNT_RUNTIME=$(nm -D "$RUNTIME_SO" 2>/dev/null | grep -c protobuf || echo 0)
+            echo "Protobuf symbol count: $PROTO_COUNT_RUNTIME"
+        else
+            echo "libTTMLIRRuntime.so not found"
+        fi
+        
+        echo ""
+        echo "======================================================================="
+        echo "DIAGNOSIS:"
+        if [ "$PROTO_COUNT_PLUGIN" -gt 0 ] || [ "$PROTO_COUNT_METAL" -gt 0 ]; then
+            echo "❌ PROTOBUF CONFLICT DETECTED - This causes 'Unknown backend tt' errors"
+            echo ""
+            echo "REQUIRED FIXES:"
+            if [ "$PROTO_COUNT_PLUGIN" -gt 0 ]; then
+                echo "  1. tt-xla repo: Add -fvisibility=hidden + version script"
+            fi
+            if [ "$PROTO_COUNT_METAL" -gt 0 ]; then
+                echo "  2. tt-metal repo: Add -fvisibility=hidden + version script"
+            fi
+        else
+            echo "✅ No protobuf symbol conflicts detected"
+        fi
+        echo "======================================================================="
+        echo ""
+        
+        # Debug JAX backend discovery
+        python << 'EOF'
+        import jax._src.xla_bridge as xb
+        print('Before discover_pjrt_plugins:')
+        print('  Backend factories:', list(xb._backend_factories.keys()))
+
+        xb.discover_pjrt_plugins()
+        print('After discover_pjrt_plugins:')
+        print('  Backend factories:', list(xb._backend_factories.keys()))
+
+        # Check if tt is in backends after full initialization
+        import jax
+        print('Calling jax.devices()...')
+        try:
+            devices = jax.devices()
+            print('  Available devices:', devices)
+        except Exception as e:
+            print('  ERROR:', e)
+
+        # This is the exact call that fails in tests
+        print('Calling jax.devices("tt")...')
+        try:
+            tt_devices = jax.devices("tt")
+            print('  TT devices:', tt_devices)
+        except Exception as e:
+            print('  ERROR:', e)
+
+        # Simulate what conftest.py does
+        import sys
+        sys.path.insert(0, 'tests')
+        print()
+        print('Simulating test infrastructure setup...')
+        from infra import DeviceConnectorFactory, Framework
+        try:
+            jax_conn = DeviceConnectorFactory.create_connector(Framework.JAX)
+            print('  JAX connector created successfully')
+            print('  TT devices:', jax_conn.get_number_of_tt_devices())
+        except Exception as e:
+            print('  ERROR creating JAX connector:', e)
+            import traceback
+            traceback.print_exc()
+        EOF
+
     - name: Run tests
       timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
       env:
