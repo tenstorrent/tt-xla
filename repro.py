@@ -23,7 +23,6 @@ def create_device_mesh() -> Mesh:
     return mesh
 
 def main():
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
     os.environ["TF_CPP_MIN_VLOG_LEVEL"] = "3"
     os.environ["PT_XLA_DEBUG"] = "1"
@@ -41,7 +40,7 @@ def main():
     mesh = create_device_mesh()
     device = torch_xla.device()
     # x = torch.ones((32,16)).to(device)
-    x = torch.arange((1024), dtype=torch.bfloat16).reshape((32,32)).to(device)
+    x = torch.arange((1024), dtype=torch.int).reshape((32,32)).to(device)
     xs.mark_sharding(x, mesh, (None, 'model'))
 
     print(torch_xla._XLAC._xla_get_all_device_attributes())
