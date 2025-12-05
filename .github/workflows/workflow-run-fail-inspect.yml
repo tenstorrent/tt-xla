@@ -264,8 +264,8 @@ jobs:
           rm -rf log-b
 
           # get list of failed tests from the last two workflow runs
-          gh run download $prev_wf_id --pattern "test-reports-*" -R $repo -D log-a || true
-          gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D log-b
+          gh run download $prev_wf_id --pattern "test-reports-*" -R $repo -D log-b || true
+          gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D log-a
 
           # find newly failed tests
           rm -rf log-out
