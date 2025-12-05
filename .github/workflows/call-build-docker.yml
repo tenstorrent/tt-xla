@@ -108,7 +108,7 @@ jobs:
     needs: [check-if-docker-exist, build-image]
     runs-on: ubuntu-latest
     # Run the next steps only when pushed to main, tag docker image as latest.
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.xla_sha_override == github.ref) && (!failure())
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.xla_sha_override == github.sha) && (!failure())
     steps:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3

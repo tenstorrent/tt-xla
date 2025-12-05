@@ -142,13 +142,6 @@ if [ -n "$REQUIRED_TORCH_XLA" ]; then
     fi
 fi
 
-# Apply the CMakeLists.txt fix for incremental builds
-echo "Applying CMakeLists.txt fix..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/cmake_fix.patch" ]; then
-    git apply "$SCRIPT_DIR/cmake_fix.patch" 2>/dev/null || echo "Patch already applied or not needed"
-fi
-
 # Update submodules to match this commit's version
 echo "Updating submodules..."
 git submodule update --init --recursive
