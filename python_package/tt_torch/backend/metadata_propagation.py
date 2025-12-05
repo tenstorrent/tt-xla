@@ -335,9 +335,6 @@ class MetadataDispatchMode(TorchDispatchMode):
        torch_xla._XLAC._set_xla_custom_op_name_prefix(). torch-xla traces back from the
        tensor to find which operation produced it, then labels that operation node in HLO.
 
-       Result in HLO: "Linear[fc]/forward(model.py:12)/aten__linear"
-                      "ReLU[act]/forward(model.py:13)/aten__relu"
-
     This is non-invasive: it doesn't modify the FX graph or operation semantics, only adds
     debugging metadata to the generated XLA HLO IR for better observability.
     """
