@@ -29,6 +29,7 @@ test_config:
   gemma/pytorch-google/gemma-2-9b-it-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [extended]
 
   gemma/pytorch-google/gemma-2-27b-it-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -60,6 +61,7 @@ test_config:
   mistral/pytorch-7b_instruct_v03-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [extended]
 
   qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -86,6 +88,7 @@ test_config:
   qwen_3/embedding/pytorch-embedding_8b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [extended]
 
   mistral/pytorch-ministral_8b_instruct-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
