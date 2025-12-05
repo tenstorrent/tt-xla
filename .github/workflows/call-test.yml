@@ -50,7 +50,6 @@ env:
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
   TT_METAL_CCACHE_KERNEL_SUPPORT: 1
   TT_XLA_CI: 1
-  CCACHE_DIR: ${{ github.workspace }}/.cache/ccache
 
 jobs:
   generate-matrix-test:
@@ -121,7 +120,13 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ccache
+
+        export CCACHE_DIR="${DOCKER_CACHE_ROOT}/.ccache"
         mkdir -p "$CCACHE_DIR"
+        ccache --set-config=cache_dir="$CCACHE_DIR"
+        mkdir -p "$CCACHE_DIR"
+        echo "CCACHE_DIR=$CCACHE_DIR" >> "$GITHUB_ENV"
+
         ccache --set-config=cache_dir=$CCACHE_DIR
         ccache --set-config=max_size=15G
         ccache --set-config=compression=true
