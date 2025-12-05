@@ -219,7 +219,7 @@ def _extract_source_and_module_hierarchy_info(
     if func_name != found_func_name:
         DBG_LOC and print(f"  function name mismatch: {func_name}, {found_func_name}")
         raise ValueError(
-            f"Function name mismatch between stack_trace and found_func_name modes"
+            f"Function name mismatch between stack_trace and found_func_name modes\nstack_trace: {func_name}\nfound_func_name: {found_func_name}"
         )
     if func_path != func_path_ast:
         DBG_LOC and print(f"  func_path: {func_path}, {found_func_name}")
