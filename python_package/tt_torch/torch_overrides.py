@@ -5,6 +5,33 @@ import numpy as np
 import torch
 from torch.overrides import TorchFunctionMode
 
+# Functions that accept numpy arrays and convert them
+NUMPY_COMPATIBLE_FUNCS = {
+    # Tensor creation
+    "tensor",
+    "from_numpy",
+    "as_tensor",
+    "asarray",
+    "from_dlpack",
+    # Stacking/concatenation
+    "stack",
+    "cat",
+    "vstack",
+    "hstack",
+    "dstack",
+    "concatenate",
+    # Type-specific constructors (these are typically class methods)
+    "FloatTensor",
+    "DoubleTensor",
+    "IntTensor",
+    "LongTensor",
+    "ByteTensor",
+    "CharTensor",
+    "ShortTensor",
+    "HalfTensor",
+    "BoolTensor",
+}
+
 
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
@@ -16,7 +43,10 @@ class TorchFunctionOverride(TorchFunctionMode):
         if args:
             for arg in args:
                 if isinstance(arg, np.ndarray):
-                    return NotImplemented
+                    if func.__name__ in NUMPY_COMPATIBLE_FUNCS:
+                        return func(*args, **(kwargs or {}))
+                    else:
+                        return NotImplemented
 
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
