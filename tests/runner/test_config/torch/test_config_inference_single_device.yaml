@@ -2279,8 +2279,8 @@ test_config:
     reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
 
   ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
+    status: EXPECTED_PASSING
+    # reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
 
   retinanet/pytorch-retinanet_resnet50_fpn_v2-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
