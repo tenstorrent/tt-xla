@@ -267,6 +267,13 @@ jobs:
           gh run download $prev_wf_id --pattern "test-reports-*" -R $repo -D log-b || true
           gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D log-a
 
+          # find tests with PCC drops
+          rm -rf pcc_results.md
+          python .github/scripts/find_pcc_drops.py log-a log-b 0.01
+          if [ -s pcc_results.md ]; then
+            cat pcc_results.md >> $GITHUB_STEP_SUMMARY
+          fi
+
           # find newly failed tests
           rm -rf log-out
           mkdir -p log-out
