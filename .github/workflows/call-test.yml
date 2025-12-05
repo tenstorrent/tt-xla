@@ -360,11 +360,13 @@ jobs:
         
         echo ""
         echo "--- pjrt_plugin_tt.so (built by tt-xla) ---"
-        PLUGIN_SO=$(find venv -name "pjrt_plugin_tt.so" | head -1)
+        PLUGIN_SO=$(find venv -name "pjrt_plugin_tt.so" 2>/dev/null | head -1)
         echo "Path: $PLUGIN_SO"
         echo "Exported symbols (first 5):"
-        nm -D --defined-only "$PLUGIN_SO" 2>/dev/null | grep " T " | head -5
-        PROTO_COUNT_PLUGIN=$(nm -D "$PLUGIN_SO" 2>/dev/null | grep -c protobuf || echo 0)
+        nm -D --defined-only "$PLUGIN_SO" 2>/dev/null | grep " T " | head -5 || true
+        # Use intermediate file to avoid SIGPIPE (exit code 141) with pipefail
+        nm -D "$PLUGIN_SO" 2>/dev/null > /tmp/nm_plugin.txt || true
+        PROTO_COUNT_PLUGIN=$(grep -c protobuf /tmp/nm_plugin.txt 2>/dev/null || echo 0)
         echo "Protobuf symbol count: $PROTO_COUNT_PLUGIN"
         if [ "$PROTO_COUNT_PLUGIN" -eq 0 ]; then
             echo "✅ OK - no protobuf symbols exported"
@@ -378,7 +380,8 @@ jobs:
         PROTO_COUNT_METAL=0
         if [ -n "$METAL_SO" ]; then
             echo "Path: $METAL_SO"
-            PROTO_COUNT_METAL=$(nm -D "$METAL_SO" 2>/dev/null | grep -c protobuf || echo 0)
+            nm -D "$METAL_SO" 2>/dev/null > /tmp/nm_metal.txt || true
+            PROTO_COUNT_METAL=$(grep -c protobuf /tmp/nm_metal.txt 2>/dev/null || echo 0)
             echo "Protobuf symbol count: $PROTO_COUNT_METAL"
             if [ "$PROTO_COUNT_METAL" -gt 0 ]; then
                 echo "⚠️  Has $PROTO_COUNT_METAL protobuf symbols (fix: add version script in tt-metal)"
@@ -392,10 +395,11 @@ jobs:
         
         echo ""
         echo "--- libTTMLIRRuntime.so (built by tt-mlir) ---"
-        RUNTIME_SO=$(find "$PLUGIN_DIR" -name "libTTMLIRRuntime.so" | head -1)
+        RUNTIME_SO=$(find "$PLUGIN_DIR" -name "libTTMLIRRuntime.so" 2>/dev/null | head -1)
         if [ -n "$RUNTIME_SO" ]; then
             echo "Path: $RUNTIME_SO"
-            PROTO_COUNT_RUNTIME=$(nm -D "$RUNTIME_SO" 2>/dev/null | grep -c protobuf || echo 0)
+            nm -D "$RUNTIME_SO" 2>/dev/null > /tmp/nm_runtime.txt || true
+            PROTO_COUNT_RUNTIME=$(grep -c protobuf /tmp/nm_runtime.txt 2>/dev/null || echo 0)
             echo "Protobuf symbol count: $PROTO_COUNT_RUNTIME"
         else
             echo "libTTMLIRRuntime.so not found"
