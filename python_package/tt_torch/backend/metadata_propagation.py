@@ -151,15 +151,18 @@ def _find_enclosing_function(
                         if node.body
                         else node.lineno
                     ):
-                        # Possibly nested, visit children to check for more specific (inner) function
-                        for child in ast.iter_child_nodes(node):
-                            if isinstance(child, ast.FunctionDef):
-                                self.visit(child)
+                        # Recursively visit all children to find more specific (inner) functions.
+                        # This includes functions nested directly AND methods inside nested classes.
+                        self.generic_visit(node)
+
                         # If no more specific one found, record this one
                         if self.found is None or node.lineno > (self.found_lineno or 0):
                             self.found = node
                             self.found_lineno = node.lineno
                             self.found_name = node.name
+
+                # Also handle async functions
+                visit_AsyncFunctionDef = visit_FunctionDef
 
             visitor = LineFunctionVisitor(line_num)
             visitor.visit(tree)
