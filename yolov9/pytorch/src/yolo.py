@@ -547,6 +547,15 @@ class BaseModel(nn.Module):
                 m.conv = fuse_conv_and_bn(m.conv, m.bn)
                 delattr(m, "bn")
                 m.forward = m.forward_fuse
+        # Ensure all parameters are leaf tensors after fusion to allow dtype/device casting
+        for module in self.modules():
+            for pname, p in list(module._parameters.items()):
+                if isinstance(p, torch.nn.Parameter) and not p.is_leaf:
+                    with torch.no_grad():
+                        new_p = torch.nn.Parameter(
+                            p.detach().clone(), requires_grad=p.requires_grad
+                        )
+                    setattr(module, pname, new_p)
         self.info()
         return self
 
