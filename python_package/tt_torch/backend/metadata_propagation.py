@@ -32,6 +32,7 @@ Correct usage pattern:
 
 """
 import ast
+import logging
 import os
 import types
 from dataclasses import dataclass
@@ -39,6 +40,8 @@ from dataclasses import dataclass
 import torch
 import torch_xla
 from torch.utils._python_dispatch import TorchDispatchMode
+
+logger = logging.getLogger(__name__)
 
 # Enable debug logging for location metadata
 DBG_LOC = False
@@ -216,16 +219,30 @@ def _extract_source_and_module_hierarchy_info(
     func_path_ast, found_func_name_ast = _find_enclosing_function(
         full_path, line_num, mode="ast"
     )
+
+    # If either of the paths is "unknown", return unknown loc
+    if "unknown" in (func_path_ast, found_func_name_ast):
+        DBG_LOC and print(
+            f"  unknown function name or path: {func_name}, {found_func_name}, {func_path_ast}, {found_func_name_ast}"
+        )
+        logger.warning(
+            f"Could not find file path or function name for node - location info will be unknown - this will affect codegen"
+        )
+        return EmitLoc.make_unknown(is_debug, op_index)
+
+    # If the function names don't match, raise an error
     if func_name != found_func_name:
         DBG_LOC and print(f"  function name mismatch: {func_name}, {found_func_name}")
         raise ValueError(
-            f"Function name mismatch between stack_trace and found_func_name modes\nstack_trace: {func_name}\nfound_func_name: {found_func_name}"
+            f"Function name mismatch between stack_trace and found_func_name modes\nstack_trace: {func_name}\nfound_func_name: {found_func_name}\nfound_func_name_ast: {found_func_name_ast}"
         )
+
+    # If the function paths don't match, raise an error
     if func_path != func_path_ast:
         DBG_LOC and print(f"  func_path: {func_path}, {found_func_name}")
         DBG_LOC and print(f"  func_path_ast: {func_path_ast}, {found_func_name_ast}")
         raise ValueError(
-            f"Function path mismatch for {full_path}:{line_num} between simple and ast modes\nSimple: {func_path}\n Ast   : {func_path_ast}"
+            f"Function path mismatch for {full_path}:{line_num} between simple and ast modes\nSimple: {func_path}\n   Ast: {func_path_ast}"
         )
 
     # Extract module hierarchy from node's nn_module_stack metadata.
