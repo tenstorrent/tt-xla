@@ -1557,13 +1557,11 @@ test_config:
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     assert_pcc: false
-    status: KNOWN_FAILURE_XFAIL
-    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
+    status: EXPECTED_PASSING
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
     assert_pcc: false
-    status: KNOWN_FAILURE_XFAIL
-    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
+    status: EXPECTED_PASSING
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2402,20 +2400,17 @@ test_config:
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
   arnold/pytorch-deathmatch_shotgun_rnn-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
+    status: EXPECTED_PASSING
 
   arnold/pytorch-vizdoom_2017_track1_rnn-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
+    status: EXPECTED_PASSING
 
   arnold/pytorch-defend_the_center_ff-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "PCC comparison failed. Calculated: pcc=0.9587238430976868. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
 
   arnold/pytorch-vizdoom_2017_track2_rnn-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "TypeError: arange() received an invalid combination of arguments - https://github.com/tenstorrent/tt-xla/issues/2396"
+    status: EXPECTED_PASSING
 
   petr/pytorch-vovnet_gridmask_p4_800x320-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP

@@ -2,10 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import numpy as np
 import pytest
 import torch
-from infra import Framework, run_op_test_with_random_inputs
+from infra import Framework, run_op_test, run_op_test_with_random_inputs
+from infra.comparators.torch_comparator import TorchComparator
 from utils import Category
+
+from tests.infra.comparators.comparison_config import ComparisonConfig
 
 
 @pytest.mark.push

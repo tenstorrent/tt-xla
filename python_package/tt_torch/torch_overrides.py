@@ -7,9 +7,9 @@ from torch.overrides import TorchFunctionMode
 
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
-        if not torch.compiler.is_compiling() and (
+        if (
             func.__name__ == "matmul" or func.__name__ == "linear"
-        ):
+        ) and not torch.compiler.is_compiling():
             if len(args[0].shape) >= 4 or len(args[1].shape) >= 4:
                 if func.__name__ == "linear":
                     # Linear function transposes args[1]
