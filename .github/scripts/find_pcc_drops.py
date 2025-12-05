@@ -113,7 +113,7 @@ def bisect_pcc(dir_a, dir_b, margin=0.01):
             # Check if pcc_a is lower than pcc_b by at least the margin
             if case_a["pcc"] < (case_b["pcc"] - margin):
                 case_a["diff"] = case_b["pcc"] - case_a["pcc"]
-                case_a["good"] = case_a["pcc"] < case_a["pcc_threshold"]
+                case_a["good"] = case_a["pcc"] > case_a["pcc_threshold"]
                 pcc_test_cases.append(case_a)
 
     if len(pcc_test_cases) > 0:
@@ -125,8 +125,8 @@ def bisect_pcc(dir_a, dir_b, margin=0.01):
             f.write(
                 f"# PCC Drop Bisect Results: \n\n{len(pcc_test_cases)} test cases found with PCC drop below margin {margin}:\n\n"
             )
-            f.write("| Good | Test | Drop | PCC | PCC Threshold |\n")
-            f.write("|------|------|------|-----|---------------|\n")
+            f.write("| Good | Test | Drop | PCC | Threshold |\n")
+            f.write("|------|------|------|-----|-----------|\n")
             for pcc_case in pcc_test_cases:
                 good_icon = "✅" if pcc_case["good"] else "❌"
                 f.write(
