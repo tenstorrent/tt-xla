@@ -2184,7 +2184,8 @@ test_config:
 
   transfuser/pytorch-single_device-full-inference:
     assert_pcc: false # PCC is -0.715
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TorchRuntimeError: Dynamo failed to run FX node with fake tensors https://github.com/tenstorrent/tt-xla/issues/2396"
 
   # yolov11/pytorch-yolo11n-single_device-full-inference:
   #   status: EXPECTED_PASSING
