@@ -31,9 +31,9 @@ test_config:
 
   gemma/pytorch-google/gemma-2-27b-it-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    # reason: "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494"
+    # bringup_status: FAILED_RUNTIME
 
   falcon/pytorch-tiiuae/falcon-7b-instruct-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
