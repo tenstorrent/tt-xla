@@ -155,12 +155,6 @@ cleanup() {
 echo "Activating TT-XLA environment..." | tee -a "$LOG_FILE"
 source venv/activate
 
-# Apply the CMakeLists.txt fix for incremental builds
-echo "Applying CMakeLists.txt fix..." | tee -a "$LOG_FILE"
-if [ -f "$SCRIPT_DIR/cmake_fix.patch" ]; then
-    git apply "$SCRIPT_DIR/cmake_fix.patch" 2>/dev/null || echo "Patch already applied or not needed"
-fi
-
 # Modify CMakeLists.txt to use current tt-mlir commit
 echo "Setting tt-mlir version to $TTMLIR_COMMIT_FULL..." | tee -a "$LOG_FILE"
 sed -i "s/set(TT_MLIR_VERSION \"[^\"]*\")/set(TT_MLIR_VERSION \"$TTMLIR_COMMIT_FULL\")/" third_party/CMakeLists.txt
