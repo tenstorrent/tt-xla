@@ -120,6 +120,16 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ccache
+        ccache --set-config=max_size=15G
+        ccache --set-config=compression=true
+        ccache --set-config=direct=true
+        ccache --set-config=hash_dir=true
+        ccache --set-config=base_dir=$(pwd)
+        ccache --set-config=debug=true
+        ccache --set-config=log_file=/tmp/ccache.log
+        touch /tmp/ccache.log
+        echo "CCACHE_LOG_FILE=/tmp/ccache.log" >> "$GITHUB_ENV"
+        ccache --show-config
 
     - name: Fetch job id
       id: fetch-job-id
@@ -397,6 +407,26 @@ jobs:
         files: coverage.info
         disable_search: true
         token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Print ccache debug log
+      if: ${{ always() }}
+      shell: bash
+      run: |
+        LOG_PATH="${CCACHE_LOG_FILE:-/tmp/ccache.log}"
+        if [[ -f "$LOG_PATH" ]]; then
+          echo "=== ccache debug log ==="
+          cat "$LOG_PATH"
+        else
+          echo "ccache log file not found at $LOG_PATH"
+        fi
+
+    - name: Upload ccache debug log
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ccache-debug-log-${{ matrix.build.runs-on }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ env.CCACHE_LOG_FILE }}
+        if-no-files-found: ignore
 
     - name: Show ccache stats
       shell: bash
