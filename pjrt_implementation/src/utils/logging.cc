@@ -20,7 +20,7 @@ void initializeLogging() {
   // be written to stderr. Setting to INFO by default.
   loguru::g_stderr_verbosity = loguru::NamedVerbosity::Verbosity_INFO;
 
-  const char *loguru_verbosity = std::getenv("LOGGER_LEVEL");
+  const char *loguru_verbosity = std::getenv("TTXLA_LOGGER_LEVEL");
   if (!loguru_verbosity) {
     return;
   }
@@ -40,7 +40,7 @@ void initializeLogging() {
   }
 
   // Check for log file configuration - only if LOGGER_LEVEL is set
-  const char *log_file_path = std::getenv("TT_XLA_LOGGER_FILE");
+  const char *log_file_path = std::getenv("TTXLA_LOGGER_FILE");
   if (log_file_path) {
     // Add file output using the same verbosity level as stderr
     loguru::add_file(log_file_path, loguru::Append, loguru::g_stderr_verbosity);
