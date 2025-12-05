@@ -873,7 +873,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ]
             )
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
-        cache_position = (seq_lens - 1).to(self.device)
+
+        cache_position = seq_lens - 1
+
+        if num_reqs == 1:
+            cache_position[1:] = -1
+            page_table[1:, :] = 0
+
+        cache_position = cache_position.to(self.device)
         page_table = page_table.to(self.device)
 
         if self.lora_config is not None:
@@ -1353,36 +1360,33 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.no_grad()
     def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
         if self.supports_mm_inputs:
-            input_ids = torch.zeros(
+            input_ids = None
+            inputs_embeds = torch.zeros(
                 (num_tokens, self.hidden_size),
-                dtype=torch.int32,
-                device=self.device,
-            )
-            inputs_embeds = None
+                dtype=self.dtype,
+            ).to(self.device)
         else:
             input_ids = torch.zeros(
                 (num_tokens,),
                 dtype=torch.int32,
                 device=self.device,
-            )
+            ).to(self.device)
             inputs_embeds = None
 
         position_ids = torch.zeros(
             (num_tokens,),
             dtype=torch.int32,
-            device=self.device,
-        )
+        ).to(self.device)
 
         page_table = torch.zeros(
             (num_reqs, num_blocks),
             dtype=torch.int32,
-            device=self.device,
-        )
+        ).to(self.device)
+
         cache_position = torch.ones(
             (num_reqs,),
             dtype=torch.int32,
-            device=self.device,
-        )
+        ).to(self.device)
 
         attn_metadata = TTMetadata(
             page_table=page_table,
@@ -1865,8 +1869,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             compiled_model.compiled_codes.clear()
 
-    torch.compile(backend="tt", fullgraph=True, dynamic=False)
-
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
         return hidden_states[indices_do_sample]
 
