@@ -134,6 +134,7 @@ def generate_attn_mask(
     num_query_tokens: int,
     num_query_heads: int,
     max_model_len: int,
+    is_decoder_only: bool,
     dtype: torch.dtype,
     device: torch.device,
 ) -> torch.Tensor:
@@ -141,10 +142,15 @@ def generate_attn_mask(
     Generate an attention mask for encoder/pooling models with possible
     multiple concatenated sequences and padding.
 
+    Note:
+        Decoder-only attention layers require causal attention (triangular) masks.
+        Encoder-only attention layers require bidirectional self-attention (square) masks.
+
     Args:
         context_lens: 1D tensor of sequence lengths, e.g. [37, 6, 6] or [40, 0, 0].
                       Sum of non-zero lengths = total valid tokens.
         num_query_tokens: Total padded sequence length (e.g. 64).
+        is_decoder_only: Whether the attention layers are decoder-only or encoder-only.
         dtype: torch.dtype (usually torch.float32)
         device: torch.device
 
@@ -165,8 +171,13 @@ def generate_attn_mask(
         end = valid_pos + seg_len
         valid_pos = end
 
-        # Create a lower-triangular (causal) mask within the segment
-        segment_mask = torch.tril(torch.ones((seg_len, seg_len), dtype=torch.bool))
+        if is_decoder_only:
+            # Create a lower-triangular (causal) mask within the segment
+            segment_mask = torch.tril(torch.ones((seg_len, seg_len), dtype=torch.bool))
+        else:
+            # Create a full attention mask within the segment
+            segment_mask = torch.ones((seg_len, seg_len), dtype=torch.bool)
+
         attn_mask[:, :, start:end, start:end] = torch.where(
             segment_mask, torch.zeros((), dtype=dtype), float("-inf")
         )
@@ -368,6 +379,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
             )
         )
+
+        # vLLM only supports decoder-only or encoder-only models for pooling.
+        # Model type is determined with get_kv_cache_spec() using the attention layers.
+        # Model type is used for attention mask generation.
+        # - Decoder-only attention layers require causal attention (triangular) masks.
+        # - Encoder-only attention layers require bidirectional self-attention (square) masks.
+        self.is_decoder_only_attn_layers = False
 
         # Lazy initialization
         self.model: nn.Module  # Set after load_model
@@ -690,6 +708,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 continue
 
             if attn_module.attn_type == AttentionType.DECODER:
+                self.is_decoder_only_attn_layers = True
                 if isinstance(attn_module, ChunkedLocalAttention):
                     logger.warning_once(
                         "Using irope in Pallas is not supported yet, it "
@@ -717,6 +736,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 AttentionType.ENCODER_ONLY,
             ):
                 # encoder-only attention does not need KV cache.
+                self.is_decoder_only_attn_layers = False
                 continue
             elif attn_module.attn_type == AttentionType.ENCODER_DECODER:
                 raise NotImplementedError
@@ -927,14 +947,18 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_mask = None
         is_causal = True
 
-        # Use custom mask if number of request per batch can exceed one; only
-        # supported for batch-1.
-        if self.batch_size == 1 and self.max_num_reqs > 1:
+        # Encoder-only models always require custom attention mask.
+        # Decoder-only models require custom attention mask only when number of
+        # request per batch can exceed one; only supported for batch-1.
+        if (
+            self.batch_size == 1 and self.max_num_reqs > 1
+        ) or not self.is_decoder_only_attn_layers:
             attn_mask = generate_attn_mask(
                 seq_lens,
                 self.input_ids.shape[-1],
                 self.num_query_heads,
                 self.max_model_len,
+                self.is_decoder_only_attn_layers,
                 self.dtype,
                 self.device,
             )
@@ -1336,14 +1360,18 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_mask = None
         is_causal = True
 
-        # Use custom mask if number of request per batch can exceed one; only
-        # supported for batch-1.
-        if self.batch_size == 1 and self.max_num_reqs > 1:
+        # Encoder-only models always require custom attention mask.
+        # Decoder-only models require custom attention mask only when number of
+        # request per batch can exceed one; only supported for batch-1.
+        if (
+            self.batch_size == 1 and self.max_num_reqs > 1
+        ) or not self.is_decoder_only_attn_layers:
             attn_mask = generate_attn_mask(
                 context_lens,
                 input_ids.shape[-1],
                 self.num_query_heads,
                 self.max_model_len,
+                self.is_decoder_only_attn_layers,
                 self.dtype,
                 self.device,
             )
