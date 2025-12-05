@@ -542,7 +542,7 @@ jobs:
           done
 
           # Create markdown file for this commit
-          echo "# Bad Commit Analysis [Nightly](<https://github.com/${{ github.repository }}/actions/runs/${{ needs.inspect.outputs.curr_wf_id }}/attempts/${{ needs.inspect.outputs.curr_wf_attempt }}>)" > .bisect-report.md
+          echo "# Bad Commit Analysis [Nightly](<https://github.com/tenstorrent/tt-xla/actions/runs/${{ needs.inspect.outputs.curr_wf_id }}/attempts/${{ needs.inspect.outputs.curr_wf_attempt }}>)" > .bisect-report.md
           echo "" >> .bisect-report.md
           echo "Bad Commit Analysis :arrow_heading_down:" > .bisect-msg.txt
           for commit_file in bisect-commits/*; do
