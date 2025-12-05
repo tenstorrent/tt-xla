@@ -23,6 +23,7 @@ from ...config import (
 )
 from ...base import ForgeModel
 from ...tools.utils import get_file
+from .src.utils import _forward_patch, _decode_outputs
 
 
 class ModelVariant(StrEnum):
@@ -110,6 +111,10 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The YOLOX model instance.
         """
         from yolox.exp import get_exp  # Defer heavy import
+        from yolox.models.yolo_head import YOLOXHead
+
+        YOLOXHead.forward = _forward_patch
+        YOLOXHead.decode_outputs = _decode_outputs
 
         # Get the model name from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
