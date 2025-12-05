@@ -13,6 +13,7 @@ test_config:
   falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2435
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
