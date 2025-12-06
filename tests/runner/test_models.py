@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import socket
 
 import pytest
 from infra import RunMode
@@ -18,6 +19,7 @@ from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
+    create_benchmark_result,
     fix_venv_isolation,
     record_model_test_properties,
     update_test_metadata_for_exception,
@@ -183,6 +185,21 @@ def test_all_models_torch(
                 comparison_result=comparison_result,
                 comparison_config=comparison_config,
             )
+
+            # perf benchmarking
+            if not request.config.getoption("--disable-perf"):
+                full_model_name = model_info.name
+                measurements = getattr(tester, "_perf_measurements", None)
+
+                # create benchmark result   if not disabled
+                create_benchmark_result(
+                    full_model_name=full_model_name,
+                    measurements=measurements,
+                    model_type="generic",
+                    training=False,
+                    model_info=full_model_name,
+                    device_name=socket.gethostname(),
+                )
 
 
 @pytest.mark.model_test
