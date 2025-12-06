@@ -6,6 +6,7 @@
 #include "api/module_builder/module_builder.h"
 
 // c++ standard library includes
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cstdlib>
@@ -808,6 +809,9 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_mlir) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
+  // Static counter for auto-numbering graphs when perf metrics are enabled
+  static std::atomic<int> graph_counter{0};
+
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
   // Optimizer passes are not supported in distributed runtime.
@@ -828,8 +832,37 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
   options.ttnnPerfMetricsEnabled = compile_options.ttnn_perf_metrics_enabled;
-  options.ttnnPerfMetricsOutputFile =
-      compile_options.ttnn_perf_metrics_output_file;
+
+  // Auto-number performance metrics output file if enabled
+  if (compile_options.ttnn_perf_metrics_enabled &&
+      !compile_options.ttnn_perf_metrics_output_file.empty()) {
+    // Get current graph index and increment for next compilation
+    int current_graph_idx = graph_counter.fetch_add(1);
+
+    std::string base_path = compile_options.ttnn_perf_metrics_output_file;
+
+    // Check if the base path already has a file extension
+    size_t last_dot = base_path.find_last_of('.');
+    if (last_dot != std::string::npos &&
+        last_dot > base_path.find_last_of('/')) {
+      // Has extension, insert number before it: "path/file.json" ->
+      // "path/file_0.json"
+      options.ttnnPerfMetricsOutputFile = base_path.substr(0, last_dot) + "_" +
+                                          std::to_string(current_graph_idx) +
+                                          base_path.substr(last_dot);
+    } else {
+      // No extension, append number and .json: "path/file" ->
+      // "path/file_0.json"
+      options.ttnnPerfMetricsOutputFile =
+          base_path + "_" + std::to_string(current_graph_idx) + ".json";
+    }
+
+    DLOG_F(INFO, "Graph %d: Writing performance metrics to %s",
+           current_graph_idx, options.ttnnPerfMetricsOutputFile.c_str());
+  } else {
+    options.ttnnPerfMetricsOutputFile =
+        compile_options.ttnn_perf_metrics_output_file;
+  }
 
   if (devices_mesh_shape.size() != 2) {
     DLOG_F(ERROR,
