@@ -16,22 +16,18 @@ import vllm
         pytest.param(
             "BAAI/bge-m3",
             "baseline/bge_m3_baseline.pt",
-            marks=pytest.mark.xfail(reason="Bad PCC"),
         ),
         pytest.param(
             "BAAI/bge-base-en",
             "baseline/bge_base_en_baseline.pt",
-            marks=pytest.mark.xfail(reason="Bad PCC"),
         ),
         pytest.param(
             "BAAI/bge-large-en",
             "baseline/bge_large_en_baseline.pt",
-            marks=pytest.mark.xfail(reason="Bad PCC"),
         ),
         pytest.param(
             "BAAI/bge-small-en",
             "baseline/bge_small_en_baseline.pt",
-            marks=pytest.mark.xfail(reason="Bad PCC"),
         ),
     ],
 )
@@ -94,8 +90,7 @@ def test_embed_bge(model_name: str, baseline_path):
         print("-" * 60)
         pcc_values.append(pcc.item())
 
-    if any(p < 0.99 for p in pcc_values):
-        pytest.xfail(f"PCC too low.")
+    assert all(p >= 0.99 for p in pcc_values), f"Low PCC values: {pcc_values}"
 
 
 @pytest.mark.nightly
