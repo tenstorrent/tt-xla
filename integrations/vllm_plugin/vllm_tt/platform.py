@@ -85,7 +85,7 @@ class TTPlatform(Platform):
     ) -> str:
         if not use_v1:
             raise ValueError("TT backend only supports V1.")
-        logger.info("Using Pallas V1 backend.")
+        logger.info("Using TT Attention layer.")
         return "vllm_tt.attention.TTAttentionBackend"
 
     @classmethod
