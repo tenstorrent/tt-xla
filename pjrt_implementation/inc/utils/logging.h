@@ -12,6 +12,7 @@
 // is called `Verbosity_1`, so defining this to avoid doing `DLOG_F(1, ...)`.
 #define LOG_DEBUG 1
 #define LOG_VERBOSE 2
+#define LOG_VERBOSE_TREE 3
 
 #include <loguru/loguru.hpp>
 
