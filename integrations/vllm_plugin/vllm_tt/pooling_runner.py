@@ -134,58 +134,73 @@ def generate_attn_mask(
     num_query_tokens: int,
     num_query_heads: int,
     max_model_len: int,
+    batch_size: int,
     is_decoder_only: bool,
     dtype: torch.dtype,
     device: torch.device,
 ) -> torch.Tensor:
     """
-    Generate an attention mask for encoder/pooling models with possible
-    multiple concatenated sequences and padding.
+    Generate an attention mask.
 
-    Note:
-        Decoder-only attention layers require causal attention (triangular) masks.
-        Encoder-only attention layers require bidirectional self-attention (square) masks.
+    - Decoder-only models use causal (triangular) attention, but only when the
+      input contains multiple concatenated sequences (i.e., sequences that must
+      not attend to each other). A single contiguous sequence requires no causal
+      mask.
+
+    - Encoder-only models use bidirectional self-attention (square masks). These
+      models require an attention mask whenever padding or multiple sequences
+      are present; a single unpadded sequence requires no mask. However, we are
+      using attention masks for all inputs for simplicity and to reduce number
+      of precompiled graphs.
 
     Args:
         context_lens: 1D tensor of sequence lengths, e.g. [37, 6, 6] or [40, 0, 0].
                       Sum of non-zero lengths = total valid tokens.
         num_query_tokens: Total padded sequence length (e.g. 64).
+        batch_size: Batch size of the input.
         is_decoder_only: Whether the attention layers are decoder-only or encoder-only.
         dtype: torch.dtype (usually torch.float32)
         device: torch.device
 
     Returns:
-        attn_mask: Tensor of shape [1, 1, num_query_tokens, num_query_tokens]
+        attn_mask: Tensor of shape [batch_size, 1, num_query_tokens, num_query_tokens]
                    - -inf where attention should be blocked
                    - 0 where attention is allowed (within same segment)
     """
 
-    L = num_query_tokens
-    attn_mask = torch.full((1, 1, L, L), float("-inf"), dtype=dtype)
+    attn_mask = torch.full(
+        (batch_size, 1, num_query_tokens, num_query_tokens), float("-inf"), dtype=dtype
+    )
     valid_pos = 0
+    batch_idx = 0
 
     for seg_len in context_lens.tolist():
         if seg_len <= 0:
             continue  # skip empty segments
+        # Determine the start and end positions for the current input sequence.
         start = valid_pos
         end = valid_pos + seg_len
-        valid_pos = end
 
         if is_decoder_only:
             # Create a lower-triangular (causal) mask within the segment
             segment_mask = torch.tril(torch.ones((seg_len, seg_len), dtype=torch.bool))
         else:
-            # Create a full attention mask within the segment
+            # Create a bidirectional self attention mask within the segment
             segment_mask = torch.ones((seg_len, seg_len), dtype=torch.bool)
 
-        attn_mask[:, :, start:end, start:end] = torch.where(
+        attn_mask[batch_idx, :, start:end, start:end] = torch.where(
             segment_mask, torch.zeros((), dtype=dtype), float("-inf")
         )
 
-    # Mask out any remaining padded region (no attention at all)
-    if valid_pos < L:
-        attn_mask[:, :, valid_pos:, :] = float("-inf")
-        attn_mask[:, :, :, valid_pos:] = float("-inf")
+        if batch_size > 1:
+            # Move to the next batch entry after processing current input sequence
+            # and reset the valid position for the next segment in case
+            # of multiple batches.
+            batch_idx += 1
+            valid_pos = 0
+        else:
+            # Update the valid position for the next segment within the same batch.
+            valid_pos = end
 
     return attn_mask.detach().to(device)
 
@@ -958,6 +973,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.input_ids.shape[-1],
                 self.num_query_heads,
                 self.max_model_len,
+                num_reqs,
                 self.is_decoder_only_attn_layers,
                 self.dtype,
                 self.device,
@@ -1349,7 +1365,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         position_ids = torch.zeros((batch_size, num_tokens), dtype=torch.int32).to(
             self.device
         )
-        context_lens = torch.ones((num_reqs,), dtype=torch.int32)
+        context_lens = torch.ones((batch_size,), dtype=torch.int32)
 
         # Mark inputs for data parallel sharding.
         if self.data_parallel_inference:
@@ -1371,6 +1387,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 input_ids.shape[-1],
                 self.num_query_heads,
                 self.max_model_len,
+                batch_size,
                 self.is_decoder_only_attn_layers,
                 self.dtype,
                 self.device,
