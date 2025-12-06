@@ -132,8 +132,6 @@ MIN_NUM_SEQS = 1
 def generate_attn_mask(
     context_lens: torch.Tensor,
     num_query_tokens: int,
-    num_query_heads: int,
-    max_model_len: int,
     batch_size: int,
     is_decoder_only: bool,
     dtype: torch.dtype,
@@ -971,9 +969,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask = generate_attn_mask(
                 seq_lens,
                 self.input_ids.shape[-1],
-                self.num_query_heads,
-                self.max_model_len,
-                num_reqs,
+                num_reqs if self.batch_size > 1 else 1,
                 self.is_decoder_only_attn_layers,
                 self.dtype,
                 self.device,
@@ -1385,8 +1381,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask = generate_attn_mask(
                 context_lens,
                 input_ids.shape[-1],
-                self.num_query_heads,
-                self.max_model_len,
                 batch_size,
                 self.is_decoder_only_attn_layers,
                 self.dtype,
