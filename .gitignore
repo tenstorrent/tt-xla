@@ -19,8 +19,14 @@ Testing/
 
 # Python
 __pycache__/
+*.pyc
 .env
 .venv
+.venv/
+/.venv311/
+*/venv/
+*/.venv/
+*/.venv311/
 env/
 venv/*
 !venv/activate
@@ -37,3 +43,17 @@ bindist/
 
 # Bisect artifacts
 .bisect-run/
+
+# Hugging Face model artifacts (weights/config/tokenizer)
+*.safetensors
+tokenizer.json
+tokenizer.model
+tokenizer_config.json
+special_tokens_map.json
+merges.txt
+vocab.json
+config.json
+generation_config.json
+
+# Local downloaded weights directory
+/qwen2_5_7b/
