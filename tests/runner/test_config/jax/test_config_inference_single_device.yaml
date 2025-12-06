@@ -177,12 +177,8 @@ test_config:
     markers: [push]
 
   gpt_neo/causal_lm/jax-_1_3b-single_device-full-inference:
-    arch_overrides:
-      n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "PCC comparison failed. Calculated: pcc=0.98946213722229. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2237"
-      p150:
-        status: EXPECTED_PASSING
+    required_pcc: 0.988 # PCC dropped from <0.992 to <0.99 after tilize was *improved*
+    status: EXPECTED_PASSING
 
   gpt_neo/causal_lm/jax-_2_7b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -342,15 +338,8 @@ test_config:
     status: EXPECTED_PASSING
 
   resnet/image_classification/jax-resnet-152-single_device-full-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Bad PCC on blackhole - Calculated: pcc=0.9893742799758911. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1844"
-        bringup_status: INCORRECT_RESULT
-      n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "PCC comparison failed. Calculated: pcc=0.9895531535148621. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2237"
+    required_pcc: 0.988 # We have >0.9893 on both, BH was <0.99 from the start, WH regressed from <0.992 to <0.99 after tilize was *improved*
+    status: EXPECTED_PASSING
 
   roberta/masked_lm/jax-base-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
