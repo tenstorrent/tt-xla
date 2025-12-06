@@ -48,6 +48,7 @@ on:
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
+  TT_METAL_CCACHE_KERNEL_SUPPORT: 1
   TT_XLA_CI: 1
 
 jobs:
@@ -113,6 +114,29 @@ jobs:
           integrations/vllm_plugin/requirements-vllm-plugin.txt
           tests
           venv
+
+    - name: Install and configure ccache
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ccache
+
+        export CCACHE_DIR="${DOCKER_CACHE_ROOT}/.ccache"
+        mkdir -p "$CCACHE_DIR"
+        ccache --set-config=cache_dir="$CCACHE_DIR"
+        mkdir -p "$CCACHE_DIR"
+        echo "CCACHE_DIR=$CCACHE_DIR" >> "$GITHUB_ENV"
+
+        ccache --set-config=cache_dir=$CCACHE_DIR
+        ccache --set-config=max_size=15G
+        ccache --set-config=compression=true
+        ccache --set-config=hash_dir=false
+        ccache --set-config=base_dir=$GITHUB_WORKSPACE
+        ccache --set-config=debug=true
+        ccache --set-config=log_file=/tmp/ccache.log
+        touch /tmp/ccache.log
+        echo "CCACHE_LOG_FILE=/tmp/ccache.log" >> "$GITHUB_ENV"
+        ccache --show-config
 
     - name: Fetch job id
       id: fetch-job-id
@@ -390,3 +414,16 @@ jobs:
         files: coverage.info
         disable_search: true
         token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Upload ccache debug log
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ccache-debug-log-${{ matrix.build.runs-on }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ env.CCACHE_LOG_FILE }}
+        if-no-files-found: ignore
+
+    - name: Show ccache stats
+      shell: bash
+      run: |
+        ccache -s
