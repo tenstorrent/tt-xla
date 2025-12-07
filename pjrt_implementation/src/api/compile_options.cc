@@ -43,6 +43,9 @@ CompileOptions CompileOptions::parse(
   options.enable_const_eval =
       internal::parseBoolOption(compile_options, "enable_const_eval")
           .value_or(true);
+  options.enable_permute_matmul_fusion =
+      internal::parseBoolOption(compile_options, "enable_permute_matmul_fusion")
+          .value_or(options.enable_permute_matmul_fusion);
   options.ttnn_perf_metrics_enabled =
       internal::parseBoolOption(compile_options, "ttnn_perf_metrics_enabled")
           .value_or(false);
