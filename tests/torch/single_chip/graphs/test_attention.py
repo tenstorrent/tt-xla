@@ -228,6 +228,157 @@ def test_llama_embedding_decode_layer(seq_len, variant, variant_config, is_llmbo
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
+def test_llama_decode_layer(seq_len, variant, variant_config, is_llmbox):
+    if "70b" in str(variant) and not is_llmbox:
+        pytest.skip("70B models don't fit on a single device")
+
+    xr.set_device_type("TT")
+
+    loader = LlamaModelLoader(variant=variant)
+    config = loader.load_config()
+    class Wrapper(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.decoder_layer = LlamaDecoderLayer(config, layer_idx=0).to(torch.bfloat16)
+
+        def forward(self, hidden_states, position_embeddings, attention_mask, past_key_state):
+            hidden_states = self.decoder_layer(hidden_states, attention_mask=attention_mask, position_embeddings=position_embeddings, past_key_state=past_key_state)
+            return hidden_states[0]
+
+    wrapper = Wrapper().to(torch.bfloat16)
+    batch_size = 1
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+
+        batch_size = 2
+        mesh_shape = (2, num_devices // 2)
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)  # hidden_states
+            shard_specs[args[1][0]] = ("batch", None, None)  # cos
+            shard_specs[args[1][1]] = ("batch", None, None)  # sin
+            shard_specs[args[2]] = ("batch", None, None, None)  # mask
+            shard_specs[wrapper.decoder_layer.self_attn.q_proj.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.self_attn.k_proj.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.self_attn.v_proj.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.self_attn.o_proj.weight] = (None, "model")
+            shard_specs[wrapper.decoder_layer.mlp.gate_proj.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.mlp.up_proj.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.mlp.down_proj.weight] = ("model", None)
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    hidden_states = torch.rand(batch_size, seq_len, config.hidden_size, dtype=torch.bfloat16)
+    cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    past_key_states = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
+
+    run_graph_test(
+        wrapper,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+
+@pytest.mark.nightly
+@parametrize_is_llmbox()  # True for llmbox, False for single device
+@pytest.mark.parametrize("seq_len", [512])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("llama").items(),
+    ids=[str(k) for k in get_available_variants("llama").keys()],
+)
+def test_llama_decode_layer_lm_head(seq_len, variant, variant_config, is_llmbox):
+    if "70b" in str(variant) and not is_llmbox:
+        pytest.skip("70B models don't fit on a single device")
+
+    xr.set_device_type("TT")
+
+    loader = LlamaModelLoader(variant=variant)
+    config = loader.load_config()
+    class Wrapper(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.decoder_layer = LlamaDecoderLayer(config, layer_idx=0).to(torch.bfloat16)
+            self.lm_head = torch.nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+
+        def forward(self, hidden_states, position_embeddings, attention_mask, past_key_state):
+            hidden_states = self.decoder_layer(hidden_states, attention_mask=attention_mask, position_embeddings=position_embeddings, past_key_state=past_key_state)
+            return self.lm_head(hidden_states[0])
+
+    wrapper = Wrapper().to(torch.bfloat16)
+    batch_size = 1
+
+    if is_llmbox:
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+
+        batch_size = 2
+        mesh_shape = (2, num_devices // 2)
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[0]] = ("batch", None, None)  # hidden_states
+            shard_specs[args[1][0]] = ("batch", None, None)  # cos
+            shard_specs[args[1][1]] = ("batch", None, None)  # sin
+            shard_specs[args[2]] = ("batch", None, None, None)  # mask
+            shard_specs[wrapper.lm_head.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.self_attn.q_proj.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.self_attn.k_proj.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.self_attn.v_proj.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.self_attn.o_proj.weight] = (None, "model")
+            shard_specs[wrapper.decoder_layer.mlp.gate_proj.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.mlp.up_proj.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.mlp.down_proj.weight] = ("model", None)
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    hidden_states = torch.rand(batch_size, seq_len, config.hidden_size, dtype=torch.bfloat16)
+    cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    past_key_states = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
+
+    run_graph_test(
+        wrapper,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@parametrize_is_llmbox()  # True for llmbox, False for single device
+@pytest.mark.parametrize("seq_len", [512])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("llama").items(),
+    ids=[str(k) for k in get_available_variants("llama").keys()],
+)
 def test_llama_embedding_attention_prefill(seq_len, variant, variant_config, is_llmbox):
     if "70b" in str(variant) and not is_llmbox:
         pytest.skip("70B models don't fit on a single device")
