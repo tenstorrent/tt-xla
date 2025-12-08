@@ -268,7 +268,24 @@ def _to_marshal_safe(value):
 def _derive_guidance_from_pcc(comparison_result, comparison_config) -> list[str]:
     """
     Derive guidance tags from PCC metrics and thresholds.
-    Guidance encodes suggestions such as enabling PCC or raising thresholds.
+
+    These tags are intended for visual aid today and may be used by future
+    automation to promote/demote tests (tighten/enable thresholds) in nightly CI.
+
+    Meanings:
+    - ENABLE_PCC: PCC check is currently disabled, but measured pcc is safely above
+      the current threshold + buffer → enable PCC at the current required threshold.
+    - ENABLE_PCC_099: Same as ENABLE_PCC, but when the current threshold is already
+      in the 0.99 regime (>= 0.99). Useful to call out the stricter default explicitly.
+    - RAISE_PCC: Current threshold < 0.99 and measured pcc exceeds the next
+      centesimal step (e.g., 0.97 → 0.98) by a small buffer → suggest raising to
+      that next step.
+    - RAISE_PCC_099: Current threshold < 0.99 and measured pcc exceeds 0.99 by a
+      small buffer → suggest raising directly to 0.99 (ie. the usual default).
+
+    Notes:
+    - A small buffer (PCC_BUFFER) is applied to avoid suggestions when values are
+      within noise of the boundary (e.g., 0.992 is too close to 0.99 to raise).
     """
     # Small buffer to avoid enabling/tightening thresholds when near boundary,
     # ie. 0.992 is too close to 0.99 to raise the threshold.
