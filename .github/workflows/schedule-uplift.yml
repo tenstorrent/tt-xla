@@ -9,7 +9,7 @@ on:
   workflow_dispatch:  # Manual trigger
     inputs:
       force-overwrite:
-        description: 'Proceed even if an existing uplift PR with multiple commits exists'
+        description: 'Proceed to force overwrite existing uplift branch PR if one exists.'
         type: boolean
         default: false
 
