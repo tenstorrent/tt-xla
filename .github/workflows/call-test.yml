@@ -352,7 +352,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-log-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-log-${{ needs.generate-matrix-test.outputs.test_matrix_name }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: pytest.log
 
     - name: Upload Test Report
@@ -381,7 +381,7 @@ jobs:
 
   test-summary:
     runs-on: ubuntu-latest
-    needs: run-tests
+    needs: [ generate-matrix-test, run-tests ]
     if: success() || failure()
     steps:
       - uses: actions/checkout@v4
@@ -391,7 +391,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-*" --dir test_reports || echo "No reports found"
+          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_name }}*" --dir test_reports || echo "No reports found"
           find test_reports -name "report_*.xml" -type f -exec mv {} test_reports/ \;
 
       - name: Show consolidated test report
@@ -400,7 +400,7 @@ jobs:
         if: success() || failure()
         with:
           report_paths: test_reports/report_*.xml
-          check_name: All TT-XLA Tests
+          check_name: TT-XLA ${{ needs.generate-matrix-test.outputs.test_matrix_name }}
           comment: true
           updateComment: true
           detailed_summary: true

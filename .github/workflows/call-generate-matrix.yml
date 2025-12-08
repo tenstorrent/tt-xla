@@ -15,12 +15,16 @@ on:
       test_matrix:
         description: 'Generated JSON test matrix'
         value: ${{ jobs.generate.outputs.test-matrix }}
+      test_matrix_name:
+        description: 'Name of the test matrix group'
+        value: ${{ jobs.generate.outputs.test-matrix-name }}
 
 jobs:
   generate:
     runs-on: ubuntu-latest
     outputs:
       test-matrix: ${{ steps.generate-test-matrix.outputs.test-matrix }}
+      test-matrix-name: ${{ steps.generate-test-matrix.outputs.test-matrix-name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -52,7 +56,11 @@ jobs:
 
           python $SCRIPT_PATH "$TEST_SUITE_FILES" "$PATH_PREFIX" > modified-matrix.json
 
-          echo "Generated test matrix"
+          # name the group of tests sanitizing test_suite input
+          name=$(echo "${{ inputs.test_suite }}" | sed 's/\.[^.]*$//' | sed 's/ /-/g')
+          echo "test-matrix-name=$name" >> $GITHUB_OUTPUT
+
+          echo "Generated test matrix $name:"
           cat modified-matrix.json
 
           echo "test-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
