@@ -1,7 +1,13 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import glob
 import os
+import shutil
+import subprocess
+import sys
+import warnings
+from typing import List, Optional
 import socket
 
 import pytest
@@ -12,6 +18,8 @@ from infra.testers.single_chip.model import (
     JaxDynamicLoader,
     TorchDynamicLoader,
 )
+from op_by_op_infra.pydantic_models import OpTest, model_to_dict
+from op_by_op_infra.workflow import run_op_by_op_workflow
 
 from tests.infra.comparators.comparator import Comparator, ComparisonResult
 from tests.infra.utilities.filecheck_utils import *
@@ -41,6 +49,7 @@ MODELS_ROOT_TORCH, test_entries_torch = TorchDynamicLoader.setup_test_discovery(
     PROJECT_ROOT
 )
 MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJECT_ROOT)
+all_test_entries = test_entries_torch + test_entries_jax
 
 
 def _run_model_test_impl(
@@ -118,7 +127,7 @@ def _run_model_test_impl(
                                 model_loader=loader,
                                 comparison_config=test_metadata.to_comparison_config(),
                                 num_devices=1,
-                                #compiler_config=compiler_config
+                                compiler_config=compiler_config,
                             )
                         else:
                             tester = DynamicJaxModelTester(
@@ -324,6 +333,114 @@ def test_all_models_jax(
         test_metadata=test_metadata,
         captured_output_fixture=captured_output_fixture,
     )
+
+
+@pytest.mark.model_test
+@pytest.mark.no_auto_properties
+@pytest.mark.parametrize(
+    "run_mode",
+    [
+        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
+    ],
+)
+@pytest.mark.parametrize(
+    "parallelism",
+    [
+        pytest.param(
+            Parallelism.SINGLE_DEVICE,
+            id="single_device",
+            marks=pytest.mark.single_device,
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "test_entry",
+    all_test_entries,
+    ids=lambda e: DynamicLoader.generate_test_id(
+        e, MODELS_ROOT_TORCH if e.framework == Framework.TORCH else MODELS_ROOT_JAX
+    ),
+)
+def test_all_models_op_by_op(
+    test_entry, run_mode, parallelism, record_property, request
+):
+    """Run model tests in op-by-op mode.
+
+    This test spawns a subprocess that executes the model test with --dump-irs flag to collect StableHLO IR.
+    Then it executes each op wrapped in a module individually.
+    """
+    if test_entry.framework == Framework.TORCH:
+        test_func = "test_all_models_torch"
+        models_root = MODELS_ROOT_TORCH
+    else:
+        test_func = "test_all_models_jax"
+        models_root = MODELS_ROOT_JAX
+
+    # Get test id and model info.
+    test_id = DynamicLoader.generate_test_id(test_entry, models_root)
+    variant, ModelLoader = test_entry.variant_info
+    model_info = ModelLoader.get_model_info(variant=variant)
+
+    nodeid = (
+        f"tests/runner/test_models.py::{test_func}"
+        f"[{test_id}-{parallelism.value}-{run_mode.value}]"
+    )
+
+    pytest_cmd = [sys.executable, "-m", "pytest", nodeid, "-v", "--dump-irs"]
+
+    subprocess_result = subprocess.run(
+        pytest_cmd,
+        cwd=PROJECT_ROOT,
+        capture_output=False,
+        text=True,
+    )
+
+    artifacts_dir = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
+    pattern = os.path.join(artifacts_dir, "irs", "shlo_compiler*.mlir")
+
+    matches = glob.glob(pattern)
+    if not matches:
+        raise FileNotFoundError(f"No file matching {pattern} with dumped IR found")
+
+    results = []
+    for ir_file_path in matches:
+        try:
+            with open(ir_file_path, "r") as f:
+                module = f.read()
+        except (FileNotFoundError, IOError, OSError) as e:
+            pytest.fail(
+                f"Op-by-op test failed because IR file couldn't be read.\n"
+                f"Test: {nodeid}\n"
+                f"File: {ir_file_path}"
+            )
+
+        module_results = run_op_by_op_workflow(
+            module=module,
+            compile_before_split=False,
+            compile_each_submodule_after_split=False,
+            frontend="tt-xla",
+            model_name=model_info.name,
+        )
+        results.extend(module_results)
+
+    for op_result in results:
+        record_property(
+            f"OpTest model for: {op_result.op_name}", model_to_dict(op_result)
+        )
+
+    shutil.rmtree(artifacts_dir)
+
+    if subprocess_result.returncode != 0:
+        warnings.warn(
+            f"IR collection subprocess completed with exit code {subprocess_result.returncode}, some IR module might be missing from analysis.",
+        )
+
+    failed_operations = sum(1 for r in results if not r.success)
+    if failed_operations > 0:
+        pytest.fail(
+            f"Test failed: {failed_operations} operation(s) failed out of {len(results)} total operations",
+            pytrace=False,
+        )
 
 
 # A test to generate placeholder model reports for models not yet added to tt-forge-models
