@@ -1123,12 +1123,11 @@ test_config:
 
   inception/pytorch-inception_v4.tf_in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
     markers: [weekly]
 
   inception/pytorch-inceptionv4-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
+    reason: "error: 'ttnn.avg_pool2d' op Kernel height 8 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
     markers: [weekly]
 
   dla/pytorch-dla34.in1k-single_device-full-training:
@@ -1627,7 +1626,7 @@ test_config:
     markers: [weekly]
 
   glpn_kitti/pytorch-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
     markers: [weekly]
 
