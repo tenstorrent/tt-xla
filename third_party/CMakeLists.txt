@@ -5,7 +5,14 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "97607eacd98077c68947c5a609d9fb8da284ccb6")
+    # fix updateShapes() commit
+    # set(TT_MLIR_VERSION "31b88f95e9c211fb18b732267f1c035249d67ec5")
+    # Use top-down traversal commit
+    set(TT_MLIR_VERSION "032b3e6fde64e773e01815c425f9534cb6d478e4")
+    # Use top-down traversal commit + no all_to_all on replicated operand
+    # set(TT_MLIR_VERSION "5e7445b030c7e1516e0e9a9a9bdedd1ea7bf76c5")
+    # Use top-down traversal + consteval dram fix
+    # set(TT_MLIR_VERSION "fd5bc254df5e4e164f001cfe80b0a54ebaa55f5b")
 endif()
 
 set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
