@@ -5,6 +5,7 @@
 import collections
 import importlib.util
 import inspect
+import math
 import numbers
 import os
 import sys
@@ -264,6 +265,45 @@ def _to_marshal_safe(value):
     return str(value)
 
 
+def _derive_guidance_from_pcc(comparison_result, comparison_config) -> list[str]:
+    """
+    Derive guidance tags from PCC metrics and thresholds.
+    Guidance encodes suggestions such as enabling PCC or raising thresholds.
+    """
+    # Small buffer to avoid enabling/tightening thresholds when near boundary,
+    # ie. 0.992 is too close to 0.99 to raise the threshold.
+    PCC_BUFFER = 0.004
+    guidance: list[str] = []
+
+    # Both inputs are required, otherwise we can't derive any guidance.
+    if comparison_result is None or comparison_config is None:
+        return guidance
+
+    pcc_value = comparison_result.pcc
+    pcc_threshold = comparison_config.pcc.required_pcc
+    pcc_enabled = comparison_config.pcc.enabled
+
+    if None not in (pcc_value, pcc_threshold, pcc_enabled):
+        # Suggest enabling PCC if safely above threshold+buffer but disabled
+        if (pcc_value > (pcc_threshold + PCC_BUFFER)) and (pcc_enabled is False):
+            if pcc_threshold >= 0.99:
+                guidance.append("ENABLE_PCC_099")
+            else:
+                guidance.append("ENABLE_PCC")
+
+        # Suggest raising PCC only to the next centesimal level (e.g., 0.98 -> 0.99),
+        # and only when current threshold is below 0.99.
+        if pcc_threshold < 0.99:
+            next_level = min(0.99, (math.floor(pcc_threshold * 100) + 1) / 100.0)
+            if pcc_value > (next_level + PCC_BUFFER):
+                if next_level >= 0.99:
+                    guidance.append("RAISE_PCC_099")
+                else:
+                    guidance.append("RAISE_PCC")
+
+    return guidance
+
+
 def record_model_test_properties(
     record_property,
     request,
@@ -397,6 +437,9 @@ def record_model_test_properties(
                 "atol_assertion_enabled": comparison_config.atol.enabled,
             }
         )
+
+    # Derive guidance tags based on PCC metrics and thresholds (always include; may be empty).
+    tags["guidance"] = _derive_guidance_from_pcc(comparison_result, comparison_config)
 
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
