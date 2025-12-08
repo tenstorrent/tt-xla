@@ -62,6 +62,8 @@ jobs:
         LD_LIBRARY_PATH: $TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRARY_PATH
       run: |
         echo "Running PJRT unit tests..."
+        echo "LD_LIBRARY_PATH = $LD_LIBRARY_PATH"
+        find . -iname "libTTMLIRCompiler.so"
         ctest --test-dir build/ -R PJRT -V 2>&1 | tee ctest.log
 
     - name: Upload test log
