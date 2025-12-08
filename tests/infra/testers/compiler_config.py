@@ -47,6 +47,9 @@ class CompilerConfig:
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
+    # Enables CPU-hoisted const-eval execution for TTNN pipeline.
+    enable_cpu_hoisted_const_eval: bool = False
+
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
@@ -70,6 +73,9 @@ class CompilerConfig:
 
         if self.enable_trace:
             options["enable_trace"] = "true"
+
+        if self.enable_cpu_hoisted_const_eval:
+            options["enable_cpu_hoisted_const_eval"] = "true"
 
         return options
 

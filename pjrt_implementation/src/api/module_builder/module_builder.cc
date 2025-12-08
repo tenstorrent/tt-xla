@@ -825,6 +825,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.enableFusingConv2dWithMultiplyPattern =
       compile_options.experimental_enable_fusing_conv2d_with_multiply_pattern;
   options.enableTrace = compile_options.enable_trace;
+  options.enableCPUHoistedConstEval =
+      compile_options.enable_cpu_hoisted_const_eval;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
   options.ttnnPerfMetricsEnabled = compile_options.ttnn_perf_metrics_enabled;

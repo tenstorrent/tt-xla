@@ -61,6 +61,8 @@ struct CompileOptions {
   // that are repeated multiple times.
   bool enable_trace = false;
 
+  bool enable_cpu_hoisted_const_eval = false;
+
   // Enables saving graph inputs to disk whenever Execute() is called.
   // This is useful for chisel and codegen.
   bool export_tensors = false;

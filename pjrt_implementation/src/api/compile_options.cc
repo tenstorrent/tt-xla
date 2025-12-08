@@ -36,6 +36,10 @@ CompileOptions CompileOptions::parse(
   options.enable_trace =
       internal::parseBoolOption(compile_options, "enable_trace")
           .value_or(options.enable_trace);
+  options.enable_cpu_hoisted_const_eval =
+      internal::parseBoolOption(compile_options,
+                                "enable_cpu_hoisted_const_eval")
+          .value_or(options.enable_cpu_hoisted_const_eval);
   options.export_tensors =
       internal::parseBoolOption(compile_options, "export_tensors")
           .value_or(options.backend == BackendRuntime::TTNNFlatbuffer ? false
