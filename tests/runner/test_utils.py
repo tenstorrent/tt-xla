@@ -291,15 +291,15 @@ def _derive_guidance_from_pcc(comparison_result, comparison_config) -> list[str]
             else:
                 guidance.append("ENABLE_PCC")
 
-        # Suggest raising PCC only to the next centesimal level (e.g., 0.98 -> 0.99),
-        # and only when current threshold is below 0.99.
+        # Suggest raising PCC only when increased past the next centesimal
+        # level (e.g., 0.97 -> 0.98), and only when current threshold is below 0.99.
         if pcc_threshold < 0.99:
             next_level = min(0.99, (math.floor(pcc_threshold * 100) + 1) / 100.0)
-            if pcc_value > (next_level + PCC_BUFFER):
-                if next_level >= 0.99:
-                    guidance.append("RAISE_PCC_099")
-                else:
-                    guidance.append("RAISE_PCC")
+            # Prefer raising directly to 0.99 when PCC itself exceeds 0.99 + buffer
+            if pcc_value > (0.99 + PCC_BUFFER):
+                guidance.append("RAISE_PCC_099")
+            elif pcc_value > (next_level + PCC_BUFFER):
+                guidance.append("RAISE_PCC")
 
     return guidance
 
