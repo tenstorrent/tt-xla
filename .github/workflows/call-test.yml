@@ -401,8 +401,6 @@ jobs:
         with:
           report_paths: test_reports/report_*.xml
           check_name: TT-XLA ${{ needs.generate-matrix-test.outputs.test_matrix_name }}
-          comment: true
-          updateComment: true
           detailed_summary: true
           group_suite: true
           token: ${{ github.token }}
