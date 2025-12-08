@@ -58,6 +58,8 @@ jobs:
     - name: Run unit tests
       timeout-minutes: 1
       shell: bash
+      env:
+        LD_LIBRARY_PATH: $LD_LIBRARY_PATH:$TTMLIR_TOOLCHAIN_DIR/lib
       run: |
         echo "Running PJRT unit tests..."
         ctest --test-dir build/ -R PJRT -V 2>&1 | tee ctest.log
