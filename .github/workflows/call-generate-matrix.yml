@@ -18,6 +18,9 @@ on:
       test_matrix_name:
         description: 'Name of the test matrix group'
         value: ${{ jobs.generate.outputs.test-matrix-name }}
+      test_matrix_hash:
+        description: 'Hash of the test matrix'
+        value: ${{ jobs.generate.outputs.test-matrix-hash }}
 
 jobs:
   generate:
@@ -25,6 +28,7 @@ jobs:
     outputs:
       test-matrix: ${{ steps.generate-test-matrix.outputs.test-matrix }}
       test-matrix-name: ${{ steps.generate-test-matrix.outputs.test-matrix-name }}
+      test-matrix-hash: ${{ steps.generate-test-matrix.outputs.test-matrix-hash }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -63,4 +67,6 @@ jobs:
           echo "Generated test matrix $name:"
           cat modified-matrix.json
 
-          echo "test-matrix=$(cat modified-matrix.json | jq -c)" >> $GITHUB_OUTPUT
+          matrix=$(cat modified-matrix.json | jq -c)
+          echo "test-matrix-hash=$(echo "$matrix" | md5sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "test-matrix=$matrix" >> $GITHUB_OUTPUT
