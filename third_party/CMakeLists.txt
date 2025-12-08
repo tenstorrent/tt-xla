@@ -8,7 +8,6 @@ if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
     set(TT_MLIR_VERSION "5b727af9e4e24ed6656048603a74efcbb9d2efe8")
 endif()
 
-set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
@@ -29,33 +28,6 @@ if (TOOLCHAIN STREQUAL "ON")
 else()
     include(ExternalProject)
     add_subdirectory(pjrt_c_api)
-
-    # ----- protobuf -----
-
-    include(FetchContent)
-
-    FetchContent_Declare(
-        protobuf
-        GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
-        GIT_TAG ${PROTOBUF_VERSION}
-        GIT_SHALLOW ON
-    )
-
-    # match options from metal
-    set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    set(protobuf_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-
-    # Use full compiler paths since it can't find it during build config phase
-    if(CMAKE_C_COMPILER MATCHES "clang-17")
-        set(CMAKE_C_COMPILER "/usr/bin/clang-17" CACHE STRING "" FORCE)
-    endif()
-    if(CMAKE_CXX_COMPILER MATCHES "clang\\+\\+-17")
-        set(CMAKE_CXX_COMPILER "/usr/bin/clang++-17" CACHE STRING "" FORCE)
-    endif()
-
-    FetchContent_MakeAvailable(protobuf)
 
     # ----- tt-mlir -----
 
