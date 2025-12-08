@@ -128,13 +128,13 @@ jobs:
         echo "CCACHE_DIR=$CCACHE_DIR" >> "$GITHUB_ENV"
 
         ccache --set-config=cache_dir=$CCACHE_DIR
-        ccache --set-config=max_size=15G
-        ccache --set-config=compression=true
-        ccache --set-config=hash_dir=false
-        ccache --set-config=base_dir=base_dir=/
-        ccache --set-config=sloppiness=file_macro,time_macros,include_file_mtime
-        ccache --set-config=debug=true
-        ccache --set-config=log_file=/tmp/ccache.log
+        # ccache --set-config=max_size=15G
+        # ccache --set-config=compression=true
+        # ccache --set-config=hash_dir=false
+        # ccache --set-config=base_dir=base_dir=/
+        # ccache --set-config=sloppiness=file_macro,time_macros,include_file_mtime
+        # ccache --set-config=debug=true
+        # ccache --set-config=log_file=/tmp/ccache.log
         touch /tmp/ccache.log
         echo "CCACHE_LOG_FILE=/tmp/ccache.log" >> "$GITHUB_ENV"
         ccache --show-config
