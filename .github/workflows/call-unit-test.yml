@@ -40,14 +40,12 @@ jobs:
     - name: Log disk space
       run: df -h
 
+    # TODO: What should I have here?
     - uses: actions/checkout@v4
       with:
         submodules: recursive
         sparse-checkout: |
           .github/scripts
-          pjrt_implementation
-          third_party
-          CMakeLists.txt
 
     - name: Fetch job id
       id: fetch-job-id
