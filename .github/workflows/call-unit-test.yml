@@ -37,16 +37,6 @@ jobs:
       run: |
         git config --global --add safe.directory /__w/tt-xla/tt-xla
 
-    - name: Log disk space
-      run: df -h
-
-    # TODO: What should I have here?
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        sparse-checkout: |
-          .github/scripts
-
     - name: Fetch job id
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main

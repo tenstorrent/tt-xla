@@ -85,7 +85,7 @@ jobs:
       wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_release_vllm_tt_artifact_name }}
       build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
 
-  run_unit_tests:
+  run-unit-tests:
     needs: [ inspect-changes, build-image, build-ttxla-codecov ]
     if: true
     uses: ./.github/workflows/call-unit-test.yml
