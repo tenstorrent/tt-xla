@@ -5,12 +5,16 @@ import argparse
 import ast
 import csv
 import glob
+import math
 import os
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Dict, Iterable, Iterator, List, Optional
+
+# Small buffer to avoid enabling or tightening thresholds when near boundary.
+PCC_BUFFER = 0.004
 
 
 # Find and normalize XML paths/patterns into a sorted, deduplicated list of files.
@@ -61,18 +65,66 @@ def to_cell(value) -> str:
 # Convert a value to a printable cell with column-aware formatting.
 def format_cell(column: str, value) -> str:
     if column == "pcc_assertion_enabled":
-        # Normalize booleans or boolean-like strings to PCC_EN/PCC_DIS
-        if value is None or value == "":
-            return "N/A"
-        if isinstance(value, bool):
-            return "PCC_EN" if value else "PCC_DIS"
-        sval = str(value).strip().lower()
-        if sval in ("true", "1", "yes"):
+        # Normalize booleans or boolean-like strings to PCC_EN/PCC_DIS using shared helper
+        parsed = _to_bool(value)
+        if parsed is True:
             return "PCC_EN"
-        if sval in ("false", "0", "no"):
+        if parsed is False:
             return "PCC_DIS"
         return to_cell(value)
     return to_cell(value)
+
+
+def _to_bool(value) -> Optional[bool]:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    sval = str(value).strip().lower()
+    if sval in ("true", "1", "yes"):
+        return True
+    if sval in ("false", "0", "no"):
+        return False
+    return None
+
+
+def _to_float(value) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+# Build derived tags string using PCC-related heuristics. Eventually these might move to test infra
+# but for now, keep it here.
+def compute_row_tags(rec: Dict) -> str:
+    tags: List[str] = []
+    pcc = _to_float(rec.get("pcc"))
+    pcc_th = _to_float(rec.get("pcc_threshold"))
+    pcc_en = _to_bool(rec.get("pcc_assertion_enabled"))
+
+    if None not in (pcc, pcc_th, pcc_en):
+        # If PCC is safely above threshold+buffer but disabled, suggest enabling
+        if (pcc > (pcc_th + PCC_BUFFER)) and (pcc_en is False):
+            if pcc_th >= 0.99:
+                tags.append("ENABLE_PCC_099")
+            else:
+                tags.append("ENABLE_PCC")
+
+        # If PCC clears the next 0.01 step above current threshold by a buffer, flag that it
+        # should be raised. Only flag RAISE_PCC when current threshold is below 0.99.
+        if pcc_th < 0.99:
+            # Compute the next centesimal threshold (e.g., 0.98 -> 0.99), capped at 0.99
+            next_level = min(0.99, (math.floor(pcc_th * 100) + 1) / 100.0)
+            if pcc > (next_level + PCC_BUFFER):
+                if next_level >= 0.99:
+                    tags.append("RAISE_PCC_099")
+                else:
+                    tags.append("RAISE_PCC")
+
+    return ",".join(tags) if tags else ""
 
 
 # Build and return the CLI argument parser.
@@ -184,6 +236,7 @@ def get_columns() -> List[str]:
         "pcc_assertion_enabled",
         "parallelism",
         "time",
+        "tags",
     ]
 
 
@@ -347,6 +400,8 @@ def collect_rows_from_files(
             ):
                 continue
 
+            # Compute derived tags prior to rendering
+            rec["tags"] = compute_row_tags(rec)
             row = [format_cell(c, rec.get(c)) for c in columns]
             safe_row = [
                 c.replace("\n", " ").replace("\r", " ").replace("\t", " ") for c in row
