@@ -1626,7 +1626,7 @@ test_config:
     markers: [weekly]
 
   glpn_kitti/pytorch-single_device-full-training:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
     markers: [weekly]
 

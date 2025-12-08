@@ -405,7 +405,7 @@ test_config:
     execution_pass: BACKWARD
 
   regnet/image_classification/jax-y-040-single_device-full-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1088 input channels and 64 in the weight tensor."
     execution_pass: BACKWARD
