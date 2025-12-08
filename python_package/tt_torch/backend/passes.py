@@ -10,12 +10,134 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     """
     Replaces torch ops with composite ops if we have a proper replacement.
 
-    This must be done before graph decompositions because we are replacing
-    torch operations directly.
+    Handles two types of nodes:
+    1. call_function nodes: Functional ops like torch.nn.functional.gelu
+       - node.target is a function reference
+       - Replaced by changing node.target to composite function
+
+    2. call_module nodes: nn.Module instances like nn.LayerNorm
+       - node.target is a string like "layer_norm"
+       - Replaced by creating new call_function node with get_attr for parameters
     """
+    nodes_to_replace = []
+
     for node in gm.graph.nodes:
-        if node.target in composite_ops.replacements:
-            node.target = composite_ops.replacements[node.target]
+        if node.op == "call_function":
+            if node.target in composite_ops.function_replacements:
+                nodes_to_replace.append(("function", node, None))
+
+        elif node.op == "call_module":
+            module = gm.get_submodule(node.target)
+            module_type = type(module)
+
+            if module_type in composite_ops.module_replacements:
+                nodes_to_replace.append(("module", node, module))
+
+    for replacement_type, node, module in nodes_to_replace:
+        if replacement_type == "function":
+            _replace_function_node(gm, node)
+        else:  # replacement_type == "module"
+            _replace_module_node(gm, node, module)
+
+    gm.graph.eliminate_dead_code()
+    gm.graph.lint()
+
+
+def _replace_function_node(gm: torch.fx.GraphModule, node: torch.fx.Node) -> None:
+    """
+    Replace a call_function node with its composite equivalent.
+
+    Simple replacement: just change the target function reference.
+    Args and kwargs remain the same.
+    """
+    node.target = composite_ops.function_replacements[node.target]
+
+
+def _replace_module_node(
+    gm: torch.fx.GraphModule, node: torch.fx.Node, module: torch.nn.Module
+) -> None:
+    """
+    Replace a call_module node with a call_function node to the composite equivalent.
+
+    Strategy:
+    1. Extract module parameters and configuration
+    2. Create get_attr nodes for parameters (weight, bias)
+    3. Create new call_function node with composite function
+    4. Replace all uses and remove old node
+
+    The parameters remain in the module's state dict and are accessed via get_attr.
+    Later, torch.export will lift these get_attr nodes to placeholders.
+    """
+    module_type = type(module)
+    composite_fn = composite_ops.module_replacements[module_type]
+
+    # Dispatch to type-specific handler
+    if module_type == torch.nn.LayerNorm:
+        _replace_layer_norm_node(gm, node, module, composite_fn)
+    else:
+        raise ValueError(
+            f"Module type {module_type} is in module_replacements but has no handler. "
+            f"Please add a _replace_{module_type.__name__.lower()}_node function."
+        )
+
+
+def _replace_layer_norm_node(
+    gm: torch.fx.GraphModule,
+    node: torch.fx.Node,
+    module: torch.nn.LayerNorm,
+    composite_fn,
+) -> None:
+    """
+    Replace nn.LayerNorm call_module node with composite_layer_norm call_function.
+
+    Transformation:
+        BEFORE: %out = call_module[target=layer_norm](args=(%x,))
+        AFTER:  %weight = get_attr[target=layer_norm.weight]
+                %bias = get_attr[target=layer_norm.bias]
+                %out = call_function[target=composite_layer_norm](
+                    args=(%x,),
+                    kwargs={normalized_shape: (768,), weight: %weight,
+                            bias: %bias, eps: 1e-5}
+                )
+
+    Args:
+        gm: GraphModule containing the node
+        node: call_module node to replace
+        module: nn.LayerNorm instance
+        composite_fn: composite_layer_norm function
+    """
+    # Extract module configuration
+    normalized_shape = module.normalized_shape
+    eps = module.eps
+    has_weight = module.weight is not None and module.elementwise_affine
+    has_bias = module.bias is not None and module.elementwise_affine
+
+    # Get input tensor (first argument to the module call)
+    input_tensor = node.args[0]
+
+    # Build kwargs for the composite function
+    kwargs = {"normalized_shape": normalized_shape, "eps": eps}
+
+    # Create get_attr nodes for weight and bias if they exist
+    with gm.graph.inserting_before(node):
+        if has_weight:
+            weight_node = gm.graph.get_attr(f"{node.target}.weight")
+            kwargs["weight"] = weight_node
+        else:
+            kwargs["weight"] = None
+
+        if has_bias:
+            bias_node = gm.graph.get_attr(f"{node.target}.bias")
+            kwargs["bias"] = bias_node
+        else:
+            kwargs["bias"] = None
+
+        new_node = gm.graph.call_function(
+            composite_fn, args=(input_tensor,), kwargs=kwargs
+        )
+
+    node.replace_all_uses_with(new_node)
+    gm.graph.erase_node(node)
 
 
 def insert_argument_type_markers(

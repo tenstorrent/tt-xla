@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import List, Optional, Union
+
 import torch
 from torch import Tensor
 from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
@@ -75,10 +77,73 @@ def composite_rms_norm(
     return output
 
 
+def composite_layer_norm(
+    input: Tensor,
+    normalized_shape: Union[int, List[int], torch.Size],
+    weight: Optional[Tensor] = None,
+    bias: Optional[Tensor] = None,
+    eps: float = 1e-5,
+) -> Tensor:
+    """
+    Creates composite layer_norm operation for torch xla using StableHLOCompositeBuilder.
+    Operation name is tenstorrent.layer_norm for MLIR to handle it.
+
+    This function supports both functional API usage and module replacement:
+    - Functional: torch.nn.functional.layer_norm(x, (768,), weight, bias, 1e-5)
+    - Module: nn.LayerNorm(768) → replaced with this composite
+
+    Args:
+        input: Input tensor to normalize
+        normalized_shape: Shape over which to normalize (int, list, tuple, or torch.Size)
+        weight: Optional learnable weight parameter for affine transformation
+        bias: Optional learnable bias parameter for affine transformation
+        eps: Small constant for numerical stability (default: 1e-5)
+
+    Returns:
+        Normalized tensor with same shape as input
+    """
+    if isinstance(normalized_shape, int):
+        normalized_shape_list = [normalized_shape]
+    else:
+        normalized_shape_list = list(normalized_shape)
+
+    attr = {"normalized_shape": normalized_shape_list, "epsilon": eps}
+
+    builder = StableHLOCompositeBuilder(name="tenstorrent.layer_norm", attr=attr)
+
+    if weight is not None and bias is not None:
+        input, weight, bias = builder.mark_inputs(input, weight, bias)
+    elif weight is not None:
+        input, weight = builder.mark_inputs(input, weight)
+    elif bias is not None:
+        input, bias = builder.mark_inputs(input, bias)
+    else:
+        input = builder.mark_inputs(input)
+
+    output = torch.nn.functional.layer_norm(
+        input, normalized_shape_list, weight, bias, eps
+    )
+
+    output = builder.mark_outputs(output)
+
+    return output
+
+
 """
 Dictionary holding replacement composite functions for torch functions.
+Maps functional API calls to composite implementations.
+Used for call_function nodes where node.target is a function reference.
 """
-replacements = {
+function_replacements = {
     torch.nn.functional.gelu: composite_gelu,
     torch.rms_norm: composite_rms_norm,
+    torch.nn.functional.layer_norm: composite_layer_norm,
+}
+
+"""
+Maps nn.Module classes to composite implementations.
+Used for call_module nodes where we transform module calls to functional calls.
+"""
+module_replacements = {
+    torch.nn.LayerNorm: composite_layer_norm,
 }

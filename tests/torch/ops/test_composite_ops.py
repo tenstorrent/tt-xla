@@ -7,13 +7,18 @@ import numpy as np
 import pytest
 import torch
 import torch_xla
+import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra.comparators.torch_comparator import TorchComparator
 from infra.utilities.types import Framework
 from torch.nn import functional as F
-from tt_torch.composite_ops import composite_gelu, composite_rms_norm
+from tt_torch.composite_ops import (
+    composite_gelu,
+    composite_layer_norm,
+    composite_rms_norm,
+)
 
 from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
@@ -224,6 +229,91 @@ def test_composite_rms_norm(use_weight):
     device = xm.xla_device()
     model = torch.compile(model.to(device), backend="tt", options=options)
     output = model(input_tensor.to(device), weight.to(device) if use_weight else None)
+
+    comparator = TorchComparator(ComparisonConfig())
+    comparator.compare(output, golden)
+
+
+@pytest.mark.parametrize("elementwise_affine", [True, False])
+def test_patched_layer_norm_module(elementwise_affine):
+    class LayerNormModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.ln = nn.LayerNorm(768, elementwise_affine=elementwise_affine)
+
+        def forward(self, x):
+            return self.ln(x)
+
+    options = {"tt_enable_composite_ops": True}
+    input_tensor = torch.randn(1, 197, 768, dtype=torch.bfloat16)
+
+    model = LayerNormModel()
+    golden = model(input_tensor)
+
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt", options=options)
+    output = model(input_tensor.to(device))
+
+    comparator = TorchComparator(ComparisonConfig())
+    comparator.compare(output, golden)
+
+
+def test_patched_layer_norm_functional():
+
+    class LayerNormModel(torch.nn.Module):
+        def __init__(self, normalized_shape):
+            super().__init__()
+            self.normalized_shape = normalized_shape
+
+        def forward(self, x):
+            return F.layer_norm(x, (self.normalized_shape,), eps=1e-5)
+
+    options = {"tt_enable_composite_ops": True}
+    input_tensor = torch.randn(1, 197, 768, dtype=torch.bfloat16)
+
+    model = LayerNormModel(normalized_shape=768)
+    golden = model(input_tensor)
+
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt", options=options)
+    output = model(input_tensor.to(device))
+
+    comparator = TorchComparator(ComparisonConfig())
+    comparator.compare(output, golden)
+
+
+@pytest.mark.parametrize("use_weight", [True, False])
+@pytest.mark.parametrize("use_bias", [True, False])
+def test_composite_layer_norm(use_weight, use_bias):
+
+    class LayerNormModel(torch.nn.Module):
+        def __init__(self, normalized_shape):
+            super().__init__()
+            self.normalized_shape = normalized_shape
+
+        def forward(self, x, weight, bias):
+            return composite_layer_norm(
+                x, self.normalized_shape, weight, bias, eps=1e-5
+            )
+
+    options = {"tt_enable_composite_ops": False}
+
+    normalized_shape = (768,)
+    input_shape = (1, 197, 768)
+    input_tensor = torch.randn(input_shape, dtype=torch.bfloat16)
+    weight = torch.randn(normalized_shape, dtype=torch.bfloat16) if use_weight else None
+    bias = torch.randn(normalized_shape, dtype=torch.bfloat16) if use_bias else None
+
+    model = LayerNormModel(normalized_shape)
+    golden = model(input_tensor, weight, bias)
+
+    device = xm.xla_device()
+    model = torch.compile(model.to(device), backend="tt", options=options)
+    output = model(
+        input_tensor.to(device),
+        weight.to(device) if use_weight else None,
+        bias.to(device) if use_bias else None,
+    )
 
     comparator = TorchComparator(ComparisonConfig())
     comparator.compare(output, golden)
