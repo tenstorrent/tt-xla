@@ -1,0 +1,82 @@
+name: Unit Tests (call)
+
+on:
+  workflow_call:
+    inputs:
+      docker_image:
+        description: 'Docker image to use for the tests'
+        required: true
+        type: string
+      artifacts_run_id:
+        description: 'Run ID of the artifacts'
+        required: true
+        type: string
+      build_artifact_name:
+        description: 'Name of the build artifact'
+        required: true
+        type: string
+
+env:
+  GH_TOKEN: ${{ github.token }} # for gh cli tool
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  TT_XLA_CI: 1
+
+jobs:
+  # Run unit tests
+  run-unit-tests:
+    runs-on: ubuntu-latest
+
+    # Keep this name in sync with the fetch-job-id step
+    name: "Run PJRT unit tests"
+
+    container:
+      image: ${{ inputs.docker_image }}
+
+    steps:
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-xla/tt-xla
+
+    - name: Log disk space
+      run: df -h
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        sparse-checkout: |
+          .github/scripts
+          pjrt_implementation
+          third_party
+          CMakeLists.txt
+
+    - name: Fetch job id
+      id: fetch-job-id
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "Run PJRT unit tests"
+
+    - name: Download build artifacts
+      run: |
+        echo "Downloading build artifacts"
+        gh run download ${{ inputs.artifacts_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir build \
+          --name ${{ inputs.build_artifact_name }}
+        echo "Untar build artifacts"
+        cd build
+        tar xf artifact.tar
+        rm -f artifact.tar
+
+    - name: Run unit tests
+      timeout-minutes: 1
+      shell: bash
+      run: |
+        echo "Running PJRT unit tests..."
+        ctest --test-dir build/ -R PJRT -V 2>&1 | tee ctest.log
+
+    - name: Upload test log
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-log-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ctest.log

@@ -29,6 +29,7 @@ jobs:
       run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
       only-run-forge-models: ${{ steps.inspect.outputs.only-run-forge-models }}
       run-uplift-model-tests: ${{ steps.inspect.outputs.run-uplift-model-tests }}
+      run-unit-tests: ${{ steps.inspect.outputs.run-unit-tests }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/inspect-changes
@@ -82,6 +83,16 @@ jobs:
       wheel_codecov_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
       wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_release_vllm_tt_artifact_name }}
+      build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
+
+  run_unit_tests:
+    needs: [ inspect-changes, build-image, build-ttxla-codecov ]
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.run-unit-tests == 'true'
+    uses: ./.github/workflows/call-unit-test.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      artifacts_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
       build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
 
   perf-benchmark:
