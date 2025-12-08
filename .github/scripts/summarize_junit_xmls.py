@@ -75,6 +75,15 @@ def format_cell(column: str, value) -> str:
     return to_cell(value)
 
 
+# Normalize guidance tags (list or string) into a comma-separated string.
+def normalize_guidance_field(value) -> str:
+    if isinstance(value, list):
+        return ",".join(str(x) for x in value if x is not None)
+    if isinstance(value, str):
+        return value
+    return ""
+
+
 # Build and return the CLI argument parser.
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -184,6 +193,7 @@ def get_columns() -> List[str]:
         "pcc_assertion_enabled",
         "parallelism",
         "time",
+        "guidance",
     ]
 
 
@@ -346,6 +356,8 @@ def collect_rows_from_files(
                 bringup_status_filter,
             ):
                 continue
+
+            rec["guidance"] = normalize_guidance_field(rec.get("guidance"))
 
             row = [format_cell(c, rec.get(c)) for c in columns]
             safe_row = [
