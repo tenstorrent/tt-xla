@@ -355,10 +355,9 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
       }
     }
   } else {
-    addressable_devices.assign(
-        m_addressable_devices_raw.begin(),
-        m_addressable_devices_raw.begin() +
-            executable_image->getNumDevicesToUtilize());
+    addressable_devices.assign(m_addressable_devices_raw.begin(),
+                               m_addressable_devices_raw.begin() +
+                                   executable_image->getNumDevicesToUtilize());
   }
 
   std::unique_ptr<LoadedExecutableInstance> executable =
@@ -389,7 +388,8 @@ bool ClientInstance::parseCompileOptionsProto(
 
 tt_pjrt_status ClientInstance::getCompileOptions(
     const char *compile_options_data, size_t compile_options_size,
-    std::unordered_map<std::string, std::string> &out_compile_options) {
+    std::unordered_map<std::string, std::string> &out_compile_options,
+    std::vector<int64_t> &out_replica_device_ids) {
 
   google::protobuf::UnknownFieldSet unknown_fields;
 
@@ -398,25 +398,29 @@ tt_pjrt_status ClientInstance::getCompileOptions(
     return tt_pjrt_status::kInternal;
   }
 
-  return ClientInstance::extractCustomProtobufFields(unknown_fields,
-                                                     out_compile_options);
-}
-
-std::vector<int64_t>
-ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
-                                        size_t compile_options_size) {
-  std::set<int64_t> unique_device_ids;
-
-  google::protobuf::UnknownFieldSet unknown_fields;
-
-  if (!parseCompileOptionsProto(compile_options_data, compile_options_size,
-                                unknown_fields)) {
-    return std::vector<int64_t>(unique_device_ids.begin(),
-                                unique_device_ids.end());
+  // Extract custom compile options
+  tt_pjrt_status custom_options_status =
+      extractCustomProtobufFields(unknown_fields, out_compile_options);
+  if (!tt_pjrt_status_is_ok(custom_options_status)) {
+    return custom_options_status;
   }
 
-  // The code above parses the CompileOptionsProto protobuf based on its layout
-  // defined in
+  // Extract replica device IDs
+  tt_pjrt_status replica_ids_status =
+      extractReplicaDeviceIds(unknown_fields, out_replica_device_ids);
+  if (!tt_pjrt_status_is_ok(replica_ids_status)) {
+    return replica_ids_status;
+  }
+
+  return tt_pjrt_status::kSuccess;
+}
+
+tt_pjrt_status ClientInstance::extractReplicaDeviceIds(
+    const google::protobuf::UnknownFieldSet &unknown_fields,
+    std::vector<int64_t> &out_replica_device_ids) {
+  std::set<int64_t> unique_device_ids;
+
+  // The CompileOptionsProto protobuf layout is defined in
   // https://github.com/openxla/xla/blob/main/xla/pjrt/proto/compile_options.proto
 
   // The executable build compiler options that are defined in through the
@@ -518,8 +522,9 @@ ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
     }
   }
 
-  return std::vector<int64_t>(unique_device_ids.begin(),
-                              unique_device_ids.end());
+  out_replica_device_ids.assign(unique_device_ids.begin(),
+                                unique_device_ids.end());
+  return tt_pjrt_status::kSuccess;
 }
 
 tt_pjrt_status ClientInstance::extractCustomProtobufFields(
@@ -927,12 +932,16 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
-  std::unordered_map<std::string, std::string> compile_options_map;
 
-  tt_pjrt_status compile_option_status = ClientInstance::getCompileOptions(
-      args->compile_options, args->compile_options_size, compile_options_map);
-  if (!tt_pjrt_status_is_ok(compile_option_status)) {
-    return *ErrorInstance::makeError(compile_option_status).release();
+  // Parse compile options and extract both custom options and replica device
+  // IDs
+  std::unordered_map<std::string, std::string> compile_options_map;
+  std::vector<int64_t> replica_device_ids;
+  tt_pjrt_status compile_options_status = ClientInstance::getCompileOptions(
+      args->compile_options, args->compile_options_size, compile_options_map,
+      replica_device_ids);
+  if (!tt_pjrt_status_is_ok(compile_options_status)) {
+    return *ErrorInstance::makeError(compile_options_status).release();
   }
 
   std::string_view program_format(args->program->format,
@@ -946,11 +955,6 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   }
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
-
-  // Extract replica device IDs from compile options
-  std::vector<int64_t> replica_device_ids =
-      ClientInstance::extractReplicaDeviceIds(args->compile_options,
-                                              args->compile_options_size);
 
   tt_pjrt_status compile_status = client_instance->compileMlirProgram(
       args->program,

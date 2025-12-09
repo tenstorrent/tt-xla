@@ -146,18 +146,12 @@ public:
       const std::unordered_map<std::string, std::string> &compile_options,
       const std::vector<int64_t> &replica_device_ids);
 
-  // Gets custom compile options from the given compile options protobuf.
+  // Parses compile options protobuf and extracts both custom compile options
+  // and replica device IDs.
   static tt_pjrt_status getCompileOptions(
       const char *compile_options_data, size_t compile_options_size,
-      std::unordered_map<std::string, std::string> &out_compile_options);
-
-  // Extracts replica device IDs from CompileOptionsProto ->
-  // ExecutableBuildOptionsProto
-  // -> DeviceAssignmentProto -> ComputationDevice structure.
-  // Returns flattened vector of all unique device IDs across all computations.
-  static std::vector<int64_t>
-  extractReplicaDeviceIds(const char *compile_options_data,
-                          size_t compile_options_size);
+      std::unordered_map<std::string, std::string> &out_compile_options,
+      std::vector<int64_t> &out_replica_device_ids);
 
 private:
   tt_pjrt_status populateDevices();
@@ -230,6 +224,11 @@ private:
   static tt_pjrt_status extractCustomProtobufFields(
       const google::protobuf::UnknownFieldSet &unknown_fields,
       std::unordered_map<std::string, std::string> &out_compile_options);
+
+  // Extracts replica device IDs from an already-parsed UnknownFieldSet.
+  static tt_pjrt_status extractReplicaDeviceIds(
+      const google::protobuf::UnknownFieldSet &unknown_fields,
+      std::vector<int64_t> &out_replica_device_ids);
 };
 
 namespace internal {
