@@ -87,11 +87,9 @@ jobs:
       timeout-minutes: 1
       shell: bash
       run: |
+        source venv/activate
         echo "Running PJRT unit tests..."
-        echo $LD_LIBRARY_PATH
         find . -iname "libTTMLIRCompiler.so"
-        ls /opt/ttmlir-toolchain
-        ls /opt/ttmlir-toolchain/lib
         ctest --test-dir build/ -R PJRT -V 2>&1 | tee ctest.log
 
     - name: Upload test log
