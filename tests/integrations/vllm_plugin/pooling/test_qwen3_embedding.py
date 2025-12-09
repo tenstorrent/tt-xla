@@ -24,7 +24,8 @@ import vllm
         ),
     ],
 )
-def test_embed_qwen3(model_name: str, baseline_path: str):
+@pytest.mark.parametrize("min_context_len", [32, 64])
+def test_embed_qwen3(model_name: str, baseline_path: str, min_context_len: int):
     """
     Test the Qwen3-Embedding models embedding outputs for correctness
     under different batching and padding scenarios.
@@ -66,6 +67,9 @@ def test_embed_qwen3(model_name: str, baseline_path: str):
         "disable_sliding_window": True,
         "max_num_batched_tokens": 64,
         "max_num_seqs": 2,
+        "additional_config": {
+            "min_context_len": min_context_len,
+        },
     }
     model = vllm.LLM(**llm_args)
 
