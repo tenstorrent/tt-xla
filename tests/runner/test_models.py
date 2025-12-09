@@ -292,64 +292,6 @@ def test_all_models_torch(
 )
 @pytest.mark.parametrize(
     "test_entry",
-    test_entries_torch,
-    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
-)
-def test_all_models_torch(
-    test_entry,
-    run_mode,
-    parallelism,
-    record_property,
-    test_metadata,
-    request,
-    capteesys,
-    clear_torchxla_computation_cache,
-):
-    """PyTorch model test - delegates to shared implementation."""
-    _run_model_test_impl(
-        test_entry=test_entry,
-        run_mode=run_mode,
-        parallelism=parallelism,
-        framework=Framework.TORCH,
-        request=request,
-        record_property=record_property,
-        test_metadata=test_metadata,
-        capteesys=capteesys,
-        clear_torchxla_computation_cache=clear_torchxla_computation_cache,
-    )
-
-
-@pytest.mark.model_test
-@pytest.mark.no_auto_properties
-@pytest.mark.parametrize(
-    "run_mode",
-    [
-        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
-        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
-    ],
-)
-@pytest.mark.parametrize(
-    "parallelism",
-    [
-        pytest.param(
-            Parallelism.SINGLE_DEVICE,
-            id="single_device",
-            marks=pytest.mark.single_device,
-        ),
-        pytest.param(
-            Parallelism.DATA_PARALLEL,
-            id="data_parallel",
-            marks=pytest.mark.data_parallel,
-        ),
-        pytest.param(
-            Parallelism.TENSOR_PARALLEL,
-            id="tensor_parallel",
-            marks=pytest.mark.tensor_parallel,
-        ),
-    ],
-)
-@pytest.mark.parametrize(
-    "test_entry",
     test_entries_jax,
     ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_JAX),
 )
