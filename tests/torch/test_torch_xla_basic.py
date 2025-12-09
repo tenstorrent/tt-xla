@@ -9,7 +9,7 @@ import torch
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra import Framework, run_graph_test
+from infra import Framework, run_op_test
 from infra.comparators.torch_comparator import TorchComparator
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from torch_xla.distributed.spmd import Mesh
@@ -395,7 +395,7 @@ def test_spmd_sharding(axis_names, input_shape, sharding_mode):
     mesh = setup_mesh(mesh_shape, axis_names)
     comparison_config = ComparisonConfig()
 
-    run_graph_test(
+    run_op_test(
         LinearModel(),
         [inputs],
         framework=Framework.TORCH,
