@@ -22,7 +22,6 @@ on:
           - 'model-test-extended.json'
           - 'basic-test.json:model-test-push.json:model-test-extended.json' # used for uplifts
           - 'vllm-model-tests.json'
-          - 'perf-test.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'

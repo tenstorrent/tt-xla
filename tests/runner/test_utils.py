@@ -5,8 +5,8 @@
 import collections
 import importlib.util
 import inspect
-import math
 import json
+import math
 import numbers
 import os
 import sys
@@ -499,6 +499,7 @@ def create_measurement(
 
 def create_benchmark_result(
     full_model_name: str,
+    output_path: str,
     measurements: list[dict[str, Any]],
     model_type: str = "generic",
     training: bool = False,
@@ -533,7 +534,11 @@ def create_benchmark_result(
         )
         metric_list.append(
             create_measurement(
-                "e2e_perf", "avg_time", warmup_iters, perf_iters, perf_stats["avg_time"]
+                "e2e_perf",
+                "avg_time",
+                warmup_iters,
+                perf_iters,
+                perf_stats["avg_time"],
             )
         )
 
@@ -555,22 +560,23 @@ def create_benchmark_result(
         "project": "tt-xla",
     }
 
-    # Setup output directory matching call-test.yml
-    benchmark_output_dir = "test_reports_benchmarks"
-    os.makedirs(benchmark_output_dir, exist_ok=True)
-
     # Add metadata required for collect_data parser
     benchmark_results["project"] = "tt-xla"
     benchmark_results["model_rawname"] = full_model_name
 
-    # JOB_ID comes from GitHub Actions (set in call-test.yml).
-    # Needed for parsing in CI. When running locally it defaults to "00000".
-    job_id = os.environ.get("JOB_ID", "00000")
-    safe_model_name = full_model_name.replace("/", "_").replace(" ", "_")
-    json_filename = f"benchmark_results_{safe_model_name}_{job_id}.json"
-    # Ensure filename ends with _<job_id>.json as required by collect_data
-    json_path = os.path.join(benchmark_output_dir, json_filename)
+    # print benchmark results to console if there are measurements
+    if len(benchmark_results["measurements"]) > 0:
+        print("====================================================================")
+        print(f"| {benchmark_results['model']} BENCHMARK:  ")
+        print("--------------------------------------------------------------------")
+        for measurement in benchmark_results["measurements"]:
+            print(
+                f"| {measurement['step_name']}-{measurement['measurement_name']}: {measurement['value']}"
+            )
+        print("====================================================================")
 
-    with open(json_path, "w") as file:
-        json.dump(benchmark_results, file, indent=2)
-        print(f"Benchmark results saved to {json_path}")
+    # dump benchmark results to JSON file if output_path is given
+    if output_path is not None:
+        with open(output_path, "w") as file:
+            json.dump(benchmark_results, file, indent=2)
+            print(f"Benchmark results saved to {output_path}")

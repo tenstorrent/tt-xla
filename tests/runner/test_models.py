@@ -186,20 +186,19 @@ def test_all_models_torch(
                 comparison_config=comparison_config,
             )
 
-            # perf benchmarking
-            if not request.config.getoption("--disable-perf-measurement"):
-                full_model_name = model_info.name
-                measurements = getattr(tester, "_perf_measurements", None)
-
-                # create benchmark result   if not disabled
-                create_benchmark_result(
-                    full_model_name=full_model_name,
-                    measurements=measurements,
-                    model_type="generic",
-                    training=False,
-                    model_info=full_model_name,
-                    device_name=socket.gethostname(),
-                )
+            # prints perf benchmark results to console
+            # Dumps perf benchmark results to JSON report if --perf-report-path is given
+            measurements = getattr(tester, "_perf_measurements", None)
+            output_path = request.config.getoption("--perf-report-path")
+            create_benchmark_result(
+                full_model_name=model_info.name,
+                output_path=output_path,
+                measurements=measurements,
+                model_type="generic",
+                training=False,
+                model_info=model_info.name,
+                device_name=socket.gethostname(),
+            )
 
 
 @pytest.mark.model_test
