@@ -1,0 +1,8 @@
+jax
+flax
+transformers
+safetensors
+psutil
+numpy
+datasets
+jinja2
