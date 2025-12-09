@@ -12,6 +12,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from transformers.models.gpt_oss.modeling_gpt_oss import (
     GptOssExperts,
     GptOssMLP,
@@ -28,18 +29,18 @@ def gpt_oss():
     # Connect the device and create an xla mesh.
     # device: torch.device = torch_xla.device()
     # mesh: Mesh = create_device_mesh()
-    breakpoint()
-    config = AutoConfig.from_pretrained(
-        self._variant_config.pretrained_model_name, trust_remote_code=True
-    )
-    loader = ModelLoader(variant=None)
-    config = loader.load_config()
+    config = AutoConfig.from_pretrained("openai/gpt-oss-20b", trust_remote_code=True)
+    config.quantization_config["quant_method"] = "none"
+    config.use_cache = False
+
     mlp = GptOssMLP(config).to(torch.bfloat16)
     mlp.eval()
 
-    inputs = loader.load_inputs()
-    batch_size = inputs["input_ids"].shape[0]
-    seq_len = inputs["input_ids"].shape[1]
+    # inputs = loader.load_inputs()
+    # batch_size = inputs["input_ids"].shape[0] #1
+    # seq_len = inputs["input_ids"].shape[1] #71
+    batch_size = 1
+    seq_len = 71
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
