@@ -1,9 +1,9 @@
 [
     { "runs-on": "n150",        "name": "run_jax",              "dir": "./tests/jax/single_chip",   "test-mark": "model_test and not large", "parallel-groups": 1 },
-    { "runs-on": "n150",        "name": "run_torch",            "dir": "./tests/torch",             "test-mark": "model_test and single_device and not large and not multi_host", "parallel-groups": 1 },
-    { "runs-on": "n150",        "name": "run_large_torch",      "dir": "./tests/torch",             "test-mark": "model_test and single_device and large and not multi_host", "shared-runners": "true"},
+    { "runs-on": "n150",        "name": "run_torch",            "dir": "./tests/torch",             "test-mark": "model_test and single_device and not large", "parallel-groups": 1 },
+    { "runs-on": "n150",        "name": "run_large_torch",      "dir": "./tests/torch",             "test-mark": "model_test and single_device and large", "shared-runners": "true"},
     { "runs-on": "p150",        "name": "run_jax",              "dir": "./tests/jax/single_chip",   "test-mark": "model_test and not large", "parallel-groups": 1 },
-    { "runs-on": "p150",        "name": "run_torch",            "dir": "./tests/torch",             "test-mark": "model_test and single_device and not large and not multi_host", "parallel-groups": 1 },
-    { "runs-on": "p150",        "name": "run_large_torch",      "dir": "./tests/torch",             "test-mark": "model_test and single_device and large and not multi_host", "shared-runners": "true"},
-    { "runs-on": "n300",        "name": "torch_multichip",      "dir": "./tests/torch",             "test-mark": "model_test and dual_chip and not multi_host" }
+    { "runs-on": "p150",        "name": "run_torch",            "dir": "./tests/torch",             "test-mark": "model_test and single_device and not large", "parallel-groups": 1 },
+    { "runs-on": "p150",        "name": "run_large_torch",      "dir": "./tests/torch",             "test-mark": "model_test and single_device and large", "shared-runners": "true"},
+    { "runs-on": "n300",        "name": "torch_multichip",      "dir": "./tests/torch",             "test-mark": "model_test and dual_chip" }
 ]

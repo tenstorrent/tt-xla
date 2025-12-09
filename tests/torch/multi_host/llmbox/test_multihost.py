@@ -32,9 +32,8 @@ def get_distributed_worker_path():
     return worker_path
 
 
-@pytest.mark.multi_host
 @pytest.mark.push
-@pytest.mark.llmbox
+@pytest.mark.multi_host_cluster
 @pytest.mark.parametrize(
     "model_variant",
     ["llama/causal_lm/pytorch-llama_3_1_8b-tensor_parallel-full-inference"],
