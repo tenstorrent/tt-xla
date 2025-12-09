@@ -1255,10 +1255,14 @@ test_config:
     reason : "patoolib.util.PatoolError: error extracting STORAGE/datasets/electricity/LD2011_2014.txt.zip - https://github.com/tenstorrent/tt-xla/issues/2185"
 
   nbeats/pytorch-seasonality_basis-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Url for dataset is not reachable - https://github.com/tenstorrent/tt-xla/issues/2507"
 
   nbeats/pytorch-trend_basis-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Url for dataset is not reachable - https://github.com/tenstorrent/tt-xla/issues/2507"
 
   gpt2/pytorch-gpt2-single_device-full-inference:
     markers: ["push", "weekly"]
