@@ -213,3 +213,58 @@ def test_embed_qwen3_16K():
 
     output_embedding = model.embed(prompt)
     print(f"Finished precompile for seq_len: {seq_len}")
+
+
+@pytest.mark.push
+@pytest.mark.dual_chip
+@pytest.mark.parametrize("batch_size", [2, 4])
+def test_embed_qwen3_data_parallel(batch_size: int):
+    """
+    Test the Qwen3-Embedding-4B model for data parallel.
+    """
+
+    baseline_path = "baseline/qwen3_embedding_4B_baseline.pt"
+    path = os.path.join(os.path.dirname(__file__), baseline_path)
+    print(f"Loading baseline embeddings from: {path} \n {os.path.exists(path)} ")
+
+    loaded_data = torch.load(path)
+
+    prompts = [
+        "The quick-thinking engineer designed a compact neural processor that could adapt to changing data patterns in real time, optimizing energy use while maintaining exceptional computational accuracy as well.",
+        "Hello, my name is chatbot. How can I help you?",
+        "We build computers for AI. We design Graph Processors, high-performance RISC CPUs, and configurable chips that run our robust software stack.",
+        "The capital of France is Paris",
+    ]
+    llm_args = {
+        "model": "Qwen/Qwen3-Embedding-4B",
+        "task": "embed",
+        "dtype": "bfloat16",
+        "max_model_len": 64,
+        "disable_sliding_window": True,
+        "max_num_batched_tokens": 64,
+        "max_num_seqs": batch_size,
+        "additional_config": {
+            "batch_size": batch_size,
+            "is_data_parallel": True,
+        },
+    }
+    model = vllm.LLM(**llm_args)
+
+    output_embedding = model.embed(prompts)
+
+    pcc_values = []
+    for idx, (prompt, output) in enumerate(zip(prompts, output_embedding)):
+        embeds = output.outputs.embedding
+        embeds_trimmed = (
+            (str(embeds[:32])[:-1] + ", ...]") if len(embeds) > 32 else embeds
+        )
+        print(f"Prompt: {prompt!r} \nEmbeddings: {embeds_trimmed} (size={len(embeds)})")
+
+        output_tensor = torch.tensor(embeds, dtype=torch.float32)
+        golden_tensor = loaded_data[f"prompt{idx}"]
+        pcc = torch.corrcoef(torch.stack([output_tensor, golden_tensor]))[0, 1]
+        print("PCC:", pcc.item())
+        pcc_values.append(pcc.item())
+        print("-" * 60)
+
+    assert all(p >= 0.99 for p in pcc_values), f"Low PCC values: {pcc_values}"

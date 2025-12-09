@@ -1,3 +1,4 @@
 [
-    { "runs-on": "n150",               "name": "run_vllm_n150_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "push", "shared-runners": "true" }
+    { "runs-on": "n150",               "name": "run_vllm_n150_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "push", "shared-runners": "true" },
+    { "runs-on": "n300",               "name": "run_vllm_n300_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "push and dual_chip", "shared-runners": "true" }
 ]
