@@ -161,6 +161,8 @@ class ModelLoader(ForgeModel):
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
+                           NOTE: This parameter is currently ignored for retinanet_resnet50_fpn_v2(model always uses float32).
+                           TODO (@ppadjinTT): remove this when torchvision starts supporting torchvision.ops.nms for bfloat16
 
         Returns:
             torch.nn.Module: The RetinaNet model instance.
@@ -183,7 +185,13 @@ class ModelLoader(ForgeModel):
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
-            model = model.to(dtype_override)
+            if model_name == "retinanet_resnet50_fpn_v2":
+                # TODO (@ppadjinTT): remove this when torchvision starts supporting torchvision.ops.nms for bfloat16
+                print(
+                    "NOTE: dtype_override ignored - batched_nms lacks BFloat16 support"
+                )
+            else:
+                model = model.to(dtype_override)
 
         return model
 
@@ -193,13 +201,16 @@ class ModelLoader(ForgeModel):
         Args:
             dtype_override: Optional torch.dtype to override the inputs' default dtype.
                            If not provided, inputs will use the default dtype (typically float32).
+                           NOTE: This parameter is currently ignored for retinanet_resnet50_fpn_v2(model always uses float32).
+                           TODO (@ppadjinTT): remove this when torchvision starts supporting torchvision.ops.nms for bfloat16
             batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
             torch.Tensor: Preprocessed input tensor suitable for RetinaNet.
         """
-        # Get the source from the instance's variant config
+        # Get the pretrained model name  amd source from the instance's variant config
         source = self._variant_config.source
+        model_name = self._variant_config.pretrained_model_name
 
         if source == ModelSource.TORCHVISION:
             weight_name = self._TORCHVISION_WEIGHTS[self._variant]
@@ -236,7 +247,13 @@ class ModelLoader(ForgeModel):
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
-            batch_t = batch_t.to(dtype_override)
+            if model_name == "retinanet_resnet50_fpn_v2":
+                # TODO (@ppadjinTT): remove this when torchvision starts supporting torchvision.ops.nms for bfloat16
+                print(
+                    "NOTE: dtype_override ignored - batched_nms lacks BFloat16 support"
+                )
+            else:
+                batch_t = batch_t.to(dtype_override)
 
         return batch_t
 
