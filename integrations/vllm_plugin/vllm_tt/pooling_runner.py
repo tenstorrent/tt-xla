@@ -873,6 +873,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.position_ids = self.positions_cpu[
                 :, :padded_total_num_scheduled_tokens
             ].to(self.device)
+            attn_mask_batch_size = 1
         else:
             # Create zero tensor of shape [num_reqs x max_token_len] for position tensor.
             arange = np.zeros(
@@ -895,6 +896,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Remove additional rows/request if received inputs are less than batch_size.
             if num_reqs < self.batch_size:
                 self.input_ids_cpu = self.input_ids_cpu[:num_reqs, :]
+            attn_mask_batch_size = num_reqs
 
             # Apply padding.
             if padded_total_num_scheduled_tokens > 0:
@@ -928,6 +930,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         [self.input_ids_cpu, zero_rows], dim=0
                     )
                     arange = torch.cat([arange, zero_rows], dim=0)
+                    attn_mask_batch_size += self.num_additional_inputs
 
             self.input_ids = self.input_ids_cpu.to(self.device)
             self.position_ids = arange.to(self.device)
@@ -974,12 +977,15 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask = generate_attn_mask(
                 seq_lens,
                 self.input_ids.shape[-1],
-                num_reqs if self.batch_size > 1 else 1,
+                attn_mask_batch_size,
                 self.is_decoder_only_attn_layers,
                 self.dtype,
                 self.device,
             )
             is_causal = False
+
+        if self.data_parallel_inference and attn_mask is not None:
+            xs.mark_sharding(attn_mask, self.mesh, ("x", None, None, None))
 
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
@@ -1183,7 +1189,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Mark inputs for data parallel sharding.
             if self.data_parallel_inference:
-                xs.mark_sharding(self.input_ids, self.mesh, ("x", None))
+                xs.mark_sharding(input_ids, self.mesh, ("x", None))
                 xs.mark_sharding(self.position_ids, self.mesh, ("x", None))
 
             # Run the decoder
@@ -1392,6 +1398,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.device,
             )
             is_causal = False
+
+        # Mark attention mask for data parallel sharding.
+        if self.data_parallel_inference and attn_mask is not None:
+            xs.mark_sharding(attn_mask, self.mesh, ("x", None, None, None))
 
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
