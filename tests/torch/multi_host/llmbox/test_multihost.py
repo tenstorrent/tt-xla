@@ -52,6 +52,7 @@ def test_multihost_models(model_variant):
             "pytest",
             "-ssv",
             f"tests/runner/test_models.py::test_all_models_torch[{model_variant}]",
+            "--disable-perf-measurement",
         ],
         env=distributed_env,
         cwd=os.getcwd(),
