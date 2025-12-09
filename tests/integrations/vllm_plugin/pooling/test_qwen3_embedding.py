@@ -10,6 +10,7 @@ import vllm
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
@@ -87,6 +88,7 @@ def test_embed_qwen3(model_name: str, baseline_path: str):
 
 
 @pytest.mark.nightly
+@pytest.mark.single_device
 def test_embed_qwen3_perf():
     max_seq_len = 2**14  # 16384
     prompts_list = []
@@ -132,6 +134,7 @@ def test_embed_qwen3_perf():
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 def test_embed_qwen3_reduced_dims():
     prompts = [
         "Hello, my name is",
@@ -160,6 +163,7 @@ def test_embed_qwen3_reduced_dims():
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 def test_embed_qwen3_8K():
     # Enable program cache for better performance
     seq_len = 2**13  # 8192
@@ -188,6 +192,7 @@ def test_embed_qwen3_8K():
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 def test_embed_qwen3_16K():
     # Enable program cache for better performance
     seq_len = 2**14  # 16384
@@ -216,7 +221,8 @@ def test_embed_qwen3_16K():
 
 
 @pytest.mark.push
-@pytest.mark.dual_chip
+@pytest.mark.nightly
+@pytest.mark.data_parallel
 @pytest.mark.parametrize("batch_size", [2, 4])
 def test_embed_qwen3_data_parallel(batch_size: int):
     """
