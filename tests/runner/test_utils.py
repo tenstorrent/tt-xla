@@ -563,7 +563,8 @@ def create_benchmark_result(
     benchmark_results["project"] = "tt-xla"
     benchmark_results["model_rawname"] = full_model_name
 
-    # Get JOB_ID from environment, default to a placeholder if running locally
+    # JOB_ID comes from GitHub Actions (set in call-test.yml).
+    # Needed for parsing in CI. When running locally it defaults to "00000".
     job_id = os.environ.get("JOB_ID", "00000")
     safe_model_name = full_model_name.replace("/", "_").replace(" ", "_")
     json_filename = f"benchmark_results_{safe_model_name}_{job_id}.json"
