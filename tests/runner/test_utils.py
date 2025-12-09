@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
+import glob
 import importlib.util
 import inspect
 import json
@@ -12,7 +13,7 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import List, Any
 
 import numpy as np
 import pytest
@@ -59,6 +60,26 @@ def fix_venv_isolation():
     # Re-add at the end as fallback
     if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
         sys.path.append("/usr/local/lib/python3.11/dist-packages")
+
+
+def find_dumped_ir_files(artifacts_dir: str) -> List[str]:
+    """
+    Find dumped SHLO IR files in a given directory.
+
+    This function searches for StableHLO compiler IR files that were dumped
+    during model test execution with the --dump-irs flag.
+
+    Args:
+        artifacts_dir: Directory where collected IRs are stored.
+    """
+
+    pattern = os.path.join(artifacts_dir, "irs", "shlo_compiler*.mlir")
+
+    matches = glob.glob(pattern)
+    if not matches:
+        raise FileNotFoundError(f"No file matching {pattern} with dumped IR found")
+
+    return matches
 
 
 class ModelTestStatus(Enum):
