@@ -60,21 +60,16 @@ class EmitLoc:
     func_name: str
     op_line_num: int
     op_name: str
-
-    # DEBUG
-    is_debug: bool = False
     op_index: int = -1
 
     @staticmethod
-    def make_unknown(is_debug: bool = False, op_index: int = -1) -> "EmitLoc":
+    def make_unknown() -> "EmitLoc":
         return EmitLoc(
             modules=[],
             func_path="unknown",
             func_name="unknown",
             op_line_num=-1,
             op_name="unknown",
-            is_debug=is_debug,
-            op_index=op_index,
         )
 
     def to_string(self) -> str:
@@ -86,11 +81,8 @@ class EmitLoc:
         # Add separator to the end of the modules_str
         modules_str = SEPARATOR.join(modules_list) + SEPARATOR if modules_list else ""
 
-        # Set debug prefix if debug is enabled
-        debug_prefix = f"DEBUG|{self.op_index}|" if self.is_debug else ""
-
         # Don't print op name, it gets added later by torch-xla
-        return f"{debug_prefix}{modules_str}{self.func_path}{SEPARATOR}{self.func_name}{SEPARATOR}{self.op_line_num}{SEPARATOR}"
+        return f"{self.op_index}{SEPARATOR}{modules_str}{self.func_path}{SEPARATOR}{self.func_name}{SEPARATOR}{self.op_line_num}{SEPARATOR}"
 
     def __repr__(self) -> str:
         return self.to_string()
@@ -182,10 +174,10 @@ def _find_enclosing_function(
 
 
 def _extract_source_and_module_hierarchy_info(
-    node: torch.fx.Node, is_debug: bool = False, op_index: int = -1
+    node: torch.fx.Node, op_index: int = -1
 ) -> EmitLoc:
     if "stack_trace" not in node.meta or not node.meta["stack_trace"]:
-        return EmitLoc.make_unknown(is_debug, op_index)
+        return EmitLoc.make_unknown()
 
     global DBG_LOC
 
@@ -204,7 +196,7 @@ def _extract_source_and_module_hierarchy_info(
     )
 
     if line is None:
-        return EmitLoc.make_unknown(is_debug, op_index)
+        return EmitLoc.make_unknown()
 
     DBG_LOC and print(f"Printing stack trace line: {line}")
     stripped = line.strip()
@@ -228,7 +220,7 @@ def _extract_source_and_module_hierarchy_info(
         logger.warning(
             f"Could not find file path or function name for node - location info will be unknown - this will affect codegen"
         )
-        return EmitLoc.make_unknown(is_debug, op_index)
+        return EmitLoc.make_unknown()
 
     # If the function names don't match, raise an error
     if func_name != found_func_name:
@@ -274,7 +266,6 @@ def _extract_source_and_module_hierarchy_info(
         func_name=func_name,
         op_line_num=line_num,
         op_name=node.name,
-        is_debug=is_debug,
         op_index=op_index,
     )
 
@@ -283,8 +274,6 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
     global DBG_LOC
 
     emit_locs = []
-
-    emit_ttnn_debug_loc = os.environ.get("EMIT_TTNN_DEBUG_LOC", False)
     op_index = 0
 
     for node in graph_module.graph.nodes:
@@ -300,7 +289,7 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
         # If no metadata is available, use unknown location
         if not hasattr(node, "meta") or not node.meta:
             DBG_LOC and print(f"  NO meta for node: {node.op} - {node.name}")
-            emit_locs.append(EmitLoc.make_unknown(emit_ttnn_debug_loc, op_index))
+            emit_locs.append(EmitLoc.make_unknown())
             continue
 
         # Skip if node.target is <class 'builtin_function_or_method'>
@@ -312,9 +301,7 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
         DBG_LOC and print(f"  node.target: {node.target}")
 
         # Extract metadata components
-        emit_loc = _extract_source_and_module_hierarchy_info(
-            node, emit_ttnn_debug_loc, op_index
-        )
+        emit_loc = _extract_source_and_module_hierarchy_info(node, op_index)
 
         DBG_LOC and print(f"  EmitLoc: {emit_loc}")
 
@@ -364,14 +351,10 @@ class MetadataDispatchMode(TorchDispatchMode):
     def __torch_dispatch__(self, func, types, args=(), kwargs={}):
         res = func(*args, **kwargs)
 
-        is_debug = "EMIT_TTNN_DEBUG_LOC" in os.environ
-
         # Set metadata only for computation nodes since they have module hierarchy info.
         # XLA nodes without location info inherit from parent/child nodes, which works
         # perfectly since computation nodes always have locations.
-        module_hierarchy = EmitLoc.make_unknown(
-            is_debug=is_debug, op_index=-2
-        ).to_string()
+        module_hierarchy = EmitLoc.make_unknown().to_string()
         if self.operation_index < len(self.node_info):
             module_hierarchy = self.node_info[self.operation_index]
             self._set_metadata(res, module_hierarchy)
