@@ -29,9 +29,9 @@ test_config:
 
   alexnet/image_classification/jax-custom-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "flax.errors.CallCompactUnboundModuleError"
-    execution_pass: FORWARD
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
+    execution_pass: BACKWARD
 
   bart/causal_lm/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
