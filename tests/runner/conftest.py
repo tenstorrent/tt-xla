@@ -36,7 +36,7 @@ def pytest_addoption(parser):
         help="Fail if test_config files and collected test IDs are out of sync",
     )
     parser.addoption(
-        "--disable-perf",
+        "--disable-perf-measurement",
         action="store_true",
         default=False,
         help="Disable performance benchmark collection",
@@ -64,7 +64,6 @@ def bringup_stage_file():
 def cleanup_benchmark_files():
     yield  # tests run here
     # After all tests, clean up if running locally
-    print(f"DEBUG: test reports cleanup starting")
     if os.environ.get("JOB_ID") is None:
         shutil.rmtree("test_reports_benchmarks", ignore_errors=True)
 
@@ -85,8 +84,8 @@ def pytest_collection_modifyitems(config, items):
     arch = config.getoption("--arch")
     validate_config = config.getoption("--validate-test-config")
 
-    if config.getoption("--disable-perf"):
-        os.environ["DISABLE_PERF"] = "1"
+    if config.getoption("--disable-perf-measurement"):
+        os.environ["DISABLE_PERF_MEASUREMENT"] = "1"
 
     # Merge torch and jax test configs once outside the loop
     combined_test_config = torch_test_config | jax_test_config
