@@ -129,7 +129,7 @@ jobs:
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
-        echo "perf_report_path=report_$JOB_ID.json" >> "$GITHUB_OUTPUT"
+        echo "perf_report_path=report_perf_$JOB_ID.json" >> "$GITHUB_OUTPUT"
         if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
           echo "do_codecov=true" >> "$GITHUB_OUTPUT"
           echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
@@ -359,16 +359,9 @@ jobs:
       if: success() || failure()
       with:
         name: test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
-        path: ${{ steps.strings.outputs.test_report_path }}
-
-    # If no perf tests ran, this step will emit a warning (no files to upload) but won't fail the job.
-    - name: Upload Benchmark Report
-      uses: actions/upload-artifact@v4
-      if: success() || failure()
-      with:
-        name: perf-reports-${{ steps.strings.outputs.matrix-hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
-        path: ${{ steps.strings.outputs.perf_report_path }}
-        # If --perf-report-path is not given, no files will be generated so this ignore is needed to avoid failing the job.
+        path: |
+          ${{ steps.strings.outputs.test_report_path }}
+          ${{ steps.strings.outputs.perf_report_path }}
         if-no-files-found: 'ignore'
 
     - name: Show Test Report
