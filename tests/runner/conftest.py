@@ -4,6 +4,7 @@
 
 import difflib
 import os
+import shutil
 
 import pytest
 
@@ -57,6 +58,15 @@ def bringup_stage_file():
         _BRINGUP_STAGE_FILE
     ):
         os.remove(_BRINGUP_STAGE_FILE)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_benchmark_files():
+    yield  # tests run here
+    # After all tests, clean up if running locally
+    print(f"DEBUG: test reports cleanup starting")
+    if os.environ.get("JOB_ID") is None:
+        shutil.rmtree("test_reports_benchmarks", ignore_errors=True)
 
 
 @pytest.fixture
