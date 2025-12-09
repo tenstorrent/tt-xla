@@ -8,12 +8,11 @@ from third_party.tt_forge_models.transfuser.pytorch.src.transfuser import (
 )
 from six.moves import zip
 import torch.nn.functional as F
-import numpy as np
 import math
 
 
 def get_lidar_to_bevimage_transform():
-    T = np.array([[0, -1, 16], [-1, 0, 32], [0, 0, 1]], dtype=np.float32)
+    T = torch.tensor([[0, -1, 16], [-1, 0, 32], [0, 0, 1]], dtype=torch.float32)
     T[:2, :] *= 8
 
     return T
@@ -186,7 +185,7 @@ class LidarCenterNetHead(nn.Module):
         Returns:
             torch.Tensor: Angle decoded from angle_cls and angle_res.
         """
-        angle_per_class = 2 * np.pi / float(self.num_dir_bins)
+        angle_per_class = 2 * math.pi / float(self.num_dir_bins)
         angle_center = angle_cls.float() * angle_per_class
         angle = angle_center + angle_res
         if limit_period:
@@ -385,15 +384,10 @@ class LidarCenterNet(nn.Module):
         )
         bboxes, _ = results[0]
         rotated_bboxes = []
-        for bbox in bboxes.detach().cpu().numpy():
+        for bbox in bboxes.detach().cpu():
             bbox = self.get_bbox_local_metric(bbox)
             rotated_bboxes.append(bbox)
-        tensor_bboxes = []
-        for arr, scale, score in rotated_bboxes:
-            tensor_bboxes.append(
-                (torch.from_numpy(arr), torch.tensor(scale), torch.tensor(score))
-            )
-        return pred_wp, tensor_bboxes
+        return pred_wp, rotated_bboxes
 
     def get_bbox_local_metric(self, bbox):
         x, y, w, h, yaw, speed, brake, confidence = bbox
@@ -401,33 +395,77 @@ class LidarCenterNet(nn.Module):
         h = h / 2 / 8
 
         T = get_lidar_to_bevimage_transform()
-        T_inv = np.linalg.inv(T)
-        center = np.array([x, y, 1.0])
+        T_inv = torch.linalg.inv(T)
+        center = torch.stack([x, y, torch.tensor(1.0, dtype=torch.float32)])
         center_old_coordinate_sys = T_inv @ center
-        center_old_coordinate_sys = center_old_coordinate_sys + np.array(
-            [1.3, 0.0, 2.5]
+        center_old_coordinate_sys = center_old_coordinate_sys + torch.stack(
+            [
+                torch.tensor(1.3, dtype=torch.float32),
+                torch.tensor(0.0, dtype=torch.float32),
+                torch.tensor(2.5, dtype=torch.float32),
+            ]
         )
         center_old_coordinate_sys[1] = -center_old_coordinate_sys[1]
 
-        bbox = np.array(
+        bbox = torch.stack(
             [
-                [-h, -w, 1],
-                [-h, w, 1],
-                [h, w, 1],
-                [h, -w, 1],
-                [0, 0, 1],
-                [0, h * speed * 0.5, 1],
-            ]
+                torch.stack([-h, -w, torch.tensor(1.0, dtype=torch.float32)]),
+                torch.stack([-h, w, torch.tensor(1.0, dtype=torch.float32)]),
+                torch.stack([h, w, torch.tensor(1.0, dtype=torch.float32)]),
+                torch.stack([h, -w, torch.tensor(1.0, dtype=torch.float32)]),
+                torch.stack(
+                    [
+                        torch.tensor(0.0, dtype=torch.float32),
+                        torch.tensor(0.0, dtype=torch.float32),
+                        torch.tensor(1.0, dtype=torch.float32),
+                    ]
+                ),
+                torch.stack(
+                    [
+                        torch.tensor(0.0, dtype=torch.float32),
+                        h * speed * 0.5,
+                        torch.tensor(1.0, dtype=torch.float32),
+                    ]
+                ),
+            ],
+            dim=0,
         )
 
-        R = np.array(
-            [[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]]
+        R = torch.stack(
+            [
+                torch.stack(
+                    [
+                        torch.cos(yaw),
+                        -torch.sin(yaw),
+                        torch.tensor(0.0, dtype=torch.float32),
+                    ]
+                ),
+                torch.stack(
+                    [
+                        torch.sin(yaw),
+                        torch.cos(yaw),
+                        torch.tensor(0.0, dtype=torch.float32),
+                    ]
+                ),
+                torch.stack(
+                    [
+                        torch.tensor(0.0, dtype=torch.float32),
+                        torch.tensor(0.0, dtype=torch.float32),
+                        torch.tensor(1.0, dtype=torch.float32),
+                    ]
+                ),
+            ],
+            dim=0,
         )
 
         for point_index in range(bbox.shape[0]):
             bbox[point_index] = R @ bbox[point_index]
-            bbox[point_index] = bbox[point_index] + np.array(
-                [center_old_coordinate_sys[0], center_old_coordinate_sys[1], 0]
+            bbox[point_index] = bbox[point_index] + torch.stack(
+                [
+                    center_old_coordinate_sys[0],
+                    center_old_coordinate_sys[1],
+                    torch.tensor(0.0, dtype=torch.float32),
+                ]
             )
 
         return bbox, brake, confidence
