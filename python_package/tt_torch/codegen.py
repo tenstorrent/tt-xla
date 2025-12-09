@@ -39,7 +39,7 @@ def codegen_py(
     args = [arg.to(device) for arg in args if isinstance(arg, torch.Tensor)]
     kwargs = {k: v.to(device) for k, v in kwargs.items() if isinstance(v, torch.Tensor)}
     output = model(*args, **kwargs)
-    torch_xla.sync(wait=True)
+    torch_xla._XLAC._xla_sync_multi(list(output), [], wait=True)
     return None
 
 
@@ -64,5 +64,5 @@ def codegen_cpp(
     args = [arg.to(device) for arg in args if isinstance(arg, torch.Tensor)]
     kwargs = {k: v.to(device) for k, v in kwargs.items() if isinstance(v, torch.Tensor)}
     output = model(*args, **kwargs)
-    torch_xla.sync(wait=True)
+    torch_xla._XLAC._xla_sync_multi(list(output), [], wait=True)
     return None
