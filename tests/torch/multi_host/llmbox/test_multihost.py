@@ -32,6 +32,7 @@ def get_distributed_worker_path():
     return worker_path
 
 
+@pytest.mark.multi_host
 @pytest.mark.push
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
