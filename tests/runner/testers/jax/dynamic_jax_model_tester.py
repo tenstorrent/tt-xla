@@ -169,8 +169,10 @@ class DynamicJaxModelTester(JaxModelTester):
         """
         if hasattr(self.dynamic_loader.loader, "get_forward_method_name"):
             return self.dynamic_loader.loader.get_forward_method_name()
+        elif isinstance(self._get_model(), linen.Module):
+            return "apply"
 
-        return "apply" if isinstance(self._get_model(), linen.Module) else "__call__"
+        return "__call__"
 
     def _wrapper_model(self, f):
         """Wrapper for model forward method that extracts the appropriate output.
