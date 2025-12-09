@@ -31,145 +31,285 @@ Correct usage pattern:
     nodes_info = extract_nodes_info(graph)  # Extract after finalization
 
 """
+import ast
+import logging
+import os
+import types
+from dataclasses import dataclass
+
 import torch
 import torch_xla
 from torch.utils._python_dispatch import TorchDispatchMode
 
-UNKNOWN_LOCATION = "unknown/unknown(unknown:0)/"
+logger = logging.getLogger(__name__)
+
+# Enable debug logging for location metadata
+DBG_LOC = False
 
 
-def _extract_source_info(node: torch.fx.Node) -> tuple[str, int, str]:
+@dataclass
+class EmitModuleLoc:
+    module_class: str
+    module_name: str
+
+
+@dataclass
+class EmitLoc:
+    modules: list[EmitModuleLoc]
+    func_path: str
+    func_name: str
+    op_line_num: int
+    op_name: str
+    op_index: int = -1
+
+    @staticmethod
+    def make_unknown() -> "EmitLoc":
+        return EmitLoc(
+            modules=[],
+            func_path="unknown",
+            func_name="unknown",
+            op_line_num=-1,
+            op_name="unknown",
+        )
+
+    def to_string(self) -> str:
+        SEPARATOR = "|"
+        modules_list = []
+        for mod in self.modules:
+            modules_list.append(f"{mod.module_class}[{mod.module_name}]")
+
+        # Add separator to the end of the modules_str
+        modules_str = SEPARATOR.join(modules_list) + SEPARATOR if modules_list else ""
+
+        # Don't print op name, it gets added later by torch-xla
+        return f"{self.op_index}{SEPARATOR}{modules_str}{self.func_path}{SEPARATOR}{self.func_name}{SEPARATOR}{self.op_line_num}{SEPARATOR}"
+
+    def __repr__(self) -> str:
+        return self.to_string()
+
+    def __str__(self) -> str:
+        return self.to_string()
+
+
+def _find_enclosing_function(
+    full_path: str, line_num: int, mode: str = "simple"
+) -> tuple[str, str]:
     """
-    Extract source file, line number, and function name from node's stack trace.
-    Processes the stack trace in reverse to find the DEEPEST call (innermost module).
-    Stack trace line format: '  File "/path/to/file.py", line 42, in forward'
+    Given a file path and a line number, returns the full path (with line number) of the enclosing function.
+    If not found or file cannot be opened, returns "unknown".
+
+    Args:
+        full_path: Path to the source file.
+        line_num: The 1-based line number for which to find the enclosing function.
+        mode: 'simple' (default) uses a line-by-line scan;
+              'ast' uses the Python AST to determine the most accurate enclosing function.
 
     Returns:
-        Tuple of (file_name, line_num, func_name)
+        str: tuple of (full_path:str, func_name:str) or ("unknown", "unknown")
     """
+    if mode == "simple":
+        try:
+            with open(full_path, "r") as f:
+                current_func_name = "unknown"
+                current_func_lineno = 0
+                for lineno, file_line in enumerate(f, 1):
+                    stripped = file_line.lstrip()
+                    if stripped.startswith("def ") and "(" in stripped[4:]:
+                        func_def = stripped[4:].split("(")[0].strip()
+                        current_func_name = func_def
+                        current_func_lineno = lineno
+                    if lineno == line_num:
+                        break
+                if current_func_name != "unknown":
+                    return f"{full_path}:{current_func_lineno}", current_func_name
+                else:
+                    return "unknown", "unknown"
+        except Exception:
+            return "unknown", "unknown"
+
+    elif mode == "ast":
+        try:
+            with open(full_path, "r") as f:
+                source = f.read()
+            tree = ast.parse(source, full_path)
+
+            class LineFunctionVisitor(ast.NodeVisitor):
+                def __init__(self, line):
+                    self.line = line
+                    self.found = None
+                    self.found_lineno = None
+                    self.found_name = None
+
+                def visit_FunctionDef(self, node):
+                    if hasattr(node, "body") and node.lineno <= self.line <= (
+                        max(getattr(x, "lineno", node.lineno) for x in node.body)
+                        if node.body
+                        else node.lineno
+                    ):
+                        # Recursively visit all children to find more specific (inner) functions.
+                        # This includes functions nested directly AND methods inside nested classes.
+                        self.generic_visit(node)
+
+                        # If no more specific one found, record this one
+                        if self.found is None or node.lineno > (self.found_lineno or 0):
+                            self.found = node
+                            self.found_lineno = node.lineno
+                            self.found_name = node.name
+
+                # Also handle async functions
+                visit_AsyncFunctionDef = visit_FunctionDef
+
+            visitor = LineFunctionVisitor(line_num)
+            visitor.visit(tree)
+            if visitor.found is not None:
+                return f"{full_path}:{visitor.found_lineno}", visitor.found_name
+            else:
+                return "unknown", "unknown"
+        except Exception:
+            return "unknown", "unknown"
+    else:
+        raise ValueError(
+            'Invalid mode for _find_enclosing_function: choose "simple" or "ast"'
+        )
+
+
+def _extract_source_and_module_hierarchy_info(
+    node: torch.fx.Node, op_index: int = -1
+) -> EmitLoc:
     if "stack_trace" not in node.meta or not node.meta["stack_trace"]:
-        return "unknown", 0, "unknown"
+        return EmitLoc.make_unknown()
+
+    global DBG_LOC
 
     # Process in reverse to get deepest (innermost) call first
     lines = node.meta["stack_trace"].strip().split("\n")
-    for line in reversed(lines):
-        stripped = line.strip()
 
-        if not stripped.startswith('File "'):
-            continue
+    # Find the first (deepest) valid stack trace line
+    line = next(
+        (
+            line
+            for line in reversed(lines)
+            if (stripped := line.strip()).startswith('File "')
+            and len(stripped.split(",")) >= 3
+        ),
+        None,
+    )
 
-        parts = stripped.split(",")
-        if len(parts) < 3:
-            continue
+    if line is None:
+        return EmitLoc.make_unknown()
 
-        # Parse: File "/path/file.py", line 42, in forward
-        full_path = parts[0].split('"')[1]
-        file_name = full_path.split("/")[-1]
-        line_num = int(parts[1].split()[-1])
-        func_name = parts[2].split()[-1]
+    DBG_LOC and print(f"Printing stack trace line: {line}")
+    stripped = line.strip()
+    parts = stripped.split(",")
 
-        return file_name, line_num, func_name
+    # Parse the line to get the full path, line number, and function name
+    # File "/path/file.py", line 42, in forward
+    full_path = parts[0].split('"')[1]
+    line_num = int(parts[1].split()[-1])
+    func_name = parts[2].split()[-1]
+    func_path, found_func_name = _find_enclosing_function(full_path, line_num)
+    func_path_ast, found_func_name_ast = _find_enclosing_function(
+        full_path, line_num, mode="ast"
+    )
 
-    return "unknown", 0, "unknown"
-
-
-def _extract_module_hierarchy(node: torch.fx.Node) -> tuple[list[str], list[str]]:
-    """
-    Extract module hierarchy from node's nn_module_stack metadata.
-
-    Returns:
-        Tuple of (module_classes, module_names)
-    """
-    module_classes: list[str] = []
-    module_names: list[str] = []
-
-    if "nn_module_stack" not in node.meta or not node.meta["nn_module_stack"]:
-        return module_classes, module_names
-
-    # Sort by path length to get hierarchy order (shorter = outer, longer = inner modules)
-    # Format: (path, class_name) e.g., ("L['self'].inner.linear", "torch.nn.modules.linear.Linear")
-    modules = sorted(node.meta["nn_module_stack"].values(), key=lambda x: len(x[0]))
-
-    for path, class_name in modules:
-        module_class = class_name.split(".")[-1] if "." in class_name else class_name
-        module_classes.append(module_class)
-
-        # Extract instance from path (e.g., "L['self'].inner.linear" → "inner.linear")
-        instance = (
-            path.replace("L['self'].", "").replace("L['self']", "") if path else ""
+    # If either of the paths is "unknown", return unknown loc
+    if "unknown" in (func_path_ast, found_func_name_ast):
+        DBG_LOC and print(
+            f"  unknown function name or path: {func_name}, {found_func_name}, {func_path_ast}, {found_func_name_ast}"
         )
-        instance = instance if instance else module_class.lower()
-        module_names.append(instance)
+        logger.warning(
+            f"Could not find file path or function name for node - location info will be unknown - this will affect codegen"
+        )
+        return EmitLoc.make_unknown()
 
-    return module_classes, module_names
+    # If the function names don't match, raise an error
+    if func_name != found_func_name:
+        DBG_LOC and print(f"  function name mismatch: {func_name}, {found_func_name}")
+        raise ValueError(
+            f"Function name mismatch between stack_trace and found_func_name modes\nstack_trace: {func_name}\nfound_func_name: {found_func_name}\nfound_func_name_ast: {found_func_name_ast}"
+        )
 
+    # If the function paths don't match, raise an error
+    if func_path != func_path_ast:
+        DBG_LOC and print(f"  func_path: {func_path}, {found_func_name}")
+        DBG_LOC and print(f"  func_path_ast: {func_path_ast}, {found_func_name_ast}")
+        raise ValueError(
+            f"Function path mismatch for {full_path}:{line_num} between simple and ast modes\nSimple: {func_path}\n   Ast: {func_path_ast}"
+        )
 
-def _build_location_string(
-    module_classes: list[str],
-    module_names: list[str],
-    file_name: str,
-    line_num: int,
-    func_name: str,
-) -> str:
-    """
-    Build module hierarchy string from components.
+    # Extract module hierarchy from node's nn_module_stack metadata.
+    extracted_modules = []
+    if "nn_module_stack" in node.meta and node.meta["nn_module_stack"]:
+        # Sort by path length to get hierarchy order (shorter = outer, longer = inner modules)
+        # Format: (path, class_name) e.g., ("L['self'].inner.linear", "torch.nn.modules.linear.Linear")
+        modules = sorted(node.meta["nn_module_stack"].values(), key=lambda x: len(x[0]))
 
-    Format: "ModuleClass[mod_name_1]/SubModule[mod_name_2]/func_name(file.py:line)/"
-    """
-    path_parts = []
+        DBG_LOC and print(f"  Printing modules:")
+        for path, class_name in modules:
+            DBG_LOC and print(f"    path: {path}")
+            DBG_LOC and print(f"    class_name: {class_name}")
+            module_class = (
+                class_name.split(".")[-1] if "." in class_name else class_name
+            )
 
-    if module_classes:
-        for mod_class, mod_name in zip(module_classes, module_names):
-            path_parts.append(f"{mod_class}[{mod_name}]")
+            # Extract instance from path (e.g., "L['self'].inner.linear" → "inner.linear")
+            module_name = (
+                path.replace("L['self'].", "").replace("L['self']", "") if path else ""
+            )
+            module_name = module_name if module_name else module_class.lower()
 
-    hierarchy = "/".join(path_parts) if path_parts else ""
-    file_info = f"{func_name}({file_name}:{line_num})"
+            extracted_modules.append(EmitModuleLoc(module_class, module_name))
 
-    if hierarchy:
-        return f"{hierarchy}/{file_info}/"
-    else:
-        return f"{file_info}/"
+    return EmitLoc(
+        modules=extracted_modules,
+        func_path=func_path,
+        func_name=func_name,
+        op_line_num=line_num,
+        op_name=node.name,
+        op_index=op_index,
+    )
 
 
 def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
-    """
-    Extract node metadata from FX graph nodes.
+    global DBG_LOC
 
-    Returns ordered list of module hierarchy for call_function nodes only.
-    Filtering matches dispatch behavior: only call_function nodes dispatch operations.
-
-    Format: "ModuleClass[instance]/SubModule[instance]/func_name(file.py:line)/"
-
-    This prefix is concatenated with operation type by torch-xla:
-    "Linear[linear]/forward(model.py:42)/" + "aten__mm"
-    → "Linear[linear]/forward(model.py:42)/aten__mm"
-    """
-    nodes_info = []
+    emit_locs = []
+    op_index = 0
 
     for node in graph_module.graph.nodes:
+
+        DBG_LOC and print(f"node.op: {node.op}")
+        DBG_LOC and print(f"  node.name: {node.name}")
+
         # Only process call_function nodes
         if node.op != "call_function":
+            DBG_LOC and print(f"  SKIPPING node: {node.op} - {node.name}")
             continue
 
+        # If no metadata is available, use unknown location
         if not hasattr(node, "meta") or not node.meta:
-            nodes_info.append(UNKNOWN_LOCATION)
+            DBG_LOC and print(f"  NO meta for node: {node.op} - {node.name}")
+            emit_locs.append(EmitLoc.make_unknown())
             continue
+
+        # Skip if node.target is <class 'builtin_function_or_method'>
+        if isinstance(node.target, types.BuiltinFunctionType):
+            DBG_LOC and print(
+                f"  SKIPPING node: {node.op} - {node.name} - it is a builtin function"
+            )
+            continue
+        DBG_LOC and print(f"  node.target: {node.target}")
 
         # Extract metadata components
-        file_name, line_num, func_name = _extract_source_info(node)
-        module_classes, module_names = _extract_module_hierarchy(node)
+        emit_loc = _extract_source_and_module_hierarchy_info(node, op_index)
+
+        DBG_LOC and print(f"  EmitLoc: {emit_loc}")
 
         # Build location string if we have any metadata
-        if file_name != "unknown" or module_classes:
-            nodes_info.append(
-                _build_location_string(
-                    module_classes, module_names, file_name, line_num, func_name
-                )
-            )
-        else:
-            nodes_info.append(UNKNOWN_LOCATION)
+        emit_locs.append(emit_loc)
+        op_index += 1
 
-    return nodes_info
+    return [emit_loc.to_string() for emit_loc in emit_locs]
 
 
 class MetadataDispatchMode(TorchDispatchMode):
@@ -199,9 +339,6 @@ class MetadataDispatchMode(TorchDispatchMode):
        torch_xla._XLAC._set_xla_custom_op_name_prefix(). torch-xla traces back from the
        tensor to find which operation produced it, then labels that operation node in HLO.
 
-       Result in HLO: "Linear[fc]/forward(model.py:12)/aten__linear"
-                      "ReLU[act]/forward(model.py:13)/aten__relu"
-
     This is non-invasive: it doesn't modify the FX graph or operation semantics, only adds
     debugging metadata to the generated XLA HLO IR for better observability.
     """
@@ -214,15 +351,12 @@ class MetadataDispatchMode(TorchDispatchMode):
     def __torch_dispatch__(self, func, types, args=(), kwargs={}):
         res = func(*args, **kwargs)
 
-        # Get semantic location for this operation
-        module_hierarchy = UNKNOWN_LOCATION
-        if self.operation_index < len(self.node_info):
-            module_hierarchy = self.node_info[self.operation_index]
-
         # Set metadata only for computation nodes since they have module hierarchy info.
         # XLA nodes without location info inherit from parent/child nodes, which works
         # perfectly since computation nodes always have locations.
-        if module_hierarchy != UNKNOWN_LOCATION:
+        module_hierarchy = EmitLoc.make_unknown().to_string()
+        if self.operation_index < len(self.node_info):
+            module_hierarchy = self.node_info[self.operation_index]
             self._set_metadata(res, module_hierarchy)
 
         # increment counter (critical for correctness)
