@@ -9,6 +9,7 @@ from torch.utils._pytree import tree_flatten, tree_map
 
 from .comparator import Comparator
 from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
+from sweeps.core.logging import sweeps_property_utils
 
 
 class TorchComparator(Comparator):
@@ -46,6 +47,7 @@ class TorchComparator(Comparator):
         )
         flat_atols, _ = tree_flatten(leaf_atols)
         atol = max(flat_atols)
+        sweeps_property_utils.record_atol(float(atol))
         return float(atol)
 
     # @override
@@ -66,12 +68,17 @@ class TorchComparator(Comparator):
         if TorchComparator._compare_allclose(
             device_output, golden_output, pcc_config.allclose
         ):
-            return 1.0  # Perfect correlation when values are essentially identical
+            pcc = 1.0
+            sweeps_property_utils.record_pcc(pcc)
+            return pcc  # Perfect correlation when values are essentially identical
 
         # Calculate PCC for non-identical values
         leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
         pcc = min(flat_pccs)
+        if pcc is not None:
+            sweeps_property_utils.record_pcc(float(pcc))
+
         return float(pcc)
 
     # @override
