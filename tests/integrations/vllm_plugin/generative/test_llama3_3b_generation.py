@@ -6,6 +6,7 @@ import vllm
 
 
 @pytest.mark.nightly
+@pytest.mark.single_device
 def test_llama3_3b_generation():
     prompts = [
         "I like taking walks in the",

@@ -9,6 +9,7 @@ import vllm
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
