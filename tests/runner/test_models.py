@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import glob
 import os
 import shutil
 import subprocess
@@ -29,6 +28,7 @@ from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
+    find_dumped_ir_files,
     create_benchmark_result,
     fix_venv_isolation,
     record_model_test_properties,
@@ -399,11 +399,7 @@ def test_all_models_op_by_op(
     )
 
     artifacts_dir = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
-    pattern = os.path.join(artifacts_dir, "irs", "shlo_compiler*.mlir")
-
-    matches = glob.glob(pattern)
-    if not matches:
-        raise FileNotFoundError(f"No file matching {pattern} with dumped IR found")
+    matches = find_dumped_ir_files(artifacts_dir)
 
     results = []
     for ir_file_path in matches:
