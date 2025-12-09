@@ -65,4 +65,5 @@ def test_gather(data_shape, indices_shape, offset_dims, start_index_map, slice_s
         input_shapes=[data_shape, indices_shape],
         minval=0,
         maxval=jnp.min(indexing_dim_sizes),
+        dtype=jnp.int32
     )
