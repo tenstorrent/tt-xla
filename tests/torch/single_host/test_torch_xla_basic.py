@@ -9,6 +9,7 @@ import torch
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from infra import Framework, run_graph_test
 from infra.comparators.torch_comparator import TorchComparator
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from torch_xla.distributed.spmd import Mesh
@@ -360,55 +361,13 @@ def test_fully_replicated_graph(spmd_mode):
     comparator.compare(output, golden)
 
 
-# Multichip basic testing
-class TorchMultichipUnaryModelTester(TorchModelTester):
-    def __init__(
-        self,
-        model: torch.nn.Module,
-        input_shape: tuple,
-        mesh: Mesh,
-        shard_spec_fn=None,
-    ) -> None:
-        self._this_model = model
-        self._input_shape = input_shape
-        self._mesh = mesh
-        self._shard_spec_fn = shard_spec_fn
-        super().__init__()
-
-    def _get_input_activations(self):
-        if self._input_activations is None:
-            self._input_activations = {"input": torch.randn(self._input_shape)}
-        return self._input_activations
-
-    def _get_model(self):
-        return self._this_model
-
-    def _get_forward_method_args(self):
-        return (self._get_input_activations()["input"],)
-
-    def _get_forward_method_kwargs(self):
-        return {}
-
-    def _get_mesh(self):
-        return self._mesh
-
-    def _get_shard_specs_function(self):
-        return self._shard_spec_fn
-
-
-def setup_mesh(mesh_shape, axis_names):
-    device_ids = np.arange(np.prod(mesh_shape))
-    mesh = Mesh(device_ids=device_ids, mesh_shape=mesh_shape, axis_names=axis_names)
-    return mesh
-
-
 @pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.dual_chip
 @pytest.mark.parametrize("axis_names", [("x", "y")])
 @pytest.mark.parametrize("input_shape", [(32, 32)])
 @pytest.mark.parametrize("sharding_mode", ["fully_replicated", "partially_sharded"])
-def test_linear(axis_names, input_shape, sharding_mode):
+def test_spmd_sharding(axis_names, input_shape, sharding_mode):
     class LinearModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -425,13 +384,22 @@ def test_linear(axis_names, input_shape, sharding_mode):
             # Do not shard anything, fully replicated
             return {}
 
+    def setup_mesh(mesh_shape, axis_names):
+        device_ids = np.arange(np.prod(mesh_shape))
+        mesh = Mesh(device_ids=device_ids, mesh_shape=mesh_shape, axis_names=axis_names)
+        return mesh
+
+    inputs = torch.randn(input_shape)
+
     mesh_shape = (1, xr.global_runtime_device_count())
     mesh = setup_mesh(mesh_shape, axis_names)
-    model_tester = TorchMultichipUnaryModelTester(
-        model=LinearModel(),
-        input_shape=input_shape,
+    comparison_config = ComparisonConfig()
+
+    run_graph_test(
+        LinearModel(),
+        [inputs],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
         mesh=mesh,
         shard_spec_fn=shard_spec_function,
     )
-
-    model_tester.test()
