@@ -10,6 +10,7 @@ from transformers import DynamicCache, EncoderDecoderCache
 
 from .comparator import Comparator
 from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
+from sweeps.core.logging import sweeps_property_utils
 
 
 class TorchComparator(Comparator):
@@ -96,6 +97,7 @@ class TorchComparator(Comparator):
         flat_atols, _ = tree_flatten(leaf_atols)
         filtered_atols = [atol for atol in flat_atols if atol is not None]
         atol = max(filtered_atols)
+        sweeps_property_utils.record_atol(float(atol))
         return float(atol)
 
     # @override
@@ -127,6 +129,9 @@ class TorchComparator(Comparator):
         flat_pccs, _ = tree_flatten(leaf_pccs)
         filtered_pccs = [pcc for pcc in flat_pccs if pcc is not None]
         pcc = min(filtered_pccs)
+        if pcc is not None:
+            sweeps_property_utils.record_pcc(float(pcc))
+
         return float(pcc)
 
     # @override
