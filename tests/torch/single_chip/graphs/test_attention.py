@@ -171,6 +171,7 @@ def test_llama_embedding_decode_layer(seq_len, variant, variant_config, is_llmbo
             return self.decoder_layer(embedding, attention_mask=attention_mask, position_embeddings=position_embeddings, past_key_state=past_key_state)
 
     wrapper = Wrapper().to(torch.bfloat16)
+    print(wrapper.decoder_layer)
     batch_size = 1
     num_heads = config.num_attention_heads
 
@@ -211,6 +212,8 @@ def test_llama_embedding_decode_layer(seq_len, variant, variant_config, is_llmbo
 
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
 
+    import time
+    start_time = time.perf_counter()
     run_graph_test(
         wrapper,
         [input_ids, position_embeddings, attention_mask, past_key_states],
@@ -219,6 +222,9 @@ def test_llama_embedding_decode_layer(seq_len, variant, variant_config, is_llmbo
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
+
+    end_time = time.perf_counter()
+    print(f"Test duration: {end_time - start_time:.4f} seconds")
 
 @pytest.mark.nightly
 @parametrize_is_llmbox()  # True for llmbox, False for single device
@@ -282,8 +288,8 @@ def test_llama_decode_layer(seq_len, variant, variant_config, is_llmbox):
 
     past_key_states = None
 
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
-
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=1.0))
+    comparison_config.pcc.enable()
     run_graph_test(
         wrapper,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
@@ -415,7 +421,7 @@ def test_llama_embedding_attention_prefill(seq_len, variant, variant_config, is_
             shard_specs[args[1][0]] = ("batch", None, None)  # cos
             shard_specs[args[1][1]] = ("batch", None, None)  # sin
             shard_specs[args[2]] = ("batch", None, None, None)  # mask
-            shard_specs[wrapper.embed_tokens.weight] = (None, "model")
+            shard_specs[wrapper.embed_tokens.weight] = (None, "batch")
             shard_specs[wrapper.attention.q_proj.weight] = ("model", None)
             shard_specs[wrapper.attention.k_proj.weight] = ("model", None)
             shard_specs[wrapper.attention.v_proj.weight] = ("model", None)
