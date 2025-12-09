@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <optional>
+#include <set>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -325,7 +326,8 @@ tt_pjrt_status ClientInstance::populateMemories() {
 
 tt_pjrt_status ClientInstance::compileMlirProgram(
     const PJRT_Program *mlir_program, LoadedExecutableInstance **out_executable,
-    const std::unordered_map<std::string, std::string> &compile_options) {
+    const std::unordered_map<std::string, std::string> &compile_options,
+    const std::vector<int64_t> &replica_device_ids) {
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
@@ -340,17 +342,24 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   auto executable_image =
       std::get<std::shared_ptr<ExecutableImage>>(compile_result);
 
-  // TODO(mrakita): Currently there is no way to determine addressable devices
-  // from the mlir code. XLA parses device assignment from the `compile_options`
-  // arg, but that field is a serialized protobuf of `xla::CompileOptions` which
-  // we cannot deserialize easily without linking whole XLA. Passing a subset of
-  // first `num_devices_to_utilize` client's addressable devices for now, but
-  // this will lead to errors if buffers are put on different devices than
-  // those. https://github.com/openxla/xla/issues/24990
-  std::vector<DeviceInstance *> addressable_devices(
-      m_addressable_devices_raw.begin(),
-      m_addressable_devices_raw.begin() +
-          executable_image->getNumDevicesToUtilize());
+  std::vector<DeviceInstance *> addressable_devices;
+
+  if (!replica_device_ids.empty()) {
+    for (int64_t device_id : replica_device_ids) {
+      if (device_id >= 0 &&
+          device_id < static_cast<int64_t>(m_addressable_devices_raw.size())) {
+        addressable_devices.push_back(m_addressable_devices_raw[device_id]);
+      } else {
+        DLOG_F(ERROR, "Invalid device ID %ld in DeviceAssignment", device_id);
+        return tt_pjrt_status::kInvalidArgument;
+      }
+    }
+  } else {
+    addressable_devices.assign(
+        m_addressable_devices_raw.begin(),
+        m_addressable_devices_raw.begin() +
+            executable_image->getNumDevicesToUtilize());
+  }
 
   std::unique_ptr<LoadedExecutableInstance> executable =
       executable_image->toExecutableInstance(std::move(addressable_devices),
@@ -363,23 +372,154 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   return tt_pjrt_status::kSuccess;
 }
 
+bool ClientInstance::parseCompileOptionsProto(
+    const char *compile_options_data, size_t compile_options_size,
+    google::protobuf::UnknownFieldSet &unknown_fields) {
+  google::protobuf::io::CodedInputStream cis(
+      reinterpret_cast<const uint8_t *>(compile_options_data),
+      compile_options_size);
+
+  if (!unknown_fields.MergeFromCodedStream(&cis)) {
+    DLOG_F(ERROR, "Failed to parse compile options protobuf data");
+    return false;
+  }
+
+  return true;
+}
+
 tt_pjrt_status ClientInstance::getCompileOptions(
     const char *compile_options_data, size_t compile_options_size,
     std::unordered_map<std::string, std::string> &out_compile_options) {
 
-  google::protobuf::io::CodedInputStream cis(
-      reinterpret_cast<const uint8_t *>(compile_options_data),
-      compile_options_size);
   google::protobuf::UnknownFieldSet unknown_fields;
 
-  if (!unknown_fields.MergeFromCodedStream(&cis)) {
-    DLOG_F(ERROR, "Failed to parse the unknown fields set from the compile "
-                  "options protobuf data");
+  if (!parseCompileOptionsProto(compile_options_data, compile_options_size,
+                                unknown_fields)) {
     return tt_pjrt_status::kInternal;
   }
 
   return ClientInstance::extractCustomProtobufFields(unknown_fields,
                                                      out_compile_options);
+}
+
+std::vector<int64_t>
+ClientInstance::extractReplicaDeviceIds(const char *compile_options_data,
+                                        size_t compile_options_size) {
+  std::set<int64_t> unique_device_ids;
+
+  google::protobuf::UnknownFieldSet unknown_fields;
+
+  if (!parseCompileOptionsProto(compile_options_data, compile_options_size,
+                                unknown_fields)) {
+    return std::vector<int64_t>(unique_device_ids.begin(),
+                                unique_device_ids.end());
+  }
+
+  // The code above parses the CompileOptionsProto protobuf based on its layout
+  // defined in
+  // https://github.com/openxla/xla/blob/main/xla/pjrt/proto/compile_options.proto
+
+  // The executable build compiler options that are defined in through the
+  // jax.jit() and contain the information about devices assignment are stored
+  // in the field number 3.
+  constexpr int kExecutableBuildOptionsProtoFieldNumber = 3;
+
+  for (int i = 0; i < unknown_fields.field_count(); ++i) {
+    const google::protobuf::UnknownField &field = unknown_fields.field(i);
+
+    if (field.number() == kExecutableBuildOptionsProtoFieldNumber &&
+        field.type() == google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+
+      const std::string &exec_build_data = field.length_delimited();
+      google::protobuf::UnknownFieldSet exec_build_fields;
+      google::protobuf::io::CodedInputStream exec_input(
+          reinterpret_cast<const uint8_t *>(exec_build_data.data()),
+          exec_build_data.size());
+
+      if (!exec_build_fields.ParseFromCodedStream(&exec_input)) {
+        continue;
+      }
+
+      // DeviceAssignmentProto is field number 9 in ExecutableBuildOptionsProto
+      constexpr int kDeviceAssignmentProtoFieldNumber = 9;
+
+      for (int j = 0; j < exec_build_fields.field_count(); ++j) {
+        const google::protobuf::UnknownField &exec_field =
+            exec_build_fields.field(j);
+
+        if (exec_field.number() == kDeviceAssignmentProtoFieldNumber &&
+            exec_field.type() ==
+                google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+
+          // Parse DeviceAssignmentProto
+          const std::string &device_assign_data = exec_field.length_delimited();
+          google::protobuf::UnknownFieldSet device_assign_fields;
+          google::protobuf::io::CodedInputStream device_input(
+              reinterpret_cast<const uint8_t *>(device_assign_data.data()),
+              device_assign_data.size());
+
+          if (!device_assign_fields.ParseFromCodedStream(&device_input)) {
+            continue;
+          }
+
+          // ComputationDevice is field number 3 in DeviceAssignmentProto
+          constexpr int kComputationDeviceFieldNumber = 3;
+
+          for (int k = 0; k < device_assign_fields.field_count(); ++k) {
+            const google::protobuf::UnknownField &da_field =
+                device_assign_fields.field(k);
+
+            if (da_field.number() == kComputationDeviceFieldNumber &&
+                da_field.type() ==
+                    google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
+
+              // Parse ComputationDevice
+              const std::string &comp_device_data = da_field.length_delimited();
+              google::protobuf::UnknownFieldSet comp_device_fields;
+              google::protobuf::io::CodedInputStream comp_input(
+                  reinterpret_cast<const uint8_t *>(comp_device_data.data()),
+                  comp_device_data.size());
+
+              if (comp_device_fields.ParseFromCodedStream(&comp_input)) {
+                for (int l = 0; l < comp_device_fields.field_count(); ++l) {
+                  const google::protobuf::UnknownField &comp_field =
+                      comp_device_fields.field(l);
+
+                  // Device IDs are stored in field number 1 in
+                  // ComputationDevice structure. It is a repeated field, so we
+                  // need to handle both packed and unpacked representations.
+                  if (comp_field.number() == 1) {
+                    if (comp_field.type() ==
+                        google::protobuf::UnknownField::TYPE_VARINT) {
+                      // Unpacked repeated field
+                      unique_device_ids.insert(comp_field.varint());
+                    } else if (comp_field.type() ==
+                               google::protobuf::UnknownField::
+                                   TYPE_LENGTH_DELIMITED) {
+                      // Packed repeated field
+                      const std::string &packed_data =
+                          comp_field.length_delimited();
+                      google::protobuf::io::CodedInputStream packed_stream(
+                          reinterpret_cast<const uint8_t *>(packed_data.data()),
+                          packed_data.size());
+
+                      uint64_t value;
+                      while (packed_stream.ReadVarint64(&value)) {
+                        unique_device_ids.insert(static_cast<int64_t>(value));
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return std::vector<int64_t>(unique_device_ids.begin(),
+                              unique_device_ids.end());
 }
 
 tt_pjrt_status ClientInstance::extractCustomProtobufFields(
@@ -807,10 +947,15 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
 
+  // Extract replica device IDs from compile options
+  std::vector<int64_t> replica_device_ids =
+      ClientInstance::extractReplicaDeviceIds(args->compile_options,
+                                              args->compile_options_size);
+
   tt_pjrt_status compile_status = client_instance->compileMlirProgram(
       args->program,
       reinterpret_cast<LoadedExecutableInstance **>(&args->executable),
-      compile_options_map);
+      compile_options_map, replica_device_ids);
 
   return *ErrorInstance::makeError(compile_status).release();
 }

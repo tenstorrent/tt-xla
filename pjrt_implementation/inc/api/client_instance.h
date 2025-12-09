@@ -143,12 +143,21 @@ public:
   tt_pjrt_status compileMlirProgram(
       const PJRT_Program *mlir_program,
       LoadedExecutableInstance **out_executable,
-      const std::unordered_map<std::string, std::string> &compile_options);
+      const std::unordered_map<std::string, std::string> &compile_options,
+      const std::vector<int64_t> &replica_device_ids);
 
   // Gets custom compile options from the given compile options protobuf.
   static tt_pjrt_status getCompileOptions(
       const char *compile_options_data, size_t compile_options_size,
       std::unordered_map<std::string, std::string> &out_compile_options);
+
+  // Extracts replica device IDs from CompileOptionsProto ->
+  // ExecutableBuildOptionsProto
+  // -> DeviceAssignmentProto -> ComputationDevice structure.
+  // Returns flattened vector of all unique device IDs across all computations.
+  static std::vector<int64_t>
+  extractReplicaDeviceIds(const char *compile_options_data,
+                          size_t compile_options_size);
 
 private:
   tt_pjrt_status populateDevices();
@@ -208,6 +217,13 @@ private:
 
   // We don't have a versioning system for our software stack yet.
   const std::string m_platform_version = "0.0.0";
+
+  // Parses compile options protobuf data into UnknownFieldSet.
+  // Returns true if parsing succeeded, false otherwise.
+  static bool
+  parseCompileOptionsProto(const char *compile_options_data,
+                           size_t compile_options_size,
+                           google::protobuf::UnknownFieldSet &unknown_fields);
 
   // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
   // fields.
