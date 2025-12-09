@@ -187,7 +187,7 @@ def test_all_models_torch(
             )
 
             # perf benchmarking
-            if not request.config.getoption("--disable-perf"):
+            if not request.config.getoption("--disable-perf-measurement"):
                 full_model_name = model_info.name
                 measurements = getattr(tester, "_perf_measurements", None)
 

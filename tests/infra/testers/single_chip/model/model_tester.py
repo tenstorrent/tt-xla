@@ -49,7 +49,9 @@ class ModelTester(BaseTester, ABC):
         self._model: Model = None
         self._workload: Workload = None
 
-        self._disable_perf = os.environ.get("DISABLE_PERF", "0") == "1"
+        self._disable_perf_measurement = (
+            os.environ.get("DISABLE_PERF_MEASUREMENT", "0") == "1"
+        )
         self._perf_measurements: list[dict[str, float]] = []
 
         super().__init__(comparison_config, framework)
@@ -160,7 +162,7 @@ class ModelTester(BaseTester, ABC):
 
         self._compile_for_tt_device(self._workload)
 
-        if not self._disable_perf:
+        if not self._disable_perf_measurement:
             e2e_perf_stats = self._test_e2e_perf()
             list.append(self._perf_measurements, e2e_perf_stats)
 
