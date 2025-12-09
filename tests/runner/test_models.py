@@ -369,24 +369,27 @@ def test_all_models_op_by_op(
     This test spawns a subprocess that executes the model test with --dump-irs flag to collect StableHLO IR.
     Then it executes each op wrapped in a module individually.
     """
+    # Construct a pytest command for the subprocess.
+    # Determine the correct test function name based on the framework.
     if test_entry.framework == Framework.TORCH:
-        test_func = "test_all_models_torch"
+        test_function_name = "test_all_models_torch"
         models_root = MODELS_ROOT_TORCH
     else:
-        test_func = "test_all_models_jax"
+        test_function_name = "test_all_models_jax"
         models_root = MODELS_ROOT_JAX
 
-    # Get test id and model info.
-    test_id = DynamicLoader.generate_test_id(test_entry, models_root)
+    # Generate the model id and get model metadata.
+    model_test_id = DynamicLoader.generate_test_id(test_entry, models_root)
     variant, ModelLoader = test_entry.variant_info
     model_info = ModelLoader.get_model_info(variant=variant)
 
-    nodeid = (
-        f"tests/runner/test_models.py::{test_func}"
-        f"[{test_id}-{parallelism.value}-{run_mode.value}]"
+    # Construct the pytest node ID (unique test identifier) to run in subprocess.
+    pytest_node_id = (
+        f"tests/runner/test_models.py::{test_function_name}"
+        f"[{model_test_id}-{parallelism.value}-{run_mode.value}]"
     )
 
-    pytest_cmd = [sys.executable, "-m", "pytest", nodeid, "-v", "--dump-irs"]
+    pytest_cmd = [sys.executable, "-m", "pytest", pytest_node_id, "-v", "--dump-irs"]
 
     subprocess_result = subprocess.run(
         pytest_cmd,
