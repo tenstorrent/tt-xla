@@ -11,7 +11,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 
-from tests.torch.single_host.models.mnist.cnn.dropout.model_implementation import (
+from tests.torch.models.mnist.cnn.dropout.model_implementation import (
     MNISTCNNDropoutModel,
 )
 
