@@ -46,6 +46,7 @@ jobs:
       with:
         submodules: false
         sparse-checkout: |
+          python_package/requirements.txt
           venv
 
     - name: Fetch job id
