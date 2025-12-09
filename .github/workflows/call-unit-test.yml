@@ -86,6 +86,8 @@ jobs:
     - name: Run unit tests
       timeout-minutes: 1
       shell: bash
+      env:
+        LD_LIBRARY_PATH: ./venv/lib/python3.11/site-packages/pjrt_plugin_tt/lib:${{ env.LD_LIBRARY_PATH }}
       run: |
         source venv/activate
         echo "Running PJRT unit tests..."
