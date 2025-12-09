@@ -22,9 +22,6 @@ on:
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
-  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
-  LD_LIBRARY_PATH: /opt/ttmlir-toolchain/lib:$LD_LIBRARY_PATH
-  TT_XLA_CI: 1
 
 jobs:
   # Run unit tests
@@ -87,6 +84,7 @@ jobs:
       timeout-minutes: 1
       shell: bash
       env:
+        # needed because the working directory of gtest is /__w/tt-xla/tt-xla/build/tests/pjrt
         LD_LIBRARY_PATH: /__w/tt-xla/tt-xla/venv/lib/python3.11/site-packages/pjrt_plugin_tt/lib:${{ env.LD_LIBRARY_PATH }}
       run: |
         source venv/activate
