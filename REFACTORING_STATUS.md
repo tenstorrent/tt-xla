@@ -50,13 +50,77 @@ Models are refactored to use:
    - Task: Image Classification
    - Status: Fully refactored
 
-7. **alexnet** (pytorch) ✅ **[NEW]**
+7. **alexnet** (pytorch) ✅
    - Location: `alexnet/pytorch/loader.py`
    - Uses: VisionPreprocessor, VisionPostprocessor
-   - Sources: Torch Hub, OSMR
+   - Sources: Torchvision, OSMR
    - Status: Fully refactored
-   - Branch: `lelanchelian/refactor_alexnet`
+   - PR: #316
    - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[alexnet/pytorch-alexnet-single_device-full-inference] 2>&1 | tee test_alexnet.log`
+
+8. **vgg** (pytorch) ✅
+   - Location: `vgg/pytorch/loader.py`
+   - Uses: VisionPreprocessor, VisionPostprocessor
+   - Status: Fully refactored
+   - PR: #327
+   - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[vgg/pytorch-torchvision_vgg19_bn-single_device-full-inference] 2>&1 | tee test_vgg.log`
+
+9. **googlenet** (pytorch) ✅
+   - Location: `googlenet/pytorch/loader.py`
+   - Uses: VisionPreprocessor, VisionPostprocessor
+   - Status: Fully refactored
+   - PR: #321
+   - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[googlenet/pytorch-googlenet-single_device-full-inference] 2>&1 | tee test_googlenet.log`
+
+10. **inception** (pytorch) ✅
+    - Location: `inception/pytorch/loader.py`
+    - Uses: VisionPreprocessor, VisionPostprocessor
+    - Status: Fully refactored
+    - PR: #320
+    - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[inception/pytorch-inception_v3-single_device-full-inference] 2>&1 | tee test_inception.log`
+
+11. **densenet** (pytorch) ✅
+    - Location: `densenet/pytorch/loader.py`
+    - Uses: VisionPreprocessor, VisionPostprocessor
+    - Status: Fully refactored
+    - PR: #299
+    - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[densenet/pytorch-densenet121-single_device-full-inference] 2>&1 | tee test_densenet.log`
+
+12. **mobilenetv1** (pytorch) ✅
+    - Location: `mobilenetv1/pytorch/loader.py`
+    - Uses: VisionPreprocessor, VisionPostprocessor
+    - Status: Fully refactored
+    - PR: #328
+    - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[mobilenetv1/pytorch-mobilenet_v1-single_device-full-inference] 2>&1 | tee test_mobilenetv1.log`
+
+13. **mobilenetv3** (pytorch) ✅
+    - Location: `mobilenetv3/pytorch/loader.py`
+    - Uses: VisionPreprocessor, VisionPostprocessor
+    - Status: Fully refactored
+    - PR: #306
+    - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[mobilenetv3/pytorch-mobilenet_v3_large-single_device-full-inference] 2>&1 | tee test_mobilenetv3.log`
+
+14. **wide_resnet** (pytorch) ✅
+    - Location: `wide_resnet/pytorch/loader.py`
+    - Uses: VisionPreprocessor, VisionPostprocessor
+    - Status: Fully refactored
+    - PR: #300
+    - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[wide_resnet/pytorch-wide_resnet50_2-single_device-full-inference] 2>&1 | tee test_wide_resnet.log`
+
+15. **resnext** (pytorch) ✅
+    - Location: `resnext/pytorch/loader.py`
+    - Uses: VisionPreprocessor, VisionPostprocessor
+    - Status: Fully refactored
+    - PR: #301
+    - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[resnext/pytorch-resnext50_32x4d-single_device-full-inference] 2>&1 | tee test_resnext.log`
+
+16. **xception** (pytorch) ✅ **[NEW]**
+    - Location: `xception/pytorch/loader.py`
+    - Uses: VisionPreprocessor, VisionPostprocessor
+    - Sources: TIMM
+    - Status: Fully refactored
+    - Branch: `lelanchelian/refactor_xception`
+    - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[xception/pytorch-xception65-single_device-full-inference] 2>&1 | tee test_xception.log`
 
 ### Partially Refactored Models
 
@@ -86,59 +150,6 @@ These are image classification models with simple architectures similar to ResNe
 
 ### Classic CNN Architectures
 
-- [ ] **vgg** (pytorch)
-  - Location: `vgg/pytorch/loader.py`
-  - Task: CV_IMAGE_CLS
-  - Refactorability: Easy - Already has structured config, just needs VisionPreprocessor/Postprocessor
-  - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[vgg/pytorch-torchvision_vgg19_bn-single_device-full-inference] 2>&1 | tee test_vgg.log`
-
-- [ ] **googlenet** (pytorch)
-  - Location: `googlenet/pytorch/loader.py`
-  - Task: CV_IMAGE_CLS
-  - Refactorability: Easy
-  - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[googlenet/pytorch-googlenet-single_device-full-inference] 2>&1 | tee test_googlenet.log`
-
-- [ ] **inception** (pytorch)
-  - Location: `inception/pytorch/loader.py`
-  - Task: CV_IMAGE_CLS
-  - Refactorability: Easy
-  - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[inception/pytorch-inception_v3-single_device-full-inference] 2>&1 | tee test_inception.log`
-
-- [ ] **xception** (pytorch)
-  - Location: `xception/pytorch/loader.py`
-  - Task: CV_IMAGE_CLS
-  - Refactorability: Easy
-  - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[xception/pytorch-xception-single_device-full-inference] 2>&1 | tee test_xception.log`
-
-- [ ] **densenet** (pytorch)
-  - Location: `densenet/pytorch/loader.py`
-  - Task: CV_IMAGE_CLS
-  - Refactorability: Easy
-  - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[densenet/pytorch-densenet121-single_device-full-inference] 2>&1 | tee test_densenet.log`
-
-- [ ] **mobilenetv1** (pytorch)
-  - Location: `mobilenetv1/pytorch/loader.py`
-  - Task: CV_IMAGE_CLS
-  - Refactorability: Easy
-  - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[mobilenetv1/pytorch-mobilenet_v1-single_device-full-inference] 2>&1 | tee test_mobilenetv1.log`
-
-- [ ] **mobilenetv3** (pytorch)
-  - Location: `mobilenetv3/pytorch/loader.py`
-  - Task: CV_IMAGE_CLS
-  - Refactorability: Easy
-  - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[mobilenetv3/pytorch-mobilenet_v3_large-single_device-full-inference] 2>&1 | tee test_mobilenetv3.log`
-
-- [ ] **wide_resnet** (pytorch)
-  - Location: `wide_resnet/pytorch/loader.py`
-  - Task: CV_IMAGE_CLS
-  - Refactorability: Easy
-  - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[wide_resnet/pytorch-wide_resnet50_2-single_device-full-inference] 2>&1 | tee test_wide_resnet.log`
-
-- [ ] **resnext** (pytorch)
-  - Location: `resnext/pytorch/loader.py`
-  - Task: CV_IMAGE_CLS
-  - Refactorability: Easy
-  - Test Command: `pytest -svv tests/runner/test_models.py::test_all_models_torch[resnext/pytorch-resnext50_32x4d-single_device-full-inference] 2>&1 | tee test_resnext.log`
 
 - [ ] **regnet** (pytorch, jax)
   - Location: `regnet/pytorch/loader.py`, `regnet/image_classification/jax/loader.py`
