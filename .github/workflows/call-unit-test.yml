@@ -11,6 +11,10 @@ on:
         description: 'Run ID of the artifacts'
         required: true
         type: string
+      wheel_artifact_name:
+        description: 'Name of the wheel artifact'
+        required: true
+        type: string
       build_artifact_name:
         description: 'Name of the build artifact'
         required: true
@@ -38,11 +42,33 @@ jobs:
       run: |
         git config --global --add safe.directory /__w/tt-xla/tt-xla
 
+    - uses: actions/checkout@v4
+      with:
+        submodules: false
+        sparse-checkout: |
+          venv
+
     - name: Fetch job id
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
         job_name: "Run PJRT unit tests"
+
+    - name: Download and install wheel
+      shell: bash
+      run: |
+        echo "=== Downloading wheel ==="
+        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.artifacts_run_id }} name ${{ inputs.wheel_artifact_name }}"
+        gh run download ${{ inputs.artifacts_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir wheels \
+          --name ${{ inputs.wheel_artifact_name }}
+        echo "Downloaded wheel files:"
+        ls -la wheels
+
+        echo "=== Installing wheel ==="
+        source venv/activate
+        pip install wheels/*.whl
 
     - name: Download build artifacts
       run: |
