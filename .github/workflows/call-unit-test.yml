@@ -19,6 +19,7 @@ on:
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  LD_LIBRARY_PATH: /opt/ttmlir-toolchain/lib:$LD_LIBRARY_PATH
   TT_XLA_CI: 1
 
 jobs:
@@ -58,12 +59,12 @@ jobs:
     - name: Run unit tests
       timeout-minutes: 1
       shell: bash
-      env:
-        LD_LIBRARY_PATH: $TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRARY_PATH
       run: |
         echo "Running PJRT unit tests..."
-        echo "LD_LIBRARY_PATH = $LD_LIBRARY_PATH"
+        echo $LD_LIBRARY_PATH
         find . -iname "libTTMLIRCompiler.so"
+        ls /opt/ttmlir-toolchain
+        ls /opt/ttmlir-toolchain/lib
         ctest --test-dir build/ -R PJRT -V 2>&1 | tee ctest.log
 
     - name: Upload test log
