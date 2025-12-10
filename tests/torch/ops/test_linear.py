@@ -2,15 +2,26 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
-from infra import Framework, run_op_test_with_random_inputs
+import torch_xla.core.xla_model as xm
+import torch_xla.distributed.spmd as xs
+import torch_xla.runtime as xr
+from infra import Framework, run_op_test, run_op_test_with_random_inputs
 from infra.comparators.torch_comparator import TorchComparator
+from torch_xla.distributed.spmd import Mesh
 from utils import Category
 
 from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
+from third_party.tt_forge_models.gemma.pytorch.loader import (
+    ModelLoader as GemmaModelLoader,
+)
+from third_party.tt_forge_models.gemma.pytorch.loader import (
+    ModelVariant as GemmaModelVariant,
+)
 
 
 class Linear(torch.nn.Module):
@@ -86,3 +97,43 @@ def test_linear_torch_override():
 
     comparator = TorchComparator(ComparisonConfig())
     comparator.compare(output, golden)
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.record_test_properties(category=Category.OP_TEST)
+def test_gemma2_27b_lm_head():
+    loader = GemmaModelLoader(variant=GemmaModelVariant.GEMMA_2_27B_IT)
+    config = loader.load_config()
+
+    lm_head = Linear(
+        config.hidden_size, config.vocab_size, bias=False, dtype=torch.bfloat16
+    )
+
+    def get_shard_spec(lm_head, args, kwargs):
+        shard_specs = {}
+        shard_specs[lm_head.linear.weight] = ("batch", "model")
+        return shard_specs
+
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh_shape = (1, num_devices)
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    batch_size = 1
+    seq_len = 1024
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size),
+        dtype=torch.bfloat16,
+    )
+
+    comparison_config = ComparisonConfig()
+
+    run_op_test(
+        lm_head,
+        [hidden_states],
+        comparison_config=comparison_config,
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
