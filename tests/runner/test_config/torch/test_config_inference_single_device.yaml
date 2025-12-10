@@ -731,10 +731,7 @@ test_config:
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-single_device-full-inference:
     required_pcc: 0.98
-    assert_pcc: false  # FIXME - PCC drop to 0.96 on Aug6 due to tt-mlir/tt-xla uplift (passed locally before it)
-    status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   # yolov8/pytorch-yolov8x-single_device-full-inference:
   #   status: EXPECTED_PASSING

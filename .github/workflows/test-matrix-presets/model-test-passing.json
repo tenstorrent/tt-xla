@@ -1,3 +1,4 @@
 [
-  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "tensor_parallel and n300-llmbox and expected_passing", "parallel-groups": 1 }
+  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "expected_passing", "contains": "perceiverio_vision" },
+  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "expected_passing", "contains": "perceiverio_vision" }
 ]
