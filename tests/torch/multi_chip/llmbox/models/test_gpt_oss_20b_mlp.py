@@ -24,33 +24,44 @@ from third_party.tt_forge_models.gpt_oss.pytorch.loader import ModelLoader, Mode
 
 
 def gpt_oss():
-    # setup_spmd()
+    setup_spmd()
 
     # Connect the device and create an xla mesh.
-    # device: torch.device = torch_xla.device()
-    # mesh: Mesh = create_device_mesh()
-    config = AutoConfig.from_pretrained("openai/gpt-oss-20b", trust_remote_code=True)
-    config.quantization_config["quant_method"] = "none"
-    config.use_cache = False
+    device: torch.device = torch_xla.device()
+    mesh: Mesh = create_device_mesh()
 
-    mlp = GptOssMLP(config).to(torch.bfloat16)
-    mlp.eval()
+    loader = ModelLoader(variant=ModelVariant.GPT_OSS_20B, num_layers=1)
+    model = loader.load_model()
+    config = loader.load_config()
+    inputs = loader.load_inputs()
+    batch_size = inputs["input_ids"].shape[0]  # 1
+    seq_len = inputs["input_ids"].shape[1]  # 71
 
-    # inputs = loader.load_inputs()
-    # batch_size = inputs["input_ids"].shape[0] #1
-    # seq_len = inputs["input_ids"].shape[1] #71
-    batch_size = 1
-    seq_len = 71
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    rmsnorm = GptOssRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-    hidden_states = rmsnorm(hidden_states)
+    mlp: GptOssMLP = model.model.layers[0].mlp
+    mlp = mlp.to(device)
+    hidden_states = hidden_states.to(device)
+
+    mark_sharding_on_inputs_and_model(mlp, mesh)
 
     with torch.no_grad():
         output = mlp(hidden_states)
-    breakpoint()
-    print("Output logits:", output)
+
+    print("MLP output", output[0].to("cpu"))
+
+
+def mark_sharding_on_inputs_and_model(mlp, mesh):
+    print("Applying tensor parallel sharding to mlp")
+    xs.mark_sharding(mlp.router.weight, mesh, (None, None))
+    xs.mark_sharding(mlp.router.bias, mesh, (None,))
+
+    # Shard experts across devices: 32 / 8 ->. 4 expert per device
+    xs.mark_sharding(mlp.experts.gate_up_proj, mesh, (None, None, None))
+    xs.mark_sharding(mlp.experts.gate_up_proj_bias, mesh, (None, None))
+    xs.mark_sharding(mlp.experts.down_proj, mesh, (None, None, None))
+    xs.mark_sharding(mlp.experts.down_proj_bias, mesh, (None, None))
 
 
 def setup_spmd():
@@ -85,7 +96,7 @@ def create_device_mesh() -> Mesh:
 
 if __name__ == "__main__":
     # By default torch_xla uses the CPU device so we have to set it to TT device.
-    # xr.set_device_type("TT")
+    xr.set_device_type("TT")
     torch_xla.sync()
     torch._dynamo.reset()
     gpt_oss()
