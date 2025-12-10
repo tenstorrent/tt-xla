@@ -530,7 +530,6 @@ void ClientInstance::materializeAllBuffersToHost() {
   std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
 
   for (BufferInstance *buffer : m_tracked_buffers) {
-    // Only materialize buffers that have device tensor but no host tensor
     if (!buffer->getHostRuntimeTensor().has_value() &&
         buffer->getPreparedTensor().has_value()) {
       if (tt::runtime::isTensorAllocated(buffer->getPreparedTensor().value())) {
@@ -544,6 +543,12 @@ void ClientInstance::materializeAllBuffersToHost() {
         }
       }
     }
+  }
+  
+  // This ensures all buffers in a sharded group have the same prepared_tensor
+  // state (none) after mesh reshape, which is required by prepareInputTensor.
+  for (BufferInstance *buffer : m_tracked_buffers) {
+    buffer->clearPreparedTensor();
   }
 }
 

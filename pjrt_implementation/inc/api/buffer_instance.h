@@ -194,8 +194,9 @@ private:
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   // Currently only used for device to device transfer in copy construction
-  // of new buffer instance.
-  void copyFromBuffer(const BufferInstance *src_buffer);
+  // of new buffer instance. Non-const because we set host tensor on source
+  // when materializing from device tensor.
+  void copyFromBuffer(BufferInstance *src_buffer);
 
   // Calculates required tensor shape.
   static std::vector<std::uint32_t> calculateShape(const std::int64_t *dims,

@@ -56,58 +56,56 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,
     tt::runtime::Device runtime_device, size_t num_devices,
     std::uint32_t program_index, size_t arg_index) {
-  // Check buffer states and handle mixed prepared/host tensor scenarios.
   // NOTE: In case of sharded tensor we have multiple buffer instances on the
   // PJRT side, but on our side (tt-mlir runtime) we prepare a single
   // multi-device tensor.
   assert(!arg_buffers.empty());
-  std::optional<tt::runtime::Tensor> prepared_tensor =
-      arg_buffers[0]->getPreparedTensor();
 
-  // Check if all buffers have consistent prepared tensor state and handle.
-  bool all_consistent = true;
-  for (size_t i = 1; i < arg_buffers.size(); ++i) {
-    if (arg_buffers[i]->getPreparedTensor().has_value() !=
-        prepared_tensor.has_value()) {
-      all_consistent = false;
-    }
-    if (prepared_tensor.has_value() &&
-        arg_buffers[i]->getPreparedTensor().has_value() &&
-        arg_buffers[i]->getPreparedTensor()->handle !=
-            prepared_tensor->handle) {
-      all_consistent = false;
-    }
-  }
+  // Check buffer states: ideally all buffers have consistent prepared_tensor
+  // state (all have the same one or none have one). However, during operations
+  // like replicated device_put via copyFromBuffer, some buffers may have
+  // prepared_tensor while newly copied ones don't. Handle this gracefully.
+  std::optional<tt::runtime::Tensor> prepared_tensor = std::nullopt;
+  bool all_have_same_prepared = true;
+  bool any_has_prepared = false;
 
-  // Check if any buffer has no data at all (neither prepared nor host tensor).
-  // This can happen when buffers are created but never properly filled.
   for (size_t i = 0; i < arg_buffers.size(); ++i) {
-    if (!arg_buffers[i]->getPreparedTensor().has_value() &&
-        !arg_buffers[i]->getHostRuntimeTensor().has_value()) {
-      DLOG_F(ERROR,
-             "Buffer[%zu] UID=%zu for arg_index=%zu has no data (neither "
-             "prepared nor host tensor). This buffer was never properly filled.",
-             i, arg_buffers[i]->getUID(), arg_index);
-      return std::nullopt;
+    auto buffer_prepared = arg_buffers[i]->getPreparedTensor();
+    if (buffer_prepared.has_value()) {
+      any_has_prepared = true;
+      if (!prepared_tensor.has_value()) {
+        prepared_tensor = buffer_prepared;
+      } else if (prepared_tensor->handle != buffer_prepared->handle) {
+        // Different prepared tensors - inconsistent state
+        all_have_same_prepared = false;
+      }
+    } else if (any_has_prepared) {
+      // This buffer doesn't have prepared_tensor but previous ones did
+      all_have_same_prepared = false;
     }
   }
 
-  // If buffers have inconsistent states (e.g., some from previous outputs,
-  // some from device-to-device copy), materialize device tensors to host
-  // and rebuild from host tensors.
-  if (!all_consistent) {
+  // If buffers have inconsistent prepared_tensor state (some have it, some
+  // don't, or they have different ones), materialize to host and rebuild.
+  if (any_has_prepared && !all_have_same_prepared) {
     DLOG_F(LOG_DEBUG,
-           "Mixed buffer states for arg_index=%zu, materializing to host",
+           "Buffers for arg_index=%zu have inconsistent prepared_tensor state, "
+           "materializing to host and rebuilding",
            arg_index);
     for (size_t i = 0; i < arg_buffers.size(); ++i) {
+      // Materialize from prepared_tensor to host if needed
       if (!arg_buffers[i]->getHostRuntimeTensor().has_value() &&
-          arg_buffers[i]->getPreparedTensor().has_value()) {
-        if (tt::runtime::isTensorAllocated(
-                arg_buffers[i]->getPreparedTensor().value())) {
-          std::vector<tt::runtime::Tensor> host_tensors = tt::runtime::toHost(
-              arg_buffers[i]->getPreparedTensor().value(), /*untilize=*/true);
-          if (!host_tensors.empty()) {
-            arg_buffers[i]->setHostRuntimeTensor(host_tensors[0]);
+          arg_buffers[i]->getPreparedTensor().has_value() &&
+          tt::runtime::isTensorAllocated(
+              arg_buffers[i]->getPreparedTensor().value())) {
+        std::vector<tt::runtime::Tensor> host_tensors = tt::runtime::toHost(
+            arg_buffers[i]->getPreparedTensor().value(), /*untilize=*/true);
+        if (!host_tensors.empty()) {
+          // For multi-device tensor, get the shard for this buffer's device
+          uint32_t shard_index =
+              arg_buffers[i]->getDeviceId().value_or(static_cast<uint32_t>(i));
+          if (shard_index < host_tensors.size()) {
+            arg_buffers[i]->setHostRuntimeTensor(host_tensors[shard_index]);
           }
         }
       }

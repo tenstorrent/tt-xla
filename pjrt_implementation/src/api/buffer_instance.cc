@@ -274,7 +274,7 @@ void BufferInstance::copyFromHost(
   *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
 }
 
-void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
+void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
@@ -311,6 +311,9 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
            "Expected single host tensor when copying from device buffer");
 
     source_host_runtime_tensor = host_runtime_tensors[0];
+
+    // Save host tensor to source buffer for potential future use.
+    src_buffer->setHostRuntimeTensor(source_host_runtime_tensor);
   } else {
     DLOG_F(ERROR,
            "Source buffer UID=%zu has no data to copy from (prepared tensor "
