@@ -50,15 +50,20 @@ class ModelLoader(ForgeModel):
         {"role": "user", "content": "Who are you?"},
     ]
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
+    def __init__(
+        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
+    ):
         """Initialize ModelLoader with specified variant.
 
         Args:
             variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
+            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
         """
         super().__init__(variant)
+        self.config = None
         self.tokenizer = None
+        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -102,15 +107,11 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The gpt-oss model instance for causal language modeling.
         """
         # Load config with modifications
-        config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, trust_remote_code=True
-        )
-        config.quantization_config["quant_method"] = "none"
-        config.use_cache = False
+        self.load_config()
 
         # Prepare model kwargs
         model_kwargs = {
-            "config": config,
+            "config": self.config,
             "low_cpu_mem_usage": True,
             "trust_remote_code": True,
             "attn_implementation": "eager",
@@ -154,3 +155,19 @@ class ModelLoader(ForgeModel):
         )
 
         return inputs
+
+    def load_config(self):
+        """Load and return the configuration for the gpt-oss model with this instance's variant.
+
+        Returns:
+            The configuration object for the gpt-oss model.
+        """
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name, trust_remote_code=True
+        )
+        if self.num_layers is not None:
+            self.config.num_hidden_layers = self.num_layers
+
+        self.config.quantization_config["quant_method"] = "none"
+        self.config.use_cache = False
+        return self.config
