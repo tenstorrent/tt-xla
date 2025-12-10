@@ -1,0 +1,519 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+test_config:
+
+
+  #==============================================================================
+  # NEW ISSUE:  TT_FATAL: Input X dimension (96) must be divisible by 64 for tiling. (assert.hpp:103)
+  # STATUS: same issue in main for single device phi models
+  #==============================================================================
+
+  # phi3/phi_3_5/pytorch-mini_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   bringup_status: INCORRECT_RESULT # Calculated: pcc=0.2603238821029663. Required: pcc=0.99.
+
+  # phi1/causal_lm/pytorch-microsoft/phi-1-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi1/token_classification/pytorch-microsoft/phi-1-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # fuyu/pytorch-adept/fuyu-8b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi1_5/causal_lm/pytorch-microsoft/phi-1_5-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+
+  #==============================================================================
+  # KNOWN ISSUE: error: 'sdy.all_reduce' op reduction axis "_axis_0" overlaps
+  # with operand dimension sharding or replicated axes
+  # STATUS: Het is investigating InsertExplicitReshardsPass
+  #==============================================================================
+  # opt/sequence_classification/pytorch-facebook/opt-1.3b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # opt/sequence_classification/pytorch-facebook/opt-125m-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # opt/sequence_classification/pytorch-facebook/opt-350m-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # gpt_neo/sequence_classification/pytorch-gpt_neo_125M-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # gpt_neo/sequence_classification/pytorch-gpt_neo_1_3B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi1/sequence_classification/pytorch-microsoft/phi-1-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi2/sequence_classification/pytorch-microsoft/phi-2-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi4/seq_cls/pytorch-microsoft/phi-4-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # gpt2/pytorch-gpt2_sequence_classification-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+
+  # #==============================================================================
+  # # NEW ISSUE: Dynamo failed to run FX node with fake tensors
+  # #==============================================================================
+  # nbeats/pytorch-generic_basis-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # nbeats/pytorch-seasonality_basis-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # nbeats/pytorch-trend_basis-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+
+  # #==============================================================================
+  # # NEW ISSUE: 'GenerationConfig' object has no attribute 'rep
+  # #==============================================================================
+  # gpt_neo/causal_lm/pytorch-gpt_neo_1_3B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+
+  # #==============================================================================
+  # # NEW ISSUE: TT_FATAL @ /__w/tt-xla/tt-xla/third_party/tt-ml…
+  # #    ERROR | All dimensions are overlapping, cannot find non-overlapping dimension for mesh composer.
+  # # critical |          Always | dims must be unique (assert.hpp:103)
+  # #==============================================================================
+  # dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # dpr/reader/pytorch-facebook/dpr-reader-multiset-base-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  #==============================================================================
+  # NEW ISSUE: assert len(timesteps.shape) == 1, "Timesteps should be a 1d-array"
+  #==============================================================================
+
+  # flux/pytorch-dev-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # flux/pytorch-schnell-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+
+  #==============================================================================
+  # NEW ISSUE: error: 'ttnn.matmul' op Output shape dimension[2](64) doesn't match
+  # the expected output shape dimension[2](256)
+  #==============================================================================
+  # bart/pytorch-large-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # xglm/pytorch-xglm-564M-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING # not OOM but leaking 3000 MB
+
+  # xglm/pytorch-xglm-1.7B-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING # not OOM but leaking 10000 MB
+
+  # musicgen_small/pytorch-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+
+  #==============================================================================
+  # PASSING
+  #==============================================================================
+
+
+  #==============================================================================
+  # TO BE TESTED
+  #==============================================================================
+
+
+  #==============================================================================
+  # FAILED AND UNSORTED
+  #==============================================================================
+
+
+  #==============================================================================
+  # KNOWN ISSUE: Too much memory leaked/Large model/OOM
+  # STATUS: James is investigating memory leaks on device
+  #==============================================================================
+
+  # # True OOM (hits OOM DRAM locally) ============================================
+
+  # vit/pytorch-vit_l_16-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # Passes locally ==============================================================
+
+  # mamba/pytorch-mamba-1.4b-hf-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5_coder/pytorch-3b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8409987092018127. Required: pcc=0.99.
+
+  # qwen_3/causal_lm/pytorch-1_7b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   bringup_status: INCORRECT_RESULT # Calculated: pcc=0.8567329049110413. Required: pcc=0.99.
+
+  # qwen_2_5/causal_lm/pytorch-1_5b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9498721361160278. Required: pcc=0.99.
+
+  # opt/qa/pytorch-facebook/opt-1.3b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.97 # Left as passing since it's ~0.98 at 0.9797....
+
+  # opt/causal_lm/pytorch-facebook/opt-1.3b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # stereo/pytorch-small-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi1_5/token_classification/pytorch-microsoft/phi-1_5-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/causal_lm/pytorch-llama_3_2_3b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # vit/pytorch-vit_l_32-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   bringup_status: INCORRECT_RESULT # Calculated: pcc=0.9618761539459229. Required: pcc=0.98
+
+  # qwen_1_5/causal_lm/pytorch-0_5b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # mamba/pytorch-mamba-2.8b-hf-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # Failing locally =============================================================
+
+  # # Unsupported binary op for FPU BinaryOpType::BITWISE_OR
+  # mistral/pytorch-ministral_3b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # # Unsupported binary op for FPU BinaryOpType::BITWISE_OR
+  # phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # Untested locally ============================================================
+
+  # mistral/pytorch-7b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # mistral/pytorch-ministral_8b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # mistral/pytorch-7b_instruct_v03-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi4/causal_lm/pytorch-microsoft/phi-4-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi4/token_cls/pytorch-microsoft/phi-4-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING # failed with segfault?
+
+  # phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi2/causal_lm/pytorch-microsoft/phi-2-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_3/embedding/pytorch-embedding_8b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # qwen_2_5/causal_lm/pytorch-14b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-14b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-14b_instruct_1m-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-7b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-7b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-7b_instruct_1m-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-math_7b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5_coder/pytorch-7b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5_coder/pytorch-7b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_3/causal_lm/pytorch-14b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_3/causal_lm/pytorch-8b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # huggyllama/pytorch-llama_7b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/causal_lm/pytorch-huggyllama_7b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/causal_lm/pytorch-llama_3_1_8b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/causal_lm/pytorch-llama_3_1_8b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/causal_lm/pytorch-llama_3_8b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-huggyllama_7b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-llama_3_1_8b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-llama_3_1_8b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-llama_3_8b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-llama_3_8b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-llama_3_2_1b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-llama_3_2_1b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-llama_3_2_3b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/sequence_classification/pytorch-llama_3_2_3b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # deepcogito/pytorch-v1_preview_llama_3b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # gemma/pytorch-google/gemma-2-9b-it-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # gemma/pytorch-google/gemma-1.1-7b-it-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # mistral/pixtral/pytorch-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # falcon/pytorch-tiiuae/falcon-7b-instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # falcon/pytorch-tiiuae/Falcon3-1B-Base-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # falcon/pytorch-tiiuae/Falcon3-3B-Base-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # falcon/pytorch-tiiuae/Falcon3-7B-Base-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
+
+  # falcon/pytorch-tiiuae/Falcon3-10B-Base-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # deepseek/deepseek_math/pytorch-7b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # glpn_kitti/pytorch-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # gemma/pytorch-google/gemma-2-2b-it-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # gemma/pytorch-google/gemma-2b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5_coder/pytorch-1_5b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5_coder/pytorch-3b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_3/causal_lm/pytorch-4b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # qwen_2_5/causal_lm/pytorch-0_5b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.97
+
+  # qwen_2_5/causal_lm/pytorch-3b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # bloom/pytorch-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # distilbert/masked_lm/pytorch-distilbert-base-uncased-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/causal_lm/pytorch-llama_3_2_3b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/causal_lm/pytorch-llama_3_8b_instruct-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # vit/pytorch-vit_h_14-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+
+  # llama/causal_lm/pytorch-llama_3_2_1b-data_parallel-full-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
