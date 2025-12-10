@@ -88,14 +88,17 @@ def llama(interactive: bool = False):
                 break
             user_prompt = [user_prompt]
         else:
-            batch_size: int = 32
+            batch_size: int = 1
             user_prompt = DEFAULT_PROMPTS[:batch_size]
 
         # Construct inputs, including static cache
         input_args = construct_inputs(
             user_prompt, tokenizer, model.config, batch_size, max_cache_len
         )
-
+        
+        # prewarm execution to initialize the cache ... another hack
+        # cpu_res = model(**input_args)
+        
         # Limit maximum generation count to fit within preallocated static cache
         max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
 
@@ -203,10 +206,10 @@ def construct_inputs(
     inputs = tokenizer(
         input_prompt,
         return_tensors="pt",
-        max_length=32,
-        padding="max_length",
-        padding_side="left",
-        return_attention_mask=True,
+        # max_length=32,
+        # padding="max_length",
+        # padding_side="left",
+        # return_attention_mask=True,
     )
 
     # Static cache should be initialized on CPU and separately transferred to device
@@ -235,7 +238,7 @@ def construct_inputs(
         "past_key_values": static_cache,
         "cache_position": cache_position,
         "use_cache": True,
-        "attention_mask": inputs.attention_mask,
+        # "attention_mask": inputs.attention_mask,
     }
 
     #   Debug prints
@@ -243,8 +246,8 @@ def construct_inputs(
     print(f"Input prompt: '{input_prompt}'")
     print(f"Input IDs shape: {inputs.input_ids.shape}")
     print(f"Input IDs: {inputs.input_ids}")
-    print(f"Attention mask shape: {inputs.attention_mask.shape}")
-    print(f"Attention mask: {inputs.attention_mask}")
+    # print(f"Attention mask shape: {inputs.attention_mask.shape}")
+    # print(f"Attention mask: {inputs.attention_mask}")
     print(f"Cache position shape: {cache_position.shape}")
     print(f"Cache position: {cache_position}")
     print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
@@ -272,7 +275,8 @@ def transfer_to_device(
         layer.values = layer.values.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
-    input_args["attention_mask"] = input_args["attention_mask"].to(device)
+    # input_args["attention_mask"] = input_args["attention_mask"].to(device)
+
 
     model = model.to(device)
 
