@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 import pytest
+import yaml
 
 
 def get_distributed_worker_path():
@@ -32,11 +33,38 @@ def get_distributed_worker_path():
     return worker_path
 
 
+def get_tp_model_variants():
+    """Extract all tensor parallel test names from torch and jax config YAML files."""
+    # Paths relative to project root (where pytest typically runs from)
+    torch_config_filepath = (
+        "tests/runner/test_config/torch/test_config_inference_tensor_parallel.yaml"
+    )
+    jax_config_filepath = (
+        "tests/runner/test_config/jax/test_config_inference_tensor_parallel.yaml"
+    )
+
+    model_variants = []
+
+    # Load torch config
+    with open(torch_config_filepath, "r") as f:
+        torch_data = yaml.safe_load(f) or {}
+        torch_test_config = torch_data.get("test_config", {}) or {}
+        model_variants.extend(torch_test_config.keys())
+
+    # Load jax config
+    with open(jax_config_filepath, "r") as f:
+        jax_data = yaml.safe_load(f) or {}
+        jax_test_config = jax_data.get("test_config", {}) or {}
+        model_variants.extend(jax_test_config.keys())
+
+    return model_variants
+
+
 @pytest.mark.push
 @pytest.mark.multi_host_cluster
 @pytest.mark.parametrize(
     "model_variant",
-    ["llama/causal_lm/pytorch-llama_3_1_8b-tensor_parallel-full-inference"],
+    get_tp_model_variants(),
 )
 def test_multihost_models(model_variant):
     distributed_env = os.environ.copy()
