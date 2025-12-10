@@ -199,6 +199,11 @@ void BufferInstance::copyFromHost(
 
   assert(data_type == m_data_type && "m_data_type and data_type do not match");
 
+  // Clear any existing prepared tensor since we're setting new host data.
+  // This ensures prepareInputTensor will use the new host data instead of
+  // stale device data from a previous operation.
+  clearPreparedTensor();
+
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
   std::uint32_t element_size =

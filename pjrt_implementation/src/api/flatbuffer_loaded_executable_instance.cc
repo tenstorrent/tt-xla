@@ -67,22 +67,25 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   // prepared_tensor while newly copied ones don't. Handle this gracefully.
   std::optional<tt::runtime::Tensor> prepared_tensor = std::nullopt;
   bool all_have_same_prepared = true;
-  bool any_has_prepared = false;
+  size_t buffers_with_prepared = 0;
 
   for (size_t i = 0; i < arg_buffers.size(); ++i) {
     auto buffer_prepared = arg_buffers[i]->getPreparedTensor();
     if (buffer_prepared.has_value()) {
-      any_has_prepared = true;
+      buffers_with_prepared++;
       if (!prepared_tensor.has_value()) {
         prepared_tensor = buffer_prepared;
       } else if (prepared_tensor->handle != buffer_prepared->handle) {
         // Different prepared tensors - inconsistent state
         all_have_same_prepared = false;
       }
-    } else if (any_has_prepared) {
-      // This buffer doesn't have prepared_tensor but previous ones did
-      all_have_same_prepared = false;
     }
+  }
+
+  // Inconsistent if some buffers have prepared_tensor and some don't
+  bool any_has_prepared = buffers_with_prepared > 0;
+  if (buffers_with_prepared > 0 && buffers_with_prepared < arg_buffers.size()) {
+    all_have_same_prepared = false;
   }
 
   // If buffers have inconsistent prepared_tensor state (some have it, some
@@ -92,21 +95,23 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
            "Buffers for arg_index=%zu have inconsistent prepared_tensor state, "
            "materializing to host and rebuilding",
            arg_index);
+
+    // If we have a valid prepared_tensor, materialize it once and distribute
+    // shards to all buffers that need them.
+    std::vector<tt::runtime::Tensor> host_tensors;
+    if (prepared_tensor.has_value() &&
+        tt::runtime::isTensorAllocated(*prepared_tensor)) {
+      host_tensors = tt::runtime::toHost(*prepared_tensor, /*untilize=*/true);
+    }
+
     for (size_t i = 0; i < arg_buffers.size(); ++i) {
-      // Materialize from prepared_tensor to host if needed
+      // Set host tensor if buffer doesn't have one and we have materialized
       if (!arg_buffers[i]->getHostRuntimeTensor().has_value() &&
-          arg_buffers[i]->getPreparedTensor().has_value() &&
-          tt::runtime::isTensorAllocated(
-              arg_buffers[i]->getPreparedTensor().value())) {
-        std::vector<tt::runtime::Tensor> host_tensors = tt::runtime::toHost(
-            arg_buffers[i]->getPreparedTensor().value(), /*untilize=*/true);
-        if (!host_tensors.empty()) {
-          // For multi-device tensor, get the shard for this buffer's device
-          uint32_t shard_index =
-              arg_buffers[i]->getDeviceId().value_or(static_cast<uint32_t>(i));
-          if (shard_index < host_tensors.size()) {
-            arg_buffers[i]->setHostRuntimeTensor(host_tensors[shard_index]);
-          }
+          !host_tensors.empty()) {
+        uint32_t shard_index =
+            arg_buffers[i]->getDeviceId().value_or(static_cast<uint32_t>(i));
+        if (shard_index < host_tensors.size()) {
+          arg_buffers[i]->setHostRuntimeTensor(host_tensors[shard_index]);
         }
       }
       arg_buffers[i]->clearPreparedTensor();
@@ -132,7 +137,21 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   bool has_expected_layout =
       is_cached_tensor_valid &&
       tt::runtime::hasLayout(*prepared_tensor, expected_layout);
-  if (has_expected_layout) {
+
+  // Check if any buffer has host_runtime_tensor. If so, we should rebuild from
+  // host data rather than reusing cached prepared_tensor, because the host data
+  // might have been updated (e.g., via copyFromHost) since prepared_tensor was
+  // created. Output buffers don't have host_runtime_tensor, so they can safely
+  // reuse their prepared_tensor.
+  bool has_host_tensor = false;
+  for (const auto &buffer : arg_buffers) {
+    if (buffer->getHostRuntimeTensor().has_value()) {
+      has_host_tensor = true;
+      break;
+    }
+  }
+
+  if (has_expected_layout && !has_host_tensor) {
     DLOG_F(LOG_DEBUG,
            "Reusing already prepared input tensor for argument index %zu with "
            "shape %s",
@@ -148,7 +167,9 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   // In this case, we re-layout the cached tensor into the expected layout
   // and return that while saving it back into the buffer instances for future
   // reuse.
-  else if (!has_expected_layout && is_cached_tensor_valid) {
+  // NOTE: Only do this if there's no host tensor - if there's a host tensor,
+  // we should rebuild from it to ensure we use the latest data.
+  else if (!has_expected_layout && is_cached_tensor_valid && !has_host_tensor) {
     DLOG_F(LOG_DEBUG,
            "Re-laying out already prepared input tensor for argument index %zu "
            "with shape %s.",
