@@ -107,6 +107,14 @@ public:
     m_prepared_runtime_tensor = tensor;
   }
 
+  // Clears the prepared runtime tensor.
+  void clearPreparedTensor() { m_prepared_runtime_tensor = std::nullopt; }
+
+  // Sets the host runtime tensor for this buffer.
+  void setHostRuntimeTensor(const tt::runtime::Tensor &tensor) {
+    m_host_runtime_tensor = tensor;
+  }
+
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
 
@@ -182,8 +190,10 @@ private:
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   // Currently only used for device to device transfer in copy construction
-  // of new buffer instance.
-  void copyFromBuffer(const BufferInstance *src_buffer);
+  // of new buffer instance. Note: src_buffer is non-const because if we
+  // materialize a device tensor to host, we cache that host tensor in the
+  // source buffer to prevent data loss when the device is closed later.
+  void copyFromBuffer(BufferInstance *src_buffer);
 
   // Calculates required tensor shape.
   static std::vector<std::uint32_t> calculateShape(const std::int64_t *dims,

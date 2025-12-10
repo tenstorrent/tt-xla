@@ -56,20 +56,78 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,
     tt::runtime::Device runtime_device, size_t num_devices,
     std::uint32_t program_index, size_t arg_index) {
-  // Assert that all buffer instances have the same prepared tensor.
+  // Check buffer states and handle mixed prepared/host tensor scenarios.
   // NOTE: In case of sharded tensor we have multiple buffer instances on the
   // PJRT side, but on our side (tt-mlir runtime) we prepare a single
   // multi-device tensor.
   assert(!arg_buffers.empty());
   std::optional<tt::runtime::Tensor> prepared_tensor =
       arg_buffers[0]->getPreparedTensor();
+
+  DLOG_F(LOG_DEBUG,
+         "prepareInputTensor arg_index=%zu num_buffers=%zu buffer[0] UID=%zu "
+         "has_prepared=%d has_host=%d",
+         arg_index, arg_buffers.size(), arg_buffers[0]->getUID(),
+         prepared_tensor.has_value(),
+         arg_buffers[0]->getHostRuntimeTensor().has_value());
+
+  // Check if all buffers have consistent prepared tensor state and handle.
+  // If not, we have a mixed state (e.g., some buffers from previous execution
+  // outputs, others from device-to-device copy). In this case, we clear
+  // prepared tensors and rebuild from host tensors.
+  bool all_have_same_prepared_state = true;
+  bool all_have_same_prepared_handle = true;
   for (size_t i = 1; i < arg_buffers.size(); ++i) {
-    assert(arg_buffers[i]->getPreparedTensor().has_value() ==
-           prepared_tensor.has_value());
-    if (prepared_tensor.has_value()) {
-      assert(arg_buffers[i]->getPreparedTensor()->handle ==
-             prepared_tensor->handle);
+    DLOG_F(LOG_DEBUG,
+           "  buffer[%zu] UID=%zu has_prepared=%d has_host=%d", i,
+           arg_buffers[i]->getUID(),
+           arg_buffers[i]->getPreparedTensor().has_value(),
+           arg_buffers[i]->getHostRuntimeTensor().has_value());
+    if (arg_buffers[i]->getPreparedTensor().has_value() !=
+        prepared_tensor.has_value()) {
+      all_have_same_prepared_state = false;
     }
+    if (prepared_tensor.has_value() &&
+        arg_buffers[i]->getPreparedTensor().has_value() &&
+        arg_buffers[i]->getPreparedTensor()->handle !=
+            prepared_tensor->handle) {
+      all_have_same_prepared_handle = false;
+    }
+  }
+
+  // If we have mixed state, materialize device tensors to host where needed,
+  // clear prepared tensors, and rebuild from host tensors.
+  if (!all_have_same_prepared_state || !all_have_same_prepared_handle) {
+    DLOG_F(LOG_DEBUG,
+           "Mixed buffer states detected for arg_index=%zu, rebuilding from "
+           "host tensors",
+           arg_index);
+    for (size_t i = 0; i < arg_buffers.size(); ++i) {
+      // If buffer has prepared tensor but no host tensor, materialize to host
+      if (!arg_buffers[i]->getHostRuntimeTensor().has_value() &&
+          arg_buffers[i]->getPreparedTensor().has_value()) {
+        // Check if the prepared tensor is still allocated on device
+        if (!tt::runtime::isTensorAllocated(
+                arg_buffers[i]->getPreparedTensor().value())) {
+          DLOG_F(ERROR,
+                 "Cannot materialize device tensor for buffer[%zu] UID=%zu: "
+                 "tensor is not allocated on device and no host tensor exists",
+                 i, arg_buffers[i]->getUID());
+          return std::nullopt;
+        }
+        // Materialize device tensor to host
+        std::vector<tt::runtime::Tensor> host_tensors = tt::runtime::toHost(
+            arg_buffers[i]->getPreparedTensor().value(), /*untilize=*/true);
+        assert(!host_tensors.empty() &&
+               "Failed to materialize device tensor to host");
+        arg_buffers[i]->setHostRuntimeTensor(host_tensors[0]);
+        DLOG_F(LOG_DEBUG,
+               "  Materialized host tensor for buffer[%zu] UID=%zu", i,
+               arg_buffers[i]->getUID());
+      }
+      arg_buffers[i]->clearPreparedTensor();
+    }
+    prepared_tensor = std::nullopt;
   }
 
   FlatbufferExecutableImage *executable_image =
@@ -269,6 +327,31 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     DLOG_F(ERROR, "Argument count mismatch: %zu vs %zu", args->num_args,
            m_executable_image->getNumInputs());
     return tt_pjrt_status::kInternal;
+  }
+
+  // Before potentially reshaping the mesh, materialize any input buffers that
+  // have only device tensors (no host tensor). This prevents data loss when
+  // the mesh is closed during reshape.
+  for (size_t arg_index = 0; arg_index < args->num_args; ++arg_index) {
+    for (size_t device_index = 0; device_index < args->num_devices;
+         ++device_index) {
+      BufferInstance *buffer = BufferInstance::unwrap(
+          args->argument_lists[device_index][arg_index]);
+      if (!buffer->getHostRuntimeTensor().has_value() &&
+          buffer->getPreparedTensor().has_value()) {
+        if (tt::runtime::isTensorAllocated(buffer->getPreparedTensor().value())) {
+          DLOG_F(LOG_DEBUG,
+                 "Pre-materializing device tensor to host for buffer UID=%zu "
+                 "before mesh reshape",
+                 buffer->getUID());
+          std::vector<tt::runtime::Tensor> host_tensors = tt::runtime::toHost(
+              buffer->getPreparedTensor().value(), /*untilize=*/true);
+          if (!host_tensors.empty()) {
+            buffer->setHostRuntimeTensor(host_tensors[0]);
+          }
+        }
+      }
+    }
   }
 
   std::optional<tt::runtime::Device> runtime_device =

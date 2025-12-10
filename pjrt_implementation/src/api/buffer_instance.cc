@@ -253,8 +253,9 @@ void BufferInstance::copyFromHost(
   *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
 }
 
-void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
-  DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
+void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer from UID=%zu to UID=%zu",
+         src_buffer->m_uid, m_uid);
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
           src_buffer->m_data_type);
@@ -288,6 +289,17 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
            "Expected single host tensor when copying from device buffer");
 
     source_host_runtime_tensor = host_runtime_tensors[0];
+
+    // Cache the materialized host tensor in the source buffer to prevent data
+    // loss when the device is closed later (e.g., during mesh reshape).
+    if (!src_buffer->m_host_runtime_tensor.has_value()) {
+      src_buffer->m_host_runtime_tensor = source_host_runtime_tensor;
+      tt::runtime::setTensorRetain(*src_buffer->m_host_runtime_tensor,
+                                   /*retain=*/true);
+      DLOG_F(LOG_DEBUG,
+             "Cached materialized host tensor in source buffer UID=%zu",
+             src_buffer->m_uid);
+    }
   } else if (src_buffer->m_host_runtime_tensor != std::nullopt) {
     source_host_runtime_tensor = *src_buffer->m_host_runtime_tensor;
   } else {
