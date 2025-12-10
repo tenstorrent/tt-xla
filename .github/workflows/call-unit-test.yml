@@ -1,4 +1,4 @@
-name: Unit Tests (call)
+name: Unit tests
 
 on:
   workflow_call:
@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       artifacts_run_id:
-        description: 'Run ID of the artifacts'
+        description: 'Run ID of all artifacts'
         required: true
         type: string
       wheel_artifact_name:
@@ -21,15 +21,15 @@ on:
         type: string
 
 env:
-  GH_TOKEN: ${{ github.token }} # for gh cli tool
+  GH_TOKEN: ${{ github.token }}
+  REPO_ROOT: /__w/tt-xla/tt-xla
 
 jobs:
-  # Run unit tests
   run-unit-tests:
     runs-on: ubuntu-latest
 
     # Keep this name in sync with the fetch-job-id step
-    name: "Run PJRT unit tests"
+    name: "Run unit tests"
 
     container:
       image: ${{ inputs.docker_image }}
@@ -37,7 +37,7 @@ jobs:
     steps:
     - name: Mark repo as safe for git
       run: |
-        git config --global --add safe.directory /__w/tt-xla/tt-xla
+        git config --global --add safe.directory ${{ env.REPO_ROOT }}
 
     - uses: actions/checkout@v4
       with:
@@ -46,36 +46,34 @@ jobs:
           python_package/requirements.txt
           venv
 
-    - name: Fetch job id
+    - name: Fetch job ID
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
       with:
-        job_name: "Run PJRT unit tests"
+        job_name: "Run unit tests"
 
-    - name: Download and install wheel
+    - name: Download and install the wheel
       shell: bash
       run: |
-        echo "=== Downloading wheel ==="
-        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.artifacts_run_id }} name ${{ inputs.wheel_artifact_name }}"
+        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.artifacts_run_id }} name ${{ inputs.wheel_artifact_name }} ..."
         gh run download ${{ inputs.artifacts_run_id }} \
           --repo ${{ github.repository }} \
           --dir wheels \
           --name ${{ inputs.wheel_artifact_name }}
         echo "Downloaded wheel files:"
         ls -la wheels
-
-        echo "=== Installing wheel ==="
+        echo "Installing wheel ..."
         source venv/activate
         pip install wheels/*.whl
 
     - name: Download build artifacts
       run: |
-        echo "Downloading build artifacts"
+        echo "Downloading build artifacts from: ${{ github.repository }} run_id ${{ inputs.artifacts_run_id }} name ${{ inputs.build_artifact_name }} ..."
         gh run download ${{ inputs.artifacts_run_id }} \
           --repo ${{ github.repository }} \
           --dir build \
           --name ${{ inputs.build_artifact_name }}
-        echo "Untar build artifacts"
+        echo "Unarchiving build artifacts ..."
         cd build
         tar xf artifact.tar
         rm -f artifact.tar
@@ -84,12 +82,10 @@ jobs:
       timeout-minutes: 1
       shell: bash
       env:
-        # needed because the working directory of gtest is /__w/tt-xla/tt-xla/build/tests/pjrt
-        LD_LIBRARY_PATH: /__w/tt-xla/tt-xla/venv/lib/python3.11/site-packages/pjrt_plugin_tt/lib:${{ env.LD_LIBRARY_PATH }}
+        # Append the MLIR shared lib path to LD_LIBRARY_PATH because the test driver is not running from the plugin directory
+        LD_LIBRARY_PATH: ${{ env.REPO_ROOT }}/venv/lib/python3.11/site-packages/pjrt_plugin_tt/lib:${{ env.LD_LIBRARY_PATH }}
       run: |
-        source venv/activate
         echo "Running PJRT unit tests..."
-        find . -iname "libTTMLIRCompiler.so"
         ctest --test-dir build/ -R PJRT -V 2>&1 | tee ctest.log
 
     - name: Upload test log
