@@ -90,6 +90,8 @@ runs:
             # Detect changes that should trigger PJRT unit tests
             if [[ $file == pjrt_implementation/* ]]; then
               run_unit_tests=true
+            elif [[ $file == third_party/pjrt_c_api/* ]]; then
+              run_unit_tests=true
             fi
           done
 
