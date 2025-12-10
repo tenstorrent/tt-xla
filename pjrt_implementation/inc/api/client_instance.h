@@ -116,10 +116,6 @@ public:
   tt::runtime::Device
   getOrCreateMeshDevice(const std::vector<uint32_t> &target_mesh_shape);
 
-  // Returns true if calling getOrCreateMeshDevice with the given target shape
-  // would cause the current mesh to be closed and reopened (reshape).
-  bool willMeshReshape(const std::vector<uint32_t> &target_mesh_shape) const;
-
   // Registers a buffer with this client for tracking. This is called when a
   // buffer is created so we can materialize all buffers before mesh reshape.
   void registerBuffer(BufferInstance *buffer);

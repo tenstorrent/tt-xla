@@ -506,16 +506,6 @@ tt_pjrt_status ClientInstance::extractCustomProtobufFields(
   return tt_pjrt_status::kSuccess;
 }
 
-bool ClientInstance::willMeshReshape(
-    const std::vector<uint32_t> &target_mesh_shape) const {
-  if (!m_parent_mesh.has_value()) {
-    return false; // No mesh exists, so opening one is not a reshape
-  }
-  std::vector<uint32_t> parent_mesh_shape =
-      tt::runtime::getMeshShape(*m_parent_mesh);
-  return parent_mesh_shape != target_mesh_shape;
-}
-
 void ClientInstance::registerBuffer(BufferInstance *buffer) {
   std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
   m_tracked_buffers.insert(buffer);
