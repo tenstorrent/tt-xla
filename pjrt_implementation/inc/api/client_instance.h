@@ -13,7 +13,9 @@
 // c++ standard library includes
 #include <cstdlib>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 // third-party includes
@@ -29,6 +31,8 @@
 #define TT_XLA_PJRT_IMPLEMENTATION_INC_API_CLIENT_INSTANCE_H_
 
 namespace tt::pjrt {
+
+class BufferInstance;
 
 namespace module_builder {
 class ModuleBuilder;
@@ -111,6 +115,22 @@ public:
   // adding support for parallel execution.
   tt::runtime::Device
   getOrCreateMeshDevice(const std::vector<uint32_t> &target_mesh_shape);
+
+  // Returns true if calling getOrCreateMeshDevice with the given target shape
+  // would cause the current mesh to be closed and reopened (reshape).
+  bool willMeshReshape(const std::vector<uint32_t> &target_mesh_shape) const;
+
+  // Registers a buffer with this client for tracking. This is called when a
+  // buffer is created so we can materialize all buffers before mesh reshape.
+  void registerBuffer(BufferInstance *buffer);
+
+  // Unregisters a buffer from this client. This is called when a buffer is
+  // destroyed.
+  void unregisterBuffer(BufferInstance *buffer);
+
+  // Materializes all tracked buffers that have device tensors but no host
+  // tensors. This should be called before mesh reshape to prevent data loss.
+  void materializeAllBuffersToHost();
 
   // Returns parent mesh.
   std::optional<tt::runtime::Device> &parentMesh() { return m_parent_mesh; };
@@ -208,6 +228,13 @@ private:
 
   // We don't have a versioning system for our software stack yet.
   const std::string m_platform_version = "0.0.0";
+
+  // Set of all tracked buffers. Used to materialize all buffers before mesh
+  // reshape to prevent data loss.
+  std::unordered_set<BufferInstance *> m_tracked_buffers;
+
+  // Mutex protecting m_tracked_buffers.
+  mutable std::mutex m_tracked_buffers_mutex;
 
   // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
   // fields.

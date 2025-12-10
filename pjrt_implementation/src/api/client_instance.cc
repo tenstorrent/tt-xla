@@ -506,6 +506,47 @@ tt_pjrt_status ClientInstance::extractCustomProtobufFields(
   return tt_pjrt_status::kSuccess;
 }
 
+bool ClientInstance::willMeshReshape(
+    const std::vector<uint32_t> &target_mesh_shape) const {
+  if (!m_parent_mesh.has_value()) {
+    return false; // No mesh exists, so opening one is not a reshape
+  }
+  std::vector<uint32_t> parent_mesh_shape =
+      tt::runtime::getMeshShape(*m_parent_mesh);
+  return parent_mesh_shape != target_mesh_shape;
+}
+
+void ClientInstance::registerBuffer(BufferInstance *buffer) {
+  std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
+  m_tracked_buffers.insert(buffer);
+}
+
+void ClientInstance::unregisterBuffer(BufferInstance *buffer) {
+  std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
+  m_tracked_buffers.erase(buffer);
+}
+
+void ClientInstance::materializeAllBuffersToHost() {
+  std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
+
+  for (BufferInstance *buffer : m_tracked_buffers) {
+    // Only materialize buffers that have device tensor but no host tensor
+    if (!buffer->getHostRuntimeTensor().has_value() &&
+        buffer->getPreparedTensor().has_value()) {
+      if (tt::runtime::isTensorAllocated(buffer->getPreparedTensor().value())) {
+        DLOG_F(LOG_DEBUG,
+               "Materializing buffer UID=%zu to host before mesh reshape",
+               buffer->getUID());
+        std::vector<tt::runtime::Tensor> host_tensors = tt::runtime::toHost(
+            buffer->getPreparedTensor().value(), /*untilize=*/true);
+        if (!host_tensors.empty()) {
+          buffer->setHostRuntimeTensor(host_tensors[0]);
+        }
+      }
+    }
+  }
+}
+
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
     const std::vector<uint32_t> &target_mesh_shape) {
 
@@ -530,6 +571,12 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
          "reshaping mesh device - %s -> %s",
          utils::to_string(parent_mesh_shape).c_str(),
          utils::to_string(target_mesh_shape).c_str());
+
+  // Before closing the mesh, materialize all buffers that have device tensors
+  // to host to prevent data loss. This is necessary because closing the mesh
+  // deallocates all device memory, and buffers from previous executions may
+  // still be in use.
+  materializeAllBuffersToHost();
 
   // NOTE: Due to some issues hit when testing, instead of using the reshape
   // mesh API, we are closing and re-opening the device with the wanted mesh
