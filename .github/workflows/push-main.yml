@@ -63,6 +63,16 @@ jobs:
       wheel_codecov_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
       build_artifact_name: ${{ needs.build-ttxla.outputs.build_artifact_name }}
 
+  run-unit-tests:
+    needs: [ build-image, build-ttxla-codecov ]
+    uses: ./.github/workflows/call-unit-test.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      artifacts_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
+      wheel_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
+      build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
+
   test_forge_models_push:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit

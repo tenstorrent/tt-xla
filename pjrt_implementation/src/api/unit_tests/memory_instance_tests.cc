@@ -31,8 +31,6 @@ TEST_F(MemoryInstanceUnitTests, createInstance_successCase) {
   EXPECT_EQ(m_default_memory->getAddressableByDevices()[0], m_device.get());
 }
 
-// touch
-
 // Tests casting MemoryInstance to raw PJRT_Memory pointer.
 TEST_F(MemoryInstanceUnitTests, castToPJRTMemory) {
   PJRT_Memory *pjrt_mem = *m_default_memory;
