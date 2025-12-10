@@ -983,11 +983,9 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7x-single_device-full-inference:
-    status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "PCC comparison failed. Calculated: pcc=0.9886450171470642. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2237"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Function path mismatch for /usr/local/lib/python3.11/dist-packages/torch/_tensor.py:39 between simple and ast modes - https://github.com/tenstorrent/tt-xla/issues/2525"
+    bringup_status: FAILED_FE_COMPILATION
 
   yolov7/pytorch-yolov7-single_device-full-inference:
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9570515751838684. Required: pcc=0.99."
@@ -2308,12 +2306,13 @@ test_config:
     reason: "Can't convert shape rank  - https://github.com/tenstorrent/tt-xla/issues/2456"
 
   retinanet/pytorch-retinanet_resnet50_fpn_v2-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=6)] grow to 22732608 B which is beyond max L1 size of 1499136 B"
+    bringup_status: FAILED_RUNTIME
 
   ssd300_vgg16/pytorch-ssd300_vgg16-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: 'nms_kernel' not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1816"
+    reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/2456"
 
   gemma/codegemma/pytorch-google/codegemma-2b-single_device-full-inference:
     status: EXPECTED_PASSING
