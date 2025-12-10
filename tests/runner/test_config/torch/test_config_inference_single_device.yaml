@@ -714,9 +714,7 @@ test_config:
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-inference:
     required_pcc: 0.98
-    status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   t5/pytorch-t5-small-single_device-full-inference:
     status: EXPECTED_PASSING
