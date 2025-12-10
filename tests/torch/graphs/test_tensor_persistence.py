@@ -20,6 +20,7 @@ import time
 import pytest
 import torch
 import torch_xla.core.xla_model as xm
+from utils import incorrect_result
 
 """
 A test suite checking various multi-graph tensor persistence scenarios.
@@ -60,7 +61,9 @@ def run_model_on_device(model, inputs):
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.xfail(
-    reason="torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
 )
 def test_output_reused_in_two_serial_graphs():
     """
@@ -112,7 +115,9 @@ def test_output_reused_in_two_serial_graphs():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.xfail(
-    reason="torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
 )
 def test_output_reused_in_three_serial_graphs():
     """
@@ -167,7 +172,9 @@ def test_output_reused_in_three_serial_graphs():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.xfail(
-    reason="torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
 )
 def test_multiple_outputs_reused_independently():
     """
@@ -229,7 +236,9 @@ def test_multiple_outputs_reused_independently():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.xfail(
-    reason="torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
 )
 def test_diamond_dependency_pattern():
     """
@@ -289,7 +298,9 @@ def test_diamond_dependency_pattern():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.xfail(
-    reason="torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
 )
 def test_chain_with_multiple_reuses():
     """
@@ -404,7 +415,9 @@ def test_output_reused_with_matrix_operations():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.xfail(
-    reason="torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
 )
 def test_input_moved_to_device_then_used_in_graph():
     """

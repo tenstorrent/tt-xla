@@ -9,7 +9,7 @@ from infra import (
     make_partition_spec,
     run_jax_multichip_graph_test_with_random_inputs,
 )
-from utils import failed_fe_compilation
+from utils import failed_fe_compilation, incorrect_result
 
 
 @pytest.mark.nightly
@@ -29,7 +29,9 @@ from utils import failed_fe_compilation
     ],
 )
 @pytest.mark.xfail(
-    reason="PCC comparison assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    reason=incorrect_result(
+        "PCC comparison assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
 )
 # Cannot use ShardingMode.INPUTS because it does not define axis names and we are using jax.lax.all_gather
 @pytest.mark.parametrize(
