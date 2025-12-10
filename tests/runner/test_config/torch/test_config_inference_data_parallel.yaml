@@ -1293,10 +1293,6 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  # yolov9/pytorch-data_parallel-full-inference:
-  #   supported_archs: [n300]
-  #   status: EXPECTED_PASSING
-
   #   too large for 31 GB runner
 
   # phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-data_parallel-full-inference:
