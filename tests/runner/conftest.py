@@ -35,18 +35,6 @@ def pytest_addoption(parser):
         default=False,
         help="Fail if test_config files and collected test IDs are out of sync",
     )
-    parser.addoption(
-        "--disable-perf-measurement",
-        action="store_true",
-        default=False,
-        help="Disable performance benchmark measurement in tester",
-    )
-    parser.addoption(
-        "--perf-report-path",
-        action="store",
-        default=None,
-        help="Output path for perf benchmark reports. If not given, no perf benchmark files will be generated.",
-    )
 
 
 @pytest.fixture(autouse=True)
@@ -81,9 +69,6 @@ def pytest_collection_modifyitems(config, items):
     """
     arch = config.getoption("--arch")
     validate_config = config.getoption("--validate-test-config")
-
-    if config.getoption("--disable-perf-measurement"):
-        os.environ["DISABLE_PERF_MEASUREMENT"] = "1"
 
     # Merge torch and jax test configs once outside the loop
     combined_test_config = torch_test_config | jax_test_config
