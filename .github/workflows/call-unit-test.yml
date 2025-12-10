@@ -45,6 +45,7 @@ jobs:
         sparse-checkout: |
           .github/scripts
           pjrt_implementation
+          third_party/pjrt_c_api
           python_package/requirements.txt
           venv
 
