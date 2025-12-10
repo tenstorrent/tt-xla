@@ -17,8 +17,6 @@ from infra.testers.single_chip.model import (
     JaxDynamicLoader,
     TorchDynamicLoader,
 )
-from op_by_op_infra.pydantic_models import OpTest, model_to_dict
-from op_by_op_infra.workflow import run_op_by_op_workflow
 
 from tests.infra.comparators.comparator import Comparator, ComparisonResult
 from tests.infra.utilities.filecheck_utils import *
@@ -369,6 +367,10 @@ def test_all_models_op_by_op(
     This test spawns a subprocess that executes the model test with --dump-irs flag to collect StableHLO IR.
     Then it executes each op wrapped in a module individually.
     """
+    # Import op_by_op_infra only when this test runs (not at module level)
+    from op_by_op_infra.pydantic_models import OpTest, model_to_dict
+    from op_by_op_infra.workflow import run_op_by_op_workflow
+
     # Construct a pytest command for the subprocess.
     # Determine the correct test function name based on the framework.
     if test_entry.framework == Framework.TORCH:
