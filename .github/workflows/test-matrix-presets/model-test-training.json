@@ -1,4 +1,10 @@
 [
-    { "runs-on": "n150", "name": "run_jax_training", "dir": "./tests/jax/single_chip", "test-mark": "test_forge_models_training and not large", "shared-runners": "true", "parallel-groups": 3 },
-    { "runs-on": "n150", "name": "run_large_jax_training", "dir": "./tests/jax/single_chip", "test-mark": "test_forge_models_training and large", "shared-runners": "true", "parallel-groups": 3 }
+    { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "training and weekly and n150 and not large", "parallel-groups": 20 },
+    { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "training and weekly and p150 and not large", "parallel-groups": 20 },
+    { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "training and weekly and n150 and large", "parallel-groups": 5, "shared-runners": "true" },
+    { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "training and weekly and p150 and large", "parallel-groups": 5, "shared-runners": "true" },
+    { "runs-on": "n150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "training and weekly and n150 and not large", "parallel-groups": 5 },
+    { "runs-on": "p150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "training and weekly and p150 and not large", "parallel-groups": 5 },
+    { "runs-on": "n150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "training and weekly and n150 and large", "parallel-groups": 5, "shared-runners": "true" },
+    { "runs-on": "p150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "training and weekly and p150 and large", "parallel-groups": 5, "shared-runners": "true" }
 ]
