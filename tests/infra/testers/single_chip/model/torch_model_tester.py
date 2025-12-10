@@ -8,7 +8,6 @@ from contextlib import contextmanager
 from typing import Any, Dict, Mapping, Sequence, Set, Tuple
 
 import torch
-import torch.nn as nn
 import torch_xla
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
