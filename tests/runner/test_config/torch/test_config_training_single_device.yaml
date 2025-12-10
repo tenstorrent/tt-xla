@@ -811,7 +811,9 @@ test_config:
   gpt_neo/causal_lm/pytorch-gpt_neo_125M-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers in program 284 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)]"
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   albert/masked_lm/pytorch-base_v1-single_device-full-training:
