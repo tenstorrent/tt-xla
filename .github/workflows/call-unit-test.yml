@@ -95,8 +95,28 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-log-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-log-unittests-${{ steps.fetch-job-id.outputs.job_id }}-${{ github.run_attempt }}
         path: ctest.log
+
+    - name: Upload test report
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-report-unittests-${{ steps.fetch-job-id.outputs.job_id }}-${{ github.run_attempt }}
+        path: build/gtest_report.xml
+
+    - name: Show test report in PR
+      if: success() || failure()
+      continue-on-error: true
+      uses: mikepenz/action-junit-report@v5
+      with:
+        report_paths: build/gtest_report.xml
+        check_name: TT-XLA Unit Tests
+        comment: true
+        updateComment: true
+        detailed_summary: true
+        group_suite: true
+        token: ${{ github.token }}
 
     - name: Prepare code coverage report
       if: success() || failure()
