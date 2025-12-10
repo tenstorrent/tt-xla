@@ -43,6 +43,7 @@ jobs:
       with:
         submodules: false
         sparse-checkout: |
+          .github/scripts
           python_package/requirements.txt
           venv
 
@@ -86,7 +87,7 @@ jobs:
         LD_LIBRARY_PATH: ${{ env.REPO_ROOT }}/venv/lib/python3.11/site-packages/pjrt_plugin_tt/lib:${{ env.LD_LIBRARY_PATH }}
       run: |
         echo "Running PJRT unit tests..."
-        ctest --test-dir build/ -R PJRT -V 2>&1 | tee ctest.log
+        ctest --test-dir build -R PJRT -V 2>&1 | tee ctest.log
 
     - name: Upload test log
       uses: actions/upload-artifact@v4
@@ -94,3 +95,19 @@ jobs:
       with:
         name: test-log-${{ steps.fetch-job-id.outputs.job_id }}
         path: ctest.log
+
+    - name: Prepare code coverage report
+      if: success() || failure()
+      run: |
+        lcov --directory build --capture --output-file coverage.info --gcov-tool ${{ env.REPO_ROOT }}/.github/scripts/gcov_for_clang.sh
+        lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
+        sed -i "s|SF:${{ env.REPO_ROOT }}/pjrt_implementation/src/|SF:src/|" coverage.info
+        lcov --list coverage.info
+
+    - name: Upload coverage report to Codecov
+      if: success() || failure()
+      uses: codecov/codecov-action@v5
+      with:
+        files: coverage.info
+        disable_search: true
+        token: ${{ secrets.CODECOV_TOKEN }}
