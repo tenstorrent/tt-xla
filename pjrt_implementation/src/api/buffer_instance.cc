@@ -374,31 +374,13 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
          "Trying to copy from buffer instance without an associated device or "
          "host tensor.");
 
-  // Preferentially retrieve from live on device tensor if it exists and is
-  // allocated. In some cases an Input BufferInstance may be returned to host
+  // Preferentially retrieve from live on device tensor if it exists.
+  // In some cases an Input BufferInstance may be returned to host
   // without an execution taking place, in which case we use the host runtime
-  // tensor. Also, if the device tensor has been deallocated (e.g., after mesh
-  // reshape), we fall back to the host tensor.
-  bool is_tensor_on_host = true;
-  tt::runtime::Tensor runtime_tensor_to_retrieve;
-
-  if (m_prepared_runtime_tensor.has_value() &&
-      tt::runtime::isTensorAllocated(m_prepared_runtime_tensor.value())) {
-    // Device tensor exists and is allocated - use it
-    is_tensor_on_host = false;
-    runtime_tensor_to_retrieve = m_prepared_runtime_tensor.value();
-  } else if (m_host_runtime_tensor.has_value()) {
-    // Fall back to host tensor
-    runtime_tensor_to_retrieve = m_host_runtime_tensor.value();
-  } else {
-    // Neither device nor host tensor available
-    DLOG_F(ERROR,
-           "Buffer UID=%zu has no valid tensor to copy to host "
-           "(prepared=%d, host=%d)",
-           m_uid, m_prepared_runtime_tensor.has_value(),
-           m_host_runtime_tensor.has_value());
-    return tt_pjrt_status::kInternal;
-  }
+  // tensor.
+  bool is_tensor_on_host = !m_prepared_runtime_tensor.has_value();
+  tt::runtime::Tensor runtime_tensor_to_retrieve =
+      m_prepared_runtime_tensor.value_or(*m_host_runtime_tensor);
 
   // Wait if there is a copy already in progress.
   // Needs to be locked for each BufferInstance since multiple framework
