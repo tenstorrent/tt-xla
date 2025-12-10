@@ -116,7 +116,9 @@ public:
   }
 
   // Clears the prepared runtime tensor.
-  void clearPreparedTensor();
+  void clearPreparedTensor() {
+    m_prepared_runtime_tensor = std::nullopt;
+  }
 
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
@@ -194,8 +196,7 @@ private:
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   // Currently only used for device to device transfer in copy construction
-  // of new buffer instance. Non-const because we set host tensor on source
-  // when materializing from device tensor.
+  // of new buffer instance.
   void copyFromBuffer(BufferInstance *src_buffer);
 
   // Calculates required tensor shape.

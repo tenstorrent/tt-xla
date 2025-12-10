@@ -158,10 +158,6 @@ bool BufferInstance::isDataDeleted() {
   return m_data_deleted;
 }
 
-void BufferInstance::clearPreparedTensor() {
-  m_prepared_runtime_tensor = std::nullopt;
-}
-
 void BufferInstance::deleteData() {
   if (m_data_deleted) {
     return;
