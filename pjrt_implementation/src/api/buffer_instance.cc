@@ -270,7 +270,7 @@ void BufferInstance::copyFromHost(
   *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
 }
 
-void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
+void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
   DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
@@ -292,14 +292,12 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
 
   tt::runtime::Tensor source_host_runtime_tensor;
 
-  // First try to use host tensor if available (most efficient)
-  if (src_buffer->m_host_runtime_tensor.has_value()) {
-    source_host_runtime_tensor = *src_buffer->m_host_runtime_tensor;
-  } else if (src_buffer->m_prepared_runtime_tensor.has_value() &&
-             tt::runtime::isTensorAllocated(
-                 src_buffer->m_prepared_runtime_tensor.value())) {
-    // Device-Device transfer requires materializing to host first since we
-    // don't know the destination device at this callsite.
+  if (src_buffer->m_prepared_runtime_tensor != std::nullopt) {
+    DLOG_F(WARNING,
+           "BufferInstance::copyFromBuffer: Device-Device transfer is "
+           "inefficient due to PJRT device modeling limitations. This will "
+           "actually copy src to host, and fill dst host tensor, because at "
+           "this callsite we do not know what dst device is.");
     std::vector<tt::runtime::Tensor> host_runtime_tensors = tt::runtime::toHost(
         src_buffer->m_prepared_runtime_tensor.value(), /*untilize=*/true);
 
@@ -307,14 +305,9 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
            "Expected single host tensor when copying from device buffer");
 
     source_host_runtime_tensor = host_runtime_tensors[0];
-
-    // Save host tensor to source buffer for potential future use.
-    src_buffer->setHostRuntimeTensor(source_host_runtime_tensor);
+  } else if (src_buffer->m_host_runtime_tensor != std::nullopt) {
+    source_host_runtime_tensor = *src_buffer->m_host_runtime_tensor;
   } else {
-    DLOG_F(ERROR,
-           "Source buffer UID=%zu has no data to copy from (prepared tensor "
-           "not allocated, no host tensor)",
-           src_buffer->m_uid);
     assert(false && "Source buffer has no data to copy from");
   }
 
