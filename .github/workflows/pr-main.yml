@@ -87,7 +87,7 @@ jobs:
 
   run-unit-tests:
     needs: [ inspect-changes, build-image, build-ttxla-codecov ]
-    if: true
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.run-unit-tests == 'true'
     uses: ./.github/workflows/call-unit-test.yml
     secrets: inherit
     with:
