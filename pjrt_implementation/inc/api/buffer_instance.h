@@ -116,9 +116,7 @@ public:
   }
 
   // Clears the prepared runtime tensor.
-  void clearPreparedTensor() {
-    m_prepared_runtime_tensor = std::nullopt;
-  }
+  void clearPreparedTensor() { m_prepared_runtime_tensor = std::nullopt; }
 
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }

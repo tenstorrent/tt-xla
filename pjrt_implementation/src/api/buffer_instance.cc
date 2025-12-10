@@ -66,10 +66,9 @@ std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
                          client, host_tensor, device_tensor, device_id) {}
   };
 
-  return std::make_unique<make_unique_enabler>(std::move(dimensions), device,
-                                               memory, data_type, client,
-                                               std::nullopt, device_tensor,
-                                               device_id);
+  return std::make_unique<make_unique_enabler>(
+      std::move(dimensions), device, memory, data_type, client, std::nullopt,
+      device_tensor, device_id);
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,

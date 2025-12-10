@@ -534,7 +534,7 @@ void ClientInstance::materializeAllBuffersToHost() {
       }
     }
   }
-  
+
   // This ensures all buffers in a sharded group have the same prepared_tensor
   // state (none) after mesh reshape, which is required by prepareInputTensor.
   for (BufferInstance *buffer : m_tracked_buffers) {
