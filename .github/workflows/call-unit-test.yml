@@ -44,6 +44,7 @@ jobs:
         submodules: false
         sparse-checkout: |
           .github/scripts
+          pjrt_implementation
           python_package/requirements.txt
           venv
 
