@@ -61,63 +61,9 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   // multi-device tensor.
   assert(!arg_buffers.empty());
 
-  // Check buffer states: ideally all buffers have consistent prepared_tensor
-  // state (all have the same one or none have one). However, during operations
-  // like replicated device_put via copyFromBuffer, some buffers may have
-  // prepared_tensor while newly copied ones don't. Handle this gracefully.
-  std::optional<tt::runtime::Tensor> prepared_tensor = std::nullopt;
-  bool all_have_same_prepared = true;
-  size_t buffers_with_prepared = 0;
-
-  for (size_t i = 0; i < arg_buffers.size(); ++i) {
-    auto buffer_prepared = arg_buffers[i]->getPreparedTensor();
-    if (buffer_prepared.has_value()) {
-      buffers_with_prepared++;
-      if (!prepared_tensor.has_value()) {
-        prepared_tensor = buffer_prepared;
-      } else if (prepared_tensor->handle != buffer_prepared->handle) {
-        // Different prepared tensors - inconsistent state
-        all_have_same_prepared = false;
-      }
-    }
-  }
-
-  // Inconsistent if some buffers have prepared_tensor and some don't
-  bool any_has_prepared = buffers_with_prepared > 0;
-  if (buffers_with_prepared > 0 && buffers_with_prepared < arg_buffers.size()) {
-    all_have_same_prepared = false;
-  }
-
-  // If buffers have inconsistent prepared_tensor state (some have it, some
-  // don't, or they have different ones), materialize to host and rebuild.
-  if (any_has_prepared && !all_have_same_prepared) {
-    DLOG_F(LOG_DEBUG,
-           "Buffers for arg_index=%zu have inconsistent prepared_tensor state, "
-           "materializing to host and rebuilding",
-           arg_index);
-
-    // If we have a valid prepared_tensor, materialize it once and distribute
-    // shards to all buffers that need them.
-    std::vector<tt::runtime::Tensor> host_tensors;
-    if (prepared_tensor.has_value() &&
-        tt::runtime::isTensorAllocated(*prepared_tensor)) {
-      host_tensors = tt::runtime::toHost(*prepared_tensor, /*untilize=*/true);
-    }
-
-    for (size_t i = 0; i < arg_buffers.size(); ++i) {
-      // Set host tensor if buffer doesn't have one and we have materialized
-      if (!arg_buffers[i]->getHostRuntimeTensor().has_value() &&
-          !host_tensors.empty()) {
-        uint32_t shard_index =
-            arg_buffers[i]->getDeviceId().value_or(static_cast<uint32_t>(i));
-        if (shard_index < host_tensors.size()) {
-          arg_buffers[i]->setHostRuntimeTensor(host_tensors[shard_index]);
-        }
-      }
-      arg_buffers[i]->clearPreparedTensor();
-    }
-    prepared_tensor = std::nullopt;
-  }
+  // Get prepared_tensor from first buffer (all should have the same or none).
+  std::optional<tt::runtime::Tensor> prepared_tensor =
+      arg_buffers[0]->getPreparedTensor();
 
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
@@ -129,29 +75,10 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
       executable_image->getFlatbufferBinary(), program_index, arg_index);
 
   bool has_cached_tensor = prepared_tensor.has_value();
-  // Check if cached tensor is still valid (allocated on device).
-  // Device memory can be deallocated if mesh was reshaped since buffer creation.
-  bool is_cached_tensor_valid =
-      has_cached_tensor && tt::runtime::isTensorAllocated(*prepared_tensor);
-
   bool has_expected_layout =
-      is_cached_tensor_valid &&
+      has_cached_tensor &&
       tt::runtime::hasLayout(*prepared_tensor, expected_layout);
-
-  // Check if any buffer has host_runtime_tensor. If so, we should rebuild from
-  // host data rather than reusing cached prepared_tensor, because the host data
-  // might have been updated (e.g., via copyFromHost) since prepared_tensor was
-  // created. Output buffers don't have host_runtime_tensor, so they can safely
-  // reuse their prepared_tensor.
-  bool has_host_tensor = false;
-  for (const auto &buffer : arg_buffers) {
-    if (buffer->getHostRuntimeTensor().has_value()) {
-      has_host_tensor = true;
-      break;
-    }
-  }
-
-  if (has_expected_layout && !has_host_tensor) {
+  if (has_expected_layout) {
     DLOG_F(LOG_DEBUG,
            "Reusing already prepared input tensor for argument index %zu with "
            "shape %s",
@@ -167,9 +94,7 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   // In this case, we re-layout the cached tensor into the expected layout
   // and return that while saving it back into the buffer instances for future
   // reuse.
-  // NOTE: Only do this if there's no host tensor - if there's a host tensor,
-  // we should rebuild from it to ensure we use the latest data.
-  else if (!has_expected_layout && is_cached_tensor_valid && !has_host_tensor) {
+  else if (!has_expected_layout && has_cached_tensor) {
     DLOG_F(LOG_DEBUG,
            "Re-laying out already prepared input tensor for argument index %zu "
            "with shape %s.",
@@ -181,40 +106,6 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     }
     tt::runtime::setTensorRetain(relaid_out_tensor, /*retain=*/true);
     return relaid_out_tensor;
-  }
-
-  // If cached tensor exists but is not allocated (device memory was
-  // deallocated due to mesh reshape), we need to handle this case:
-  // - If host tensor exists, we can rebuild from it
-  // - If no host tensor, the data is lost and this is an error
-  if (has_cached_tensor && !is_cached_tensor_valid) {
-    DLOG_F(LOG_DEBUG,
-           "Cached tensor for arg_index=%zu is not allocated, clearing and "
-           "rebuilding from host tensors",
-           arg_index);
-
-    // Check if any buffer has host tensor to fall back on
-    bool any_has_host_tensor = false;
-    for (size_t i = 0; i < arg_buffers.size(); ++i) {
-      if (arg_buffers[i]->getHostRuntimeTensor().has_value()) {
-        any_has_host_tensor = true;
-        break;
-      }
-    }
-
-    if (!any_has_host_tensor) {
-      // No host tensor available - data was lost when mesh reshaped
-      DLOG_F(ERROR,
-             "Buffer for arg_index=%zu has stale device tensor (mesh was "
-             "reshaped) but no host tensor to recover from. Data is lost.",
-             arg_index);
-      return std::nullopt;
-    }
-
-    for (size_t i = 0; i < arg_buffers.size(); ++i) {
-      arg_buffers[i]->clearPreparedTensor();
-    }
-    prepared_tensor = std::nullopt;
   }
 
   // We don't have an already prepared tensor so we need to prepare it now.
