@@ -996,8 +996,7 @@ test_config:
     markers: [weekly]
 
   roberta/masked_lm/pytorch-xlm_base-single_device-full-training:
-    status: EXPECTED_PASSING
-    reason: "error: failed to legalize operation 'ttir.gather'"
+    status: KNOWN_FAILURE_XFAIL
     markers: [weekly]
 
   unet/pytorch-unet_cityscapes-single_device-full-training:
