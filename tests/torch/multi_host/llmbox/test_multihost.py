@@ -49,13 +49,13 @@ def get_tp_model_variants():
     with open(torch_config_filepath, "r") as f:
         torch_data = yaml.safe_load(f) or {}
         torch_test_config = torch_data.get("test_config", {}) or {}
-        model_variants.extend(torch_test_config.keys())
+        model_variants.extend(f"tests/runner/test_models.py::test_all_models_torch[{variant}]" for variant in torch_test_config.keys())
 
     # Load jax config
     with open(jax_config_filepath, "r") as f:
         jax_data = yaml.safe_load(f) or {}
         jax_test_config = jax_data.get("test_config", {}) or {}
-        model_variants.extend(jax_test_config.keys())
+        model_variants.extend(f"tests/runner/test_models.py::test_all_models_jax[{variant}]" for variant in jax_test_config.keys())
 
     return model_variants
 
@@ -79,7 +79,7 @@ def test_multihost_models(model_variant):
             "-m",
             "pytest",
             "-ssv",
-            f"tests/runner/test_models.py::test_all_models_torch[{model_variant}]",
+            f"model_variant",
         ],
         env=distributed_env,
         cwd=os.getcwd(),
