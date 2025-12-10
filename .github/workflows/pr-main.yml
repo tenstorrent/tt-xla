@@ -72,7 +72,7 @@ jobs:
 
   test:
     needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]
-    if: false
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
@@ -97,7 +97,7 @@ jobs:
       build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
 
   perf-benchmark:
-    if: false
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')
     needs: [ inspect-changes, build-image, build-ttxla-release ]
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
@@ -108,7 +108,7 @@ jobs:
       ref: main
 
   test_forge_models_push:
-    if: false
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ inspect-changes, build-image, build-ttxla-release ]
@@ -119,7 +119,7 @@ jobs:
       wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
 
   test_models_on_uplift:
-    if: false
+    if: needs.inspect-changes.outputs.run-uplift-model-tests == 'true'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ inspect-changes, build-image, build-ttxla-release ]
@@ -130,7 +130,7 @@ jobs:
       wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
 
   build-docs:
-    if: false
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     needs: [ inspect-changes, build-image, build-ttxla-release ]
     uses: ./.github/workflows/call-check-docs-build.yml
     secrets: inherit
