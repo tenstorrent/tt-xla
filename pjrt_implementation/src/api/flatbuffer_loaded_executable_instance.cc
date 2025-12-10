@@ -181,6 +181,11 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
               m_addressable_devices[device_index]->getDefaultMemory(),
               expected_output_data_types[output_index], device_index,
               m_client_instance);
+      DLOG_F(LOG_DEBUG,
+             "Filled output at output_index %zu device_index %d with shape %s "
+             "and UID %zu",
+             output_index, device_index, output_buffer->toShapeStr().c_str(),
+             output_buffer->getUID());
 
       output_buffer->markAsDataReady();
 
