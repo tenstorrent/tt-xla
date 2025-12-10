@@ -24,6 +24,8 @@ Since we want to run torch models wihout modifying them, we will substitute torc
 anything in model in order to get performance improvement.
 """
 
+################# function replacements #################
+
 
 def composite_gelu(input: Tensor, approximate: str = "none") -> Tensor:
     """
@@ -129,21 +131,72 @@ def composite_layer_norm(
     return output
 
 
+################# module replacements #################
+
+
+def replace_layer_norm_module(
+    gm: torch.fx.GraphModule,
+    node: torch.fx.Node,
+    module: torch.nn.LayerNorm,
+) -> None:
+    """
+    Replace nn.LayerNorm call_module node with composite_layer_norm call_function.
+
+    Transformation:
+        BEFORE: %out = call_module[target=layer_norm](args=(%x,))
+        AFTER:  %weight = get_attr[target=layer_norm.weight]
+                %bias = get_attr[target=layer_norm.bias]
+                %out = call_function[target=composite_layer_norm](
+                    args=(%x,),
+                    kwargs={normalized_shape: (768,), weight: %weight,
+                            bias: %bias, eps: 1e-5}
+                )
+
+    Args:
+        gm: GraphModule containing the node
+        node: call_module node to replace
+        module: nn.LayerNorm instance
+    """
+    normalized_shape = module.normalized_shape
+    eps = module.eps
+    has_weight = module.weight is not None and module.elementwise_affine
+    has_bias = module.bias is not None and module.elementwise_affine
+
+    input_tensor = node.args[0]
+
+    kwargs = {"normalized_shape": normalized_shape, "eps": eps}
+
+    with gm.graph.inserting_before(node):
+        if has_weight:
+            weight_node = gm.graph.get_attr(f"{node.target}.weight")
+            kwargs["weight"] = weight_node
+        else:
+            kwargs["weight"] = None
+
+        if has_bias:
+            bias_node = gm.graph.get_attr(f"{node.target}.bias")
+            kwargs["bias"] = bias_node
+        else:
+            kwargs["bias"] = None
+
+        new_node = gm.graph.call_function(
+            composite_layer_norm, args=(input_tensor,), kwargs=kwargs
+        )
+
+    node.replace_all_uses_with(new_node)
+    gm.graph.erase_node(node)
+
+
 """
-Dictionary holding replacement composite functions for torch functions.
-Maps functional API calls to composite implementations.
-Used for call_function nodes where node.target is a function reference.
+Dictionary holding replacement composite functions for torch functions and modules.
+Maps torch API calls and module types to composite implementations.
+Used for call_function and call_module nodes where node.target is a function reference or module type.
 """
-function_replacements = {
+replacements = {
+    # function replacements
     torch.nn.functional.gelu: composite_gelu,
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
-}
-
-"""
-Maps nn.Module classes to composite implementations.
-Used for call_module nodes where we transform module calls to functional calls.
-"""
-module_replacements = {
-    torch.nn.LayerNorm: composite_layer_norm,
+    # module replacements
+    torch.nn.LayerNorm: replace_layer_norm_module,
 }
