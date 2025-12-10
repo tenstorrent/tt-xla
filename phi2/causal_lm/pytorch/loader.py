@@ -34,11 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.PHI2: LLMModelConfig(
             pretrained_model_name="microsoft/phi-2",
-            max_length=256,
         ),
         ModelVariant.PHI2_PYTDML: LLMModelConfig(
             pretrained_model_name="microsoft/phi-2-pytdml",
-            max_length=256,
         ),
     }
 
@@ -151,8 +149,7 @@ class ModelLoader(ForgeModel):
         inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
-            max_length=self._variant_config.max_length,
-            padding="max_length",
+            padding=True,
             truncation=True,
         )
 
