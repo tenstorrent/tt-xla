@@ -34,7 +34,9 @@ test_config:
   qwen_2_5/causal_lm/pytorch-1_5b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   qwen_2_5/causal_lm/pytorch-1_5b_instruct-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Node arity mismatch; expected 339, but got 338"
   llama/causal_lm/pytorch-llama_3_2_1b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-training:
@@ -700,9 +702,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   inception/pytorch-inception_v4.tf_in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
+    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
   inception/pytorch-inceptionv4-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 8 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
+    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
   dla/pytorch-dla34.in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   googlenet/pytorch-googlenet-single_device-full-training:
@@ -802,15 +805,11 @@ test_config:
   qwen_3/causal_lm/pytorch-0_6b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   phi1_5/causal_lm/pytorch-microsoft/phi-1_5-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B"
+    status: KNOWN_FAILURE_XFAIL
   gpt_neo/causal_lm/pytorch-gpt_neo_125M-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B"
+    status: KNOWN_FAILURE_XFAIL
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   albert/masked_lm/pytorch-base_v1-single_device-full-training:
@@ -1172,9 +1171,7 @@ test_config:
   mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   qwen_3/causal_lm/pytorch-1_7b-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 622329856 B DRAM buffer across 12 banks, where each bank needs to store 51861504 B"
+    status: KNOWN_FAILURE_XFAIL
   phi2/token_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   gemma/pytorch-google/gemma-1.1-2b-it-single_device-full-training:
