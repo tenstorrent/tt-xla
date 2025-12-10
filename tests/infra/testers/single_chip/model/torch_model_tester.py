@@ -93,38 +93,6 @@ class TorchModelTester(ModelTester):
     def _configure_model(self) -> None:
         self._device_runner.set_training_mode(self._run_mode == RunMode.TRAINING)
         super()._configure_model()
-        
-        # Untie weights to avoid issues where CPU has less parameters than TT in memory.
-        self._model = self._untie_weights(self._model)
-    
-    def _untie_weights(self, model: torch.nn.Module) -> torch.nn.Module:
-        """
-        Detects all tied parameters in a HuggingFace model and unties them by
-        replacing shared nn.Parameter references with independent clones.
-        """
-        storage_map = {}
-        for module_name, module in model.named_modules():
-            for param_name, param in module.named_parameters(recurse=False):
-                key = param.data_ptr()
-                storage_map.setdefault(key, []).append((module, param_name, param))
-        # Replace tied parameters (all except the first in each tied group)
-        for tied_group in storage_map.values():
-            if len(tied_group) <= 1:
-                continue
-
-            # First one stays intact
-            first_module, first_name, first_param = tied_group[0]
-
-            for module, param_name, param in tied_group[1:]:
-                new_param = nn.Parameter(param.detach().clone())
-                setattr(module, param_name, new_param)
-
-        # Optionally prevent future re-tying on save/load
-        for attr in ["tie_word_embeddings", "tie_weights"]:
-            if hasattr(model.config, attr):
-                setattr(model.config, attr, False)
-
-        return model
 
     # @override
     def _configure_model_for_inference(self) -> None:

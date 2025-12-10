@@ -100,6 +100,8 @@ class TorchDeviceRunner(DeviceRunner):
 
         if workload.model is not None and hasattr(workload.model, "to"):
             workload.model = workload.model.to(device)
+            if hasattr(workload.model, "tie_weights"):
+                workload.model.tie_weights()
 
         shard_specs = None
         if (
