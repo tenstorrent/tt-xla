@@ -6,8 +6,8 @@ import os
 import numpy as np
 import pytest
 import torch
-import torch_xla
 import torch.nn as nn
+import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
