@@ -58,10 +58,10 @@ def mark_sharding_on_inputs_and_model(mlp, mesh):
     xs.mark_sharding(mlp.router.bias, mesh, (None,))
 
     # Shard experts across devices: 32 / 8 ->. 4 expert per device
-    xs.mark_sharding(mlp.experts.gate_up_proj, mesh, (None, None, None))
-    xs.mark_sharding(mlp.experts.gate_up_proj_bias, mesh, (None, None))
-    xs.mark_sharding(mlp.experts.down_proj, mesh, (None, None, None))
-    xs.mark_sharding(mlp.experts.down_proj_bias, mesh, (None, None))
+    xs.mark_sharding(mlp.experts.gate_up_proj, mesh, ("model", None, None))
+    xs.mark_sharding(mlp.experts.gate_up_proj_bias, mesh, ("model", None))
+    xs.mark_sharding(mlp.experts.down_proj, mesh, ("model", None, None))
+    xs.mark_sharding(mlp.experts.down_proj_bias, mesh, ("model", None))
 
 
 def setup_spmd():
@@ -97,6 +97,5 @@ def create_device_mesh() -> Mesh:
 if __name__ == "__main__":
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
-    torch_xla.sync()
     torch._dynamo.reset()
     gpt_oss()

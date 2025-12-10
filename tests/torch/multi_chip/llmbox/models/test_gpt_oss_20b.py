@@ -111,6 +111,5 @@ def create_device_mesh() -> Mesh:
 if __name__ == "__main__":
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
-    torch_xla.sync()
     torch._dynamo.reset()
     gpt_oss()
