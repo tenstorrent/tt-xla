@@ -4,7 +4,6 @@
 
 import difflib
 import os
-import shutil
 
 import pytest
 
