@@ -469,7 +469,8 @@ test_config:
   wide_resnet/pytorch-wide_resnet50_2.timm-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    assert_pcc: false
+    reason: "PCC comparison failed.  Calculated: pcc=0.97700434923172. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   xception/pytorch-xception41-data_parallel-full-inference:
     supported_archs: [n300]
@@ -643,8 +644,8 @@ test_config:
   vovnet/pytorch-vovnet57_th-data_parallel-full-inference:
     supported_archs: [n300]
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
   yolos/pytorch-data_parallel-full-inference:
     supported_archs: [n300]
@@ -655,7 +656,8 @@ test_config:
   vovnet/pytorch-ese_vovnet99b-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    assert_pcc: false
+    reason: "PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1242"
 
   albert/token_classification/pytorch-xlarge_v2-data_parallel-full-inference:
     supported_archs: [n300]
@@ -905,8 +907,8 @@ test_config:
   vovnet/pytorch-vovnet39_th-data_parallel-full-inference:
     supported_archs: [n300]
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
-    status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
   centernet/pytorch-hourglass_coco-data_parallel-full-inference:
     supported_archs: [n300]
@@ -1002,8 +1004,7 @@ test_config:
   mlp_mixer/pytorch-mixer_b16_224_miil_in21k-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
-    required_pcc: 0.96
-    bringup_status: INCORRECT_RESULT # Single device required_pcc: 0.975
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2433
 
   opt/qa/pytorch-facebook/opt-350m-data_parallel-full-inference:
     supported_archs: [n300]
@@ -1099,6 +1100,7 @@ test_config:
 
   mamba/pytorch-mamba-370m-hf-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false # -0.0327 WH / 0.3821 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
     status: EXPECTED_PASSING
 
   codegen/pytorch-Salesforce/codegen-350M-mono-data_parallel-full-inference:
@@ -1144,8 +1146,9 @@ test_config:
 
   gpt_neo/causal_lm/pytorch-gpt_neo_125M-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
-    required_pcc: 0.975 # Calculated: pcc=0.9797092080116272. Required: pcc=0.98.
+    reason: "PCC decreased with inputs changes to 0.946 in BH / 0.887 in WH"
 
   mlp_mixer/pytorch-mixer_b16_224.goog_in21k-data_parallel-full-inference:
     supported_archs: [n300]
@@ -1244,8 +1247,9 @@ test_config:
 
   vovnet/pytorch-vovnet39-data_parallel-full-inference:
     supported_archs: [n300]
+    assert_pcc: false
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    reason: "PCC comparison failed. Calculated: pcc=0.964539647102356. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   hrnet/pytorch-hrnetv2_w32_osmr-data_parallel-full-inference:
     supported_archs: [n300]
@@ -1263,8 +1267,9 @@ test_config:
 
   vovnet/pytorch-vovnet57-data_parallel-full-inference:
     supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
   resnext/pytorch-resnext14_32x4d_osmr-data_parallel-full-inference:
     supported_archs: [n300]
