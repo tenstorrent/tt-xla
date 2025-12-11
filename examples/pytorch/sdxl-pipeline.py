@@ -5,6 +5,7 @@ import time
 from enum import Enum
 
 import torch
+from typing import Optional
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
@@ -57,10 +58,19 @@ class SDXLPipeline:
         self.latents_width = config.latents_width
         self.latents_height = config.latents_height
 
-    def setup(self):
+    def setup(self, warmup=False):
         self.load_models()
         self.load_scheduler()
         self.load_tokenizers()
+        if warmup:
+            self.generate(
+                prompt="a photo of a cat", # generic prompt
+                negative_prompt="a photo of a dog",
+                do_cfg=True,
+                cfg_scale=7.5,
+                num_inference_steps=5, # warmup only needs a few steps
+                seed=42,
+            )
 
     def load_models(self):
         # Hotshotco doesn't have native fp16 weights, so we just download bigger model and cast ourselves
@@ -125,11 +135,11 @@ class SDXLPipeline:
     def generate(
         self,
         prompt: str,
-        uncond_prompt: str,
+        negative_prompt: str = "",
         do_cfg: bool = True,
         cfg_scale: float = 7.5,
         num_inference_steps: int = 50,
-        seed: int = None,
+        seed: Optional[int] = None,
     ):
         """
         Generate an image from a prompt using the SDXL model.
@@ -137,7 +147,7 @@ class SDXLPipeline:
 
         Args:
             prompt: The prompt to generate an image from.
-            uncond_prompt: Negative prompt (for example tell the model not to generate a "car")
+            negative_prompt: Negative prompt (for example tell the model "image of a car" to not generate a car)
             do_cfg: Whether to use classifier-free guidance.
             cfg_scale: How much to follow the prompt - higher means more follow the prompt.
             num_inference_steps: How many steps to run the model for.
@@ -154,6 +164,8 @@ class SDXLPipeline:
                 generator.seed()
 
             if do_cfg:
+
+                negative_prompt = negative_prompt or ""
                 encoder_hidden_states = []
                 pooled_text_embeds = None
                 for i, (curr_tokenizer, curr_text_encoder) in enumerate(
@@ -167,7 +179,7 @@ class SDXLPipeline:
                     ).input_ids  # (B, T)
 
                     uncond_tokens = curr_tokenizer.batch_encode_plus(
-                        [uncond_prompt], padding="max_length", max_length=77
+                        [negative_prompt], padding="max_length", max_length=77
                     ).input_ids  # (B, T)
 
                     cond_tokens = torch.tensor(cond_tokens, dtype=torch.long).to(
@@ -312,7 +324,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", type=str, default="a photo of a cat")
-    parser.add_argument("--uncond_prompt", type=str, default="a photo of a dog")
+    parser.add_argument("--negative_prompt", type=str, default="")
     parser.add_argument("--do_cfg", type=bool, default=True)
     parser.add_argument("--cfg_scale", type=float, default=7.5)
     parser.add_argument("--num_inference_steps", type=int, default=50)
@@ -322,28 +334,16 @@ if __name__ == "__main__":
 
     xr.set_device_type("TT")
 
+
     # only 512x512 is supported for now
     config = SDXLConfig(width=512, height=512, device="cpu")
     pipeline = SDXLPipeline(config=config)
-    pipeline.setup()
-
-    start_time = time.time()
-    # inference pass for warmup
-    pipeline.generate(
-        prompt="a photo of a cat",
-        uncond_prompt="a photo of a dog",
-        do_cfg=True,
-        cfg_scale=7.5,
-        num_inference_steps=50,
-        seed=42,
-    )
-    end_time = time.time()
-    print(f"Cold inference time taken: {end_time - start_time} seconds")
+    pipeline.setup(warmup=True)
 
     start_time = time.time()
     img = pipeline.generate(
         prompt=args.prompt,
-        uncond_prompt=args.uncond_prompt,
+        negative_prompt=args.negative_prompt,
         do_cfg=True,
         cfg_scale=args.cfg_scale,
         num_inference_steps=args.num_inference_steps,
