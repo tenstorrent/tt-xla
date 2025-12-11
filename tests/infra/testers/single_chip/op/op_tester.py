@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Callable, Sequence
 
 import jax
@@ -18,6 +19,8 @@ from jax._src.typing import DTypeLike
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from ...base_tester import BaseTester
+
+FILECHECK_DIR = Path(__file__).parent.parent.parent.parent.parent / "filecheck"
 
 
 class OpTester(BaseTester):
@@ -118,6 +121,7 @@ class OpTester(BaseTester):
         minval: float = 0.0,
         maxval: float = 1.0,
         dtype: str | DTypeLike | torch.dtype = "float32",
+        request=None,
     ) -> None:
         """
         Tests `f` by running it with random inputs in range [`minval`, `maxval`) on
@@ -135,6 +139,26 @@ class OpTester(BaseTester):
         ]
         workload = Workload(framework=self._framework, executable=f, args=inputs)
         self.test(workload)
+
+        filecheck_marker = request.node.get_closest_marker("filecheck")
+
+        if filecheck_marker and filecheck_marker.args:
+            pattern_files = filecheck_marker.args[0]
+            self.validate_filecheck_mark(
+                pattern_files, test_id=request.node.name, where="pytest mark"
+            )
+
+            from infra.utilities import sanitize_test_name
+
+            output_prefix = f"output_artifact/{sanitize_test_name(request.node.name)}"
+
+            self.serialize_on_device(workload, output_prefix)
+
+            filecheck_results = run_filecheck(
+                test_node_name=request.node.name,
+                irs_filepath="output_artifact",
+                pattern_files=pattern_files,
+            )
 
     def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
         """
@@ -155,6 +179,28 @@ class OpTester(BaseTester):
             workload, output_prefix, compiler_options=compiler_options
         )
 
+    def validate_filecheck_mark(
+        self, pattern_files, *, test_id: str, where: str
+    ) -> None:
+        if not pattern_files:
+            return
+        if not isinstance(pattern_files, list):
+            print(
+                f"WARNING: 'filecheck' mark should pass a list in {where}. Found: {type(pattern_files).__name__}"
+            )
+            return
+        for pattern_file in pattern_files:
+            if not isinstance(pattern_file, str):
+                print(
+                    f"WARNING: filecheck entry should be a string in {where}. Found: {type(pattern_file).__name__}"
+                )
+                continue
+            pattern_path = FILECHECK_DIR / pattern_file
+            if not pattern_path.exists():
+                print(
+                    f"WARNING: filecheck pattern file not found: {pattern_path}\n         Referenced in test '{test_id}'"
+                )
+
 
 def run_op_test(
     op: Callable,
@@ -171,7 +217,6 @@ def run_op_test(
         compiler_config = CompilerConfig()
     tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
     workload = Workload(framework, executable=op, args=inputs)
-    tester.test(workload)
 
 
 def serialize_op(
@@ -251,6 +296,7 @@ def run_op_test_with_random_inputs(
     comparison_config: ComparisonConfig = ComparisonConfig(),
     framework: Framework = Framework.JAX,
     compiler_config: CompilerConfig = None,
+    request=None,
 ) -> None:
     """
     Tests `op` with random inputs in range [`minval`, `maxval`) by running it on
@@ -259,4 +305,4 @@ def run_op_test_with_random_inputs(
     if compiler_config is None:
         compiler_config = CompilerConfig()
     tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
-    tester.test_with_random_inputs(op, input_shapes, minval, maxval, dtype)
+    tester.test_with_random_inputs(op, input_shapes, minval, maxval, dtype, request)

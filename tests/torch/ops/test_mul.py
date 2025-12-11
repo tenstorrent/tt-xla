@@ -15,8 +15,9 @@ from tests.infra.comparators.comparison_config import ComparisonConfig
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.filecheck(["concatenate_heads.ttnn.mlir"])
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-def test_mul():
+def test_mul(request):
     class Mul(torch.nn.Module):
         def forward(self, x, y):
             return x * y
@@ -24,5 +25,9 @@ def test_mul():
     mul = Mul()
 
     run_op_test_with_random_inputs(
-        mul, [(32, 32), (32, 32)], dtype=torch.bfloat16, framework=Framework.TORCH
+        mul,
+        [(32, 32), (32, 32)],
+        dtype=torch.bfloat16,
+        framework=Framework.TORCH,
+        request=request,
     )
