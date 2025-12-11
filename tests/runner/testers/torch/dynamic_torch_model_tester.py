@@ -5,7 +5,6 @@
 """Dynamic Torch model tester implementation."""
 
 import collections
-import os
 from typing import Any
 
 import torch
@@ -45,10 +44,6 @@ class DynamicTorchModelTester(TorchModelTester):
         self.dynamic_loader = TorchDynamicLoader(loader)
         # Store parallelism for reporting/consumers
         self.parallelism = parallelism
-
-        # Disable program cache for data-parallel tests to avoid OOM issues
-        if self.parallelism == Parallelism.DATA_PARALLEL:
-            os.environ["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "0"
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
