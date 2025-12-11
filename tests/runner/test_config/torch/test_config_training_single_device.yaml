@@ -997,7 +997,6 @@ test_config:
 
   roberta/masked_lm/pytorch-xlm_base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.gather'"
     markers: [weekly]
 
   unet/pytorch-unet_cityscapes-single_device-full-training:
@@ -1333,21 +1332,15 @@ test_config:
     markers: [weekly]
 
   albert/masked_lm/pytorch-base_v1-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
+    status: KNOWN_FAILURE_XFAIL
     markers: [weekly]
 
   albert/masked_lm/pytorch-xlarge_v1-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
+    status: KNOWN_FAILURE_XFAIL
     markers: [weekly]
 
   albert/masked_lm/pytorch-xxlarge_v1-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
+    status: KNOWN_FAILURE_XFAIL
     markers: [weekly]
 
   albert/masked_lm/pytorch-base_v2-single_device-full-training:
@@ -1355,21 +1348,15 @@ test_config:
     markers: [weekly]
 
   albert/masked_lm/pytorch-large_v2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
+    status: KNOWN_FAILURE_XFAIL
     markers: [weekly]
 
   albert/masked_lm/pytorch-xlarge_v2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
+    status: KNOWN_FAILURE_XFAIL
     markers: [weekly]
 
   albert/masked_lm/pytorch-xxlarge_v2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
+    status: KNOWN_FAILURE_XFAIL
     markers: [weekly]
 
   albert/token_classification/pytorch-base_v1-single_device-full-training:
@@ -1480,9 +1467,7 @@ test_config:
     markers: [weekly]
 
   bert/masked_lm/pytorch-bert-base-uncased-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'cls.predictions.bias'}"
+    status: KNOWN_FAILURE_XFAIL
     markers: [weekly]
 
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-full-training:
@@ -1631,9 +1616,7 @@ test_config:
     markers: [weekly]
 
   albert/masked_lm/pytorch-large_v1-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
+    status: KNOWN_FAILURE_XFAIL
     markers: [weekly]
 
   segformer/pytorch-mit_b0-single_device-full-training:
