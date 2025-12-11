@@ -99,6 +99,7 @@ def test_linear_torch_override():
     comparator.compare(output, golden)
 
 
+@pytest.mark.testing
 @pytest.mark.nightly
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
