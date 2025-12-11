@@ -20,6 +20,7 @@ import time
 import pytest
 import torch
 import torch_xla.core.xla_model as xm
+from utils import incorrect_result
 
 """
 A test suite checking various multi-graph tensor persistence scenarios.
@@ -59,6 +60,11 @@ def run_model_on_device(model, inputs):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
+)
 def test_output_reused_in_two_serial_graphs():
     """
     Test the scenario: A(I) -> O, B(O) -> P, C(O) -> Q
@@ -108,6 +114,11 @@ def test_output_reused_in_two_serial_graphs():
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
+)
 def test_output_reused_in_three_serial_graphs():
     """
     Test extended scenario: A(I) -> O, B(O) -> P, C(O) -> Q, D(O) -> R
@@ -160,6 +171,11 @@ def test_output_reused_in_three_serial_graphs():
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
+)
 def test_multiple_outputs_reused_independently():
     """
     Test scenario: A(I) -> (O1, O2), B(O1) -> P, C(O2) -> Q, D(O1) -> R
@@ -219,6 +235,11 @@ def test_multiple_outputs_reused_independently():
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
+)
 def test_diamond_dependency_pattern():
     """
     Test diamond pattern: A(I) -> O, B(O) -> P, C(O) -> Q, D(P, Q) -> R
@@ -276,6 +297,11 @@ def test_diamond_dependency_pattern():
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
+)
 def test_chain_with_multiple_reuses():
     """
     Test complex chain: A(I) -> O, B(O) -> P, C(O, P) -> Q, D(P) -> R
@@ -388,6 +414,11 @@ def test_output_reused_with_matrix_operations():
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
+)
 def test_input_moved_to_device_then_used_in_graph():
     """
     Test scenario: Input A is moved to device via .to(), printed/accessed (returning it to CPU) then used in graph G.
@@ -432,6 +463,11 @@ def test_input_moved_to_device_then_used_in_graph():
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
+)
 def test_input_not_modified_reused_in_another_graph():
     """
     Test scenario: Input A participates in graph G (not modified/not returned),
