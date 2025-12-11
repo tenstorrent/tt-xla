@@ -35,7 +35,7 @@ def gpt_oss():
     config = loader.load_config()
     inputs = loader.load_inputs()
     batch_size = inputs["input_ids"].shape[0]  # 1
-    seq_len = inputs["input_ids"].shape[1]  # 71
+    seq_len = inputs["input_ids"].shape[1]  # 128 with padding
 
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
@@ -44,7 +44,7 @@ def gpt_oss():
     mlp = mlp.to(device)
     hidden_states = hidden_states.to(device)
 
-    mark_sharding_on_inputs_and_model(mlp, mesh)
+    mark_sharding_on_inputs_and_model(mlp, hidden_states, mesh)
 
     with torch.no_grad():
         output = mlp(hidden_states)
@@ -52,16 +52,24 @@ def gpt_oss():
     print("MLP output", output[0].to("cpu"))
 
 
-def mark_sharding_on_inputs_and_model(mlp, mesh):
+def mark_sharding_on_inputs_and_model(mlp, hidden_states, mesh):
     print("Applying tensor parallel sharding to mlp")
     xs.mark_sharding(mlp.router.weight, mesh, (None, None))
     xs.mark_sharding(mlp.router.bias, mesh, (None,))
 
     # Shard experts across devices: 32 / 8 ->. 4 expert per device
-    xs.mark_sharding(mlp.experts.gate_up_proj, mesh, ("model", None, None))
-    xs.mark_sharding(mlp.experts.gate_up_proj_bias, mesh, ("model", None))
-    xs.mark_sharding(mlp.experts.down_proj, mesh, ("model", None, None))
-    xs.mark_sharding(mlp.experts.down_proj_bias, mesh, ("model", None))
+    xs.mark_sharding(
+        mlp.experts.gate_up_proj, mesh, ("model", None, None)
+    )  # torch.Size([32, 2880, 5760])
+    xs.mark_sharding(
+        mlp.experts.gate_up_proj_bias, mesh, ("model", None)
+    )  # torch.Size([32, 5760])
+    xs.mark_sharding(
+        mlp.experts.down_proj, mesh, ("model", None, None)
+    )  # torch.Size([32, 2880, 2880])
+    xs.mark_sharding(
+        mlp.experts.down_proj_bias, mesh, ("model", None)
+    )  # torch.Size([32, 2880])
 
 
 def setup_spmd():
