@@ -8,6 +8,7 @@
 // c++ standard library includes
 #include <mutex>
 #include <numeric>
+#include <iostream>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"

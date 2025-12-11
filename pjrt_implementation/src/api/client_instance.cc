@@ -14,20 +14,14 @@
 #include <cstddef>
 #include <filesystem>
 #include <optional>
-#include <set>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
 
-// third-party includes
-#include <google/protobuf/io/coded_stream.h>
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
-#include <google/protobuf/text_format.h>
-#include <google/protobuf/unknown_field_set.h>
-
 // tt-xla includes
 #include "api/buffer_instance.h"
+#include "api/compile_options_parser.h"
 #include "api/error_instance.h"
 #include "api/event_instance.h"
 #include "api/executable_image.h"
@@ -371,289 +365,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   return tt_pjrt_status::kSuccess;
 }
 
-bool ClientInstance::parseCompileOptionsProto(
-    const char *compile_options_data, size_t compile_options_size,
-    google::protobuf::UnknownFieldSet &unknown_fields) {
-  google::protobuf::io::CodedInputStream cis(
-      reinterpret_cast<const uint8_t *>(compile_options_data),
-      compile_options_size);
-
-  if (!unknown_fields.MergeFromCodedStream(&cis)) {
-    DLOG_F(ERROR, "Failed to parse compile options protobuf data");
-    return false;
-  }
-
-  return true;
-}
-
-tt_pjrt_status ClientInstance::getCompileOptions(
-    const char *compile_options_data, size_t compile_options_size,
-    std::unordered_map<std::string, std::string> &out_compile_options,
-    std::optional<std::vector<int64_t>> &out_replica_device_ids) {
-
-  google::protobuf::UnknownFieldSet unknown_fields;
-
-  if (!parseCompileOptionsProto(compile_options_data, compile_options_size,
-                                unknown_fields)) {
-    return tt_pjrt_status::kInternal;
-  }
-
-  // Extract custom compile options
-  tt_pjrt_status custom_options_status =
-      extractCustomProtobufFields(unknown_fields, out_compile_options);
-  if (!tt_pjrt_status_is_ok(custom_options_status)) {
-    return custom_options_status;
-  }
-
-  // Extract replica device IDs
-  tt_pjrt_status replica_ids_status =
-      extractReplicaDeviceIds(unknown_fields, out_replica_device_ids);
-  if (!tt_pjrt_status_is_ok(replica_ids_status)) {
-    return replica_ids_status;
-  }
-
-  return tt_pjrt_status::kSuccess;
-}
-
-tt_pjrt_status ClientInstance::extractReplicaDeviceIds(
-    const google::protobuf::UnknownFieldSet &unknown_fields,
-    std::optional<std::vector<int64_t>> &out_replica_device_ids) {
-  std::set<int64_t> unique_device_ids;
-
-  // The CompileOptionsProto protobuf layout is defined in
-  // https://github.com/openxla/xla/blob/main/xla/pjrt/proto/compile_options.proto
-
-  // The executable build compiler options that are defined in through the
-  // jax.jit() and contain the information about devices assignment are stored
-  // in the field number 3.
-  constexpr int kExecutableBuildOptionsProtoFieldNumber = 3;
-
-  for (int i = 0; i < unknown_fields.field_count(); ++i) {
-    const google::protobuf::UnknownField &field = unknown_fields.field(i);
-
-    if (field.number() != kExecutableBuildOptionsProtoFieldNumber ||
-        field.type() != google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-      continue;
-    }
-
-    const std::string &exec_build_data = field.length_delimited();
-    google::protobuf::UnknownFieldSet exec_build_fields;
-    google::protobuf::io::CodedInputStream exec_input(
-        reinterpret_cast<const uint8_t *>(exec_build_data.data()),
-        exec_build_data.size());
-
-    if (!exec_build_fields.ParseFromCodedStream(&exec_input)) {
-      continue;
-    }
-
-    // DeviceAssignmentProto is field number 9 in ExecutableBuildOptionsProto
-    constexpr int kDeviceAssignmentProtoFieldNumber = 9;
-
-    for (int j = 0; j < exec_build_fields.field_count(); ++j) {
-      const google::protobuf::UnknownField &exec_field =
-          exec_build_fields.field(j);
-
-      if (exec_field.number() != kDeviceAssignmentProtoFieldNumber ||
-          exec_field.type() !=
-              google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-        continue;
-      }
-
-      // Parse DeviceAssignmentProto
-      const std::string &device_assign_data = exec_field.length_delimited();
-      google::protobuf::UnknownFieldSet device_assign_fields;
-      google::protobuf::io::CodedInputStream device_input(
-          reinterpret_cast<const uint8_t *>(device_assign_data.data()),
-          device_assign_data.size());
-
-      if (!device_assign_fields.ParseFromCodedStream(&device_input)) {
-        continue;
-      }
-
-      // ComputationDevice is field number 3 in DeviceAssignmentProto
-      constexpr int kComputationDeviceFieldNumber = 3;
-
-      for (int k = 0; k < device_assign_fields.field_count(); ++k) {
-        const google::protobuf::UnknownField &da_field =
-            device_assign_fields.field(k);
-
-        if (da_field.number() != kComputationDeviceFieldNumber ||
-            da_field.type() !=
-                google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-          continue;
-        }
-
-        // Parse ComputationDevice
-        const std::string &comp_device_data = da_field.length_delimited();
-        google::protobuf::UnknownFieldSet comp_device_fields;
-        google::protobuf::io::CodedInputStream comp_input(
-            reinterpret_cast<const uint8_t *>(comp_device_data.data()),
-            comp_device_data.size());
-
-        if (comp_device_fields.ParseFromCodedStream(&comp_input)) {
-          for (int l = 0; l < comp_device_fields.field_count(); ++l) {
-            const google::protobuf::UnknownField &comp_field =
-                comp_device_fields.field(l);
-
-            // Device IDs are stored in field number 1 in
-            // ComputationDevice structure. It is a repeated field, so we
-            // need to handle both packed and unpacked representations.
-            if (comp_field.number() == 1) {
-              if (comp_field.type() ==
-                  google::protobuf::UnknownField::TYPE_VARINT) {
-                // Unpacked repeated field
-                unique_device_ids.insert(comp_field.varint());
-              } else if (comp_field.type() == google::protobuf::UnknownField::
-                                                  TYPE_LENGTH_DELIMITED) {
-                // Packed repeated field
-                const std::string &packed_data = comp_field.length_delimited();
-                google::protobuf::io::CodedInputStream packed_stream(
-                    reinterpret_cast<const uint8_t *>(packed_data.data()),
-                    packed_data.size());
-
-                uint64_t value;
-                while (packed_stream.ReadVarint64(&value)) {
-                  unique_device_ids.insert(static_cast<int64_t>(value));
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  if (!unique_device_ids.empty()) {
-    out_replica_device_ids = std::vector<int64_t>(unique_device_ids.begin(),
-                                                  unique_device_ids.end());
-  }
-  return tt_pjrt_status::kSuccess;
-}
-
-tt_pjrt_status ClientInstance::extractCustomProtobufFields(
-    const google::protobuf::UnknownFieldSet &unknown_fields,
-    std::unordered_map<std::string, std::string> &out_compile_options) {
-
-  // The custom compiler options that are passed in through the `jax.jit()`
-  // or `torch_xla.set_custom_compile_options()` are stored in the field
-  // number 7 in the UnknownFieldSet, which is defined as:
-  // `env_option_overrides (map<string, OptionOverrideProto>)`.
-  // Each map entry is a nested message with key/value inside.
-  constexpr int kCustomCompilerOptionsFieldNumber = 7;
-
-  // Field number corresponding to the string key of the compile options map
-  // entry.
-  constexpr int kMapKeyFieldNumber = 1;
-
-  // Field number corresponding to the OptionOverrideProto value of the compile
-  // options map entry.
-  constexpr int kMapValueFieldNumber = 2;
-
-  for (int i = 0; i < unknown_fields.field_count(); ++i) {
-    const google::protobuf::UnknownField &field = unknown_fields.field(i);
-
-    // Currently, we only support custom compiler options serialized in the
-    // `kCustomCompilerOptionsFieldNumber` field. In case we encounter
-    // options being serialized into some other field we will need to update
-    // this to support them.
-    if (field.number() != kCustomCompilerOptionsFieldNumber ||
-        field.type() != google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-      continue;
-    }
-
-    const std::string &bytes = field.length_delimited();
-    google::protobuf::io::CodedInputStream cis(
-        reinterpret_cast<const uint8_t *>(bytes.data()), bytes.size());
-
-    google::protobuf::UnknownFieldSet map_entry_fields;
-    if (!map_entry_fields.MergeFromCodedStream(&cis)) {
-      DLOG_F(ERROR, "Failed to parse the map entry fields from the custom "
-                    "compile options protobuf data");
-      return tt_pjrt_status::kInternal;
-    }
-
-    std::string key;
-    std::string value;
-
-    for (int j = 0; j < map_entry_fields.field_count(); ++j) {
-      const google::protobuf::UnknownField &entry_field =
-          map_entry_fields.field(j);
-      // In the inner field set, first field is the key and second field is the
-      // value. We expect both to be length-delimited fields (coming from a
-      // dictionary).
-      if (entry_field.number() == kMapKeyFieldNumber &&
-          entry_field.type() ==
-              google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-        key = entry_field.length_delimited();
-      } else if (entry_field.number() == kMapValueFieldNumber &&
-                 entry_field.type() ==
-                     google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-        const std::string &override_bytes = entry_field.length_delimited();
-        google::protobuf::io::CodedInputStream override_stream(
-            reinterpret_cast<const uint8_t *>(override_bytes.data()),
-            override_bytes.size());
-
-        google::protobuf::UnknownFieldSet value_fields;
-        if (!value_fields.MergeFromCodedStream(&override_stream)) {
-          DLOG_F(ERROR, "Failed to parse the map entry field value from the "
-                        "custom compile options protobuf data");
-          return tt_pjrt_status::kInternal;
-        }
-
-        // https://github.com/openxla/xla/blob/main/xla/pjrt/proto/compile_options.proto#L151C1-L158C2
-        // Field numbers and types for OptionOverrideProto
-        // message OptionOverrideProto {
-        //   oneof value {
-        //     string string_field = 1;
-        //     bool bool_field = 2;
-        //     int64 int_field = 3;
-        //     double double_field = 4;
-        //   }
-        // }
-        if (value_fields.field_count() != 1) {
-          DLOG_F(
-              ERROR,
-              "Expected exactly one field in OptionOverrideProto, but got %d",
-              value_fields.field_count());
-          return tt_pjrt_status::kInternal;
-        }
-
-        const google::protobuf::UnknownField &value_field =
-            value_fields.field(0);
-        switch (value_field.number()) {
-        case 1: {
-          value = value_field.length_delimited();
-          break;
-        }
-        case 2: {
-          value = value_field.varint() ? "true" : "false";
-          break;
-        }
-        case 3: {
-          value = std::to_string(value_field.varint());
-          break;
-        }
-        case 4: {
-          value = std::to_string(value_field.fixed64());
-          break;
-        }
-        default: {
-          DLOG_F(ERROR, "Unknown field number in OptionOverrideProto: %d",
-                 value_field.number());
-          return tt_pjrt_status::kInternal;
-        }
-        }
-      }
-    }
-
-    if (!key.empty()) {
-      out_compile_options[key] = value;
-    }
-  }
-
-  return tt_pjrt_status::kSuccess;
-}
-
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
     const std::vector<uint32_t> &target_mesh_shape) {
 
@@ -940,9 +651,10 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   // IDs
   std::unordered_map<std::string, std::string> compile_options_map;
   std::optional<std::vector<int64_t>> replica_device_ids;
-  tt_pjrt_status compile_options_status = ClientInstance::getCompileOptions(
-      args->compile_options, args->compile_options_size, compile_options_map,
-      replica_device_ids);
+  tt_pjrt_status compile_options_status =
+      CompileOptionsParser::parseCompileOptions(
+          args->compile_options, args->compile_options_size,
+          compile_options_map, replica_device_ids);
   if (!tt_pjrt_status_is_ok(compile_options_status)) {
     return *ErrorInstance::makeError(compile_options_status).release();
   }

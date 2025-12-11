@@ -17,9 +17,6 @@
 #include <string>
 #include <vector>
 
-// third-party includes
-#include <google/protobuf/unknown_field_set.h>
-
 // tt-xla includes
 #include "api/device_instance.h"
 #include "api/loaded_executable_instance.h"
@@ -147,12 +144,6 @@ public:
       const std::unordered_map<std::string, std::string> &compile_options,
       const std::optional<std::vector<int64_t>> &replica_device_ids);
 
-  // Parses compile options protobuf and extracts both custom compile options
-  // and replica device IDs.
-  static tt_pjrt_status getCompileOptions(
-      const char *compile_options_data, size_t compile_options_size,
-      std::unordered_map<std::string, std::string> &out_compile_options,
-      std::optional<std::vector<int64_t>> &out_replica_device_ids);
 
 private:
   tt_pjrt_status populateDevices();
@@ -213,23 +204,6 @@ private:
   // We don't have a versioning system for our software stack yet.
   const std::string m_platform_version = "0.0.0";
 
-  // Parses compile options protobuf data into UnknownFieldSet.
-  // Returns true if parsing succeeded, false otherwise.
-  static bool
-  parseCompileOptionsProto(const char *compile_options_data,
-                           size_t compile_options_size,
-                           google::protobuf::UnknownFieldSet &unknown_fields);
-
-  // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
-  // fields.
-  static tt_pjrt_status extractCustomProtobufFields(
-      const google::protobuf::UnknownFieldSet &unknown_fields,
-      std::unordered_map<std::string, std::string> &out_compile_options);
-
-  // Extracts replica device IDs from an already-parsed UnknownFieldSet.
-  static tt_pjrt_status extractReplicaDeviceIds(
-      const google::protobuf::UnknownFieldSet &unknown_fields,
-      std::optional<std::vector<int64_t>> &out_replica_device_ids);
 };
 
 namespace internal {
