@@ -217,7 +217,7 @@ def _extract_source_and_module_hierarchy_info(
         DBG_LOC and print(
             f"  unknown function name or path: {func_name}, {found_func_name}, {func_path_ast}, {found_func_name_ast}"
         )
-        logger.warning(
+        logger.debug(
             f"Could not find file path or function name for node - location info will be unknown - this will affect codegen"
         )
         return EmitLoc.make_unknown()
@@ -225,7 +225,7 @@ def _extract_source_and_module_hierarchy_info(
     # If the function names don't match, raise an error
     if func_name != found_func_name:
         DBG_LOC and print(f"  function name mismatch: {func_name}, {found_func_name}")
-        logger.warning(
+        logger.debug(
             "Function name mismatch between stack_trace and found_func_name modes\n"
             f"stack_trace: {func_name}\n"
             f"found_func_name: {found_func_name}\n"
