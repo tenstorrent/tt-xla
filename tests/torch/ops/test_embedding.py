@@ -32,6 +32,7 @@ class Embedding(torch.nn.Module):
         return self.embedding(input_ids)
 
 
+@pytest.mark.testing
 @pytest.mark.nightly
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
