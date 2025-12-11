@@ -248,9 +248,12 @@ def collect_guidance_updates(
         desired[_test_name] = {
             "guidance": tags,
             "pcc_threshold": rec.get("pcc_threshold"),
+            "pcc_value": rec.get("pcc"),
         }
         if verbose:
-            print(f"Guidance for {_test_name}: {tags} (th={rec.get('pcc_threshold')})")
+            print(
+                f"Guidance for {_test_name}: arch: {_arch} tags: {tags} (th={rec.get('pcc_threshold')})"
+            )
     return desired
 
 
@@ -260,19 +263,26 @@ def plan_updates_for_test(
     """Decide the minimal YAML changes based on guidance tags."""
     tags: List[str] = list(test_info.get("guidance") or [])
     pcc_th = test_info.get("pcc_threshold")
+    pcc_val = test_info.get("pcc_value")
     try:
         pcc_th_f = float(pcc_th) if pcc_th is not None else None
     except Exception:
         pcc_th_f = None
+    try:
+        pcc_val_f = float(pcc_val) if pcc_val is not None else None
+    except Exception:
+        pcc_val_f = None
     plan: Dict[str, object] = {}
     if "ENABLE_PCC_099" in tags or "ENABLE_PCC" in tags:
         # Remove assert_pcc:false (do not set True; absence implies enabled by default)
         plan["remove_assert_pcc_false"] = True
     # Raising thresholds
-    if "RAISE_PCC_099" in tags:
-        plan["set_required_pcc"] = 0.99
-    elif "RAISE_PCC" in tags and pcc_th_f is not None:
-        plan["set_required_pcc"] = next_centesimal_level(pcc_th_f)
+    elif "RAISE_PCC_099" in tags or "RAISE_PCC" in tags:
+        # Set required_pcc based on achieved PCC (floored to centesimal), capped at 0.99
+        if pcc_val_f is not None:
+            new_th = min(0.99, int(pcc_val_f * 100) / 100.0)
+            if pcc_th_f is None or new_th > pcc_th_f:
+                plan["set_required_pcc"] = new_th
     return plan
 
 
