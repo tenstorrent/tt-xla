@@ -56,14 +56,21 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,
     tt::runtime::Device runtime_device, size_t num_devices,
     std::uint32_t program_index, size_t arg_index) {
+  // Assert that all buffer instances have the same prepared tensor.
   // NOTE: In case of sharded tensor we have multiple buffer instances on the
   // PJRT side, but on our side (tt-mlir runtime) we prepare a single
   // multi-device tensor.
   assert(!arg_buffers.empty());
-
-  // Get prepared_tensor from first buffer (all should have the same or none).
   std::optional<tt::runtime::Tensor> prepared_tensor =
       arg_buffers[0]->getPreparedTensor();
+  for (size_t i = 1; i < arg_buffers.size(); ++i) {
+    assert(arg_buffers[i]->getPreparedTensor().has_value() ==
+           prepared_tensor.has_value());
+    if (prepared_tensor.has_value()) {
+      assert(arg_buffers[i]->getPreparedTensor()->handle ==
+             prepared_tensor->handle);
+    }
+  }
 
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
