@@ -453,4 +453,4 @@ def clear_torchxla_computation_cache():
     This helps avoid consteval-associated DRAM leaks as described in https://github.com/tenstorrent/tt-xla/issues/1940
     """
     yield
-    xr.clear_computation_cache()
+    # xr.clear_computation_cache()
