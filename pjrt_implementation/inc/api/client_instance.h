@@ -13,6 +13,7 @@
 // c++ standard library includes
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -144,14 +145,14 @@ public:
       const PJRT_Program *mlir_program,
       LoadedExecutableInstance **out_executable,
       const std::unordered_map<std::string, std::string> &compile_options,
-      const std::vector<int64_t> &replica_device_ids);
+      const std::optional<std::vector<int64_t>> &replica_device_ids);
 
   // Parses compile options protobuf and extracts both custom compile options
   // and replica device IDs.
   static tt_pjrt_status getCompileOptions(
       const char *compile_options_data, size_t compile_options_size,
       std::unordered_map<std::string, std::string> &out_compile_options,
-      std::vector<int64_t> &out_replica_device_ids);
+      std::optional<std::vector<int64_t>> &out_replica_device_ids);
 
 private:
   tt_pjrt_status populateDevices();
@@ -228,7 +229,7 @@ private:
   // Extracts replica device IDs from an already-parsed UnknownFieldSet.
   static tt_pjrt_status extractReplicaDeviceIds(
       const google::protobuf::UnknownFieldSet &unknown_fields,
-      std::vector<int64_t> &out_replica_device_ids);
+      std::optional<std::vector<int64_t>> &out_replica_device_ids);
 };
 
 namespace internal {
