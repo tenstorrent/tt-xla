@@ -2315,7 +2315,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   ssd300_vgg16/pytorch-ssd300_vgg16-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
     reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/2456"
 
   gemma/codegemma/pytorch-google/codegemma-2b-single_device-full-inference:
