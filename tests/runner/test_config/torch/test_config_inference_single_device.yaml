@@ -42,6 +42,8 @@ test_config:
   qwen_2_5/causal_lm/pytorch-1_5b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   clip/pytorch-base_patch16-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -131,18 +133,26 @@ test_config:
 
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   falcon/pytorch-tiiuae/Falcon3-3B-Base-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-inference:
     supported_archs: ["p150"]
     required_pcc: 0.97 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/2433
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-full-inference:
     supported_archs: ["p150"]
@@ -553,6 +563,8 @@ test_config:
 
   mistral/pytorch-ministral_3b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   mlp_mixer/pytorch-mixer_b16_224-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -879,6 +891,8 @@ test_config:
   qwen_2_5_coder/pytorch-3b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   qwen_3/causal_lm/pytorch-0_6b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -886,18 +900,26 @@ test_config:
   qwen_2_5/causal_lm/pytorch-3b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   qwen_2_5/causal_lm/pytorch-3b_instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   qwen_2_5_coder/pytorch-3b_instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   qwen_2_5_coder/pytorch-1_5b-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   retinanet/pytorch-retinanet_rn34fpn-single_device-full-inference:
     assert_pcc: false
@@ -906,6 +928,8 @@ test_config:
   qwen_2_5/causal_lm/pytorch-1_5b_instruct-single_device-full-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   retinanet/pytorch-retinanet_rn18fpn-single_device-full-inference:
     assert_pcc: false
@@ -934,13 +958,19 @@ test_config:
   qwen_2_5_coder/pytorch-1_5b_instruct-single_device-full-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   qwen_2_5_coder/pytorch-0_5b-single_device-full-inference:
     required_pcc: 0.945 # AssertionError: PCC comparison failed. Calculated: pcc=0.9509297013282776. Required: pcc=0.96. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750 // tt-torch has this at 0.97
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   qwen_2_5/causal_lm/pytorch-0_5b-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       p150:
         required_pcc: 0.97  # https://github.com/tenstorrent/tt-torch/issues/1192
@@ -950,21 +980,31 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_2_1b-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     markers: ["extended"]
 
   llama/causal_lm/pytorch-llama_3_2_3b-single_device-full-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-full-inference:
     required_pcc: 0.97 # Previously 0.98, changed to 0.97 due to change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   yolov6/pytorch-yolov6n-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1427,6 +1467,8 @@ test_config:
 
   gemma/pytorch-google/gemma-2-2b-it-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     markers: ["extended"]
 
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-inference:
@@ -1518,6 +1560,8 @@ test_config:
   mistral/pixtral/pytorch-single_device-full-inference:
     required_pcc: 0.96 # AssertionError: PCC comparison failed. Calculated: pcc=0.9778134226799011. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1654,6 +1698,8 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_1_8b-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1662,6 +1708,8 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_1_8b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1680,6 +1728,8 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_8b-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1688,6 +1738,8 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_8b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1753,6 +1805,8 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   mistral/pytorch-7b-single_device-full-inference:
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -1763,6 +1817,8 @@ test_config:
 
   mistral/pytorch-7b_instruct_v03-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1770,6 +1826,8 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   mistral/pytorch-ministral_8b_instruct-single_device-full-inference:
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -1780,6 +1838,8 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-14b-single_device-full-inference:
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1791,6 +1851,8 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-14b_instruct-single_device-full-inference:
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1818,6 +1880,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-7b-single_device-full-inference:
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1829,6 +1893,8 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-7b_instruct-single_device-full-inference:
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1867,6 +1933,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/pytorch-7b-single_device-full-inference:
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1878,6 +1946,8 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/pytorch-7b_instruct-single_device-full-inference:
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1942,6 +2012,8 @@ test_config:
   gemma/pytorch-google/gemma-2-9b-it-single_device-full-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
 
   gemma/pytorch-google/gemma-2-27b-it-single_device-full-inference:
     supported_archs: ["p150"]
@@ -2523,6 +2595,8 @@ test_config:
 
   mistral/pytorch-mistral_nemo_instruct_2407-single_device-full-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - split_query_key_value_and_split_heads.ttnn.mlir
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
