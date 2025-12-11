@@ -57,8 +57,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   Gaussian Splatting:
     bringup_status: NOT_STARTED
-  Boltz2:
-    bringup_status: NOT_STARTED
   Qwen/Qwen-Image:
     bringup_status: NOT_STARTED
   WhisperX:

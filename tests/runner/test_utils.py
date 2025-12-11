@@ -5,6 +5,7 @@
 import collections
 import importlib.util
 import inspect
+import math
 import numbers
 import os
 import sys
@@ -264,6 +265,62 @@ def _to_marshal_safe(value):
     return str(value)
 
 
+def _derive_guidance_from_pcc(comparison_result, comparison_config) -> list[str]:
+    """
+    Derive guidance tags from PCC metrics and thresholds.
+
+    These tags are intended for visual aid today and may be used by future
+    automation to promote/demote tests (tighten/enable thresholds) in nightly CI.
+
+    Meanings:
+    - ENABLE_PCC: PCC check is currently disabled, but measured pcc is safely above
+      the current threshold + buffer → enable PCC at the current required threshold.
+    - ENABLE_PCC_099: Same as ENABLE_PCC, but when the current threshold is already
+      in the 0.99 regime (>= 0.99). Useful to call out the stricter default explicitly.
+    - RAISE_PCC: Current threshold < 0.99 and measured pcc exceeds the next
+      centesimal step (e.g., 0.97 → 0.98) by a small buffer → suggest raising to
+      that next step.
+    - RAISE_PCC_099: Current threshold < 0.99 and measured pcc exceeds 0.99 by a
+      small buffer → suggest raising directly to 0.99 (ie. the usual default).
+
+    Notes:
+    - A small buffer (PCC_BUFFER) is applied to avoid suggestions when values are
+      within noise of the boundary (e.g., 0.992 is too close to 0.99 to raise).
+    """
+    # Small buffer to avoid enabling/tightening thresholds when near boundary,
+    # ie. 0.992 is too close to 0.99 to raise the threshold.
+    PCC_BUFFER = 0.004
+    guidance: list[str] = []
+
+    # Both inputs are required, otherwise we can't derive any guidance.
+    if comparison_result is None or comparison_config is None:
+        return guidance
+
+    pcc_value = comparison_result.pcc
+    pcc_threshold = comparison_config.pcc.required_pcc
+    pcc_enabled = comparison_config.pcc.enabled
+
+    if None not in (pcc_value, pcc_threshold, pcc_enabled):
+        # Suggest enabling PCC if safely above threshold+buffer but disabled
+        if (pcc_value > (pcc_threshold + PCC_BUFFER)) and (pcc_enabled is False):
+            if pcc_threshold >= 0.99:
+                guidance.append("ENABLE_PCC_099")
+            else:
+                guidance.append("ENABLE_PCC")
+
+        # Suggest raising PCC only when increased past the next centesimal
+        # level (e.g., 0.97 -> 0.98), and only when current threshold is below 0.99.
+        if pcc_threshold < 0.99:
+            next_level = min(0.99, (math.floor(pcc_threshold * 100) + 1) / 100.0)
+            # Prefer raising directly to 0.99 when PCC itself exceeds 0.99 + buffer
+            if pcc_value > (0.99 + PCC_BUFFER):
+                guidance.append("RAISE_PCC_099")
+            elif pcc_value > (next_level + PCC_BUFFER):
+                guidance.append("RAISE_PCC")
+
+    return guidance
+
+
 def record_model_test_properties(
     record_property,
     request,
@@ -397,6 +454,9 @@ def record_model_test_properties(
                 "atol_assertion_enabled": comparison_config.atol.enabled,
             }
         )
+
+    # Derive guidance tags based on PCC metrics and thresholds (always include; may be empty).
+    tags["guidance"] = _derive_guidance_from_pcc(comparison_result, comparison_config)
 
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)

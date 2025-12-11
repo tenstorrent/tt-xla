@@ -10,6 +10,7 @@ import vllm
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
@@ -94,6 +95,7 @@ def test_embed_bge(model_name: str, baseline_path):
 
 
 @pytest.mark.nightly
+@pytest.mark.single_device
 def test_embed_bge_m3_perf():
     """
     Performance test for BGE-M3 model's embedding generation.

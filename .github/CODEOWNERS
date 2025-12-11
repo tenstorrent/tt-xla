@@ -11,7 +11,7 @@
 /pjrt_implementation/src/api/module_builder/ @mrakitaTT @ajakovljevicTT @hshahTT @sdjukicTT @sgligorijevicTT @sshonTT @acicovicTT
 
 # CI
-/.github/ @vmilosevic @jmcgrathTT @kmabeeTT @nsumrakTT @vvukomanTT
+/.github/ @vmilosevic @kmabeeTT @nsumrakTT @vvukomanTT
 
 # Tests
 /tests/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
@@ -20,19 +20,19 @@ pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @n
 .test_durations @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
 
 # Model tests configs
-/tests/runner/test_config/ @AleksKnezevic @nvukobratTT @ajakovljevicTT @jameszianxuTT @kmabeeTT @LPanosTT @mrakitaTT @mstojkovicTT @ndrakulicTT @ppadjinTT @sdjukicTT @sgligorijevicTT @vkovinicTT @vzeljkovicTT
+/tests/runner/test_config/ @AleksKnezevic @nvukobratTT @ajakovljevicTT @jameszianxuTT @kmabeeTT @mrakitaTT @mstojkovicTT @ndrakulicTT @ppadjinTT @sdjukicTT @sgligorijevicTT @vkovinicTT @vzeljkovicTT
 
 # Python package
 /python_package/ @mrakitaTT @pilkicTT @nvukobratTT @ajakovljevicTT @sgligorijevicTT
 /python_package/tt_jax/ @mrakitaTT @ajakovljevicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
-/python_package/tt_torch/ @nvukobratTT @dgolubovicTT @jameszianxuTT @LPanosTT @AleksKnezevic @mstojkovicTT @ppadjinTT @vkovinicTT
+/python_package/tt_torch/ @nvukobratTT @dgolubovicTT @jameszianxuTT @AleksKnezevic @mstojkovicTT @ppadjinTT @vkovinicTT
 
 # Third Party
 /third_party/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @sdjukicTT @sgligorijevicTT
 /third_party/tt_forge_models @AleksKnezevic @kmabeeTT @mrakitaTT @nvukobratTT
 
 # Integrations
-/integrations/vllm_plugin/ @AleksKnezevic @LPanosTT @mmanzoorTT @ljovanovicTT
+/integrations/vllm_plugin/ @AleksKnezevic @kmabeeTT @mmanzoorTT @ljovanovicTT
 
 # Scripts
 /scripts/ @rpavlovicTT @odjuricicTT @AleksKnezevic @mrakitaTT @nvukobratTT

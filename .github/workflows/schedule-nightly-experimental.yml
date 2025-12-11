@@ -65,7 +65,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "text": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}",
               "result": "${{ needs.fail-notify.outputs.failed == 'true' && 'FAILED' || 'SUCCEEDED' }}",
               "channel": "C08GYB57C8M",
               "unfurl_links": false, "unfurl_media": false

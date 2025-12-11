@@ -6,6 +6,7 @@ import vllm
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 def test_opt_generation():
     prompts = [
         "Hello, my name is",

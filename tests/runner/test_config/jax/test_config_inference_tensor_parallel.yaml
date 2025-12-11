@@ -20,7 +20,9 @@ test_config:
 
   alexnet/image_classification/jax-custom_1x8-tensor_parallel-full-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Hangs in runtime - https://github.com/tenstorrent/tt-xla/issues/2440"
 
   mnist/image_classification/jax-mlp_custom_1x2-tensor_parallel-full-inference:
     supported_archs: ["n300-llmbox"]

@@ -34,7 +34,7 @@ template <typename T> std::string to_string(const std::vector<T> vec) {
 // Example usage:
 // std::vector<int> my_fn(int first, int second);
 //
-// auto r = utils::invoke(my_fn, arg1, arg2);
+// auto r = utils::invoke_noexcept(my_fn, arg1, arg2);
 // if (!r)
 //  ... failed - handle error ....
 //
@@ -43,13 +43,13 @@ template <typename T> std::string to_string(const std::vector<T> vec) {
 // ...
 //
 // Also, you can invoke it with lambda:
-// auto r = utils::invoke([&] { return my_fn(arg1, arg2); });
+// auto r = utils::invoke_noexcept([&] { return my_fn(arg1, arg2); });
 //
 template <class Fn, class... Args,
           class ReturnType = std::invoke_result_t<Fn, Args...>>
 std::optional<std::conditional_t<std::is_same_v<ReturnType, void>,
                                  std::monostate, ReturnType>>
-invoke(Fn &&fn, Args &&...args) {
+invoke_noexcept(Fn &&fn, Args &&...args) noexcept {
   try {
     if constexpr (std::is_same_v<ReturnType, void>) {
       std::invoke(std::forward<Fn>(fn), std::forward<Args>(args)...);
