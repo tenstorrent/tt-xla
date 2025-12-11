@@ -152,6 +152,8 @@ class ModelLoader(ForgeModel):
             tokenize=True,
             return_dict=True,
             return_tensors="pt",
+            padding="max_length",
+            max_length=128,
         )
 
         return inputs
