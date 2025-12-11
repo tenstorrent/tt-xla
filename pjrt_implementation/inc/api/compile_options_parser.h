@@ -32,11 +32,10 @@ class CompileOptionsParser {
 public:
   // Parses compile options protobuf and extracts both custom compile options
   // and replica device IDs.
-  static tt_pjrt_status
-  parseCompileOptions(const char *compile_options_data,
-                      size_t compile_options_size,
-                      std::unordered_map<std::string, std::string> &out_compile_options,
-                      std::optional<std::vector<int64_t>> &out_replica_device_ids);
+  static tt_pjrt_status parseCompileOptions(
+      const char *compile_options_data, size_t compile_options_size,
+      std::unordered_map<std::string, std::string> &out_compile_options,
+      std::optional<std::vector<int64_t>> &out_replica_device_ids);
 
   // Parses compile options protobuf data into UnknownFieldSet.
   // Returns true if parsing succeeded, false otherwise.

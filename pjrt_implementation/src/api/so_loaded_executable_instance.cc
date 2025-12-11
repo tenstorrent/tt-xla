@@ -6,9 +6,9 @@
 #include "api/so_loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <iostream>
 #include <mutex>
 #include <numeric>
-#include <iostream>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"

@@ -144,7 +144,6 @@ public:
       const std::unordered_map<std::string, std::string> &compile_options,
       const std::optional<std::vector<int64_t>> &replica_device_ids);
 
-
 private:
   tt_pjrt_status populateDevices();
   tt_pjrt_status populateMemories();
@@ -203,7 +202,6 @@ private:
 
   // We don't have a versioning system for our software stack yet.
   const std::string m_platform_version = "0.0.0";
-
 };
 
 namespace internal {
