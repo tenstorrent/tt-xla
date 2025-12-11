@@ -90,10 +90,6 @@ def composite_layer_norm(
     Creates composite layer_norm operation for torch xla using StableHLOCompositeBuilder.
     Operation name is tenstorrent.layer_norm for MLIR to handle it.
 
-    This function supports both functional API usage and module replacement:
-    - Functional: torch.nn.functional.layer_norm(x, (768,), weight, bias, 1e-5)
-    - Module: nn.LayerNorm(768) → replaced with this composite
-
     Args:
         input: Input tensor to normalize
         normalized_shape: Shape over which to normalize (int, list, tuple, or torch.Size)
