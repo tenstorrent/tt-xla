@@ -102,7 +102,7 @@ class TorchDeviceRunner(DeviceRunner):
             workload.model = workload.model.to(device)
 
             # We need to tie weights for the model after moving it to the device.
-            # For torch_xla this is a known quirk. See: https://docs.pytorch.org/xla/release/2.1/index.html#xla-tensor-quirks
+            # For torch_xla this is a known quirk. See: https://docs.pytorch.org/xla/release/r2.8/learn/troubleshoot.html#xla-tensor-quirks
             if hasattr(workload.model, "tie_weights"):
                 workload.model.tie_weights()
 
