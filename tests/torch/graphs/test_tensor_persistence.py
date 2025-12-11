@@ -464,7 +464,9 @@ def test_input_moved_to_device_then_used_in_graph():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.xfail(
-    reason="torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    reason=incorrect_result(
+        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
+    )
 )
 def test_input_not_modified_reused_in_another_graph():
     """
