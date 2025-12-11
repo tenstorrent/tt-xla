@@ -830,7 +830,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 [self.arange_np[:n] for n in num_scheduled_tokens_per_req]
             )[None, :]
 
-            # Get positions.
+            # Get positions. Numpy slice returns a view so self.positions_np is
+            # updated in place.
             positions_np = self.positions_np[
                 : self.batch_size, :total_num_scheduled_tokens
             ]
@@ -861,7 +862,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Zero out to avoid spurious values from prev iteration (last cp chunk)
             self.input_ids_cpu[
-                total_num_scheduled_tokens:padded_total_num_scheduled_tokens
+                :, total_num_scheduled_tokens:padded_total_num_scheduled_tokens
+            ] = 0
+            self.positions_cpu[
+                :, total_num_scheduled_tokens:padded_total_num_scheduled_tokens
             ] = 0
             self.input_ids = self.input_ids_cpu[
                 :, :padded_total_num_scheduled_tokens
@@ -935,13 +939,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         self.query_start_loc_np[num_reqs + 1 :] = 1
 
+        self.seq_lens_np.fill(0)
         self.seq_lens_np[:num_reqs] = (
             self.input_batch.num_computed_tokens_cpu[:num_reqs]
             + num_scheduled_tokens_per_req
         )
 
         if use_max_model_len:
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
+            seq_lens = self.seq_lens_cpu[:num_reqs]
         else:
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
 
