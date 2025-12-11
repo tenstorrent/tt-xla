@@ -337,6 +337,10 @@ def populate_decompositions() -> DecompositionTable:
     # We add a custom decoposition of mm -> einsum. For this reason, remove einsum decomposition.
     decompositions.pop(torch.ops.aten.einsum.default)
 
+    # Remove SDPA decompositions to allow composite ops to work properly.
+    # When using composite_scaled_dot_product_attention, we don't want PyTorch to decompose it.
+    decompositions.pop(torch.ops.aten.scaled_dot_product_attention.default, None)
+
     decompositions.update(get_decompositions(_get_default_decomposition_ops()))
     decompositions.update(_get_custom_decompositions())
 
