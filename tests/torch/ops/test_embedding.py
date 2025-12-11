@@ -34,8 +34,15 @@ class Embedding(torch.nn.Module):
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
+@pytest.mark.parametrize(
+    "mesh_shape,shard_spec",
+    [
+        ((1, 8), ("batch", "model")),
+        ((2, 4), (None, "batch")),
+    ],
+)
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-def test_gemma2_27b_embed_tokens():
+def test_gemma2_27b_embed_tokens(mesh_shape, shard_spec):
     loader = GemmaModelLoader(variant=GemmaModelVariant.GEMMA_2_27B_IT)
     config = loader.load_config()
 
@@ -43,12 +50,11 @@ def test_gemma2_27b_embed_tokens():
 
     def get_shard_spec(embed, args, kwargs):
         shard_specs = {}
-        shard_specs[embed_tokens.embedding.weight] = ("batch", "model")
+        shard_specs[embed_tokens.embedding.weight] = shard_spec
         return shard_specs
 
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
-    mesh_shape = (1, num_devices)
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
     batch_size = 1
