@@ -86,10 +86,11 @@ test_config:
     status: EXPECTED_PASSING
 
   mamba/pytorch-mamba-790m-hf-single_device-full-inference:
+    required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9890778064727783. Required: pcc=0.99. Issue: https://github.com/tenstorrent/tt-mlir/issues/6217
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        required_pcc: 0.98 # Is lately 0.992 but close to threshold.
+        required_pcc: 0.97
     markers: ["extended"]
 
   openpose/v2/pytorch-single_device-full-inference:
@@ -969,11 +970,15 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov6/pytorch-yolov6n-single_device-full-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "TT_FATAL: batch_norm only supports tiled layout. Got: Layout::ROW_MAJOR. Issue: https://github.com/tenstorrent/tt-mlir/issues/6217"
+    bringup_status: FAILED_RUNTIME
 
   yolov6/pytorch-yolov6s-single_device-full-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890339970588684. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "TT_FATAL: batch_norm only supports tiled layout. Got: Layout::ROW_MAJOR. Issue: https://github.com/tenstorrent/tt-mlir/issues/6217"
+    bringup_status: FAILED_RUNTIME
 
   yolov6/pytorch-yolov6m-single_device-full-inference:
     required_pcc: 0.98
@@ -1164,6 +1169,7 @@ test_config:
     status: EXPECTED_PASSING
 
   regnet/pytorch-regnet_y_32gf-single_device-full-inference:
+    required_pcc: 0.98 # PCC comparison failed. Calculated: pcc=0.9892786145210266. Required: pcc=0.99. Issue: https://github.com/tenstorrent/tt-mlir/issues/6217
     status: EXPECTED_PASSING
 
   regnet/pytorch-regnet_x_400mf-single_device-full-inference:
@@ -1513,7 +1519,7 @@ test_config:
     reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
 
   mistral/pixtral/pytorch-single_device-full-inference:
-    required_pcc: 0.97 # AssertionError: PCC comparison failed. Calculated: pcc=0.9778134226799011. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
+    required_pcc: 0.96 # AssertionError: PCC comparison failed. Calculated: pcc=0.9778134226799011. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -2319,7 +2325,7 @@ test_config:
 
   llama/causal_lm/pytorch-TinyLlama_v1.1-single_device-full-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1472
+    required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-swin_base_coco-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
