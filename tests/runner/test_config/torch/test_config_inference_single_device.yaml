@@ -88,9 +88,6 @@ test_config:
   mamba/pytorch-mamba-790m-hf-single_device-full-inference:
     required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9890778064727783. Required: pcc=0.99. Issue: https://github.com/tenstorrent/tt-mlir/issues/6217
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        required_pcc: 0.97
     markers: ["extended"]
 
   openpose/v2/pytorch-single_device-full-inference:
