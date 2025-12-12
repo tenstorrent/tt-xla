@@ -1962,11 +1962,38 @@ def _get_padded_num_reqs_with_upper_limit(x: int, upper_limit: int) -> int:
     return min(res, upper_limit)
 
 
+def _adjust_min_token(min_token_size: int) -> int:
+    """
+    Ensure min_token_size is a power of two and >= 32 (divisible by 32).
+
+    If min_token_size already meets the constraint, return it unchanged.
+    Otherwise, round it up to the next power of two (minimum 32).
+    """
+    # Check if min_token_size satisfies the constraints.
+    if (min_token_size & (min_token_size - 1)) == 0 and min_token_size >= 32:
+        return min_token_size
+
+    # Default fallback is 32 (smallest valid input length).
+    adjusted_value = 32
+    if min_token_size > 32:
+        # Round up to the next power of two.
+        adjusted_value = 1 << (min_token_size - 1).bit_length()
+
+    logger.warning(
+        f"Flag min_context_len={min_token_size} is not a power of two and divisible by 32. "
+        f"Adjusting to the next power of two. Using min_context_len={adjusted_value}."
+    )
+    return adjusted_value
+
+
 def _get_token_paddings(
     min_token_size: int, max_token_size: int, padding_gap: int
 ) -> list[int]:
-    """Generate a list of padding size, starting from min_token_size,
-    ending with a number that can cover max_token_size
+    """
+    Generate a list of padding size, starting from min_token_size, ending with
+    a number that can cover max_token_size.
+
+    First adjust min_token_size so it is power-of-two and divisible by 32.
 
     If padding_gap == 0 then:
         increase 2X each time (exponential)
@@ -1974,34 +2001,28 @@ def _get_token_paddings(
         first increase the size to twice,
         then increase the padding size by padding_gap.
     """
-    # assert min_token_size is power of 2
-    assert (min_token_size & (min_token_size - 1) == 0) and min_token_size > 0
+    # Adjust min_token_size to be power of 2 and >=32 (if required)
+    num = _adjust_min_token(min_token_size)
     paddings = []
-    num = min_token_size
 
     if padding_gap == 0:
         logger.info("Using exponential token paddings:")
         while True:
-            logger.info("    %d", num)
             paddings.append(num)
             if num >= max_token_size:
                 break
-            if num == 1:
-                num = 32
-            else:
-                num *= 2
+            num *= 2
     else:
         logger.info("Using incremental token paddings:")
         while num <= padding_gap:
-            logger.info("    %d", num)
             paddings.append(num)
             num *= 2
         num //= 2
         while num < max_token_size:
             num += padding_gap
-            logger.info("    %d", num)
             paddings.append(num)
 
+    logger.info("Token paddings: %s", paddings)
     return paddings
 
 
