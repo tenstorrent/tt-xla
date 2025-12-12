@@ -13,7 +13,6 @@ import torch_xla
 
 use_tt = True
 
-
 def create_device_mesh() -> Mesh:
     num_devices = xr.global_runtime_device_count()
     mesh_shape = (1, num_devices)
@@ -40,17 +39,18 @@ def main():
     mesh = create_device_mesh()
     device = torch_xla.device()
     # x = torch.ones((32,16)).to(device)
-    x = torch.arange((1024), dtype=torch.int).reshape((32,32)).to(device)
+    x = torch.arange((64), dtype=torch.int).reshape((8,8)).to(device)
     xs.mark_sharding(x, mesh, (None, 'model'))
 
     print(torch_xla._XLAC._xla_get_all_device_attributes())
     print("input sharding " + torch_xla._XLAC._get_xla_sharding_spec(x), "device", x.device)
     x += 1
-    # x@=x
     print(torch_xla._XLAC._get_xla_tensors_hlo([x]))
     torch_xla.sync()
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "0"
 
     print("input sharding",torch_xla._XLAC._get_xla_sharding_spec(x), "device", x.device)
     print(x)
+    # print(x.shape)
 
 main()
