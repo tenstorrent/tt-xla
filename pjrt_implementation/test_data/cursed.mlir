@@ -1,13 +1,16 @@
-#loc1 = loc("p0.3")
-module @SyncTensorsGraph.9 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, mhlo.spmd_output_sharding = "{devices=[1,2]<=[2]}", mhlo.spmd_parameters_shardings = ["{devices=[1,2]0,1}"]} {
-  func.func @main(%arg0: tensor<8x8xi32> {mhlo.sharding = "{devices=[1,2]0,1}"} loc("p0.3")) -> (tensor<8x8xi32> {mhlo.sharding = "{devices=[1,2]0,1}"}) {
-    %c = stablehlo.constant dense<1> : tensor<8x8xi32> loc(#loc2)
-    %0 = stablehlo.add %arg0, %c : tensor<8x8xi32> loc(#loc3)
-    %1 = stablehlo.custom_call @Sharding(%0) {mhlo.sharding = "{devices=[1,2]0,1}"} : (tensor<8x8xi32>) -> tensor<8x8xi32> loc(#loc4)
-    return %1 : tensor<8x8xi32> loc(#loc)
+#loc1 = loc("p0.2")
+#loc2 = loc("p1.5")
+module @SyncTensorsGraph.11 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false,  mhlo.spmd_output_sharding = ["replicated", "{devices=[1,2]<=[2]}"]} {
+  func.func @main(%arg0: tensor<9x9xi32> {mhlo.sharding = "{replicated}"} loc("p0.2"), %arg1: tensor<8x8xi32> {mhlo.sharding = "{devices=[1,2]0,1}"} loc("p1.5")) ->  (tensor<8x8xi32> {mhlo.sharding = "{devices=[1,2]0,1}"}) {
+    %0 = stablehlo.slice %arg0 [0:8, 0:9] : (tensor<9x9xi32>) -> tensor<8x9xi32> loc(#loc3)
+    %1 = stablehlo.slice %0 [0:8, 0:8] : (tensor<8x9xi32>) -> tensor<8x8xi32> loc(#loc4)
+    %2 = stablehlo.add %arg1, %1 : tensor<8x8xi32> loc(#loc5)
+    %3 = stablehlo.custom_call @Sharding(%2) {mhlo.sharding = "{devices=[1,2]0,1}"} : (tensor<8x8xi32>) -> tensor<8x8xi32> loc(#loc6)
+    return %3 : tensor<8x8xi32> loc(#loc)
   } loc(#loc)
 } loc(#loc)
 #loc = loc(unknown)
-#loc2 = loc("broadcast.5")
-#loc3 = loc("add.6")
-#loc4 = loc("custom-call.7")
+#loc3 = loc("slice.3")
+#loc4 = loc("slice.4")
+#loc5 = loc("add.8")
+#loc6 = loc("custom-call.9")
