@@ -67,6 +67,7 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2550
+    markers: [modified]
 
   qwen_3/causal_lm/pytorch-14b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -77,6 +78,7 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2550
+    markers: [modified]
 
   qwen_3/causal_lm/pytorch-32b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
