@@ -24,6 +24,7 @@ except Exception as e:
 PCC_BUFFER = 0.004
 
 
+# Build and return the CLI argument parser for this tool.
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Promote PCC settings in test_config YAMLs based on JUnit XML guidance tags"
@@ -51,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# Resolve input sources: either --xml patterns or download artifacts for --run-id.
 def resolve_input_patterns(
     xml_patterns: Optional[List[str]], run_id: Optional[str]
 ) -> List[str]:
@@ -88,6 +90,7 @@ def resolve_input_patterns(
     return patterns
 
 
+# Expand patterns into a unique, sorted list of XML file paths.
 def collect_input_files(patterns: List[str]) -> List[str]:
     files: List[str] = []
     for pattern in patterns:
@@ -103,6 +106,7 @@ def collect_input_files(patterns: List[str]) -> List[str]:
     return [p for p in uniq if os.path.isfile(p)]
 
 
+# Extract testsuite timestamp (epoch seconds) to order/dedupe results.
 def get_suite_timestamp(tree: ET.ElementTree) -> Optional[float]:
     suite = tree.find(".//testsuite")
     if suite is None:
@@ -116,6 +120,7 @@ def get_suite_timestamp(tree: ET.ElementTree) -> Optional[float]:
         return None
 
 
+# Safely parse the tags property (Python-literal dict stored as a string).
 def parse_tags_value(value: str) -> Dict:
     try:
         parsed = ast.literal_eval(value)
@@ -126,6 +131,7 @@ def parse_tags_value(value: str) -> Dict:
     return {}
 
 
+# Yield test records (dict) parsed from each <testcase>'s tags (and group).
 def iter_test_records(tree: ET.ElementTree) -> Iterator[Dict]:
     root = tree.getroot()
     for tc in root.findall(".//testcase"):
@@ -152,8 +158,8 @@ def iter_test_records(tree: ET.ElementTree) -> Iterator[Dict]:
         yield record
 
 
+# Map a testcase name to its corresponding test_config YAML path.
 def map_test_to_config_file(test_name: str) -> Optional[str]:
-    """Map full testcase name to a config YAML path based on suffix and framework."""
     framework_dir = "torch" if test_name.startswith("test_all_models_torch") else "jax"
     suffix_to_filename = {
         "-single_device-full-inference": "test_config_inference_single_device.yaml",
@@ -172,11 +178,13 @@ def map_test_to_config_file(test_name: str) -> Optional[str]:
     return None
 
 
+# Compute the next 0.01 step above a threshold (capped at 0.99).
 def next_centesimal_level(value: float) -> float:
     nxt = (int(value * 100) + 1) / 100.0
     return min(0.99, nxt)
 
 
+# Load a YAML test_config file into a CommentedMap (with stable formatting).
 def load_yaml_config(path: str) -> CommentedMap:
     yaml = YAML(typ="rt")
     yaml.allow_duplicate_keys = False
@@ -195,6 +203,7 @@ def load_yaml_config(path: str) -> CommentedMap:
     return data
 
 
+# Write a CommentedMap back to a YAML test_config file (preserving style).
 def write_yaml_config(path: str, data: CommentedMap) -> None:
     yaml = YAML(typ="rt")
     yaml.allow_duplicate_keys = False
@@ -204,6 +213,7 @@ def write_yaml_config(path: str, data: CommentedMap) -> None:
         yaml.dump(data, f)
 
 
+# Extract the parameterized key from a pytest-style testcase name.
 def extract_bracket_key_from_testcase_name(name: str) -> Optional[str]:
     start = name.find("[")
     end = name.rfind("]")
@@ -212,6 +222,7 @@ def extract_bracket_key_from_testcase_name(name: str) -> Optional[str]:
     return name[start + 1 : end]
 
 
+# Parse XMLs and return the latest (by suite timestamp) guidance per (test, arch).
 def collect_guidance_updates(
     xml_files: List[str], verbose: bool
 ) -> Dict[str, Dict[str, object]]:
@@ -257,6 +268,7 @@ def collect_guidance_updates(
     return desired
 
 
+# Decide the minimal YAML changes for a given test based on its guidance tags.
 def plan_updates_for_test(
     test_name: str, test_info: Dict[str, object]
 ) -> Dict[str, object]:
@@ -286,6 +298,7 @@ def plan_updates_for_test(
     return plan
 
 
+# Apply a single test's plan to its YAML entry; optionally write back to disk.
 def apply_updates_to_yaml(
     config_path: str,
     test_name: str,
@@ -327,6 +340,7 @@ def apply_updates_to_yaml(
         write_yaml_config(config_path, data)
 
 
+# Entry point: resolve inputs, collect guidance, plan and apply (or print) updates.
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
