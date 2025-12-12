@@ -4,6 +4,26 @@
 
 import torch
 from torch_xla.experimental import stablehlo_custom_call
+import torch_xla.distributed.spmd as xs
+from typing import Tuple, Optional, Union
+
+# Global registry for sharding specs (mesh, partition_spec pairs)
+# This is needed because torch custom ops can only accept primitive types
+_sharding_registry = {}
+_sharding_counter = 0
+
+
+def _register_sharding(mesh, partition_spec) -> int:
+    """Register a sharding spec and return its ID."""
+    global _sharding_counter
+    _sharding_counter += 1
+    _sharding_registry[_sharding_counter] = (mesh, partition_spec)
+    return _sharding_counter
+
+
+def _get_sharding(sharding_id: int):
+    """Get a sharding spec by its ID."""
+    return _sharding_registry.get(sharding_id)
 
 
 @torch.library.custom_op(
@@ -62,6 +82,127 @@ def _(tensor: torch.Tensor, argument_type: str, name: str = None) -> torch.Tenso
         - tensor: the same tensor that was passed in
     """
     return tensor.clone()
+
+
+def _partition_spec_to_sdy_sharding(mesh, partition_spec) -> str:
+    """
+    Convert a partition_spec to an sdy.sharding string.
+    
+    Example:
+        partition_spec = ("batch", None, None)
+        mesh.axis_names = ("batch", "model")
+        → '#sdy.sharding<@mesh, [{"_axis_0"}, {}, {}]>'
+    """
+    dim_shardings = []
+    for axis in partition_spec:
+        if axis is None:
+            dim_shardings.append("{}")
+        elif isinstance(axis, str):
+            # Map axis name to mesh axis name (e.g., "batch" -> "_axis_0")
+            try:
+                axis_idx = mesh.axis_names.index(axis)
+                dim_shardings.append(f'{{"_axis_{axis_idx}"}}')
+            except ValueError:
+                dim_shardings.append("{}")
+        elif isinstance(axis, int):
+            dim_shardings.append(f'{{"_axis_{axis}"}}')
+        else:
+            dim_shardings.append("{}")
+    
+    dims_str = ", ".join(dim_shardings)
+    return f"#sdy.sharding_per_value<[<@mesh, [{dims_str}]>]>"
+
+
+@torch.library.custom_op(
+    "tt::sharding_constraint", mutates_args=[], device_types=["cpu", "xla"]
+)
+def sharding_constraint(tensor: torch.Tensor, sharding_id: int) -> torch.Tensor:
+    """
+    Apply a sharding constraint to a tensor for Shardy propagation.
+    
+    This function is a custom registered operator accessible as torch.ops.tt.sharding_constraint.
+    It creates a stablehlo.custom_call @tt.sharding_constraint op that tt-mlir converts to sdy.sharding_constraint.
+    
+    Args:
+        tensor: The input tensor to apply sharding to
+        sharding_id: ID referencing a registered (mesh, partition_spec) pair
+        
+    Returns:
+        A tensor with sharding constraint applied
+        
+    Example:
+        >>> mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+        >>> sharding_id = register_sharding_constraint(mesh, ("batch", None, None))
+        >>> output = torch.ops.tt.sharding_constraint(embedding_output, sharding_id)
+    """
+    if tensor.device.type == "cpu":
+        return tensor.clone()
+    
+    sharding_info = _get_sharding(sharding_id)
+    if sharding_info is None:
+        raise ValueError(f"Sharding ID {sharding_id} not found in registry")
+    
+    mesh, partition_spec = sharding_info
+    
+    # Generate sdy.sharding string for frontend_attributes
+    sdy_sharding_str = _partition_spec_to_sdy_sharding(mesh, partition_spec)
+    
+    # Also need mhlo.sharding (OpSharding) - get it from mesh
+    op_sharding = mesh.get_op_sharding(partition_spec)
+    mhlo_sharding_str = str(op_sharding)
+    
+    frontend_attributes = {
+        "xla.sdy.sharding": sdy_sharding_str,
+    }
+    
+    # Handle shape requirements (same workaround as mark_argument_attributes)
+    original_shape = list(tensor.shape)
+    if len(tensor.shape) < 3:
+        extra_dims = [1] * (3 - len(original_shape))
+        tensor = tensor.reshape((*extra_dims, *original_shape))
+    
+    result = stablehlo_custom_call.stablehlo_custom_call(
+        [tensor],
+        "tt.sharding_constraint",  # tt-mlir converts this to sdy.sharding_constraint
+        [tensor.shape],
+        [tensor.dtype],
+        frontend_attributes=frontend_attributes,
+    )
+    
+    if len(original_shape) < 3:
+        result = result.reshape(original_shape)
+    
+    return result
+
+
+@sharding_constraint.register_fake
+def _(tensor: torch.Tensor, sharding_id: int) -> torch.Tensor:
+    """
+    FakeTensor implementation of torch.ops.tt.sharding_constraint.
+    This must be implemented in order for dynamo to trace the function.
+    """
+    return tensor.clone()
+
+
+def register_sharding_constraint(mesh, partition_spec) -> int:
+    """
+    Register a sharding constraint and return its ID for use with torch.ops.tt.sharding_constraint.
+    
+    Args:
+        mesh: The mesh object describing device topology
+        partition_spec: A tuple specifying how each dimension should be sharded
+        
+    Returns:
+        An integer ID that can be passed to torch.ops.tt.sharding_constraint
+        
+    Example:
+        >>> mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+        >>> sharding_id = register_sharding_constraint(mesh, ("batch", None, None))
+        >>> # Use in a forward hook:
+        >>> def hook(module, input, output):
+        ...     return torch.ops.tt.sharding_constraint(output, sharding_id)
+    """
+    return _register_sharding(mesh, partition_spec)
 
 
 @torch.library.custom_op(

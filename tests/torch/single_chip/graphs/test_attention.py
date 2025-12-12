@@ -166,15 +166,29 @@ def test_llama_embedding_decode_layer(seq_len, variant, variant_config, is_llmbo
         def __init__(self):
             super().__init__()
             self.embed_tokens = torch.nn.Embedding(config.vocab_size, config.hidden_size, 0)
-
             self.decoder_layer = LlamaDecoderLayer(config, layer_idx=0).to(torch.bfloat16)
 
         def forward(self, input_ids, position_embeddings, attention_mask, past_key_state):
             embedding = self.embed_tokens(input_ids)
             return self.decoder_layer(embedding, attention_mask=attention_mask, position_embeddings=position_embeddings, past_key_state=past_key_state)
-
+            
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh_shape = (2, num_devices // 2)
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
     wrapper = Wrapper().to(torch.bfloat16)
-    print(wrapper.decoder_layer)
+    
+    # Register sharding constraint for embedding output using custom op
+    from tt_torch.custom_ops import register_sharding_constraint
+    embedding_sharding_id = register_sharding_constraint(mesh, ("batch", None, None))
+    
+    # Forward hook to apply sharding on embedding output using torch.compile-compatible custom op
+    def embedding_sharding_hook(module, input, output):
+        return torch.ops.tt.sharding_constraint(output, embedding_sharding_id)
+    
+    # Register the hook on embed_tokens layer
+    wrapper.embed_tokens.register_forward_hook(embedding_sharding_hook)
+    
     batch_size = 1
     num_heads = config.num_attention_heads
 
@@ -183,16 +197,19 @@ def test_llama_embedding_decode_layer(seq_len, variant, variant_config, is_llmbo
         device_ids = np.array(range(num_devices))
 
         batch_size = 2
+        # Add "r" axis with size=1 to represent replicated dimensions with priority
         mesh_shape = (2, num_devices // 2)
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = (("batch", None), (0, None))  # input_ids
+            # input_ids: batch-sharded on dim 0, "r" (replicated) on dim 1 with high priority
+            shard_specs[args[0]] = (("batch", None))  # input_ids
             shard_specs[args[1][0]] = ("batch", None, None)  # cos
             shard_specs[args[1][1]] = ("batch", None, None)  # sin
             shard_specs[args[2]] = ("batch", None, None, None)  # mask
-            shard_specs[wrapper.embed_tokens.weight] = ((None, "batch"), (None, 1))
+            # embed_tokens.weight: model-sharded on dim 1 with lower priority
+            shard_specs[wrapper.embed_tokens.weight] = ((None, "model"))
             shard_specs[wrapper.decoder_layer.input_layernorm.weight] = (None,)
             shard_specs[wrapper.decoder_layer.self_attn.q_proj.weight] = ("model", None)
             shard_specs[wrapper.decoder_layer.self_attn.k_proj.weight] = ("model", None)
