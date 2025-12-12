@@ -155,6 +155,9 @@ def test_llama_embedding_decode_layer(seq_len, variant, variant_config, is_llmbo
     if "70b" in str(variant) and not is_llmbox:
         pytest.skip("70B models don't fit on a single device")
 
+    import os
+    os.system('tt-smi -r')  
+
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
@@ -185,18 +188,23 @@ def test_llama_embedding_decode_layer(seq_len, variant, variant_config, is_llmbo
 
         def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            shard_specs[args[0]] = ("batch", None)  # input_ids
+            shard_specs[args[0]] = (("batch", None), (0, None))  # input_ids
             shard_specs[args[1][0]] = ("batch", None, None)  # cos
             shard_specs[args[1][1]] = ("batch", None, None)  # sin
             shard_specs[args[2]] = ("batch", None, None, None)  # mask
-            shard_specs[wrapper.embed_tokens.weight] = (None, "model")
+            shard_specs[wrapper.embed_tokens.weight] = ((None, "batch"), (None, 1))
+            shard_specs[wrapper.decoder_layer.input_layernorm.weight] = (None,)
             shard_specs[wrapper.decoder_layer.self_attn.q_proj.weight] = ("model", None)
             shard_specs[wrapper.decoder_layer.self_attn.k_proj.weight] = ("model", None)
             shard_specs[wrapper.decoder_layer.self_attn.v_proj.weight] = ("model", None)
             shard_specs[wrapper.decoder_layer.self_attn.o_proj.weight] = (None, "model")
+            # shard_specs[wrapper.decoder_layer.self_attn.o_proj.weight] = ("model", None)
+            # shard_specs[wrapper.decoder_layer.post_attention_layernorm.weight] = ("model",)
             shard_specs[wrapper.decoder_layer.mlp.gate_proj.weight] = ("model", None)
             shard_specs[wrapper.decoder_layer.mlp.up_proj.weight] = ("model", None)
-            shard_specs[wrapper.decoder_layer.mlp.down_proj.weight] = ("model", None)
+            shard_specs[wrapper.decoder_layer.mlp.down_proj.weight] = (None, "model")
+            # shard_specs[wrapper.decoder_layer.mlp.down_proj.weight] = ("model", None)
+            
             return shard_specs
 
     else:
@@ -562,10 +570,10 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, is_llmbox):
                 shard_specs[args[1][0]] = ("batch", None, None)  # cos
                 shard_specs[args[1][1]] = ("batch", None, None)  # sin
                 shard_specs[args[2]] = ("batch", None, None, None)  # mask
-                shard_specs[attention.q_proj.weight] = ("model", "batch")
-                shard_specs[attention.k_proj.weight] = ("model", "batch")
-                shard_specs[attention.v_proj.weight] = ("model", "batch")
-                shard_specs[attention.o_proj.weight] = ("batch", "model")
+                shard_specs[attention.q_proj.weight] = ("model", None)
+                shard_specs[attention.k_proj.weight] = ("model", None)
+                shard_specs[attention.v_proj.weight] = ("model", None)
+                shard_specs[attention.o_proj.weight] = (None, "model")
                 return shard_specs
 
     else:
