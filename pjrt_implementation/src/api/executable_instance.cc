@@ -120,41 +120,58 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
   const std::string &original_mlir_code =
       executable_instance->getExecutableImage()->getOriginalMlirCode();
 
-  DLOG_F(
-      LOG_DEBUG,
-      "Reading MLIR code from cursed.mlir file as optimized program for executable");
+  // Check if we should use cursed.mlir (only if CONVERT_SHLO_TO_SHARDY=1 and file exists)
+  const char* convert_env = std::getenv("CONVERT_SHLO_TO_SHARDY");
+  bool use_cursed_mlir = (convert_env != nullptr && std::string(convert_env) == "1");
 
   // Read MLIR code from file (cached after first read)
   static std::string literal_mlir_code;
   static bool file_read = false;
+  static bool file_exists = false;
 
-  if (!file_read) {
-    const char* pjrt_dir = std::getenv("TTXLA_PJRT_DIR");
-    std::string file_path;
+  // Determine which MLIR code to use
+  const std::string *checkpointed_mlir_code_ptr = &original_mlir_code;
 
-    if (pjrt_dir) {
-      file_path = std::string(pjrt_dir) + "/test_data/cursed.mlir";
-    } else {
-      // Default path relative to source tree
-      file_path = "pjrt_implementation/test_data/cursed.mlir";
+  if (use_cursed_mlir) {
+    // Only try to read file if we haven't read it yet
+    if (!file_read) {
+      const char* pjrt_dir = std::getenv("TTXLA_PJRT_DIR");
+      std::string file_path;
+
+      if (pjrt_dir) {
+        file_path = std::string(pjrt_dir) + "/test_data/cursed.mlir";
+      } else {
+        // Default path relative to source tree
+        file_path = "pjrt_implementation/test_data/cursed.mlir";
+      }
+
+      // Check if file exists before trying to read it
+      std::ifstream file(file_path);
+      if (file.is_open()) {
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        literal_mlir_code = buffer.str();
+        file_exists = true;
+        file_read = true;
+        DLOG_F(LOG_DEBUG, "Successfully read MLIR code from: %s (size=%zu bytes)",
+               file_path.c_str(), literal_mlir_code.size());
+      } else {
+        DLOG_F(LOG_DEBUG, "cursed.mlir file not found at path: %s, using original MLIR code",
+               file_path.c_str());
+        file_exists = false;
+        file_read = true;
+      }
     }
 
-    std::ifstream file(file_path);
-    if (file.is_open()) {
-      std::stringstream buffer;
-      buffer << file.rdbuf();
-      literal_mlir_code = buffer.str();
-      file_read = true;
-      DLOG_F(LOG_DEBUG, "Successfully read MLIR code from: %s (size=%zu bytes)",
-             file_path.c_str(), literal_mlir_code.size());
-    } else {
-      DLOG_F(ERROR, "Failed to open cursed.mlir at path: %s", file_path.c_str());
-      // Fallback to original code
-      literal_mlir_code = original_mlir_code;
+    // Use cursed.mlir only if file exists
+    if (file_exists) {
+      checkpointed_mlir_code_ptr = &literal_mlir_code;
     }
+  } else {
+    DLOG_F(LOG_DEBUG, "CONVERT_SHLO_TO_SHARDY not set to 1, using original MLIR code");
   }
 
-  const std::string &checkpointed_mlir_code = literal_mlir_code;
+  const std::string &checkpointed_mlir_code = *checkpointed_mlir_code_ptr;
 
   DLOG_F(LOG_DEBUG, "Literal MLIR code (size=%zu):\n%.*s",
          checkpointed_mlir_code.size(),
