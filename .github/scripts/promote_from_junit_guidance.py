@@ -290,9 +290,12 @@ def plan_updates_for_test(
         plan["remove_assert_pcc_false"] = True
     # Raising thresholds
     elif "RAISE_PCC_099" in tags or "RAISE_PCC" in tags:
-        # Set required_pcc based on achieved PCC (floored to centesimal), capped at 0.99
+        # Set required_pcc based on achieved PCC minus buffer, then floored to centesimal, capped at 0.99
+        # This ensures the new threshold is safely below the achieved PCC
         if pcc_val_f is not None:
-            new_th = min(0.99, int(pcc_val_f * 100) / 100.0)
+            # Subtract buffer first, then floor to centesimal to determine safe threshold
+            adjusted_pcc = pcc_val_f - PCC_BUFFER
+            new_th = min(0.99, int(adjusted_pcc * 100) / 100.0)
             if pcc_th_f is None or new_th > pcc_th_f:
                 plan["set_required_pcc"] = new_th
     return plan
