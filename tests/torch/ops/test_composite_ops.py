@@ -235,19 +235,27 @@ def test_composite_rms_norm(use_weight):
 
 
 @pytest.mark.parametrize("elementwise_affine", [True, False])
-def test_patched_layer_norm_module(elementwise_affine):
+@pytest.mark.parametrize(
+    "batch_size, sentence_length, embedding_dim",
+    [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
+)
+def test_patched_layer_norm_module(
+    elementwise_affine, batch_size, sentence_length, embedding_dim
+):
     class LayerNormModel(torch.nn.Module):
-        def __init__(self):
+        def __init__(self, embedding_dim):
             super().__init__()
-            self.ln = nn.LayerNorm(768, elementwise_affine=elementwise_affine)
+            self.ln = nn.LayerNorm(embedding_dim, elementwise_affine=elementwise_affine)
 
         def forward(self, x):
             return self.ln(x)
 
     options = {"tt_enable_composite_ops": True}
-    input_tensor = torch.randn(1, 197, 768, dtype=torch.bfloat16)
+    input_tensor = torch.randn(
+        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
+    )
 
-    model = LayerNormModel()
+    model = LayerNormModel(embedding_dim)
     golden = model(input_tensor)
 
     device = xm.xla_device()
@@ -258,7 +266,11 @@ def test_patched_layer_norm_module(elementwise_affine):
     comparator.compare(output, golden)
 
 
-def test_patched_layer_norm_functional():
+@pytest.mark.parametrize(
+    "batch_size, sentence_length, embedding_dim",
+    [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
+)
+def test_patched_layer_norm_functional(batch_size, sentence_length, embedding_dim):
 
     class LayerNormModel(torch.nn.Module):
         def __init__(self, normalized_shape):
@@ -269,9 +281,11 @@ def test_patched_layer_norm_functional():
             return F.layer_norm(x, (self.normalized_shape,), eps=1e-5)
 
     options = {"tt_enable_composite_ops": True}
-    input_tensor = torch.randn(1, 197, 768, dtype=torch.bfloat16)
+    input_tensor = torch.randn(
+        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
+    )
 
-    model = LayerNormModel(normalized_shape=768)
+    model = LayerNormModel(embedding_dim)
     golden = model(input_tensor)
 
     device = xm.xla_device()
@@ -284,7 +298,13 @@ def test_patched_layer_norm_functional():
 
 @pytest.mark.parametrize("use_weight", [True, False])
 @pytest.mark.parametrize("use_bias", [True, False])
-def test_composite_layer_norm(use_weight, use_bias):
+@pytest.mark.parametrize(
+    "batch_size, sentence_length, embedding_dim",
+    [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
+)
+def test_composite_layer_norm(
+    use_weight, use_bias, batch_size, sentence_length, embedding_dim
+):
 
     class LayerNormModel(torch.nn.Module):
         def __init__(self, normalized_shape):
@@ -298,13 +318,13 @@ def test_composite_layer_norm(use_weight, use_bias):
 
     options = {"tt_enable_composite_ops": False}
 
-    normalized_shape = (768,)
-    input_shape = (1, 197, 768)
-    input_tensor = torch.randn(input_shape, dtype=torch.bfloat16)
-    weight = torch.randn(normalized_shape, dtype=torch.bfloat16) if use_weight else None
-    bias = torch.randn(normalized_shape, dtype=torch.bfloat16) if use_bias else None
+    input_tensor = torch.randn(
+        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
+    )
+    weight = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_weight else None
+    bias = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_bias else None
 
-    model = LayerNormModel(normalized_shape)
+    model = LayerNormModel(embedding_dim)
     golden = model(input_tensor, weight, bias)
 
     device = xm.xla_device()
