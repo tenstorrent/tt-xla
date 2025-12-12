@@ -11,12 +11,12 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     Replaces torch ops with composite ops if we have a proper replacement.
 
     Handles two types of nodes:
-    1. call_function nodes: Functional ops like torch.nn.functional.gelu
+    1. call_function nodes: torch and torch.nn.functional ops
        - node.target is a function reference
        - Replaced by changing node.target to composite function
 
-    2. call_module nodes: nn.Module instances like nn.LayerNorm
-       - node.target is a string like "layer_norm"
+    2. call_module nodes: nn.Module instances
+       - node.target is a string like "some_module"
        - Replaced by creating new call_function node (composite function) with get_attr for parameters
     """
     for node in gm.graph.nodes:
