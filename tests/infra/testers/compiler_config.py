@@ -56,6 +56,10 @@ class CompilerConfig:
     # Enables IR dumping to a specified path.
     export_path: str = ""
 
+    # Enables prettify pipelines and passes for TTNN IR. Makes code more
+    # readable.
+    enable_prettify: bool = False
+
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
@@ -85,6 +89,9 @@ class CompilerConfig:
 
         if self.export_path != "":
             options["export_path"] = self.export_path
+
+        if self.enable_prettify:
+            options["enable_prettify"] = "true"
 
         return options
 
