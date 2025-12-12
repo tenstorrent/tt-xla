@@ -108,6 +108,9 @@ class Workload:
                 shutil.rmtree(cache_dir_path)
             cache_dir_path.mkdir(parents=True, exist_ok=True)
 
+            if self.compiled_executable is None:
+                raise ValueError("No compiled_executable to serialize")
+
             self.execute()
             parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
 

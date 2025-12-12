@@ -5,7 +5,12 @@
 import numpy as np
 import pytest
 import torch
-from infra import Framework, run_op_test, run_op_test_with_random_inputs
+from infra import (
+    Framework,
+    run_op_test,
+    run_op_test_with_random_inputs,
+    serialize_op_with_random_inputs,
+)
 from infra.comparators.torch_comparator import TorchComparator
 from utils import Category
 
@@ -22,7 +27,12 @@ def test_mul(request):
         def forward(self, x, y):
             return x * y
 
+    class Add(torch.nn.Module):
+        def forward(self, x, y):
+            return x + y
+
     mul = Mul()
+    add = Add()
 
     run_op_test_with_random_inputs(
         mul,
@@ -31,3 +41,11 @@ def test_mul(request):
         framework=Framework.TORCH,
         request=request,
     )
+    # if request.config.getoption("--serialize", default=False):
+    #     serialize_op_with_random_inputs(
+    #         add,
+    #         [(32, 32), (32, 32)],
+    #         request.node.name,
+    #         dtype=torch.bfloat16,
+    #         framework=Framework.TORCH,
+    #     )

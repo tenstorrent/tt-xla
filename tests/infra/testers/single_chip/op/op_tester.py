@@ -38,19 +38,45 @@ class OpTester(BaseTester):
         self._compiler_config = compiler_config
         super().__init__(comparison_config, framework)
 
-    def test(self, workload: Workload) -> None:
+    def test(self, workload: Workload, request=None) -> None:
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
-        cpu_workload = workload
-        self._compile_for_cpu(cpu_workload)
-        cpu_res = self._device_runner.run_on_cpu(cpu_workload)
+        # cpu_workload = workload
+        self._compile_for_cpu(workload)
+        cpu_res = self._device_runner.run_on_cpu(workload)
 
-        tt_workload = workload
-        self._compile_for_tt_device(tt_workload)
-        tt_res = self._device_runner.run_on_tt_device(tt_workload)
+        # tt_workload = workload
+        self._compile_for_tt_device(workload)
+
+        filecheck_marker = request.node.get_closest_marker("filecheck")
+        if filecheck_marker:
+            clean_name = sanitize_test_name(request.node.name)
+            output_prefix = f"output_artifact/{clean_name}"
+
+            self.serialize_on_device(workload, output_prefix)
+
+        tt_res = self._device_runner.run_on_tt_device(workload)
 
         self._comparator.compare(tt_res, cpu_res)
+
+        if filecheck_marker and filecheck_marker.args:
+            pattern_files = filecheck_marker.args[0]
+            self.validate_filecheck_mark(
+                pattern_files, test_id=request.node.name, where="pytest mark"
+            )
+
+            from tests.infra.utilities.filecheck_utils import (
+                run_filecheck,
+                validate_filecheck_results,
+            )
+
+            filecheck_results = run_filecheck(
+                test_node_name=request.node.name,
+                irs_filepath="output_artifact",
+                pattern_files=pattern_files,
+            )
+            validate_filecheck_results(filecheck_results)
 
     def _compile_for_tt_device(self, workload: Workload) -> None:
         """
@@ -138,27 +164,31 @@ class OpTester(BaseTester):
             for shape in input_shapes
         ]
         workload = Workload(framework=self._framework, executable=f, args=inputs)
-        self.test(workload)
+        self.test(workload, request)
 
-        filecheck_marker = request.node.get_closest_marker("filecheck")
+        # filecheck_marker = request.node.get_closest_marker("filecheck")
 
-        if filecheck_marker and filecheck_marker.args:
-            pattern_files = filecheck_marker.args[0]
-            self.validate_filecheck_mark(
-                pattern_files, test_id=request.node.name, where="pytest mark"
-            )
+        # if filecheck_marker and filecheck_marker.args:
+        #     pattern_files = filecheck_marker.args[0]
+        #     self.validate_filecheck_mark(
+        #         pattern_files, test_id=request.node.name, where="pytest mark"
+        #     )
 
-            from infra.utilities import sanitize_test_name
+        #     serialize_op_with_random_inputs(
+        #         f,
+        #         input_shapes,
+        #         request.node.name,
+        #         minval=minval,
+        #         maxval=maxval,
+        #         dtype=dtype,
+        #         framework=self._framework,
+        #     )
 
-            output_prefix = f"output_artifact/{sanitize_test_name(request.node.name)}"
-
-            self.serialize_on_device(workload, output_prefix)
-
-            filecheck_results = run_filecheck(
-                test_node_name=request.node.name,
-                irs_filepath="output_artifact",
-                pattern_files=pattern_files,
-            )
+        #     filecheck_results = run_filecheck(
+        #         test_node_name=request.node.name,
+        #         irs_filepath="output_artifact",
+        #         pattern_files=pattern_files,
+        #     )
 
     def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
         """
@@ -242,6 +272,9 @@ def serialize_op(
     tester = OpTester(framework=framework, compiler_config=compiler_config)
 
     workload = Workload(framework=framework, executable=op, args=inputs)
+    if framework == Framework.TORCH:
+        # Compile workload for TT device
+        tester._compile_for_tt_device(workload)
 
     # Serialize workload on TT device using OpTester's method
     tester.serialize_on_device(workload, output_prefix)
