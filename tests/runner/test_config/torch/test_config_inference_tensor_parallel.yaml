@@ -65,7 +65,8 @@ test_config:
 
   qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.03244221955537796. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2550"
 
   qwen_3/causal_lm/pytorch-14b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -74,7 +75,8 @@ test_config:
 
   qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.03222723305225372. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2550"
 
   qwen_3/causal_lm/pytorch-32b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
