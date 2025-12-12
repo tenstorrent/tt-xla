@@ -126,8 +126,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: " PCC comparison failed. Calculated: pcc=0.9647423028945923. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2381"
+        assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2381
 
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -945,8 +944,7 @@ test_config:
       p150:
         required_pcc: 0.97  # https://github.com/tenstorrent/tt-torch/issues/1192
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9755669236183167. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/2433"
+        assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2433
 
   llama/causal_lm/pytorch-llama_3_2_1b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1183,8 +1181,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: " PCC comparison failed. Calculated: pcc=0.9898508191108704. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2368"
+        assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2368
 
   regnet/pytorch-regnet_x_8gf-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1294,12 +1291,10 @@ test_config:
 
 
   unet/pytorch-unet_cityscapes-single_device-full-inference:
+    status: EXPECTED_PASSING
     arch_overrides:
       p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "PCC comparison failed. Calculated: pcc=0.9891136288642883. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
-      n150:
-        status: EXPECTED_PASSING
+        assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2181
 
   ghostnet/pytorch-ghostnetv2_100.in1k-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1430,9 +1425,8 @@ test_config:
     markers: ["extended"]
 
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "PCC comparison failed.  Calculated: pcc=0.97700434923172. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/2368"
-
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2368
 
   vgg/pytorch-bn_vgg19b-single_device-full-inference:
     required_pcc: 0.96
@@ -2334,8 +2328,8 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 61231104 B L1 buffer across 72 banks, where each bank needs to store 850432 B, but bank size is only 1331936 B"
 
   maskformer_swin_b/pytorch-swin_base_ade-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "PCC comparison failed. Calculated: pcc=0.6917205452919006. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2237"
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2237
 
   yolos_small/pytorch-small-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2416,8 +2410,8 @@ test_config:
     status: EXPECTED_PASSING
 
   arnold/pytorch-defend_the_center_ff-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "PCC comparison failed. Calculated: pcc=0.9587238430976868. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2181"
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2181
 
   arnold/pytorch-vizdoom_2017_track2_rnn-single_device-full-inference:
     status: EXPECTED_PASSING
