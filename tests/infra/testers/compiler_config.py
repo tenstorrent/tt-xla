@@ -48,7 +48,7 @@ class CompilerConfig:
     # When disabled, transpose is kept as a separate op which can be constevaled,
     # potentially improving performance. However, this may cause OOM errors on
     # some models until https://github.com/tenstorrent/tt-mlir/pull/6198 lands.
-    enable_permute_matmul_fusion: bool = True
+    experimental_enable_permute_matmul_fusion: bool = True
 
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
@@ -74,8 +74,8 @@ class CompilerConfig:
         if self.experimental_enable_fusing_conv2d_with_multiply_pattern:
             options["experimental_enable_fusing_conv2d_with_multiply_pattern"] = "true"
 
-        if not self.enable_permute_matmul_fusion:
-            options["enable_permute_matmul_fusion"] = "false"
+        if not self.experimental_enable_permute_matmul_fusion:
+            options["experimental_enable_permute_matmul_fusion"] = "false"
 
         if self.enable_trace:
             options["enable_trace"] = "true"
