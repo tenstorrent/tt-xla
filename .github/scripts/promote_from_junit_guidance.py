@@ -225,9 +225,9 @@ def extract_bracket_key_from_testcase_name(name: str) -> Optional[str]:
 # Parse XMLs and return the latest (by suite timestamp) guidance per (test, arch).
 def collect_guidance_updates(
     xml_files: List[str], verbose: bool
-) -> Dict[str, Dict[str, object]]:
-    """Return dict keyed by full testcase name with desired actions."""
-    desired: Dict[str, Dict[str, object]] = {}
+) -> Dict[Tuple[str, str], Dict[str, object]]:
+    """Return dict keyed by (test_name, arch) tuple with desired actions."""
+    desired: Dict[Tuple[str, str], Dict[str, object]] = {}
     # Dedupe latest per (test_name, arch)
     latest_by_key: Dict[Tuple[str, str], Tuple[float, Dict]] = {}
     for path in xml_files:
@@ -256,14 +256,14 @@ def collect_guidance_updates(
             tags = []
         if not tags:
             continue
-        desired[_test_name] = {
+        desired[(_test_name, _arch)] = {
             "guidance": tags,
             "pcc_threshold": rec.get("pcc_threshold"),
             "pcc_value": rec.get("pcc"),
         }
         if verbose:
             print(
-                f"Guidance for {_test_name}: arch: {_arch} tags: {tags} (th={rec.get('pcc_threshold')})"
+                f"Guidance for {_test_name}: arch: {_arch} pcc: {rec.get('pcc')} tags: {tags} (th={rec.get('pcc_threshold')})"
             )
     return desired
 
@@ -356,22 +356,26 @@ def main() -> int:
 
     start = time.time()
     desired = collect_guidance_updates(files, verbose=args.verbose)
+
+    # Debug - early exit here:
+    # return 0
+
     if not desired:
         print("No guidance found in provided artifacts.")
         return 0
 
-    print("Proposed changes:")
-    for test_name, info in sorted(desired.items()):
+    print("Generating promotion plan:")
+    for (test_name, arch), info in sorted(desired.items()):
         cfg = map_test_to_config_file(test_name)
         if not cfg:
-            print(f"  - SKIP (no config): {test_name}")
+            print(f"  - SKIP (no config): {test_name} [arch: {arch}]")
             continue
         plan = plan_updates_for_test(test_name, info)
         if not plan:
-            print(f"  - NOOP: {test_name}")
+            print(f"  - NOOP: {test_name} [arch: {arch}]")
             continue
         print(
-            f"  - {('APPLY' if args.apply else 'PLAN ')} {os.path.basename(cfg)} :: {test_name} -> {plan}"
+            f"  - {('APPLY' if args.apply else 'PLAN ')} {os.path.basename(cfg)} :: {test_name} [arch: {arch}] -> {plan}"
         )
         apply_updates_to_yaml(
             cfg, test_name, plan, write=args.apply, verbose=args.verbose
