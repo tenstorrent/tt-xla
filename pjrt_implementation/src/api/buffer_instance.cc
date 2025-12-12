@@ -428,8 +428,14 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
           // If device_id is not set, we are returning a replicated input
           // buffer instance to host (eg. cache position for update). This means
           // we can pull back the first, or any, runtime tensor shard since it's
-          // replicated
+          // replicated.
+          // For replicated outputs, toHost() returns only 1 tensor even though
+          // we have multiple BufferInstances (one per device). In this case,
+          // use index 0 since all devices have the same data.
           uint32_t shard_index = device_id.value_or(0);
+          if (shard_index >= host_runtime_tensors.size()) {
+            shard_index = 0;
+          }
 
           tt::runtime::Tensor host_shard_runtime_tensor =
               host_runtime_tensors[shard_index];
