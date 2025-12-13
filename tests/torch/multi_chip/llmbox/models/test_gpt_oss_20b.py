@@ -23,7 +23,8 @@ def gpt_oss():
     device: torch.device = torch_xla.device()
     mesh: Mesh = create_device_mesh()
 
-    loader = ModelLoader(variant=None, num_layers=1)
+    # loader = ModelLoader(variant=None, num_layers=1)
+    loader = ModelLoader(variant=None)
     model = loader.load_model()
     inputs = loader.load_inputs()
 
@@ -70,7 +71,7 @@ def mark_sharding_on_inputs_and_model(model: torch.nn.Module, mesh: Mesh):
         # # sinks shape: [4096] -> local. rowwise
         # xs.mark_sharding(layer.self_attn.sinks, mesh, ("model",))
 
-        xs.mark_sharding(layer.mlp.router.weight, mesh, ("model", None))
+        # xs.mark_sharding(layer.mlp.router.weight, mesh, ("model", None))
 
         # Shard experts across devices: 32 / 8 ->. 4 expert per device
         xs.mark_sharding(layer.mlp.experts.gate_up_proj, mesh, ("model", None, None))
