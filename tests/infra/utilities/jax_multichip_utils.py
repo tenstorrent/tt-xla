@@ -37,13 +37,12 @@ def enable_shardy(use_shardy: bool):
     Isolated as a context manager so that it doesn't change global config for all jax
     imports and cause unexpected fails elsewhere.
     """
+    original_value = jax.config.jax_use_shardy_partitioner
     try:
-        # Set the config to True within this block, and yield back control.
         jax.config.update("jax_use_shardy_partitioner", use_shardy)
         yield
     finally:
-        # After `with` statement ends, turn it off again.
-        jax.config.update("jax_use_shardy_partitioner", False)
+        jax.config.update("jax_use_shardy_partitioner", original_value)
 
 
 def make_partition_spec(axis_names: tuple) -> PartitionSpec:
