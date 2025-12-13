@@ -229,13 +229,21 @@ def extract_bracket_key_from_testcase_name(name: str) -> Optional[str]:
     return name[start + 1 : end]
 
 
+# Parse guidance tags from various formats (string, list, etc.)
+def parse_guidance_tags(guidance: object) -> List[str]:
+    """Extract guidance tags from string, list, or other formats."""
+    if isinstance(guidance, str):
+        return [g.strip() for g in guidance.split(",") if g.strip()]
+    if isinstance(guidance, list):
+        return [str(x) for x in guidance if x]
+    return []
+
+
 # Parse XMLs and return the latest (by suite timestamp) guidance per (test, arch).
 def collect_guidance_updates(
     xml_files: List[str], verbose: bool
 ) -> Dict[Tuple[str, str], Dict[str, object]]:
     """Return dict keyed by (test_name, arch) tuple with desired actions."""
-    desired: Dict[Tuple[str, str], Dict[str, object]] = {}
-    # Dedupe latest per (test_name, arch)
     latest_by_key: Dict[Tuple[str, str], Tuple[float, Dict]] = {}
     for path in xml_files:
         try:
@@ -248,29 +256,23 @@ def collect_guidance_updates(
             test_name = str(rec.get("specific_test_case") or "")
             if not test_name.startswith("test_all_models"):
                 continue
-            arch_val = str(rec.get("arch") or "")
-            key = (test_name, arch_val)
-            prev = latest_by_key.get(key)
-            if prev is None or score >= prev[0]:
+            key = (test_name, str(rec.get("arch") or ""))
+            if key not in latest_by_key or score >= latest_by_key[key][0]:
                 latest_by_key[key] = (score, rec)
-    for (_test_name, _arch), (_score, rec) in latest_by_key.items():
-        guidance = rec.get("guidance")
-        if isinstance(guidance, str):
-            tags = [g.strip() for g in guidance.split(",") if g.strip()]
-        elif isinstance(guidance, list):
-            tags = [str(x) for x in guidance if x]
-        else:
-            tags = []
+
+    desired: Dict[Tuple[str, str], Dict[str, object]] = {}
+    for (test_name, arch), (score, rec) in latest_by_key.items():
+        tags = parse_guidance_tags(rec.get("guidance"))
         if not tags:
             continue
-        desired[(_test_name, _arch)] = {
+        desired[(test_name, arch)] = {
             "guidance": tags,
             "pcc_threshold": rec.get("pcc_threshold"),
             "pcc_value": rec.get("pcc"),
         }
         if verbose:
             print(
-                f"Guidance for {_test_name}: arch: {_arch} pcc: {rec.get('pcc')} tags: {tags} (th={rec.get('pcc_threshold')})"
+                f"Guidance for {test_name}: arch: {arch} pcc: {rec.get('pcc')} tags: {tags} (th={rec.get('pcc_threshold')})"
             )
     return desired
 
