@@ -1,0 +1,135 @@
+name: Unit tests
+
+on:
+  workflow_call:
+    inputs:
+      docker_image:
+        description: 'Docker image to use for the tests'
+        required: true
+        type: string
+      artifacts_run_id:
+        description: 'Run ID of all artifacts'
+        required: true
+        type: string
+      wheel_artifact_name:
+        description: 'Name of the wheel artifact'
+        required: true
+        type: string
+      build_artifact_name:
+        description: 'Name of the build artifact'
+        required: true
+        type: string
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  REPO_ROOT: /__w/tt-xla/tt-xla
+
+jobs:
+  run-unit-tests:
+    runs-on: ubuntu-latest
+
+    # Keep this name in sync with the fetch-job-id step
+    name: "Run unit tests"
+
+    container:
+      image: ${{ inputs.docker_image }}
+
+    steps:
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory ${{ env.REPO_ROOT }}
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: false
+        sparse-checkout: |
+          .github/scripts
+          pjrt_implementation
+          third_party/pjrt_c_api
+          python_package/requirements.txt
+          venv
+
+    - name: Fetch job ID
+      id: fetch-job-id
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "Run unit tests"
+
+    - name: Download and install the wheel
+      shell: bash
+      run: |
+        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.artifacts_run_id }} name ${{ inputs.wheel_artifact_name }} ..."
+        gh run download ${{ inputs.artifacts_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir wheels \
+          --name ${{ inputs.wheel_artifact_name }}
+        echo "Downloaded wheel files:"
+        ls -la wheels
+        echo "Installing wheel ..."
+        source venv/activate
+        pip install wheels/*.whl
+
+    - name: Download build artifacts
+      run: |
+        echo "Downloading build artifacts from: ${{ github.repository }} run_id ${{ inputs.artifacts_run_id }} name ${{ inputs.build_artifact_name }} ..."
+        gh run download ${{ inputs.artifacts_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir build \
+          --name ${{ inputs.build_artifact_name }}
+        echo "Unarchiving build artifacts ..."
+        cd build
+        tar xf artifact.tar
+        rm -f artifact.tar
+
+    - name: Run unit tests
+      timeout-minutes: 1
+      shell: bash
+      env:
+        # Append the MLIR shared lib path to LD_LIBRARY_PATH because the test driver is not running from the plugin directory
+        LD_LIBRARY_PATH: ${{ env.REPO_ROOT }}/venv/lib/python3.11/site-packages/pjrt_plugin_tt/lib:${{ env.LD_LIBRARY_PATH }}
+      run: |
+        echo "Running PJRT unit tests..."
+        ctest --test-dir build -R PJRT -V 2>&1 | tee ctest.log
+
+    - name: Upload test log
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-log-unittests-${{ steps.fetch-job-id.outputs.job_id }}-${{ github.run_attempt }}
+        path: ctest.log
+
+    - name: Upload test report
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-report-unittests-${{ steps.fetch-job-id.outputs.job_id }}-${{ github.run_attempt }}
+        path: build/gtest_report.xml
+
+    - name: Show test report in PR
+      if: success() || failure()
+      continue-on-error: true
+      uses: mikepenz/action-junit-report@v5
+      with:
+        report_paths: build/gtest_report.xml
+        check_name: TT-XLA Unit Tests
+        comment: true
+        updateComment: true
+        detailed_summary: true
+        group_suite: true
+        token: ${{ github.token }}
+
+    - name: Prepare code coverage report
+      if: success() || failure()
+      run: |
+        lcov --directory build --capture --output-file coverage.info --gcov-tool ${{ env.REPO_ROOT }}/.github/scripts/gcov_for_clang.sh
+        lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
+        sed -i "s|SF:${{ env.REPO_ROOT }}/pjrt_implementation/src/|SF:src/|" coverage.info
+        lcov --list coverage.info
+
+    - name: Upload coverage report to Codecov
+      if: success() || failure()
+      uses: codecov/codecov-action@v5
+      with:
+        files: coverage.info
+        disable_search: true
+        token: ${{ secrets.CODECOV_TOKEN }}

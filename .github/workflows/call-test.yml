@@ -108,6 +108,8 @@ jobs:
           .github/scripts
           .gitmodules
           .test_durations
+          pjrt_implementation
+          third_party/pjrt_c_api
           pytest.ini
           python_package/requirements.txt
           integrations/vllm_plugin/requirements-vllm-plugin.txt

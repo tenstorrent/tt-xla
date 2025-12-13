@@ -66,5 +66,10 @@ target_link_libraries(TTPJRTTests
         TTPJRTUtils
 )
 
-# Register tests with CTest.
-add_test(NAME PJRT COMMAND TTPJRTTests)
+# Register a test invocation command.
+add_test(
+    NAME
+        PJRTUnitTests
+    COMMAND
+        TTPJRTTests --gtest_output=xml:${CMAKE_BINARY_DIR}/gtest_report.xml
+)
