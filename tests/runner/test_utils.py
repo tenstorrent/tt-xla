@@ -499,7 +499,8 @@ def create_measurement(
 
 def create_benchmark_result(
     full_model_name: str,
-    output_path: str,
+    output_dir: str,
+    perf_id: str,
     measurements: list[dict[str, Any]],
     model_type: str = "generic",
     training: bool = False,
@@ -510,9 +511,9 @@ def create_benchmark_result(
     Create a benchmark result dictionary and write it to a JSON file.
 
     Builds a standardized benchmark result containing model metadata and
-    performance measurements, then writes it to the `test_reports_benchmarks/`
-    directory. The filename follows the format:
-        benchmark_results_<model_name>_<job_id>.json
+    performance measurements, then writes it to given output directory.
+    The filename follows the format:
+        report_perf_<model_name>_<perf_id>.json
     """
 
     # Extract e2e stats from the passed measurements list
@@ -575,8 +576,11 @@ def create_benchmark_result(
             )
         print("====================================================================")
 
-    # dump benchmark results to JSON file if output_path is given
-    if output_path is not None:
+    # dump benchmark results to JSON file if output_dir is given
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        # add model name and perf id (Job ID from CI) to the filename
+        output_path = output_dir + f"/report_perf_{full_model_name}_{perf_id}.json"
         with open(output_path, "w") as file:
             json.dump(benchmark_results, file, indent=2)
             print(f"Benchmark results saved to {output_path}")

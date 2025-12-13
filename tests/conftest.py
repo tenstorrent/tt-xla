@@ -208,10 +208,16 @@ def pytest_addoption(parser):
         help="Disable performance benchmark measurement in tester",
     )
     parser.addoption(
-        "--perf-report-path",
+        "--perf-report-dir",
         action="store",
         default=None,
-        help="Output path for perf benchmark reports. If not given, no perf benchmark files will be generated.",
+        help="Output directory for perf benchmark reports. If not given, no perf benchmark files will be generated.",
+    )
+    parser.addoption(
+        "--perf-id",
+        action="store",
+        default=None,
+        help="Perf ID for perf benchmark reports.",
     )
 
 

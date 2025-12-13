@@ -187,12 +187,13 @@ def test_all_models_torch(
             )
 
             # prints perf benchmark results to console
-            # Dumps perf benchmark results to JSON report if --perf-report-path is given
+            # Dumps perf benchmark results to JSON report if --perf-report-dir is given
             measurements = getattr(tester, "_perf_measurements", None)
-            output_path = request.config.getoption("--perf-report-path")
+            output_dir = request.config.getoption("--perf-report-dir")
             create_benchmark_result(
                 full_model_name=model_info.name,
-                output_path=output_path,
+                output_dir=output_dir,
+                perf_id=request.config.getoption("--perf-id"),
                 measurements=measurements,
                 model_type="generic",
                 training=False,

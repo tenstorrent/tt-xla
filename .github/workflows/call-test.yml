@@ -129,7 +129,7 @@ jobs:
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
-        echo "perf_report_path=report_perf_$JOB_ID.json" >> "$GITHUB_OUTPUT"
+        echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
         if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
           echo "do_codecov=true" >> "$GITHUB_OUTPUT"
           echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
@@ -329,7 +329,8 @@ jobs:
         fi
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
-               --perf-report-path=${{ steps.strings.outputs.perf_report_path }} \
+               --perf-report-dir=${{ steps.strings.outputs.per_report_dir }} \
+               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
                2>&1 | tee pytest.log
 
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
@@ -367,22 +368,9 @@ jobs:
       if: success() || failure()
       with:
         name: perf-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
-        path: ${{ steps.strings.outputs.perf_report_path }}
-        # If --perf-report-path is not given, no files will be generated so this ignore is needed to avoid failing the job.
+        path: ${{ steps.strings.outputs.perf_report_dir }}
+        # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
         if-no-files-found: 'ignore'
-
-    - name: Show Test Report
-      continue-on-error: true
-      uses: mikepenz/action-junit-report@v5
-      if: success() || failure()
-      with:
-        report_paths: ${{ steps.strings.outputs.test_report_path }}
-        check_name: TT-XLA Tests
-        comment: true
-        updateComment: true
-        detailed_summary: true
-        group_suite: true
-        token: ${{ github.token }}
 
     - name: Prepare code coverage report
       if: steps.strings.outputs.do_codecov && (success() || failure())
