@@ -49,6 +49,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print extra diagnostic information while processing.",
     )
+    parser.add_argument(
+        "--testing",
+        action="store_true",
+        help="Use test_config.testing directory instead of test_config (for dev/testing).",
+    )
     return parser
 
 
@@ -159,8 +164,9 @@ def iter_test_records(tree: ET.ElementTree) -> Iterator[Dict]:
 
 
 # Map a testcase name to its corresponding test_config YAML path.
-def map_test_to_config_file(test_name: str) -> Optional[str]:
+def map_test_to_config_file(test_name: str, testing: bool = False) -> Optional[str]:
     framework_dir = "torch" if test_name.startswith("test_all_models_torch") else "jax"
+    config_dir = "test_config.testing" if testing else "test_config"
     suffix_to_filename = {
         "-single_device-full-inference": "test_config_inference_single_device.yaml",
         "-tensor_parallel-full-inference": "test_config_inference_tensor_parallel.yaml",
@@ -171,7 +177,8 @@ def map_test_to_config_file(test_name: str) -> Optional[str]:
         if suffix in test_name:
             return os.path.join(
                 os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
-                "tests/runner/test_config",
+                "tests/runner",
+                config_dir,
                 framework_dir,
                 fname,
             )
@@ -374,7 +381,7 @@ def main() -> int:
 
     print("Generating promotion plan now...", flush=True)
     for (test_name, arch), info in sorted(desired.items()):
-        cfg = map_test_to_config_file(test_name)
+        cfg = map_test_to_config_file(test_name, testing=args.testing)
         if not cfg:
             print(f"  - SKIP (no config): {test_name} [arch: {arch}]")
             continue
