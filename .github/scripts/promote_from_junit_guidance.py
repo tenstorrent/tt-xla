@@ -321,6 +321,15 @@ def get_all_archs_for_entry(entry: CommentedMap) -> set[str]:
     return archs
 
 
+# Get a field value from arch_overrides first, then top-level entry if not found.
+def get_arch_or_top(
+    arch_entry: CommentedMap, entry: CommentedMap, key: str
+) -> Optional[object]:
+    """Get field value from arch_entry first, fallback to entry (top-level) if not found."""
+    val = arch_entry.get(key)
+    return val if val is not None else entry.get(key)
+
+
 # Apply arch-specific plans to a test's YAML entry, always using arch_overrides.
 def apply_updates_to_yaml(
     data: CommentedMap,
@@ -344,18 +353,14 @@ def apply_updates_to_yaml(
         test_config[bracket_key] = entry
 
     # Ensure arch_overrides exists as CommentedMap
-    if "arch_overrides" not in entry:
-        entry["arch_overrides"] = CommentedMap()
-    arch_overrides = entry["arch_overrides"]  # type: ignore
+    arch_overrides = entry.get("arch_overrides")
     if not isinstance(arch_overrides, CommentedMap):
         arch_overrides = CommentedMap(arch_overrides or {})
         entry["arch_overrides"] = arch_overrides
 
     # Apply changes per arch - always use arch_overrides
     for arch, plan in arch_plans.items():
-        if arch not in arch_overrides:
-            arch_overrides[arch] = CommentedMap()
-        arch_entry = arch_overrides[arch]  # type: ignore
+        arch_entry = arch_overrides.get(arch)
         if not isinstance(arch_entry, CommentedMap):
             arch_entry = CommentedMap(arch_entry or {})
             arch_overrides[arch] = arch_entry
@@ -363,10 +368,7 @@ def apply_updates_to_yaml(
         # Apply required_pcc change
         if "set_required_pcc" in plan:
             new_th = float(plan["set_required_pcc"])  # type: ignore
-            # Get current threshold: check arch_overrides first, then top-level
-            old_th = arch_entry.get("required_pcc")
-            if old_th is None:
-                old_th = entry.get("required_pcc")
+            old_th = get_arch_or_top(arch_entry, entry, "required_pcc")
             if old_th is None or float(old_th) < new_th:
                 if verbose:
                     print(
@@ -376,7 +378,8 @@ def apply_updates_to_yaml(
 
         # Apply assert_pcc change (remove assert_pcc:false)
         if plan.get("remove_assert_pcc_false"):
-            if arch_entry.get("assert_pcc") is False:
+            assert_pcc_val = get_arch_or_top(arch_entry, entry, "assert_pcc")
+            if assert_pcc_val is False:
                 if verbose:
                     print(
                         f"   - Removing arch_overrides.{arch}.assert_pcc:false for {bracket_key}"
@@ -385,6 +388,10 @@ def apply_updates_to_yaml(
                 # Remove empty arch entry
                 if not arch_entry:
                     arch_overrides.pop(arch, None)
+
+    # Clean up empty arch_overrides
+    if not arch_overrides or len(arch_overrides) == 0:
+        entry.pop("arch_overrides", None)
 
     test_config[bracket_key] = entry  # type: ignore
     return bracket_key
@@ -445,7 +452,7 @@ def optimize_arch_overrides(
                                 arch_overrides.pop(arch, None)
 
     # Clean up empty arch_overrides
-    if not arch_overrides:
+    if not arch_overrides or len(arch_overrides) == 0:
         entry.pop("arch_overrides", None)
 
 
