@@ -23,14 +23,16 @@ def gpt_oss():
     device: torch.device = torch_xla.device()
     mesh: Mesh = create_device_mesh()
 
-    loader = ModelLoader(variant=None)
+    loader = ModelLoader(variant=None, num_layers=1)
     model = loader.load_model()
     inputs = loader.load_inputs()
 
     # Move model and inputs to xla device.
     model = model.to(device)
-    inputs["input_ids"] = inputs["input_ids"].to(device)
-    inputs["attention_mask"] = inputs["attention_mask"].to(device)
+    input_ids = torch.randint(0, 10000, (1, 128), dtype=torch.int64)
+    attention_mask = torch.ones_like(input_ids, dtype=torch.int64)
+    inputs["input_ids"] = input_ids.to(device)
+    inputs["attention_mask"] = attention_mask.to(device)
 
     mark_sharding_on_inputs_and_model(model, mesh)
 
@@ -39,7 +41,6 @@ def gpt_oss():
 
     output_logits = output.logits.to("cpu")
     print("Output logits:", output_logits)
-    breakpoint()
     print("gpt-oss test completed successfully.")
 
 
@@ -66,10 +67,10 @@ def mark_sharding_on_inputs_and_model(model: torch.nn.Module, mesh: Mesh):
         # Sharded rowwise: [4096/num_devices, 2880]
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
-        # sinks shape: [4096] -> local. rowwise
-        xs.mark_sharding(layer.self_attn.sinks, mesh, ("model",))
+        # # sinks shape: [4096] -> local. rowwise
+        # xs.mark_sharding(layer.self_attn.sinks, mesh, ("model",))
 
-        xs.mark_sharding(layer.mlp.router.weight, mesh, (None, "model"))
+        xs.mark_sharding(layer.mlp.router.weight, mesh, ("model", None))
 
         # Shard experts across devices: 32 / 8 ->. 4 expert per device
         xs.mark_sharding(layer.mlp.experts.gate_up_proj, mesh, ("model", None, None))
