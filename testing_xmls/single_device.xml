@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites name="pytest tests">
+    <testsuite name="pytest" errors="0" failures="0" skipped="0" tests="37" time="5085.834" timestamp="2025-12-10T00:29:18.251506+00:00" hostname="dfb3335cad08">
+
+        <!-- Test 1 : Raise both arch -->
+        <testcase classname="tests.runner.test_models" name="test_all_models_torch[test01_simple_incr_pcc_both_arch_same_pcc-single_device-full-inference]" time="421.876">
+            <properties>
+                <property name="tags" value="{'test_name': 'test_all_models_torch', 'specific_test_case': 'test_all_models_torch[test01_simple_incr_pcc_both_arch_same_pcc-single_device-full-inference]', 'category': 'model_test', 'model_name': 'testing', 'run_mode': 'inference', 'bringup_status': 'PASSED', 'parallelism': 'single_device', 'arch': 'n150', 'pcc': 0.965, 'atol': 1.625, 'comparison_passed': True, 'comparison_error_message': None, 'pcc_threshold': 0.95, 'atol_threshold': 0.16, 'pcc_assertion_enabled': True, 'atol_assertion_enabled': False, 'guidance': ['RAISE_PCC']}" />
+                <property name="owner" value="tt-xla" />
+                <property name="group" value="generality" />
+            </properties>
+        </testcase>
+        <testcase classname="tests.runner.test_models" name="test_all_models_torch[test01_simple_incr_pcc_both_arch_same_pcc-single_device-full-inference]" time="421.876">
+            <properties>
+                <property name="tags" value="{'test_name': 'test_all_models_torch', 'specific_test_case': 'test_all_models_torch[test01_simple_incr_pcc_both_arch_same_pcc-single_device-full-inference]', 'category': 'model_test', 'model_name': 'testing', 'run_mode': 'inference', 'bringup_status': 'PASSED', 'parallelism': 'single_device', 'arch': 'p150', 'pcc': 0.965, 'atol': 1.625, 'comparison_passed': True, 'comparison_error_message': None, 'pcc_threshold': 0.95, 'atol_threshold': 0.16, 'pcc_assertion_enabled': True, 'atol_assertion_enabled': False, 'guidance': ['RAISE_PCC']}" />
+                <property name="owner" value="tt-xla" />
+                <property name="group" value="generality" />
+            </properties>
+        </testcase>
+
+        <!-- Test 2 : Raise just one arch -->
+        <testcase classname="tests.runner.test_models" name="test_all_models_torch[test02_simple_incr_pcc_one_arch-single_device-full-inference]" time="421.876">
+            <properties>
+                <property name="tags" value="{'test_name': 'test_all_models_torch', 'specific_test_case': 'test_all_models_torch[test02_simple_incr_pcc_one_arch-single_device-full-inference]', 'category': 'model_test', 'model_name': 'testing', 'run_mode': 'inference', 'bringup_status': 'PASSED', 'parallelism': 'single_device', 'arch': 'n150', 'pcc': 0.975, 'atol': 1.625, 'comparison_passed': True, 'comparison_error_message': None, 'pcc_threshold': 0.95, 'atol_threshold': 0.16, 'pcc_assertion_enabled': True, 'atol_assertion_enabled': False, 'guidance': ['RAISE_PCC']}" />
+                <property name="owner" value="tt-xla" />
+                <property name="group" value="generality" />
+            </properties>
+        </testcase>
+        <testcase classname="tests.runner.test_models" name="test_all_models_torch[test02_simple_incr_pcc_one_arch-single_device-full-inference]" time="421.876">
+            <properties>
+                <property name="tags" value="{'test_name': 'test_all_models_torch', 'specific_test_case': 'test_all_models_torch[test02_simple_incr_pcc_one_arch-single_device-full-inference]', 'category': 'model_test', 'model_name': 'testing', 'run_mode': 'inference', 'bringup_status': 'PASSED', 'parallelism': 'single_device', 'arch': 'p150', 'pcc': 0.99, 'atol': 1.625, 'comparison_passed': True, 'comparison_error_message': None, 'pcc_threshold': 0.95, 'atol_threshold': 0.16, 'pcc_assertion_enabled': True, 'atol_assertion_enabled': False, 'guidance': []}" />
+                <property name="owner" value="tt-xla" />
+                <property name="group" value="generality" />
+            </properties>
+        </testcase>
+
+        <!-- Test 3 : Raise both arch to different values -->
+        <testcase classname="tests.runner.test_models" name="test_all_models_torch[test03_simple_incr_pcc_both_arch_different_pcc-single_device-full-inference]" time="421.876">
+            <properties>
+                <property name="tags" value="{'test_name': 'test_all_models_torch', 'specific_test_case': 'test_all_models_torch[test03_simple_incr_pcc_both_arch_different_pcc-single_device-full-inference]', 'category': 'model_test', 'model_name': 'testing', 'run_mode': 'inference', 'bringup_status': 'PASSED', 'parallelism': 'single_device', 'arch': 'n150', 'pcc': 0.965, 'atol': 1.625, 'comparison_passed': True, 'comparison_error_message': None, 'pcc_threshold': 0.95, 'atol_threshold': 0.16, 'pcc_assertion_enabled': True, 'atol_assertion_enabled': False, 'guidance': ['RAISE_PCC']}" />
+                <property name="owner" value="tt-xla" />
+                <property name="group" value="generality" />
+            </properties>
+        </testcase>
+        <testcase classname="tests.runner.test_models" name="test_all_models_torch[test03_simple_incr_pcc_both_arch_different_pcc-single_device-full-inference]" time="421.876">
+            <properties>
+                <property name="tags" value="{'test_name': 'test_all_models_torch', 'specific_test_case': 'test_all_models_torch[test03_simple_incr_pcc_both_arch_different_pcc-single_device-full-inference]', 'category': 'model_test', 'model_name': 'testing', 'run_mode': 'inference', 'bringup_status': 'PASSED', 'parallelism': 'single_device', 'arch': 'p150', 'pcc': 0.983, 'atol': 1.625, 'comparison_passed': True, 'comparison_error_message': None, 'pcc_threshold': 0.95, 'atol_threshold': 0.16, 'pcc_assertion_enabled': True, 'atol_assertion_enabled': False, 'guidance': ['RAISE_PCC']}" />
+                <property name="owner" value="tt-xla" />
+                <property name="group" value="generality" />
+            </properties>
+        </testcase>
+
+
+        <!-- Test 4 : Enable PCC for n150 -->
+        <testcase classname="tests.runner.test_models" name="test_all_models_torch[test04_simple_enable_pcc_one_arch-single_device-full-inference]" time="421.876">
+            <properties>
+                <property name="tags" value="{'test_name': 'test_all_models_torch', 'specific_test_case': 'test_all_models_torch[test04_simple_enable_pcc_one_arch-single_device-full-inference]', 'category': 'model_test', 'model_name': 'testing', 'run_mode': 'inference', 'bringup_status': 'PASSED', 'parallelism': 'single_device', 'arch': 'n150', 'pcc': 0.999, 'atol': 1.625, 'comparison_passed': True, 'comparison_error_message': None, 'pcc_threshold': 0.95, 'atol_threshold': 0.16, 'pcc_assertion_enabled': False, 'atol_assertion_enabled': False, 'guidance': ['ENABLE_PCC']}" />
+                <property name="owner" value="tt-xla" />
+                <property name="group" value="generality" />
+            </properties>
+        </testcase>
+        <testcase classname="tests.runner.test_models" name="test_all_models_torch[test04_simple_enable_pcc_one_arch-single_device-full-inference]" time="421.876">
+            <properties>
+                <property name="tags" value="{'test_name': 'test_all_models_torch', 'specific_test_case': 'test_all_models_torch[test04_simple_enable_pcc_one_arch-single_device-full-inference]', 'category': 'model_test', 'model_name': 'testing', 'run_mode': 'inference', 'bringup_status': 'PASSED', 'parallelism': 'single_device', 'arch': 'p150', 'pcc': 0.999, 'atol': 1.625, 'comparison_passed': True, 'comparison_error_message': None, 'pcc_threshold': 0.95, 'atol_threshold': 0.16, 'pcc_assertion_enabled': True, 'atol_assertion_enabled': False, 'guidance': []}" />
+                <property name="owner" value="tt-xla" />
+                <property name="group" value="generality" />
+            </properties>
+        </testcase>
+
+
+    </testsuite>
+</testsuites>

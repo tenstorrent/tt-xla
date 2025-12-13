@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Inference single-device test configuration
+# Use Python enum names or values for fields below (names preferred for readability):
+#   - status: ModelTestStatus names (e.g., EXPECTED_PASSING) or values (e.g., expected_passing)
+#   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
+
+test_config:
+
+  # Unit Test 1 idea: CI results for n150 and p150 both increasing required_pcc to 0.96
+  test01_simple_incr_pcc_both_arch_same_pcc-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.95 # Issue 1234
+
+  # Unit Test 2 idea: CI results for n150 increasing required_pcc to 0.97 but p150 remains at default value
+  test02_simple_incr_pcc_one_arch-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.95 # Issue 1234
+
+  # Unit Test 3 idea: CI results for n150 increasing required_pcc to 0.96 and p150 increasing required_pcc to 0.98
+  test03_simple_incr_pcc_both_arch_different_pcc-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.95 # Issue 1234
+      p150:
+        required_pcc: 0.95
+
+  # Unit Test 4 idea: CI results for n150 enabling pcc check.
+  test04_simple_enable_pcc_one_arch-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        assert_pcc: false # Issue blah blah
+
+   # TODO - Case where one arch has values outside of arch_overrides, should be respected.
