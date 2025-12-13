@@ -37,4 +37,49 @@ test_config:
       n150:
         assert_pcc: false # Issue blah blah
 
-   # TODO - Case where one arch has values outside of arch_overrides, should be respected.
+  # Unit Test 5 idea: CI results for both n150 and p150 enabling PCC (assert_pcc:false at top-level)
+  test05_enable_pcc_both_arch_top_level-single_device-full-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # Issue 5678
+
+  # Unit Test 6 idea: CI results for n150 raising PCC to 0.99 (RAISE_PCC_099)
+  test06_raise_pcc_to_099_one_arch-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  # Unit Test 7 idea: CI results for n150 enabling PCC and p150 raising PCC (mixed operations)
+  test07_mixed_enable_and_raise-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        assert_pcc: false
+      p150:
+        required_pcc: 0.95
+
+  # Unit Test 8 idea: CI results where arch_overrides already has other fields that should be preserved
+  test08_preserve_existing_arch_overrides-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.95
+    arch_overrides:
+      n150:
+        required_pcc: 0.96
+        reason: "Existing reason that should be preserved"
+      p150:
+        required_pcc: 0.97
+        markers: ["extended"]
+
+  # Unit Test 9 idea: CI results where threshold is already 0.99 and we try to raise (should be NOOP)
+  test09_already_at_max_threshold-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.99
+
+  # Unit Test 10 idea: CI results where both archs raise to same value but arch_overrides has other fields
+  test10_raise_with_existing_overrides-single_device-full-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.95
+        reason: "Keep this reason"
+      p150:
+        required_pcc: 0.95
+        markers: ["keep_this"]
