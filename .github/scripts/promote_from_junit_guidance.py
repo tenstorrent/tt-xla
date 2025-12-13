@@ -417,7 +417,8 @@ def optimize_arch_overrides(
         if isinstance(arch_entry, dict):
             all_fields.update(arch_entry.keys())
 
-    # For each field, check if it's the same across all archs
+    # Collect fields to move to top-level (common across all archs)
+    fields_to_move: Dict[str, object] = {}
     for field in all_fields:
         field_values: Dict[str, object] = {}
         # Collect field value for each arch (checking arch_overrides first, then top-level)
@@ -429,29 +430,37 @@ def optimize_arch_overrides(
                 # Arch doesn't have override, use top-level value
                 field_values[arch] = entry[field]
 
-        # If all archs have the same value (or inherit same top-level), move to top-level
+        # If all archs have the same value (or inherit same top-level), mark for moving
         if len(field_values) == len(all_archs):
             values = list(field_values.values())
-            # Check if all values are equal (handle different types properly)
             first_value = values[0]
-            all_same = all(v == first_value for v in values)
-            if all_same:
-                common_value = first_value
+            if all(v == first_value for v in values):
                 # Only move if top-level doesn't already have it, or if it's different
-                if field not in entry or entry[field] != common_value:
-                    if verbose:
-                        print(
-                            f" - Optimizing: moving {field}={common_value} to top-level (common across all archs) for {bracket_key}"
-                        )
-                    entry[field] = common_value
-                    # Remove from all arch_overrides
-                    for arch in all_archs:
-                        arch_entry = arch_overrides.get(arch)
-                        if isinstance(arch_entry, dict) and field in arch_entry:
-                            arch_entry.pop(field, None)
-                            # Remove empty arch entry
-                            if not arch_entry:
-                                arch_overrides.pop(arch, None)
+                if field not in entry or entry[field] != first_value:
+                    fields_to_move[field] = first_value
+
+    # Move fields to top-level and remove from arch_overrides
+    if fields_to_move:
+        for field, common_value in fields_to_move.items():
+            if verbose:
+                print(
+                    f" - Optimizing: moving {field}={common_value} to top-level (common across all archs) for {bracket_key}"
+                )
+            # Remove from all arch_overrides
+            for arch in all_archs:
+                arch_entry = arch_overrides.get(arch)
+                if isinstance(arch_entry, dict) and field in arch_entry:
+                    arch_entry.pop(field, None)
+                    # Remove empty arch entry
+                    if not arch_entry:
+                        arch_overrides.pop(arch, None)
+            # Set at top-level
+            entry[field] = common_value
+
+        # Reorder: move arch_overrides to end so top-level fields appear first
+        if "arch_overrides" in entry and entry["arch_overrides"]:
+            arch_overrides_val = entry.pop("arch_overrides")
+            entry["arch_overrides"] = arch_overrides_val
 
     # Clean up empty arch_overrides
     if not arch_overrides or len(arch_overrides) == 0:
