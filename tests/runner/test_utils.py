@@ -5,12 +5,14 @@
 import collections
 import importlib.util
 import inspect
+import json
 import math
 import numbers
 import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 import numpy as np
 import pytest
@@ -474,3 +476,111 @@ def record_model_test_properties(
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         pytest.xfail(reason)
+
+
+def create_measurement(
+    step_name: str,
+    measurement_name: str,
+    step_warm_up_num_iterations: int = 1,
+    iteration: int = 1,
+    value: float = 0.0,
+    target: float = -1.0,
+) -> dict[str, Any]:
+    """Create a single perf measurement dictionary."""
+    return {
+        "step_name": step_name,
+        "measurement_name": measurement_name,
+        "step_warm_up_num_iterations": step_warm_up_num_iterations,
+        "iteration": iteration,
+        "value": value,
+        "target": target,
+    }
+
+
+def create_benchmark_result(
+    full_model_name: str,
+    output_dir: str,
+    perf_id: str,
+    measurements: list[dict[str, Any]],
+    model_type: str = "generic",
+    training: bool = False,
+    model_info: str = "",
+    device_name: str = "",
+) -> dict[str, Any]:
+    """
+    Create a benchmark result dictionary and write it to a JSON file.
+
+    Builds a standardized benchmark result containing model metadata and
+    performance measurements, then writes it to given output directory.
+    The filename follows the format:
+        report_perf_<model_name>_<perf_id>.json
+    """
+
+    # Extract e2e stats from the passed measurements list
+    metric_list = []
+
+    if measurements and len(measurements) > 0:
+        # extract e2e perf stats and create measurements using them
+        perf_stats = measurements[0]
+        warmup_iters = perf_stats["warmup_iters"]
+        perf_iters = perf_stats["perf_iters"]
+        metric_list.append(
+            create_measurement(
+                "e2e_perf",
+                "total_time",
+                warmup_iters,
+                perf_iters,
+                perf_stats["total_time"],
+            )
+        )
+        metric_list.append(
+            create_measurement(
+                "e2e_perf",
+                "avg_time",
+                warmup_iters,
+                perf_iters,
+                perf_stats["avg_time"],
+            )
+        )
+
+    config = {
+        "model_size": "small",
+        "model_info": model_info,
+    }
+
+    benchmark_results = {
+        "model": full_model_name,
+        "model_type": model_type,
+        "run_type": f"{'_'.join(full_model_name.split())}_{device_name}",
+        "config": config,
+        "measurements": metric_list,
+        "device_info": {
+            "device_name": device_name,
+        },
+        "training": training,
+        "project": "tt-xla",
+    }
+
+    # Add metadata required for collect_data parser
+    benchmark_results["project"] = "tt-xla"
+    benchmark_results["model_rawname"] = full_model_name
+
+    # print benchmark results to console if there are measurements
+    if len(benchmark_results["measurements"]) > 0:
+        print("====================================================================")
+        print(f"| {benchmark_results['model']} BENCHMARK:  ")
+        print("--------------------------------------------------------------------")
+        for measurement in benchmark_results["measurements"]:
+            print(
+                f"| {measurement['step_name']}-{measurement['measurement_name']}: {measurement['value']}"
+            )
+        print("====================================================================")
+
+    # dump benchmark results to JSON file if output_dir is given
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        # add model name and perf id (Job ID from CI) to the filename
+        output_path = output_dir + f"/report_perf_{full_model_name}_{perf_id}.json"
+        with open(output_path, "w") as file:
+            json.dump(benchmark_results, file, indent=2)
+            print(f"Benchmark results saved to {output_path}")

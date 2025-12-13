@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import socket
 
 import pytest
 from infra import RunMode
@@ -18,6 +19,7 @@ from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
+    create_benchmark_result,
     fix_venv_isolation,
     record_model_test_properties,
     update_test_metadata_for_exception,
@@ -182,6 +184,21 @@ def test_all_models_torch(
                 test_passed=succeeded,
                 comparison_result=comparison_result,
                 comparison_config=comparison_config,
+            )
+
+            # prints perf benchmark results to console
+            # Dumps perf benchmark results to JSON report if --perf-report-dir is given
+            measurements = getattr(tester, "_perf_measurements", None)
+            output_dir = request.config.getoption("--perf-report-dir")
+            create_benchmark_result(
+                full_model_name=model_info.name,
+                output_dir=output_dir,
+                perf_id=request.config.getoption("--perf-id"),
+                measurements=measurements,
+                model_type="generic",
+                training=False,
+                model_info=model_info.name,
+                device_name=socket.gethostname(),
             )
 
 
