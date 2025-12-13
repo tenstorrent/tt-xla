@@ -358,7 +358,12 @@ def main() -> int:
         return 1
 
     start = time.time()
+    print(f"Collecting guidance updates from {len(files)} files...", flush=True)
     desired = collect_guidance_updates(files, verbose=args.verbose)
+    print(
+        f"Collected {len(desired)} guidance updates. Took {time.time() - start:.2f} seconds.",
+        flush=True,
+    )
 
     # Debug - early exit here:
     # return 0
@@ -367,7 +372,7 @@ def main() -> int:
         print("No guidance found in provided artifacts.")
         return 0
 
-    print("Generating promotion plan:")
+    print("Generating promotion plan now...", flush=True)
     for (test_name, arch), info in sorted(desired.items()):
         cfg = map_test_to_config_file(test_name)
         if not cfg:
