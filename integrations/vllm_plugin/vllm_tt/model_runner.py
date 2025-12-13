@@ -327,7 +327,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             max_num_reqs=self.max_num_reqs,
             max_model_len=self.max_model_len,
             max_num_batched_tokens=self.max_num_tokens,
-            device=self.device,
+            device="cpu",
             pin_memory=self.pin_memory,
             vocab_size=self.model_config.get_vocab_size(),
             block_sizes=[self.block_size],
@@ -1756,7 +1756,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 max_num_reqs=self.max_num_reqs,
                 max_model_len=self.max_model_len,
                 max_num_batched_tokens=self.max_num_tokens,
-                device=self.device,
+                device="cpu",
                 pin_memory=self.pin_memory,
                 vocab_size=self.model_config.get_vocab_size(),
                 block_sizes=[
