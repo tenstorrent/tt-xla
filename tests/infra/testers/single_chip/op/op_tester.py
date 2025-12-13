@@ -5,14 +5,15 @@
 from __future__ import annotations
 
 import re
-from typing import Callable, Sequence
+from typing import Callable, Optional, Sequence
 
 import jax
 import torch
 import torch_xla
 from infra.comparators import ComparisonConfig
-from infra.utilities import Framework, Tensor, random_tensor, sanitize_test_name
+from infra.utilities import Framework, Mesh, Tensor, random_tensor, sanitize_test_name
 from infra.workloads import Workload
+from infra.workloads.torch_workload import TorchWorkload
 from jax._src.typing import DTypeLike
 
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -162,6 +163,8 @@ def run_op_test(
     comparison_config: ComparisonConfig = ComparisonConfig(),
     framework: Framework = Framework.JAX,
     compiler_config: CompilerConfig = None,
+    mesh: Optional[Mesh] = None,
+    shard_spec_fn: Optional[Callable] = None,
 ) -> None:
     """
     Tests `op` with `inputs` by running it on TT device and CPU and comparing the
@@ -170,7 +173,12 @@ def run_op_test(
     if compiler_config is None:
         compiler_config = CompilerConfig()
     tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
-    workload = Workload(framework, executable=op, args=inputs)
+    if framework == Framework.TORCH:
+        workload = TorchWorkload(
+            model=op, args=inputs, mesh=mesh, shard_spec_fn=shard_spec_fn
+        )
+    else:
+        workload = Workload(framework, executable=op, args=inputs)
     tester.test(workload)
 
 
