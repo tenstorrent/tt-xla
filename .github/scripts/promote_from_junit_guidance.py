@@ -308,14 +308,15 @@ def plan_updates_for_test(
     return plan
 
 
-# Apply a single test's plan to its YAML entry; optionally write back to disk.
+# Apply arch-specific plans to a test's YAML entry, using top-level or arch_overrides as needed.
 def apply_updates_to_yaml(
     config_path: str,
     test_name: str,
-    plan: Dict[str, object],
+    arch_plans: Dict[str, Dict[str, object]],
     write: bool,
     verbose: bool,
 ) -> None:
+    """Apply changes grouped by arch. Uses top-level if all archs have same change, else arch_overrides."""
     data = load_yaml_config(config_path)
     if "test_config" not in data or data["test_config"] is None:
         print(f"[WARN] No test_config section in {config_path}", file=sys.stderr)
@@ -329,22 +330,147 @@ def apply_updates_to_yaml(
         )
         return
     entry = test_config.get(bracket_key) or {}
-    # Remove assert_pcc:false
-    if plan.get("remove_assert_pcc_false"):
-        if entry.get("assert_pcc") is False:
-            if verbose:
-                print(f" - Removing assert_pcc:false for {bracket_key}")
-            entry.pop("assert_pcc", None)
-    # Set required_pcc
-    if "set_required_pcc" in plan:
-        new_th = float(plan["set_required_pcc"])  # type: ignore
-        old_th = entry.get("required_pcc")
-        if old_th is None or float(old_th) < new_th:
-            if verbose:
-                print(
-                    f" - Setting required_pcc: {old_th} -> {new_th} for {bracket_key}"
-                )
-            entry["required_pcc"] = new_th
+    if not isinstance(entry, CommentedMap):
+        entry = CommentedMap(entry)
+        test_config[bracket_key] = entry
+
+    # Ensure arch_overrides exists as CommentedMap
+    if "arch_overrides" not in entry:
+        entry["arch_overrides"] = CommentedMap()
+    arch_overrides = entry["arch_overrides"]  # type: ignore
+    if not isinstance(arch_overrides, CommentedMap):
+        arch_overrides = CommentedMap(arch_overrides or {})
+        entry["arch_overrides"] = arch_overrides
+
+    # Collect changes by arch
+    arch_required_pcc: Dict[str, float] = {}
+    arch_remove_assert_pcc: Dict[str, bool] = {}
+
+    for arch, plan in arch_plans.items():
+        if "set_required_pcc" in plan:
+            arch_required_pcc[arch] = float(plan["set_required_pcc"])  # type: ignore
+        if plan.get("remove_assert_pcc_false"):
+            arch_remove_assert_pcc[arch] = True
+
+    # Determine if all archs with changes want the same value
+    all_same_required_pcc = None
+    if arch_required_pcc:
+        values = list(arch_required_pcc.values())
+        all_same_required_pcc = values[0] if len(set(values)) == 1 else None
+
+    # Apply required_pcc changes
+    if arch_required_pcc:
+        # Use top-level if all archs with changes want the same value (and we have multiple archs)
+        # Otherwise use arch_overrides
+        use_top_level = (
+            all_same_required_pcc is not None
+            and len(arch_required_pcc) > 1  # Multiple archs with same value
+        )
+
+        if use_top_level:
+            # All archs want same value -> use top-level
+            new_th = all_same_required_pcc
+            old_th = entry.get("required_pcc")
+            if old_th is None or float(old_th) < new_th:
+                if verbose:
+                    print(
+                        f" - Setting top-level required_pcc: {old_th} -> {new_th} for {bracket_key}"
+                    )
+                entry["required_pcc"] = new_th
+                # Remove from arch_overrides if present (now handled at top-level)
+                for arch in arch_required_pcc.keys():
+                    if arch in arch_overrides:
+                        arch_entry = arch_overrides[arch]
+                        if (
+                            isinstance(arch_entry, dict)
+                            and "required_pcc" in arch_entry
+                        ):
+                            arch_entry.pop("required_pcc", None)
+                            if not arch_entry:  # Empty dict, remove arch override
+                                arch_overrides.pop(arch, None)
+        else:
+            # Different values or only one arch -> use arch_overrides
+            for arch, new_th in arch_required_pcc.items():
+                if arch not in arch_overrides:
+                    arch_overrides[arch] = CommentedMap()
+                arch_entry = arch_overrides[arch]  # type: ignore
+                if not isinstance(arch_entry, CommentedMap):
+                    arch_entry = CommentedMap(arch_entry or {})
+                    arch_overrides[arch] = arch_entry
+                # Get current threshold: check arch_overrides first, then top-level
+                old_th = arch_entry.get("required_pcc")
+                if old_th is None:
+                    old_th = entry.get("required_pcc")
+                if old_th is None or float(old_th) < new_th:
+                    if verbose:
+                        print(
+                            f" - Setting arch_overrides.{arch}.required_pcc: {old_th} -> {new_th} for {bracket_key}"
+                        )
+                    arch_entry["required_pcc"] = new_th
+
+    # Apply assert_pcc changes
+    if arch_remove_assert_pcc:
+        # Use top-level if all archs with changes want to remove (and we have multiple archs)
+        # Otherwise use arch_overrides
+        use_top_level = (
+            len(arch_remove_assert_pcc) == len(arch_plans)
+            and len(arch_remove_assert_pcc) > 1  # Multiple archs
+        )
+
+        if use_top_level:
+            # All archs want to remove -> use top-level
+            if entry.get("assert_pcc") is False:
+                if verbose:
+                    print(f" - Removing top-level assert_pcc:false for {bracket_key}")
+                entry.pop("assert_pcc", None)
+            # Remove from arch_overrides if present
+            for arch in arch_remove_assert_pcc.keys():
+                if arch in arch_overrides:
+                    arch_entry = arch_overrides[arch]
+                    if (
+                        isinstance(arch_entry, dict)
+                        and arch_entry.get("assert_pcc") is False
+                    ):
+                        arch_entry.pop("assert_pcc", None)
+                        if not arch_entry:
+                            arch_overrides.pop(arch, None)
+        else:
+            # Only some archs -> use arch_overrides
+            for arch in arch_remove_assert_pcc.keys():
+                if arch in arch_overrides:
+                    arch_entry = arch_overrides[arch]  # type: ignore
+                    if not isinstance(arch_entry, CommentedMap):
+                        arch_entry = CommentedMap(arch_entry or {})
+                        arch_overrides[arch] = arch_entry
+                    # Remove assert_pcc:false if present in arch_overrides
+                    if arch_entry.get("assert_pcc") is False:
+                        if verbose:
+                            print(
+                                f" - Removing arch_overrides.{arch}.assert_pcc:false for {bracket_key}"
+                            )
+                        arch_entry.pop("assert_pcc", None)
+                        # Remove empty arch entry
+                        if not arch_entry:
+                            arch_overrides.pop(arch, None)
+                    # If top-level has assert_pcc:false and arch_entry exists but doesn't have assert_pcc,
+                    # we don't need to do anything (absence means enabled, which overrides top-level False)
+                    elif entry.get("assert_pcc") is False:
+                        if verbose:
+                            print(
+                                f" - PCC already enabled for arch_overrides.{arch} (overrides top-level assert_pcc:false) for {bracket_key}"
+                            )
+                # If arch doesn't have an override entry and top-level has assert_pcc:false,
+                # we don't need to create one (absence means enabled by default)
+                elif entry.get("assert_pcc") is False:
+                    if verbose:
+                        print(
+                            f" - PCC already enabled for {arch} (no override needed) for {bracket_key}"
+                        )
+
+    # Clean up empty arch_overrides
+    if not arch_overrides:
+        entry.pop("arch_overrides", None)
+
     test_config[bracket_key] = entry  # type: ignore
     if write:
         write_yaml_config(config_path, data)
@@ -379,21 +505,34 @@ def main() -> int:
         print("No guidance found in provided artifacts.")
         return 0
 
+    # Group by test_name to handle arch_overrides
+    by_test: Dict[str, Dict[str, Dict[str, object]]] = {}
+    for (test_name, arch), info in desired.items():
+        if test_name not in by_test:
+            by_test[test_name] = {}
+        plan = plan_updates_for_test(test_name, info)
+        if plan:
+            by_test[test_name][arch] = plan
+
+    if not by_test:
+        print("No actionable guidance found.")
+        return 0
+
     print("Generating promotion plan now...", flush=True)
-    for (test_name, arch), info in sorted(desired.items()):
+    for test_name in sorted(by_test.keys()):
         cfg = map_test_to_config_file(test_name, testing=args.testing)
         if not cfg:
-            print(f"  - SKIP (no config): {test_name} [arch: {arch}]")
+            print(f"  - SKIP (no config): {test_name}")
             continue
-        plan = plan_updates_for_test(test_name, info)
-        if not plan:
-            print(f"  - NOOP: {test_name} [arch: {arch}]")
+        arch_plans = by_test[test_name]
+        if not arch_plans:
+            print(f"  - NOOP: {test_name}")
             continue
         print(
-            f"  - {('APPLY' if args.apply else 'PLAN ')} {os.path.basename(cfg)} :: {test_name} [arch: {arch}] -> {plan}"
+            f"  - {('APPLY' if args.apply else 'PLAN ')} {os.path.basename(cfg)} :: {test_name} [archs: {', '.join(sorted(arch_plans.keys()))}] -> {arch_plans}"
         )
         apply_updates_to_yaml(
-            cfg, test_name, plan, write=args.apply, verbose=args.verbose
+            cfg, test_name, arch_plans, write=args.apply, verbose=args.verbose
         )
 
     elapsed = time.time() - start
