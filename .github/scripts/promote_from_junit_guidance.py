@@ -54,6 +54,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use test_config.testing directory instead of test_config (for dev/testing).",
     )
+    parser.add_argument(
+        "--no-optimize",
+        action="store_true",
+        help="Skip optimization pass (for debugging - leaves arch_overrides as-is).",
+    )
     return parser
 
 
@@ -533,7 +538,7 @@ def main() -> int:
                 modified_bracket_keys.append(bracket_key)
 
         # Optimization pass: move common fields to top-level
-        if modified_bracket_keys:
+        if modified_bracket_keys and not args.no_optimize:
             if args.verbose:
                 print(
                     f"\nRunning optimization pass for {os.path.basename(config_path)}...\n"
