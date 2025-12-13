@@ -975,15 +975,11 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov6/pytorch-yolov6n-single_device-full-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "TT_FATAL: batch_norm only supports tiled layout. Got: Layout::ROW_MAJOR. Issue: https://github.com/tenstorrent/tt-mlir/issues/6217"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   yolov6/pytorch-yolov6s-single_device-full-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890339970588684. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: NOT_SUPPORTED_SKIP
-    reason: "TT_FATAL: batch_norm only supports tiled layout. Got: Layout::ROW_MAJOR. Issue: https://github.com/tenstorrent/tt-mlir/issues/6217"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   yolov6/pytorch-yolov6m-single_device-full-inference:
     required_pcc: 0.98
