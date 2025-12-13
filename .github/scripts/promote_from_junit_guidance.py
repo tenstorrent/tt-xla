@@ -370,7 +370,7 @@ def apply_updates_to_yaml(
             if old_th is None or float(old_th) < new_th:
                 if verbose:
                     print(
-                        f" - Setting arch_overrides.{arch}.required_pcc: {old_th} -> {new_th} for {bracket_key}"
+                        f"   - Setting arch_overrides.{arch}.required_pcc: {old_th} -> {new_th} for {bracket_key}"
                     )
                 arch_entry["required_pcc"] = new_th
 
@@ -379,7 +379,7 @@ def apply_updates_to_yaml(
             if arch_entry.get("assert_pcc") is False:
                 if verbose:
                     print(
-                        f" - Removing arch_overrides.{arch}.assert_pcc:false for {bracket_key}"
+                        f"   - Removing arch_overrides.{arch}.assert_pcc:false for {bracket_key}"
                     )
                 arch_entry.pop("assert_pcc", None)
                 # Remove empty arch entry
@@ -464,43 +464,39 @@ def main() -> int:
         return 1
 
     start = time.time()
-    print(f"Collecting guidance updates from {len(files)} files...\n", flush=True)
+    print(f"\nCollecting guidance updates from {len(files)} files...", flush=True)
     desired = collect_guidance_updates(files, verbose=args.verbose)
 
     if not desired:
         print("No guidance found in provided artifacts.")
         return 0
 
-    # Group by test_name to handle arch_overrides
-    by_test: Dict[str, Dict[str, Dict[str, object]]] = {}
-    for (test_name, arch), info in desired.items():
-        if test_name not in by_test:
-            by_test[test_name] = {}
-        plan = plan_updates_for_test(test_name, info)
-        if plan:
-            by_test[test_name][arch] = plan
+    # Group by config file, then test_name, creating plans on-the-fly
+    by_config: Dict[str, Dict[str, Dict[str, Dict[str, object]]]] = {}
+    actionable_test_count = 0
 
-    if not by_test:
+    for (test_name, arch), info in desired.items():
+        plan = plan_updates_for_test(test_name, info)
+        cfg = map_test_to_config_file(test_name, testing=args.testing)
+        if not plan or not cfg:
+            continue
+
+        if cfg not in by_config:
+            by_config[cfg] = {}
+        if test_name not in by_config[cfg]:
+            by_config[cfg][test_name] = {}
+            actionable_test_count += 1
+
+        by_config[cfg][test_name][arch] = plan
+
+    if not by_config:
         print("No actionable guidance found.")
         return 0
 
-    print(f"\nGenerating promotion plan for {len(by_test)} tests...\n", flush=True)
-    # Group by config file to load each file once
-    by_config: Dict[str, Dict[str, Dict[str, Dict[str, object]]]] = (
-        {}
-    )  # config_path -> test_name -> arch_plans
-    for test_name in sorted(by_test.keys()):
-        cfg = map_test_to_config_file(test_name, testing=args.testing)
-        if not cfg:
-            print(f"  - SKIP (no config): {test_name}")
-            continue
-        arch_plans = by_test[test_name]
-        if not arch_plans:
-            print(f"  - NOOP: {test_name}")
-            continue
-        if cfg not in by_config:
-            by_config[cfg] = {}
-        by_config[cfg][test_name] = arch_plans
+    print(
+        f"\nGenerating promotion plan for {actionable_test_count} tests...\n",
+        flush=True,
+    )
 
     # Process each config file
     for config_path in sorted(by_config.keys()):
@@ -510,7 +506,7 @@ def main() -> int:
         # Apply all updates for this config file
         for test_name, arch_plans in sorted(by_config[config_path].items()):
             print(
-                f"  - {('APPLY' if args.apply else 'PLAN ')} {os.path.basename(config_path)} :: {test_name} [archs: {', '.join(sorted(arch_plans.keys()))}] -> {arch_plans}"
+                f" - {('APPLY' if args.apply else 'PLAN ')} {os.path.basename(config_path)} :: {test_name} [archs: {', '.join(sorted(arch_plans.keys()))}] -> {arch_plans}"
             )
             bracket_key = apply_updates_to_yaml(
                 data, test_name, arch_plans, args.verbose
@@ -541,7 +537,9 @@ def main() -> int:
             write_yaml_config(config_path, data)
 
     elapsed = time.time() - start
-    print(f"Done in {elapsed:.2f}s. Mode: {'apply' if args.apply else 'dry-run'}")
+    print(
+        f"\nFinished test promotions in {elapsed:.2f}s. Mode: {'apply' if args.apply else 'dry-run'}"
+    )
     return 0
 
 
