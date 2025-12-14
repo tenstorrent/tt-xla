@@ -416,7 +416,67 @@ def add_key_preserving_trailing_comment(
             commented_map.ca.items[new_key] = new_comment_list
 
 
-# Apply arch-specific plans to a test's YAML entry, always using arch_overrides.
+def move_field_preserving_comments(
+    source_map: CommentedMap,
+    target_map: CommentedMap,
+    field: str,
+    value: object,
+) -> None:
+    """
+    Move a field from source to target, preserving all inline and trailing comments.
+    """
+    # Get existing comments from source
+    source_comments = None
+    if (
+        hasattr(source_map, "ca")
+        and source_map.ca.items
+        and field in source_map.ca.items
+    ):
+        source_comments = list(source_map.ca.items[field])
+
+    # Set value at target
+    target_map[field] = value
+    print(
+        f"KCM move_field_preserving_comments starting with source_map: {source_map} and target_map: {target_map} and field: {field} and value: {value} source_comments: {source_comments}"
+    )
+
+    # If source had comments, transfer them to target
+    if source_comments:
+        print(f"KCM - Source had comments for field: {field}")
+        # Get existing target comments if any
+        target_comments = [None, None, None, None]
+        print(f"KCM - Target had comments for field: {field}")
+        if (
+            hasattr(target_map, "ca")
+            and target_map.ca.items
+            and field in target_map.ca.items
+        ):
+            target_comments = list(
+                target_map.ca.items.get(field, [None, None, None, None])
+            )
+
+        while len(target_comments) < 4:
+            target_comments.append(None)
+        while len(source_comments) < 4:
+            source_comments.append(None)
+
+        # Copy inline comment (index 1) from source if target doesn't have one
+        if source_comments[1] and not target_comments[1]:
+            print(
+                f"KCM - Copying inline comment from source to target for field: {field} source_comments[1]: {source_comments[1]} target_comments[1]: {target_comments[1]}"
+            )
+            target_comments[1] = source_comments[1]
+
+        # Copy trailing comment (index 2) from source if target doesn't have one
+        if source_comments[2] and not target_comments[2]:
+            print(
+                f"KCM - Copying trailing comment from source to target for field: {field} source_comments[2]: {source_comments[2]} target_comments[2]: {target_comments[2]}"
+            )
+            target_comments[2] = source_comments[2]
+
+        target_map.ca.items[field] = target_comments
+
+
 def apply_updates_to_yaml(
     data: CommentedMap,
     test_name: str,
@@ -438,23 +498,34 @@ def apply_updates_to_yaml(
         entry = CommentedMap(entry)
         test_config[bracket_key] = entry
 
-    # Build the complete arch_overrides structure first before adding it to entry
-    # This ensures trailing comments are attached to the innermost last key
+    # Check if arch_overrides already exists
     arch_overrides_existed = "arch_overrides" in entry
-    existing_arch_overrides = entry.get("arch_overrides")
 
-    # Start with existing arch_overrides or create new one
-    if isinstance(existing_arch_overrides, CommentedMap):
-        arch_overrides = CommentedMap(existing_arch_overrides)
+    # Reuse existing arch_overrides or create new one (DON'T copy!)
+    if arch_overrides_existed:
+        arch_overrides = entry.get("arch_overrides")
+        if not isinstance(arch_overrides, CommentedMap):
+            # Convert plain dict to CommentedMap
+            arch_overrides = CommentedMap(arch_overrides)
+            entry["arch_overrides"] = arch_overrides
     else:
-        arch_overrides = CommentedMap(existing_arch_overrides or {})
+        arch_overrides = CommentedMap()
 
-    # Build the complete arch_overrides structure with all changes
+    # Track if we made any modifications
+    modified = False
+
+    # Apply changes per arch
     for arch, plan in arch_plans.items():
+        # Reuse existing arch_entry or create new one (DON'T copy!)
         arch_entry = arch_overrides.get(arch)
-        if not isinstance(arch_entry, CommentedMap):
-            arch_entry = CommentedMap(arch_entry or {})
-        arch_overrides[arch] = arch_entry
+        if arch_entry is None:
+            arch_entry = CommentedMap()
+            arch_overrides[arch] = arch_entry
+        elif not isinstance(arch_entry, CommentedMap):
+            # Convert plain dict to CommentedMap while preserving structure
+            arch_entry = CommentedMap(arch_entry)
+            arch_overrides[arch] = arch_entry
+        # else: arch_entry is already a CommentedMap, reuse it as-is
 
         # Apply required_pcc change
         if "set_required_pcc" in plan:
@@ -466,6 +537,7 @@ def apply_updates_to_yaml(
                         f"   - Setting arch_overrides.{arch}.required_pcc: {old_th} -> {new_th} for {bracket_key}"
                     )
                 arch_entry["required_pcc"] = new_th
+                modified = True
 
         # Apply assert_pcc change (remove assert_pcc:false)
         if plan.get("remove_assert_pcc_false"):
@@ -476,27 +548,23 @@ def apply_updates_to_yaml(
                         f"   - Removing arch_overrides.{arch}.assert_pcc:false for {bracket_key}"
                     )
                 arch_entry.pop("assert_pcc", None)
+                modified = True
                 # Remove empty arch entry
                 if not arch_entry:
                     arch_overrides.pop(arch, None)
 
-    # Now add the complete arch_overrides structure to the entry
-    # Use add_key_preserving_trailing_comment if adding for first time
-    if arch_overrides and len(arch_overrides) > 0:
-        if not arch_overrides_existed:
-            # Adding for first time - use function to preserve trailing comments
+    # Add arch_overrides if we're creating it for the first time
+    if modified and not arch_overrides_existed:
+        if arch_overrides and len(arch_overrides) > 0:
             add_key_preserving_trailing_comment(
                 entry, "arch_overrides", arch_overrides, verbose
             )
-        else:
-            # Already exists - just update it
-            entry["arch_overrides"] = arch_overrides
-    else:
-        # Clean up empty arch_overrides
+
+    # Clean up empty arch_overrides
+    if "arch_overrides" in entry and (not arch_overrides or len(arch_overrides) == 0):
         entry.pop("arch_overrides", None)
 
-    test_config[bracket_key] = entry  # type: ignore
-    return bracket_key
+    return bracket_key if modified else None
 
 
 # Optimize arch_overrides by moving common fields to top-level and cleaning up.
@@ -518,17 +586,30 @@ def optimize_arch_overrides(
             all_fields.update(arch_entry.keys())
 
     # Collect fields to move to top-level (common across all archs)
-    fields_to_move: Dict[str, object] = {}
+    fields_to_move: Dict[str, Tuple[object, Optional[CommentedMap]]] = {}
     for field in all_fields:
         field_values: Dict[str, object] = {}
-        # Collect field value for each arch (checking arch_overrides first, then top-level)
+        # Track which arch has the field WITH COMMENTS (to preserve them)
+        source_arch_map = None
+
+        # Iterate through arch_overrides in YAML order to find the LAST arch with this field
+        # This is important because the last arch will have the trailing comment which is
+        # occasionally a line break between tests.
+        if isinstance(arch_overrides, dict):
+            for arch in arch_overrides.keys():  # Preserves YAML order
+                arch_entry = arch_overrides.get(arch)
+                if isinstance(arch_entry, dict) and field in arch_entry:
+                    field_values[arch] = arch_entry[field]
+                    # Always update source_arch_map - we want the LAST arch in YAML order
+                    if isinstance(arch_entry, CommentedMap):
+                        source_arch_map = arch_entry
+
+        # Now check if any remaining archs (not in arch_overrides) inherit from top-level
         for arch in all_archs:
-            arch_entry = arch_overrides.get(arch)
-            if isinstance(arch_entry, dict) and field in arch_entry:
-                field_values[arch] = arch_entry[field]
-            elif field in entry:
-                # Arch doesn't have override, use top-level value
-                field_values[arch] = entry[field]
+            if arch not in field_values:
+                if field in entry:
+                    # Arch doesn't have override, use top-level value
+                    field_values[arch] = entry[field]
 
         # If all archs have the same value (or inherit same top-level), mark for moving
         if len(field_values) == len(all_archs):
@@ -537,15 +618,28 @@ def optimize_arch_overrides(
             if all(v == first_value for v in values):
                 # Only move if top-level doesn't already have it, or if it's different
                 if field not in entry or entry[field] != first_value:
-                    fields_to_move[field] = first_value
+                    fields_to_move[field] = (first_value, source_arch_map)
 
     # Move fields to top-level and remove from arch_overrides
     if fields_to_move:
-        for field, common_value in fields_to_move.items():
+        for field, (common_value, source_map) in fields_to_move.items():
             if verbose:
                 print(
                     f" - Optimizing: moving {field}={common_value} to top-level (common across all archs) for {bracket_key}"
                 )
+
+            # Move the field with its comments from source to target
+            if source_map:
+                print(
+                    f"KCM - Moving field {field} from source_map to entry with source_map: {source_map} and entry: {entry}"
+                )
+                move_field_preserving_comments(source_map, entry, field, common_value)
+            else:
+                print(
+                    f"KCM - Moving field {field} from entry to entry with entry: {entry}"
+                )
+                entry[field] = common_value
+
             # Remove from all arch_overrides
             for arch in all_archs:
                 arch_entry = arch_overrides.get(arch)
@@ -554,8 +648,6 @@ def optimize_arch_overrides(
                     # Remove empty arch entry
                     if not arch_entry:
                         arch_overrides.pop(arch, None)
-            # Set at top-level
-            entry[field] = common_value
 
         # Reorder: move arch_overrides to end so top-level fields appear first
         if "arch_overrides" in entry and entry["arch_overrides"]:
