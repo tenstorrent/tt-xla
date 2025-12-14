@@ -337,6 +337,85 @@ def get_arch_or_top(
     return val if val is not None else entry.get(key)
 
 
+# Add a key to a CommentedMap while preserving trailing comments.
+def add_key_preserving_trailing_comment(
+    commented_map: CommentedMap, new_key: str, new_value: object, verbose: bool = False
+) -> None:
+    """
+    Add a key to a CommentedMap while preserving trailing comments.
+    If the last key has a trailing comment (blank lines + next section comment),
+    move it to the new key being added.
+
+    For nested CommentedMaps, the trailing comment is attached to the last key
+    of the innermost nested structure.
+    """
+    print(
+        f"KCM Inside add_key_preserving_trailing_comment with new_key: {new_key} and new_value: {new_value}"
+    )
+    # Save trailing comment from the current last key
+    trailing_comment = None
+    if commented_map and hasattr(commented_map, "ca") and commented_map.ca.items:
+        last_key = list(commented_map.keys())[-1]
+        if last_key in commented_map.ca.items:
+            comment_list = commented_map.ca.items[last_key]
+            if len(comment_list) > 2 and comment_list[2]:
+                trailing_comment = comment_list[2]
+                # Clear it from the old position
+                cleaned = list(comment_list)
+                cleaned[2] = None
+                commented_map.ca.items[last_key] = cleaned
+
+    # Add the new key
+    commented_map[new_key] = new_value
+
+    # Attach the trailing comment to the appropriate location
+    if trailing_comment:
+        # If the value is a nested CommentedMap, attach to the innermost last key
+        if isinstance(new_value, CommentedMap) and new_value:
+            # Navigate to the deepest last key
+            if verbose:
+                print(f"Found nested CommentedMap for key: {new_key}")
+            current = new_value
+            path = []
+
+            while isinstance(current, CommentedMap) and current:
+                last_nested_key = list(current.keys())[-1]
+                path.append((current, last_nested_key))
+                last_nested_value = current[last_nested_key]
+
+                if isinstance(last_nested_value, CommentedMap) and last_nested_value:
+                    current = last_nested_value
+                else:
+                    # Found the innermost last key - attach comment here
+                    break
+
+            # Attach to the deepest key we found
+            if path:
+                target_map, target_key = path[-1]
+                if target_key not in target_map.ca.items:
+                    target_map.ca.items[target_key] = [None, None, None, None]
+                inner_comment_list = list(
+                    target_map.ca.items.get(target_key, [None, None, None, None])
+                )
+                while len(inner_comment_list) < 4:
+                    inner_comment_list.append(None)
+                inner_comment_list[2] = trailing_comment
+                target_map.ca.items[target_key] = inner_comment_list
+        else:
+            if verbose:
+                print(f"Found simple value for key: {new_key}")
+            # Simple value, attach to the new key itself
+            if new_key not in commented_map.ca.items:
+                commented_map.ca.items[new_key] = [None, None, None, None]
+            new_comment_list = list(
+                commented_map.ca.items.get(new_key, [None, None, None, None])
+            )
+            while len(new_comment_list) < 4:
+                new_comment_list.append(None)
+            new_comment_list[2] = trailing_comment
+            commented_map.ca.items[new_key] = new_comment_list
+
+
 # Apply arch-specific plans to a test's YAML entry, always using arch_overrides.
 def apply_updates_to_yaml(
     data: CommentedMap,
@@ -359,18 +438,23 @@ def apply_updates_to_yaml(
         entry = CommentedMap(entry)
         test_config[bracket_key] = entry
 
-    # Ensure arch_overrides exists as CommentedMap
-    arch_overrides = entry.get("arch_overrides")
-    if not isinstance(arch_overrides, CommentedMap):
-        arch_overrides = CommentedMap(arch_overrides or {})
-        entry["arch_overrides"] = arch_overrides
+    # Build the complete arch_overrides structure first before adding it to entry
+    # This ensures trailing comments are attached to the innermost last key
+    arch_overrides_existed = "arch_overrides" in entry
+    existing_arch_overrides = entry.get("arch_overrides")
 
-    # Apply changes per arch - always use arch_overrides
+    # Start with existing arch_overrides or create new one
+    if isinstance(existing_arch_overrides, CommentedMap):
+        arch_overrides = CommentedMap(existing_arch_overrides)
+    else:
+        arch_overrides = CommentedMap(existing_arch_overrides or {})
+
+    # Build the complete arch_overrides structure with all changes
     for arch, plan in arch_plans.items():
         arch_entry = arch_overrides.get(arch)
         if not isinstance(arch_entry, CommentedMap):
             arch_entry = CommentedMap(arch_entry or {})
-            arch_overrides[arch] = arch_entry
+        arch_overrides[arch] = arch_entry
 
         # Apply required_pcc change
         if "set_required_pcc" in plan:
@@ -396,8 +480,19 @@ def apply_updates_to_yaml(
                 if not arch_entry:
                     arch_overrides.pop(arch, None)
 
-    # Clean up empty arch_overrides
-    if not arch_overrides or len(arch_overrides) == 0:
+    # Now add the complete arch_overrides structure to the entry
+    # Use add_key_preserving_trailing_comment if adding for first time
+    if arch_overrides and len(arch_overrides) > 0:
+        if not arch_overrides_existed:
+            # Adding for first time - use function to preserve trailing comments
+            add_key_preserving_trailing_comment(
+                entry, "arch_overrides", arch_overrides, verbose
+            )
+        else:
+            # Already exists - just update it
+            entry["arch_overrides"] = arch_overrides
+    else:
+        # Clean up empty arch_overrides
         entry.pop("arch_overrides", None)
 
     test_config[bracket_key] = entry  # type: ignore
