@@ -428,6 +428,96 @@ def normalize_entry_with_arch_overrides(
     add_arch_overrides_preserving_trailing_comment(entry, arch_overrides)
 
 
+def save_entry_trailing_comment(entry: CommentedMap) -> Optional[object]:
+    """
+    Save the trailing comment from the deepest last key in an entry.
+    Recursively navigates nested structures to find it.
+    """
+    if not entry:
+        return None
+    
+    def find_trailing_recursive(current_map):
+        """Recursively find the trailing comment in the deepest last key."""
+        if not isinstance(current_map, CommentedMap):
+            return None
+        
+        keys = list(current_map.keys())
+        if not keys:
+            return None
+        
+        last_key = keys[-1]
+        
+        # Check if this level has a trailing comment
+        if hasattr(current_map, "ca") and current_map.ca.items and last_key in current_map.ca.items:
+            comment_list = current_map.ca.items[last_key]
+            if len(comment_list) > 2 and comment_list[2]:
+                # Found it at this level, but check deeper first
+                pass
+        
+        # Check if we can go deeper
+        last_value = current_map[last_key]
+        if isinstance(last_value, CommentedMap) and last_value:
+            # Go deeper
+            deeper_comment = find_trailing_recursive(last_value)
+            if deeper_comment:
+                return deeper_comment
+        
+        # No deeper level or no comment deeper, return this level's comment
+        if hasattr(current_map, "ca") and current_map.ca.items and last_key in current_map.ca.items:
+            comment_list = current_map.ca.items[last_key]
+            if len(comment_list) > 2 and comment_list[2]:
+                return comment_list[2]
+        
+        return None
+    
+    return find_trailing_recursive(entry)
+
+
+def apply_entry_trailing_comment(entry: CommentedMap, trailing_comment: object) -> None:
+    """
+    Apply a trailing comment to the last key in an entry.
+    Navigates into nested structures (like arch_overrides) to find the true last key.
+    """
+    if not trailing_comment or not entry:
+        return
+    
+    keys = list(entry.keys())
+    if not keys:
+        return
+    
+    # Find the actual last key (might be nested in arch_overrides)
+    last_key = keys[-1]
+    last_value = entry[last_key]
+    
+    target_map = entry
+    target_key = last_key
+    
+    # If last key is arch_overrides, navigate to its last arch's last field
+    if last_key == "arch_overrides" and isinstance(last_value, CommentedMap) and last_value:
+        arch_keys = list(last_value.keys())
+        if arch_keys:
+            last_arch = arch_keys[-1]
+            last_arch_entry = last_value[last_arch]
+            if isinstance(last_arch_entry, CommentedMap) and last_arch_entry:
+                field_keys = list(last_arch_entry.keys())
+                if field_keys:
+                    target_map = last_arch_entry
+                    target_key = field_keys[-1]
+    
+    # Apply the trailing comment
+    if target_key not in target_map.ca.items:
+        target_map.ca.items[target_key] = [None, None, None, None]
+    
+    comment_list = list(target_map.ca.items.get(target_key, [None, None, None, None]))
+    while len(comment_list) < 4:
+        comment_list.append(None)
+    
+    # Only set if there's no inline comment (to avoid conflicts)
+    if not comment_list[1]:
+        comment_list[2] = trailing_comment
+        target_map.ca.items[target_key] = comment_list
+
+
 def apply_updates_to_yaml(
     data: CommentedMap,
     test_name: str,
@@ -437,8 +527,7 @@ def apply_updates_to_yaml(
     """
     Apply changes grouped by arch, always using arch_overrides.
     
-    Simplified approach: entry is pre-normalized, so we're always updating existing keys.
-    This makes comment preservation automatic - no special handling needed!
+    Simplified approach: Save trailing comment before changes, restore after.
     """
     if "test_config" not in data or data["test_config"] is None:
         return None
@@ -452,34 +541,55 @@ def apply_updates_to_yaml(
         entry = CommentedMap(entry or {})
         test_config[bracket_key] = entry
 
+    # STEP 1: Save trailing comment before making any changes
+    trailing_comment = save_entry_trailing_comment(entry)
+    print(f"KCM DEBUG: Trailing comment: {trailing_comment}")
+
+    if "arch_overrides" not in entry:
+        return None
+        
     arch_overrides = entry.get("arch_overrides")
     if not isinstance(arch_overrides, CommentedMap):
-        return None  # Should have been normalized
+        return None
 
     modified = False
 
+    # STEP 2: Make all the changes
     for arch, plan in arch_plans.items():
         arch_entry = arch_overrides.get(arch)
-        if not isinstance(arch_entry, CommentedMap):
-            continue  # Should have been normalized
+        if arch_entry is None or not isinstance(arch_entry, CommentedMap):
+            arch_entry = CommentedMap()
+            for field in ["required_pcc", "assert_pcc"]:
+                if field in entry:
+                    arch_entry[field] = entry[field]
+                    copy_inline_comment_if_exists(entry, arch_entry, field)
+            arch_overrides[arch] = arch_entry
 
-        # Apply required_pcc change - simple assignment preserves comments!
         if "set_required_pcc" in plan:
             new_th = float(plan["set_required_pcc"])
             old_th = arch_entry.get("required_pcc")
             if old_th is None or float(old_th) < new_th:
                 if verbose:
                     print(f"   - Setting arch_overrides.{arch}.required_pcc: {old_th} -> {new_th} for {bracket_key}")
-                arch_entry["required_pcc"] = new_th  # Comments preserved automatically!
+                arch_entry["required_pcc"] = new_th
                 modified = True
 
-        # Apply assert_pcc change
         if plan.get("remove_assert_pcc_false"):
             if arch_entry.get("assert_pcc") is False:
                 if verbose:
                     print(f"   - Removing arch_overrides.{arch}.assert_pcc:false for {bracket_key}")
                 arch_entry.pop("assert_pcc", None)
                 modified = True
+                if not arch_entry:
+                    arch_overrides.pop(arch, None)
+
+    # Clean up empty arch_overrides
+    if not arch_overrides or len(arch_overrides) == 0:
+        entry.pop("arch_overrides", None)
+
+    # STEP 3: Restore trailing comment to the (possibly new) last key
+    if modified and trailing_comment:
+        apply_entry_trailing_comment(entry, trailing_comment)
 
     return bracket_key if modified else None
 
