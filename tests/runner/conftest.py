@@ -179,8 +179,9 @@ def pytest_collection_modifyitems(config, items):
             if "-" in arch_marker:
                 item.add_marker(getattr(pytest.mark, arch_marker.replace("-", "_")))
 
-    # Exclude deselected tests from the collected items.
+    # Exclude deselected tests from the collected items and properly report them as deselected.
     if deselected:
+        config.hook.pytest_deselected(items=deselected)
         items[:] = [i for i in items if i not in deselected]
 
     # If validating config, clear all items so no tests run
