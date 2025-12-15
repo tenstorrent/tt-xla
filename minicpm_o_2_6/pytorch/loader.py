@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer
-from transformers.integrations.tensor_parallel import ALL_PARALLEL_STYLES
+from transformers.modeling_utils import ALL_PARALLEL_STYLES
 from PIL import Image
 import requests
 from io import BytesIO

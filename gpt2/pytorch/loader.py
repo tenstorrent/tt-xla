@@ -91,7 +91,7 @@ class ModelLoader(ForgeModel):
         if self._variant == ModelVariant.GPT2_BASE:
             config = GPT2Config.from_pretrained(model_name)
             config_dict = config.to_dict()
-            config_dict["use_cache"] = True
+            config_dict["use_cache"] = False
             if dtype_override is not None:
                 config_dict["torch_dtype"] = dtype_override
             config = GPT2Config(**config_dict)

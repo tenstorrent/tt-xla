@@ -137,7 +137,6 @@ class ModelLoader(ForgeModel):
         test_input = "This is a sample text from "
 
         # Tokenize input
-        self.tokenizer.padding_side = "right"
         inputs = self.tokenizer.encode_plus(
             test_input,
             return_tensors="pt",
