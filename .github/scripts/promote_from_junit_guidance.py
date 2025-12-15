@@ -575,6 +575,8 @@ def apply_updates_to_yaml(
         return None
 
     modified = False
+    archs_removing_assert_pcc = set()
+    all_known_archs = get_all_archs_for_entry(entry)
 
     for arch, plan in arch_plans.items():
         arch_entry = arch_overrides.get(arch)
@@ -601,8 +603,17 @@ def apply_updates_to_yaml(
                     print(f"   - Removing arch_overrides.{arch}.assert_pcc:false for {bracket_key}")
                 arch_entry.pop("assert_pcc", None)
                 modified = True
+                archs_removing_assert_pcc.add(arch)
                 if not arch_entry:
                     arch_overrides.pop(arch, None)
+
+    # Remove assert_pcc from top-level only if ALL known archs are removing it
+    # (We only remove from top-level if we have guidance for all archs)
+    if archs_removing_assert_pcc and archs_removing_assert_pcc == all_known_archs:
+        if "assert_pcc" in entry:
+            if verbose:
+                print(f"   - Removing top-level assert_pcc:false for {bracket_key} (all archs removing it)")
+            entry.pop("assert_pcc", None)
 
     # Clean up empty arch_overrides
     if not arch_overrides or len(arch_overrides) == 0:
@@ -802,6 +813,12 @@ def main() -> int:
         
         # STEP 2: Normalize entries (duplicate fields to arch_overrides)
         normalize_tests_for_modification(test_config, test_names, args.verbose)
+        
+        # DEBUG: Write intermediate YAML after normalization
+        if args.verbose:
+            debug_path = config_path.replace(".yaml", ".after_normalize.yaml")
+            write_yaml_config(debug_path, data)
+            print(f"DEBUG: Wrote normalized YAML to {debug_path}")
         
         # STEP 3: Apply updates
         modified_bracket_keys = apply_all_updates(
