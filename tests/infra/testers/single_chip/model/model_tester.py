@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import os
+import time
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Callable, Optional, Tuple
@@ -11,6 +13,7 @@ from typing import Callable, Optional, Tuple
 from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
+from loguru import logger
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
@@ -45,6 +48,11 @@ class ModelTester(BaseTester, ABC):
 
         self._model: Model = None
         self._workload: Workload = None
+
+        self._disable_perf_measurement = (
+            os.environ.get("DISABLE_PERF_MEASUREMENT", "0") == "1"
+        )
+        self._perf_measurements: list[dict[str, float]] = []
 
         super().__init__(comparison_config, framework)
         self._initialize_components()
@@ -153,9 +161,40 @@ class ModelTester(BaseTester, ABC):
         cpu_res = self._run_on_cpu(self._workload)
 
         self._compile_for_tt_device(self._workload)
+
+        if not self._disable_perf_measurement:
+            e2e_perf_stats = self._test_e2e_perf()
+            list.append(self._perf_measurements, e2e_perf_stats)
+
         tt_res = self._run_on_tt_device(self._workload)
 
         return (self._compare(tt_res, cpu_res),)
+
+    def _test_e2e_perf(self) -> dict[str, float]:
+        warmup_iters = 3
+        perf_iters = 2
+
+        # warmup runs
+        for _ in range(warmup_iters):
+            _ = self._run_on_tt_device(self._workload)
+
+        # e2e perf
+        tt_start = time.perf_counter()
+        for _ in range(perf_iters):
+            tt_res = self._run_on_tt_device(self._workload)
+        tt_end = time.perf_counter()
+        tt_total_time = tt_end - tt_start
+
+        avg_time = tt_total_time / perf_iters
+
+        perf_stats = {
+            "warmup_iters": warmup_iters,
+            "perf_iters": perf_iters,
+            "total_time": tt_total_time,
+            "avg_time": avg_time,
+        }
+
+        return perf_stats
 
     def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on CPU."""
