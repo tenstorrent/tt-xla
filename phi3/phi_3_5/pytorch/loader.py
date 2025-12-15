@@ -96,12 +96,19 @@ class ModelLoader(ForgeModel):
         """Load and return sample inputs for the Phi 3.5 model with this instance's variant settings."""
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
-        prompt = "Africa is an emerging economy because"
+        prompt = [
+            {
+                "role": "user",
+                "content": "Can you provide ways to eat combinations of bananas and dragonfruits?",
+            },
+        ]
+        text = self.tokenizer.apply_chat_template(
+            prompt, tokenize=False, add_generation_prompt=True, enable_thinking=True
+        )
         inputs = self.tokenizer(
-            prompt,
+            [text],
             return_tensors="pt",
-            max_length=256,
-            padding="max_length",
+            padding=True,
             truncation=True,
         )
         for key in inputs:

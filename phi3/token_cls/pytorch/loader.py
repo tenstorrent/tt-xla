@@ -74,8 +74,17 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None, text: Optional[str] = None):
         self._ensure_tokenizer()
-        input_prompt = text or "HuggingFace is a company based in Paris and New York"
-        inputs = self.tokenizer(input_prompt, return_tensors="pt")
+        input_prompt = [
+            {
+                "role": "user",
+                "content": text
+                or "Can you provide ways to eat combinations of bananas and dragonfruits?",
+            }
+        ]
+        text = self.tokenizer.apply_chat_template(
+            input_prompt, add_generation_prompt=True, tokenize=False
+        )
+        inputs = self.tokenizer([text], return_tensors="pt")
         input_ids = inputs["input_ids"]
         if dtype_override is not None:
             input_ids = cast_input_to_type(input_ids, dtype_override)
