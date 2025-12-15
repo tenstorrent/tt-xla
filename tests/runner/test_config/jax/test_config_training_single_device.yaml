@@ -225,7 +225,7 @@ test_config:
 
   gpt2/causal_lm/jax-xl-single_device-full-training:
     status: EXPECTED_PASSING
-    markers: [large]
+    markers: [large, nightly]
 
   gpt_j/causal_lm/jax-6b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -340,7 +340,7 @@ test_config:
 
   mnist/image_classification/jax-mlp_custom-single_device-full-training:
     status: EXPECTED_PASSING
-    markers: [push]
+    markers: [push, nightly]
 
   mt5/nlp_summarization/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP

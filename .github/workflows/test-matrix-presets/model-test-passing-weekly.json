@@ -1,4 +1,18 @@
 [
-  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "weekly and n150 and expected_passing", "parallel-groups": 1 },
-  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "weekly and p150 and expected_passing", "parallel-groups": 1 }
+  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "inference and weekly and n150 and expected_passing and not large", "parallel-groups": 20 },
+  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "inference and weekly and p150 and expected_passing and not large", "parallel-groups": 20 },
+  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "inference and weekly and n150 and expected_passing and large", "parallel-groups": 5, "shared-runners": "true" },
+  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "inference and weekly and p150 and expected_passing and large", "parallel-groups": 5, "shared-runners": "true" },
+  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "training and weekly and n150 and expected_passing and not large", "parallel-groups": 20 },
+  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "training and weekly and p150 and expected_passing and not large", "parallel-groups": 20 },
+  { "runs-on": "n150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "training and weekly and n150 and expected_passing and large", "parallel-groups": 5, "shared-runners": "true" },
+  { "runs-on": "p150", "name": "run_forge_models_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "training and weekly and p150 and expected_passing and large", "parallel-groups": 5, "shared-runners": "true" },
+  { "runs-on": "n150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "inference and weekly and n150 and expected_passing and not large", "parallel-groups": 5 },
+  { "runs-on": "p150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "inference and weekly and p150 and expected_passing and not large", "parallel-groups": 5 },
+  { "runs-on": "n150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "inference and weekly and n150 and expected_passing and large", "parallel-groups": 5, "shared-runners": "true" },
+  { "runs-on": "p150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "inference and weekly and p150 and expected_passing and large", "parallel-groups": 5, "shared-runners": "true" },
+  { "runs-on": "n150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "training and weekly and n150 and expected_passing and not large", "parallel-groups": 5 },
+  { "runs-on": "p150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "training and weekly and p150 and expected_passing and not large", "parallel-groups": 5 },
+  { "runs-on": "n150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "training and weekly and n150 and expected_passing and large", "parallel-groups": 5, "shared-runners": "true" },
+  { "runs-on": "p150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "training and weekly and p150 and expected_passing and large", "parallel-groups": 5, "shared-runners": "true" }
 ]
