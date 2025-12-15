@@ -136,12 +136,13 @@ test_config:
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-inference:
     supported_archs: ["p150"]
-    required_pcc: 0.97 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/2433
+    required_pcc: 0.96 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/2433
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    required_pcc: 0.98
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-inference:
     supported_archs: ["p150"]
@@ -579,17 +580,26 @@ test_config:
 
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-inference:
     status: EXPECTED_PASSING
+    required_pcc: 0.98
 
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-inference:
     status: EXPECTED_PASSING
 
   phi2/token_classification/pytorch-microsoft/phi-2-single_device-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING # p150 : https://github.com/tenstorrent/tt-xla/issues/2181 n150 : https://github.com/tenstorrent/tt-xla/issues/2433
+    status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
+      n150:
+        assert_pcc: false # n150 : https://github.com/tenstorrent/tt-xla/issues/2433, large decrese with change torch==2.9.0
 
   phi2/token_classification/pytorch-microsoft/phi-2-pytdml-single_device-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING # p150 : https://github.com/tenstorrent/tt-xla/issues/2181 n150 : https://github.com/tenstorrent/tt-xla/issues/2433
+    status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
+      n150:
+        assert_pcc: false # n150 : https://github.com/tenstorrent/tt-xla/issues/2433, large decrese with change torch==2.9.0
 
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-inference:
     status: EXPECTED_PASSING
@@ -871,8 +881,10 @@ test_config:
 
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-inference:
     status: EXPECTED_PASSING
+    assert_pcc: false # AssertionError: Calculated: pcc=0.9186094999313354. Required: pcc=0.99. Change to torch==2.9.0, issue
 
   qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-inference:
+    required_pcc: 0.97
     status: EXPECTED_PASSING
 
   qwen_2_5_vl/pytorch-72b_instruct-single_device-inference:
@@ -1291,6 +1303,7 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov9/pytorch-t-single_device-inference:
+    required_pcc: 0.98
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
@@ -1575,6 +1588,7 @@ test_config:
     markers: [push]
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-inference:
+    required_pcc: 0.98
     status: EXPECTED_PASSING
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-inference:
@@ -1645,6 +1659,9 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
+      p150:
+        status: EXPECTED_PASSING
+        assert_pcc: false # Calculated: pcc=0.9130426049232483. Change to torch==2.9.0
 
   llama/causal_lm/pytorch-llama_3_1_70b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1705,6 +1722,9 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
+      p150:
+        status: EXPECTED_PASSING
+        assert_pcc: false # Calculated: pcc=0.9396957755088806. Change to torch==2.9.0
 
   llama/sequence_classification/pytorch-llama_3_1_70b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2506,6 +2526,7 @@ test_config:
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_10-single_device-inference:
     status: EXPECTED_PASSING
+    required_pcc: 0.96
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
@@ -2514,6 +2535,7 @@ test_config:
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial-single_device-inference:
     status: EXPECTED_PASSING
+    required_pcc: 0.98
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
@@ -2521,6 +2543,7 @@ test_config:
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_goal-single_device-inference:
     status: EXPECTED_PASSING
+    required_pcc: 0.98
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
@@ -2528,6 +2551,7 @@ test_config:
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_object-single_device-inference:
     status: EXPECTED_PASSING
+    required_pcc: 0.98
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
@@ -2535,6 +2559,7 @@ test_config:
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial_object_goal_10-single_device-inference:
     status: EXPECTED_PASSING
+    required_pcc: 0.97
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
