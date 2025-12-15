@@ -116,7 +116,6 @@ def get_available_variants(model_name):
 """Llama decoder layer test"""
 
 
-@pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [512])
 @pytest.mark.parametrize(
@@ -202,7 +201,6 @@ def test_llama_decoder_layer(seq_len, variant, variant_config, arch):
 """Qwen3 decoder layer test"""
 
 
-@pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [512])
 @pytest.mark.parametrize(
@@ -288,7 +286,6 @@ def test_qwen3_decoder_layer(seq_len, variant, variant_config, arch):
 """Gemma decoder layer test"""
 
 
-@pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [512])
 @pytest.mark.parametrize(
@@ -426,7 +423,6 @@ def test_gemma_decoder_layer(seq_len, variant, variant_config, arch):
 """Mistral decoder layer test"""
 
 
-@pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [512])
 @pytest.mark.parametrize(
@@ -513,7 +509,6 @@ def test_mistral_decoder_layer(seq_len, variant, variant_config, arch):
 """Qwen2.5 decoder layer test"""
 
 
-@pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [512])
 @pytest.mark.parametrize(
