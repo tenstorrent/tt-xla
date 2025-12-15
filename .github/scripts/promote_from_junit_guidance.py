@@ -292,7 +292,7 @@ def plan_updates_for_test(
         pcc_val_f = None
     plan: Dict[str, object] = {}
     if "ENABLE_PCC_099" in tags or "ENABLE_PCC" in tags:
-        plan["remove_assert_pcc_false"] = True
+        plan["enable_pcc"] = True
     elif "RAISE_PCC_099" in tags or "RAISE_PCC" in tags:
         if pcc_val_f is not None:
             adjusted_pcc = pcc_val_f - PCC_BUFFER
@@ -575,8 +575,6 @@ def apply_updates_to_yaml(
         return None
 
     modified = False
-    archs_removing_assert_pcc = set()
-    all_known_archs = get_all_archs_for_entry(entry)
 
     for arch, plan in arch_plans.items():
         arch_entry = arch_overrides.get(arch)
@@ -597,23 +595,11 @@ def apply_updates_to_yaml(
                 arch_entry["required_pcc"] = new_th
                 modified = True
 
-        if plan.get("remove_assert_pcc_false"):
-            if arch_entry.get("assert_pcc") is False:
-                if verbose:
-                    print(f"   - Removing arch_overrides.{arch}.assert_pcc:false for {bracket_key}")
-                arch_entry.pop("assert_pcc", None)
-                modified = True
-                archs_removing_assert_pcc.add(arch)
-                if not arch_entry:
-                    arch_overrides.pop(arch, None)
-
-    # Remove assert_pcc from top-level only if ALL known archs are removing it
-    # (We only remove from top-level if we have guidance for all archs)
-    if archs_removing_assert_pcc and archs_removing_assert_pcc == all_known_archs:
-        if "assert_pcc" in entry:
+        if plan.get("enable_pcc"):
             if verbose:
-                print(f"   - Removing top-level assert_pcc:false for {bracket_key} (all archs removing it)")
-            entry.pop("assert_pcc", None)
+                print(f"   - Enabling PCC for arch_overrides.{arch} (setting assert_pcc: true) for {bracket_key}")
+            arch_entry["assert_pcc"] = True
+            modified = True
 
     # Clean up empty arch_overrides
     if not arch_overrides or len(arch_overrides) == 0:
@@ -764,6 +750,12 @@ def optimize_arch_overrides(
         if "arch_overrides" in entry and entry["arch_overrides"]:
             arch_overrides_val = entry.pop("arch_overrides")
             entry["arch_overrides"] = arch_overrides_val
+
+    # Remove assert_pcc: true from top-level (true is the default)
+    if "assert_pcc" in entry and entry["assert_pcc"] is True:
+        if verbose:
+            print(f" - Optimizing: removing assert_pcc: true from top-level (default) for {bracket_key}")
+        entry.pop("assert_pcc", None)
 
     # Clean up empty arch_overrides
     if not arch_overrides or len(arch_overrides) == 0:
