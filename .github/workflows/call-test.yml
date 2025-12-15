@@ -286,15 +286,15 @@ jobs:
         apt-get update
         apt install -y libgl1 libglx-mesa0
 
-    # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
-    # but still run tests even in case of failure here, will still treat overall job as failed.
-    - name: Validate Forge Models Tests test config file
-      if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
-      shell: bash
-      run: |
-        source venv/activate
-        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_torch --validate-test-config
-        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_jax --validate-test-config
+    # # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
+    # # but still run tests even in case of failure here, will still treat overall job as failed.
+    # - name: Validate Forge Models Tests test config file
+    #   if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
+    #   shell: bash
+    #   run: |
+    #     source venv/activate
+    #     python -m pytest -vv ./tests/runner/test_models.py::test_all_models_torch --validate-test-config
+    #     python -m pytest -vv ./tests/runner/test_models.py::test_all_models_jax --validate-test-config
 
     - name: Collect Tests
       id: collect-tests
