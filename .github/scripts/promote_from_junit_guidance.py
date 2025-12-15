@@ -697,6 +697,7 @@ def optimize_arch_overrides(
 ) -> None:
     """
     Move fields to top-level if common across all archs, preserving comments.
+    Remove fields from top-level if all archs override them.
     """
     arch_overrides = entry.get("arch_overrides")
     if not arch_overrides or not isinstance(arch_overrides, dict):
@@ -707,6 +708,7 @@ def optimize_arch_overrides(
         if isinstance(arch_entry, dict):
             all_fields.update(arch_entry.keys())
 
+    # PASS 1: Move common fields to top-level
     fields_to_move: Dict[str, object] = {}
     for field in all_fields:
         field_values: Dict[str, object] = {}
@@ -750,6 +752,30 @@ def optimize_arch_overrides(
         if "arch_overrides" in entry and entry["arch_overrides"]:
             arch_overrides_val = entry.pop("arch_overrides")
             entry["arch_overrides"] = arch_overrides_val
+
+    # PASS 2: Remove top-level fields that are overridden by all archs
+    # Collect fields that exist in arch_overrides for ALL known archs
+    fields_in_all_archs: set[str] = None
+    for arch in all_archs:
+        arch_entry = arch_overrides.get(arch)
+        if isinstance(arch_entry, dict):
+            arch_fields = set(arch_entry.keys())
+            if fields_in_all_archs is None:
+                fields_in_all_archs = arch_fields
+            else:
+                fields_in_all_archs = fields_in_all_archs.intersection(arch_fields)
+        else:
+            # If any arch has no overrides, no fields are in all archs
+            fields_in_all_archs = set()
+            break
+    
+    # Remove these fields from top-level (they're overridden by all archs anyway)
+    if fields_in_all_archs:
+        for field in fields_in_all_archs:
+            if field in entry:
+                if verbose:
+                    print(f" - Optimizing: removing top-level {field} (overridden by all archs) for {bracket_key}")
+                entry.pop(field, None)
 
     # Remove assert_pcc: true from top-level (true is the default)
     if "assert_pcc" in entry and entry["assert_pcc"] is True:
