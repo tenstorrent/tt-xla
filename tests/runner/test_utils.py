@@ -581,8 +581,10 @@ def create_benchmark_result(
         os.makedirs(output_dir, exist_ok=True)
         # add model name and perf id (Job ID from CI) to the filename
         # Sanitize model name to avoid path separator issues
-        safe_model_name = full_model_name.replace("/", "_")
-        output_path = output_dir + f"/report_perf_{safe_model_name}_{perf_id}.json"
+        safe_model_name = full_model_name.replace("/", "_").replace("\\", "_")
+        output_path = os.path.join(
+            output_dir, f"report_perf_{safe_model_name}_{perf_id}.json"
+        )
         with open(output_path, "w") as file:
             json.dump(benchmark_results, file, indent=2)
             print(f"Benchmark results saved to {output_path}")
