@@ -424,6 +424,25 @@ def move_field_preserving_comments(
 ) -> None:
     """
     Move a field from source to target, preserving all inline and trailing comments.
+
+    This function is used during the optimization pass when moving common fields from
+    arch_overrides back to the top level (e.g., when all archs have required_pcc=0.96,
+    move it to top-level and remove from each arch).
+
+    Key challenge: When the optimization pass identifies that a field should be moved
+    to the top level, we need to preserve any inline comments (like "# Issue 1234")
+    that were attached to that field in one of the arch override entries.
+
+    Comment preservation strategy:
+    - Index 1 (inline): Copy from source only if target doesn't have one
+    - Index 2 (trailing): Copy from source only if target doesn't have one
+
+    This prevents overwriting existing comments on the target while preserving
+    valuable comment context from the source location.
+
+    Note: The source_map is typically an arch-specific entry (e.g., arch_overrides.n150)
+    and target_map is the top-level test entry. We want to preserve comments when
+    consolidating duplicate values.
     """
     # Get existing comments from source
     source_comments = None
