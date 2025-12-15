@@ -72,7 +72,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
-    markers: [large]
+    markers: [large, nightly]
 
   blenderbot/summarization/jax-400M-distill-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -437,7 +437,7 @@ test_config:
 
   whisper/audio_classification/jax-large_v3-single_device-full-inference:
     status: EXPECTED_PASSING
-    markers: [large]
+    markers: [large,nightly]
 
   xglm/causal_lm/jax-564M-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL

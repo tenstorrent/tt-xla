@@ -104,6 +104,7 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
+    markers: [nightly]
 
   blenderbot/summarization/jax-small-90M-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -243,7 +244,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP # Model too large for our runners
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    markers: [large]
+    markers: [large, nightly]
     execution_pass: BACKWARD
 
   gpt_neo/causal_lm/jax-_2_7b-single_device-full-training:
