@@ -13,35 +13,37 @@ Example:
 
 import torch
 
-# Axis naming convention from xla/shardy (stablehlo_import.cc).
-# XLA/Shardy creates "fake axis names" with this prefix during StableHLO import,
-# which may be replaced with real axis names later.
-# See: xla/service/spmd/shardy/stablehlo_round_trip/stablehlo_import.cc
-_SDY_AXIS_NAME_PREFIX = "_axis_"
+# Generic mesh axis index placeholder prefix.
+# tt-mlir will replace these with actual axis names from the mesh definition.
+# e.g., "mesh_idx_0" -> "x" (or "_axis_0" depending on mesh setup)
+_MESH_IDX_PREFIX = "mesh_idx_"
 
 
 def _partition_spec_to_sdy_sharding(mesh, partition_spec) -> str:
     """
     Convert a partition_spec to an sdy.sharding string.
 
+    Uses generic placeholders (mesh_idx_0, mesh_idx_1) that tt-mlir will
+    replace with actual axis names from the mesh definition.
+
     Example:
         partition_spec = ("batch", None, None)
         mesh.axis_names = ("batch", "model")
-        → '#sdy.sharding_per_value<[<@mesh, [{"_axis_0"}, {}, {}]>]>'
+        → '#sdy.sharding_per_value<[<@mesh, [{"mesh_idx_0"}, {}, {}]>]>'
     """
     dim_shardings = []
     for axis in partition_spec:
         if axis is None:
             dim_shardings.append("{}")
         elif isinstance(axis, str):
-            # Map axis name to mesh axis name (e.g., "batch" -> "_axis_0")
+            # Map axis name to mesh index placeholder (e.g., "batch" -> "mesh_idx_0")
             try:
                 axis_idx = mesh.axis_names.index(axis)
-                dim_shardings.append(f'{{"{_SDY_AXIS_NAME_PREFIX}{axis_idx}"}}')
+                dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis_idx}"}}')
             except ValueError:
                 dim_shardings.append("{}")
         elif isinstance(axis, int):
-            dim_shardings.append(f'{{"{_SDY_AXIS_NAME_PREFIX}{axis}"}}')
+            dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
         else:
             dim_shardings.append("{}")
 
@@ -95,4 +97,4 @@ def sharding_constraint_hook(module, mesh, partition_spec):
     def hook(mod, input, output):
         return torch.ops.tt.sharding_constraint(output, sdy_sharding)
 
-    return module.register_forward_hook(hook)
+    return hook
