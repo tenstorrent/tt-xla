@@ -323,7 +323,9 @@ if __name__ == "__main__":
 
     xr.set_device_type("TT")
 
-    torch_xla.set_custom_compile_options({"optimization_level": args.optimization_level})
+    torch_xla.set_custom_compile_options(
+        {"optimization_level": args.optimization_level}
+    )
     # only 512x512 is supported for now
     config = SDXLConfig(width=512, height=512, device="cpu")
     pipeline = SDXLPipeline(config=config)
