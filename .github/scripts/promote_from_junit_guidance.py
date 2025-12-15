@@ -698,6 +698,8 @@ def optimize_arch_overrides(
     """
     Move fields to top-level if common across all archs, preserving comments.
     Remove fields from top-level if all archs override them.
+    Remove assert_pcc: true from all levels (true is the default).
+    Remove empty arch entries and empty arch_overrides.
     """
     arch_overrides = entry.get("arch_overrides")
     if not arch_overrides or not isinstance(arch_overrides, dict):
@@ -745,8 +747,6 @@ def optimize_arch_overrides(
                 arch_entry = arch_overrides.get(arch)
                 if isinstance(arch_entry, dict) and field in arch_entry:
                     arch_entry.pop(field, None)
-                    if not arch_entry:
-                        arch_overrides.pop(arch, None)
 
         # Reorder: move arch_overrides to end
         if "arch_overrides" in entry and entry["arch_overrides"]:
@@ -777,13 +777,25 @@ def optimize_arch_overrides(
                     print(f" - Optimizing: removing top-level {field} (overridden by all archs) for {bracket_key}")
                 entry.pop(field, None)
 
-    # Remove assert_pcc: true from top-level (true is the default)
-    if "assert_pcc" in entry and entry["assert_pcc"] is True:
-        if verbose:
-            print(f" - Optimizing: removing assert_pcc: true from top-level (default) for {bracket_key}")
-        entry.pop("assert_pcc", None)
+    # PASS 3: Remove assert_pcc: true from ALL levels (true is the default)
+    levels_to_check = [("top-level", entry)]
+    for arch in arch_overrides.keys():
+        arch_entry = arch_overrides.get(arch)
+        if isinstance(arch_entry, dict):
+            levels_to_check.append((f"arch_overrides.{arch}", arch_entry))
+    
+    for level_name, map_obj in levels_to_check:
+        if map_obj.get("assert_pcc") is True:
+            if verbose:
+                print(f" - Optimizing: removing {level_name} assert_pcc: true (default) for {bracket_key}")
+            map_obj.pop("assert_pcc", None)
+    
+    # PASS 4: remove empty arch entries and empty arch_overrides
+    for arch in list(arch_overrides.keys()):
+        arch_entry = arch_overrides.get(arch)
+        if not arch_entry or len(arch_entry) == 0:
+            arch_overrides.pop(arch, None)
 
-    # Clean up empty arch_overrides
     if not arch_overrides or len(arch_overrides) == 0:
         entry.pop("arch_overrides", None)
 
