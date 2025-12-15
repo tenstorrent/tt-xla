@@ -25,7 +25,7 @@ TT-XLA has the following system dependencies:
 * Python 3.11
 * python3.11-venv
 * Clang 17
-* GCC 11
+* GCC 12
 * Ninja
 * CMake 4.0.3
 
@@ -73,22 +73,16 @@ sudo ln -s /usr/bin/clang-17 /usr/bin/clang
 sudo ln -s /usr/bin/clang++-17 /usr/bin/clang++
 ```
 
-2. Check that the selected GCC candidate using Clang 17 is using 11:
+2. Check that the selected GCC candidate using Clang 17 is GCC 12:
 
 ```bash
 clang -v
 ```
 
-3. Look for the line that starts with: `Selected GCC installation:`. If it is something other than GCC 11, and you do not see GCC 11 listed as an option, please install GCC 11 using:
+3. Look for the line that starts with: `Selected GCC installation:`. If it is something other than GCC 12, and you do not see GCC 12 listed as an option, please install GCC 12 using:
 
 ```bash
-sudo apt-get install gcc-11 lib32stdc++-11-dev lib32gcc-11-dev
-```
-
-4. If you see GCC 12 listed as installed and listed as the default choice, uninstall it with:
-
-```bash
-sudo rm -rf /usr/bin/../lib/gcc/x86_64-linux-gnu/12
+sudo apt install g++-12 # installs gcc-12 and libstdc++-12-dev as dependencies
 ```
 
 ### Installing Ninja
