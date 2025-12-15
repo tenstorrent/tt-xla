@@ -113,7 +113,7 @@ def get_available_variants(model_name):
     return available_variants
 
 
-"""Llama decode layer test"""
+"""Llama decoder layer test"""
 
 
 @pytest.mark.nightly
@@ -124,7 +124,7 @@ def get_available_variants(model_name):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_decode_layer(seq_len, variant, variant_config, arch):
+def test_llama_decoder_layer(seq_len, variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
@@ -199,7 +199,7 @@ def test_llama_decode_layer(seq_len, variant, variant_config, arch):
     )
 
 
-"""Qwen3 decode layer test"""
+"""Qwen3 decoder layer test"""
 
 
 @pytest.mark.nightly
@@ -210,7 +210,7 @@ def test_llama_decode_layer(seq_len, variant, variant_config, arch):
     get_available_variants("qwen3").items(),
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
-def test_qwen3_decode_layer(seq_len, variant, variant_config, arch):
+def test_qwen3_decoder_layer(seq_len, variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = Qwen3ModelLoader(variant=variant)
@@ -285,7 +285,7 @@ def test_qwen3_decode_layer(seq_len, variant, variant_config, arch):
     )
 
 
-"""Gemma decode layer test"""
+"""Gemma decoder layer test"""
 
 
 @pytest.mark.nightly
@@ -296,7 +296,7 @@ def test_qwen3_decode_layer(seq_len, variant, variant_config, arch):
     get_available_variants("gemma").items(),
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
-def test_gemma_decode_layer(seq_len, variant, variant_config, arch):
+def test_gemma_decoder_layer(seq_len, variant, variant_config, arch):
     if str(variant) == "google/gemma-1.1-2b-it" or str(variant) == "google/gemma-2b":
         pytest.skip("Only running variants that support 2x4 sharding")
 
@@ -423,7 +423,7 @@ def test_gemma_decode_layer(seq_len, variant, variant_config, arch):
     )
 
 
-"""Mistral decode layer test"""
+"""Mistral decoder layer test"""
 
 
 @pytest.mark.nightly
@@ -434,7 +434,7 @@ def test_gemma_decode_layer(seq_len, variant, variant_config, arch):
     get_available_variants("mistral").items(),
     ids=[str(k) for k in get_available_variants("mistral").keys()],
 )
-def test_mistral_decode_layer(seq_len, variant, variant_config, arch):
+def test_mistral_decoder_layer(seq_len, variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = MistralModelLoader(variant=variant)
@@ -510,7 +510,7 @@ def test_mistral_decode_layer(seq_len, variant, variant_config, arch):
     )
 
 
-"""Qwen2.5 decode layer test"""
+"""Qwen2.5 decoder layer test"""
 
 
 @pytest.mark.nightly
@@ -521,7 +521,7 @@ def test_mistral_decode_layer(seq_len, variant, variant_config, arch):
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
-def test_qwen2_5_decode_layer(seq_len, variant, variant_config, arch):
+def test_qwen2_5_decoder_layer(seq_len, variant, variant_config, arch):
     if str(variant) == "0_5b" or str(variant) == "1_5b" or str(variant) == "3b":
         pytest.skip("Only running variants that support 2x4 sharding")
 
