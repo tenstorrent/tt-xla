@@ -13,11 +13,9 @@
 // c++ standard library includes
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
-
-// third-party includes
-#include <google/protobuf/unknown_field_set.h>
 
 // tt-xla includes
 #include "api/device_instance.h"
@@ -143,12 +141,8 @@ public:
   tt_pjrt_status compileMlirProgram(
       const PJRT_Program *mlir_program,
       LoadedExecutableInstance **out_executable,
-      const std::unordered_map<std::string, std::string> &compile_options);
-
-  // Gets custom compile options from the given compile options protobuf.
-  static tt_pjrt_status getCompileOptions(
-      const char *compile_options_data, size_t compile_options_size,
-      std::unordered_map<std::string, std::string> &out_compile_options);
+      const std::unordered_map<std::string, std::string> &compile_options,
+      const std::optional<std::vector<int64_t>> &replica_device_ids);
 
 private:
   tt_pjrt_status populateDevices();
@@ -208,12 +202,6 @@ private:
 
   // We don't have a versioning system for our software stack yet.
   const std::string m_platform_version = "0.0.0";
-
-  // Extracts custom protobuf fields from an UnknownFieldSet of all protobuf
-  // fields.
-  static tt_pjrt_status extractCustomProtobufFields(
-      const google::protobuf::UnknownFieldSet &unknown_fields,
-      std::unordered_map<std::string, std::string> &out_compile_options);
 };
 
 namespace internal {
