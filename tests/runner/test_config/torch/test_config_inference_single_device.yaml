@@ -1207,8 +1207,9 @@ test_config:
     status: EXPECTED_PASSING
 
   stable_diffusion_unet/pytorch-base-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "OOM on device when doing avg_pool - https://github.com/tenstorrent/tt-xla/issues/1433"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
 
   unet_for_conditional_generation/pytorch-base-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2163,8 +2164,9 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
 
   sam/pytorch-facebook/sam-vit-base-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Out of Memory:  Not enough space to allocate 16777216 B L1 buffer across 8 banks - https://github.com/tenstorrent/tt-xla/issues/1497"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
 
   vilt/masked_lm/pytorch-mlm-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
