@@ -16,10 +16,9 @@ def test_fid_sdxl():
     images = []
     for caption in dataset.captions:
         img = pipeline.generate(caption, seed=42)
-        img = img.permute(0, 3, 1, 2) # (B, H, W, 3) -> (B, 3, H, W)
         images.append(img)
     
-    images = torch.stack(images, dim=0)
+    images = torch.cat(images, dim=0)
 
     fid_metric = FIDMetric(dataset.statistics_mean, dataset.statistics_cov)
 
