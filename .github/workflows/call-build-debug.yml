@@ -133,9 +133,10 @@ jobs:
         if: success() || failure()
         with:
           report_paths: ${{ steps.strings.outputs.build-output-dir }}/gtest_report.xml
-          check_name: Unit Tests (Debug)
-          detailed_summary: true
+          check_name: TT-XLA Unit Tests
           group_suite: true
+          detailed_summary: true
+          include_passed: true
           token: ${{ github.token }}
 
       - name: Prepare code coverage report
