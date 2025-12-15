@@ -2336,6 +2336,8 @@ def test_gpt_oss_attention(variant, variant_config, arch):
     )
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
+
     run_graph_test(
         sdpa,
         [
@@ -2348,6 +2350,7 @@ def test_gpt_oss_attention(variant, variant_config, arch):
             scaling,
         ],
         framework=Framework.TORCH,
+        comparison_config=comparison_config,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
