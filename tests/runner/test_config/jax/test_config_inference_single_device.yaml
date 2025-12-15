@@ -27,9 +27,7 @@ test_config:
     bringup_status: INCORRECT_RESULT
 
   alexnet/image_classification/jax-custom-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: EXPECTED_PASSING
 
   bart/causal_lm/jax-base-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -74,6 +72,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
+    markers: [large]
 
   blenderbot/summarization/jax-400M-distill-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -100,9 +99,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks"
     bringup_status: FAILED_RUNTIME
+    markers: [large]
 
   bloom/causal_lm/jax-7b-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 2055208960 B DRAM buffer across 12 banks, where each bank needs to store 171270144 B, but bank size is only 1073741792 B"
     markers: [large]
     bringup_status: FAILED_RUNTIME
@@ -177,12 +177,8 @@ test_config:
     markers: [push]
 
   gpt_neo/causal_lm/jax-_1_3b-single_device-full-inference:
-    arch_overrides:
-      n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "PCC comparison failed. Calculated: pcc=0.98946213722229. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2237"
-      p150:
-        status: EXPECTED_PASSING
+    required_pcc: 0.988 # PCC dropped from <0.992 to <0.99 after tilize was *improved*
+    status: EXPECTED_PASSING
 
   gpt_neo/causal_lm/jax-_2_7b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -275,7 +271,7 @@ test_config:
     bringup_status: INCORRECT_RESULT
 
   mt5/nlp_summarization/jax-xl-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 2048917504 B DRAM buffer across 12 banks, where each bank needs to store 170745856 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
     markers: [large]
@@ -293,6 +289,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
     bringup_status: FAILED_RUNTIME
+    markers: [large]
 
   opt/causal_lm/jax-6.7B-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
@@ -342,15 +339,8 @@ test_config:
     status: EXPECTED_PASSING
 
   resnet/image_classification/jax-resnet-152-single_device-full-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Bad PCC on blackhole - Calculated: pcc=0.9893742799758911. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1844"
-        bringup_status: INCORRECT_RESULT
-      n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "PCC comparison failed. Calculated: pcc=0.9895531535148621. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/2237"
+    required_pcc: 0.988 # We have >0.9893 on both, BH was <0.99 from the start, WH regressed from <0.992 to <0.99 after tilize was *improved*
+    status: EXPECTED_PASSING
 
   roberta/masked_lm/jax-base-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL

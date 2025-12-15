@@ -101,6 +101,11 @@ class TorchDeviceRunner(DeviceRunner):
         if workload.model is not None and hasattr(workload.model, "to"):
             workload.model = workload.model.to(device)
 
+            # We need to tie weights for the model after moving it to the device.
+            # For torch_xla this is a known quirk. See: https://docs.pytorch.org/xla/release/r2.8/learn/troubleshoot.html#xla-tensor-quirks
+            if hasattr(workload.model, "tie_weights"):
+                workload.model.tie_weights()
+
         shard_specs = None
         if (
             device.type != "cpu"
