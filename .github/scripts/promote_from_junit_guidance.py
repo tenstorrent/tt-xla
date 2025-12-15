@@ -302,6 +302,33 @@ def plan_updates_for_test(
     return plan
 
 
+# Group guidance updates by config file, test name, and arch.
+def group_updates_by_config(
+    desired: Dict[Tuple[str, str], Dict[str, object]], testing: bool
+) -> Tuple[Dict[str, Dict[str, Dict[str, Dict[str, object]]]], int]:
+    """
+    Group guidance updates by config file, test name, and arch.
+    Returns (by_config, actionable_test_count).
+    """
+    by_config: Dict[str, Dict[str, Dict[str, Dict[str, object]]]] = {}
+    actionable_test_count = 0
+
+    for (test_name, arch), info in desired.items():
+        plan = plan_updates_for_test(test_name, info)
+        cfg = map_test_to_config_file(test_name, testing=testing)
+        if not plan or not cfg:
+            continue
+
+        by_config.setdefault(cfg, {})
+        if test_name not in by_config[cfg]:
+            by_config[cfg][test_name] = {}
+            actionable_test_count += 1
+
+        by_config[cfg][test_name][arch] = plan
+
+    return by_config, actionable_test_count
+
+
 # Get the set of all known archs for a test entry.
 def get_all_archs_for_entry(entry: CommentedMap) -> set[str]:
     """Return set of all archs that exist in arch_overrides or are known defaults."""
@@ -584,6 +611,90 @@ def apply_updates_to_yaml(
     return bracket_key if modified else None
 
 
+# Save trailing comments from all test entries before modifications.
+def save_trailing_comments_for_tests(
+    test_config: Dict, test_names: List[str]
+) -> Dict[str, object]:
+    """Save trailing comments from entries that will be modified."""
+    saved: Dict[str, object] = {}
+    for test_name in test_names:
+        bracket_key = extract_bracket_key_from_testcase_name(test_name)
+        if bracket_key and bracket_key in test_config:
+            entry = test_config[bracket_key]
+            if isinstance(entry, CommentedMap):
+                trailing = save_entry_trailing_comment(entry)
+                if trailing:
+                    saved[bracket_key] = trailing
+    return saved
+
+
+# Normalize test entries by duplicating top-level fields to arch_overrides.
+def normalize_tests_for_modification(
+    test_config: Dict, test_names: List[str], verbose: bool
+) -> None:
+    """Normalize test entries to have arch_overrides with duplicated fields."""
+    for test_name in test_names:
+        bracket_key = extract_bracket_key_from_testcase_name(test_name)
+        if bracket_key and bracket_key in test_config:
+            entry = test_config[bracket_key]
+            if isinstance(entry, CommentedMap):
+                all_archs = get_all_archs_for_entry(entry)
+                normalize_entry_with_arch_overrides(
+                    entry, all_archs, ["required_pcc", "assert_pcc"]
+                )
+
+
+# Apply all updates for a config file and return list of modified bracket keys.
+def apply_all_updates(
+    data: CommentedMap,
+    test_plans: Dict[str, Dict[str, Dict[str, object]]],
+    apply_mode: bool,
+    verbose: bool,
+    config_path: str,
+) -> List[str]:
+    """Apply all updates for a config file."""
+    modified_bracket_keys: List[str] = []
+    for test_name, arch_plans in sorted(test_plans.items()):
+        mode_str = "APPLY" if apply_mode else "PLAN "
+        archs_str = ", ".join(sorted(arch_plans.keys()))
+        print(
+            f" - {mode_str} {os.path.basename(config_path)} :: {test_name} "
+            f"[archs: {archs_str}] -> {arch_plans}"
+        )
+        bracket_key = apply_updates_to_yaml(data, test_name, arch_plans, verbose)
+        if bracket_key:
+            modified_bracket_keys.append(bracket_key)
+    return modified_bracket_keys
+
+
+# Run optimization pass on all modified tests.
+def optimize_modified_tests(
+    test_config: Dict, modified_bracket_keys: List[str], verbose: bool, config_path: str
+) -> None:
+    """Run optimization pass to consolidate common fields."""
+    if verbose:
+        print(f"\nRunning optimization pass for {os.path.basename(config_path)}...\n")
+    for bracket_key in modified_bracket_keys:
+        if bracket_key not in test_config:
+            continue
+        entry = test_config[bracket_key]
+        if isinstance(entry, CommentedMap):
+            all_archs = get_all_archs_for_entry(entry)
+            optimize_arch_overrides(entry, all_archs, verbose, bracket_key)
+
+
+# Restore trailing comments to modified tests after optimization.
+def restore_trailing_comments_for_tests(
+    test_config: Dict, modified_bracket_keys: List[str], saved_comments: Dict[str, object]
+) -> None:
+    """Restore trailing comments after optimization."""
+    for bracket_key in modified_bracket_keys:
+        if bracket_key in saved_comments and bracket_key in test_config:
+            entry = test_config[bracket_key]
+            if isinstance(entry, CommentedMap):
+                apply_entry_trailing_comment(entry, saved_comments[bracket_key])
+
+
 def optimize_arch_overrides(
     entry: CommentedMap, all_archs: set[str], verbose: bool, bracket_key: str
 ) -> None:
@@ -669,22 +780,7 @@ def main() -> int:
         print("No guidance found in provided artifacts.")
         return 0
 
-    by_config: Dict[str, Dict[str, Dict[str, Dict[str, object]]]] = {}
-    actionable_test_count = 0
-
-    for (test_name, arch), info in desired.items():
-        plan = plan_updates_for_test(test_name, info)
-        cfg = map_test_to_config_file(test_name, testing=args.testing)
-        if not plan or not cfg:
-            continue
-
-        if cfg not in by_config:
-            by_config[cfg] = {}
-        if test_name not in by_config[cfg]:
-            by_config[cfg][test_name] = {}
-            actionable_test_count += 1
-
-        by_config[cfg][test_name][arch] = plan
+    by_config, actionable_test_count = group_updates_by_config(desired, args.testing)
 
     if not by_config:
         print("No actionable guidance found.")
@@ -694,62 +790,32 @@ def main() -> int:
 
     for config_path in sorted(by_config.keys()):
         data = load_yaml_config(config_path)
-        modified_bracket_keys: List[str] = []
-
         test_config = data.get("test_config")
+        if not isinstance(test_config, dict):
+            continue
+
+        # Get list of test names to modify
+        test_names = list(by_config[config_path].keys())
         
-        # STEP 1: Save trailing comments BEFORE any modifications
-        saved_trailing_comments: Dict[str, object] = {}
-        if isinstance(test_config, dict):
-            for test_name in by_config[config_path].keys():
-                bracket_key = extract_bracket_key_from_testcase_name(test_name)
-                if bracket_key and bracket_key in test_config:
-                    entry = test_config[bracket_key]
-                    if isinstance(entry, CommentedMap):
-                        trailing = save_entry_trailing_comment(entry)
-                        if trailing:
-                            saved_trailing_comments[bracket_key] = trailing
-
-        # STEP 2: Normalize all test entries that will be modified
-        if isinstance(test_config, dict):
-            for test_name in by_config[config_path].keys():
-                bracket_key = extract_bracket_key_from_testcase_name(test_name)
-                if bracket_key and bracket_key in test_config:
-                    entry = test_config[bracket_key]
-                    if isinstance(entry, CommentedMap):
-                        all_archs = get_all_archs_for_entry(entry)
-                        normalize_entry_with_arch_overrides(
-                            entry, all_archs, ["required_pcc", "assert_pcc"]
-                        )
-
+        # STEP 1: Save trailing comments before modifications
+        saved_trailing_comments = save_trailing_comments_for_tests(test_config, test_names)
+        
+        # STEP 2: Normalize entries (duplicate fields to arch_overrides)
+        normalize_tests_for_modification(test_config, test_names, args.verbose)
+        
         # STEP 3: Apply updates
-        for test_name, arch_plans in sorted(by_config[config_path].items()):
-            print(f" - {('APPLY' if args.apply else 'PLAN ')} {os.path.basename(config_path)} :: {test_name} [archs: {', '.join(sorted(arch_plans.keys()))}] -> {arch_plans}")
-            bracket_key = apply_updates_to_yaml(data, test_name, arch_plans, args.verbose)
-            if bracket_key:
-                modified_bracket_keys.append(bracket_key)
-
+        modified_bracket_keys = apply_all_updates(
+            data, by_config[config_path], args.apply, args.verbose, config_path
+        )
+        
         # STEP 4: Optimization pass
         if modified_bracket_keys and not args.no_optimize:
-            if args.verbose:
-                print(f"\nRunning optimization pass for {os.path.basename(config_path)}...\n")
-            if isinstance(test_config, dict):
-                for bracket_key in modified_bracket_keys:
-                    if bracket_key not in test_config:
-                        continue
-                    entry = test_config[bracket_key]
-                    if isinstance(entry, CommentedMap):
-                        all_archs = get_all_archs_for_entry(entry)
-                        optimize_arch_overrides(entry, all_archs, args.verbose, bracket_key)
+            optimize_modified_tests(test_config, modified_bracket_keys, args.verbose, config_path)
+        
+        # STEP 5: Restore trailing comments after optimization
+        restore_trailing_comments_for_tests(test_config, modified_bracket_keys, saved_trailing_comments)
 
-        # STEP 5: Restore trailing comments AFTER optimization
-        if isinstance(test_config, dict):
-            for bracket_key in modified_bracket_keys:
-                if bracket_key in saved_trailing_comments and bracket_key in test_config:
-                    entry = test_config[bracket_key]
-                    if isinstance(entry, CommentedMap):
-                        apply_entry_trailing_comment(entry, saved_trailing_comments[bracket_key])
-
+        # Write changes
         if args.apply:
             write_yaml_config(config_path, data)
 
