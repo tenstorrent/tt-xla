@@ -69,6 +69,15 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       build_type: explorer
 
+  build-test-debug:
+    uses: ./.github/workflows/call-build-debug.yml
+    name: "Build and test tt-xla (debug with coverage)"
+    secrets: inherit
+    needs: [ inspect-changes, build-image ]
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
   test:
     needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
@@ -133,6 +142,7 @@ jobs:
       - build-ttxla-codecov
       - build-ttxla-release
       - build-ttxla-explorer
+      - build-test-debug
       - test
       - test_forge_models_push
       - build-docs
@@ -141,5 +151,5 @@ jobs:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, build-ttxla-explorer, test, test_forge_models_push, build-docs
+        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, build-ttxla-explorer, build-test-debug, test, test_forge_models_push, build-docs
         jobs: ${{ toJSON(needs) }}

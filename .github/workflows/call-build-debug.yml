@@ -1,0 +1,106 @@
+name: Build and Test tt-xla (Debug with Coverage)
+
+on:
+  workflow_call:
+    inputs:
+      docker_image:
+        description: 'Docker image to use for the build'
+        required: true
+        type: string
+    outputs:
+      build_artifact_name:
+        description: 'Name of the build artifact'
+        value: ${{ jobs.build-test-debug.outputs.build_artifact_name }}
+
+jobs:
+  build-test-debug:
+    timeout-minutes: 120
+    runs-on: tt-ubuntu-2204-large-stable
+    name: "Build and test tt-xla (debug with coverage)"
+    outputs:
+      build_artifact_name: build-artifacts-debug
+    container:
+      image: ${{ inputs.docker_image }}
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          echo "Current user: $(whoami)"
+          ls -ld $(pwd)
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          repository: 'tenstorrent/tt-xla'
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+          echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+          key: "debug-codecov-build"
+
+      - name: Build with CMake (Debug + Coverage)
+        shell: bash
+        run: |
+          source venv/activate
+          cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON
+          cmake --build build
+
+      - name: Run unit tests with ctest
+        shell: bash
+        run: |
+          source venv/activate
+          cd ${{ steps.strings.outputs.build-output-dir }}
+          export LD_LIBRARY_PATH=${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/install/lib:$LD_LIBRARY_PATH
+          ctest --output-on-failure --verbose
+
+      - name: Upload Unit Test Report
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: unit-test-report-debug
+          path: ${{ steps.strings.outputs.build-output-dir }}/gtest_report.xml
+
+      - name: Prepare code coverage report
+        if: success() || failure()
+        shell: bash
+        run: |
+          lcov --directory build --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh
+          lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
+          sed -i 's|SF:/__w/tt-xla/tt-xla/pjrt_implementation/src/|SF:src/|' coverage.info
+          lcov --list coverage.info
+
+      - name: Upload coverage reports to Codecov
+        if: success() || failure()
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.info
+          disable_search: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Archive Build Directory
+        if: success() || failure()
+        shell: bash
+        working-directory: ${{ steps.strings.outputs.build-output-dir }}
+        run: tar cf artifact.tar .
+
+      - name: Upload Build Folder
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-debug
+          path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
+
+      - name: Remove tar archive
+        if: success() || failure()
+        shell: bash
+        run: rm -f ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
