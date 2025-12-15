@@ -5,6 +5,7 @@ import os
 from typing import Tuple
 
 import torch
+import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
 from torch._dynamo import register_backend
@@ -42,13 +43,12 @@ def torch_pass_pipeline(
 
     decompositions = populate_decompositions()
 
-    # We use `export_for_training` here as we plan to use this flow to compile training graphs.
-    # In addition to that, the functionality in `export_for_training` will become the default
-    # functionality in torch.export in a future PyTorch release:
-    # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
-    program = torch.export.export_for_training(
-        gm, tuple(example_inputs), strict=False
-    ).run_decompositions(decompositions)
+    program = torch.export.export(
+        gm,
+        tuple(example_inputs),
+        strict=False,
+    )
+    program = program.run_decompositions(decompositions)
 
     compiled_graph = program.module()
     compiled_graph = insert_argument_type_markers(
@@ -110,8 +110,9 @@ class XLAExecutor:
     def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
         sig = ep.graph_signature
 
-        # Export keeps a state dict for lifted params/buffers.
+        # Export keeps a state dict for lifted params/buffers and a const dict for lifted constants.
         state = ep.state_dict
+        const = ep.constants
 
         # Map from placeholder name -> tensor.
         total_args = tuple()
@@ -124,7 +125,15 @@ class XLAExecutor:
                 not encountered_user_input
             ), "We expect user inputs to be last in the list of inputs."
             assert spec.target is not None
-            total_args += (state[spec.target],)
+ 
+            try:
+                if spec.kind == InputKind.PARAMETER or spec.kind == InputKind.BUFFER:
+                    total_args += (state[spec.target],)
+                elif spec.kind == InputKind.CONSTANT_TENSOR:
+                    total_args += (const[spec.target],)
+            except KeyError:
+                # Handle the case where the target is not found in the state dictionary
+                raise KeyError(f"Target {spec.target} not found in state dictionary.")
 
         return total_args
 
@@ -132,7 +141,7 @@ class XLAExecutor:
         if self.compiled_graph is None:
             # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
-            program = torch.export.export_for_training(
+            program = torch.export.export(
                 self.module, tuple(args), strict=False
             )
 

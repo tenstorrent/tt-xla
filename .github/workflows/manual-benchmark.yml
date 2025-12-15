@@ -72,3 +72,4 @@ jobs:
         ref: ${{ needs.set-inputs.outputs.ref }}
         test-filter: ${{ inputs.test_filter }}
         sh-runner: ${{ inputs.sh-runner }}
+        docker-image: ghcr.io/tenstorrent/tt-xla-slim:nightly-latest
