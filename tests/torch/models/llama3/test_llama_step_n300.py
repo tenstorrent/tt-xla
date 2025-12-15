@@ -112,9 +112,8 @@ def test_llama_step(run_mode):
         print("Cpu tok: ", cpu_tok)
 
     # Move model and inputs to device.
-    for layer in static_cache.layers:
-        layer.keys = layer.keys.to(device)
-        layer.values = layer.values.to(device)
+    static_cache.key_cache = [k.to(device) for k in static_cache.key_cache]
+    static_cache.value_cache = [v.to(device) for v in static_cache.value_cache]
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
 
@@ -124,9 +123,14 @@ def test_llama_step(run_mode):
     xs.mark_sharding(input_args["input_ids"], mesh, (None, None))
     xs.mark_sharding(input_args["cache_position"], mesh, (None,))
 
-    for layer in input_args["past_key_values"].layers:
-        xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-        xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+    for i, (key, value) in enumerate(
+        zip(
+            input_args["past_key_values"].key_cache,
+            input_args["past_key_values"].value_cache,
+        )
+    ):
+        xs.mark_sharding(key, mesh, (None, "model", None, None))
+        xs.mark_sharding(value, mesh, (None, "model", None, None))
 
     # Shard model internals
     for layer in model.model.layers:
@@ -163,9 +167,14 @@ def test_llama_step(run_mode):
         input_args["cache_position"] = host_cache_pos.to(device)
 
         # Reapply shardings for static cache (i/o inplace mutated tensors since they lose sharding annotations).
-        for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-            xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+        for i, (key, value) in enumerate(
+            zip(
+                input_args["past_key_values"].key_cache,
+                input_args["past_key_values"].value_cache,
+            )
+        ):
+            xs.mark_sharding(key, mesh, (None, "model", None, None))
+            xs.mark_sharding(value, mesh, (None, "model", None, None))
 
     # Compare outputs for validation
     comparator = TorchComparator(

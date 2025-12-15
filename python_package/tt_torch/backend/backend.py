@@ -5,7 +5,6 @@ import os
 from typing import Tuple
 
 import torch
-import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
 from torch._dynamo import register_backend
@@ -43,12 +42,13 @@ def torch_pass_pipeline(
 
     decompositions = populate_decompositions()
 
-    program = torch.export.export(
-        gm,
-        tuple(example_inputs),
-        strict=False,
-    )
-    program = program.run_decompositions(decompositions)
+    # We use `export_for_training` here as we plan to use this flow to compile training graphs.
+    # In addition to that, the functionality in `export_for_training` will become the default
+    # functionality in torch.export in a future PyTorch release:
+    # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
+    program = torch.export.export_for_training(
+        gm, tuple(example_inputs), strict=False
+    ).run_decompositions(decompositions)
 
     compiled_graph = program.module()
     compiled_graph = insert_argument_type_markers(
