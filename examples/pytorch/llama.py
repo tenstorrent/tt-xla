@@ -13,6 +13,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import transformers
+from loguru import logger
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
@@ -199,6 +200,9 @@ def construct_inputs(
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
+    logger.warning(
+        "Regression in left-padded multibatch inference accuracy after uplift of transformers==4.56.1 and torch==2.9.0, https://github.com/tenstorrent/tt-xla/issues/2546 "
+    )
     inputs = tokenizer(
         input_prompt,
         return_tensors="pt",
@@ -216,6 +220,15 @@ def construct_inputs(
         max_cache_len=max_cache_len,
         device="cpu",
         dtype=torch.bfloat16,
+    )
+    num_key_value_heads = model_config.num_key_value_heads
+    head_dim = model_config.hidden_size // model_config.num_attention_heads
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=num_key_value_heads,
+        head_dim=head_dim,
+        dtype=torch.bfloat16,
+        device="cpu",
     )
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
@@ -261,12 +274,9 @@ def transfer_to_device(
     Returns:
         Tuple of (model, input_args) on device
     """
-    input_args["past_key_values"].key_cache = [
-        k.to(device) for k in input_args["past_key_values"].key_cache
-    ]
-    input_args["past_key_values"].value_cache = [
-        v.to(device) for v in input_args["past_key_values"].value_cache
-    ]
+    for layer in input_args["past_key_values"].layers:
+        layer.keys = layer.keys.to(device)
+        layer.values = layer.values.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
@@ -290,14 +300,9 @@ def mark_sharding_on_inputs_and_model(
         mesh: Device mesh for SPMD operations
     """
 
-    for i, (key, value) in enumerate(
-        zip(
-            input_args["past_key_values"].key_cache,
-            input_args["past_key_values"].value_cache,
-        )
-    ):
-        xs.mark_sharding(key, mesh, (None, "model", None, None))
-        xs.mark_sharding(value, mesh, (None, "model", None, None))
+    for layer in input_args["past_key_values"].layers:
+        xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+        xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
     # Shard model internals
     for layer in model.model.layers:
@@ -368,14 +373,9 @@ def run_generate(
             # Reapply shardings for static cache if SPMD is enabled
             # See https://github.com/tenstorrent/tt-xla/issues/1641
             if is_spmd:
-                for i, (key, value) in enumerate(
-                    zip(
-                        input_args["past_key_values"].key_cache,
-                        input_args["past_key_values"].value_cache,
-                    )
-                ):
-                    xs.mark_sharding(key, mesh, (None, "model", None, None))
-                    xs.mark_sharding(value, mesh, (None, "model", None, None))
+                for layer in input_args["past_key_values"].layers:
+                    xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+                    xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
     print()
     if not is_interactive:
         for i in range(num_users):
@@ -396,12 +396,12 @@ def check_transformers_version():
     import packaging.version
 
     current_version = packaging.version.parse(transformers.__version__)
-    max_version = packaging.version.parse("4.52.4")
+    max_version = packaging.version.parse("4.57.1")
 
     if current_version > max_version:
         raise RuntimeError(
             f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version <= 4.52.4"
+            f"Please use version <= 4.57.1"
         )
 
 
