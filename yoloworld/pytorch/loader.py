@@ -1,120 +1,148 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
-#
+
 # SPDX-License-Identifier: Apache-2.0
 """
 YOLO-World model loader implementation
 """
-import torch
-from datasets import load_dataset
-from torch.hub import load_state_dict_from_url
-from torchvision import transforms
 
+from ...base import ForgeModel
 from ...config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
 )
-from ...base import ForgeModel
+from typing import Optional
+from .src.utils import init_detector, Config, get_test_pipeline_cfg, get_base_cfg
+from ...tools.utils import get_file
+from .src.model import MODELS, Compose
+import supervision as sv
+
+
+class ModelVariant(StrEnum):
+    """Available YOLO WORLD model variants."""
+
+    SMALL_1 = "small_640"
+    SMALL_2 = "small_1280"
+    MEDIUM_1 = "medium_640"
+    MEDIUM_2 = "medium_1280"
+    LARGE_1 = "large_640"
+    LARGE_2 = "large_1280"
+    XLARGE_1 = "xlarge_640"
 
 
 class ModelLoader(ForgeModel):
+    """YOLO WORLD model loader."""
+
+    _VARIANTS = {
+        ModelVariant.SMALL_1: ModelConfig(
+            pretrained_model_name="small_640",
+        ),
+        ModelVariant.SMALL_2: ModelConfig(
+            pretrained_model_name="small_1280",
+        ),
+        ModelVariant.MEDIUM_1: ModelConfig(
+            pretrained_model_name="medium_640",
+        ),
+        ModelVariant.MEDIUM_2: ModelConfig(
+            pretrained_model_name="medium_1280",
+        ),
+        ModelVariant.LARGE_1: ModelConfig(
+            pretrained_model_name="large_640",
+        ),
+        ModelVariant.LARGE_2: ModelConfig(
+            pretrained_model_name="large_1280",
+        ),
+        ModelVariant.XLARGE_1: ModelConfig(
+            pretrained_model_name="xlarge_640",
+        ),
+    }
+
+    DEFAULT_VARIANT = ModelVariant.SMALL_1
+    DEFAULT_TOPK = 100
+    DEFAULT_THRESHOLD = 0.005
+    DEFAULT_TEXTS = "person,bus"
+
+    def __init__(
+        self,
+        variant: Optional[ModelVariant] = None,
+        topk: Optional[int] = None,
+        threshold: Optional[float] = None,
+        texts: Optional[str] = None,
+    ):
+        super().__init__()
+        self.variant = variant or self.DEFAULT_VARIANT
+        self.topk = topk or self.DEFAULT_TOPK
+        self.threshold = threshold or self.DEFAULT_THRESHOLD
+        self.texts = texts or self.DEFAULT_TEXTS
+        self.model = None
+
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
-        """Get model information for dashboard and metrics reporting.
-
-        Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
-        if variant_name is None:
-            variant_name = "base"
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        if variant is None:
+            variant = self.DEFAULT_VARIANT
         return ModelInfo(
             model="yoloworld",
-            variant=variant_name,
-            group=ModelGroup.RED,
+            variant=variant,
+            group=ModelGroup.RED
+            if variant == self.DEFAULT_VARIANT
+            else ModelGroup.GENERALITY,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.CUSTOM,
             framework=Framework.TORCH,
         )
 
-    """YOLO-World model loader implementation."""
-
-    def __init__(self, variant=None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional string specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
-        super().__init__(variant)
-
-        # Configuration parameters
+    def _load_data_config(self):
+        base_cfg = get_base_cfg(variant=self.variant)
+        self.config = Config(base_cfg)
 
     def load_model(self, dtype_override=None):
-        """Load and return the YOLO-World model instance with default settings.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
-
-        Returns:
-            torch.nn.Module: The YOLO-World model instance.
-        """
-        try:
-            ckpt = load_state_dict_from_url(self.model_url, map_location="cpu")
-        except Exception as e:
-            raise RuntimeError(
-                f"Unexpected error while downloading model from URL: {e}"
-            )
-
-        cfg_path = ckpt.get("cfg", "yolov8s-world.yaml")
-        model = WorldModel(cfg=cfg_path)
-
-        if "model" in ckpt:
-            state_dict = ckpt["model"].float().state_dict()
-        else:
-            state_dict = ckpt
-
-        model.load_state_dict(state_dict, strict=False)
-        model.eval()
-
-        # Only convert dtype if explicitly requested
+        self._load_data_config()
+        checkpoint = get_file(f"test_files/pytorch/yoloworld/{self.variant}.pth")
+        checkpoint = str(checkpoint)
+        self.config.load_from = checkpoint
+        self.model = init_detector(self.config, checkpoint)
         if dtype_override is not None:
-            model = model.to(dtype_override)
-
-        return model
+            self.model = self.model.to(dtype_override)
+        return self.model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the YOLO-World model with default settings.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the inputs' default dtype.
-                           If not provided, inputs will use the default dtype (typically float32).
-            batch_size: Optional batch size to override the default batch size of 1.
-
-        Returns:
-            torch.Tensor: Sample input tensor that can be fed to the model.
-        """
-
-        dataset = load_dataset("huggingface/cats-image", split="test[:1]")
-        image = dataset[0]["image"]
-        preprocess = transforms.Compose(
-            [
-                transforms.Resize((640, 640)),
-                transforms.ToTensor(),
-            ]
-        )
-        image_tensor = preprocess(image).unsqueeze(0)
-
-        # Replicate tensors for batch size
-        batch_tensor = image_tensor.repeat_interleave(batch_size, dim=0)
-
-        # Only convert dtype if explicitly requested
+        self.image_file = get_file("https://ultralytics.com/images/bus.jpg")
+        test_pipeline_cfg = get_test_pipeline_cfg(cfg=self.config)
+        test_pipeline = Compose(test_pipeline_cfg)
+        data_info = dict(img_id=0, img_path=self.image_file, texts=self.texts)
+        data_info = test_pipeline(data_info)
         if dtype_override is not None:
-            batch_tensor = batch_tensor.to(dtype_override)
+            data_info["inputs"] = data_info["inputs"].to(dtype_override)
+        data_batch = dict(
+            inputs=data_info["inputs"].unsqueeze(0),
+            data_samples=[data_info["data_samples"]],
+        )
+        return data_batch
 
-        return batch_tensor
+    def post_process(self, output, output_dir):
+        pred_instances = output.pred_instances
+        pred_instances = pred_instances[pred_instances.scores.float() > self.threshold]
+        if len(pred_instances.scores) > self.topk:
+            indices = pred_instances.scores.float().topk(self.topk)[1]
+            pred_instances = pred_instances[indices]
+        if "masks" in pred_instances:
+            masks = pred_instances["masks"]
+        else:
+            masks = None
+        detections = sv.Detections(
+            xyxy=pred_instances["bboxes"],
+            class_id=pred_instances["labels"],
+            confidence=pred_instances["scores"],
+            mask=masks,
+        )
+        image = cv2.imread(self.image_file)
+        anno_image = image.copy()
+        BOUNDING_BOX_ANNOTATOR = sv.BoundingBoxAnnotator(thickness=1)
+        MASK_ANNOTATOR = sv.MaskAnnotator()
+        image = BOUNDING_BOX_ANNOTATOR.annotate(image, detections)
+        image = LABEL_ANNOTATOR.annotate(image, detections, labels=labels)
+        cv2.imwrite(osp.join(output_dir, osp.basename(self.image_file)), image)
