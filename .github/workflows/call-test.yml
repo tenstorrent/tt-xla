@@ -49,6 +49,7 @@ env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
   TT_XLA_CI: 1
+  TT_XLA_RED_ONLY: 1
 
 jobs:
   generate-matrix-test:
