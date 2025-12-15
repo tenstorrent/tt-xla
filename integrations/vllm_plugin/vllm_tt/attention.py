@@ -269,23 +269,37 @@ class TTAttentionBackendImpl(AttentionImpl):
         orig_query_shape = query.shape
         orig_query_ndim = query.ndim
 
-        # Reshape query to [users, tokens_per_user, hidden]
-        query, users, query_num_tokens, hidden_size = self._reshape_query(
-            query, num_users, orig_query_ndim
-        )
+        if orig_query_ndim == 3:
+            assert query.shape[0] == num_users, (
+                f"query batch dim ({query.shape[0]}) and cache_position num_users "
+                f"({num_users}) mismatch."
+            )
+            assert (
+                key.shape == value.shape
+            ), "key and value shape mismatch for batched inputs."
+        elif orig_query_ndim == 2:
+            # Reshape query to [users, tokens_per_user, hidden_size]
+            query = self._reshape_query(query, num_users)
+            key, value = self._reshape_key_value(key, value, num_users)
+        else:
+            raise ValueError(
+                f"Unsupported query ndim: {orig_query_ndim}, expected 2 or 3."
+            )
+
+        users_kv = key.shape[0]
+        query_num_tokens = query.shape[1]
+        kv_num_tokens = key.shape[1]
+        hidden_size = query.shape[2]
 
         # Determine prefill vs decode mode
         is_prefill = query_num_tokens > 1
-
-        # Reshape key/value to [users_kv, kv_num_tokens, hidden]
-        key, value, users_kv, kv_num_tokens = self._reshape_key_value(key, value, users)
 
         # Reshape Q/K/V to [batch(users), tokens, num_heads, head_size]
         query, key, value = self._reshape_to_attention_format(
             query,
             key,
             value,
-            users,
+            num_users,
             users_kv,
             query_num_tokens,
             kv_num_tokens,
@@ -315,81 +329,49 @@ class TTAttentionBackendImpl(AttentionImpl):
             value=value,
             orig_query_shape=orig_query_shape,
             orig_query_ndim=orig_query_ndim,
-            users=users,
+            users=num_users,
             query_num_tokens=query_num_tokens,
             is_prefill=is_prefill,
             users_kv=users_kv,
             kv_num_tokens=kv_num_tokens,
         )
 
-    def _reshape_query(self, query: torch.Tensor, num_users: int, orig_query_ndim: int):
+    def _reshape_query(self, query: torch.Tensor, num_users: int):
         """Reshape query tensor to [users, tokens_per_user, hidden] format."""
-        if orig_query_ndim == 3:
-            # [batch, seq, hidden]
-            users = query.shape[0]
-            query_num_tokens = query.shape[1]
-            hidden_size = query.shape[2]
-            assert users == num_users, (
-                f"query batch dim ({users}) and cache_position num_users "
-                f"({num_users}) mismatch."
-            )
-            # Already in correct format
-        elif orig_query_ndim == 2:
-            # [total_tokens, hidden] (vLLM style)
-            total_tokens = query.shape[0]
-            hidden_size = query.shape[1]
-            users = num_users
-            assert (
-                total_tokens % users == 0
-            ), f"total_tokens ({total_tokens}) not divisible by num_users ({users})."
-            query_num_tokens = total_tokens // users  # tokens per user
-            query = query.view(users, query_num_tokens, hidden_size)
-        else:
-            raise ValueError(f"Unsupported query rank: {orig_query_ndim}")
+        # [total_tokens, hidden] (vLLM style)
+        total_tokens = query.shape[0]
+        hidden_size = query.shape[1]
+        users = num_users
+        assert (
+            total_tokens % users == 0
+        ), f"total_tokens ({total_tokens}) not divisible by num_users ({users})."
+        query_num_tokens = total_tokens // users  # tokens per user
+        query = query.view(users, query_num_tokens, hidden_size)
 
-        return query, users, query_num_tokens, hidden_size
+        return query
 
     def _reshape_key_value(self, key: torch.Tensor, value: torch.Tensor, users: int):
         """Reshape key and value tensors to [users_kv, kv_num_tokens, hidden] format."""
-        # Handle key tensor
-        if key.ndim == 3:
-            users_kv = key.shape[0]
-            kv_num_tokens = key.shape[1]
-            kv_hidden_size = key.shape[2]
-        elif key.ndim == 2:
-            total_k_tokens = key.shape[0]
-            kv_hidden_size = key.shape[1]
-            users_kv = users  # Assume same users as query
-            assert (
-                total_k_tokens % users_kv == 0
-            ), f"total_k_tokens ({total_k_tokens}) not divisible by users_kv ({users_kv})."
-            kv_num_tokens = total_k_tokens // users_kv
-            key = key.view(users_kv, kv_num_tokens, kv_hidden_size)
-        else:
-            raise ValueError(f"Unsupported key rank: {key.ndim}")
+        total_k_tokens = key.shape[0]
+        kv_hidden_size = key.shape[1]
+        users_kv = users  # Assume same users as query
+        assert (
+            total_k_tokens % users_kv == 0
+        ), f"total_k_tokens ({total_k_tokens}) not divisible by users_kv ({users_kv})."
+        kv_num_tokens = total_k_tokens // users_kv
+        key = key.view(users_kv, kv_num_tokens, kv_hidden_size)
 
-        # Handle value tensor
-        if value.ndim == 3:
-            users_v = value.shape[0]
-            v_num_tokens = value.shape[1]
-            v_hidden_size = value.shape[2]
-            assert (
-                users_v == users_kv and v_num_tokens == kv_num_tokens
-            ), "key/value shape mismatch."
-        elif value.ndim == 2:
-            total_v_tokens = value.shape[0]
-            v_hidden_size = value.shape[1]
-            users_v = users_kv
-            assert (
-                total_v_tokens % users_v == 0
-            ), f"total_v_tokens ({total_v_tokens}) not divisible by users_v ({users_v})."
-            v_num_tokens = total_v_tokens // users_v
-            assert v_num_tokens == kv_num_tokens, "key/value token count mismatch."
-            value = value.view(users_v, v_num_tokens, v_hidden_size)
-        else:
-            raise ValueError(f"Unsupported value rank: {value.ndim}")
+        total_v_tokens = value.shape[0]
+        v_hidden_size = value.shape[1]
+        users_v = users_kv
+        assert (
+            total_v_tokens % users_v == 0
+        ), f"total_v_tokens ({total_v_tokens}) not divisible by users_v ({users_v})."
+        v_num_tokens = total_v_tokens // users_v
+        assert v_num_tokens == kv_num_tokens, "key/value token count mismatch."
+        value = value.view(users_v, v_num_tokens, v_hidden_size)
 
-        return key, value, users_kv, kv_num_tokens
+        return key, value
 
     def _reshape_to_attention_format(
         self,
