@@ -392,14 +392,35 @@ def add_key_preserving_trailing_comment(
             # Attach to the deepest key we found
             if path:
                 target_map, target_key = path[-1]
-                if target_key not in target_map.ca.items:
-                    target_map.ca.items[target_key] = [None, None, None, None]
-                inner_comment_list = list(
-                    target_map.ca.items.get(target_key, [None, None, None, None])
-                )
+                # Get existing comments or create new list, preserving any existing comments
+                if target_key in target_map.ca.items:
+                    print(
+                        f"KCM DEBUG: target_key '{target_key}' already has comments: {target_map.ca.items[target_key]}"
+                    )
+                    inner_comment_list = list(target_map.ca.items[target_key])
+                else:
+                    print(
+                        f"KCM DEBUG: target_key '{target_key}' has no comments, creating new list"
+                    )
+                    inner_comment_list = [None, None, None, None]
+
                 while len(inner_comment_list) < 4:
                     inner_comment_list.append(None)
-                inner_comment_list[2] = trailing_comment
+
+                # Only set trailing comment if there's NO inline comment already
+                # If there's an inline comment, we don't want to add a trailing comment
+                # because ruamel.yaml might drop the inline when rendering
+                if not inner_comment_list[1]:  # No inline comment
+                    print(f"KCM DEBUG: No inline comment, setting trailing comment")
+                    inner_comment_list[2] = trailing_comment
+                else:
+                    print(
+                        f"KCM DEBUG: Inline comment exists, NOT setting trailing comment to preserve inline"
+                    )
+
+                print(
+                    f"KCM DEBUG: Final comment list - inline (index 1): {inner_comment_list[1]}, trailing (index 2): {inner_comment_list[2]}"
+                )
                 target_map.ca.items[target_key] = inner_comment_list
         else:
             if verbose:
@@ -496,6 +517,60 @@ def move_field_preserving_comments(
         target_map.ca.items[field] = target_comments
 
 
+def copy_inline_comment_if_exists(
+    source_map: CommentedMap,
+    target_map: CommentedMap,
+    source_key: str,
+    target_key: str = None,
+) -> None:
+    """
+    Copy inline comment from source_key to target_key using yaml_add_eol_comment.
+
+    This function handles ruamel.yaml's complex comment storage system:
+    - Comments are stored as 4-element lists: [before, inline, trailing, indent]
+    - Index 1 = inline/end-of-line comments (e.g., "key: value # comment")
+    - Index 2 = trailing comments (blank lines + next section comments)
+
+    Challenges encountered:
+    - ruamel.yaml sometimes stores what LOOKS like inline comments (e.g., "key: value # comment")
+      as trailing comments (index 2) instead of inline comments (index 1)
+    - Simply copying the comment list doesn't work when creating new CommentedMap objects
+    - Direct assignment of comment lists can cause ruamel to not render them in output
+    - Creating new CommentedMap objects loses comment metadata from the original
+
+    Solution: Use ruamel.yaml's official yaml_add_eol_comment() API which properly
+    attaches comments in a way that ruamel knows how to render. Extract comment text
+    from either inline (index 1) or trailing (index 2) storage and re-add using the API.
+    """
+    if target_key is None:
+        target_key = source_key
+
+    # Get comments from source
+    if not (
+        hasattr(source_map, "ca")
+        and source_map.ca.items
+        and source_key in source_map.ca.items
+    ):
+        return
+
+    source_comments = source_map.ca.items[source_key]
+    comment_text = None
+
+    # Check for inline comment at index 1, otherwise extract from trailing comment at index 2
+    if len(source_comments) > 1 and source_comments[1]:
+        comment_text = str(source_comments[1]).strip()
+    elif len(source_comments) > 2 and source_comments[2]:
+        trailing = getattr(source_comments[2], "value", str(source_comments[2]))
+        if trailing.startswith("#"):
+            comment_text = trailing.split("\n")[0].strip()
+
+    # Add comment to target if we found one
+    if comment_text:
+        if comment_text.startswith("#"):
+            comment_text = comment_text[1:].strip()
+        target_map.yaml_add_eol_comment(comment_text, target_key, column=0)
+
+
 def apply_updates_to_yaml(
     data: CommentedMap,
     test_name: str,
@@ -520,31 +595,20 @@ def apply_updates_to_yaml(
     # Check if arch_overrides already exists
     arch_overrides_existed = "arch_overrides" in entry
 
-    # Reuse existing arch_overrides or create new one (DON'T copy!)
-    if arch_overrides_existed:
-        arch_overrides = entry.get("arch_overrides")
-        if not isinstance(arch_overrides, CommentedMap):
-            # Convert plain dict to CommentedMap
-            arch_overrides = CommentedMap(arch_overrides)
-            entry["arch_overrides"] = arch_overrides
-    else:
-        arch_overrides = CommentedMap()
+    # Get or create arch_overrides
+    arch_overrides = entry.get("arch_overrides")
+    if not isinstance(arch_overrides, CommentedMap):
+        arch_overrides = CommentedMap(arch_overrides or {})
 
-    # Track if we made any modifications
+    # Track if we made modifications
     modified = False
 
-    # Apply changes per arch
+    # Apply changes per arch - always use arch_overrides
     for arch, plan in arch_plans.items():
-        # Reuse existing arch_entry or create new one (DON'T copy!)
         arch_entry = arch_overrides.get(arch)
-        if arch_entry is None:
-            arch_entry = CommentedMap()
+        if not isinstance(arch_entry, CommentedMap):
+            arch_entry = CommentedMap(arch_entry or {})
             arch_overrides[arch] = arch_entry
-        elif not isinstance(arch_entry, CommentedMap):
-            # Convert plain dict to CommentedMap while preserving structure
-            arch_entry = CommentedMap(arch_entry)
-            arch_overrides[arch] = arch_entry
-        # else: arch_entry is already a CommentedMap, reuse it as-is
 
         # Apply required_pcc change
         if "set_required_pcc" in plan:
@@ -556,6 +620,9 @@ def apply_updates_to_yaml(
                         f"   - Setting arch_overrides.{arch}.required_pcc: {old_th} -> {new_th} for {bracket_key}"
                     )
                 arch_entry["required_pcc"] = new_th
+
+                # Copy inline comment from top-level required_pcc if it exists
+                copy_inline_comment_if_exists(entry, arch_entry, "required_pcc")
                 modified = True
 
         # Apply assert_pcc change (remove assert_pcc:false)
@@ -572,17 +639,22 @@ def apply_updates_to_yaml(
                 if not arch_entry:
                     arch_overrides.pop(arch, None)
 
-    # Add arch_overrides if we're creating it for the first time
-    if modified and not arch_overrides_existed:
-        if arch_overrides and len(arch_overrides) > 0:
+    # Add arch_overrides to entry if we made changes
+    if modified:
+        if not arch_overrides_existed and arch_overrides and len(arch_overrides) > 0:
+            # Adding arch_overrides for the first time - use helper to preserve trailing comments
             add_key_preserving_trailing_comment(
                 entry, "arch_overrides", arch_overrides, verbose
             )
+        elif arch_overrides_existed:
+            # Already existed - just update it
+            entry["arch_overrides"] = arch_overrides
 
     # Clean up empty arch_overrides
     if "arch_overrides" in entry and (not arch_overrides or len(arch_overrides) == 0):
         entry.pop("arch_overrides", None)
 
+    test_config[bracket_key] = entry  # type: ignore
     return bracket_key if modified else None
 
 
