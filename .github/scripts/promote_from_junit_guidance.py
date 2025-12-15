@@ -526,8 +526,7 @@ def apply_updates_to_yaml(
 ) -> Optional[str]:
     """
     Apply changes grouped by arch, always using arch_overrides.
-    
-    Simplified approach: Save trailing comment before changes, restore after.
+    Trailing comment preservation is now handled externally (after optimization).
     """
     if "test_config" not in data or data["test_config"] is None:
         return None
@@ -541,10 +540,6 @@ def apply_updates_to_yaml(
         entry = CommentedMap(entry or {})
         test_config[bracket_key] = entry
 
-    # STEP 1: Save trailing comment before making any changes
-    trailing_comment = save_entry_trailing_comment(entry)
-    print(f"KCM DEBUG: Trailing comment: {trailing_comment}")
-
     if "arch_overrides" not in entry:
         return None
         
@@ -554,7 +549,6 @@ def apply_updates_to_yaml(
 
     modified = False
 
-    # STEP 2: Make all the changes
     for arch, plan in arch_plans.items():
         arch_entry = arch_overrides.get(arch)
         if arch_entry is None or not isinstance(arch_entry, CommentedMap):
@@ -586,10 +580,6 @@ def apply_updates_to_yaml(
     # Clean up empty arch_overrides
     if not arch_overrides or len(arch_overrides) == 0:
         entry.pop("arch_overrides", None)
-
-    # STEP 3: Restore trailing comment to the (possibly new) last key
-    if modified and trailing_comment:
-        apply_entry_trailing_comment(entry, trailing_comment)
 
     return bracket_key if modified else None
 
@@ -706,8 +696,21 @@ def main() -> int:
         data = load_yaml_config(config_path)
         modified_bracket_keys: List[str] = []
 
-        # Normalize all test entries that will be modified
         test_config = data.get("test_config")
+        
+        # STEP 1: Save trailing comments BEFORE any modifications
+        saved_trailing_comments: Dict[str, object] = {}
+        if isinstance(test_config, dict):
+            for test_name in by_config[config_path].keys():
+                bracket_key = extract_bracket_key_from_testcase_name(test_name)
+                if bracket_key and bracket_key in test_config:
+                    entry = test_config[bracket_key]
+                    if isinstance(entry, CommentedMap):
+                        trailing = save_entry_trailing_comment(entry)
+                        if trailing:
+                            saved_trailing_comments[bracket_key] = trailing
+
+        # STEP 2: Normalize all test entries that will be modified
         if isinstance(test_config, dict):
             for test_name in by_config[config_path].keys():
                 bracket_key = extract_bracket_key_from_testcase_name(test_name)
@@ -719,18 +722,17 @@ def main() -> int:
                             entry, all_archs, ["required_pcc", "assert_pcc"]
                         )
 
-        # Apply updates
+        # STEP 3: Apply updates
         for test_name, arch_plans in sorted(by_config[config_path].items()):
             print(f" - {('APPLY' if args.apply else 'PLAN ')} {os.path.basename(config_path)} :: {test_name} [archs: {', '.join(sorted(arch_plans.keys()))}] -> {arch_plans}")
             bracket_key = apply_updates_to_yaml(data, test_name, arch_plans, args.verbose)
             if bracket_key:
                 modified_bracket_keys.append(bracket_key)
 
-        # Optimization pass
+        # STEP 4: Optimization pass
         if modified_bracket_keys and not args.no_optimize:
             if args.verbose:
                 print(f"\nRunning optimization pass for {os.path.basename(config_path)}...\n")
-            test_config = data.get("test_config")
             if isinstance(test_config, dict):
                 for bracket_key in modified_bracket_keys:
                     if bracket_key not in test_config:
@@ -739,6 +741,14 @@ def main() -> int:
                     if isinstance(entry, CommentedMap):
                         all_archs = get_all_archs_for_entry(entry)
                         optimize_arch_overrides(entry, all_archs, args.verbose, bracket_key)
+
+        # STEP 5: Restore trailing comments AFTER optimization
+        if isinstance(test_config, dict):
+            for bracket_key in modified_bracket_keys:
+                if bracket_key in saved_trailing_comments and bracket_key in test_config:
+                    entry = test_config[bracket_key]
+                    if isinstance(entry, CommentedMap):
+                        apply_entry_trailing_comment(entry, saved_trailing_comments[bracket_key])
 
         if args.apply:
             write_yaml_config(config_path, data)
