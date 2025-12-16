@@ -36,7 +36,7 @@ def _mask_jax_accelerator():
         try:
             acc = torch.accelerator.current_accelerator()
             # current_accelerator() returns device(type='jax'), need to check .type
-            if acc is not None and acc.type == "jax":
+            if acc.type == "jax":
                 return False
         except RuntimeError:
             pass

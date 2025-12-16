@@ -54,6 +54,7 @@ def training_tester() -> StableDiffusionXLTester:
 @pytest.mark.xfail(
     reason="Out of Memory: Not enough space to allocate 94633984 B DRAM buffer across 12 banks"
 )
+@pytest.mark.large
 def test_torch_stable_diffusion_xl_inference(inference_tester: StableDiffusionXLTester):
     inference_tester.test()
 

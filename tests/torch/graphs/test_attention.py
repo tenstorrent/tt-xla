@@ -149,7 +149,6 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, arch):
 
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -229,7 +228,6 @@ def test_llama_attention_decode(variant, variant_config, arch):
 
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -352,7 +350,6 @@ def test_llama_create_heads(variant, variant_config, seq_len):
 
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -406,7 +403,7 @@ def test_llama_attention(variant, variant_config, seq_len, arch):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, _ = attention_interface(
+        attn_output, attn_weights = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -415,11 +412,10 @@ def test_llama_attention(variant, variant_config, seq_len, arch):
             dropout=dropout,
             scaling=scaling,
         )
-        return attn_output
+        return attn_output, attn_weights
 
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -503,12 +499,7 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, arch):
 
     loader = Qwen3ModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
-    if variant == Qwen3ModelVariant.QWEN_3_30B_A3B:
-        model = loader.load_model(dtype_override=torch.bfloat16)
-        attention = model.model.layers[0].self_attn
-    else:
-        attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
+    attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
@@ -589,7 +580,6 @@ def test_qwen3_attention_prefill_push(seq_len, variant, arch):
 
     loader = Qwen3ModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     hidden_states = torch.randn(
@@ -619,13 +609,10 @@ def test_qwen3_attention_prefill_push(seq_len, variant, arch):
         mesh = None
         get_shard_spec = None
 
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
-
     run_graph_test(
         attention,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
         framework=Framework.TORCH,
-        comparison_config=comparison_config,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
@@ -645,10 +632,8 @@ def test_qwen3_attention_decode(variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = Qwen3ModelLoader(variant=variant)
-    model = loader.load_model(dtype_override=torch.bfloat16)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
-    attention = model.model.layers[0].self_attn
+    attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
@@ -782,7 +767,6 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
 
     loader = Qwen3ModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -839,7 +823,7 @@ def test_qwen3_attention(variant, variant_config, seq_len, arch):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, _ = attention_interface(
+        attn_output, attn_weights = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -849,16 +833,11 @@ def test_qwen3_attention(variant, variant_config, seq_len, arch):
             scaling=scaling,
             sliding_window=getattr(attention_module, "sliding_window", None),
         )
-        return attn_output
+        return attn_output, attn_weights
 
     loader = Qwen3ModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
-    if variant == Qwen3ModelVariant.QWEN_3_30B_A3B:
-        model = loader.load_model(dtype_override=torch.bfloat16)
-        attention = model.model.layers[0].self_attn
-    else:
-        attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
+    attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
@@ -947,7 +926,6 @@ def test_bge_m3_attention_prefill(seq_len, variant, variant_config):
 
     loader = BgeModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = XLMRobertaSelfAttention(config).to(torch.float32)
 
     batch_size = 1
@@ -1029,7 +1007,6 @@ def test_bge_m3_create_heads(seq_len, variant, variant_config):
 
     loader = BgeModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = XLMRobertaSelfAttention(config).to(torch.float32)
 
     batch_size = 1
@@ -1071,7 +1048,6 @@ def test_bert_create_heads(variant, variant_config, seq_len):
 
     loader = BertModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = BertSelfAttention(config).to(torch.bfloat16)
 
     batch_size = 1
@@ -1117,7 +1093,6 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, arch):
 
     loader = Qwen2_5ModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
@@ -1204,7 +1179,6 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, arch):
 
     loader = Qwen2_5ModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
@@ -1298,7 +1272,6 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
 
     loader = Qwen2_5ModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
@@ -1412,7 +1385,7 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, _ = attention_interface(
+        attn_output, attn_weights = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -1422,11 +1395,10 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
             scaling=scaling,
             sliding_window=getattr(attention_module, "sliding_window", None),
         )
-        return attn_output
+        return attn_output, attn_weights
 
     loader = Qwen2_5ModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
@@ -1542,7 +1514,6 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, arch):
 
     loader = GemmaModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -1629,7 +1600,6 @@ def test_gemma_attention_prefill_push(seq_len, variant, arch):
 
     loader = GemmaModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     hidden_states = torch.randn(
@@ -1686,7 +1656,6 @@ def test_gemma_attention_decode(variant, variant_config, arch):
 
     loader = GemmaModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -1796,7 +1765,7 @@ def test_gemma_attention(variant, variant_config, seq_len, arch):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, _ = attention_interface(
+        attn_output, attn_weights = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -1805,11 +1774,10 @@ def test_gemma_attention(variant, variant_config, seq_len, arch):
             dropout=dropout,
             scaling=scaling,
         )
-        return attn_output
+        return attn_output, attn_weights
 
     loader = GemmaModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -1901,7 +1869,6 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, arch):
 
     loader = MistralModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -1955,7 +1922,6 @@ def test_mistral_attention_prefill_push(seq_len, variant, arch):
 
     loader = MistralModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     hidden_states = torch.randn(
@@ -2007,7 +1973,6 @@ def test_mistral_attention_decode(variant, variant_config, arch):
 
     loader = MistralModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -2085,7 +2050,7 @@ def test_mistral_attention(variant, variant_config, seq_len, arch):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, _ = attention_interface(
+        attn_output, attn_weights = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -2095,11 +2060,10 @@ def test_mistral_attention(variant, variant_config, seq_len, arch):
             scaling=scaling,
             sliding_window=getattr(attention_module, "sliding_window", None),
         )
-        return attn_output
+        return attn_output, attn_weights
 
     loader = MistralModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
     attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1

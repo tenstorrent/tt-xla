@@ -1,5 +1,5 @@
 jax==0.7.1
 jaxlib==0.7.1
 requests
-torch==2.9.0
-torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgit061c1e7-cp311-cp311-linux_x86_64.whl
+torch==2.7.1
+torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgita5be1f8-cp311-cp311-linux_x86_64.whl
