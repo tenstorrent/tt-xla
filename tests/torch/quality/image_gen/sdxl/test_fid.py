@@ -1,3 +1,4 @@
+import pytest
 import torch
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
@@ -18,8 +19,8 @@ MODEL_INFO = {
         "num_inference_steps": 50
     }
 
+@pytest.mark.skip(reason="This test is currently disabled because we need at least 100-ish images for the FID score to be meaningful, which is computationally expensive.")
 @pytest.mark.single_device
-@pytest.mark.nightly
 @pytest.mark.quality_test
 @pytest.mark.record_test_properties(
     category=Category.QUALITY_TEST,
