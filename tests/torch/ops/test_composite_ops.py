@@ -251,52 +251,69 @@ def test_patched_layer_norm_module(
         def forward(self, x):
             return self.ln(x)
 
-    input_shape = (batch_size, sentence_length, embedding_dim)
+    options = {"tt_enable_composite_ops": True}
+
+    input_tensor = torch.randn(
+        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
+    )
 
     model = LayerNormModel(embedding_dim)
 
-    run_op_test_with_random_inputs(
+    run_graph_test(
         model,
-        [input_shape],
+        [input_tensor],
         comparison_config=ComparisonConfig(),
-        dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        torch_options=options,
     )
 
 
+@pytest.mark.parametrize("use_weight", [True, False])
+@pytest.mark.parametrize("use_bias", [True, False])
 @pytest.mark.parametrize(
     "batch_size, sentence_length, embedding_dim",
     [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
 )
-def test_patched_layer_norm_functional(batch_size, sentence_length, embedding_dim):
+def test_patched_layer_norm_functional(
+    use_weight, use_bias, batch_size, sentence_length, embedding_dim
+):
 
     class LayerNormModel(torch.nn.Module):
         def __init__(self, normalized_shape):
             super().__init__()
             self.normalized_shape = normalized_shape
 
-        def forward(self, x):
-            return F.layer_norm(x, (self.normalized_shape,), eps=1e-5)
+        def forward(self, x, weight=None, bias=None):
+            return F.layer_norm(x, (self.normalized_shape,), weight, bias, eps=1e-5)
 
-    input_shape = (batch_size, sentence_length, embedding_dim)
+    options = {"tt_enable_composite_ops": True}
+
+    input_tensor = torch.randn(
+        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
+    )
+    weight = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_weight else None
+    bias = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_bias else None
 
     model = LayerNormModel(embedding_dim)
 
-    run_op_test_with_random_inputs(
+    run_graph_test(
         model,
-        [input_shape],
+        [input_tensor, weight, bias],
         comparison_config=ComparisonConfig(),
-        dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        torch_options=options,
     )
 
 
 @pytest.mark.parametrize("use_weight", [True, False])
+@pytest.mark.parametrize("use_bias", [True, False])
 @pytest.mark.parametrize(
     "batch_size, sentence_length, embedding_dim",
     [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
 )
-def test_composite_layer_norm(use_weight, batch_size, sentence_length, embedding_dim):
+def test_composite_layer_norm(
+    use_weight, use_bias, batch_size, sentence_length, embedding_dim
+):
 
     class LayerNormModel(torch.nn.Module):
         def __init__(self, normalized_shape):
@@ -308,19 +325,23 @@ def test_composite_layer_norm(use_weight, batch_size, sentence_length, embedding
                 x, self.normalized_shape, weight, bias, eps=1e-5
             )
 
-    input_shape = (batch_size, sentence_length, embedding_dim)
-    input_shapes = [input_shape]
+    options = {"tt_enable_composite_ops": False}
 
-    if use_weight:
-        weight_shape = (embedding_dim,)
-        input_shapes.append(weight_shape)
+    input_tensor = torch.randn(
+        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
+    )
+    weight = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_weight else None
+    bias = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_bias else None
 
     model = LayerNormModel(embedding_dim)
 
-    run_op_test_with_random_inputs(
-        model,
-        input_shapes,
-        comparison_config=ComparisonConfig(),
-        dtype=torch.bfloat16,
-        framework=Framework.TORCH,
-    )
+    # Disable inplace buffers for inductor compilation
+    # so that we can compare the results with the golden model.
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            model,
+            [input_tensor, weight, bias],
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+        )
