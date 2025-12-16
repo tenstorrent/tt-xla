@@ -1,4 +1,6 @@
-name: Build and Test tt-xla (Debug with Coverage)
+name: Build tt-xla (debug with unit tests)
+
+# TODO: Make sure outputs and reports are in the right format.
 
 on:
   workflow_call:

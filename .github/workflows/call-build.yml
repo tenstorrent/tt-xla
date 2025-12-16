@@ -142,7 +142,68 @@ jobs:
             create-symlink: true
             key: "${{ steps.strings.outputs.build-name }}-build"
 
+      - name: Build with CMake (with debug symbols and code coverage)
+        if: inputs.build_type == 'debug'
+        shell: bash
+        run: |
+            source venv/activate
+            cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON
+            cmake --build ${{ steps.strings.outputs.build-output-dir }}
+
+      - name: Run unit tests with ctest
+        if: inputs.build_type == 'debug'
+        shell: bash
+        run: |
+            source venv/activate
+            cd ${{ steps.strings.outputs.build-output-dir }}
+            export LD_LIBRARY_PATH=${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/install/lib:$LD_LIBRARY_PATH
+            ctest -R PJRT -V 2>&1 | tee ctest.log
+
+      - name: Upload test log
+        if: (success() || failure()) && inputs.build_type == 'debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log-unittests-${{ steps.fetch-job-id.outputs.job_id }}-${{ github.run_attempt }} # TODO: check name
+          path: ctest.log
+
+      - name: Upload test report
+        if: (success() || failure()) && inputs.build_type == 'debug'
+        uses: actions/upload-artifact@v4
+        with:
+            name: unit-test-report-debug
+            path: ${{ steps.strings.outputs.build-output-dir }}/gtest_report.xml # TODO: check name
+
+      - name: Show unit test report
+        if: (success() || failure()) && inputs.build_type == 'debug'
+        continue-on-error: true # TODO: What is this
+        uses: mikepenz/action-junit-report@v5
+        with:
+            report_paths: ${{ steps.strings.outputs.build-output-dir }}/gtest_report.xml
+            check_name: TT-XLA Unit Tests
+            group_suite: true
+            detailed_summary: true
+            include_passed: true
+            token: ${{ github.token }}
+
+      - name: Prepare code coverage report
+        if: (success() || failure()) && inputs.build_type == 'debug'
+        shell: bash
+        run: |
+            lcov --directory ${{ steps.strings.outputs.build-output-dir }} --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh
+            lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
+            sed -i 's|SF:${{ steps.strings.outputs.work-dir }}/pjrt_implementation/src/|SF:src/|' coverage.info
+            lcov --list coverage.info
+
+      - name: Upload coverage report to Codecov
+        if: (success() || failure()) && inputs.build_type == 'debug'
+        uses: codecov/codecov-action@v5
+        with:
+            files: coverage.info
+            disable_search: true
+            token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Build the wheel
+        if: inputs.build_type != 'debug'
         shell: bash
         run: |
             source venv/activate
@@ -150,6 +211,7 @@ jobs:
             python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
 
       - name: Validate build type of wheel build
+        if: inputs.build_type != 'debug'
         shell: bash
         run: |
             source venv/activate
@@ -164,6 +226,7 @@ jobs:
             fi
 
       - name: Upload the wheel
+        if: inputs.build_type != 'debug'
         id: upload-wheel
         uses: actions/upload-artifact@v4
         with:
@@ -186,20 +249,20 @@ jobs:
             name: ${{ needs.check-existing-artifact.outputs.wheel_release_vllm_tt_artifact_name }}
             path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl
 
-      - name: Archive Build Directory
-        if: inputs.build_type == 'codecov'
+      - name: Archive build directory
+        if: (success() || failure()) && (inputs.build_type == 'codecov' || inputs.build_type == 'debug')
         shell: bash
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: tar cf artifact.tar .
 
-      - name: Upload Build Folder
-        if: inputs.build_type == 'codecov'
+      - name: Upload build folder
+        if: (success() || failure()) && (inputs.build_type == 'codecov' || inputs.build_type == 'debug')
         uses: actions/upload-artifact@v4
         with:
             name: ${{ needs.check-existing-artifact.outputs.build_artifact_name }}
             path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
 
       - name: Remove tar archive
-        if: inputs.build_type == 'codecov'
+        if: (success() || failure()) && (inputs.build_type == 'codecov' || inputs.build_type == 'debug')
         shell: bash
         run: rm -f ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
