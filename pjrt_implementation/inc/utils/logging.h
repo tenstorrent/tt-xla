@@ -10,8 +10,9 @@
 
 // Loguru doesn't have debug named verbosity and the next verbosity after INFO
 // is called `Verbosity_1`, so defining this to avoid doing `DLOG_F(1, ...)`.
-#define LOG_DEBUG 1
-#define LOG_VERBOSE 2
+#define LOG_TENSOR_SIZES_TO_DEVICE 1
+#define LOG_DEBUG 2
+#define LOG_VERBOSE 3
 
 #include <loguru/loguru.hpp>
 
