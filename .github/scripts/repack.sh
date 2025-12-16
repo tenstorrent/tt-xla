@@ -1,4 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 
 # Repackage an existing Python wheel to reduce size by pruning static
 # archives and stripping shared libraries before recreating the wheel.
@@ -61,9 +64,15 @@ deduplicate_files() {
 		if [ -h "$file" ]; then
 			continue
 		fi
+		rel_path=${file#"$temp_dir"/}
+		case "$rel_path" in
+			*.so|*.so.*) ;;
+			*)
+				continue
+				;;
+		esac
 		local checksum
 		checksum=$(sha256sum "$file" | awk '{print $1}')
-		local rel_path=${file#"$temp_dir"/}
 		if [[ -n ${seen_hashes[$checksum]+_} ]]; then
 			local target_rel=${seen_hashes[$checksum]}
 			local target_path="$temp_dir/$target_rel"
