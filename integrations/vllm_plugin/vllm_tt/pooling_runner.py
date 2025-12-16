@@ -356,7 +356,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
             max_token_size=max_token_size,
-            padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
         )
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
         # padded max value to pre-allocate data structures and pre-compile.
@@ -1986,41 +1985,23 @@ def _adjust_min_token(min_token_size: int) -> int:
     return adjusted_value
 
 
-def _get_token_paddings(
-    min_token_size: int, max_token_size: int, padding_gap: int
-) -> list[int]:
+def _get_token_paddings(min_token_size: int, max_token_size: int) -> list[int]:
     """
     Generate a list of padding size, starting from min_token_size, ending with
-    a number that can cover max_token_size.
+    a number that can cover max_token_size. Increase padding size exponentially.
 
     First adjust min_token_size so it is power-of-two and divisible by 32.
-
-    If padding_gap == 0 then:
-        increase 2X each time (exponential)
-    else:
-        first increase the size to twice,
-        then increase the padding size by padding_gap.
     """
     # Adjust min_token_size to be power of 2 and >=32 (if required)
     num = _adjust_min_token(min_token_size)
     paddings = []
 
-    if padding_gap == 0:
-        logger.info("Using exponential token paddings:")
-        while True:
-            paddings.append(num)
-            if num >= max_token_size:
-                break
-            num *= 2
-    else:
-        logger.info("Using incremental token paddings:")
-        while num <= padding_gap:
-            paddings.append(num)
-            num *= 2
-        num //= 2
-        while num < max_token_size:
-            num += padding_gap
-            paddings.append(num)
+    logger.info("Using exponential token paddings:")
+    while True:
+        paddings.append(num)
+        if num >= max_token_size:
+            break
+        num *= 2
 
     logger.info("Token paddings: %s", paddings)
     return paddings
