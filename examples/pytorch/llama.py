@@ -201,7 +201,7 @@ def construct_inputs(
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
     logger.warning(
-        "Regression in left-padded multibatch inference accuracy after uplift of transformers==4.56.1 and torch==2.9.0, https://github.com/tenstorrent/tt-xla/issues/2546 "
+        "Regression in left-padded multibatch inference accuracy after uplift of transformers==4.57.1 and torch==2.9.0, https://github.com/tenstorrent/tt-xla/issues/2546 "
     )
     inputs = tokenizer(
         input_prompt,
