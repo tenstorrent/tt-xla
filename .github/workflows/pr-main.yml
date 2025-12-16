@@ -129,7 +129,7 @@ jobs:
       - build-image
       - build-ttxla-release
       - build-ttxla-explorer
-      - build-test-debug
+      - build-ttxla-debug
       - test
       - test_forge_models_push
       - build-docs
