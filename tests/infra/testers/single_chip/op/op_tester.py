@@ -79,13 +79,9 @@ class OpTester(BaseTester):
                 torch_xla.set_custom_compile_options(
                     self._compiler_config.to_torch_compile_options()
                 )
-            # Pass torch_options to torch.compile if provided
-            if self._torch_options:
-                workload.compiled_executable = torch.compile(
-                    to_compile, backend="tt", options=self._torch_options
-                )
-            else:
-                workload.compiled_executable = torch.compile(to_compile, backend="tt")
+            workload.compiled_executable = torch.compile(
+                to_compile, backend="tt", options=self._torch_options
+            )
 
         if self._framework == Framework.JAX:
             assert workload.is_jax, "Workload must be JAX workload to compile"
