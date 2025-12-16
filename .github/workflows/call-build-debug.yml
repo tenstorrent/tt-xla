@@ -33,13 +33,13 @@ jobs:
             submodules: recursive
             repository: 'tenstorrent/tt-xla'
 
-      - name: Fetch job id
+      - name: Fetch job ID
         id: fetch-job-id
         uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
         with:
           job_name: "Build tt-xla (debug)"
 
-      - name: Override tt-mlir SHA mlir_override is set
+      - name: Override tt-mlir SHA if mlir_override is set
         if: ${{ inputs.mlir_override }}
         shell: bash
         run: |
