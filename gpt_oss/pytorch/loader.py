@@ -158,6 +158,59 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
+    def get_mesh_config(self, num_devices: int):
+        """Get mesh configuration for tensor parallelism.
+
+        Args:
+            num_devices: Number of devices to use for tensor parallelism
+
+        Returns:
+            Tuple of (mesh_shape, axis_names)
+        """
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        """Load shard specifications for tensor parallelism.
+
+        Args:
+            model: The gpt-oss model instance
+
+        Returns:
+            Dictionary mapping model parameters to their shard specifications,
+            or None if sharding is not needed for this variant
+        """
+        shard_specs = {}
+        for layer in model.model.layers:
+            # Self-attention weights
+            # q_proj, k_proj, v_proj: column-wise sharding
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            # o_proj: row-wise sharding
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+
+            # MoE MLP components
+            # Router is replicated across all devices
+            shard_specs[layer.mlp.router.weight] = ("batch", "batch")
+
+            # Expert weights - sharded across the expert dimension
+            # These are 3D tensors with shape (num_experts, hidden_size, intermediate_size)
+            shard_specs[layer.mlp.experts.gate_up_proj] = (
+                "model",
+                "batch",
+                "batch",
+            )
+            shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", "batch")
+            shard_specs[layer.mlp.experts.down_proj] = (
+                "model",
+                "batch",
+                "batch",
+            )
+            shard_specs[layer.mlp.experts.down_proj_bias] = ("model", "batch")
+
+        return shard_specs
+
     def load_config(self):
         """Load and return the configuration for the gpt-oss model with this instance's variant.
 
