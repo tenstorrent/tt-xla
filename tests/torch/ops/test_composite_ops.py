@@ -235,6 +235,7 @@ def test_composite_rms_norm(use_weight):
     comparator.compare(output, golden)
 
 
+@pytest.mark.single_device
 @pytest.mark.parametrize("elementwise_affine", [True, False])
 @pytest.mark.parametrize(
     "batch_size, sentence_length, embedding_dim",
@@ -268,6 +269,7 @@ def test_patched_layer_norm_module(
     )
 
 
+@pytest.mark.single_device
 @pytest.mark.parametrize("use_weight", [True, False])
 @pytest.mark.parametrize("use_bias", [True, False])
 @pytest.mark.parametrize(
@@ -305,6 +307,7 @@ def test_patched_layer_norm_functional(
     )
 
 
+@pytest.mark.single_device
 @pytest.mark.parametrize("use_weight", [True, False])
 @pytest.mark.parametrize("use_bias", [True, False])
 @pytest.mark.parametrize(
