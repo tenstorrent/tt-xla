@@ -1,8 +1,8 @@
-name: Build tt-xla
+name: Build tt-xla (debug)
 
 # Implements artifact caching to avoid unnecessary rebuilds.
 # Artifacts are reused only when: not a PR, no mlir_override, and exact name match exists.
-# Naming: "xla-whl-{release|explorer}[-commit_sha]" (SHA added for individual commits only).
+# Naming: "build-artifacts[-commit_sha]" (SHA added for individual commits only).
 
 on:
   workflow_call:
@@ -15,18 +15,10 @@ on:
             description: 'Docker image to use for the build'
             required: true
             type: string
-        build_type:
-            description: 'Build type: release, explorer'
-            default: release
-            type: string
-            required: false
     outputs:
-        wheel_artifact_name:
-            description: 'Name of the wheel artifact'
-            value: ${{ jobs.check-existing-artifact.outputs.wheel_artifact_name }}
-        wheel_release_vllm_tt_artifact_name:
-            description: 'Name of the vllm-tt plugin wheel artifact'
-            value: ${{ jobs.check-existing-artifact.outputs.wheel_release_vllm_tt_artifact_name }}
+        build_artifact_name:
+            description: 'Name of the build artifact'
+            value: ${{ jobs.check-existing-artifact.outputs.build_artifact_name }}
         artifacts_run_id:
             description: 'Run ID of the artifacts'
             value: ${{ jobs.check-existing-artifact.outputs.artifacts_run_id || github.run_id }}
@@ -37,8 +29,7 @@ jobs:
     name: "Check for existing artifact"
     outputs:
       artifacts_run_id: ${{ steps.check-artifact.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ steps.generate-name.outputs.wheel_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ steps.generate-name.outputs.wheel_release_vllm_tt_artifact_name }}
+      build_artifact_name: ${{ steps.generate-name.outputs.build_artifact_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,8 +37,6 @@ jobs:
         id: generate-name
         shell: bash
         run: |
-          build_name=${{ inputs.build_type }}
-
           # Add commit SHA to artifact name only when all conditions are met:
           # - Not a pull request event
           # - Not a merge commit (has exactly 1 parent)
@@ -61,11 +50,9 @@ jobs:
             artifact_suffix=""
             echo "reusable_artifact=false" >> "$GITHUB_OUTPUT"
           fi
-          wheel_artifact_name="xla-whl-${build_name}${artifact_suffix}"
-          wheel_release_vllm_tt_artifact_name="vllm-tt-whl-${build_name}${artifact_suffix}"
-          echo "wheel_artifact_name=${wheel_artifact_name}" >> "$GITHUB_OUTPUT"
-          echo "wheel_release_vllm_tt_artifact_name=${wheel_release_vllm_tt_artifact_name}" >> "$GITHUB_OUTPUT"
-          echo "Generated artifact name: $wheel_artifact_name"
+          build_artifact_name="build-artifacts${artifact_suffix}"
+          echo "build_artifact_name=${build_artifact_name}" >> "$GITHUB_OUTPUT"
+          echo "Generated artifact name: $build_artifact_name"
 
       - name: Check if artifact exists
         if: ${{ steps.generate-name.outputs.reusable_artifact == 'true' }}
@@ -74,7 +61,7 @@ jobs:
         run: |
           # Use GitHub API to check for existing artifacts
           response=$(curl -s -H "Authorization: token ${{ github.token }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=${{ steps.generate-name.outputs.wheel_artifact_name }}")
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=${{ steps.generate-name.outputs.build_artifact_name }}")
           total_count=$(echo "$response" | jq -r '.total_count')
 
           if [ "$total_count" -gt 0 ]; then
@@ -84,13 +71,13 @@ jobs:
             artifacts_run_id=$(echo "$response" | jq -r '.artifacts[0].workflow_run.id')
             echo "url=${download_url}" >> "$GITHUB_OUTPUT"
             echo "artifacts_run_id=${artifacts_run_id}" >> "$GITHUB_OUTPUT"
-            echo "Found existing artifact: ${{ steps.generate-name.outputs.wheel_artifact_name }}"
+            echo "Found existing artifact: ${{ steps.generate-name.outputs.build_artifact_name }}"
             echo "Artifact URL: $download_url"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "url=" >> "$GITHUB_OUTPUT"
             echo "artifacts_run_id=" >> "$GITHUB_OUTPUT"
-            echo "No existing artifact found for: ${{ steps.generate-name.outputs.wheel_artifact_name }}"
+            echo "No existing artifact found for: ${{ steps.generate-name.outputs.build_artifact_name }}"
           fi
 
   build-ttxla:
@@ -98,7 +85,7 @@ jobs:
     if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id }}
     timeout-minutes: 120
     runs-on: tt-ubuntu-2204-large-stable
-    name: "Build tt-xla (${{ inputs.build_type }})"
+    name: "Build tt-xla (debug)"
     container:
       image: ${{ inputs.docker_image }}
 
@@ -115,12 +102,18 @@ jobs:
             submodules: recursive
             repository: 'tenstorrent/tt-xla'
 
+      - name: Fetch job id
+        id: fetch-job-id
+        uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+        with:
+          job_name: "Build tt-xla (debug)"
+
       - name: Override tt-mlir SHA mlir_override is set
         if: ${{ inputs.mlir_override }}
         shell: bash
         run: |
             # Update the CMakeLists.txt file with the new SHA
-            sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
+            sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/\" third_party/CMakeLists.txt
 
       - name: Set reusable strings
         id: strings
@@ -128,54 +121,85 @@ jobs:
         run: |
             echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
             echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-            echo "build-name=${{ inputs.build_type }}" >> "$GITHUB_OUTPUT"
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
             create-symlink: true
-            key: "${{ steps.strings.outputs.build-name }}-build"
+            key: "debug-build"
 
-      - name: Build the wheel
+      - name: Build with CMake (with debug symbols and code coverage)
         shell: bash
         run: |
             source venv/activate
-            cd ${{ steps.strings.outputs.work-dir }}/python_package
-            python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
+            cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON
+            cmake --build ${{ steps.strings.outputs.build-output-dir }}
 
-      - name: Validate build type of wheel build
+      - name: Run unit tests with ctest
         shell: bash
         run: |
             source venv/activate
-            #Inspect the wheel build type on wheel file without installing the wheel
-            pip install wheel-inspect
-            wheel_summary=$(wheel2json ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl | jq -r '.dist_info.metadata.summary')
-            match=$(echo "$wheel_summary" | grep -oP "build-type=${{ inputs.build_type }}" || true)
-            echo "Wheel summary: $wheel_summary"
-            if [ -z "$match" ]; then
-                echo "Wheel summary does not match build type: ${{ inputs.build_type }}"
-                exit 1
-            fi
+            cd ${{ steps.strings.outputs.build-output-dir }}
+            export LD_LIBRARY_PATH=${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/install/lib:$LD_LIBRARY_PATH
+            ctest -R PJRT -V 2>&1 | tee ctest.log
 
-      - name: Upload the wheel
-        id: upload-wheel
+      - name: Upload test log
+        if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-            name: ${{ needs.check-existing-artifact.outputs.wheel_artifact_name }}
-            path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
+          name: test-log-pjrt-unit-tests-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
+          path: ${{ steps.strings.outputs.build-output-dir }}/ctest.log
 
-      - name: Build vllm plugin wheel
-        if: inputs.build_type == 'release'
-        shell: bash
-        run: |
-            source venv/activate
-            cd ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin
-            python setup.py bdist_wheel $(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo '--code-coverage'; fi)
-
-      - name: Upload the vllm plugin wheel
-        if: inputs.build_type == 'release'
-        id: upload-vllm-tt-wheel
+      - name: Upload test report
+        if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-            name: ${{ needs.check-existing-artifact.outputs.wheel_release_vllm_tt_artifact_name }}
-            path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl
+            name: test-reports-pjrt-unit-tests-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
+            path: ${{ steps.strings.outputs.build-output-dir }}/gtest_report.xml
+
+      - name: Show unit test report
+        if: success() || failure()
+        continue-on-error: true
+        uses: mikepenz/action-junit-report@v5
+        with:
+            report_paths: ${{ steps.strings.outputs.build-output-dir }}/gtest_report.xml
+            check_name: TT-XLA Unit Tests
+            group_suite: true
+            detailed_summary: true
+            include_passed: true
+            token: ${{ github.token }}
+
+      - name: Prepare code coverage report
+        if: success() || failure()
+        shell: bash
+        run: |
+            lcov --directory ${{ steps.strings.outputs.build-output-dir }} --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh
+            lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
+            sed -i 's|SF:${{ steps.strings.outputs.work-dir }}/pjrt_implementation/src/|SF:src/|' coverage.info
+            lcov --list coverage.info
+
+      - name: Upload coverage report to Codecov
+        if: success() || failure()
+        uses: codecov/codecov-action@v5
+        with:
+            files: coverage.info
+            disable_search: true
+            token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Archive build directory
+        if: success() || failure()
+        shell: bash
+        working-directory: ${{ steps.strings.outputs.build-output-dir }}
+        run: tar cf artifact.tar .
+
+      - name: Upload build folder
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+            name: ${{ needs.check-existing-artifact.outputs.build_artifact_name }}
+            path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
+
+      - name: Remove tar archive
+        if: success() || failure()
+        shell: bash
+        run: rm -f ${{ steps.strings.outputs.build-output-dir }}/artifact.tar

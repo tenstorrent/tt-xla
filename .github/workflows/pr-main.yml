@@ -61,13 +61,12 @@ jobs:
 
   build-ttxla-debug:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
-    uses: ./.github/workflows/call-build.yml
+    uses: ./.github/workflows/call-build-debug.yml
     name: "Build and test tt-xla (debug with coverage)"
     secrets: inherit
     needs: [ inspect-changes, build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      build_type: debug
 
   test:
     needs: [ inspect-changes, build-image, build-ttxla-release ]

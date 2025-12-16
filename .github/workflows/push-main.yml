@@ -40,13 +40,12 @@ jobs:
       build_type: explorer
 
   build-ttxla-debug:
-    uses: ./.github/workflows/call-build.yml
+    uses: ./.github/workflows/call-build-debug.yml
     name: "Build and test tt-xla (debug with coverage)"
     secrets: inherit
     needs: [ build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      build_type: debug
 
   test:
     needs: [ build-image, build-ttxla ]
