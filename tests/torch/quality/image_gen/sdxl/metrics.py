@@ -109,13 +109,24 @@ class FIDMetric:
         tr_covmean = np.trace(covmean)
 
         return diff.dot(diff) + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean
+
+
 class CLIPMetric:
+    """
+    This class is used to compute the CLIP score for a given set of images and prompts.
+    Clip score measures the similarity/alignment between the prompt that was used to generate the image and the image itself.
+    It is a solid way to measure the quality of generation, without the need for massive amounts of images.
+    """
     def __init__(self):
         self._clip_model = CLIPEncoder()
         self._clip_model.eval()
 
     @torch.no_grad()
     def compute(self, images: torch.Tensor, prompts: List[str]) -> float:
+        """
+        We return aggregate clip scores (min, mean) on a given (sub)set of images and prompts.
+        This is a useful way to have a single number that can track regressions in image generation quality.
+        """
         clip_scores = []
         for prompt, image in zip(prompts, images):
             clip_scores.append(100 * self._clip_model.get_clip_score(prompt, image).item())
