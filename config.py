@@ -121,13 +121,6 @@ class ModelInfo:
     source: ModelSource
     framework: Framework
 
-    def __post_init__(self):
-        if not isinstance(self.variant, StrEnum):
-            # TODO - Change to raise TypeError once all models updated.
-            print(
-                f"Warning: ModelInfo.variant should be a StrEnum, not {type(self.variant).__name__}"
-            )
-
     @property
     def name(self) -> str:
         """Generate a standardized model identifier"""
