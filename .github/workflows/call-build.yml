@@ -2,7 +2,7 @@ name: Build tt-xla
 
 # Implements artifact caching to avoid unnecessary rebuilds.
 # Artifacts are reused only when: not a PR, no mlir_override, and exact name match exists.
-# Naming: "xla-whl-{release|codecov}[-commit_sha]" (SHA added for individual commits only).
+# Naming: "xla-whl-{release|debug|explorer}[-commit_sha]" (SHA added for individual commits only).
 
 on:
   workflow_call:
@@ -16,7 +16,7 @@ on:
             required: true
             type: string
         build_type:
-            description: 'Build type for the wheel: release, codecov, debug, explorer'
+            description: 'Build type: release, debug, explorer'
             default: release
             type: string
             required: false
@@ -164,7 +164,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-log-unittests-${{ steps.fetch-job-id.outputs.job_id }}-${{ github.run_attempt }} # TODO: check name
-          path: ctest.log
+          path: ${{ steps.strings.outputs.build-output-dir }}/ctest.log
 
       - name: Upload test report
         if: (success() || failure()) && inputs.build_type == 'debug'
@@ -250,19 +250,19 @@ jobs:
             path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl
 
       - name: Archive build directory
-        if: (success() || failure()) && (inputs.build_type == 'codecov' || inputs.build_type == 'debug')
+        if: (success() || failure()) && inputs.build_type == 'debug'
         shell: bash
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: tar cf artifact.tar .
 
       - name: Upload build folder
-        if: (success() || failure()) && (inputs.build_type == 'codecov' || inputs.build_type == 'debug')
+        if: (success() || failure()) && inputs.build_type == 'debug'
         uses: actions/upload-artifact@v4
         with:
             name: ${{ needs.check-existing-artifact.outputs.build_artifact_name }}
             path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
 
       - name: Remove tar archive
-        if: (success() || failure()) && (inputs.build_type == 'codecov' || inputs.build_type == 'debug')
+        if: (success() || failure()) && inputs.build_type == 'debug'
         shell: bash
         run: rm -f ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
