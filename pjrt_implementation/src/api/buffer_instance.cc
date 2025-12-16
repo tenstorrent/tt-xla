@@ -265,6 +265,21 @@ void BufferInstance::copyFromHost(
   // during buffer destruction or on delete/destroy API calls.
   tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
 
+  if (loguru::g_stderr_verbosity == LOG_TENSOR_SIZES_TO_DEVICE ||
+      loguru::g_stderr_verbosity == LOG_DEBUG) {
+    size_t tensor_size = BufferInstance::getConvertedRuntimeTensorSize(
+        *m_host_runtime_tensor, data_type);
+    std::string tensor_shape = tt::pjrt::utils::to_string(shape);
+    DLOG_F(LOG_TENSOR_SIZES_TO_DEVICE,
+           "[TENSOR DEBUG] --------------------------------");
+    DLOG_F(LOG_TENSOR_SIZES_TO_DEVICE, "[TENSOR DEBUG] Tensor shape: %s",
+           tensor_shape.c_str());
+    DLOG_F(LOG_TENSOR_SIZES_TO_DEVICE, "[TENSOR DEBUG] Tensor size: %zu",
+           tensor_size);
+    DLOG_F(LOG_TENSOR_SIZES_TO_DEVICE,
+           "[TENSOR DEBUG] --------------------------------");
+  }
+
   markAsDataReady();
 
   // Releasing the ownership to the PJRT API caller since the caller is
