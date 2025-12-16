@@ -37,7 +37,9 @@ def create_device_mesh():
 
 
 def setup_model_and_tokenizer(model_name):
-    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name, torch_dtype=torch.bfloat16, num_hidden_layers=79
+    )
     model = model.eval()
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
