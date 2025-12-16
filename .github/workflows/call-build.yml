@@ -104,7 +104,7 @@ jobs:
     if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id }}
     timeout-minutes: 120
     runs-on: tt-ubuntu-2204-large-stable
-    name: "Build tt-xla"
+    name: "Build tt-xla (${{ inputs.build_type }})"
     container:
       image: ${{ inputs.docker_image }}
 
@@ -126,7 +126,7 @@ jobs:
         id: fetch-job-id
         uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
         with:
-          job_name: "Build tt-xla"
+          job_name: "Build tt-xla (${{ inputs.build_type }})"
 
       - name: Override tt-mlir SHA mlir_override is set
         if: ${{ inputs.mlir_override }}
