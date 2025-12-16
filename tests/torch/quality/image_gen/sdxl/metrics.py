@@ -1,7 +1,8 @@
 import numpy as np
 import torch
-from typing import Union
-from inception import InceptionV3
+from typing import List, Union
+from .clip import CLIPEncoder
+from .inception import InceptionV3
 
 class FIDMetric:
     MAX_BATCH_SIZE = 16
@@ -108,3 +109,14 @@ class FIDMetric:
         tr_covmean = np.trace(covmean)
 
         return diff.dot(diff) + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean
+class CLIPMetric:
+    def __init__(self):
+        self._clip_model = CLIPEncoder()
+        self._clip_model.eval()
+
+    @torch.no_grad()
+    def compute(self, images: torch.Tensor, prompts: List[str]) -> float:
+        clip_scores = []
+        for prompt, image in zip(prompts, images):
+            clip_scores.append(100 * self._clip_model.get_clip_score(prompt, image).item())
+        return np.mean(clip_scores), np.min(clip_scores)
