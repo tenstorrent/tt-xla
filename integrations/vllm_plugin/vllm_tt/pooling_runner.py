@@ -132,49 +132,73 @@ MIN_NUM_SEQS = 1
 def generate_attn_mask(
     context_lens: torch.Tensor,
     num_query_tokens: int,
-    num_query_heads: int,
-    max_model_len: int,
+    batch_size: int,
+    is_decoder_only: bool,
     dtype: torch.dtype,
     device: torch.device,
 ) -> torch.Tensor:
     """
-    Generate an attention mask for encoder/pooling models with possible
-    multiple concatenated sequences and padding.
+    Generate an attention mask.
+
+    - Decoder-only models use causal (triangular) attention, but only when the
+      input contains multiple concatenated sequences (i.e., sequences that must
+      not attend to each other). A single contiguous sequence requires no causal
+      mask.
+
+    - Encoder-only models use bidirectional self-attention (square masks). These
+      models require an attention mask whenever padding or multiple sequences
+      are present; a single unpadded sequence requires no mask. However, we are
+      using attention masks for all inputs for simplicity and to reduce number
+      of precompiled graphs.
 
     Args:
         context_lens: 1D tensor of sequence lengths, e.g. [37, 6, 6] or [40, 0, 0].
                       Sum of non-zero lengths = total valid tokens.
         num_query_tokens: Total padded sequence length (e.g. 64).
+        batch_size: Batch size of the input.
+        is_decoder_only: Whether the attention layers are decoder-only or encoder-only.
         dtype: torch.dtype (usually torch.float32)
         device: torch.device
 
     Returns:
-        attn_mask: Tensor of shape [1, 1, num_query_tokens, num_query_tokens]
+        attn_mask: Tensor of shape [batch_size, 1, num_query_tokens, num_query_tokens]
                    - -inf where attention should be blocked
                    - 0 where attention is allowed (within same segment)
     """
 
-    L = num_query_tokens
-    attn_mask = torch.full((1, 1, L, L), float("-inf"), dtype=dtype)
+    attn_mask = torch.full(
+        (batch_size, 1, num_query_tokens, num_query_tokens), float("-inf"), dtype=dtype
+    )
     valid_pos = 0
+    batch_idx = 0
 
     for seg_len in context_lens.tolist():
         if seg_len <= 0:
             continue  # skip empty segments
+        # Determine the start and end positions for the current input sequence.
         start = valid_pos
         end = valid_pos + seg_len
-        valid_pos = end
 
-        # Create a lower-triangular (causal) mask within the segment
-        segment_mask = torch.tril(torch.ones((seg_len, seg_len), dtype=torch.bool))
-        attn_mask[:, :, start:end, start:end] = torch.where(
+        if is_decoder_only:
+            # Create a lower-triangular (causal) mask within the segment
+            segment_mask = torch.tril(torch.ones((seg_len, seg_len), dtype=torch.bool))
+        else:
+            # Create a bidirectional self attention mask within the segment
+            segment_mask = torch.ones((seg_len, seg_len), dtype=torch.bool)
+
+        attn_mask[batch_idx, :, start:end, start:end] = torch.where(
             segment_mask, torch.zeros((), dtype=dtype), float("-inf")
         )
 
-    # Mask out any remaining padded region (no attention at all)
-    if valid_pos < L:
-        attn_mask[:, :, valid_pos:, :] = float("-inf")
-        attn_mask[:, :, :, valid_pos:] = float("-inf")
+        if batch_size > 1:
+            # Move to the next batch entry after processing current input sequence
+            # and reset the valid position for the next segment in case
+            # of multiple batches.
+            batch_idx += 1
+            valid_pos = 0
+        else:
+            # Update the valid position for the next segment within the same batch.
+            valid_pos = end
 
     return attn_mask.detach().to(device)
 
@@ -368,6 +392,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
             )
         )
+
+        # vLLM only supports decoder-only or encoder-only models for pooling.
+        # Model type is determined with get_kv_cache_spec() using the attention layers.
+        # Model type is used for attention mask generation.
+        # - Decoder-only attention layers require causal attention (triangular) masks.
+        # - Encoder-only attention layers require bidirectional self-attention (square) masks.
+        self.is_decoder_only_attn_layers = False
 
         # Lazy initialization
         self.model: nn.Module  # Set after load_model
@@ -690,6 +721,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 continue
 
             if attn_module.attn_type == AttentionType.DECODER:
+                self.is_decoder_only_attn_layers = True
                 if isinstance(attn_module, ChunkedLocalAttention):
                     logger.warning_once(
                         "Using irope in Pallas is not supported yet, it "
@@ -717,6 +749,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 AttentionType.ENCODER_ONLY,
             ):
                 # encoder-only attention does not need KV cache.
+                self.is_decoder_only_attn_layers = False
                 continue
             elif attn_module.attn_type == AttentionType.ENCODER_DECODER:
                 raise NotImplementedError
@@ -797,7 +830,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 [self.arange_np[:n] for n in num_scheduled_tokens_per_req]
             )[None, :]
 
-            # Get positions.
+            # Get positions. Numpy slice returns a view so self.positions_np is
+            # updated in place.
             positions_np = self.positions_np[
                 : self.batch_size, :total_num_scheduled_tokens
             ]
@@ -828,7 +862,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Zero out to avoid spurious values from prev iteration (last cp chunk)
             self.input_ids_cpu[
-                total_num_scheduled_tokens:padded_total_num_scheduled_tokens
+                :, total_num_scheduled_tokens:padded_total_num_scheduled_tokens
+            ] = 0
+            self.positions_cpu[
+                :, total_num_scheduled_tokens:padded_total_num_scheduled_tokens
             ] = 0
             self.input_ids = self.input_ids_cpu[
                 :, :padded_total_num_scheduled_tokens
@@ -836,6 +873,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.position_ids = self.positions_cpu[
                 :, :padded_total_num_scheduled_tokens
             ].to(self.device)
+            attn_mask_batch_size = 1
         else:
             # Create zero tensor of shape [num_reqs x max_token_len] for position tensor.
             arange = np.zeros(
@@ -858,6 +896,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Remove additional rows/request if received inputs are less than batch_size.
             if num_reqs < self.batch_size:
                 self.input_ids_cpu = self.input_ids_cpu[:num_reqs, :]
+            attn_mask_batch_size = num_reqs
 
             # Apply padding.
             if padded_total_num_scheduled_tokens > 0:
@@ -891,6 +930,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         [self.input_ids_cpu, zero_rows], dim=0
                     )
                     arange = torch.cat([arange, zero_rows], dim=0)
+                    attn_mask_batch_size += self.num_additional_inputs
 
             self.input_ids = self.input_ids_cpu.to(self.device)
             self.position_ids = arange.to(self.device)
@@ -902,13 +942,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         self.query_start_loc_np[num_reqs + 1 :] = 1
 
+        self.seq_lens_np.fill(0)
         self.seq_lens_np[:num_reqs] = (
             self.input_batch.num_computed_tokens_cpu[:num_reqs]
             + num_scheduled_tokens_per_req
         )
 
         if use_max_model_len:
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
+            seq_lens = self.seq_lens_cpu[:num_reqs]
         else:
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
 
@@ -927,18 +968,24 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_mask = None
         is_causal = True
 
-        # Use custom mask if number of request per batch can exceed one; only
-        # supported for batch-1.
-        if self.batch_size == 1 and self.max_num_reqs > 1:
+        # Encoder-only models always require custom attention mask.
+        # Decoder-only models require custom attention mask only when number of
+        # request per batch can exceed one; only supported for batch-1.
+        if (
+            self.batch_size == 1 and self.max_num_reqs > 1
+        ) or not self.is_decoder_only_attn_layers:
             attn_mask = generate_attn_mask(
                 seq_lens,
                 self.input_ids.shape[-1],
-                self.num_query_heads,
-                self.max_model_len,
+                attn_mask_batch_size,
+                self.is_decoder_only_attn_layers,
                 self.dtype,
                 self.device,
             )
             is_causal = False
+
+        if self.data_parallel_inference and attn_mask is not None:
+            xs.mark_sharding(attn_mask, self.mesh, ("x", None, None, None))
 
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
@@ -1142,7 +1189,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Mark inputs for data parallel sharding.
             if self.data_parallel_inference:
-                xs.mark_sharding(self.input_ids, self.mesh, ("x", None))
+                xs.mark_sharding(input_ids, self.mesh, ("x", None))
                 xs.mark_sharding(self.position_ids, self.mesh, ("x", None))
 
             # Run the decoder
@@ -1325,7 +1372,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         position_ids = torch.zeros((batch_size, num_tokens), dtype=torch.int32).to(
             self.device
         )
-        context_lens = torch.ones((num_reqs,), dtype=torch.int32)
+        context_lens = torch.ones((batch_size,), dtype=torch.int32)
 
         # Mark inputs for data parallel sharding.
         if self.data_parallel_inference:
@@ -1336,18 +1383,25 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_mask = None
         is_causal = True
 
-        # Use custom mask if number of request per batch can exceed one; only
-        # supported for batch-1.
-        if self.batch_size == 1 and self.max_num_reqs > 1:
+        # Encoder-only models always require custom attention mask.
+        # Decoder-only models require custom attention mask only when number of
+        # request per batch can exceed one; only supported for batch-1.
+        if (
+            self.batch_size == 1 and self.max_num_reqs > 1
+        ) or not self.is_decoder_only_attn_layers:
             attn_mask = generate_attn_mask(
                 context_lens,
                 input_ids.shape[-1],
-                self.num_query_heads,
-                self.max_model_len,
+                batch_size,
+                self.is_decoder_only_attn_layers,
                 self.dtype,
                 self.device,
             )
             is_causal = False
+
+        # Mark attention mask for data parallel sharding.
+        if self.data_parallel_inference and attn_mask is not None:
+            xs.mark_sharding(attn_mask, self.mesh, ("x", None, None, None))
 
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
@@ -1908,11 +1962,38 @@ def _get_padded_num_reqs_with_upper_limit(x: int, upper_limit: int) -> int:
     return min(res, upper_limit)
 
 
+def _adjust_min_token(min_token_size: int) -> int:
+    """
+    Ensure min_token_size is a power of two and >= 32 (divisible by 32).
+
+    If min_token_size already meets the constraint, return it unchanged.
+    Otherwise, round it up to the next power of two (minimum 32).
+    """
+    # Check if min_token_size satisfies the constraints.
+    if (min_token_size & (min_token_size - 1)) == 0 and min_token_size >= 32:
+        return min_token_size
+
+    # Default fallback is 32 (smallest valid input length).
+    adjusted_value = 32
+    if min_token_size > 32:
+        # Round up to the next power of two.
+        adjusted_value = 1 << (min_token_size - 1).bit_length()
+
+    logger.warning(
+        f"Flag min_context_len={min_token_size} is not a power of two and divisible by 32. "
+        f"Adjusting to the next power of two. Using min_context_len={adjusted_value}."
+    )
+    return adjusted_value
+
+
 def _get_token_paddings(
     min_token_size: int, max_token_size: int, padding_gap: int
 ) -> list[int]:
-    """Generate a list of padding size, starting from min_token_size,
-    ending with a number that can cover max_token_size
+    """
+    Generate a list of padding size, starting from min_token_size, ending with
+    a number that can cover max_token_size.
+
+    First adjust min_token_size so it is power-of-two and divisible by 32.
 
     If padding_gap == 0 then:
         increase 2X each time (exponential)
@@ -1920,34 +2001,28 @@ def _get_token_paddings(
         first increase the size to twice,
         then increase the padding size by padding_gap.
     """
-    # assert min_token_size is power of 2
-    assert (min_token_size & (min_token_size - 1) == 0) and min_token_size > 0
+    # Adjust min_token_size to be power of 2 and >=32 (if required)
+    num = _adjust_min_token(min_token_size)
     paddings = []
-    num = min_token_size
 
     if padding_gap == 0:
         logger.info("Using exponential token paddings:")
         while True:
-            logger.info("    %d", num)
             paddings.append(num)
             if num >= max_token_size:
                 break
-            if num == 1:
-                num = 32
-            else:
-                num *= 2
+            num *= 2
     else:
         logger.info("Using incremental token paddings:")
         while num <= padding_gap:
-            logger.info("    %d", num)
             paddings.append(num)
             num *= 2
         num //= 2
         while num < max_token_size:
             num += padding_gap
-            logger.info("    %d", num)
             paddings.append(num)
 
+    logger.info("Token paddings: %s", paddings)
     return paddings
 
 

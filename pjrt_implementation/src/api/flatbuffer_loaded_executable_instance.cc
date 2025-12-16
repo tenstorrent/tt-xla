@@ -91,17 +91,6 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
            "shape %s",
            arg_index, arg_buffers[0]->toShapeStr().c_str());
 
-    // This prepared tensor may be from a previous graph output aliased to
-    // input, so
-    //  we should set its retention flag to true.
-    if (tt::runtime::getTensorRetain(*prepared_tensor) == false) {
-      DLOG_F(LOG_DEBUG,
-             "Prepared tensor for argument index %zu with shape %s had "
-             "retain=false; setting "
-             "to true to avoid deallocation during execution.",
-             arg_index, arg_buffers[0]->toShapeStr().c_str());
-    }
-    tt::runtime::setTensorRetain(*prepared_tensor, /*retain=*/true);
     return *prepared_tensor;
   }
 
@@ -199,8 +188,10 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
               m_addressable_devices[device_index]->getDefaultMemory(),
               expected_output_data_types[output_index], device_index);
       DLOG_F(LOG_DEBUG,
-             "Filled output at output_index %zu device_index %d with shape %s",
-             output_index, device_index, output_buffer->toShapeStr().c_str());
+             "Filled output at output_index %zu device_index %d with shape %s "
+             "and UID %zu",
+             output_index, device_index, output_buffer->toShapeStr().c_str(),
+             output_buffer->getUID());
 
       output_buffer->markAsDataReady();
 
@@ -308,9 +299,9 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
-  auto r = utils::invoke(tt::runtime::submit, *runtime_device,
-                         executable_image->getFlatbufferBinary(), program_index,
-                         input_tensors);
+  auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
+                                  executable_image->getFlatbufferBinary(),
+                                  program_index, input_tensors);
 
   if (!r) {
     m_client_instance->closeMeshDevice();

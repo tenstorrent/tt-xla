@@ -19,14 +19,9 @@
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
 
-// third-party includes
-#include <google/protobuf/io/coded_stream.h>
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
-#include <google/protobuf/text_format.h>
-#include <google/protobuf/unknown_field_set.h>
-
 // tt-xla includes
 #include "api/buffer_instance.h"
+#include "api/compile_options_parser.h"
 #include "api/error_instance.h"
 #include "api/event_instance.h"
 #include "api/executable_image.h"
@@ -114,6 +109,36 @@ static tt_pjrt_status launchDistributedRuntime() {
   return tt_pjrt_status::kSuccess;
 }
 
+static tt_pjrt_status setMemoryLogLevel() {
+  const char *memory_log_level_env = std::getenv("TT_RUNTIME_MEMORY_LOG_LEVEL");
+  if (!memory_log_level_env) {
+    return tt_pjrt_status::kSuccess;
+  }
+
+  std::string memory_log_level_str(memory_log_level_env);
+  std::transform(memory_log_level_str.begin(), memory_log_level_str.end(),
+                 memory_log_level_str.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+
+  tt::runtime::MemoryLogLevel log_level;
+  if (memory_log_level_str == "none") {
+    log_level = tt::runtime::MemoryLogLevel::NONE;
+  } else if (memory_log_level_str == "program") {
+    log_level = tt::runtime::MemoryLogLevel::Program;
+  } else if (memory_log_level_str == "operation") {
+    log_level = tt::runtime::MemoryLogLevel::Operation;
+  } else if (memory_log_level_str == "any" || memory_log_level_str == "all") {
+    log_level = tt::runtime::MemoryLogLevel::ANY;
+  } else {
+    DLOG_F(ERROR, "Invalid memory logging level: %s", memory_log_level_env);
+    return tt_pjrt_status::kInternal;
+  }
+
+  tt::runtime::setMemoryLogLevel(log_level);
+
+  return tt_pjrt_status::kSuccess;
+}
+
 PJRT_Error *GlobalClientInstanceSingleton::initClient() {
   std::unique_ptr<ClientInstance> client = std::make_unique<ClientInstance>();
   PJRT_Error *error = client->initialize();
@@ -181,6 +206,11 @@ PJRT_Error *ClientInstance::initialize() {
     if (!tt_pjrt_status_is_ok(launch_result)) {
       return *ErrorInstance::makeError(launch_result).release();
     }
+  }
+
+  tt_pjrt_status memory_log_level_status = setMemoryLogLevel();
+  if (!tt_pjrt_status_is_ok(memory_log_level_status)) {
+    return *ErrorInstance::makeError(memory_log_level_status).release();
   }
 
   tt_pjrt_status device_status = populateDevices();
@@ -290,7 +320,8 @@ tt_pjrt_status ClientInstance::populateMemories() {
 
 tt_pjrt_status ClientInstance::compileMlirProgram(
     const PJRT_Program *mlir_program, LoadedExecutableInstance **out_executable,
-    const std::unordered_map<std::string, std::string> &compile_options) {
+    const std::unordered_map<std::string, std::string> &compile_options,
+    const std::optional<std::vector<int64_t>> &replica_device_ids) {
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
@@ -305,17 +336,23 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   auto executable_image =
       std::get<std::shared_ptr<ExecutableImage>>(compile_result);
 
-  // TODO(mrakita): Currently there is no way to determine addressable devices
-  // from the mlir code. XLA parses device assignment from the `compile_options`
-  // arg, but that field is a serialized protobuf of `xla::CompileOptions` which
-  // we cannot deserialize easily without linking whole XLA. Passing a subset of
-  // first `num_devices_to_utilize` client's addressable devices for now, but
-  // this will lead to errors if buffers are put on different devices than
-  // those. https://github.com/openxla/xla/issues/24990
-  std::vector<DeviceInstance *> addressable_devices(
-      m_addressable_devices_raw.begin(),
-      m_addressable_devices_raw.begin() +
-          executable_image->getNumDevicesToUtilize());
+  std::vector<DeviceInstance *> addressable_devices;
+
+  if (replica_device_ids.has_value()) {
+    for (int64_t device_id : *replica_device_ids) {
+      if (device_id >= 0 &&
+          device_id < static_cast<int64_t>(m_addressable_devices_raw.size())) {
+        addressable_devices.push_back(m_addressable_devices_raw[device_id]);
+      } else {
+        DLOG_F(ERROR, "Invalid device ID %ld in DeviceAssignment", device_id);
+        return tt_pjrt_status::kInvalidArgument;
+      }
+    }
+  } else {
+    addressable_devices.assign(m_addressable_devices_raw.begin(),
+                               m_addressable_devices_raw.begin() +
+                                   executable_image->getNumDevicesToUtilize());
+  }
 
   std::unique_ptr<LoadedExecutableInstance> executable =
       executable_image->toExecutableInstance(std::move(addressable_devices),
@@ -324,149 +361,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
   *out_executable = executable.release();
-
-  return tt_pjrt_status::kSuccess;
-}
-
-tt_pjrt_status ClientInstance::getCompileOptions(
-    const char *compile_options_data, size_t compile_options_size,
-    std::unordered_map<std::string, std::string> &out_compile_options) {
-
-  google::protobuf::io::CodedInputStream cis(
-      reinterpret_cast<const uint8_t *>(compile_options_data),
-      compile_options_size);
-  google::protobuf::UnknownFieldSet unknown_fields;
-
-  if (!unknown_fields.MergeFromCodedStream(&cis)) {
-    DLOG_F(ERROR, "Failed to parse the unknown fields set from the compile "
-                  "options protobuf data");
-    return tt_pjrt_status::kInternal;
-  }
-
-  return ClientInstance::extractCustomProtobufFields(unknown_fields,
-                                                     out_compile_options);
-}
-
-tt_pjrt_status ClientInstance::extractCustomProtobufFields(
-    const google::protobuf::UnknownFieldSet &unknown_fields,
-    std::unordered_map<std::string, std::string> &out_compile_options) {
-
-  // The custom compiler options that are passed in through the `jax.jit()`
-  // or `torch_xla.set_custom_compile_options()` are stored in the field
-  // number 7 in the UnknownFieldSet, which is defined as:
-  // `env_option_overrides (map<string, OptionOverrideProto>)`.
-  // Each map entry is a nested message with key/value inside.
-  constexpr int kCustomCompilerOptionsFieldNumber = 7;
-
-  // Field number corresponding to the string key of the compile options map
-  // entry.
-  constexpr int kMapKeyFieldNumber = 1;
-
-  // Field number corresponding to the OptionOverrideProto value of the compile
-  // options map entry.
-  constexpr int kMapValueFieldNumber = 2;
-
-  for (int i = 0; i < unknown_fields.field_count(); ++i) {
-    const google::protobuf::UnknownField &field = unknown_fields.field(i);
-
-    // Currently, we only support custom compiler options serialized in the
-    // `kCustomCompilerOptionsFieldNumber` field. In case we encounter
-    // options being serialized into some other field we will need to update
-    // this to support them.
-    if (field.number() != kCustomCompilerOptionsFieldNumber ||
-        field.type() != google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-      continue;
-    }
-
-    const std::string &bytes = field.length_delimited();
-    google::protobuf::io::CodedInputStream cis(
-        reinterpret_cast<const uint8_t *>(bytes.data()), bytes.size());
-
-    google::protobuf::UnknownFieldSet map_entry_fields;
-    if (!map_entry_fields.MergeFromCodedStream(&cis)) {
-      DLOG_F(ERROR, "Failed to parse the map entry fields from the custom "
-                    "compile options protobuf data");
-      return tt_pjrt_status::kInternal;
-    }
-
-    std::string key;
-    std::string value;
-
-    for (int j = 0; j < map_entry_fields.field_count(); ++j) {
-      const google::protobuf::UnknownField &entry_field =
-          map_entry_fields.field(j);
-      // In the inner field set, first field is the key and second field is the
-      // value. We expect both to be length-delimited fields (coming from a
-      // dictionary).
-      if (entry_field.number() == kMapKeyFieldNumber &&
-          entry_field.type() ==
-              google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-        key = entry_field.length_delimited();
-      } else if (entry_field.number() == kMapValueFieldNumber &&
-                 entry_field.type() ==
-                     google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
-        const std::string &override_bytes = entry_field.length_delimited();
-        google::protobuf::io::CodedInputStream override_stream(
-            reinterpret_cast<const uint8_t *>(override_bytes.data()),
-            override_bytes.size());
-
-        google::protobuf::UnknownFieldSet value_fields;
-        if (!value_fields.MergeFromCodedStream(&override_stream)) {
-          DLOG_F(ERROR, "Failed to parse the map entry field value from the "
-                        "custom compile options protobuf data");
-          return tt_pjrt_status::kInternal;
-        }
-
-        // https://github.com/openxla/xla/blob/main/xla/pjrt/proto/compile_options.proto#L151C1-L158C2
-        // Field numbers and types for OptionOverrideProto
-        // message OptionOverrideProto {
-        //   oneof value {
-        //     string string_field = 1;
-        //     bool bool_field = 2;
-        //     int64 int_field = 3;
-        //     double double_field = 4;
-        //   }
-        // }
-        if (value_fields.field_count() != 1) {
-          DLOG_F(
-              ERROR,
-              "Expected exactly one field in OptionOverrideProto, but got %d",
-              value_fields.field_count());
-          return tt_pjrt_status::kInternal;
-        }
-
-        const google::protobuf::UnknownField &value_field =
-            value_fields.field(0);
-        switch (value_field.number()) {
-        case 1: {
-          value = value_field.length_delimited();
-          break;
-        }
-        case 2: {
-          value = value_field.varint() ? "true" : "false";
-          break;
-        }
-        case 3: {
-          value = std::to_string(value_field.varint());
-          break;
-        }
-        case 4: {
-          value = std::to_string(value_field.fixed64());
-          break;
-        }
-        default: {
-          DLOG_F(ERROR, "Unknown field number in OptionOverrideProto: %d",
-                 value_field.number());
-          return tt_pjrt_status::kInternal;
-        }
-        }
-      }
-    }
-
-    if (!key.empty()) {
-      out_compile_options[key] = value;
-    }
-  }
 
   return tt_pjrt_status::kSuccess;
 }
@@ -752,12 +646,17 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
-  std::unordered_map<std::string, std::string> compile_options_map;
 
-  tt_pjrt_status compile_option_status = ClientInstance::getCompileOptions(
-      args->compile_options, args->compile_options_size, compile_options_map);
-  if (!tt_pjrt_status_is_ok(compile_option_status)) {
-    return *ErrorInstance::makeError(compile_option_status).release();
+  // Parse compile options and extract both custom options and replica device
+  // IDs
+  std::unordered_map<std::string, std::string> compile_options_map;
+  std::optional<std::vector<int64_t>> replica_device_ids;
+  tt_pjrt_status compile_options_status =
+      CompileOptionsParser::parseCompileOptions(
+          args->compile_options, args->compile_options_size,
+          compile_options_map, replica_device_ids);
+  if (!tt_pjrt_status_is_ok(compile_options_status)) {
+    return *ErrorInstance::makeError(compile_options_status).release();
   }
 
   std::string_view program_format(args->program->format,
@@ -775,7 +674,7 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   tt_pjrt_status compile_status = client_instance->compileMlirProgram(
       args->program,
       reinterpret_cast<LoadedExecutableInstance **>(&args->executable),
-      compile_options_map);
+      compile_options_map, replica_device_ids);
 
   return *ErrorInstance::makeError(compile_status).release();
 }

@@ -6,43 +6,43 @@ test_config:
   albert/masked_lm/jax-base_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   albert/masked_lm/jax-large-v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   albert/masked_lm/jax-xlarge-v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   albert/masked_lm/jax-xxlarge-v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   alexnet/image_classification/jax-custom-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/5091"
-    execution_pass: FORWARD
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
+    execution_pass: BACKWARD
 
   bart/causal_lm/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   bart/causal_lm/jax-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   beit/image_classification/jax-base-single_device-full-training:
@@ -60,13 +60,13 @@ test_config:
   bert/masked_lm/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   bert/masked_lm/jax-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   bigbird/causal_lm/jax-large-single_device-full-training:
@@ -77,44 +77,44 @@ test_config:
   bigbird/question_answering/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: FORWARD
 
   bigbird/question_answering/jax-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: FORWARD
 
   blenderbot/summarization/jax-1B-distill-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   blenderbot/summarization/jax-3B-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
     markers: [large]
 
   blenderbot/summarization/jax-400M-distill-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   blenderbot/summarization/jax-small-90M-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   bloom/causal_lm/jax-1b1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   bloom/causal_lm/jax-1b7-single_device-full-training:
@@ -132,7 +132,7 @@ test_config:
   bloom/causal_lm/jax-560m-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   bloom/causal_lm/jax-7b-single_device-full-training:
@@ -144,7 +144,7 @@ test_config:
   clip/image_classification/jax-base_patch16-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   clip/image_classification/jax-base_patch32-single_device-full-training:
@@ -156,13 +156,13 @@ test_config:
   clip/image_classification/jax-large_patch14-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   clip/image_classification/jax-large_patch14_336-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   dinov2/image_classification/jax-base-single_device-full-training:
@@ -187,57 +187,45 @@ test_config:
   distilbert/masked_lm/jax-base-uncased-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   electra/causal_lm/jax-base-discriminator-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   electra/causal_lm/jax-base-generator-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   electra/causal_lm/jax-large-discriminator-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   electra/causal_lm/jax-small-discriminator-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   gpt2/causal_lm/jax-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
-    execution_pass: BACKWARD
+    status: EXPECTED_PASSING
 
   gpt2/causal_lm/jax-large-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
-    execution_pass: BACKWARD
+    status: EXPECTED_PASSING
 
   gpt2/causal_lm/jax-medium-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
-    execution_pass: BACKWARD
+    status: EXPECTED_PASSING
 
   gpt2/causal_lm/jax-xl-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory"
+    status: EXPECTED_PASSING
     markers: [large]
-    execution_pass: FORWARD
 
   gpt_j/causal_lm/jax-6b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -248,20 +236,20 @@ test_config:
   gpt_neo/causal_lm/jax-_125m-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   gpt_neo/causal_lm/jax-_1_3b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP # Model too large for our runners
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [large]
     execution_pass: BACKWARD
 
   gpt_neo/causal_lm/jax-_2_7b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP # Model too large for our runners
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [large]
     execution_pass: BACKWARD
 
@@ -299,13 +287,13 @@ test_config:
   marian_mt/text_classification/jax-opus-mt-en-de-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: FORWARD
 
   mbart50/nlp_summarization/jax-large_many_to_many-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   mistral/causal_lm/jax-v0_1-single_device-full-training:
@@ -340,38 +328,37 @@ test_config:
 
   mnist/image_classification/jax-cnn_batchnorm-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    bringup_status: INCORRECT_RESULT
     reason: "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
     execution_pass: FORWARD
 
   mnist/image_classification/jax-cnn_dropout-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    bringup_status: INCORRECT_RESULT
     reason: "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.14429746568202972. Required: pcc=0.99."
     execution_pass: FORWARD
 
   mnist/image_classification/jax-mlp_custom-single_device-full-training:
     status: EXPECTED_PASSING
     markers: [push]
-    execution_pass: BACKWARD
 
   mt5/nlp_summarization/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   mt5/nlp_summarization/jax-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [large]
     execution_pass: BACKWARD
 
   mt5/nlp_summarization/jax-xl-single_device-full-training:
     status: NOT_SUPPORTED_SKIP # Model too large for our runners
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     markers: [large]
     execution_pass: FORWARD
 
@@ -384,7 +371,7 @@ test_config:
   opt/causal_lm/jax-125M-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   opt/causal_lm/jax-2.7B-single_device-full-training:
@@ -396,7 +383,7 @@ test_config:
   opt/causal_lm/jax-350M-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   opt/causal_lm/jax-6.7B-single_device-full-training:
@@ -476,67 +463,67 @@ test_config:
   roberta/masked_lm/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   roberta/masked_lm/jax-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   roberta_prelayernorm/masked_lm/jax-efficient-mlm-m0.40-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   roformer/masked_lm/jax-chinese-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   roformer/masked_lm/jax-chinese-char-small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   roformer/masked_lm/jax-chinese-small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   squeezebert/masked_lm/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "const T &llvm::ArrayRef<long>::operator[](size_t) const [T = long]: Assertion `Index < Length && \"Invalid index!\"' failed."
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   t5/summarization/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   t5/summarization/jax-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   t5/summarization/jax-small-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   vision_text_dual_encoder/mm_image_ttt/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
     execution_pass: BACKWARD
 
   vit/image_classification/jax-base_patch16_224-single_device-full-training:
@@ -583,20 +570,20 @@ test_config:
 
   vit/image_classification/jax-large_patch32_224_in_21k-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers in program 37 clash with L1 buffers on core range [(x=0,y=0) - (x=0,y=0)]. L1 buffer allocated at 253952 and static circular buffer region ends at 1347456"
     execution_pass: FORWARD
 
   vit/image_classification/jax-large_patch32_384-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers in program 37 clash with L1 buffers on core range [(x=0,y=0) - (x=0,y=0)]. L1 buffer allocated at 253952 and static circular buffer region ends at 1347456"
     execution_pass: FORWARD
 
   wav2vec2/audio_classification/jax-large_lv_60-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'ttir.scatter' https://github.com/tenstorrent/tt-mlir/issues/911"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Library import problem"
     execution_pass: BACKWARD
 
   whisper/audio_classification/jax-base-single_device-full-training:

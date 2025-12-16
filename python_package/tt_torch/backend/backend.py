@@ -11,7 +11,7 @@ from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 
-from .decompositions import CUSTOM_DECOMPOSITION_TABLE
+from .decompositions import populate_decompositions
 from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
 from .passes import (
     bypass_assert_tensor_metadata,
@@ -28,15 +28,19 @@ from .passes import (
 def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
 
-    # Currently, handle_composite_ops causes regressions on multi-chip TP models:
-    # https://github.com/tenstorrent/tt-xla/issues/1616.
-    # TODO: Fix composite ops to support multi-chip models before uncommenting this.
-    # handle_composite_ops(gm)
+    # This is a temporary option to disable / enable composite ops
+    # that will be removed once composite ops are more stable.
+    # default to True if options are not given or if tt_enable_composite_ops is not present
+    enable_composite_ops = options is None or options.get(
+        "tt_enable_composite_ops", True
+    )
+    if enable_composite_ops:
+        handle_composite_ops(gm)
 
-    decompositions = torch._decomp.core_aten_decompositions()
-    decompositions.update(CUSTOM_DECOMPOSITION_TABLE)
+    decompositions = populate_decompositions()
 
     # We use `export_for_training` here as we plan to use this flow to compile training graphs.
     # In addition to that, the functionality in `export_for_training` will become the default
@@ -181,7 +185,9 @@ class XLAExecutor:
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
     """TT backend for torch.compile."""
-    module, graph_signature, node_info = torch_pass_pipeline(gm, example_inputs)
+    module, graph_signature, node_info = torch_pass_pipeline(
+        gm, example_inputs, options
+    )
     experimental_compile_enabled = (
         options.get("tt_experimental_compile", False) if options else False
     )

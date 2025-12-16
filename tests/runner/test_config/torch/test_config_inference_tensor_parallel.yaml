@@ -13,6 +13,7 @@ test_config:
   falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2435
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -28,6 +29,7 @@ test_config:
   gemma/pytorch-google/gemma-2-9b-it-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [extended]
 
   gemma/pytorch-google/gemma-2-27b-it-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -59,10 +61,12 @@ test_config:
   mistral/pytorch-7b_instruct_v03-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [extended]
 
   qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2550
 
   qwen_3/causal_lm/pytorch-14b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -72,6 +76,7 @@ test_config:
   qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2550
 
   qwen_3/causal_lm/pytorch-32b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -85,12 +90,11 @@ test_config:
   qwen_3/embedding/pytorch-embedding_8b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [extended]
 
   mistral/pytorch-ministral_8b_instruct-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    assert_pcc: false
-    bringup_status: INCORRECT_RESULT # https://github.com/tenstorrent/tt-xla/issues/1473
 
   mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]

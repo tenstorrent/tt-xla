@@ -5,11 +5,14 @@
 import collections
 import importlib.util
 import inspect
+import json
+import math
 import numbers
 import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 import numpy as np
 import pytest
@@ -264,6 +267,62 @@ def _to_marshal_safe(value):
     return str(value)
 
 
+def _derive_guidance_from_pcc(comparison_result, comparison_config) -> list[str]:
+    """
+    Derive guidance tags from PCC metrics and thresholds.
+
+    These tags are intended for visual aid today and may be used by future
+    automation to promote/demote tests (tighten/enable thresholds) in nightly CI.
+
+    Meanings:
+    - ENABLE_PCC: PCC check is currently disabled, but measured pcc is safely above
+      the current threshold + buffer → enable PCC at the current required threshold.
+    - ENABLE_PCC_099: Same as ENABLE_PCC, but when the current threshold is already
+      in the 0.99 regime (>= 0.99). Useful to call out the stricter default explicitly.
+    - RAISE_PCC: Current threshold < 0.99 and measured pcc exceeds the next
+      centesimal step (e.g., 0.97 → 0.98) by a small buffer → suggest raising to
+      that next step.
+    - RAISE_PCC_099: Current threshold < 0.99 and measured pcc exceeds 0.99 by a
+      small buffer → suggest raising directly to 0.99 (ie. the usual default).
+
+    Notes:
+    - A small buffer (PCC_BUFFER) is applied to avoid suggestions when values are
+      within noise of the boundary (e.g., 0.992 is too close to 0.99 to raise).
+    """
+    # Small buffer to avoid enabling/tightening thresholds when near boundary,
+    # ie. 0.992 is too close to 0.99 to raise the threshold.
+    PCC_BUFFER = 0.004
+    guidance: list[str] = []
+
+    # Both inputs are required, otherwise we can't derive any guidance.
+    if comparison_result is None or comparison_config is None:
+        return guidance
+
+    pcc_value = comparison_result.pcc
+    pcc_threshold = comparison_config.pcc.required_pcc
+    pcc_enabled = comparison_config.pcc.enabled
+
+    if None not in (pcc_value, pcc_threshold, pcc_enabled):
+        # Suggest enabling PCC if safely above threshold+buffer but disabled
+        if (pcc_value > (pcc_threshold + PCC_BUFFER)) and (pcc_enabled is False):
+            if pcc_threshold >= 0.99:
+                guidance.append("ENABLE_PCC_099")
+            else:
+                guidance.append("ENABLE_PCC")
+
+        # Suggest raising PCC only when increased past the next centesimal
+        # level (e.g., 0.97 -> 0.98), and only when current threshold is below 0.99.
+        if pcc_threshold < 0.99:
+            next_level = min(0.99, (math.floor(pcc_threshold * 100) + 1) / 100.0)
+            # Prefer raising directly to 0.99 when PCC itself exceeds 0.99 + buffer
+            if pcc_value > (0.99 + PCC_BUFFER):
+                guidance.append("RAISE_PCC_099")
+            elif pcc_value > (next_level + PCC_BUFFER):
+                guidance.append("RAISE_PCC")
+
+    return guidance
+
+
 def record_model_test_properties(
     record_property,
     request,
@@ -398,6 +457,9 @@ def record_model_test_properties(
             }
         )
 
+    # Derive guidance tags based on PCC metrics and thresholds (always include; may be empty).
+    tags["guidance"] = _derive_guidance_from_pcc(comparison_result, comparison_config)
+
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
     if reason:
@@ -414,3 +476,115 @@ def record_model_test_properties(
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         pytest.xfail(reason)
+
+
+def create_measurement(
+    step_name: str,
+    measurement_name: str,
+    step_warm_up_num_iterations: int = 1,
+    iteration: int = 1,
+    value: float = 0.0,
+    target: float = -1.0,
+) -> dict[str, Any]:
+    """Create a single perf measurement dictionary."""
+    return {
+        "step_name": step_name,
+        "measurement_name": measurement_name,
+        "step_warm_up_num_iterations": step_warm_up_num_iterations,
+        "iteration": iteration,
+        "value": value,
+        "target": target,
+    }
+
+
+def create_benchmark_result(
+    full_model_name: str,
+    output_dir: str,
+    perf_id: str,
+    measurements: list[dict[str, Any]],
+    model_type: str = "generic",
+    training: bool = False,
+    model_info: str = "",
+    device_name: str = "",
+) -> dict[str, Any]:
+    """
+    Create a benchmark result dictionary and write it to a JSON file.
+
+    Builds a standardized benchmark result containing model metadata and
+    performance measurements, then writes it to given output directory.
+    The filename follows the format:
+        report_perf_<model_name>_<perf_id>.json
+    """
+
+    # Extract e2e stats from the passed measurements list
+    metric_list = []
+
+    if measurements and len(measurements) > 0:
+        # extract e2e perf stats and create measurements using them
+        perf_stats = measurements[0]
+        warmup_iters = perf_stats["warmup_iters"]
+        perf_iters = perf_stats["perf_iters"]
+        metric_list.append(
+            create_measurement(
+                "e2e_perf",
+                "total_time",
+                warmup_iters,
+                perf_iters,
+                perf_stats["total_time"],
+            )
+        )
+        metric_list.append(
+            create_measurement(
+                "e2e_perf",
+                "avg_time",
+                warmup_iters,
+                perf_iters,
+                perf_stats["avg_time"],
+            )
+        )
+
+    config = {
+        "model_size": "small",
+        "model_info": model_info,
+    }
+
+    benchmark_results = {
+        "model": full_model_name,
+        "model_type": model_type,
+        "run_type": f"{'_'.join(full_model_name.split())}_{device_name}",
+        "config": config,
+        "measurements": metric_list,
+        "device_info": {
+            "device_name": device_name,
+        },
+        "training": training,
+        "project": "tt-xla",
+    }
+
+    # Add metadata required for collect_data parser
+    benchmark_results["project"] = "tt-xla"
+    benchmark_results["model_rawname"] = full_model_name
+
+    # print benchmark results to console if there are measurements
+    if len(benchmark_results["measurements"]) > 0:
+        print("====================================================================")
+        print(f"| {benchmark_results['model']} BENCHMARK:  ")
+        print("--------------------------------------------------------------------")
+        for measurement in benchmark_results["measurements"]:
+            print(
+                f"| {measurement['step_name']}-{measurement['measurement_name']}: {measurement['value']}"
+            )
+        print("====================================================================")
+
+    # dump benchmark results to JSON file if output_dir is given
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        # add model name and perf id (Job ID from CI) to the filename
+        # Sanitize model name to avoid path separator issues
+        safe_model_name = full_model_name.replace("/", "_").replace("\\", "_")
+        output_path = os.path.join(
+            output_dir, f"report_perf_{safe_model_name}_{perf_id}.json"
+        )
+        with open(output_path, "w") as file:
+            json.dump(benchmark_results, file, indent=2)
+            print(f"Benchmark results saved to {output_path}")

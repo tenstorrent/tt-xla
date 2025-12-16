@@ -181,6 +181,8 @@ private:
       std::optional<uint32_t> device_id = std::nullopt);
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
+  // Currently only used for device to device transfer in copy construction
+  // of new buffer instance.
   void copyFromBuffer(const BufferInstance *src_buffer);
 
   // Calculates required tensor shape.
@@ -257,9 +259,15 @@ private:
   // Thread for copying data to host.
   std::unique_ptr<std::thread> m_copy_to_host_thread;
 
-  // Mutex guarding Thread for copying data to host.
-  // Even two different buffer instances may not copy to host at once.
-  static std::mutex s_copy_to_host_thread_mutex;
+  // Mutex guarding thread spawning for copying data to host.
+  // Prevents multiple threads from concurrently copying into the same
+  // BufferInstance.
+  std::mutex m_copy_to_host_thread_mutex;
+
+  // Mutex guarding internal copy to host operation on the same mesh device
+  // Metal+Program Cache is not thread safe when untilizing on device, so
+  //  even different bufferInstances may not be concurrently copied to host.
+  static std::mutex s_copy_to_host_internal_mutex;
 };
 
 namespace internal {

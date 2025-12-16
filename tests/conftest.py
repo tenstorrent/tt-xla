@@ -195,13 +195,39 @@ def pytest_addoption(parser):
         default=False,
         help="Enable serialization of compilation artifacts during tests",
     )
-
     parser.addoption(
         "--log-pid",
         action="store_true",
         default=False,
         help="Append process PID to log file names specified in TT_XLA_LOGGER_FILE, TT_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE environment variables if set, to facilitate multiprocess debug logging.",
     )
+    parser.addoption(
+        "--disable-perf-measurement",
+        action="store_true",
+        default=False,
+        help="Disable performance benchmark measurement in tester",
+    )
+    parser.addoption(
+        "--perf-report-dir",
+        action="store",
+        default=None,
+        help="Output directory for perf benchmark reports. If not given, no perf benchmark files will be generated.",
+    )
+    parser.addoption(
+        "--perf-id",
+        action="store",
+        default=None,
+        help="Perf ID for perf benchmark reports.",
+    )
+
+
+@pytest.fixture(autouse=True)
+def disable_perf_measurement(request):
+    """
+    A pytest fixture that disables performance benchmark measurement if --disable-perf-measurement is passed to pytest.
+    """
+    if request.config.getoption("--disable-perf-measurement"):
+        os.environ["DISABLE_PERF_MEASUREMENT"] = "1"
 
 
 # DOCKER_CACHE_ROOT is only meaningful on CIv1 and its presence indicates CIv1 usage.

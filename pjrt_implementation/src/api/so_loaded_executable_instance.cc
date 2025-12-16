@@ -6,12 +6,14 @@
 #include "api/so_loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <iostream>
 #include <mutex>
 #include <numeric>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
+#include "tt/runtime/utils.h"
 
 // tt-xla includes
 #include "api/buffer_instance.h"
@@ -113,6 +115,11 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     dumpInputs(input_tensors);
   }
 
+  CompileOptions options = m_executable_image->getCompileOptions();
+  std::string lang =
+      options.backend == BackendRuntime::TTNNCodegenPy ? "Python" : "C++";
+  std::cout << lang << " codegen successful. Check "
+            << options.export_path.value() << " for the results." << std::endl;
   // TODO: Implement SO execution. For now, we create default output buffers.
   // https://github.com/tenstorrent/tt-xla/issues/2038
   createDefaultOutputBuffers(args->output_lists, args->num_devices);

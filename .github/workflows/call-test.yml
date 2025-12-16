@@ -108,6 +108,8 @@ jobs:
           .github/scripts
           .gitmodules
           .test_durations
+          pjrt_implementation
+          third_party/pjrt_c_api
           pytest.ini
           python_package/requirements.txt
           integrations/vllm_plugin/requirements-vllm-plugin.txt
@@ -129,12 +131,7 @@ jobs:
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
-        cat << 'EOF' > _test_matrix.json
-          ${{ needs.generate-matrix-test.outputs.test_matrix }}
-        EOF
-        cat _test_matrix.json
-        echo "matrix-hash=$(cat _test_matrix.json | md5sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-        rm -f _test_matrix.json
+        echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
         if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
           echo "do_codecov=true" >> "$GITHUB_OUTPUT"
           echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
@@ -162,7 +159,8 @@ jobs:
           --repo ${{ github.repository }} \
           --dir wheels \
           --name ${{ steps.strings.outputs.wheel_artifact_name }}
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" ]]; then
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
           gh run download ${{ steps.strings.outputs.artifact_run_id }} \
             --repo ${{ github.repository }} \
@@ -206,7 +204,7 @@ jobs:
             echo "Downloading test reports from attempt $attempt"
             gh run download ${{ github.run_id }} \
               --repo ${{ github.repository }} \
-              --pattern "test-reports-${{ steps.strings.outputs.matrix-hash }}-$attempt.${{ strategy.job-index }}-*" \
+              --pattern "test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-$attempt.${{ strategy.job-index }}-*" \
               -D old-reports
             result=$?
             if [ $result -eq 0 ]; then
@@ -238,7 +236,7 @@ jobs:
         # NOTE: Forked not used for multichip machines until https://github.com/tenstorrent/tt-xla/issues/1824
         # is fixed. This is accomplished by specifically excluding run_forge_models_multichip from the list here.
         PYTEST_FORKED=""
-        for n in run_torch run_large_jax_models run_forge_models run_jax_training run_large_jax_training extended_models run_large_torch_models; do
+        for n in run_torch run_large_jax_models run_forge_models run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
             PYTEST_FORKED="--forked"; break
           fi
@@ -326,15 +324,19 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" ]]; then
           $(pwd)/venv/bin/pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
           pip freeze
         fi
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
+               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
+               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
                2>&1 | tee pytest.log
 
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" ]]; then
           $(pwd)/venv/bin/pip uninstall -y vllm transformers
           $(pwd)/venv/bin/pip install -r $(pwd)/venv/requirements-dev.txt
         fi
@@ -359,21 +361,18 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: test-reports-${{ steps.strings.outputs.matrix-hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
 
-    - name: Show Test Report
-      continue-on-error: true
-      uses: mikepenz/action-junit-report@v5
+    # If no perf tests ran, this step will emit a warning (no files to upload) but won't fail the job.
+    - name: Upload Benchmark Report
+      uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        report_paths: ${{ steps.strings.outputs.test_report_path }}
-        check_name: TT-XLA Tests
-        comment: true
-        updateComment: true
-        detailed_summary: true
-        group_suite: true
-        token: ${{ github.token }}
+        name: perf-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ steps.strings.outputs.perf_report_dir }}
+        # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
+        if-no-files-found: 'ignore'
 
     - name: Prepare code coverage report
       if: steps.strings.outputs.do_codecov && (success() || failure())
@@ -390,3 +389,30 @@ jobs:
         files: coverage.info
         disable_search: true
         token: ${{ secrets.CODECOV_TOKEN }}
+
+
+  test-summary:
+    runs-on: ubuntu-latest
+    needs: [ generate-matrix-test, run-tests ]
+    if: success() || failure()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Process test summary
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-*" --dir test_reports || echo "No reports found"
+          find test_reports -name "report_*.xml" -type f -exec mv {} test_reports/ \;
+
+      - name: Show consolidated test report
+        continue-on-error: true
+        uses: mikepenz/action-junit-report@v5
+        if: success() || failure()
+        with:
+          report_paths: test_reports/report_*.xml
+          check_name: TT-XLA ${{ needs.generate-matrix-test.outputs.test_matrix_name }}
+          detailed_summary: true
+          group_suite: true
+          token: ${{ github.token }}

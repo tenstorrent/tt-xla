@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "cbbed3dec7d0968924fa0548ce754a8af8c05bcb")
+    set(TT_MLIR_VERSION "a0f0a5bb4d0cde3ae5155b120a9c04c3ed2c4f4a")
 endif()
 
 set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
@@ -85,7 +85,6 @@ else()
         BINARY_DIR ${TTMLIR_BUILD_DIR}
 
         BUILD_COMMAND env ${WITH_METAL_RUNTIME_ROOT_SET} ${CMAKE_COMMAND} --build <BINARY_DIR>
-        COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --target tt-alchemist
 
         INSTALL_COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component SharedLib
         COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component DistributedRuntime
