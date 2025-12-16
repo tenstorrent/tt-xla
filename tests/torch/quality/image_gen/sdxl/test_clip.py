@@ -20,7 +20,6 @@ MODEL_INFO = {
 
 @pytest.mark.single_device
 @pytest.mark.nightly
-@pytest.mark.quality_test
 @pytest.mark.record_test_properties(
     category=Category.QUALITY_TEST,
     run_mode=RunMode.INFERENCE
