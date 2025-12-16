@@ -42,11 +42,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.GEMMA_1_1_2B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_1_1_2B_IT),
-            max_length=256,
         ),
         ModelVariant.GEMMA_1_1_7B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_1_1_7B_IT),
-            max_length=256,
         ),
         ModelVariant.GEMMA_2B: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_2B),
@@ -54,15 +52,12 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GEMMA_2_2B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_2_2B_IT),
-            max_length=256,
         ),
         ModelVariant.GEMMA_2_9B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_2_9B_IT),
-            max_length=256,
         ),
         ModelVariant.GEMMA_2_27B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_2_27B_IT),
-            max_length=256,
         ),
     }
 
@@ -154,14 +149,33 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
-        input_prompt = prompt or self.sample_text
-        inputs = self.tokenizer(
-            input_prompt,
-            return_tensors="pt",
-            max_length=max_length,
-            padding="max_length",
-            truncation=True,
-        )
+        if self._variant == ModelVariant.GEMMA_2B:
+            input_prompt = prompt or self.sample_text
+            inputs = self.tokenizer(
+                input_prompt,
+                return_tensors="pt",
+                max_length=max_length,
+                padding="max_length",
+                truncation=True,
+            )
+        else:
+            input_prompt = [
+                {
+                    "role": "user",
+                    "content": prompt or self.sample_text,
+                }
+            ]
+            input_text = self.tokenizer.apply_chat_template(
+                input_prompt,
+                add_generation_prompt=True,
+                tokenize=False,
+            )
+            inputs = self.tokenizer(
+                [input_text],
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+            )
         for key in inputs:
             inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
         if dtype_override is not None:
