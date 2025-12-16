@@ -1,13 +1,13 @@
 [
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "nightly and n150 and expected_passing", "parallel-groups": 3 },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "nightly and p150 and expected_passing", "parallel-groups": 3 },
-  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "nightly and tensor_parallel and n300-llmbox and expected_passing and not tp_2x4_mesh", "parallel-groups": 4 },
-  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "nightly and tensor_parallel and n300-llmbox and expected_passing and tp_2x4_mesh", "parallel-groups": 1 },
-  { "runs-on": "n300", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "nightly and data_parallel and expected_passing", "parallel-groups": 1 },
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "nightly and n150 and expected_passing and not large", "parallel-groups": 1 },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "nightly and p150 and expected_passing and not large", "parallel-groups": 1 },
-  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "nightly and tensor_parallel and n300-llmbox and expected_passing", "parallel-groups": 1 },
-  { "runs-on": "n300", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "nightly and data_parallel and expected_passing and not large", "parallel-groups": 1 },
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "nightly and n150 and expected_passing and large", "shared-runners": "true" },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "nightly and p150 and expected_passing and large", "shared-runners": "true" }
+  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n150 and nightly and expected_passing", "parallel-groups": 3 },
+  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "p150 and nightly and expected_passing", "parallel-groups": 3 },
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n300-llmbox and nightly and tensor_parallel and expected_passing and not tp_2x4_mesh", "parallel-groups": 4 },
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n300-llmbox and nightly and tensor_parallel and expected_passing and tp_2x4_mesh", "parallel-groups": 1 },
+  { "runs-on": "n300", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n300 and nightly and data_parallel and expected_passing", "parallel-groups": 1 },
+  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n150 and nightly and expected_passing and not large", "parallel-groups": 1 },
+  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and nightly and expected_passing and not large", "parallel-groups": 1 },
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n300-llmbox and nightly and tensor_parallel and expected_passing", "parallel-groups": 1 },
+  { "runs-on": "n300", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n300 and nightly and data_parallel and expected_passing and not large", "parallel-groups": 1 },
+  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n150 and nightly and expected_passing and large", "shared-runners": "true" },
+  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and nightly and expected_passing and large", "shared-runners": "true" }
 ]
