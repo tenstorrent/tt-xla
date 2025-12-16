@@ -3,11 +3,11 @@ import torch
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 
-from pipeline import SDXLPipeline, SDXLConfig, save_image
-from data import CocoDataset
-from metrics import FIDMetric
-from utils import Category
-from infra import RunMode
+from .pipeline import SDXLPipeline, SDXLConfig
+from .data import CocoDataset
+from .metrics import FIDMetric
+from tests.utils import Category
+from tests.infra import RunMode
 
 
 MODEL_INFO = {
@@ -21,11 +21,10 @@ MODEL_INFO = {
 
 @pytest.mark.skip(reason="This test is currently disabled because we need at least 100-ish images for the FID score to be meaningful, which is computationally expensive.")
 @pytest.mark.single_device
-@pytest.mark.quality_test
+@pytest.mark.nightly
 @pytest.mark.record_test_properties(
     category=Category.QUALITY_TEST,
-    run_mode=RunMode.INFERENCE,
-    model_info=MODEL_INFO
+    run_mode=RunMode.INFERENCE
     )
 def test_fid_sdxl():
     xr.set_device_type("TT")
