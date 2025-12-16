@@ -35,6 +35,8 @@ void initializeLogging() {
 
   if (strcmp(loguru_verbosity, "VERBOSE") == 0) {
     loguru::g_stderr_verbosity = LOG_VERBOSE;
+  } else if (strcmp(loguru_verbosity, "TENSOR_SIZES_TO_DEVICE") == 0) {
+    loguru::g_stderr_verbosity = LOG_TENSOR_SIZES_TO_DEVICE;
   } else if (strcmp(loguru_verbosity, "DEBUG") == 0) {
     loguru::g_stderr_verbosity = LOG_DEBUG;
   } else if (strcmp(loguru_verbosity, "INFO") == 0) {

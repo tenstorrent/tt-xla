@@ -13,13 +13,13 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenize
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-
 PROMPTS = [
     "I like taking walks in the",
-    "While ham sandwiches are great, I prefer",
-    "The first person to walk on the moon was",
-    "The most important branch of mathematics is",
+    # "While ham sandwiches are great, I prefer",
+    # "The first person to walk on the moon was",
+    # "The most important branch of mathematics is",
 ]
+
 
 def setup_spmd():
     print("Setting up SPMD...")
@@ -37,7 +37,7 @@ def create_device_mesh():
 
 
 def setup_model_and_tokenizer(model_name):
-    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, num_hidden_layers=1)
+    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
     model = model.eval()
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -78,7 +78,7 @@ def construct_inputs(
         "use_cache": True,
     }
 
-        #   Debug prints
+    #   Debug prints
     print("\n=== DEBUG: construct_inputs ===")
     print(f"Input prompts: '{input_prompts}'")
     print(f"Input IDs shape: {inputs.input_ids.shape}")
@@ -108,18 +108,36 @@ def transfer_to_device(model, input_args, device):
 
     # Finally, move model to device
     model = model.to(device)
+    # model.model = model.model.to(device)
     return model, input_args
 
 
 def mark_sharding_on_model_and_inputs(model, input_args, mesh):
     # Shard original inputs
-    xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
-    xs.mark_sharding(input_args["attention_mask"], mesh, ("batch", None))
+    batch_size = input_args["input_ids"].shape[0]
+    print(f"Batch size: {batch_size}")
+    if batch_size == 1:
+        print("Marking sharding for batch size 1")
+        xs.mark_sharding(input_args["input_ids"], mesh, (None, None))
+        xs.mark_sharding(input_args["attention_mask"], mesh, (None, None))
+    else:
+        print("Marking sharding for batch size > 1")
+        xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
+        xs.mark_sharding(input_args["attention_mask"], mesh, ("batch", None))
 
     # Shard cache
-    for i, (key, value) in enumerate(zip(input_args["past_key_values"].key_cache, input_args["past_key_values"].value_cache)):
-        xs.mark_sharding(key, mesh, ("batch", "model", None, None))
-        xs.mark_sharding(value, mesh, ("batch", "model", None, None))
+    for i, (key, value) in enumerate(
+        zip(
+            input_args["past_key_values"].key_cache,
+            input_args["past_key_values"].value_cache,
+        )
+    ):
+        if batch_size == 1:
+            xs.mark_sharding(key, mesh, (None, "model", None, None))
+            xs.mark_sharding(value, mesh, (None, "model", None, None))
+        else:
+            xs.mark_sharding(key, mesh, ("batch", "model", None, None))
+            xs.mark_sharding(value, mesh, ("batch", "model", None, None))
 
     # Shard model
     for layer in model.model.layers:
@@ -131,7 +149,13 @@ def mark_sharding_on_model_and_inputs(model, input_args, mesh):
         xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", "batch"))
         xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", "batch"))
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, ("batch", "model"))
-    xs.mark_sharding(model.lm_head.weight, mesh, ("model", "batch"))
+
+        # xs.mark_sharding(layer.input_layernorm.weight, mesh, ("batch",))
+        # xs.mark_sharding(layer.post_attention_layernorm.weight, mesh, ("batch",))
+    if batch_size == 1:
+        xs.mark_sharding(model.model.embed_tokens.weight, mesh, (None, "batch"))
+        xs.mark_sharding(model.lm_head.weight, mesh, (None, "batch"))
+
 
 def run_generate(
     compiled_model: torch.nn.Module,
@@ -142,19 +166,21 @@ def run_generate(
     max_tokens_to_generate: int,
     input_prompts: list,
 ):
-    num_users = input_args["input_ids"].shape[0]
-    output_tokens = [[] for _ in range(num_users)]
+    batch_size = input_args["input_ids"].shape[0]
+    output_tokens = [[] for _ in range(batch_size)]
 
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             if step == 0:
                 print("RUNNING PREFILL")
-            
+
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
             output_logiits = output.logits.to("cpu")
             next_token_id = output_logiits[:, -1].argmax(dim=-1)
-            output_text = [tokenizer.decode(next_token_id[i]) for i in range(num_users)]
+            output_text = [
+                tokenizer.decode(next_token_id[i]) for i in range(batch_size)
+            ]
             for i, output_tokens_list in enumerate(output_tokens):
                 output_tokens_list.append(output_text[i])
             # Check for EOS token and early exit
@@ -176,18 +202,21 @@ def run_generate(
                     input_args["past_key_values"].value_cache,
                 )
             ):
-                xs.mark_sharding(key, mesh, ("batch", "model", None, None))
-                xs.mark_sharding(value, mesh, ("batch", "model", None, None))
+                if batch_size == 1:
+                    xs.mark_sharding(key, mesh, (None, "model", None, None))
+                    xs.mark_sharding(value, mesh, (None, "model", None, None))
+                else:
+                    xs.mark_sharding(key, mesh, ("batch", "model", None, None))
+                    xs.mark_sharding(value, mesh, ("batch", "model", None, None))
     print()
-    for i in range(num_users):
-        print(f"Result for user {i}: {input_prompts[i]}{''.join(output_tokens[i])}")
+    for i in range(batch_size):
+        print(f"Result for batch {i}: {input_prompts[i]}{''.join(output_tokens[i])}")
         print()
-
 
 
 def run_llama_70b():
     # Set up config variables.
-    batch_size: int = 4
+    batch_size: int = len(PROMPTS)
     max_cache_len: int = 32
     input_prompts: list = PROMPTS
     model_name: str = "meta-llama/Meta-Llama-3.1-70B"
@@ -202,10 +231,11 @@ def run_llama_70b():
 
     model, tokenizer = setup_model_and_tokenizer(model_name)
 
-    input_args = construct_inputs(input_prompts, tokenizer, model.config, batch_size, max_cache_len)
+    input_args = construct_inputs(
+        input_prompts, tokenizer, model.config, batch_size, max_cache_len
+    )
 
     max_tokens_to_generate = max_cache_len - input_args["input_ids"].shape[1]
-    # max_tokens_to_generate = 32
 
     model, input_args = transfer_to_device(model, input_args, device)
 
@@ -222,14 +252,6 @@ def run_llama_70b():
         max_tokens_to_generate,
         input_prompts,
     )
-
-    # with torch.no_grad():
-    #     output = compiled_model(**input_args)
-    #     output_logits = output.logits.to("cpu")
-    #     next_token_id = output_logits[0, -1, :].argmax(dim=-1)
-    #     output_text = tokenizer.decode(next_token_id)
-    #     print("Prompt: ", input_prompt)
-    #     print("Output: ", output_text)
 
 
 if __name__ == "__main__":
