@@ -269,6 +269,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
             max_token_size=scheduler_config.max_num_batched_tokens,
+            max_num_reqs=self.max_num_reqs,
         )
 
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
@@ -2068,21 +2069,24 @@ def _adjust_min_token(min_token_size: int) -> int:
     return adjusted_value
 
 
-def _get_token_paddings(min_token_size: int, max_token_size: int) -> list[int]:
+def _get_token_paddings(
+    min_token_size: int, max_token_size: int, max_num_reqs: int
+) -> list[int]:
     """
     Generate a list of padding size, starting from min_token_size, ending with
     a number that can cover max_token_size. Increase padding size exponentially.
-    This list also includes 1 to support 1-token decode requests.
+    This list also includes max_num_reqs to support 1-token decode requests per user.
 
     First adjust min_token_size so it is power-of-two and divisible by 32.
     """
     # Adjust min_token_size to be power of 2 and >=32 (if required)
     num = _adjust_min_token(min_token_size)
-    paddings = [1]  # We need to support 1 token requests for decode graphs.
+    # Minimum padding = max_num_reqs so each user can decode 1 token at a time.
+    paddings = [max_num_reqs]
 
     logger.info("Using exponential token paddings:")
     while True:
-        paddings.append(num)
+        paddings.append(num * max_num_reqs)
         if num >= max_token_size:
             break
         num *= 2
