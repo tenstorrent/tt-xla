@@ -86,13 +86,11 @@ class MessageExtractor:
     def regex(pattern: str) -> str:
         """Extract a substring from the message using the given regex pattern."""
 
-        def extractor(ex_message: str) -> Optional[str]:
-            print(f"Extracting with pattern: {pattern}\n")
+        def extract(ex_message: str) -> Optional[str]:
             m = re.search(pattern, ex_message)
-            print(f"Extraction result: {m.group(1) if m else None}\n")
             return m.group(1) if m else None
 
-        return extractor
+        return extract
 
 
 # Short alias for MessageChecker used in failing reasons definitions
@@ -153,15 +151,18 @@ class ExceptionCheck:
         return True
 
     def extract_summary(self, ex: ExceptionData) -> str:
+        lines = []
 
-        full_message = ""
+        for extract in self.summary:
+            for source in (ex.stderr, ex.stdout, ex.error_log):
+                message = extract(source)
+                if message:
+                    lines.append(message)
 
-        for message_extract in self.summary:
-            message = message_extract(ex.error_log)
-            if message:
-                full_message += message + "\n"
+        if lines:
+            return "\n".join(lines)
 
-        return full_message.rstrip("\n")
+        return ""
 
 
 @dataclass
