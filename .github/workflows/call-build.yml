@@ -149,11 +149,11 @@ jobs:
             cd ${{ steps.strings.outputs.work-dir }}/python_package
             python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
 
-      - name: Repack the wheel to reduce size
-        shell: bash
-        run: |
-            apt install zip
-            .github/scripts/repack.sh ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
+      # - name: Repack the wheel to reduce size
+      #   shell: bash
+      #   run: |
+      #       apt install zip
+      #       .github/scripts/repack.sh ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
 
       - name: Validate build type of wheel build
         shell: bash
