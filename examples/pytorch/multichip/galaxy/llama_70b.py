@@ -151,10 +151,11 @@ def run_comparison():
                 return float("nan")
             else:
                 pccs.append(float((vx @ vy) / denom))
-        return min(pccs)
+        return (min(pccs), max(pccs))
 
-    pcc = compute_pcc(cpu_hidden_states, tt_hidden_states)
-    print("PCC: ", pcc)
+    pcc_min, pcc_max = compute_pcc(cpu_hidden_states, tt_hidden_states)
+    print("Min PCC: ", pcc_min)
+    print("Max PCC: ", pcc_max)
 
 
 def run_llama_70b():
