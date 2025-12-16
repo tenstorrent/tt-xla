@@ -6,9 +6,9 @@ option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" 
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
     # fix updateShapes() commit
-    # set(TT_MLIR_VERSION "31b88f95e9c211fb18b732267f1c035249d67ec5")
+    # set(TT_MLIR_VERSION "8a4ce00c0a0ffb9b427fdbc6fbea7b4a650e468b")
     # Use top-down traversal commit
-    set(TT_MLIR_VERSION "032b3e6fde64e773e01815c425f9534cb6d478e4")
+    set(TT_MLIR_VERSION "d87097c5ff9d9bbf8755e793f0c9f9f0b84b1427")
     # Use top-down traversal commit + no all_to_all on replicated operand
     # set(TT_MLIR_VERSION "5e7445b030c7e1516e0e9a9a9bdedd1ea7bf76c5")
     # Use top-down traversal + consteval dram fix
