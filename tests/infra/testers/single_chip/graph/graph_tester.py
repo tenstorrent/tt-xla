@@ -13,6 +13,8 @@ from infra.workloads.torch_workload import TorchWorkload
 from infra.workloads.workload import Workload
 from jax._src.typing import DTypeLike
 
+from tests.infra.testers.compiler_config import CompilerConfig
+
 from ..op.op_tester import OpTester
 
 
@@ -23,7 +25,19 @@ class GraphTester(OpTester):
     Currently same as OpTester.
     """
 
-    pass
+    def __init__(
+        self,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
+        framework: Framework = Framework.JAX,
+        compiler_config: CompilerConfig = None,
+        torch_options: dict = None,
+    ) -> None:
+        super().__init__(
+            comparison_config=comparison_config,
+            framework=framework,
+            compiler_config=compiler_config,
+            torch_options=torch_options,
+        )
 
 
 def run_graph_test(
