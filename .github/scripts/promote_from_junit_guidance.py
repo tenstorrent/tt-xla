@@ -349,7 +349,7 @@ def copy_inline_comment_if_exists(
 ) -> None:
     """
     Copy inline comment from source_key to target_key using yaml_add_eol_comment.
-    
+
     This handles ruamel.yaml's complex comment storage where inline-looking comments
     are sometimes stored as trailing comments (index 2) instead of inline (index 1).
     Uses the official API to ensure proper rendering.
@@ -386,7 +386,7 @@ def add_arch_overrides_preserving_trailing_comment(
 ) -> None:
     """
     Add arch_overrides to entry while preserving trailing comments from the last key.
-    
+
     When adding arch_overrides, any blank line + comment after the last existing key
     needs to be moved to attach after the new arch_overrides structure.
     """
@@ -415,7 +415,9 @@ def add_arch_overrides_preserving_trailing_comment(
             last_field = list(last_arch_entry.keys())[-1]
             if last_field not in last_arch_entry.ca.items:
                 last_arch_entry.ca.items[last_field] = [None, None, None, None]
-            comment_list = list(last_arch_entry.ca.items.get(last_field, [None, None, None, None]))
+            comment_list = list(
+                last_arch_entry.ca.items.get(last_field, [None, None, None, None])
+            )
             while len(comment_list) < 4:
                 comment_list.append(None)
             # Only set trailing if no inline comment exists (to avoid conflicts)
@@ -423,21 +425,22 @@ def add_arch_overrides_preserving_trailing_comment(
                 comment_list[2] = trailing_comment
                 last_arch_entry.ca.items[last_field] = comment_list
 
+
 def normalize_entry_with_arch_overrides(
     entry: CommentedMap, all_archs: set[str], fields_to_normalize: List[str]
 ) -> None:
     """
     Normalize entry to have arch_overrides with all archs, duplicating top-level values.
-    
+
     Only duplicates fields when creating arch_overrides for the first time.
     If arch_overrides already exists, we leave it as-is (don't add new archs or fields).
     """
     arch_overrides_existed = "arch_overrides" in entry
-    
+
     # If arch_overrides already exists, don't modify it during normalization
     if arch_overrides_existed:
         return
-    
+
     # Only normalize entries that don't have arch_overrides yet
     arch_overrides = CommentedMap()
 
@@ -462,25 +465,29 @@ def save_entry_trailing_comment(entry: CommentedMap) -> Optional[object]:
     """
     if not entry:
         return None
-    
+
     def find_trailing_recursive(current_map):
         """Recursively find the trailing comment in the deepest last key."""
         if not isinstance(current_map, CommentedMap):
             return None
-        
+
         keys = list(current_map.keys())
         if not keys:
             return None
-        
+
         last_key = keys[-1]
-        
+
         # Check if this level has a trailing comment
-        if hasattr(current_map, "ca") and current_map.ca.items and last_key in current_map.ca.items:
+        if (
+            hasattr(current_map, "ca")
+            and current_map.ca.items
+            and last_key in current_map.ca.items
+        ):
             comment_list = current_map.ca.items[last_key]
             if len(comment_list) > 2 and comment_list[2]:
                 # Found it at this level, but check deeper first
                 pass
-        
+
         # Check if we can go deeper
         last_value = current_map[last_key]
         if isinstance(last_value, CommentedMap) and last_value:
@@ -488,15 +495,19 @@ def save_entry_trailing_comment(entry: CommentedMap) -> Optional[object]:
             deeper_comment = find_trailing_recursive(last_value)
             if deeper_comment:
                 return deeper_comment
-        
+
         # No deeper level or no comment deeper, return this level's comment
-        if hasattr(current_map, "ca") and current_map.ca.items and last_key in current_map.ca.items:
+        if (
+            hasattr(current_map, "ca")
+            and current_map.ca.items
+            and last_key in current_map.ca.items
+        ):
             comment_list = current_map.ca.items[last_key]
             if len(comment_list) > 2 and comment_list[2]:
                 return comment_list[2]
-        
+
         return None
-    
+
     return find_trailing_recursive(entry)
 
 
@@ -507,20 +518,24 @@ def apply_entry_trailing_comment(entry: CommentedMap, trailing_comment: object) 
     """
     if not trailing_comment or not entry:
         return
-    
+
     keys = list(entry.keys())
     if not keys:
         return
-    
+
     # Find the actual last key (might be nested in arch_overrides)
     last_key = keys[-1]
     last_value = entry[last_key]
-    
+
     target_map = entry
     target_key = last_key
-    
+
     # If last key is arch_overrides, navigate to its last arch's last field
-    if last_key == "arch_overrides" and isinstance(last_value, CommentedMap) and last_value:
+    if (
+        last_key == "arch_overrides"
+        and isinstance(last_value, CommentedMap)
+        and last_value
+    ):
         arch_keys = list(last_value.keys())
         if arch_keys:
             last_arch = arch_keys[-1]
@@ -530,15 +545,15 @@ def apply_entry_trailing_comment(entry: CommentedMap, trailing_comment: object) 
                 if field_keys:
                     target_map = last_arch_entry
                     target_key = field_keys[-1]
-    
+
     # Apply the trailing comment
     if target_key not in target_map.ca.items:
         target_map.ca.items[target_key] = [None, None, None, None]
-    
+
     comment_list = list(target_map.ca.items.get(target_key, [None, None, None, None]))
     while len(comment_list) < 4:
         comment_list.append(None)
-    
+
     # Only set if there's no inline comment (to avoid conflicts)
     if not comment_list[1]:
         comment_list[2] = trailing_comment
@@ -561,7 +576,7 @@ def apply_updates_to_yaml(
     bracket_key = extract_bracket_key_from_testcase_name(test_name) or ""
     if not bracket_key or bracket_key not in test_config:
         return None
-    
+
     entry = test_config.get(bracket_key)
     if not isinstance(entry, CommentedMap):
         entry = CommentedMap(entry or {})
@@ -569,7 +584,7 @@ def apply_updates_to_yaml(
 
     if "arch_overrides" not in entry:
         return None
-        
+
     arch_overrides = entry.get("arch_overrides")
     if not isinstance(arch_overrides, CommentedMap):
         return None
@@ -591,13 +606,17 @@ def apply_updates_to_yaml(
             old_th = arch_entry.get("required_pcc")
             if old_th is None or float(old_th) < new_th:
                 if verbose:
-                    print(f"   - Setting arch_overrides.{arch}.required_pcc: {old_th} -> {new_th} for {bracket_key}")
+                    print(
+                        f"   - Setting arch_overrides.{arch}.required_pcc: {old_th} -> {new_th} for {bracket_key}"
+                    )
                 arch_entry["required_pcc"] = new_th
                 modified = True
 
         if plan.get("enable_pcc"):
             if verbose:
-                print(f"   - Enabling PCC for arch_overrides.{arch} (setting assert_pcc: true) for {bracket_key}")
+                print(
+                    f"   - Enabling PCC for arch_overrides.{arch} (setting assert_pcc: true) for {bracket_key}"
+                )
             arch_entry["assert_pcc"] = True
             modified = True
 
@@ -682,7 +701,9 @@ def optimize_modified_tests(
 
 # Restore trailing comments to modified tests after optimization.
 def restore_trailing_comments_for_tests(
-    test_config: Dict, modified_bracket_keys: List[str], saved_comments: Dict[str, object]
+    test_config: Dict,
+    modified_bracket_keys: List[str],
+    saved_comments: Dict[str, object],
 ) -> None:
     """Restore trailing comments after optimization."""
     for bracket_key in modified_bracket_keys:
@@ -714,7 +735,7 @@ def optimize_arch_overrides(
     fields_to_move: Dict[str, object] = {}
     for field in all_fields:
         field_values: Dict[str, object] = {}
-        
+
         for arch in arch_overrides.keys():
             arch_entry = arch_overrides.get(arch)
             if isinstance(arch_entry, dict) and field in arch_entry:
@@ -730,8 +751,10 @@ def optimize_arch_overrides(
     if fields_to_move:
         for field, common_value in fields_to_move.items():
             if verbose:
-                print(f" - Optimizing: moving {field}={common_value} to top-level for {bracket_key}")
-            
+                print(
+                    f" - Optimizing: moving {field}={common_value} to top-level for {bracket_key}"
+                )
+
             # Move with comment preservation
             # Get comment from last arch entry (in YAML order)
             source_arch = list(arch_overrides.keys())[-1]
@@ -768,13 +791,15 @@ def optimize_arch_overrides(
             # If any arch has no overrides, no fields are in all archs
             fields_in_all_archs = set()
             break
-    
+
     # Remove these fields from top-level (they're overridden by all archs anyway)
     if fields_in_all_archs:
         for field in fields_in_all_archs:
             if field in entry:
                 if verbose:
-                    print(f" - Optimizing: removing top-level {field} (overridden by all archs) for {bracket_key}")
+                    print(
+                        f" - Optimizing: removing top-level {field} (overridden by all archs) for {bracket_key}"
+                    )
                 entry.pop(field, None)
 
     # PASS 3: Remove assert_pcc: true from ALL levels (true is the default)
@@ -783,13 +808,15 @@ def optimize_arch_overrides(
         arch_entry = arch_overrides.get(arch)
         if isinstance(arch_entry, dict):
             levels_to_check.append((f"arch_overrides.{arch}", arch_entry))
-    
+
     for level_name, map_obj in levels_to_check:
         if map_obj.get("assert_pcc") is True:
             if verbose:
-                print(f" - Optimizing: removing {level_name} assert_pcc: true (default) for {bracket_key}")
+                print(
+                    f" - Optimizing: removing {level_name} assert_pcc: true (default) for {bracket_key}"
+                )
             map_obj.pop("assert_pcc", None)
-    
+
     # PASS 4: remove empty arch entries and empty arch_overrides
     for arch in list(arch_overrides.keys()):
         arch_entry = arch_overrides.get(arch)
@@ -827,7 +854,10 @@ def main() -> int:
         print("No actionable guidance found.")
         return 0
 
-    print(f"\nGenerating promotion plan for {actionable_test_count} tests...\n", flush=True)
+    print(
+        f"\nGenerating promotion plan for {actionable_test_count} tests...\n",
+        flush=True,
+    )
 
     for config_path in sorted(by_config.keys()):
         data = load_yaml_config(config_path)
@@ -837,37 +867,45 @@ def main() -> int:
 
         # Get list of test names to modify
         test_names = list(by_config[config_path].keys())
-        
+
         # STEP 1: Save trailing comments before modifications
-        saved_trailing_comments = save_trailing_comments_for_tests(test_config, test_names)
-        
+        saved_trailing_comments = save_trailing_comments_for_tests(
+            test_config, test_names
+        )
+
         # STEP 2: Normalize entries (duplicate fields to arch_overrides)
         normalize_tests_for_modification(test_config, test_names, args.verbose)
-        
+
         # DEBUG: Write intermediate YAML after normalization
         if args.verbose:
             debug_path = config_path.replace(".yaml", ".after_normalize.yaml")
             write_yaml_config(debug_path, data)
             print(f"DEBUG: Wrote normalized YAML to {debug_path}")
-        
+
         # STEP 3: Apply updates
         modified_bracket_keys = apply_all_updates(
             data, by_config[config_path], args.apply, args.verbose, config_path
         )
-        
+
         # STEP 4: Optimization pass
         if modified_bracket_keys and not args.no_optimize:
-            optimize_modified_tests(test_config, modified_bracket_keys, args.verbose, config_path)
-        
+            optimize_modified_tests(
+                test_config, modified_bracket_keys, args.verbose, config_path
+            )
+
         # STEP 5: Restore trailing comments after optimization
-        restore_trailing_comments_for_tests(test_config, modified_bracket_keys, saved_trailing_comments)
+        restore_trailing_comments_for_tests(
+            test_config, modified_bracket_keys, saved_trailing_comments
+        )
 
         # Write changes
         if args.apply:
             write_yaml_config(config_path, data)
 
     elapsed = time.time() - start
-    print(f"\nFinished test promotions in {elapsed:.2f}s. Mode: {'apply' if args.apply else 'dry-run'}")
+    print(
+        f"\nFinished test promotions in {elapsed:.2f}s. Mode: {'apply' if args.apply else 'dry-run'}"
+    )
     return 0
 
 
