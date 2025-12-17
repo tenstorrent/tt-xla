@@ -34,6 +34,7 @@ test_config:
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
+    markers: [promotions]
 
   deit/pytorch-base_distilled-data_parallel-full-inference:
     supported_archs: [n300]
@@ -76,6 +77,7 @@ test_config:
   mnist/image_classification/pytorch-cnn_nodropout-data_parallel-full-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
+    markers: [promotions]
 
   vit/pytorch-large-data_parallel-full-inference:
     supported_archs: [n300]
@@ -257,6 +259,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
+    markers: [promotions]
 
   dpr/question_encoder/pytorch-facebook/dpr-question_encoder-single-nq-base-data_parallel-full-inference:
     supported_archs: [n300]
