@@ -13,6 +13,7 @@ from infra.testers.single_chip.model import (
 )
 
 from tests.infra.comparators.comparator import Comparator, ComparisonResult
+from tests.infra.utilities.failing_reasons.utils import capture_cpp_stderr
 from tests.infra.utilities.filecheck_utils import *
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.torch import PLACEHOLDER_MODELS
@@ -110,18 +111,36 @@ def test_all_models_torch(
         tester = None
         filecheck_results = None
 
+        # Debug: write to /dev/tty to bypass all capture
+        import os
+        def tty_debug(msg):
+            try:
+                tty = os.open('/dev/tty', os.O_WRONLY)
+                os.write(tty, f"{msg}\n".encode())
+                os.close(tty)
+            except:
+                pass
+
+        tty_debug(f"[test_models_torch] BEFORE TRY, status={test_metadata.status}")
+
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
+            tty_debug(f"[test_models_torch] Checking if should run: {test_metadata.status} != {ModelTestStatus.NOT_SUPPORTED_SKIP}")
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
-                tester = DynamicTorchModelTester(
-                    run_mode,
-                    loader=loader,
-                    comparison_config=test_metadata.to_comparison_config(),
-                    parallelism=parallelism,
-                )
+                tty_debug("[test_models_torch] About to enter capture_cpp_stderr context")
+                # Wrap with capture_cpp_stderr to capture MLIR compilation errors
+                # that are printed to stderr by C++ code during compilation
+                with capture_cpp_stderr():
+                    tty_debug("[test_models_torch] Inside capture_cpp_stderr context")
+                    tester = DynamicTorchModelTester(
+                        run_mode,
+                        loader=loader,
+                        comparison_config=test_metadata.to_comparison_config(),
+                        parallelism=parallelism,
+                    )
 
-                comparison_result = tester.test()
+                    comparison_result = tester.test()
 
                 # Check if filecheck patterns are specified
                 pattern_files = (
@@ -155,8 +174,23 @@ def test_all_models_torch(
                 validate_filecheck_results(filecheck_results)
 
         except Exception as e:
-            out = capteesys.readouterr().out
-            err = capteesys.readouterr().err
+            captured = capteesys.readouterr()
+            out = captured.out
+            err = captured.err
+            tty_debug(f"[test_models_torch] Exception caught: {type(e).__name__}")
+            tty_debug(f"[test_models_torch] capteesys stdout: {len(out)} chars")
+            tty_debug(f"[test_models_torch] capteesys stderr: {len(err)} chars")
+            if out:
+                tty_debug(f"[test_models_torch] stdout preview: {out[:500]}")
+            if err:
+                tty_debug(f"[test_models_torch] stderr preview: {err[:500]}")
+            # Check for MLIR error in either
+            if "error:" in (out + err):
+                tty_debug("[test_models_torch] Found 'error:' in captured output!")
+            # Also check our custom capture
+            from tests.infra.utilities.failing_reasons.utils import get_captured_cpp_stderr
+            cpp_stderr = get_captured_cpp_stderr()
+            tty_debug(f"[test_models_torch] get_captured_cpp_stderr: {len(cpp_stderr) if cpp_stderr else 0} chars")
             # Record runtime failure info so it can be reflected in report properties
             update_test_metadata_for_exception(test_metadata, e, stdout=out, stderr=err)
             raise
@@ -274,31 +308,34 @@ def test_all_models_jax(
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
-                if (
-                    parallelism == Parallelism.TENSOR_PARALLEL
-                    or parallelism == Parallelism.DATA_PARALLEL
-                ):
-                    tester = DynamicJaxMultiChipModelTester(
-                        model_loader=loader,
-                        run_mode=run_mode,
-                        comparison_config=test_metadata.to_comparison_config(),
-                    )
-                else:
-                    if model_info.source.name == ModelSource.EASYDEL.name:
-                        # In EasyDel, single-device models use multi-chip setup with (1,1) mesh
+                # Wrap with capture_cpp_stderr to capture MLIR compilation errors
+                # that are printed to stderr by C++ code during compilation
+                with capture_cpp_stderr():
+                    if (
+                        parallelism == Parallelism.TENSOR_PARALLEL
+                        or parallelism == Parallelism.DATA_PARALLEL
+                    ):
                         tester = DynamicJaxMultiChipModelTester(
                             model_loader=loader,
+                            run_mode=run_mode,
                             comparison_config=test_metadata.to_comparison_config(),
-                            num_devices=1,
                         )
                     else:
-                        tester = DynamicJaxModelTester(
-                            run_mode,
-                            loader=loader,
-                            comparison_config=test_metadata.to_comparison_config(),
-                        )
+                        if model_info.source.name == ModelSource.EASYDEL.name:
+                            # In EasyDel, single-device models use multi-chip setup with (1,1) mesh
+                            tester = DynamicJaxMultiChipModelTester(
+                                model_loader=loader,
+                                comparison_config=test_metadata.to_comparison_config(),
+                                num_devices=1,
+                            )
+                        else:
+                            tester = DynamicJaxModelTester(
+                                run_mode,
+                                loader=loader,
+                                comparison_config=test_metadata.to_comparison_config(),
+                            )
 
-                comparison_result = tester.test()
+                    comparison_result = tester.test()
 
                 # Check if filecheck patterns are specified
                 pattern_files = (

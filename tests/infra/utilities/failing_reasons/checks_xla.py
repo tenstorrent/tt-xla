@@ -569,6 +569,110 @@ class FailingReasons(Enum):
         ],
     )
 
+    # MLIR/TTIR compilation errors - these show up in stdout/stderr with "error:" pattern
+    # Example: loc("convolution.1254"): error: 'ttir.conv_transpose2d' op Number of input channels...
+    MLIR_TTIR_COMPILATION_ERROR = FailingReason(
+        description="MLIR/TTIR compilation error",
+        checks=[
+            # Matches MLIR errors in stderr (compilation output)
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stderr=[
+                    M.regex(r"loc\(.*\): error:.*'ttir\."),
+                ],
+            ),
+            # Matches MLIR errors in stdout
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stdout=[
+                    M.regex(r"loc\(.*\): error:.*'ttir\."),
+                ],
+            ),
+            # Fallback: check error_log too
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                error_log=[
+                    M.regex(r"loc\(.*\): error:.*'ttir\."),
+                ],
+            ),
+        ],
+    )
+
+    # MLIR/TTNN compilation errors
+    MLIR_TTNN_COMPILATION_ERROR = FailingReason(
+        description="MLIR/TTNN compilation error",
+        checks=[
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stderr=[
+                    M.regex(r"loc\(.*\): error:.*'ttnn\."),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stdout=[
+                    M.regex(r"loc\(.*\): error:.*'ttnn\."),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                error_log=[
+                    M.regex(r"loc\(.*\): error:.*'ttnn\."),
+                ],
+            ),
+        ],
+    )
+
+    # StableHLO compilation errors
+    MLIR_STABLEHLO_COMPILATION_ERROR = FailingReason(
+        description="MLIR/StableHLO compilation error",
+        checks=[
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stderr=[
+                    M.regex(r"loc\(.*\): error:.*'stablehlo\."),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stdout=[
+                    M.regex(r"loc\(.*\): error:.*'stablehlo\."),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                error_log=[
+                    M.regex(r"loc\(.*\): error:.*'stablehlo\."),
+                ],
+            ),
+        ],
+    )
+
+    # Generic MLIR op verification error (catches any 'xxx' op pattern)
+    MLIR_OP_VERIFICATION_ERROR = FailingReason(
+        description="MLIR op verification error",
+        checks=[
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stderr=[
+                    M.regex(r"loc\(.*\): error:"),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stdout=[
+                    M.regex(r"loc\(.*\): error:"),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                error_log=[
+                    M.regex(r"error:.*'\w+\.\w+' op"),
+                ],
+            ),
+        ],
+    )
+
     TORCHVISION_DEFORM_IM2COL_BFLOAT16_NOT_IMPLEMENTED = FailingReason(
         description="deformable_im2col not implemented for bfloat16",
         checks=[

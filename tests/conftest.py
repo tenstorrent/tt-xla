@@ -480,3 +480,13 @@ def clear_torchxla_computation_cache():
     """
     yield
     xr.clear_computation_cache()
+
+
+@pytest.fixture()
+def capteesys(capfd):
+    """
+    Pytest fixture that provides file descriptor-level capture for stdout/stderr.
+    Uses capfd instead of capsys to capture C++ output (like MLIR errors) that
+    bypasses Python's stdout/stderr buffering.
+    """
+    return capfd

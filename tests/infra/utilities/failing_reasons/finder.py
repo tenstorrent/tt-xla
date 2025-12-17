@@ -4,12 +4,13 @@
 
 # Failing reasons finder
 
+import sys
 from typing import Generator, Optional
 
 from loguru import logger
 
 from .checks_xla import FailingReasons
-from .utils import ExceptionData, PyTestUtils
+from .utils import ExceptionData, PyTestUtils, get_captured_cpp_stderr
 
 
 class FailingReasonsFinder:
@@ -69,8 +70,29 @@ class FailingReasonsFinder:
         cls, exc: Exception, stdout: str, stderr: str
     ) -> Optional["FailingReasons"]:
         """Find failing reason by exception"""
+        sys.__stdout__.write(f"[FailingReasonsFinder] find_reason_by_exception called\n")
+        sys.__stdout__.flush()
         # Get long representation of exception
         long_repr = PyTestUtils.get_long_repr(exc)
+
+        # Check for captured C++ stderr (contains MLIR errors during compilation)
+        cpp_stderr = get_captured_cpp_stderr()
+        if cpp_stderr:
+            # Debug: print that we captured C++ stderr (use __stdout__ to bypass capture)
+            sys.__stdout__.write(f"[FailingReasonsFinder] Captured C++ stderr ({len(cpp_stderr)} chars)\n")
+            if "loc(" in cpp_stderr and "error:" in cpp_stderr:
+                sys.__stdout__.write(f"[FailingReasonsFinder] MLIR error found in captured C++ stderr!\n")
+                # Print the first MLIR error line for debugging
+                for line in cpp_stderr.split('\n'):
+                    if 'error:' in line:
+                        sys.__stdout__.write(f"[FailingReasonsFinder] {line}\n")
+                        break
+            sys.__stdout__.flush()
+            # Combine captured C++ stderr with Python stderr
+            if stderr:
+                stderr = f"{stderr}\n--- Captured C++ stderr ---\n{cpp_stderr}"
+            else:
+                stderr = cpp_stderr
 
         # Build ExceptionData from exception
         ex_data: ExceptionData = FailingReasonsFinder.build_ex_data(

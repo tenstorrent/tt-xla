@@ -4,12 +4,129 @@
 
 # Utilities for failing reasons
 
+import io
+import os
 import re
+import sys
+import tempfile
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, ClassVar, List, Optional
 
 from loguru import logger
 from pytest import ExceptionInfo
+
+
+# Thread-local storage for captured C++ stderr during compilation
+_thread_local = threading.local()
+
+
+def get_captured_cpp_stderr() -> Optional[str]:
+    """Get the captured C++ stderr from the current thread."""
+    return getattr(_thread_local, "cpp_stderr", None)
+
+
+def set_captured_cpp_stderr(value: Optional[str]):
+    """Set the captured C++ stderr for the current thread."""
+    _thread_local.cpp_stderr = value
+
+
+def _tty_debug(msg):
+    """Write debug message to /dev/tty to bypass all capture."""
+    try:
+        tty = os.open('/dev/tty', os.O_WRONLY)
+        os.write(tty, f"{msg}\n".encode())
+        os.close(tty)
+    except:
+        pass
+
+
+@contextmanager
+def capture_cpp_stderr():
+    """
+    Context manager to capture stderr AND stdout at the file descriptor level.
+    This captures output from C++ code (like MLIR compilation errors)
+    that bypasses Python's sys.stderr/sys.stdout.
+
+    The captured output is stored in thread-local storage and can be
+    retrieved using get_captured_cpp_stderr().
+
+    Usage:
+        with capture_cpp_stderr():
+            # C++ code that prints to stderr/stdout
+            model.to(device)
+
+        captured = get_captured_cpp_stderr()
+        if captured and "error:" in captured:
+            print(f"MLIR error: {captured}")
+    """
+    _tty_debug("[capture_cpp_stderr] Entering context manager")
+
+    # Save original stderr and stdout file descriptors
+    original_stderr_fd = sys.stderr.fileno()
+    original_stdout_fd = sys.stdout.fileno()
+    saved_stderr_fd = os.dup(original_stderr_fd)
+    saved_stdout_fd = os.dup(original_stdout_fd)
+    _tty_debug(f"[capture_cpp_stderr] Saved stderr fd: {saved_stderr_fd}, stdout fd: {saved_stdout_fd}")
+
+    # Create temporary files to capture stderr and stdout
+    with tempfile.NamedTemporaryFile(mode="w+", delete=True, suffix=".stderr") as tmp_err, \
+         tempfile.NamedTemporaryFile(mode="w+", delete=True, suffix=".stdout") as tmp_out:
+        try:
+            _tty_debug(f"[capture_cpp_stderr] Created temp files: err={tmp_err.name}, out={tmp_out.name}")
+            # Redirect stderr and stdout to temp files
+            os.dup2(tmp_err.fileno(), original_stderr_fd)
+            os.dup2(tmp_out.fileno(), original_stdout_fd)
+            sys.stderr = os.fdopen(original_stderr_fd, "w", closefd=False)
+            sys.stdout = os.fdopen(original_stdout_fd, "w", closefd=False)
+            _tty_debug("[capture_cpp_stderr] Stderr and stdout redirected, yielding...")
+
+            yield
+
+        finally:
+            _tty_debug("[capture_cpp_stderr] In finally block")
+            # Flush stderr and stdout
+            sys.stderr.flush()
+            sys.stdout.flush()
+
+            # Restore original stderr and stdout
+            os.dup2(saved_stderr_fd, original_stderr_fd)
+            os.dup2(saved_stdout_fd, original_stdout_fd)
+            os.close(saved_stderr_fd)
+            os.close(saved_stdout_fd)
+            sys.stderr = sys.__stderr__
+            sys.stdout = sys.__stdout__
+
+            # Read captured content from both streams
+            tmp_err.seek(0)
+            tmp_out.seek(0)
+            captured_stderr = tmp_err.read()
+            captured_stdout = tmp_out.read()
+
+            _tty_debug(f"[capture_cpp_stderr] Captured stderr: {len(captured_stderr)} chars")
+            _tty_debug(f"[capture_cpp_stderr] Captured stdout: {len(captured_stdout)} chars")
+
+            # Combine both for MLIR error detection
+            combined = ""
+            if captured_stderr:
+                combined += captured_stderr
+                _tty_debug(f"[capture_cpp_stderr] stderr preview: {captured_stderr[:500]}")
+            if captured_stdout:
+                combined += "\n" + captured_stdout if combined else captured_stdout
+                _tty_debug(f"[capture_cpp_stderr] stdout preview: {captured_stdout[:500]}")
+
+            # Check for MLIR errors in either stream
+            if combined and "loc(" in combined and "error:" in combined:
+                _tty_debug("[capture_cpp_stderr] MLIR ERROR FOUND!")
+                # Find and print the error line
+                for line in combined.split('\n'):
+                    if 'error:' in line:
+                        _tty_debug(f"[capture_cpp_stderr] Error line: {line[:200]}")
+                        break
+
+            # Store in thread-local storage
+            set_captured_cpp_stderr(combined if combined else None)
 
 if TYPE_CHECKING:
     # ComponentChecker is only imported for type checking to avoid circular imports
