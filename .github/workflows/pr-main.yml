@@ -40,16 +40,6 @@ jobs:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
 
-  build-ttxla-codecov:
-    uses: ./.github/workflows/call-build.yml
-    name: "Build tt-xla with code coverage"
-    secrets: inherit
-    needs: [ inspect-changes, build-image ]
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      build_type: codecov
-
   build-ttxla-release:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-build.yml
@@ -69,20 +59,26 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       build_type: explorer
 
+  build-ttxla-debug:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    uses: ./.github/workflows/call-build-debug.yml
+    name: "Build and test tt-xla (debug with coverage)"
+    secrets: inherit
+    needs: [ inspect-changes, build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
   test:
-    needs: [ inspect-changes, build-image, build-ttxla-codecov, build-ttxla-release ]
+    needs: [ inspect-changes, build-image, build-ttxla-release ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
       test_suite: basic-test.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_codecov_run_id: ${{ needs.build-ttxla-codecov.outputs.artifacts_run_id }}
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_codecov_artifact_name: ${{ needs.build-ttxla-codecov.outputs.wheel_artifact_name }}
       wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_release_vllm_tt_artifact_name }}
-      build_artifact_name: ${{ needs.build-ttxla-codecov.outputs.build_artifact_name }}
 
   perf-benchmark:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')
@@ -130,9 +126,9 @@ jobs:
     needs:
       - pre-commit
       - build-image
-      - build-ttxla-codecov
       - build-ttxla-release
       - build-ttxla-explorer
+      - build-ttxla-debug
       - test
       - test_forge_models_push
       - build-docs
@@ -141,5 +137,5 @@ jobs:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-codecov, build-ttxla-release, build-ttxla-explorer, test, test_forge_models_push, build-docs
+        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, test, test_forge_models_push, build-docs
         jobs: ${{ toJSON(needs) }}

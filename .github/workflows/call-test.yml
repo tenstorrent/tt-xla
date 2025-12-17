@@ -7,33 +7,16 @@ on:
         description: 'Docker image to use for the build'
         required: true
         type: string
-      codecov:
-        description: 'Run code coverage tests and uploads'
-        required: false
-        default: true
-        type: boolean
       artifact_release_run_id:
         description: 'Run ID of the artifacts (release)'
         required: true
-        type: string
-      artifact_codecov_run_id:
-        description: 'Run ID of the artifacts (codecov)'
-        required: false
         type: string
       wheel_release_artifact_name:
         description: 'Name of the wheel artifact (release)'
         required: true
         type: string
-      wheel_codecov_artifact_name:
-        description: 'Name of the wheel artifact (codecov)'
-        required: false
-        type: string
       wheel_release_vllm_tt_artifact_name:
         description: 'Name of the wheel artifact (release vllm-tt)'
-        required: false
-        type: string
-      build_artifact_name:
-        description: 'Name of the build artifact (codecov)'
         required: false
         type: string
       test_suite:
@@ -132,16 +115,9 @@ jobs:
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
         echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
-        if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
-          echo "do_codecov=true" >> "$GITHUB_OUTPUT"
-          echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
-          echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
-          echo "artifact_run_id=${{ inputs.artifact_codecov_run_id }}" >> "$GITHUB_OUTPUT"
-        else
-          echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
-          echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
-          echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
-        fi
+        echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
+        echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
+        echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
 
         # Precompute forge models detection as a reusable output
         if [[ "${{ matrix.build.dir }}" == *"tests/runner/test_models.py"* ]]; then
@@ -173,19 +149,6 @@ jobs:
         echo "=== Installing wheel ==="
         source venv/activate
         pip install wheels/*.whl
-
-    - name: Download build artifacts
-      if: steps.strings.outputs.do_codecov
-      run: |
-        echo "Downloading build artifacts"
-        gh run download ${{ inputs.artifact_codecov_run_id }} \
-          --repo ${{ github.repository }} \
-          --dir build \
-          --name ${{ inputs.build_artifact_name }}
-        echo "Untar build artifacts"
-        cd build
-        tar xf artifact.tar
-        rm -f artifact.tar
 
     - name: Check for re-run attempt
       id: check-rerun-attempt
@@ -373,22 +336,6 @@ jobs:
         path: ${{ steps.strings.outputs.perf_report_dir }}
         # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
         if-no-files-found: 'ignore'
-
-    - name: Prepare code coverage report
-      if: steps.strings.outputs.do_codecov && (success() || failure())
-      run: |
-        lcov --directory build --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh
-        lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
-        sed -i 's|SF:/__w/tt-xla/tt-xla/pjrt_implementation/src/|SF:src/|' coverage.info
-        lcov --list coverage.info
-
-    - name: Upload coverage reports to Codecov
-      if: steps.strings.outputs.do_codecov && (success() || failure())
-      uses: codecov/codecov-action@v5
-      with:
-        files: coverage.info
-        disable_search: true
-        token: ${{ secrets.CODECOV_TOKEN }}
 
 
   test-summary:
