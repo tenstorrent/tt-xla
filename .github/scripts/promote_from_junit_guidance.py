@@ -759,6 +759,7 @@ def optimize_arch_overrides(
     Move fields to top-level if common across all archs, preserving comments.
     Remove fields from top-level if all archs override them.
     Remove assert_pcc: true from all levels (true is the default).
+    Remove required_pcc: 0.99 from all levels (0.99 is the default threshold).
     Remove PCC-related reason if PCC is enabled and no custom threshold < 0.99.
     Remove empty arch entries and empty arch_overrides.
     """
@@ -859,6 +860,20 @@ def optimize_arch_overrides(
                 )
             # Use helper to also remove associated comments
             remove_field_with_comment(map_obj, "assert_pcc")
+
+        # Also remove required_pcc: 0.99 (0.99 is the default threshold)
+        if "required_pcc" in map_obj:
+            try:
+                threshold = float(map_obj["required_pcc"])
+                if threshold >= 0.99:
+                    if verbose:
+                        print(
+                            f" - Optimizing: removing {level_name} required_pcc: 0.99 (default) for {bracket_key}"
+                        )
+                    # Use helper to also remove associated comments
+                    remove_field_with_comment(map_obj, "required_pcc")
+            except (ValueError, TypeError):
+                pass
 
     # PASS 4: Remove PCC-related reason if PCC is enabled and no custom threshold
     # Check all levels (top-level and arch_overrides) for reason field
