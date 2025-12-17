@@ -10,12 +10,27 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     """
     Replaces torch ops with composite ops if we have a proper replacement.
 
-    This must be done before graph decompositions because we are replacing
-    torch operations directly.
+    Handles two types of nodes:
+    1. call_function nodes: torch and torch.nn.functional ops
+       - node.target is a function reference
+       - Replaced by changing node.target to composite function
+
+    2. call_module nodes: nn.Module instances
+       - node.target is a string like "some_module"
+       - Replaced by creating new call_function node (composite function) with get_attr for parameters
     """
     for node in gm.graph.nodes:
-        if node.target in composite_ops.replacements:
-            node.target = composite_ops.replacements[node.target]
+        if node.op == "call_function":
+            if node.target in composite_ops.replacements:
+                node.target = composite_ops.replacements[node.target]
+
+        elif node.op == "call_module":
+            module = gm.get_submodule(node.target)
+            module_type = type(module)
+            if module_type in composite_ops.replacements:
+                composite_ops.replacements[module_type](gm, node, module)
+
+    gm.graph.lint()
 
 
 def insert_argument_type_markers(
