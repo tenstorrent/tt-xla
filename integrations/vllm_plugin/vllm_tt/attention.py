@@ -239,9 +239,12 @@ class TTAttentionBackendImpl(AttentionImpl):
         if kv_cache.numel() > 1:
             self._handle_paged_attention(inputs, kv_cache, attn_metadata)
 
-        # Compute attention based on prefill/decode mode
+        # Compute attention based on mode:
+        # - is_prefill=True: Full attention (prefill phase for generative models,
+        #                    or single-pass attention for pooling models)
+        # - is_prefill=False: Paged decode attention (generative models only)
         if inputs.is_prefill:
-            output = self._compute_prefill_attention(inputs, attn_metadata)
+            output = self._compute_full_attention(inputs, attn_metadata)
         else:
             output = self._compute_decode_attention(inputs, kv_cache, attn_metadata)
 
@@ -449,10 +452,17 @@ class TTAttentionBackendImpl(AttentionImpl):
         new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
         kv_cache.copy_(new_kv_cache)
 
-    def _compute_prefill_attention(
+    def _compute_full_attention(
         self, inputs, attn_metadata: TTMetadata
     ) -> torch.Tensor:
-        """Compute attention for prefill phase (non-paged)."""
+        """Compute full attention using scaled dot-product attention (non-paged).
+
+        This method is used in two scenarios:
+        1. Generative models: During the prefill phase when processing initial
+           prompt tokens before decode iterations begin.
+        2. Pooling models: For the entire attention computation, as these models
+           process all tokens in a single pass without a decode phase or KV cache.
+        """
         # scaled_dot_product_attention expects [B, N_tokens, N_heads, H]
         query_for_sdpa = inputs.query.transpose(-3, -2)
         key_for_sdpa = inputs.key.transpose(-3, -2)
@@ -491,9 +501,8 @@ class TTAttentionBackendImpl(AttentionImpl):
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
         )
-        # out: assumed to be [query_num_tokens, users, num_heads, head_size]
-        out = out.transpose(0, 1)  # [users, query_num_tokens, head_size, num_heads]
-        out = out.reshape(inputs.users, inputs.query_num_tokens, -1)
+        # out: [query_num_tokens, users, num_heads, head_size]
+        out = out.transpose(0, 1)  # [users, query_num_tokens, num_heads, head_size]
 
         return out
 
@@ -501,23 +510,12 @@ class TTAttentionBackendImpl(AttentionImpl):
         """Finalize output shape to match original input dimensions."""
         hidden_size = inputs.orig_query_shape[-1]
 
-        # Handle both 4D (prefill) and 3D (decode) outputs
-        if output.ndim == 4:
-            # Prefill output: [users, tokens, num_heads, head_size]
-            if inputs.orig_query_ndim == 3:
-                return output.reshape(
-                    inputs.users, inputs.query_num_tokens, hidden_size
-                )
-            else:
-                total_tokens = inputs.users * inputs.query_num_tokens
-                return output.reshape(total_tokens, hidden_size)
+        # Output from both prefill and decode: [users, tokens, num_heads, head_size]
+        if inputs.orig_query_ndim == 3:
+            return output.reshape(inputs.users, inputs.query_num_tokens, hidden_size)
         else:
-            # Decode output: already [users, tokens, hidden]
-            if inputs.orig_query_ndim == 3:
-                return output
-            else:
-                total_tokens = inputs.users * inputs.query_num_tokens
-                return output.reshape(total_tokens, hidden_size)
+            total_tokens = inputs.users * inputs.query_num_tokens
+            return output.reshape(total_tokens, hidden_size)
 
 
 def write_to_kv_cache(
