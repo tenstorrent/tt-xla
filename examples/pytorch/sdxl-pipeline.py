@@ -3,14 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 import time
 from enum import Enum
+from typing import Optional
 
 import torch
-from typing import Optional
-from jaxtyping import Float
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from diffusers import AutoencoderKL, EulerDiscreteScheduler, UNet2DConditionModel
+from jaxtyping import Float
 from PIL import Image
 from transformers import CLIPTextModel, CLIPTextModelWithProjection
 
@@ -65,11 +65,11 @@ class SDXLPipeline:
         self.load_tokenizers()
         if warmup:
             self.generate(
-                prompt="a photo of a cat", # generic prompt
+                prompt="a photo of a cat",  # generic prompt
                 negative_prompt="a photo of a dog",
                 do_cfg=True,
                 cfg_scale=7.5,
-                num_inference_steps=5, # warmup only needs a few steps
+                num_inference_steps=5,  # warmup only needs a few steps
                 seed=42,
             )
 
@@ -141,7 +141,7 @@ class SDXLPipeline:
         cfg_scale: float = 7.5,
         num_inference_steps: int = 50,
         seed: Optional[int] = None,
-    ) -> Float[torch.Tensor, 'B 3 H W']:
+    ) -> Float[torch.Tensor, "B 3 H W"]:
         """
         Generate an image from a prompt using the SDXL model.
         Only supports text2image generation for now.
