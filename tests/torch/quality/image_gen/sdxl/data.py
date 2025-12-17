@@ -1,14 +1,20 @@
-import pandas as pd
-import numpy as np
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import urllib.request
 from io import BytesIO
 from typing import List
-    
+
+import numpy as np
+import pandas as pd
+
+
 class CocoDataset:
     """
     Dataset class for the COCO 2014 dataset. This is a common dataset used for evaluation of image generation models.
     A nice perk is that it comes with a set of captions and FID data statistics that can be used for evaluation.
     """
+
     N_SUBSET_SAMPLES = 10
     COCO_CAPTIONS_URL = "https://raw.githubusercontent.com/mlcommons/inference/4b1d1156c23965172ae56eacdd8372f8897eb771/text_to_image/coco2014/captions/captions_source.tsv"
     COCO_STATISTICS_URL = "https://github.com/mlcommons/inference/raw/4b1d1156c23965172ae56eacdd8372f8897eb771/text_to_image/tools/val2014.npz"
@@ -34,27 +40,29 @@ class CocoDataset:
         if self._statistics is None:
             with urllib.request.urlopen(CocoDataset.COCO_STATISTICS_URL) as f:
                 self._statistics = np.load(BytesIO(f.read()))
-        return self._statistics['mu']
+        return self._statistics["mu"]
 
     @property
     def statistics_cov(self) -> np.ndarray:
         if self._statistics is None:
             with urllib.request.urlopen(CocoDataset.COCO_STATISTICS_URL) as f:
                 self._statistics = np.load(BytesIO(f.read()))
-        return self._statistics['sigma']
+        return self._statistics["sigma"]
 
-    
     def _get_sample_ids(self) -> List[int]:
         if self.size == "subset":
             rng = np.random.default_rng(self.seed)
             all_caption_ids = list(range(len(self.captions)))
-            return rng.choice(all_caption_ids, size=self.N_SUBSET_SAMPLES, replace=False)
+            return rng.choice(
+                all_caption_ids, size=self.N_SUBSET_SAMPLES, replace=False
+            )
         else:
             raise NotImplementedError(f"Invalid dataset type: {self.size}")
 
     def _load_captions(self) -> None:
-        df = pd.read_csv(CocoDataset.COCO_CAPTIONS_URL, sep='\t')
-        self._captions = df['caption'].tolist()
+        df = pd.read_csv(CocoDataset.COCO_CAPTIONS_URL, sep="\t")
+        self._captions = df["caption"].tolist()
+
 
 if __name__ == "__main__":
     dataset = CocoDataset()

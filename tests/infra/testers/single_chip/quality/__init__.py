@@ -13,4 +13,3 @@ __all__ = [
     "StableDiffusionTester",
     "run_stable_diffusion_quality_test",
 ]
-

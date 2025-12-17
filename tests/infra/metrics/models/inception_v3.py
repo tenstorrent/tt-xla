@@ -5,32 +5,30 @@
 # This file is a modified version of the original file from the tt-metal repository:
 # tt-metal/models/experimental/stable_diffusion_xl_base/inception.py
 
+from typing import List
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 from jaxtyping import Float
-from typing import List
+
 try:
     from torchvision.models.utils import load_state_dict_from_url
 except ImportError:
     from torch.utils.model_zoo import load_url as load_state_dict_from_url
 
 # Inception weights ported to Pytorch from
-FID_WEIGHTS_URL = (
-    "https://github.com/mseitzer/pytorch-fid/releases/download/fid_weights/pt_inception-2015-12-05-6726825d.pth"
-)
+FID_WEIGHTS_URL = "https://github.com/mseitzer/pytorch-fid/releases/download/fid_weights/pt_inception-2015-12-05-6726825d.pth"
 
 
 class InceptionV3(nn.Module):
     """Pretrained InceptionV3 network returning feature maps"""
+
     DEFAULT_BLOCK_INDEX = 3
     EXPECTED_INCEPTION_IMG_SHAPE = (299, 299)
-    def __init__(
-        self,
-        resize_input=True,
-        normalize_input=True
-        ):
+
+    def __init__(self, resize_input=True, normalize_input=True):
         """Build pretrained InceptionV3
 
         Parameters
@@ -98,15 +96,24 @@ class InceptionV3(nn.Module):
             ]
             self.blocks.append(nn.Sequential(*block3))
 
-    def forward(self, x: Float[torch.Tensor, 'B C H W']) -> List[Float[torch.Tensor, 'B D']]:
+    def forward(
+        self, x: Float[torch.Tensor, "B C H W"]
+    ) -> List[Float[torch.Tensor, "B D"]]:
         assert torch.all((x >= 0) & (x <= 1)), "Input tensor values must be in [0, 1]"
-        assert x.ndim == 4 and x.shape[1] == 3, "Input tensor must be of shape (B, 3, H, W)"
+        assert (
+            x.ndim == 4 and x.shape[1] == 3
+        ), "Input tensor must be of shape (B, 3, H, W)"
         bs = x.shape[0]
 
         activations = []
 
         if self.resize_input:
-            x = F.interpolate(x, size=InceptionV3.EXPECTED_INCEPTION_IMG_SHAPE, mode="bilinear", align_corners=False)
+            x = F.interpolate(
+                x,
+                size=InceptionV3.EXPECTED_INCEPTION_IMG_SHAPE,
+                mode="bilinear",
+                align_corners=False,
+            )
 
         if self.normalize_input:
             x = 2 * x - 1  # Scale from range (0, 1) to range (-1, 1)
@@ -144,7 +151,9 @@ def _inception_v3(*args, **kwargs):
             kwargs["pretrained"] = False
         else:
             raise ValueError(
-                "weights=={} not supported in torchvision {}".format(kwargs["weights"], torchvision.__version__)
+                "weights=={} not supported in torchvision {}".format(
+                    kwargs["weights"], torchvision.__version__
+                )
             )
         del kwargs["weights"]
 
@@ -194,7 +203,9 @@ class FIDInceptionA(torchvision.models.inception.InceptionA):
 
         # Patch: Tensorflow's average pool does not use the padded zero's in
         # its average calculation
-        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1, count_include_pad=False)
+        branch_pool = F.avg_pool2d(
+            x, kernel_size=3, stride=1, padding=1, count_include_pad=False
+        )
         branch_pool = self.branch_pool(branch_pool)
 
         outputs = [branch1x1, branch5x5, branch3x3dbl, branch_pool]
@@ -222,7 +233,9 @@ class FIDInceptionC(torchvision.models.inception.InceptionC):
 
         # Patch: Tensorflow's average pool does not use the padded zero's in
         # its average calculation
-        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1, count_include_pad=False)
+        branch_pool = F.avg_pool2d(
+            x, kernel_size=3, stride=1, padding=1, count_include_pad=False
+        )
         branch_pool = self.branch_pool(branch_pool)
 
         outputs = [branch1x1, branch7x7, branch7x7dbl, branch_pool]
@@ -255,7 +268,9 @@ class FIDInceptionE_1(torchvision.models.inception.InceptionE):
 
         # Patch: Tensorflow's average pool does not use the padded zero's in
         # its average calculation
-        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1, count_include_pad=False)
+        branch_pool = F.avg_pool2d(
+            x, kernel_size=3, stride=1, padding=1, count_include_pad=False
+        )
         branch_pool = self.branch_pool(branch_pool)
 
         outputs = [branch1x1, branch3x3, branch3x3dbl, branch_pool]

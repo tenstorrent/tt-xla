@@ -4,11 +4,12 @@
 
 import pytest
 
-from .pipeline import SDXLPipeline, SDXLConfig
-from .data import CocoDataset
-from tests.utils import Category
 from tests.infra import RunMode
 from tests.infra.testers.single_chip.quality import StableDiffusionTester
+from tests.utils import Category
+
+from .data import CocoDataset
+from .pipeline import SDXLConfig, SDXLPipeline
 
 MODEL_INFO = {
     "name": "SDXL Pipeline",
@@ -34,9 +35,9 @@ def test_clip_sdxl():
     )
 
     pipeline_config = SDXLConfig(
-            width=MODEL_INFO["width"],
-            height=MODEL_INFO["height"],
-        )
+        width=MODEL_INFO["width"],
+        height=MODEL_INFO["height"],
+    )
     tester = StableDiffusionTester(
         pipeline_cls=SDXLPipeline,
         pipeline_config=pipeline_config,

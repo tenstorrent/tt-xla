@@ -4,10 +4,11 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional, Type
 
 import torch
-import logging
+
 from .quality_tester import QualityTester
 
 
@@ -189,4 +190,3 @@ def run_stable_diffusion_quality_test(
         seed=seed,
     )
     tester.test()
-

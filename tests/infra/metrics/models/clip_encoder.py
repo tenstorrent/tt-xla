@@ -5,12 +5,12 @@
 # This file is a modified version of the original file from tt-metal repository:
 # tt-metal/models/experimental/stable_diffusion_xl_base/utils/clip_encoder.py
 
-import torch
-import torch.nn as nn
+from typing import List, Optional, Union
 
 import open_clip
+import torch
+import torch.nn as nn
 from PIL import Image
-from typing import Union, List, Optional
 from torchvision import transforms
 
 
@@ -68,7 +68,9 @@ class CLIPEncoder(nn.Module):
         return "openai"
 
     @torch.no_grad()
-    def get_clip_score(self, text: Union[str, List[str]], image: Union[Image.Image, torch.Tensor]) -> torch.Tensor:
+    def get_clip_score(
+        self, text: Union[str, List[str]], image: Union[Image.Image, torch.Tensor]
+    ) -> torch.Tensor:
         """
         Computes the similarity score between the given text(s) and image using the CLIP model.
 

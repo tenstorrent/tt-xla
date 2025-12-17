@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 import time
 from enum import Enum
+from typing import Optional
 
 import torch
-from typing import Optional
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
@@ -64,11 +64,11 @@ class SDXLPipeline:
         self.load_tokenizers()
         if warmup:
             self.generate(
-                prompt="a photo of a cat", # generic prompt
+                prompt="a photo of a cat",  # generic prompt
                 negative_prompt="a photo of a dog",
                 do_cfg=True,
                 cfg_scale=7.5,
-                num_inference_steps=5, # warmup only needs a few steps
+                num_inference_steps=5,  # warmup only needs a few steps
                 seed=42,
             )
 

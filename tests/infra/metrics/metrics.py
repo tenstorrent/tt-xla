@@ -1,14 +1,16 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import torch
-import numpy as np
-from typing import Any, List, Optional, Tuple, Union
 from abc import ABC, abstractmethod
+from typing import Any, List, Optional, Tuple, Union
+
+import numpy as np
+import torch
 from scipy import linalg
 
 from .models.clip_encoder import CLIPEncoder
 from .models.inception_v3 import InceptionV3
+
 
 class QualityMetric(ABC):
     """
@@ -82,9 +84,7 @@ class CLIPMetric(QualityMetric):
         Raises:
             AssertionError: If image tensor shape is invalid or prompt count mismatches
         """
-        assert (
-            images.ndim == 4 and images.shape[1] == 3
-        ), "Images must be (N, 3, H, W)"
+        assert images.ndim == 4 and images.shape[1] == 3, "Images must be (N, 3, H, W)"
         assert len(prompts) == images.shape[0], (
             f"Number of prompts ({len(prompts)}) must match "
             f"number of images ({images.shape[0]})"
@@ -266,11 +266,11 @@ class FIDMetric(QualityMetric):
         return "fid"
 
 
-
 metric_registry = {
     "clip": CLIPMetric,
     "fid": FIDMetric,
 }
+
 
 def get_metric(metric_name: str, **kwargs) -> QualityMetric:
     """
