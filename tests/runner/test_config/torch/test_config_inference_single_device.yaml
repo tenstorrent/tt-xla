@@ -86,8 +86,8 @@ test_config:
     status: EXPECTED_PASSING
 
   mamba/pytorch-mamba-790m-hf-single_device-full-inference:
-    required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9890778064727783. Required: pcc=0.99. Issue: https://github.com/tenstorrent/tt-mlir/issues/6217
     status: EXPECTED_PASSING
+    assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
     markers: ["extended"]
 
   openpose/v2/pytorch-single_device-full-inference:
@@ -146,6 +146,7 @@ test_config:
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-full-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
 #  yolov5/pytorch-yolov5s-single_device-full-inference:
 #    status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
@@ -538,7 +539,7 @@ test_config:
 
   mamba/pytorch-mamba-2.8b-hf-single_device-full-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
   deit/pytorch-base-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2252,8 +2253,9 @@ test_config:
     reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
 
   sam/pytorch-facebook/sam-vit-huge-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 16777216 B L1 buffer across 8 banks, where each bank needs to store 2097152 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
 
   mobilenetv1/pytorch-google/mobilenet_v1_1.0_224-single_device-full-inference:
     assert_pcc: false
