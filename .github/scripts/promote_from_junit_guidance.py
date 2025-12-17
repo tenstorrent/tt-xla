@@ -194,6 +194,7 @@ def load_yaml_config(path: str) -> CommentedMap:
     yaml.allow_duplicate_keys = False
     yaml.preserve_quotes = True
     yaml.width = 100000
+    yaml.indent(mapping=2, sequence=2, offset=2)
     if not os.path.exists(path):
         return CommentedMap()
     with open(path, "r") as f:
@@ -213,6 +214,7 @@ def write_yaml_config(path: str, data: CommentedMap) -> None:
     yaml.allow_duplicate_keys = False
     yaml.preserve_quotes = True
     yaml.width = 100000
+    yaml.indent(mapping=2, sequence=2, offset=2)
     with open(path, "w") as f:
         yaml.dump(data, f)
 
