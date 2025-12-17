@@ -31,7 +31,7 @@ struct CompileOptions {
   // Level 0 (default): All optimizations disabled
   // Level 1: Basic optimizations (optimizer + Conv2d fusion)
   // Level 2: Advanced optimizations (optimizer + memory layout + Conv2d fusion)
-  int optimization_level = 0;
+  int optimization_level = 1;
 
   // Enables automatic MLIR graph conversion into block fp8 format. This is
   // supported only when the graph is in bfloat16 format, to avoid loss in
