@@ -727,8 +727,8 @@ def optimize_modified_tests(
     test_config: Dict, modified_bracket_keys: List[str], verbose: bool, config_path: str
 ) -> None:
     """Run optimization pass to consolidate common fields."""
-    if verbose:
-        print(f"\nRunning optimization pass for {os.path.basename(config_path)}...\n")
+    # if verbose:
+    #     print(f"\nRunning optimization pass for {os.path.basename(config_path)}...\n")
     for bracket_key in modified_bracket_keys:
         if bracket_key not in test_config:
             continue
@@ -952,7 +952,7 @@ def main() -> int:
         return 0
 
     print(
-        f"\nGenerating promotion plan for {actionable_test_count} tests...\n",
+        f"\nGenerating promotion plan for {actionable_test_count} tests across {len(by_config)} config files...\n",
         flush=True,
     )
 
@@ -961,6 +961,10 @@ def main() -> int:
         test_config = data.get("test_config")
         if not isinstance(test_config, dict):
             continue
+
+        print(
+            f"\nPerforming promotions passes for {os.path.basename(config_path)}...\n"
+        )
 
         # Get list of test names to modify
         test_names = list(by_config[config_path].keys())
