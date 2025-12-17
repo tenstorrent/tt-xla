@@ -5,7 +5,6 @@ import torch_xla.runtime as xr
 
 from .pipeline import SDXLPipeline, SDXLConfig
 from .data import CocoDataset
-from .metrics import FIDMetric
 from tests.utils import Category
 from tests.infra import RunMode
 
