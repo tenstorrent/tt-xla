@@ -273,7 +273,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
             max_token_size=scheduler_config.max_num_batched_tokens,
-            padding_gap=envs.VLLM_TPU_BUCKET_PADDING_GAP,
         )
 
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
@@ -2019,46 +2018,50 @@ def _get_padded_num_reqs_with_upper_limit(x: int, upper_limit: int) -> int:
     return min(res, upper_limit)
 
 
-def _get_token_paddings(
-    min_token_size: int, max_token_size: int, padding_gap: int
-) -> list[int]:
-    """Generate a list of padding size, starting from min_token_size,
-    ending with a number that can cover max_token_size
-
-    If padding_gap == 0 then:
-        increase 2X each time (exponential)
-    else:
-        first increase the size to twice,
-        then increase the padding size by padding_gap.
+def _adjust_min_token(min_token_size: int) -> int:
     """
-    # assert min_token_size is power of 2
-    assert (min_token_size & (min_token_size - 1) == 0) and min_token_size > 0
+    Ensure min_token_size is a power of two and >= 32 (divisible by 32).
+
+    If min_token_size already meets the constraint, return it unchanged.
+    Otherwise, round it up to the next power of two (minimum 32).
+    """
+    # Check if min_token_size satisfies the constraints.
+    if (min_token_size & (min_token_size - 1)) == 0 and min_token_size >= 32:
+        return min_token_size
+
+    # Default fallback is 32 (smallest valid input length).
+    adjusted_value = 32
+    if min_token_size > 32:
+        # Round up to the next power of two.
+        adjusted_value = 1 << (min_token_size - 1).bit_length()
+
+    logger.warning(
+        f"Flag min_context_len={min_token_size} is not a power of two and divisible by 32. "
+        f"Adjusting to the next power of two. Using min_context_len={adjusted_value}."
+    )
+    return adjusted_value
+
+
+def _get_token_paddings(min_token_size: int, max_token_size: int) -> list[int]:
+    """
+    Generate a list of padding size, starting from min_token_size, ending with
+    a number that can cover max_token_size. Increase padding size exponentially.
+    This list also includes 1 to support 1-token decode requests.
+
+    First adjust min_token_size so it is power-of-two and divisible by 32.
+    """
+    # Adjust min_token_size to be power of 2 and >=32 (if required)
+    num = _adjust_min_token(min_token_size)
     paddings = [1]  # We need to support 1 token requests for decode graphs.
-    num = min_token_size
 
-    if padding_gap == 0:
-        logger.info("Using exponential token paddings:")
-        while True:
-            logger.info("    %d", num)
-            paddings.append(num)
-            if num >= max_token_size:
-                break
-            if num == 1:
-                num = 32
-            else:
-                num *= 2
-    else:
-        logger.info("Using incremental token paddings:")
-        while num <= padding_gap:
-            logger.info("    %d", num)
-            paddings.append(num)
-            num *= 2
-        num //= 2
-        while num < max_token_size:
-            num += padding_gap
-            logger.info("    %d", num)
-            paddings.append(num)
+    logger.info("Using exponential token paddings:")
+    while True:
+        paddings.append(num)
+        if num >= max_token_size:
+            break
+        num *= 2
 
+    logger.info("Token paddings: %s", paddings)
     return paddings
 
 
