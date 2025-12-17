@@ -331,7 +331,6 @@ test_config:
     status: EXPECTED_PASSING
 
   resnet/image_classification/jax-resnet-50-single_device-full-inference:
-    required_pcc: 0.97
     status: EXPECTED_PASSING
     markers: [push]
 

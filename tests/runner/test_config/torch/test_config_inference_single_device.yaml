@@ -124,9 +124,6 @@ test_config:
 
   musicgen_small/pytorch-single_device-full-inference:
     status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2381
 
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -153,7 +150,6 @@ test_config:
 #    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
 
   albert/masked_lm/pytorch-base_v2-single_device-full-inference:
-    required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9882882237434387. Required: pcc=0.99. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
@@ -515,8 +511,8 @@ test_config:
   vit/pytorch-base-single_device-full-inference:
     status: EXPECTED_PASSING
     filechecks:
-      - concatenate_heads.ttnn.mlir
-      - split_query_key_value_and_split_heads.ttnn.mlir
+    - concatenate_heads.ttnn.mlir
+    - split_query_key_value_and_split_heads.ttnn.mlir
     markers: ["push"]
 
   vit/pytorch-large-single_device-full-inference:
@@ -576,11 +572,9 @@ test_config:
 
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-full-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false
 
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-full-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false
 
   phi2/token_classification/pytorch-microsoft/phi-2-single_device-full-inference:
     required_pcc: 0.98
@@ -670,7 +664,11 @@ test_config:
 
   albert/token_classification/pytorch-xxlarge_v1-single_device-full-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.96  # tt-torch has this at 0.99
+    arch_overrides:
+      n150:
+        required_pcc: 0.98 # tt-torch has this at 0.99
+      p150:
+        required_pcc: 0.97 # tt-torch has this at 0.99
 
   albert/masked_lm/pytorch-base_v1-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -936,8 +934,12 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5_coder/pytorch-0_5b-single_device-full-inference:
-    required_pcc: 0.945 # AssertionError: PCC comparison failed. Calculated: pcc=0.9509297013282776. Required: pcc=0.96. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750 // tt-torch has this at 0.97
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.96 # AssertionError: PCC comparison failed. Calculated: pcc=0.9509297013282776. Required: pcc=0.96. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750 // tt-torch has this at 0.97
+      p150:
+        required_pcc: 0.95
 
   qwen_2_5/causal_lm/pytorch-0_5b-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -952,8 +954,10 @@ test_config:
     markers: ["extended"]
 
   llama/causal_lm/pytorch-llama_3_2_3b-single_device-full-inference:
-    required_pcc: 0.98
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.98
 
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1105,11 +1109,11 @@ test_config:
     status: EXPECTED_PASSING
 
   mobilenetv3/pytorch-mobilenet_v3_small-single_device-full-inference:
-    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9698505401611328. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9698505401611328. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
   mobilenetv3/pytorch-mobilenetv3_small_100-single_device-full-inference:
-    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9751501083374023. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9751501083374023. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
   resnet/pytorch-resnet152-single_device-full-inference:
@@ -1248,7 +1252,7 @@ test_config:
 
   nbeats/pytorch-generic_basis-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason : "patoolib.util.PatoolError: error extracting STORAGE/datasets/electricity/LD2011_2014.txt.zip - https://github.com/tenstorrent/tt-xla/issues/2185"
+    reason: "patoolib.util.PatoolError: error extracting STORAGE/datasets/electricity/LD2011_2014.txt.zip - https://github.com/tenstorrent/tt-xla/issues/2185"
 
   nbeats/pytorch-seasonality_basis-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1496,9 +1500,7 @@ test_config:
 
   gemma/pytorch-google/gemma-1.1-7b-it-single_device-full-inference:
     supported_archs: ["p150"]
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.976563572883606. Required: pcc=0.99"
 
   stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-full-inference:
     status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
@@ -1519,9 +1521,7 @@ test_config:
   phi4/causal_lm/pytorch-microsoft/phi-4-single_device-full-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
         status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9552884697914124. Required: pcc=0.99"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
@@ -1553,20 +1553,16 @@ test_config:
         reason: "Running the test CRASHED with signal 9 https://github.com/tenstorrent/tt-xla/issues/2254"
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     status: EXPECTED_PASSING
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-full-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3322090804576874. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1443"
 
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2321,7 +2317,11 @@ test_config:
 
   llama/causal_lm/pytorch-TinyLlama_v1.1-single_device-full-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
+    arch_overrides:
+      n150:
+        required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
+      p150:
+        required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-swin_base_coco-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2411,7 +2411,6 @@ test_config:
 
   arnold/pytorch-defend_the_center_ff-single_device-full-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2181
 
   arnold/pytorch-vizdoom_2017_track2_rnn-single_device-full-inference:
     status: EXPECTED_PASSING
