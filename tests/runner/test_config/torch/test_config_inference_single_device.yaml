@@ -511,8 +511,8 @@ test_config:
   vit/pytorch-base-single_device-full-inference:
     status: EXPECTED_PASSING
     filechecks:
-    - concatenate_heads.ttnn.mlir
-    - split_query_key_value_and_split_heads.ttnn.mlir
+      - concatenate_heads.ttnn.mlir
+      - split_query_key_value_and_split_heads.ttnn.mlir
     markers: ["push"]
 
   vit/pytorch-large-single_device-full-inference:
