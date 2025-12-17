@@ -386,6 +386,25 @@ def copy_inline_comment_if_exists(
         target_map.yaml_add_eol_comment(comment_text, target_key, column=0)
 
 
+def remove_field_with_comment(map_obj: CommentedMap, field: str) -> None:
+    """
+    Remove a field from a CommentedMap and also clear any associated comments.
+
+    This prevents inline comments from being moved to other lines when a field is removed.
+    Use this when removing fields whose comments are no longer relevant (e.g., issue is resolved).
+    """
+    if field not in map_obj:
+        return
+
+    # Clear any comments associated with this field
+    if hasattr(map_obj, "ca") and map_obj.ca.items and field in map_obj.ca.items:
+        # Clear the comment entry entirely
+        map_obj.ca.items.pop(field, None)
+
+    # Remove the field itself
+    map_obj.pop(field, None)
+
+
 def add_arch_overrides_preserving_trailing_comment(
     entry: CommentedMap, arch_overrides: CommentedMap
 ) -> None:
@@ -615,6 +634,14 @@ def apply_updates_to_yaml(
                         f"   - Setting arch_overrides.{arch}.required_pcc: {old_th} -> {new_th} for {bracket_key}"
                     )
                 arch_entry["required_pcc"] = new_th
+                # Clear any comment only if raising to 0.99 (fully resolved)
+                if new_th >= 0.99:
+                    if (
+                        hasattr(arch_entry, "ca")
+                        and arch_entry.ca.items
+                        and "required_pcc" in arch_entry.ca.items
+                    ):
+                        arch_entry.ca.items.pop("required_pcc", None)
                 modified = True
 
         if plan.get("enable_pcc"):
@@ -623,6 +650,13 @@ def apply_updates_to_yaml(
                     f"   - Enabling PCC for arch_overrides.{arch} (setting assert_pcc: true) for {bracket_key}"
                 )
             arch_entry["assert_pcc"] = True
+            # Clear any comment since the issue is now resolved
+            if (
+                hasattr(arch_entry, "ca")
+                and arch_entry.ca.items
+                and "assert_pcc" in arch_entry.ca.items
+            ):
+                arch_entry.ca.items.pop("assert_pcc", None)
             modified = True
 
     # Clean up empty arch_overrides
@@ -771,11 +805,12 @@ def optimize_arch_overrides(
             else:
                 entry[field] = common_value
 
-            # Remove from all arch_overrides
+            # Remove from all arch_overrides (comment already moved to top-level)
             for arch in all_archs:
                 arch_entry = arch_overrides.get(arch)
                 if isinstance(arch_entry, dict) and field in arch_entry:
-                    arch_entry.pop(field, None)
+                    # Use helper to prevent any remaining comment from migrating
+                    remove_field_with_comment(arch_entry, field)
 
         # Reorder: move arch_overrides to end
         if "arch_overrides" in entry and entry["arch_overrides"]:
@@ -806,7 +841,8 @@ def optimize_arch_overrides(
                     print(
                         f" - Optimizing: removing top-level {field} (overridden by all archs) for {bracket_key}"
                     )
-                entry.pop(field, None)
+                # Use helper to also remove associated comments (e.g., issue links)
+                remove_field_with_comment(entry, field)
 
     # PASS 3: Remove assert_pcc: true from ALL levels (true is the default)
     levels_to_check = [("top-level", entry)]
@@ -821,7 +857,8 @@ def optimize_arch_overrides(
                 print(
                     f" - Optimizing: removing {level_name} assert_pcc: true (default) for {bracket_key}"
                 )
-            map_obj.pop("assert_pcc", None)
+            # Use helper to also remove associated comments
+            remove_field_with_comment(map_obj, "assert_pcc")
 
     # PASS 4: Remove PCC-related reason if PCC is enabled and no custom threshold
     # Check all levels (top-level and arch_overrides) for reason field
@@ -859,7 +896,8 @@ def optimize_arch_overrides(
                 print(
                     f" - Optimizing: removing {level_name} PCC-related reason (PCC enabled, no custom threshold) for {bracket_key}"
                 )
-            map_obj.pop("reason", None)
+            # Use helper to also remove associated comments
+            remove_field_with_comment(map_obj, "reason")
 
     # PASS 5: remove empty arch entries and empty arch_overrides
     for arch in list(arch_overrides.keys()):
