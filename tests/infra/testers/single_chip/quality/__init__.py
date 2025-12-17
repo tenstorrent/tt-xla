@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .quality_tester import QualityTester
-from .diffusion_tester import (
+from .stable_diffusion_tester import (
     StableDiffusionTester,
     run_stable_diffusion_quality_test,
 )

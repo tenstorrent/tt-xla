@@ -13,7 +13,7 @@ from .quality_tester import QualityTester
 
 class StableDiffusionTester(QualityTester):
     """
-    Quality tester for stable diffusion-like image generation models.
+    Quality tester for stable-diffusion-like image generation models.
 
     This definition assumes that the pipeline-like class will be provided. The benefit of assuming a StableDiffusion architecture
     is that we can assume that there will be a Unet model that will be used to generate images.
