@@ -18,7 +18,9 @@ from typing import Any, List
 import numpy as np
 import pytest
 import torch
+import torch_xla
 import torch_xla.runtime as xr
+import torch_xla.core.xla_model as xm
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
 from infra.utilities.torch_multichip_utils import get_mesh
@@ -651,6 +653,17 @@ def record_model_test_properties(
         pytest.xfail(reason)
 
 
+def get_xla_device_arch():
+    device = torch_xla.device()
+    device = xm.xla_device_kind(device)
+    arch_name = str(device).lower()
+
+    for item in ["wormhole", "blackhole"]:
+        if item in arch_name:
+            return item
+    return ""
+
+
 def create_measurement(
     step_name: str,
     measurement_name: str,
@@ -678,7 +691,10 @@ def create_benchmark_result(
     model_type: str = "generic",
     training: bool = False,
     model_info: str = "",
-    device_name: str = "",
+    model_group: str = "",
+    parallelism: str = "",
+    device_arch: str = "",
+    run_mode: str = "",
 ) -> dict[str, Any]:
     """
     Create a benchmark result dictionary and write it to a JSON file.
@@ -717,19 +733,23 @@ def create_benchmark_result(
         )
 
     config = {
-        "model_size": "small",
         "model_info": model_info,
+        "model_group": model_group,
+        "parallelism": parallelism,
+        "run_mode": run_mode,
+    }
+    
+    device_info = {
+        "device_arch": device_arch,
     }
 
     benchmark_results = {
         "model": full_model_name,
         "model_type": model_type,
-        "run_type": f"{'_'.join(full_model_name.split())}_{device_name}",
+        "run_type": f"{'_'.join(full_model_name.split())}_{device_arch}",
         "config": config,
         "measurements": metric_list,
-        "device_info": {
-            "device_name": device_name,
-        },
+        "device_info": device_info,
         "training": training,
         "project": "tt-xla",
     }

@@ -31,6 +31,7 @@ from tests.runner.test_utils import (
     fix_venv_isolation,
     record_model_test_properties,
     update_test_metadata_for_exception,
+    get_xla_device_arch,
 )
 from tests.runner.testers import (
     DynamicJaxModelTester,
@@ -38,7 +39,7 @@ from tests.runner.testers import (
     DynamicTorchModelTester,
 )
 from tests.utils import BringupStatus
-from third_party.tt_forge_models.config import ModelSource, Parallelism
+from third_party.tt_forge_models.config import ModelInfo, ModelSource, Parallelism, ModelGroup
 
 # Setup test discovery using TorchDynamicLoader and JaxDynamicLoader
 TEST_DIR = os.path.dirname(__file__)
@@ -198,6 +199,7 @@ def _run_model_test_impl(
             if framework == Framework.TORCH:
                 measurements = getattr(tester, "_perf_measurements", None)
                 output_dir = request.config.getoption("--perf-report-dir")
+                device_arch = get_xla_device_arch()
                 create_benchmark_result(
                     full_model_name=model_info.name,
                     output_dir=output_dir,
@@ -206,7 +208,10 @@ def _run_model_test_impl(
                     model_type="generic",
                     training=False,
                     model_info=model_info.name,
-                    device_name=socket.gethostname(),
+                    model_group=str(model_info.group),
+                    parallelism=str(parallelism),
+                    run_mode=str(run_mode),
+                    device_arch=device_arch,
                 )
 
 
