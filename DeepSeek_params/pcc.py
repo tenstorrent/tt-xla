@@ -7,8 +7,8 @@ def compute_pcc(x: torch.Tensor, y: torch.Tensor):
 
     return torch.tensor(float("nan")) if denom == 0 else (vx @ vy) / denom
 
-tt_output = torch.load("DeepSeek_params/tt_final_output.pt")
-gpu_output = torch.load("DeepSeek_params/final_output.pt")
+tt_output = torch.load("deepseek_attn_codegen/tensors/output_0.pt")
+gpu_output = torch.load("DeepSeek_params/gpu_final_output.pt")
 
 pcc = compute_pcc(tt_output, gpu_output)
-print(f"PCC between TT-XLA and GPU outputs: {pcc}")
+print(f"PCC between TT-XLA and GPU outputs: {pcc:.16f}")

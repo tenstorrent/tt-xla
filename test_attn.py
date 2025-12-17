@@ -47,23 +47,23 @@ with safe_open(safetensors_path, framework="pt", device="cpu") as f:
         new_key = key.replace(prefix_to_remove, "") if key.startswith(prefix_to_remove) else key
         state_dict[new_key] = f.get_tensor(key)
 
-# Apply weight resizing for the problematic weights
-weights_to_resize = {
-    'wq_b.weight': (0, 2),  # Resize first dimension by factor of 4
-    'wkv_b.weight': (0, 2), # Resize first dimension by factor of 4  
-    'wo.weight': (1, 2)     # Resize second dimension by factor of 4
-}
+# # Apply weight resizing for the problematic weights
+# weights_to_resize = {
+#     'wq_b.weight': (0, 2),  # Resize first dimension by factor of 4
+#     'wkv_b.weight': (0, 2), # Resize first dimension by factor of 4  
+#     'wo.weight': (1, 2)     # Resize second dimension by factor of 4
+# }
 
-for weight_name, (dim, factor) in weights_to_resize.items():
-    if weight_name in state_dict:
-        original_shape = state_dict[weight_name].shape
-        if dim == 0:
-            new_size = original_shape[0] // factor
-            state_dict[weight_name] = state_dict[weight_name][:new_size, :]
-        elif dim == 1:
-            new_size = original_shape[1] // factor
-            state_dict[weight_name] = state_dict[weight_name][:, :new_size]
-        print(f"Resized {weight_name}: {original_shape} -> {state_dict[weight_name].shape}")
+# for weight_name, (dim, factor) in weights_to_resize.items():
+#     if weight_name in state_dict:
+#         original_shape = state_dict[weight_name].shape
+#         if dim == 0:
+#             new_size = original_shape[0] // factor
+#             state_dict[weight_name] = state_dict[weight_name][:new_size, :]
+#         elif dim == 1:
+#             new_size = original_shape[1] // factor
+#             state_dict[weight_name] = state_dict[weight_name][:, :new_size]
+#         print(f"Resized {weight_name}: {original_shape} -> {state_dict[weight_name].shape}")
 
 # Load the modified state dict into the model (model is already on XLA device)
 att.load_state_dict(state_dict, strict=False)
@@ -98,5 +98,5 @@ torch_xla.sync()
 
 jitted_att = torch.compile(att, backend="tt")
 output = jitted_att(x, start_pos=start_pos, freqs_cis=freqs_cis, mask=mask)
-torch.save(output.cpu(), "DeepSeek_params/tt_final_output_jitted.pt")
+#torch.save(output.cpu(), "DeepSeek_params/tt_final_output_jitted.pt")
 print(f"Output: {output}")

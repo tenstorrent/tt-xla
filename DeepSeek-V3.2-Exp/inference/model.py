@@ -554,7 +554,7 @@ class Indexer(torch.nn.Module):
         #k_fp8, k_scale = act_quant(k, block_size, self.scale_fmt)
         self.k_cache[:bsz, start_pos:end_pos] = k
         #self.k_scale_cache[:bsz, start_pos:end_pos] = k_scale
-        weights = self.weights_proj(x.float()) * 128 ** -0.5 # 128 is the original num_heads. As we changed the config, we're hardcoding this to the old value.
+        weights = self.weights_proj(x.float()) * self.n_heads ** -0.5 # 128 is the original num_heads. As we changed the config, we're hardcoding this to the old value.
         weights = weights.unsqueeze(-1) * self.softmax_scale
         index_score = bf16_index(q, weights, self.k_cache[:bsz, :end_pos])
         if mask is not None:
