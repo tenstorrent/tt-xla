@@ -329,15 +329,20 @@ def group_updates_by_config(
     return by_config, actionable_test_count
 
 
-# Get the set of all known archs for a test entry.
-def get_all_archs_for_entry(entry: CommentedMap) -> set[str]:
+# Get the set of all supported archs for a test entry.
+def get_supported_arch_for_test(entry: CommentedMap) -> set[str]:
     """Return set of all archs that exist in arch_overrides or are known defaults."""
     archs = set()
     arch_overrides = entry.get("arch_overrides") or {}
     if isinstance(arch_overrides, dict):
         archs.update(arch_overrides.keys())
-    # TODO: Calculate this dynamically based on test configuration
-    archs.update(["n150", "p150"])
+    # Check for supported_archs field in the entry
+    supported_archs = entry.get("supported_archs")
+    if supported_archs and isinstance(supported_archs, list):
+        archs.update(supported_archs)
+    else:
+        # Default to n150 and p150 if no supported_archs specified
+        archs.update(["n150", "p150"])
     return archs
 
 
@@ -654,7 +659,7 @@ def normalize_tests_for_modification(
         if bracket_key and bracket_key in test_config:
             entry = test_config[bracket_key]
             if isinstance(entry, CommentedMap):
-                all_archs = get_all_archs_for_entry(entry)
+                all_archs = get_supported_arch_for_test(entry)
                 normalize_entry_with_arch_overrides(
                     entry, all_archs, ["required_pcc", "assert_pcc"]
                 )
@@ -695,7 +700,7 @@ def optimize_modified_tests(
             continue
         entry = test_config[bracket_key]
         if isinstance(entry, CommentedMap):
-            all_archs = get_all_archs_for_entry(entry)
+            all_archs = get_supported_arch_for_test(entry)
             optimize_arch_overrides(entry, all_archs, verbose, bracket_key)
 
 
