@@ -725,6 +725,7 @@ def optimize_arch_overrides(
     Move fields to top-level if common across all archs, preserving comments.
     Remove fields from top-level if all archs override them.
     Remove assert_pcc: true from all levels (true is the default).
+    Remove PCC-related reason if PCC is enabled and no custom threshold < 0.99.
     Remove empty arch entries and empty arch_overrides.
     """
     arch_overrides = entry.get("arch_overrides")
@@ -822,7 +823,45 @@ def optimize_arch_overrides(
                 )
             map_obj.pop("assert_pcc", None)
 
-    # PASS 4: remove empty arch entries and empty arch_overrides
+    # PASS 4: Remove PCC-related reason if PCC is enabled and no custom threshold
+    # Check all levels (top-level and arch_overrides) for reason field
+    levels_for_reason = [("top-level", entry)]
+    for arch in arch_overrides.keys():
+        arch_entry = arch_overrides.get(arch)
+        if isinstance(arch_entry, dict):
+            levels_for_reason.append((f"arch_overrides.{arch}", arch_entry))
+
+    for level_name, map_obj in levels_for_reason:
+        if "reason" not in map_obj:
+            continue
+
+        reason_text = str(map_obj["reason"])
+        if "pcc" not in reason_text.lower():
+            continue
+
+        # Check if we should keep this reason:
+        # Keep if assert_pcc is false OR required_pcc exists and is < 0.99
+        should_keep = False
+
+        if map_obj.get("assert_pcc") is False:
+            should_keep = True
+        elif "required_pcc" in map_obj:
+            try:
+                threshold = float(map_obj["required_pcc"])
+                if threshold < 0.99:
+                    should_keep = True
+            except (ValueError, TypeError):
+                pass
+
+        # Remove reason if we shouldn't keep it
+        if not should_keep:
+            if verbose:
+                print(
+                    f" - Optimizing: removing {level_name} PCC-related reason (PCC enabled, no custom threshold) for {bracket_key}"
+                )
+            map_obj.pop("reason", None)
+
+    # PASS 5: remove empty arch entries and empty arch_overrides
     for arch in list(arch_overrides.keys()):
         arch_entry = arch_overrides.get(arch)
         if not arch_entry or len(arch_entry) == 0:
