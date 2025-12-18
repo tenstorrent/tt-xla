@@ -249,8 +249,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.block_size = cache_config.block_size
         self.max_model_len = model_config.max_model_len
         assert (
-            self.max_model_len == scheduler_config.max_num_batched_tokens
-        ), f"The TT plugin only supports max_model_len == max_num_batched_tokens currently, received: max_model_len: {self.max_model_len}, max_num_batched_tokens: {scheduler_config.max_num_batched_tokens}"
+            self.max_model_len * scheduler_config.max_num_seqs
+            <= scheduler_config.max_num_batched_tokens
+        ), f"The max_num_batched_tokens {scheduler_config.max_num_batched_tokens} must be larger than or equal to max_model_len ({self.max_model_len}) * max_num_seqs ({scheduler_config.max_num_seqs})"
         self.most_model_len = envs.VLLM_TPU_MOST_MODEL_LEN
         self.max_num_blocks_per_req = cdiv(self.max_model_len, self.block_size)
         self.num_blocks_per_most_len_req = (
@@ -1367,10 +1368,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 dtype=self.dtype,
             ).to(self.device)
         else:
-            input_ids = torch.zeros(
-                (num_tokens,),
-                dtype=torch.int32,
-            ).to(self.device)
+            input_ids = torch.zeros((num_tokens), dtype=torch.int32).to(self.device)
             inputs_embeds = None
 
         position_ids = torch.zeros(num_tokens, dtype=torch.int32).to(self.device)
@@ -1393,11 +1391,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         with self.maybe_select_dummy_loras(
             self.lora_config, np.array([num_tokens], dtype=np.int32)
-        ), set_forward_context(
-            per_layer_attn_metadata,
-            self.vllm_config,
-            0,
-        ):
+        ), set_forward_context(per_layer_attn_metadata, self.vllm_config, 0):
             out = self.model(
                 input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
             )
@@ -2069,12 +2063,14 @@ def _get_token_paddings(
     """
     # Adjust min_token_size to be power of 2 and >=32 (if required)
     num = _adjust_min_token(min_token_size)
+    # Scale by max_num_reqs once (max_token_size is the combined max for all requests)
+    num *= max_num_reqs
     # Minimum padding = max_num_reqs so each user can decode 1 token at a time.
     paddings = [max_num_reqs]
 
     logger.info("Using exponential token paddings:")
     while True:
-        paddings.append(num * max_num_reqs)
+        paddings.append(num)
         if num >= max_token_size:
             break
         num *= 2
