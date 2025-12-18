@@ -1370,24 +1370,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             input_ids = torch.zeros(
                 (num_tokens,),
                 dtype=torch.int32,
-                device=self.device,
             ).to(self.device)
             inputs_embeds = None
 
-        position_ids = torch.zeros(
-            (num_tokens,),
-            dtype=torch.int32,
-        ).to(self.device)
-
-        page_table = torch.zeros(
-            (num_reqs, num_blocks),
-            dtype=torch.int32,
-        ).to(self.device)
-
-        cache_position = torch.ones(
-            (num_reqs,),
-            dtype=torch.int32,
-        ).to(self.device)
+        position_ids = torch.zeros(num_tokens, dtype=torch.int32).to(self.device)
+        page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
+            self.device
+        )
+        cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
         attn_metadata = TTMetadata(
             page_table=page_table,
@@ -1409,9 +1399,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             0,
         ):
             out = self.model(
-                input_ids=input_ids,
-                positions=position_ids,
-                inputs_embeds=inputs_embeds,
+                input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
             )
 
         self._hidden_states_dtype = out.dtype
@@ -1532,7 +1520,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (num_tokens, hsize), device=self.device, dtype=self._hidden_states_dtype
             )
             for num_reqs in self.num_reqs_paddings:
-                indices = torch.zeros(num_reqs, dtype=torch.long)
+                indices = torch.zeros(num_reqs, dtype=torch.int32)
                 indices = indices.to(self.device)
                 self.select_hidden_states(dummy_hidden, indices)
                 logger.info("  -- num_tokens: %d, num_seqs: %d", num_tokens, num_reqs)
