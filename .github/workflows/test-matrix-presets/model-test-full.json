@@ -5,5 +5,5 @@
     { "runs-on": "p150",        "name": "run_jax",              "dir": "./tests/jax/single_chip",   "test-mark": "model_test and not large", "parallel-groups": 1 },
     { "runs-on": "p150",        "name": "run_torch",            "dir": "./tests/torch",             "test-mark": "model_test and single_device and not large", "parallel-groups": 1 },
     { "runs-on": "p150",        "name": "run_large_torch",      "dir": "./tests/torch",             "test-mark": "model_test and single_device and large", "shared-runners": "true"},
-    { "runs-on": "n300",        "name": "torch_multichip",      "dir": "./tests/torch",             "test-mark": "n300 and model_test and dual_chip" }
+    { "runs-on": "n300",        "name": "torch_multichip",      "dir": "./tests/torch",             "test-mark": "model_test and dual_chip" }
 ]
