@@ -692,7 +692,6 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
-  DLOG_F(0, "[HET DEBUG] ClientInstance::PJRT_Client_Compile called");
 
   // Parse compile options and extract both custom options and replica device
   // IDs
