@@ -198,36 +198,3 @@ class StableDiffusionTester(QualityTester):
         clean_name = sanitize_test_name(test_name)
         output_prefix = f"output_artifact/{clean_name}"
         self.serialize_on_device(output_prefix)
-
-
-def run_stable_diffusion_quality_test(
-    pipeline_cls: Type[Any],
-    pipeline_config: Any,
-    dataset: Any,
-    metric: Any,
-    min_threshold: float = 25.0,
-    warmup: bool = True,
-    seed: int = 42,
-) -> None:
-    """
-    Convenience function to run a stable diffusion quality test.
-
-    Args:
-        pipeline_cls: The pipeline class to instantiate (e.g., SDXLPipeline)
-        pipeline_config: Configuration object for the pipeline (e.g., SDXLConfig)
-        dataset: Dataset providing captions/prompts for generation
-        metric: Metric instance for evaluating quality (e.g., CLIPMetric)
-        min_threshold: Minimum acceptable metric score (default: 25.0 for CLIP)
-        warmup: Whether to run warmup inference (default: True)
-        seed: Random seed for reproducibility (default: 42)
-    """
-    tester = StableDiffusionTester(
-        pipeline_cls=pipeline_cls,
-        pipeline_config=pipeline_config,
-        dataset=dataset,
-        metric=metric,
-        min_threshold=min_threshold,
-        warmup=warmup,
-        seed=seed,
-    )
-    tester.test()
