@@ -22,10 +22,10 @@ def create_device_mesh() -> Mesh:
     return mesh
 
 def main():
-    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-    os.environ["TF_CPP_MIN_VLOG_LEVEL"] = "3"
-    os.environ["PT_XLA_DEBUG"] = "1"
-    os.environ["XLA_IR_DEBUG"] = "1"
+    # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+    # os.environ["TF_CPP_MIN_VLOG_LEVEL"] = "3"
+    # os.environ["PT_XLA_DEBUG"] = "1"
+    # os.environ["XLA_IR_DEBUG"] = "1"
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
 
     xr.use_spmd()
@@ -42,15 +42,25 @@ def main():
     x = torch.arange((64), dtype=torch.int).reshape((8,8)).to(device)
     xs.mark_sharding(x, mesh, (None, 'model'))
 
+    y = torch.arange((81), dtype=torch.int).reshape((9,9)).to(device)
+    
+    x+=1
+    # z = x + y[:8,:8]
+
     print(torch_xla._XLAC._xla_get_all_device_attributes())
-    print("input sharding " + torch_xla._XLAC._get_xla_sharding_spec(x), "device", x.device)
-    x += 1
+    print("input as input sharding " + torch_xla._XLAC._get_xla_sharding_spec(x), "device", x.device)
     print(torch_xla._XLAC._get_xla_tensors_hlo([x]))
     torch_xla.sync()
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = "0"
+    
+    # this is bad...
+    # os.environ["CONVERT_SHLO_TO_SHARDY"] = "0" 
 
-    print("input sharding",torch_xla._XLAC._get_xla_sharding_spec(x), "device", x.device)
+    print("x input as output sharding",torch_xla._XLAC._get_xla_sharding_spec(x), "device", x.device)
     print(x)
+    # print("z output sharding",torch_xla._XLAC._get_xla_sharding_spec(z), "device", z.device)
+
+    # print(x)    
+    # print(z)
     # print(x.shape)
 
 main()
