@@ -15,6 +15,7 @@ from infra.comparators.torch_comparator import TorchComparator
 from infra.utilities.types import Framework
 from torch.nn import functional as F
 from tt_torch.composite_ops import (
+    composite_conv_transpose2d,
     composite_gelu,
     composite_layer_norm,
     composite_rms_norm,
@@ -285,3 +286,93 @@ def test_composite_layer_norm(use_weight, use_bias, batch_size, seq_len, embeddi
             framework=Framework.TORCH,
             torch_options=options,
         )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "in_channels, out_channels, input_height, input_width", [(64, 3, 112, 112)]
+)
+@pytest.mark.parametrize("use_bias", [True, False])
+def test_patched_conv_transpose2d_module(
+    in_channels, out_channels, input_height, input_width, use_bias
+):
+    class ConvTranspose2dModel(torch.nn.Module):
+        def __init__(
+            self,
+            in_channels,
+            out_channels,
+            kernel_size=2,
+            stride=2,
+            padding=0,
+            bias=False,
+        ):
+            super().__init__()
+            self.upsample = nn.ConvTranspose2d(
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                bias=use_bias,
+            )
+
+        def forward(self, x):
+            return self.upsample(x)
+
+    options = {"tt_enable_composite_ops": True}
+
+    input_tensor = torch.randn(in_channels, input_height, input_width)
+    model = ConvTranspose2dModel(in_channels, out_channels, bias=use_bias)
+
+    run_graph_test(
+        model,
+        [input_tensor],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "in_channels, out_channels, input_height, input_width", [(64, 3, 112, 112)]
+)
+@pytest.mark.parametrize("use_bias", [True, False])
+def test_composite_conv_transpose2d(
+    in_channels, out_channels, input_height, input_width, use_bias
+):
+    class ConvTranspose2dModel(torch.nn.Module):
+        def __init__(
+            self,
+            in_channels,
+            out_channels,
+            kernel_size=2,
+            stride=2,
+            padding=0,
+            bias=False,
+        ):
+            super().__init__()
+            self.upsample = composite_conv_transpose2d(
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                bias=use_bias,
+            )
+
+        def forward(self, x):
+            return self.upsample(x)
+
+    options = {"tt_enable_composite_ops": False}
+
+    input_tensor = torch.randn(in_channels, input_height, input_width)
+    model = ConvTranspose2dModel(in_channels, out_channels, bias=use_bias)
+
+    run_graph_test(
+        model,
+        [input_tensor],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )
