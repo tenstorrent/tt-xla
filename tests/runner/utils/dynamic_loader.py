@@ -356,13 +356,20 @@ class TorchDynamicLoader(DynamicLoader):
             return self.loader.load_model(dtype_override=torch.bfloat16)
         return self.loader.load_model()
 
-    def load_inputs(self) -> Any:
+    def load_inputs(self, phase: str | None = None) -> Any:
         """Load input activations from the loader with dtype override support for bfloat16.
 
         Returns:
             Input tensors that can be fed to the model, using bfloat16 if supported
         """
         sig = inspect.signature(self.loader.load_inputs)
+        # Route based on explicit phase when provided
+        if phase == "DECODE" and hasattr(self.loader, "load_inputs_decode"):
+            decode_sig = inspect.signature(self.loader.load_inputs_decode)
+            if "dtype_override" in decode_sig.parameters:
+                return self.loader.load_inputs_decode(dtype_override=torch.bfloat16)
+            return self.loader.load_inputs_decode()
+        # Default path
         if "dtype_override" in sig.parameters:
             return self.loader.load_inputs(dtype_override=torch.bfloat16)
         return self.loader.load_inputs()

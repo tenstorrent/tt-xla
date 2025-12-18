@@ -31,6 +31,7 @@ class DynamicTorchModelTester(TorchModelTester):
         loader,
         comparison_config: ComparisonConfig | None = None,
         parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
+        phase: str | None = None,
     ) -> None:
         """Initialize DynamicTorchModelTester.
 
@@ -44,6 +45,8 @@ class DynamicTorchModelTester(TorchModelTester):
         self.dynamic_loader = TorchDynamicLoader(loader)
         # Store parallelism for reporting/consumers
         self.parallelism = parallelism
+        # Store phase hint for input loading (e.g., "DECODE")
+        self.phase = phase
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
@@ -67,7 +70,7 @@ class DynamicTorchModelTester(TorchModelTester):
         Returns:
             Input tensors loaded from the loader
         """
-        inputs = self.dynamic_loader.load_inputs()
+        inputs = self.dynamic_loader.load_inputs(phase=self.phase)
 
         if self.parallelism == Parallelism.DATA_PARALLEL:
             num_devices = xr.global_runtime_device_count()

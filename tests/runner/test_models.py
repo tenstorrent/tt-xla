@@ -40,16 +40,44 @@ MODELS_ROOT_TORCH, test_entries_torch = TorchDynamicLoader.setup_test_discovery(
 )
 MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJECT_ROOT)
 
+# Build decode-only entries (only for loaders that implement load_inputs_decode)
+decode_entries_torch = [
+    entry
+    for entry in test_entries_torch
+    if hasattr(entry.variant_info[1], "load_inputs_decode")
+]
+
+# Build combined params: (entry, phase, run_mode)
+combined_params_torch = []
+for _entry in test_entries_torch:
+    base_id = DynamicLoader.generate_test_id(_entry, MODELS_ROOT_TORCH)
+    combined_params_torch.append(
+        pytest.param(
+            (_entry, None, RunMode.INFERENCE),
+            id=f"{base_id}-inference",
+            marks=pytest.mark.inference,
+        )
+    )
+    combined_params_torch.append(
+        pytest.param(
+            (_entry, None, RunMode.TRAINING),
+            id=f"{base_id}-training",
+            marks=pytest.mark.training,
+        )
+    )
+for _entry in decode_entries_torch:
+    base_id = DynamicLoader.generate_test_id(_entry, MODELS_ROOT_TORCH)
+    combined_params_torch.append(
+        pytest.param(
+            (_entry, "DECODE", RunMode.INFERENCE),
+            id=f"{base_id}-inference-decode",
+            marks=pytest.mark.inference,
+        )
+    )
+
 
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
-@pytest.mark.parametrize(
-    "run_mode",
-    [
-        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
-        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
-    ],
-)
 @pytest.mark.parametrize(
     "op_by_op",
     [None],
@@ -76,13 +104,11 @@ MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJEC
     ],
 )
 @pytest.mark.parametrize(
-    "test_entry",
-    test_entries_torch,
-    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+    "entry_phase_mode",
+    combined_params_torch,
 )
 def test_all_models_torch(
-    test_entry,
-    run_mode,
+    entry_phase_mode,
     op_by_op,
     parallelism,
     record_property,
@@ -91,6 +117,7 @@ def test_all_models_torch(
     capteesys,
     clear_torchxla_computation_cache,
 ):
+    test_entry, llm_phase, run_mode = entry_phase_mode
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     fix_venv_isolation()
 
@@ -104,6 +131,9 @@ def test_all_models_torch(
         loader = ModelLoader(variant=variant)
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
+
+        # Record phase for reporting
+        record_property("llm_phase", llm_phase or "DEFAULT")
 
         succeeded = False
         comparison_result = None
@@ -119,6 +149,7 @@ def test_all_models_torch(
                     loader=loader,
                     comparison_config=test_metadata.to_comparison_config(),
                     parallelism=parallelism,
+                    phase=("DECODE" if llm_phase == "DECODE" else None),
                 )
 
                 comparison_result = tester.test()
