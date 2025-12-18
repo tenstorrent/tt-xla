@@ -188,6 +188,7 @@ def get_columns() -> List[str]:
         "group",
         "arch",
         "bringup_status",
+        "model_status",
         "pcc",
         "pcc_threshold",
         "pcc_assertion_enabled",
@@ -235,6 +236,11 @@ def iter_test_records(tree: ET.ElementTree) -> Iterator[Dict]:
         model_info = record.get("model_info") or {}
         task_value = model_info.get("task")
         record["model_type"] = compute_model_type(task_value)
+
+        # Get model_status from model_test_status field in tags (optional)
+        model_test_status = record.get("model_test_status")
+        record["model_status"] = normalize_model_test_status(model_test_status)
+
         yield record
 
 
@@ -270,6 +276,37 @@ def record_matches_filters(
         ):
             return False
     return True
+
+
+# Normalize model_test_status value to a shorter display format.
+def normalize_model_test_status(status_value: Optional[str]) -> str:
+    """
+    Normalize the model_test_status field to a shorter display format.
+
+    Input format: 'ModelTestStatus.KNOWN_FAILURE_XFAIL' or 'known_failure_xfail'
+    Maps to shorter display values for readability.
+    """
+    if status_value is None or status_value == "":
+        return "N/A"
+
+    status_str = str(status_value)
+    # Strip 'ModelTestStatus.' prefix if present
+    if status_str.startswith("ModelTestStatus."):
+        status_str = status_str[len("ModelTestStatus.") :]
+
+    # Map to display values
+    status_lower = status_str.lower()
+    if status_lower == "known_failure_xfail":
+        return "XFAIL"
+    elif status_lower == "not_supported_skip":
+        return "SKIP"
+    elif status_lower == "expected_passing":
+        return "PASSING"
+    elif status_lower == "exclude_model":
+        return "EXCLUDE"
+    else:
+        # Return original value if unknown
+        return status_str.upper()[:11]  # Truncate to 11 chars for display
 
 
 # Map a model task (e.g., 'cv_image_cls', 'nlp_causal_lm') to a high-level model type.
