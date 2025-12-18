@@ -16,6 +16,7 @@
 
 // POSIX includes
 #include <dlfcn.h>
+#include <vector>
 
 // llvm includes
 #include "llvm/Support/Casting.h"
