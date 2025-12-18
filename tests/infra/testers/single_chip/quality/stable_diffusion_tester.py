@@ -5,9 +5,14 @@
 from __future__ import annotations
 
 import logging
+import shutil
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
 import torch
+from infra.connectors.torch_device_connector import TorchDeviceConnector
+from infra.utilities import sanitize_test_name
+from tt_torch import parse_compiled_artifacts_from_cache_to_disk
 
 from .quality_tester import QualityTester
 
@@ -60,7 +65,6 @@ class StableDiffusionTester(QualityTester):
         self._dataset = dataset
         self._metric = self._resolve_metric(metric)
         self._min_threshold = min_threshold
-        self._warmup = warmup
         self._seed = seed
 
         # Will be set during compute_metrics
@@ -112,7 +116,7 @@ class StableDiffusionTester(QualityTester):
         """
         # Set up pipeline
         self._pipeline = self._pipeline_cls(config=self._pipeline_config)
-        self._pipeline.setup(warmup=self._warmup)
+        self._pipeline.setup(warmup=True)
 
         # Get captions from dataset
         captions: List[str] = self._dataset.captions
@@ -157,6 +161,43 @@ class StableDiffusionTester(QualityTester):
     def images(self) -> Optional[torch.Tensor]:
         """Returns the generated images after compute_metrics() has been called."""
         return self._images
+
+    def serialize_on_device(self, output_prefix: str) -> None:
+        """
+        Serialize the UNet compilation artifacts to disk.
+
+        This clears the torch compile cache, sets up the pipeline,
+        then extracts and saves the compilation artifacts.
+
+        Args:
+            output_prefix: Base path and filename prefix for output files
+                           (creates {prefix}_ttir.mlir, {prefix}_ttnn.mlir, {prefix}.ttnn)
+        """
+
+        # Clear the torch compile cache to ensure clean serialization
+        cache_dir = TorchDeviceConnector.get_cache_dir()
+        cache_dir_path = Path(cache_dir)
+        if cache_dir_path.exists():
+            shutil.rmtree(cache_dir_path)
+        cache_dir_path.mkdir(parents=True, exist_ok=True)
+
+        if self._pipeline is None:
+            self._pipeline = self._pipeline_cls(config=self._pipeline_config)
+            self._pipeline.setup(warmup=True)
+
+        # Extract and save compilation artifacts from cache
+        parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
+
+    def serialize_compilation_artifacts(self, test_name: str) -> None:
+        """
+        Serialize the pipeline's UNet compilation artifacts with a sanitized filename.
+
+        Args:
+            test_name: Test name to generate output prefix from
+        """
+        clean_name = sanitize_test_name(test_name)
+        output_prefix = f"output_artifact/{clean_name}"
+        self.serialize_on_device(output_prefix)
 
 
 def run_stable_diffusion_quality_test(

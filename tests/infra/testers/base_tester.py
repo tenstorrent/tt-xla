@@ -10,7 +10,6 @@ from typing import Optional
 from infra.comparators import Comparator, ComparatorFactory, ComparisonConfig
 from infra.runners import DeviceRunner, DeviceRunnerFactory
 from infra.utilities import Framework, sanitize_test_name
-from infra.workloads import Workload
 
 
 class BaseTester(ABC):
@@ -51,16 +50,6 @@ class BaseTester(ABC):
         self._comparator = ComparatorFactory.create_comparator(
             self._framework, self._comparison_config
         )
-
-    @abstractmethod
-    def _compile_for_cpu(self, workload: Workload) -> None:
-        """Compiles `workload` for CPU."""
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    @abstractmethod
-    def _compile_for_tt_device(self, workload: Workload) -> None:
-        """Compiles `workload` for TT device."""
-        raise NotImplementedError("Subclasses must implement this method.")
 
     def serialize_compilation_artifacts(self, test_name: str) -> None:
         """Serialize the model with the appropriate output prefix.

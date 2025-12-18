@@ -11,7 +11,11 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra.comparators import ComparisonConfig
-from infra.utilities import Framework
+from infra.utilities import (
+    Framework,
+    compile_torch_workload_for_cpu,
+    compile_torch_workload_for_tt_device,
+)
 from infra.workloads import TorchWorkload, Workload
 from loguru import logger
 
@@ -149,19 +153,10 @@ class TorchModelTester(ModelTester):
             return {**self._input_activations}
         return {}
 
-    # @override
     def _compile_for_cpu(self, workload: Workload) -> None:
-        """Compiles `workload` for CPU."""
-        self._compile(workload)
+        """Compile Torch workload for CPU."""
+        compile_torch_workload_for_cpu(workload)
 
-    def _compile(self, workload: Workload) -> None:
-        """JIT-compiles model's forward pass into optimized kernels.
-
-        Compiles for inductor backend by default.
-        """
-        self._compile_for_backend(workload, backend="inductor")
-
-    # @override
     def _run_on_cpu(self, compiled_workload: Workload) -> torch.Tensor:
         """Runs workload on CPU with jax accelerator masked.
 
@@ -171,16 +166,9 @@ class TorchModelTester(ModelTester):
         with _mask_jax_accelerator():
             return super()._run_on_cpu(compiled_workload)
 
-    # @override
     def _compile_for_tt_device(self, workload: Workload) -> None:
-        """Compiles `workload` for TT device."""
-        self._compile_for_backend(workload, backend="tt")
-
-    def _compile_for_backend(self, workload: Workload, backend: str) -> None:
-        """JIT-compiles model into optimized kernels."""
-        assert workload.is_torch and workload.model is not None
-
-        workload.compiled_executable = torch.compile(workload.model, backend=backend)
+        """Compile Torch workload for TT device."""
+        compile_torch_workload_for_tt_device(workload)
 
     def _unpack_forward_output(self, output: Any) -> torch.Tensor:
         """

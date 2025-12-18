@@ -27,7 +27,7 @@ MODEL_INFO = {
     category=Category.QUALITY_TEST,
     run_mode=RunMode.INFERENCE,
 )
-def test_clip_sdxl():
+def test_clip_sdxl(request):
     dataset = CocoDataset()
     assert len(dataset.captions) == MODEL_INFO["num_samples"], (
         "Number of samples in the dataset does not match the pytest predefined "
@@ -48,3 +48,7 @@ def test_clip_sdxl():
         seed=42,
     )
     tester.test()
+
+    # Serialize compilation artifacts if requested
+    if request.config.getoption("--serialize", default=False):
+        tester.serialize_compilation_artifacts(request.node.name)

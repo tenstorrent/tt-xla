@@ -10,7 +10,10 @@ import jax.numpy as jnp
 import torch
 from infra.runners import run_on_cpu
 from infra.utilities import Framework, Tensor
+from infra.workloads import JaxMultichipWorkload, Workload
 from jax._src.typing import DTypeLike
+from jax.experimental.shard_map import shard_map
+from jax.sharding import NamedSharding
 
 
 def sanitize_test_name(test_name: str) -> str:
@@ -195,4 +198,63 @@ def create_torch_inference_tester(
 
     return model_tester_class(
         variant_or_args, compiler_config=compiler_config, dtype_override=dtype, **kwargs
+    )
+
+
+def compile_jax_workload_for_cpu(workload: Workload) -> None:
+    """Compile JAX workload for CPU using jax.jit."""
+    workload.compiled_executable = jax.jit(
+        workload.executable,
+        static_argnames=workload.static_argnames,
+    )
+
+
+def compile_jax_workload_for_tt_device(
+    workload: Workload, compiler_options: dict = None
+) -> None:
+    """Compile JAX workload for TT device using jax.jit with compiler options."""
+    workload.compiled_executable = jax.jit(
+        workload.executable,
+        static_argnames=workload.static_argnames,
+        compiler_options=compiler_options or {},
+    )
+
+
+def compile_torch_workload_for_cpu(workload: Workload) -> None:
+    """Compile Torch workload for CPU using inductor backend."""
+    to_compile = workload.model if workload.model is not None else workload.executable
+    workload.compiled_executable = torch.compile(to_compile, backend="inductor")
+
+
+def compile_torch_workload_for_tt_device(workload: Workload) -> None:
+    """Compile Torch workload for TT device using tt backend."""
+    to_compile = workload.model if workload.model is not None else workload.executable
+    workload.compiled_executable = torch.compile(to_compile, backend="tt")
+
+
+def compile_jax_multichip_workload(
+    workload: JaxMultichipWorkload, compiler_options: dict = None
+) -> None:
+    """
+    Compile JAX multichip workload with shard_map wrapping for distributed execution.
+
+    Sets up workload.executable for just-in-time compile and execution.
+    The workload.device_mesh defines for which device (TT or CPU) it will be compiled.
+    """
+    module_sharded_executable = (
+        shard_map(
+            workload.executable,
+            mesh=workload.device_mesh,
+            in_specs=workload.in_specs,
+            out_specs=workload.out_spec,
+        )
+        if workload.sharding_mode.requires_shard_map
+        else workload.executable
+    )
+    output_sharding = NamedSharding(workload.device_mesh, workload.out_spec)
+    workload.compiled_executable = jax.jit(
+        module_sharded_executable,
+        out_shardings=output_sharding,
+        static_argnames=workload.static_argnames,
+        compiler_options=compiler_options or {},
     )

@@ -5,12 +5,13 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from tests.infra.testers.base_tester import BaseTester
 from typing import Any, Dict, Optional
 
 import torch_xla.runtime as xr
 
 
-class QualityTester:
+class QualityTester(BaseTester):
     """
     Abstract base class for quality metric-based testing.
 

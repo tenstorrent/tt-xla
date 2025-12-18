@@ -10,6 +10,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from diffusers import AutoencoderKL, EulerDiscreteScheduler, UNet2DConditionModel
+from jaxtyping import Float
 from PIL import Image
 from transformers import CLIPTextModel, CLIPTextModelWithProjection
 
@@ -57,8 +58,12 @@ class SDXLPipeline:
         self.height = config.height
         self.latents_width = config.latents_width
         self.latents_height = config.latents_height
+        self._setup_done = False
 
     def setup(self, warmup=False):
+        if self._setup_done:
+            return
+        self._setup_done = True
         self.load_models()
         self.load_scheduler()
         self.load_tokenizers()
@@ -140,7 +145,7 @@ class SDXLPipeline:
         cfg_scale: float = 7.5,
         num_inference_steps: int = 50,
         seed: Optional[int] = None,
-    ):
+    ) -> Float[torch.Tensor, "B 3 H W"]:
         """
         Generate an image from a prompt using the SDXL model.
         Only supports text2image generation for now.
