@@ -6,6 +6,7 @@ import os
 import numpy as np
 import pytest
 import torch
+import torch.nn as nn
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
@@ -13,9 +14,14 @@ import torch_xla.runtime as xr
 from infra.comparators.torch_comparator import TorchComparator
 from infra.utilities.types import Framework
 from torch.nn import functional as F
-from tt_torch.composite_ops import composite_gelu, composite_rms_norm
+from tt_torch.composite_ops import (
+    composite_gelu,
+    composite_layer_norm,
+    composite_rms_norm,
+)
 
 from tests.infra.comparators.comparison_config import ComparisonConfig
+from tests.infra.testers.single_chip.graph.graph_tester import run_graph_test
 from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
 from tests.utils import parametrize_arch
 
@@ -227,3 +233,118 @@ def test_composite_rms_norm(use_weight):
 
     comparator = TorchComparator(ComparisonConfig())
     comparator.compare(output, golden)
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize("elementwise_affine", [True, False])
+@pytest.mark.parametrize(
+    "batch_size, sentence_length, embedding_dim",
+    [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
+)
+def test_patched_layer_norm_module(
+    elementwise_affine, batch_size, sentence_length, embedding_dim
+):
+    class LayerNormModel(torch.nn.Module):
+        def __init__(self, embedding_dim):
+            super().__init__()
+            self.ln = nn.LayerNorm(embedding_dim, elementwise_affine=elementwise_affine)
+
+        def forward(self, x):
+            return self.ln(x)
+
+    options = {"tt_enable_composite_ops": True}
+
+    input_tensor = torch.randn(
+        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
+    )
+
+    model = LayerNormModel(embedding_dim)
+
+    run_graph_test(
+        model,
+        [input_tensor],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize("use_weight", [True, False])
+@pytest.mark.parametrize("use_bias", [True, False])
+@pytest.mark.parametrize(
+    "batch_size, sentence_length, embedding_dim",
+    [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
+)
+def test_patched_layer_norm_functional(
+    use_weight, use_bias, batch_size, sentence_length, embedding_dim
+):
+
+    class LayerNormModel(torch.nn.Module):
+        def __init__(self, normalized_shape):
+            super().__init__()
+            self.normalized_shape = normalized_shape
+
+        def forward(self, x, weight=None, bias=None):
+            return F.layer_norm(x, (self.normalized_shape,), weight, bias, eps=1e-5)
+
+    options = {"tt_enable_composite_ops": True}
+
+    input_tensor = torch.randn(
+        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
+    )
+    weight = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_weight else None
+    bias = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_bias else None
+
+    model = LayerNormModel(embedding_dim)
+
+    run_graph_test(
+        model,
+        [input_tensor, weight, bias],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize("use_weight", [True, False])
+@pytest.mark.parametrize("use_bias", [True, False])
+@pytest.mark.parametrize(
+    "batch_size, sentence_length, embedding_dim",
+    [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
+)
+def test_composite_layer_norm(
+    use_weight, use_bias, batch_size, sentence_length, embedding_dim
+):
+
+    class LayerNormModel(torch.nn.Module):
+        def __init__(self, normalized_shape):
+            super().__init__()
+            self.normalized_shape = normalized_shape
+
+        def forward(self, x, weight=None, bias=None):
+            return composite_layer_norm(
+                x, self.normalized_shape, weight, bias, eps=1e-5
+            )
+
+    options = {"tt_enable_composite_ops": False}
+
+    input_tensor = torch.randn(
+        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
+    )
+    weight = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_weight else None
+    bias = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_bias else None
+
+    model = LayerNormModel(embedding_dim)
+
+    # Disable inplace buffers for inductor compilation
+    # so that we can compare the results with the golden model.
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            model,
+            [input_tensor, weight, bias],
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+        )
