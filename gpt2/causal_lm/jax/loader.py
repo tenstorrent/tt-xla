@@ -107,12 +107,38 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["dtype"] = dtype_override
 
+        partition_rules = ((r".*", PartitionSpec()),)
+
         # Load the model
         model = AutoEasyDeLModelForCausalLM.from_pretrained(
-            self._model_name, **model_kwargs
+            self._model_name, partition_rules=partition_rules, **model_kwargs
         )
 
         return model
+
+    def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant.
+
+        Args:
+            dtype_override: Optional dtype to override the tokenizer's default dtype.
+
+        Returns:
+            tokenizer: The loaded tokenizer instance
+        """
+
+        from transformers import AutoTokenizer
+
+        # Initialize tokenizer with dtype override if specified
+        tokenizer_kwargs = {}
+        if dtype_override is not None:
+            tokenizer_kwargs["dtype"] = dtype_override
+
+        # Load the tokenizer
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            self._model_name, **tokenizer_kwargs
+        )
+
+        return self._tokenizer
 
     def load_inputs(self, dtype_override=None, mesh=None):
         """Load and return sample inputs for the GPT2 model with this instance's variant settings.
@@ -138,16 +164,11 @@ class ModelLoader(ForgeModel):
             # Default to 8 for single device too, for consistency
             batch_size = 8
 
-        # Initialize tokenizer with dtype override if specified
-        tokenizer_kwargs = {}
-        if dtype_override is not None:
-            tokenizer_kwargs["dtype"] = dtype_override
-
-        # Load the tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(self._model_name, **tokenizer_kwargs)
+        if self._tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
 
         # Create tokenized inputs for the causal language modeling task
-        inputs = tokenizer(
+        inputs = self._tokenizer(
             self.sample_text,
             return_tensors="jax",
         )
