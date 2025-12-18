@@ -306,7 +306,7 @@ def normalize_model_test_status(status_value: Optional[str]) -> str:
         return "EXCLUDE"
     else:
         # Return original value if unknown
-        return status_str.upper()[:10]  # Truncate to 10 chars for display
+        return status_str.upper()[:11]  # Truncate to 11 chars for display
 
 
 # Map a model task (e.g., 'cv_image_cls', 'nlp_causal_lm') to a high-level model type.
