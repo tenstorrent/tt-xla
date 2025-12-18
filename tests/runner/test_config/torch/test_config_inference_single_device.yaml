@@ -2477,6 +2477,9 @@ test_config:
   ultra_fast_lane_detection/pytorch-tusimple_resnet34-single_device-full-inference:
     status: EXPECTED_PASSING
 
+  dense_unet_3d/pytorch-base-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_module L__self___maxpool1(*(FakeTensor(..., device='xla:0', size=(1, 96, 16, 128, 128), dtype=torch.bfloat16),), https://github.com/tenstorrent/tt-xla/issues/2567"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_10-single_device-full-inference:
     status: EXPECTED_PASSING
