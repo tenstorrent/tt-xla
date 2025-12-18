@@ -36,7 +36,6 @@ def test_composite_gelu(approx):
     options = {"tt_enable_composite_ops": False}
 
     input = torch.randn(32, 32)
-
     model = GeluModel()
 
     # Disable inplace buffers for inductor compilation
@@ -74,7 +73,12 @@ def test_patched_gelu_functional(approx):
 
 @pytest.mark.single_device
 @pytest.mark.parametrize("use_weight", [True, False])
-def test_patched_rms_norm_functional_single_device(use_weight):
+@pytest.mark.parametrize(
+    "batch_size, seq_len, hidden_size", [(1, 32, 32), (1, 128, 768), (1, 1024, 768)]
+)
+def test_patched_rms_norm_functional_single_device(
+    use_weight, batch_size, seq_len, hidden_size
+):
 
     class RMSNormModel(torch.nn.Module):
         def __init__(self, normalized_shape):
@@ -86,11 +90,9 @@ def test_patched_rms_norm_functional_single_device(use_weight):
 
     options = {"tt_enable_composite_ops": True}
 
-    normalized_shape = (32,)
-    input_shape = (4, 32)
-    input_tensor = torch.randn(input_shape)
-    weight = torch.randn(normalized_shape) if use_weight else None
-    model = RMSNormModel(normalized_shape)
+    input_tensor = torch.randn(batch_size, seq_len, hidden_size)
+    weight = torch.randn(hidden_size) if use_weight else None
+    model = RMSNormModel(hidden_size)
 
     run_graph_test(
         model,
@@ -103,7 +105,12 @@ def test_patched_rms_norm_functional_single_device(use_weight):
 
 @pytest.mark.dual_chip
 @pytest.mark.parametrize("use_weight", [True, False])
-def test_patched_rms_norm_functional_batch_parallel(use_weight):
+@pytest.mark.parametrize(
+    "batch_size, seq_len, hidden_size", [(1, 32, 32), (1, 128, 768), (1, 1024, 768)]
+)
+def test_patched_rms_norm_functional_batch_parallel(
+    use_weight, batch_size, seq_len, hidden_size
+):
 
     class RMSNormModel(torch.nn.Module):
         def __init__(self, normalized_shape):
@@ -115,11 +122,9 @@ def test_patched_rms_norm_functional_batch_parallel(use_weight):
 
     options = {"tt_enable_composite_ops": True}
 
-    normalized_shape = (32,)
-    input_shape = (4, 32)
-    input_tensor = torch.randn(input_shape)
-    weight = torch.randn(normalized_shape) if use_weight else None
-    model = RMSNormModel(normalized_shape)
+    input_tensor = torch.randn(batch_size, seq_len, hidden_size)
+    weight = torch.randn(hidden_size) if use_weight else None
+    model = RMSNormModel(hidden_size)
 
     # Create a mesh.
     num_devices = xr.global_runtime_device_count()
@@ -147,7 +152,7 @@ def test_patched_rms_norm_functional_batch_parallel(use_weight):
 @pytest.mark.single_device
 @pytest.mark.parametrize("use_weight", [True, False])
 @pytest.mark.parametrize(
-    "batch_size, seq_len, hidden_size", [(1, 32, 32), (1, 197, 768), (1, 1024, 768)]
+    "batch_size, seq_len, hidden_size", [(1, 32, 32), (1, 128, 768), (1, 1024, 768)]
 )
 def test_composite_rms_norm(use_weight, batch_size, seq_len, hidden_size):
 
@@ -180,11 +185,11 @@ def test_composite_rms_norm(use_weight, batch_size, seq_len, hidden_size):
 @pytest.mark.single_device
 @pytest.mark.parametrize("elementwise_affine", [True, False])
 @pytest.mark.parametrize(
-    "batch_size, sentence_length, embedding_dim",
+    "batch_size, seq_len, embedding_dim",
     [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
 )
 def test_patched_layer_norm_module(
-    elementwise_affine, batch_size, sentence_length, embedding_dim
+    elementwise_affine, batch_size, seq_len, embedding_dim
 ):
     class LayerNormModel(torch.nn.Module):
         def __init__(self, embedding_dim):
@@ -196,9 +201,7 @@ def test_patched_layer_norm_module(
 
     options = {"tt_enable_composite_ops": True}
 
-    input_tensor = torch.randn(
-        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
-    )
+    input_tensor = torch.randn(batch_size, seq_len, embedding_dim, dtype=torch.bfloat16)
 
     model = LayerNormModel(embedding_dim)
 
@@ -215,11 +218,11 @@ def test_patched_layer_norm_module(
 @pytest.mark.parametrize("use_weight", [True, False])
 @pytest.mark.parametrize("use_bias", [True, False])
 @pytest.mark.parametrize(
-    "batch_size, sentence_length, embedding_dim",
+    "batch_size, seq_len, embedding_dim",
     [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
 )
 def test_patched_layer_norm_functional(
-    use_weight, use_bias, batch_size, sentence_length, embedding_dim
+    use_weight, use_bias, batch_size, seq_len, embedding_dim
 ):
 
     class LayerNormModel(torch.nn.Module):
@@ -232,9 +235,7 @@ def test_patched_layer_norm_functional(
 
     options = {"tt_enable_composite_ops": True}
 
-    input_tensor = torch.randn(
-        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
-    )
+    input_tensor = torch.randn(batch_size, seq_len, embedding_dim, dtype=torch.bfloat16)
     weight = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_weight else None
     bias = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_bias else None
 
@@ -253,12 +254,10 @@ def test_patched_layer_norm_functional(
 @pytest.mark.parametrize("use_weight", [True, False])
 @pytest.mark.parametrize("use_bias", [True, False])
 @pytest.mark.parametrize(
-    "batch_size, sentence_length, embedding_dim",
+    "batch_size, seq_len, embedding_dim",
     [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
 )
-def test_composite_layer_norm(
-    use_weight, use_bias, batch_size, sentence_length, embedding_dim
-):
+def test_composite_layer_norm(use_weight, use_bias, batch_size, seq_len, embedding_dim):
 
     class LayerNormModel(torch.nn.Module):
         def __init__(self, normalized_shape):
@@ -272,9 +271,7 @@ def test_composite_layer_norm(
 
     options = {"tt_enable_composite_ops": False}
 
-    input_tensor = torch.randn(
-        batch_size, sentence_length, embedding_dim, dtype=torch.bfloat16
-    )
+    input_tensor = torch.randn(batch_size, seq_len, embedding_dim, dtype=torch.bfloat16)
     weight = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_weight else None
     bias = torch.randn(embedding_dim, dtype=torch.bfloat16) if use_bias else None
 
