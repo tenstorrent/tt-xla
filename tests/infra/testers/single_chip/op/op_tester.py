@@ -49,7 +49,9 @@ class OpTester(BaseTester):
         # tt_workload = workload
         self._compile_for_tt_device(workload)
 
-        filecheck_marker = request.node.get_closest_marker("filecheck")
+        filecheck_marker = (
+            request.node.get_closest_marker("filecheck") if request else None
+        )
         if filecheck_marker:
             clean_name = sanitize_test_name(request.node.name)
             output_prefix = f"output_artifact/{clean_name}"
