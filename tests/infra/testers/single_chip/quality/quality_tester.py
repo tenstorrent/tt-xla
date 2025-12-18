@@ -5,10 +5,11 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from tests.infra.testers.base_tester import BaseTester
 from typing import Any, Dict, Optional
 
 import torch_xla.runtime as xr
+
+from tests.infra.testers.base_tester import BaseTester
 
 
 class QualityTester(BaseTester):
