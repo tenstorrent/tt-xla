@@ -83,12 +83,12 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
-            variant = self.DEFAULT_VARIANT
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="yoloworld",
             variant=variant,
             group=ModelGroup.RED
-            if variant == self.DEFAULT_VARIANT
+            if variant == cls.DEFAULT_VARIANT
             else ModelGroup.GENERALITY,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.CUSTOM,
@@ -109,7 +109,7 @@ class ModelLoader(ForgeModel):
             self.model = self.model.to(dtype_override)
         return self.model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None):
         self.image_file = get_file("https://ultralytics.com/images/bus.jpg")
         test_pipeline_cfg = get_test_pipeline_cfg(cfg=self.config)
         test_pipeline = Compose(test_pipeline_cfg)

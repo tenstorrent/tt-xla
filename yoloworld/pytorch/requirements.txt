@@ -1,4 +1,4 @@
-opencv-python
 yapf
 supervision==0.19.0
-lvis
+lvis==0.5.3
+Cython==3.2.3

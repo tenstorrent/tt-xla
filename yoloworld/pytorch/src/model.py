@@ -1524,9 +1524,18 @@ class HuggingCLIPLanguageBackbone(BaseModule):
             text_mask = torch.tensor(
                 [x != self.pad_value for x in text], requires_grad=False
             )
-        text = self.tokenizer(text=text, return_tensors="pt", padding=True)
-        text["input_ids"] = text["input_ids"].to(self.model.device)
-        text["attention_mask"] = text["attention_mask"].to(self.model.device)
+        text = self.tokenizer(text=text, return_tensors=None, padding=True)
+        input_ids = torch.tensor(text["input_ids"], dtype=torch.long).to(
+            self.model.device
+        )
+        attention_mask = torch.tensor(text["attention_mask"], dtype=torch.long).to(
+            self.model.device
+        )
+
+        text = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+        }
         if len(self.frozen_modules) > 0:
             with torch.no_grad():
                 txt_outputs = self.model(**text)
