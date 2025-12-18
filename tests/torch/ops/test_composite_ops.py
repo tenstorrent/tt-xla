@@ -84,7 +84,7 @@ def test_patched_rms_norm_functional_single_device(
             self.normalized_shape = normalized_shape
 
         def forward(self, x, weight):
-            return torch.nn.functional.rms_norm(x, self.normalized_shape, weight)
+            return torch.nn.functional.rms_norm(x, (self.normalized_shape,), weight)
 
     options = {"tt_enable_composite_ops": True}
 
@@ -116,7 +116,7 @@ def test_patched_rms_norm_functional_batch_parallel(
             self.normalized_shape = normalized_shape
 
         def forward(self, x, weight):
-            return torch.nn.functional.rms_norm(x, self.normalized_shape, weight)
+            return torch.nn.functional.rms_norm(x, (self.normalized_shape,), weight)
 
     options = {"tt_enable_composite_ops": True}
 
