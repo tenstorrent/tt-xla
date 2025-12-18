@@ -22,8 +22,6 @@ from tt_torch.composite_ops import (
 
 from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.single_chip.graph.graph_tester import run_graph_test
-from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
-from tests.utils import parametrize_arch
 
 
 @pytest.mark.single_device
