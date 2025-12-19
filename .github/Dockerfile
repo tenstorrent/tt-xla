@@ -1,0 +1,45 @@
+ARG MLIR_TAG=latest
+
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-base-ubuntu-22-04:${MLIR_TAG} as base
+SHELL ["/bin/bash", "-c"]
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install requirements.txt as global Python 3.11 packages
+COPY python_package/requirements.txt /tmp/requirements.txt
+COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
+COPY .github/docker_install.sh /tmp/script.sh
+RUN alias pkg_install="apt-get update && apt-get install -y" && source /tmp/script.sh && \
+    rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
+
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-manylinux-2-34:${FROM_TAG} AS ci
+SHELL ["/bin/bash", "-c"]
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install requirements.txt as global Python 3.11 packages
+COPY python_package/requirements.txt /tmp/requirements.txt
+COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
+COPY .github/docker_install.sh /tmp/script.sh
+RUN alias pkg_install="dnf check-update && dnf install --refresh -y" && source /tmp/script.sh && \
+    rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
+
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${FROM_TAG} AS ird
+SHELL ["/bin/bash", "-c"]
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install requirements.txt as global Python 3.11 packages
+COPY python_package/requirements.txt /tmp/requirements.txt
+COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
+COPY .github/docker_install.sh /tmp/script.sh
+RUN alias pkg_install="apt-get update && apt-get install -y" && source /tmp/script.sh && \
+    rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
+
+# Add entrypoint script
+COPY .github/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
