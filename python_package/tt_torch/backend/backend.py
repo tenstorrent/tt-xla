@@ -112,11 +112,15 @@ class XLAExecutor:
 
         # Export keeps a state dict for lifted params/buffers.
         state = ep.state_dict
+        constants = ep.constants
 
         # Map from placeholder name -> tensor.
         total_args = tuple()
         encountered_user_input = False
         for spec in sig.input_specs:
+            if spec.kind == InputKind.CONSTANT_TENSOR:
+                total_args += (constants[spec.target],)
+                continue
             if spec.kind == InputKind.USER_INPUT:
                 encountered_user_input = True
                 continue
