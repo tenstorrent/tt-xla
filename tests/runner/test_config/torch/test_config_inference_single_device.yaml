@@ -2366,7 +2366,7 @@ test_config:
 
   deformable_detr/pytorch-deformable-detr-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
+    # reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
 
   deformable_detr/pytorch-deformable-detr-single-scale-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
