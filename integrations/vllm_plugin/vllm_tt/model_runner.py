@@ -221,7 +221,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
 
         # SPMD Related
-        self.use_spmd = envs.VLLM_XLA_USE_SPMD
+        self.use_spmd = self.tt_config.enable_tensor_parallel
         if self.use_spmd:
             num_devices = xr.global_runtime_device_count()
             mesh_shape = (num_devices, 1)

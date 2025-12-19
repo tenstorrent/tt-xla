@@ -35,9 +35,6 @@ def test_tensor_parallel_n300(
     path = os.path.join(os.path.dirname(__file__), baseline_path)
     loaded_data = torch.load(path)
 
-    # Enable SPMD for tensor parallel execution.
-    os.environ["VLLM_XLA_USE_SPMD"] = "1"
-
     prompts = [
         "The quick-thinking engineer designed a compact neural processor that could adapt to changing data patterns in real time, optimizing energy use while maintaining exceptional computational accuracy as well.",
         "Hello, my name is chatbot. How can I help you?",
@@ -52,6 +49,9 @@ def test_tensor_parallel_n300(
         "disable_sliding_window": True,
         "max_num_batched_tokens": 128,
         "max_num_seqs": 2,
+        "additional_config": {
+            "enable_tensor_parallel": True,
+        },
     }
     model = vllm.LLM(**llm_args)
 
@@ -98,9 +98,6 @@ def test_tensor_parallel_llmbox(
     path = os.path.join(os.path.dirname(__file__), baseline_path)
     loaded_data = torch.load(path)
 
-    # Enable SPMD for tensor parallel execution.
-    os.environ["VLLM_XLA_USE_SPMD"] = "1"
-
     prompts = [
         "The quick-thinking engineer designed a compact neural processor that could adapt to changing data patterns in real time, optimizing energy use while maintaining exceptional computational accuracy as well.",
         "Hello, my name is chatbot. How can I help you?",
@@ -115,6 +112,9 @@ def test_tensor_parallel_llmbox(
         "disable_sliding_window": True,
         "max_num_batched_tokens": 128,
         "max_num_seqs": 2,
+        "additional_config": {
+            "enable_tensor_parallel": True,
+        },
     }
     model = vllm.LLM(**llm_args)
 

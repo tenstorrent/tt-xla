@@ -61,7 +61,7 @@ def test_data_parallel_inference(
         "max_num_seqs": max_num_seqs,
         "additional_config": {
             "batch_size": batch_size,
-            "is_data_parallel": True,
+            "enable_data_parallel": True,
         },
     }
     model = vllm.LLM(**llm_args)

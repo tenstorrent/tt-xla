@@ -42,7 +42,11 @@ class TTConfig:
     # - batch_size > 1
     # - max_num_seqs > 1
     # Only supported for pooling/embedding models.
-    is_data_parallel: bool = False
+    enable_data_parallel: bool = False
+
+    # Flag to enable tensor parallel execution of a model. We are relying on
+    # TPU model loader to share the model across multiple devices.
+    enable_tensor_parallel: bool = False
 
     def get_pjrt_compile_config(self) -> dict:
         return {
