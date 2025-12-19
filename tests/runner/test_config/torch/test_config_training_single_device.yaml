@@ -154,8 +154,9 @@ test_config:
     markers: [weekly]
 
   stable_diffusion_unet/pytorch-base-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Invalid head size: 120. The head size must be a multiple of the tile width (32). Please adjust the dimensions accordingly."
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
     markers: [weekly]
 
   centernet/pytorch-resnet18_coco-single_device-full-training:
@@ -1084,12 +1085,10 @@ test_config:
 
   vovnet/pytorch-vovnet39-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
     markers: [weekly]
 
   vovnet/pytorch-vovnet57-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
     markers: [weekly]
 
   vovnet/pytorch-vovnet39_th-single_device-full-training:
@@ -1126,7 +1125,6 @@ test_config:
 
   inception/pytorch-inceptionv4-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 8 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
     markers: [weekly]
 
   dla/pytorch-dla34.in1k-single_device-full-training:
@@ -1183,7 +1181,9 @@ test_config:
     markers: [weekly]
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
     markers: [weekly]
 
   wide_resnet/pytorch-wide_resnet50_2-single_device-full-training:
@@ -1569,27 +1569,22 @@ test_config:
 
   hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
     markers: [weekly]
 
   hrnet/pytorch-hrnet_w18_small_v2_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
     markers: [weekly]
 
   hrnet/pytorch-hrnetv2_w18_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
     markers: [weekly]
 
   hrnet/pytorch-hrnetv2_w30_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
     markers: [weekly]
 
   hrnet/pytorch-hrnetv2_w32_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
     markers: [weekly]
 
   hrnet/pytorch-hrnetv2_w40_osmr-single_device-full-training:
@@ -1602,12 +1597,10 @@ test_config:
 
   hrnet/pytorch-hrnetv2_w48_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
     markers: [weekly]
 
   hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
     markers: [weekly]
 
   glpn_kitti/pytorch-single_device-full-training:
@@ -1632,15 +1625,21 @@ test_config:
     markers: [weekly]
 
   segformer/pytorch-mit_b3-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
     markers: [weekly]
 
   segformer/pytorch-mit_b4-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
     markers: [weekly]
 
   segformer/pytorch-mit_b5-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
     markers: [weekly]
 
   ghostnet/pytorch-ghostnet_100-single_device-full-training:
