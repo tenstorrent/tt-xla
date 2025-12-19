@@ -23,7 +23,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY python_package/requirements.txt /tmp/requirements.txt
 COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
-RUN pkg_install() { dnf check-update && dnf install --refresh -y "$@"; } && export -f pkg_install && /tmp/script.sh dnf && \
+RUN pkg_install() { dnf install --refresh -y "$@"; } && export -f pkg_install && /tmp/script.sh dnf && \
     rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${MLIR_TAG} AS ird
