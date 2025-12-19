@@ -87,8 +87,9 @@ test_config:
   mlp_mixer/pytorch-mixer_s32_224-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   stable_diffusion_unet/pytorch-base-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Invalid head size: 120. The head size must be a multiple of the tile width (32). Please adjust the dimensions accordingly."
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   centernet/pytorch-resnet18_coco-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -682,10 +683,8 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   vovnet/pytorch-vovnet39-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
   vovnet/pytorch-vovnet57-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
   vovnet/pytorch-vovnet39_th-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   vovnet/pytorch-vovnet57_th-single_device-full-training:
@@ -705,7 +704,6 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
   inception/pytorch-inceptionv4-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
   dla/pytorch-dla34.in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   googlenet/pytorch-googlenet-single_device-full-training:
@@ -736,7 +734,9 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: TT_FATAL conv2d"
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   wide_resnet/pytorch-wide_resnet50_2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   wide_resnet/pytorch-wide_resnet101_2-single_device-full-training:
@@ -958,29 +958,22 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnet_w18_small_v2_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnetv2_w18_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnetv2_w30_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnetv2_w32_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnetv2_w40_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   hrnet/pytorch-hrnetv2_w44_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   hrnet/pytorch-hrnetv2_w48_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   glpn_kitti/pytorch-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
@@ -997,11 +990,17 @@ test_config:
   segformer/pytorch-mit_b2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   segformer/pytorch-mit_b3-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   segformer/pytorch-mit_b4-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   segformer/pytorch-mit_b5-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   ghostnet/pytorch-ghostnet_100-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   ghostnet/pytorch-ghostnet_100.in1k-single_device-full-training:
