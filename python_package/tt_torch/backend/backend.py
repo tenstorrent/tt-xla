@@ -112,11 +112,15 @@ class XLAExecutor:
 
         # Export keeps a state dict for lifted params/buffers.
         state = ep.state_dict
+        constants = ep.constants
 
         # Map from placeholder name -> tensor.
         total_args = tuple()
         encountered_user_input = False
         for spec in sig.input_specs:
+            if spec.kind == InputKind.CONSTANT_TENSOR:
+                total_args += (constants[spec.target],)
+                continue
             if spec.kind == InputKind.USER_INPUT:
                 encountered_user_input = True
                 continue
@@ -188,7 +192,7 @@ def xla_backend(gm, example_inputs, options=None):
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
-    experimental_compile_default = False
+    experimental_compile_default = True
     experimental_compile_enabled = (
         options.get("tt_experimental_compile", experimental_compile_default)
         if options
