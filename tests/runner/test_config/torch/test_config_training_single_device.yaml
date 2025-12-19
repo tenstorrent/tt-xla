@@ -707,7 +707,9 @@ test_config:
   dla/pytorch-dla34.in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   googlenet/pytorch-googlenet-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   resnet/pytorch-resnet_50_hf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   resnet/pytorch-resnet_50_hf_high_res-single_device-full-training:
@@ -1184,7 +1186,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
   gemma/pytorch-google/gemma-2b-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   gemma/pytorch-google/gemma-2-2b-it-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
