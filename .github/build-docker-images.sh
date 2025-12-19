@@ -31,7 +31,7 @@ else
 fi
 
 echo "Ensure tt-mlir docker images with tag: $MLIR_DOCKER_TAG exist"
-if ! ./.github/build-docker-images.sh ci --check-only; then
+if ! ./.github/build-docker-images.sh all --check-only; then
     if [ "$CHECK_ONLY" = false ]; then
         echo -e "\033[31mDocker image does not exist.\033[0m"
         echo -e "\033[31mYou should build tt-mlir docker image for sha $tt_mlir_sha first, and then rerun the tt-xla workflow.\033[0m"
