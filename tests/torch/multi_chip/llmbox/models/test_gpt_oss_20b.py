@@ -67,9 +67,9 @@ def mark_sharding_on_inputs_and_model(model: torch.nn.Module, mesh: Mesh):
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
         # sinks shape: [4096] -> local. rowwise
-        xs.mark_sharding(layer.self_attn.sinks, mesh, ("model",))
+        xs.mark_sharding(layer.self_attn.sinks, mesh, (None,))
 
-        xs.mark_sharding(layer.mlp.router.weight, mesh, (None, "model"))
+        xs.mark_sharding(layer.mlp.router.weight, mesh, (None, None))
 
         # Shard experts across devices: 32 / 8 ->. 4 expert per device
         xs.mark_sharding(layer.mlp.experts.gate_up_proj, mesh, ("model", None, None))
