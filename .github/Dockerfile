@@ -19,6 +19,13 @@ SHELL ["/bin/bash", "-c"]
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Install clang 17
+RUN dnf install --refresh -y clang llvm llvm-devel llvm-toolset && \
+    ln -s /usr/bin/clang-17 /usr/bin/clang && \
+    ln -s /usr/bin/clang++-17 /usr/bin/clang++ && \
+    ln -s /usr/bin/clangd-17 /usr/bin/clangd
+# libcxx libcxx-devel
+
 # Install requirements.txt as global Python 3.11 packages
 COPY python_package/requirements.txt /tmp/requirements.txt
 COPY venv/requirements-dev.txt /tmp/requirements-dev.txt

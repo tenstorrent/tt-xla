@@ -17,8 +17,7 @@ if [ "$1" == "dnf" ]; then
     # For Mulitlinux based images
     pkg_install \
         protobuf-devel \
-        ffmpeg-free \
-        clang clang-devel clang-tools-extra
+        ffmpeg-free
 #        gcc-toolset-12 \
 else
     # For Ubuntu based images
