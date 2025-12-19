@@ -9,13 +9,23 @@ set -e
 # Model dependencies:
 # - Whisper and Wav2Vec2 : ffmpeg
 pkg_install \
-    g++-12 \
     git-lfs \
     patchelf \
-    protobuf-compiler \
-    libprotobuf-dev \
-    xxd \
-    ffmpeg
+    protobuf-compiler
+
+if [ "$1" == "dnf" ]; then
+    # For Mulitlinux based images
+    pkg_install \
+        protobuf-devel \
+        ffmpeg-free
+#        gcc-toolset-12 \
+else
+    # For Ubuntu based images
+    pkg_install \
+        libprotobuf-dev \
+        ffmpeg
+#        g++-12 \
+fi
 
 ln -sf /usr/bin/FileCheck-17 /usr/bin/FileCheck
 

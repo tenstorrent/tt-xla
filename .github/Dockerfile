@@ -10,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY python_package/requirements.txt /tmp/requirements.txt
 COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
-RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh && \
+RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-manylinux-2-34:${MLIR_TAG} AS ci
@@ -23,19 +23,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY python_package/requirements.txt /tmp/requirements.txt
 COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
-# RUN dnf install --refresh -y g++-12
-RUN dnf install --refresh -y git-lfs
-RUN dnf install --refresh -y patchelf
-RUN dnf install --refresh -y protobuf-compiler
-# RUN dnf install --refresh -y libprotobuf-dev
-# RUN dnf install --refresh -y xxd
-# RUN dnf install --refresh -y ffmpeg
-RUN dnf install --refresh -y protobuf-devel
-RUN dnf install --refresh -y vim-common
-RUN dnf install --refresh -y ffmpeg-free
-
-# RUN pkg_install() { dnf check-update && dnf install --refresh -y "$@"; } && export -f pkg_install && /tmp/script.sh && \
-#     rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
+RUN pkg_install() { dnf check-update && dnf install --refresh -y "$@"; } && export -f pkg_install && /tmp/script.sh dnf && \
+    rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${MLIR_TAG} AS ird
 SHELL ["/bin/bash", "-c"]
@@ -47,7 +36,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY python_package/requirements.txt /tmp/requirements.txt
 COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
-RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh && \
+RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
 
 # Add entrypoint script
