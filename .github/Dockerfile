@@ -29,7 +29,10 @@ RUN dnf install --refresh -y patchelf
 RUN dnf install --refresh -y protobuf-compiler
 # RUN dnf install --refresh -y libprotobuf-dev
 # RUN dnf install --refresh -y xxd
-RUN dnf install --refresh -y ffmpeg
+# RUN dnf install --refresh -y ffmpeg
+RUN dnf install --refresh -y protobuf-devel
+RUN dnf install --refresh -y vim-common
+RUN dnf install --refresh -y ffmpeg-free
 
 # RUN pkg_install() { dnf check-update && dnf install --refresh -y "$@"; } && export -f pkg_install && /tmp/script.sh && \
 #     rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
