@@ -23,7 +23,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY python_package/requirements.txt /tmp/requirements.txt
 COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
-RUN dnf check-update
 RUN dnf install --refresh -y g++-12 git-lfs
 RUN dnf install --refresh -y g++-12 patchelf
 RUN dnf install --refresh -y g++-12 protobuf-compiler
