@@ -26,7 +26,7 @@ COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 # RUN dnf install --refresh -y g++-12
 RUN dnf install --refresh -y git-lfs
 RUN dnf install --refresh -y patchelf
-RUN dnf install --refresh -y protobuf-compiler
+# RUN dnf install --refresh -y protobuf-compiler
 RUN dnf install --refresh -y libprotobuf-dev
 RUN dnf install --refresh -y xxd
 RUN dnf install --refresh -y ffmpeg
