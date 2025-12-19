@@ -13,7 +13,7 @@ COPY .github/docker_install.sh /tmp/script.sh
 RUN alias pkg_install="apt-get update && apt-get install -y" && source /tmp/script.sh && \
     rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
 
-FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-manylinux-2-34:${FROM_TAG} AS ci
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-manylinux-2-34:${MLIR_TAG} AS ci
 SHELL ["/bin/bash", "-c"]
 
 # Set environment variables
@@ -26,7 +26,7 @@ COPY .github/docker_install.sh /tmp/script.sh
 RUN alias pkg_install="dnf check-update && dnf install --refresh -y" && source /tmp/script.sh && \
     rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
 
-FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${FROM_TAG} AS ird
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${MLIR_TAG} AS ird
 SHELL ["/bin/bash", "-c"]
 
 # Set environment variables
