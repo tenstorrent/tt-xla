@@ -1,17 +1,24 @@
+from . import utils
 import ttnn
-import utils
 import time
 import torch
 import numpy as np
 from transformers import CLIPVisionModelWithProjection, AutoProcessor
 from transformers.image_utils import load_image
 
-from loader import load_inputs_for_clipvision_ttnn
-from model import *
-from consteval import *
+from .loader import load_inputs_for_clipvision_ttnn
+from .model import *
+from .consteval import *
 
+from tracy import signpost
 
-def main():
+import pytest
+
+@pytest.mark.parametrize(
+    "device_params", [{"l1_small_size": 32*1024}], indirect=True
+)
+@pytest.mark.parametrize("mesh_device", [1], indirect=True)  
+def test_main(mesh_device):
     # Load input tensor
     input_torch = get_input()
 
@@ -24,34 +31,34 @@ def main():
     input_ttnn_host = ttnn.to_dtype(input_ttnn_host, ttnn.DataType.BFLOAT16)
 
     # Load params
-    inputs_for_clipvision_ttnn = load_inputs_for_clipvision_ttnn()
-
-    # Get device
-    device = utils.DeviceGetter.get_device((1, 1))
+    inputs_for_clipvision_ttnn = load_inputs_for_clipvision_ttnn(mesh_device=mesh_device)
 
     # Run ttnn model
     for i in range(10):
         start_time = time.time()
 
+        signpost(f"ttnn_model_start_{i}")
         # Move input to device and override the input (activation) tensor in tensor list
-        input_ttnn_device = ttnn.to_device(input_ttnn_host, device, ttnn.MemoryConfig(
+        input_ttnn_device = ttnn.to_device(input_ttnn_host, mesh_device, ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ))
         inputs_for_clipvision_ttnn[152] = input_ttnn_device
 
         # Run ttnn model
-        out = run_ttnn_model(inputs_for_clipvision_ttnn)
+        out = run_ttnn_model(mesh_device, inputs_for_clipvision_ttnn)
 
         # Get outputs
         out_img_embeddings = ttnn.from_device(out[0], blocking=True)
         out_last_hidden_state = ttnn.from_device(out[1], blocking=True)
+        signpost(f"ttnn_model_end_{i}")
+
+        # ttnn.synchronize_device(device) ## <==
 
         end_time = time.time()
 
         # Calculate FPS and PCC
         fps = (2.0 / (end_time - start_time))  # batch size is 2
         pcc = utils.calculate_pcc(output_torch['image_embeds'], ttnn.to_torch(out_img_embeddings))
-
         # Print results
         print(f"FPS for iteration {i}: {fps:.2f}")
         print(f"PCC for iteration {i}: {pcc:.6f}")
@@ -92,7 +99,7 @@ def run_pytorch_model(input):
     return outputs
 
 
-def run_ttnn_model(input):
+def run_ttnn_model(mesh_device, input):
     # Unpack all inputs
     input_0 = input[0]
     input_1 = input[1]
@@ -297,8 +304,13 @@ def run_ttnn_model(input):
     input_200 = input[200]
     input_201 = input[201]
     
+    ttnn.ReadDeviceProfiler(mesh_device)
+    signpost("const_eval_start")
     # Execute all const_eval functions and get results
-    ce = execute_all_const_evals(input)
+    ce = execute_all_const_evals(mesh_device, input)
+    signpost("const_eval_end")
+
+    ttnn.ReadDeviceProfiler(mesh_device)
 
     # Map const_eval results to their variable names (for backward compatibility)
     utils_constEvalFuncWrapperZeroArg_0_0 = ce[0][0]
@@ -470,13 +482,14 @@ def run_ttnn_model(input):
     utils_constEvalFuncWrapperZeroArg_4_9 = ce[119][9]
     utils_constEvalFuncWrapperZeroArg_4_10 = ce[119][10]
     utils_constEvalFuncWrapperZeroArg_4_11 = ce[119][11]
-    utils_DeviceGetter_get_device_7 = utils.DeviceGetter.get_device((1, 1))
 
+    ttnn.ReadDeviceProfiler(mesh_device)
+    
     # Model code
     CLIPVisionEmbeddings_0_0_0 = CLIPVisionEmbeddings_0_0(
         utils_constEvalFuncWrapper_78_0,
         utils_constEvalFuncWrapper_9_0,
-        utils_DeviceGetter_get_device_7,
+        mesh_device,
         input_152,
         utils_constEvalFuncWrapper_111_0,
     )
@@ -789,6 +802,9 @@ def run_ttnn_model(input):
     QuickGELUActivation_72_0_0 = QuickGELUActivation_72_0(
         Linear_71_0_0, utils_constEvalFuncWrapperZeroArg_4_5
     )
+    signpost("mid")
+    ttnn.ReadDeviceProfiler(mesh_device)
+
     Linear_73_0_0 = Linear_73_0(
         QuickGELUActivation_72_0_0, utils_constEvalFuncWrapper_37_0, input_76
     )

@@ -1,1372 +1,1377 @@
 # This file loads the parameters and returns them as a list of TTNN tensors
 
 import ttnn
-import utils
+from . import utils
+import os
+
+# Get the directory where this file is located
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_TENSORS_DIR = os.path.join(_CURRENT_DIR, "tensors")
 
 
-def load_inputs_for_clipvision_ttnn():
-    utils_DeviceGetter_get_device_8 = utils.DeviceGetter.get_device((1, 1))
+def load_inputs_for_clipvision_ttnn(mesh_device):
+
     utils_load_tensor_0 = utils.load_tensor(
-        "./tensors/arg0.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg0.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_1 = utils.load_tensor(
-        "./tensors/arg1.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg1.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_2 = utils.load_tensor(
-        "./tensors/arg2.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg2.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_3 = utils.load_tensor(
-        "./tensors/arg3.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg3.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_4 = utils.load_tensor(
-        "./tensors/arg4.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg4.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_5 = utils.load_tensor(
-        "./tensors/arg5.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg5.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_6 = utils.load_tensor(
-        "./tensors/arg6.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg6.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_7 = utils.load_tensor(
-        "./tensors/arg7.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg7.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_8 = utils.load_tensor(
-        "./tensors/arg8.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg8.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_9 = utils.load_tensor(
-        "./tensors/arg9.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg9.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_10 = utils.load_tensor(
-        "./tensors/arg10.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg10.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_11 = utils.load_tensor(
-        "./tensors/arg11.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg11.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_12 = utils.load_tensor(
-        "./tensors/arg12.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg12.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_13 = utils.load_tensor(
-        "./tensors/arg13.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg13.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_14 = utils.load_tensor(
-        "./tensors/arg14.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg14.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_15 = utils.load_tensor(
-        "./tensors/arg15.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg15.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_16 = utils.load_tensor(
-        "./tensors/arg16.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg16.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_17 = utils.load_tensor(
-        "./tensors/arg17.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg17.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_18 = utils.load_tensor(
-        "./tensors/arg18.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg18.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_19 = utils.load_tensor(
-        "./tensors/arg19.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg19.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_20 = utils.load_tensor(
-        "./tensors/arg20.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg20.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_21 = utils.load_tensor(
-        "./tensors/arg21.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg21.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_22 = utils.load_tensor(
-        "./tensors/arg22.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg22.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_23 = utils.load_tensor(
-        "./tensors/arg23.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg23.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_24 = utils.load_tensor(
-        "./tensors/arg24.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg24.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_25 = utils.load_tensor(
-        "./tensors/arg25.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg25.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_26 = utils.load_tensor(
-        "./tensors/arg26.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg26.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_27 = utils.load_tensor(
-        "./tensors/arg27.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg27.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_28 = utils.load_tensor(
-        "./tensors/arg28.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg28.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_29 = utils.load_tensor(
-        "./tensors/arg29.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg29.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_30 = utils.load_tensor(
-        "./tensors/arg30.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg30.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_31 = utils.load_tensor(
-        "./tensors/arg31.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg31.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_32 = utils.load_tensor(
-        "./tensors/arg32.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg32.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_33 = utils.load_tensor(
-        "./tensors/arg33.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg33.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_34 = utils.load_tensor(
-        "./tensors/arg34.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg34.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_35 = utils.load_tensor(
-        "./tensors/arg35.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg35.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_36 = utils.load_tensor(
-        "./tensors/arg36.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg36.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_37 = utils.load_tensor(
-        "./tensors/arg37.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg37.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_38 = utils.load_tensor(
-        "./tensors/arg38.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg38.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_39 = utils.load_tensor(
-        "./tensors/arg39.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg39.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_40 = utils.load_tensor(
-        "./tensors/arg40.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg40.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_41 = utils.load_tensor(
-        "./tensors/arg41.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg41.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_42 = utils.load_tensor(
-        "./tensors/arg42.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg42.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_43 = utils.load_tensor(
-        "./tensors/arg43.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg43.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_44 = utils.load_tensor(
-        "./tensors/arg44.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg44.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_45 = utils.load_tensor(
-        "./tensors/arg45.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg45.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_46 = utils.load_tensor(
-        "./tensors/arg46.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg46.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_47 = utils.load_tensor(
-        "./tensors/arg47.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg47.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_48 = utils.load_tensor(
-        "./tensors/arg48.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg48.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_49 = utils.load_tensor(
-        "./tensors/arg49.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg49.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_50 = utils.load_tensor(
-        "./tensors/arg50.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg50.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_51 = utils.load_tensor(
-        "./tensors/arg51.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg51.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_52 = utils.load_tensor(
-        "./tensors/arg52.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg52.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_53 = utils.load_tensor(
-        "./tensors/arg53.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg53.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_54 = utils.load_tensor(
-        "./tensors/arg54.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg54.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_55 = utils.load_tensor(
-        "./tensors/arg55.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg55.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_56 = utils.load_tensor(
-        "./tensors/arg56.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg56.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_57 = utils.load_tensor(
-        "./tensors/arg57.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg57.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_58 = utils.load_tensor(
-        "./tensors/arg58.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg58.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_59 = utils.load_tensor(
-        "./tensors/arg59.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg59.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_60 = utils.load_tensor(
-        "./tensors/arg60.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg60.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_61 = utils.load_tensor(
-        "./tensors/arg61.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg61.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_62 = utils.load_tensor(
-        "./tensors/arg62.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg62.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_63 = utils.load_tensor(
-        "./tensors/arg63.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg63.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_64 = utils.load_tensor(
-        "./tensors/arg64.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg64.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_65 = utils.load_tensor(
-        "./tensors/arg65.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg65.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_66 = utils.load_tensor(
-        "./tensors/arg66.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg66.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_67 = utils.load_tensor(
-        "./tensors/arg67.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg67.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_68 = utils.load_tensor(
-        "./tensors/arg68.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg68.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_69 = utils.load_tensor(
-        "./tensors/arg69.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg69.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_70 = utils.load_tensor(
-        "./tensors/arg70.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg70.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_71 = utils.load_tensor(
-        "./tensors/arg71.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg71.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_72 = utils.load_tensor(
-        "./tensors/arg72.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg72.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_73 = utils.load_tensor(
-        "./tensors/arg73.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg73.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_74 = utils.load_tensor(
-        "./tensors/arg74.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg74.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_75 = utils.load_tensor(
-        "./tensors/arg75.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg75.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_76 = utils.load_tensor(
-        "./tensors/arg76.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg76.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_77 = utils.load_tensor(
-        "./tensors/arg77.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg77.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_78 = utils.load_tensor(
-        "./tensors/arg78.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg78.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_79 = utils.load_tensor(
-        "./tensors/arg79.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg79.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_80 = utils.load_tensor(
-        "./tensors/arg80.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg80.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_81 = utils.load_tensor(
-        "./tensors/arg81.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg81.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_82 = utils.load_tensor(
-        "./tensors/arg82.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg82.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_83 = utils.load_tensor(
-        "./tensors/arg83.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg83.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_84 = utils.load_tensor(
-        "./tensors/arg84.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg84.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_85 = utils.load_tensor(
-        "./tensors/arg85.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg85.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_86 = utils.load_tensor(
-        "./tensors/arg86.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg86.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_87 = utils.load_tensor(
-        "./tensors/arg87.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg87.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_88 = utils.load_tensor(
-        "./tensors/arg88.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg88.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_89 = utils.load_tensor(
-        "./tensors/arg89.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg89.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_90 = utils.load_tensor(
-        "./tensors/arg90.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg90.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_91 = utils.load_tensor(
-        "./tensors/arg91.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg91.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_92 = utils.load_tensor(
-        "./tensors/arg92.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg92.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_93 = utils.load_tensor(
-        "./tensors/arg93.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg93.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_94 = utils.load_tensor(
-        "./tensors/arg94.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg94.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_95 = utils.load_tensor(
-        "./tensors/arg95.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg95.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_96 = utils.load_tensor(
-        "./tensors/arg96.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg96.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_97 = utils.load_tensor(
-        "./tensors/arg97.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg97.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_98 = utils.load_tensor(
-        "./tensors/arg98.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg98.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_99 = utils.load_tensor(
-        "./tensors/arg99.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg99.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_100 = utils.load_tensor(
-        "./tensors/arg100.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg100.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_101 = utils.load_tensor(
-        "./tensors/arg101.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg101.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_102 = utils.load_tensor(
-        "./tensors/arg102.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg102.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_103 = utils.load_tensor(
-        "./tensors/arg103.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg103.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_104 = utils.load_tensor(
-        "./tensors/arg104.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg104.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_105 = utils.load_tensor(
-        "./tensors/arg105.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg105.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_106 = utils.load_tensor(
-        "./tensors/arg106.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg106.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_107 = utils.load_tensor(
-        "./tensors/arg107.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg107.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_108 = utils.load_tensor(
-        "./tensors/arg108.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg108.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_109 = utils.load_tensor(
-        "./tensors/arg109.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg109.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_110 = utils.load_tensor(
-        "./tensors/arg110.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg110.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_111 = utils.load_tensor(
-        "./tensors/arg111.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg111.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_112 = utils.load_tensor(
-        "./tensors/arg112.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg112.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_113 = utils.load_tensor(
-        "./tensors/arg113.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg113.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_114 = utils.load_tensor(
-        "./tensors/arg114.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg114.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_115 = utils.load_tensor(
-        "./tensors/arg115.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg115.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_116 = utils.load_tensor(
-        "./tensors/arg116.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg116.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_117 = utils.load_tensor(
-        "./tensors/arg117.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg117.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_118 = utils.load_tensor(
-        "./tensors/arg118.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg118.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_119 = utils.load_tensor(
-        "./tensors/arg119.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg119.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_120 = utils.load_tensor(
-        "./tensors/arg120.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg120.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_121 = utils.load_tensor(
-        "./tensors/arg121.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg121.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_122 = utils.load_tensor(
-        "./tensors/arg122.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg122.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_123 = utils.load_tensor(
-        "./tensors/arg123.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg123.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_124 = utils.load_tensor(
-        "./tensors/arg124.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg124.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_125 = utils.load_tensor(
-        "./tensors/arg125.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg125.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_126 = utils.load_tensor(
-        "./tensors/arg126.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg126.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_127 = utils.load_tensor(
-        "./tensors/arg127.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg127.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_128 = utils.load_tensor(
-        "./tensors/arg128.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg128.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_129 = utils.load_tensor(
-        "./tensors/arg129.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg129.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_130 = utils.load_tensor(
-        "./tensors/arg130.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg130.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_131 = utils.load_tensor(
-        "./tensors/arg131.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg131.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_132 = utils.load_tensor(
-        "./tensors/arg132.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg132.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_133 = utils.load_tensor(
-        "./tensors/arg133.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg133.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_134 = utils.load_tensor(
-        "./tensors/arg134.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg134.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_135 = utils.load_tensor(
-        "./tensors/arg135.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg135.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_136 = utils.load_tensor(
-        "./tensors/arg136.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg136.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_137 = utils.load_tensor(
-        "./tensors/arg137.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg137.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_138 = utils.load_tensor(
-        "./tensors/arg138.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg138.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_139 = utils.load_tensor(
-        "./tensors/arg139.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg139.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_140 = utils.load_tensor(
-        "./tensors/arg140.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg140.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_141 = utils.load_tensor(
-        "./tensors/arg141.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg141.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_142 = utils.load_tensor(
-        "./tensors/arg142.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg142.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_143 = utils.load_tensor(
-        "./tensors/arg143.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg143.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_144 = utils.load_tensor(
-        "./tensors/arg144.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg144.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_145 = utils.load_tensor(
-        "./tensors/arg145.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg145.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_146 = utils.load_tensor(
-        "./tensors/arg146.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg146.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_147 = utils.load_tensor(
-        "./tensors/arg147.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg147.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_148 = utils.load_tensor(
-        "./tensors/arg148.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg148.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_149 = utils.load_tensor(
-        "./tensors/arg149.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg149.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.INT32,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_150 = utils.load_tensor(
-        "./tensors/arg150.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg150.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_151 = utils.load_tensor(
-        "./tensors/arg151.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg151.tensorbin"),
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -1375,451 +1380,451 @@ def load_inputs_for_clipvision_ttnn():
     # Don't load activation tensor, it will be loaded in main() function
     utils_load_tensor_152 = None
     # utils_load_tensor_152 = utils.load_tensor(
-    #     "./tensors/arg152.tensorbin",
+    #     os.path.join(_TENSORS_DIR, "arg152.tensorbin"),
     #     ttnn.Layout.TILE,
     #     ttnn.DataType.BFLOAT16,
-    #     utils_DeviceGetter_get_device_8,
+    #     mesh_device,
     #     ttnn.MemoryConfig(
     #         ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
     #     ),
     # )
     utils_load_tensor_153 = utils.load_tensor(
-        "./tensors/arg153.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg153.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_154 = utils.load_tensor(
-        "./tensors/arg154.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg154.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_155 = utils.load_tensor(
-        "./tensors/arg155.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg155.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_156 = utils.load_tensor(
-        "./tensors/arg156.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg156.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_157 = utils.load_tensor(
-        "./tensors/arg157.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg157.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_158 = utils.load_tensor(
-        "./tensors/arg158.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg158.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_159 = utils.load_tensor(
-        "./tensors/arg159.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg159.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_160 = utils.load_tensor(
-        "./tensors/arg160.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg160.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_161 = utils.load_tensor(
-        "./tensors/arg161.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg161.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_162 = utils.load_tensor(
-        "./tensors/arg162.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg162.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_163 = utils.load_tensor(
-        "./tensors/arg163.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg163.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_164 = utils.load_tensor(
-        "./tensors/arg164.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg164.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_165 = utils.load_tensor(
-        "./tensors/arg165.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg165.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_166 = utils.load_tensor(
-        "./tensors/arg166.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg166.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_167 = utils.load_tensor(
-        "./tensors/arg167.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg167.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_168 = utils.load_tensor(
-        "./tensors/arg168.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg168.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_169 = utils.load_tensor(
-        "./tensors/arg169.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg169.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_170 = utils.load_tensor(
-        "./tensors/arg170.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg170.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_171 = utils.load_tensor(
-        "./tensors/arg171.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg171.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_172 = utils.load_tensor(
-        "./tensors/arg172.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg172.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_173 = utils.load_tensor(
-        "./tensors/arg173.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg173.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_174 = utils.load_tensor(
-        "./tensors/arg174.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg174.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_175 = utils.load_tensor(
-        "./tensors/arg175.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg175.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_176 = utils.load_tensor(
-        "./tensors/arg176.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg176.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_177 = utils.load_tensor(
-        "./tensors/arg177.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg177.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_178 = utils.load_tensor(
-        "./tensors/arg178.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg178.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_179 = utils.load_tensor(
-        "./tensors/arg179.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg179.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_180 = utils.load_tensor(
-        "./tensors/arg180.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg180.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_181 = utils.load_tensor(
-        "./tensors/arg181.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg181.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_182 = utils.load_tensor(
-        "./tensors/arg182.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg182.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_183 = utils.load_tensor(
-        "./tensors/arg183.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg183.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_184 = utils.load_tensor(
-        "./tensors/arg184.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg184.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_185 = utils.load_tensor(
-        "./tensors/arg185.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg185.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_186 = utils.load_tensor(
-        "./tensors/arg186.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg186.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_187 = utils.load_tensor(
-        "./tensors/arg187.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg187.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_188 = utils.load_tensor(
-        "./tensors/arg188.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg188.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_189 = utils.load_tensor(
-        "./tensors/arg189.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg189.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_190 = utils.load_tensor(
-        "./tensors/arg190.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg190.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_191 = utils.load_tensor(
-        "./tensors/arg191.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg191.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_192 = utils.load_tensor(
-        "./tensors/arg192.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg192.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_193 = utils.load_tensor(
-        "./tensors/arg193.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg193.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_194 = utils.load_tensor(
-        "./tensors/arg194.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg194.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_195 = utils.load_tensor(
-        "./tensors/arg195.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg195.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_196 = utils.load_tensor(
-        "./tensors/arg196.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg196.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_197 = utils.load_tensor(
-        "./tensors/arg197.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg197.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_198 = utils.load_tensor(
-        "./tensors/arg198.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg198.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_199 = utils.load_tensor(
-        "./tensors/arg199.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg199.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_200 = utils.load_tensor(
-        "./tensors/arg200.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg200.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     utils_load_tensor_201 = utils.load_tensor(
-        "./tensors/arg201.tensorbin",
+        os.path.join(_TENSORS_DIR, "arg201.tensorbin"),
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
-        utils_DeviceGetter_get_device_8,
+        mesh_device,
         ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),

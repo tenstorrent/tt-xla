@@ -2875,7 +2875,7 @@ def CLIPVisionEmbeddings_0_0(input_0, input_1, input_2, input_3, input_4):
             output_layout=ttnn.Layout.TILE,
             enable_act_double_buffer=False,
             enable_weights_double_buffer=False,
-            in_place=False,
+            # in_place=False,
             enable_kernel_stride_folding=False,
         ),
         compute_config=None,
