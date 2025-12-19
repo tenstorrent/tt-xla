@@ -16,57 +16,64 @@
 
 namespace tt::pjrt::tests {
 
+// Literals used in tests.
+static constexpr std::int64_t DEFAULT_DIMS[] = {2, 3, 4};
+static constexpr size_t DEFAULT_NUM_DIMS = 3;
+static constexpr PJRT_Buffer_Type DEFAULT_DATA_TYPE = PJRT_Buffer_Type_F32;
+
 // Specialization of PJRTComponentUnitTestsBase ensures that BufferInstance
 // unit tests will be scoped to their own test suite.
 class BufferInstanceUnitTests : public PJRTComponentUnitTests {
 protected:
-  // Helper dimensions for buffer creation.
-  static constexpr std::int64_t DEFAULT_DIMS[] = {2, 3, 4};
-  static constexpr size_t DEFAULT_NUM_DIMS = 3;
-  static constexpr PJRT_Buffer_Type DEFAULT_DATA_TYPE = PJRT_Buffer_Type_F32;
+  // Runs before every test.
+  void SetUp() override {
+    PJRTComponentUnitTests::SetUp();
+    m_buffer = createInputBuffer();
+  }
 
-  // Helper to create a default input buffer for testing.
-  std::unique_ptr<BufferInstance> createDefaultInputBuffer() {
+  // Helper that creates an input buffer with default arguments.
+  std::unique_ptr<BufferInstance> createInputBuffer() {
     return BufferInstance::createInputBufferInstance(
         DEFAULT_DATA_TYPE, DEFAULT_DIMS, DEFAULT_NUM_DIMS, m_device.get(),
         m_default_memory.get());
   }
+
+  // Buffer that is unique per-test.
+  std::unique_ptr<BufferInstance> m_buffer;
 };
 
 // Tests successful creation of input buffer instances with valid parameters.
 TEST_F(BufferInstanceUnitTests, createInputBufferInstance_successCase) {
-  auto buffer = createDefaultInputBuffer();
-  ASSERT_NE(buffer, nullptr);
-  EXPECT_EQ(buffer->getDataType(), DEFAULT_DATA_TYPE);
-  EXPECT_EQ(buffer->getNumberOfDimensions(), DEFAULT_NUM_DIMS);
-  EXPECT_EQ(buffer->getDevice(), m_device.get());
-  EXPECT_EQ(buffer->getMemory(), m_default_memory.get());
-  EXPECT_FALSE(buffer->isDataDeleted());
+  ASSERT_NE(m_buffer, nullptr);
+  EXPECT_EQ(m_buffer->getDataType(), DEFAULT_DATA_TYPE);
+  EXPECT_EQ(m_buffer->getNumberOfDimensions(), DEFAULT_NUM_DIMS);
+  EXPECT_EQ(m_buffer->getDevice(), m_device.get());
+  EXPECT_EQ(m_buffer->getMemory(), m_default_memory.get());
+  EXPECT_FALSE(m_buffer->getHostRuntimeTensor().has_value());
+  EXPECT_FALSE(m_buffer->isDataDeleted());
+  EXPECT_FALSE(m_buffer->toShapeStr().empty());
 }
 
 // Tests casting BufferInstance to raw PJRT_Buffer pointer.
 TEST_F(BufferInstanceUnitTests, castToPJRTBuffer) {
-  auto buffer = createDefaultInputBuffer();
-  PJRT_Buffer *pjrt_buffer = *buffer;
+  PJRT_Buffer *pjrt_buffer = *m_buffer;
   EXPECT_NE(pjrt_buffer, nullptr);
-  EXPECT_EQ(static_cast<void *>(buffer.get()),
+  EXPECT_EQ(static_cast<void *>(m_buffer.get()),
             static_cast<void *>(pjrt_buffer));
 }
 
 // Tests "unwrapping" raw PJRT_Buffer pointer back to BufferInstance.
 // Verifies the unwrapped instance matches the original.
 TEST_F(BufferInstanceUnitTests, unwrapPJRTBuffer) {
-  auto buffer = createDefaultInputBuffer();
-  PJRT_Buffer *pjrt_buffer = *buffer;
-  BufferInstance *unwrapped = BufferInstance::unwrap(pjrt_buffer);
+  PJRT_Buffer *pjrt_buffer = *m_buffer;
+  const BufferInstance *unwrapped = BufferInstance::unwrap(pjrt_buffer);
   ASSERT_NE(unwrapped, nullptr);
-  EXPECT_EQ(unwrapped, buffer.get());
+  EXPECT_EQ(unwrapped, m_buffer.get());
 }
 
 // Tests that dimensions are correctly stored and retrievable.
 TEST_F(BufferInstanceUnitTests, getDimensionsRaw) {
-  auto buffer = createDefaultInputBuffer();
-  const int64_t *dims = buffer->getDimensionsRaw();
+  const int64_t *dims = m_buffer->getDimensionsRaw();
   ASSERT_NE(dims, nullptr);
   for (size_t i = 0; i < DEFAULT_NUM_DIMS; ++i) {
     EXPECT_EQ(dims[i], DEFAULT_DIMS[i]);
@@ -75,41 +82,29 @@ TEST_F(BufferInstanceUnitTests, getDimensionsRaw) {
 
 // Tests that unique ID is assigned to each buffer instance.
 TEST_F(BufferInstanceUnitTests, getUID_unique) {
-  auto buffer1 = createDefaultInputBuffer();
-  auto buffer2 = createDefaultInputBuffer();
-  EXPECT_NE(buffer1->getUID(), buffer2->getUID());
+  std::unique_ptr<BufferInstance> another_buffer = createInputBuffer();
+  EXPECT_NE(m_buffer->getUID(), another_buffer->getUID());
 }
 
 // Tests deleting buffer data.
 TEST_F(BufferInstanceUnitTests, deleteData) {
-  auto buffer = createDefaultInputBuffer();
-  EXPECT_FALSE(buffer->isDataDeleted());
-  buffer->deleteData();
-  EXPECT_TRUE(buffer->isDataDeleted());
+  EXPECT_FALSE(m_buffer->isDataDeleted());
+  m_buffer->deleteData();
+  EXPECT_TRUE(m_buffer->isDataDeleted());
 }
 
 // Tests that deleting data multiple times is safe.
 TEST_F(BufferInstanceUnitTests, deleteData_multipleCallsSafe) {
-  auto buffer = createDefaultInputBuffer();
-  buffer->deleteData();
-  buffer->deleteData(); // should not crash
-  EXPECT_TRUE(buffer->isDataDeleted());
-}
-
-// Tests toShapeStr returns a non-empty string.
-TEST_F(BufferInstanceUnitTests, toShapeStr) {
-  auto buffer = createDefaultInputBuffer();
-  std::string shape_str = buffer->toShapeStr();
-  EXPECT_FALSE(shape_str.empty());
+  m_buffer->deleteData();
+  m_buffer->deleteData(); // should not crash
+  EXPECT_TRUE(m_buffer->isDataDeleted());
 }
 
 // Tests PJRT API for getting buffer element type.
 TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_ElementType) {
-  auto buffer = createDefaultInputBuffer();
-
   PJRT_Buffer_ElementType_Args args;
   args.struct_size = PJRT_Buffer_ElementType_Args_STRUCT_SIZE;
-  args.buffer = *buffer;
+  args.buffer = *m_buffer;
   args.type = PJRT_Buffer_Type_INVALID; // intentionally different
 
   PJRT_Error *error = internal::onBufferElementType(&args);
@@ -119,11 +114,9 @@ TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_ElementType) {
 
 // Tests PJRT API for getting buffer dimensions.
 TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_Dimensions) {
-  auto buffer = createDefaultInputBuffer();
-
   PJRT_Buffer_Dimensions_Args args;
   args.struct_size = PJRT_Buffer_Dimensions_Args_STRUCT_SIZE;
-  args.buffer = *buffer;
+  args.buffer = *m_buffer;
   args.dims = nullptr;
   args.num_dims = 0;
 
@@ -138,11 +131,9 @@ TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_Dimensions) {
 
 // Tests PJRT API for getting unpadded dimensions.
 TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_UnpaddedDimensions) {
-  auto buffer = createDefaultInputBuffer();
-
   PJRT_Buffer_UnpaddedDimensions_Args args;
   args.struct_size = PJRT_Buffer_UnpaddedDimensions_Args_STRUCT_SIZE;
-  args.buffer = *buffer;
+  args.buffer = *m_buffer;
   args.unpadded_dims = nullptr;
   args.num_dims = 0;
 
@@ -150,8 +141,7 @@ TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_UnpaddedDimensions) {
   ASSERT_EQ(error, nullptr);
   EXPECT_EQ(args.num_dims, DEFAULT_NUM_DIMS);
   ASSERT_NE(args.unpadded_dims, nullptr);
-  // Since we don't support dynamic dimensions with padding yet,
-  // unpadded_dims should match dims.
+  // DEVNOTE: Dynamic dimensions with padding are not supported.
   for (size_t i = 0; i < DEFAULT_NUM_DIMS; ++i) {
     EXPECT_EQ(args.unpadded_dims[i], DEFAULT_DIMS[i]);
   }
@@ -159,47 +149,43 @@ TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_UnpaddedDimensions) {
 
 // Tests PJRT API for getting dynamic dimension indices.
 TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_DynamicDimensionIndices) {
-  auto buffer = createDefaultInputBuffer();
-
   PJRT_Buffer_DynamicDimensionIndices_Args args;
   args.struct_size = PJRT_Buffer_DynamicDimensionIndices_Args_STRUCT_SIZE;
-  args.buffer = *buffer;
+  args.buffer = *m_buffer;
 
   PJRT_Error *error = internal::onBufferDynamicDimensionIndices(&args);
   ASSERT_EQ(error, nullptr);
-  // We don't support dynamic dimensions yet.
+  // DEVNOTE: Dynamic dimensions are not supported.
   EXPECT_EQ(args.num_dynamic_dims, 0);
   EXPECT_EQ(args.dynamic_dim_indices, nullptr);
 }
 
-// Tests PJRT API for deleting buffer.
+// Tests PJRT API for data deletion.
 TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_Delete) {
-  auto buffer = createDefaultInputBuffer();
-  EXPECT_FALSE(buffer->isDataDeleted());
+  EXPECT_FALSE(m_buffer->isDataDeleted());
 
   PJRT_Buffer_Delete_Args args;
   args.struct_size = PJRT_Buffer_Delete_Args_STRUCT_SIZE;
-  args.buffer = *buffer;
+  args.buffer = *m_buffer;
 
   PJRT_Error *error = internal::onBufferDelete(&args);
   ASSERT_EQ(error, nullptr);
-  EXPECT_TRUE(buffer->isDataDeleted());
+  EXPECT_TRUE(m_buffer->isDataDeleted());
 }
 
-// Tests PJRT API for checking if buffer is deleted.
+// Tests PJRT API for checking if buffer data is deleted.
 TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_IsDeleted) {
-  auto buffer = createDefaultInputBuffer();
-
   PJRT_Buffer_IsDeleted_Args args;
   args.struct_size = PJRT_Buffer_IsDeleted_Args_STRUCT_SIZE;
-  args.buffer = *buffer;
+  args.buffer = *m_buffer;
   args.is_deleted = true; // intentionally different
 
   PJRT_Error *error = internal::onBufferIsDeleted(&args);
   ASSERT_EQ(error, nullptr);
   EXPECT_FALSE(args.is_deleted);
 
-  buffer->deleteData();
+  m_buffer->deleteData();
+
   error = internal::onBufferIsDeleted(&args);
   ASSERT_EQ(error, nullptr);
   EXPECT_TRUE(args.is_deleted);
@@ -207,26 +193,22 @@ TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_IsDeleted) {
 
 // Tests PJRT API for checking if buffer is on CPU.
 TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_IsOnCpu) {
-  auto buffer = createDefaultInputBuffer();
-
   PJRT_Buffer_IsOnCpu_Args args;
   args.struct_size = PJRT_Buffer_IsOnCpu_Args_STRUCT_SIZE;
-  args.buffer = *buffer;
+  args.buffer = *m_buffer;
   args.is_on_cpu = true; // intentionally different
 
   PJRT_Error *error = internal::onBufferIsOnCpu(&args);
   ASSERT_EQ(error, nullptr);
-  // Currently all our inputs are transferred to device where computation runs.
+  // Currently all our inputs are transferred to device for computation.
   EXPECT_FALSE(args.is_on_cpu);
 }
 
-// Tests PJRT API for getting buffer device.
+// Tests PJRT API for getting buffer's owning device.
 TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_Device) {
-  auto buffer = createDefaultInputBuffer();
-
   PJRT_Buffer_Device_Args args;
   args.struct_size = PJRT_Buffer_Device_Args_STRUCT_SIZE;
-  args.buffer = *buffer;
+  args.buffer = *m_buffer;
   args.device = nullptr;
 
   PJRT_Error *error = internal::onBufferDevice(&args);
@@ -235,13 +217,11 @@ TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_Device) {
   EXPECT_EQ(DeviceInstance::unwrap(args.device), m_device.get());
 }
 
-// Tests PJRT API for getting buffer memory.
+// Tests PJRT API for getting buffer's owning memory.
 TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_Memory) {
-  auto buffer = createDefaultInputBuffer();
-
   PJRT_Buffer_Memory_Args args;
   args.struct_size = PJRT_Buffer_Memory_Args_STRUCT_SIZE;
-  args.buffer = *buffer;
+  args.buffer = *m_buffer;
   args.memory = nullptr;
 
   PJRT_Error *error = internal::onBufferMemory(&args);
@@ -252,9 +232,8 @@ TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_Memory) {
 
 // Tests PJRT API for destroying buffer.
 TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_Destroy) {
-  // Create buffer on heap since destroy will delete it.
-  auto buffer = createDefaultInputBuffer();
-  BufferInstance *buffer_ptr = buffer.release();
+  // Release m_buffer since onBufferDestroy will delete it.
+  BufferInstance *buffer_ptr = m_buffer.release();
 
   PJRT_Buffer_Destroy_Args args;
   args.struct_size = PJRT_Buffer_Destroy_Args_STRUCT_SIZE;
@@ -262,7 +241,7 @@ TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_Destroy) {
 
   // Should not crash and should properly delete the buffer.
   PJRT_Error *error = internal::onBufferDestroy(&args);
-  EXPECT_EQ(error, nullptr);
+  ASSERT_EQ(error, nullptr);
 }
 
 } // namespace tt::pjrt::tests
