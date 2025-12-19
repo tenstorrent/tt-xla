@@ -18,7 +18,7 @@ on:
           - 'model-test-passing.json'
           - 'model-test-xfail.json'
           - 'model-test-experimental.json'
-          - 'model-test-training.json'
+          - 'model-test-training-xfail-weekly.json'
           - 'model-test-extended.json'
           - 'basic-test.json:model-test-push.json:model-test-extended.json' # used for uplifts
           - 'vllm-model-tests.json'
