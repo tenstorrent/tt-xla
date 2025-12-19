@@ -132,6 +132,12 @@ class TTPlatform(Platform):
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationLevel, CUDAGraphMode
 
+        # Use AscendScheduler as the default scheduler for TT (except for pooling models)
+        if vllm_config.model_config.runner_type != "pooling":
+            vllm_config.scheduler_config.scheduler_cls = (
+                "vllm_tt.scheduler.AscendScheduler"
+            )
+
         cache_config = vllm_config.cache_config
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
