@@ -14,21 +14,21 @@
 /.github/ @vmilosevic @kmabeeTT @nsumrakTT @vvukomanTT
 
 # Tests
-/tests/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
-/tests/infra/utilities/failing_reasons/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @vbrkicTT @vobojevicTT @kmilanovicTT @nvukobratTT @dgolubovicTT
-pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
-.test_durations @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
+/tests/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @acicovicTT
+/tests/infra/utilities/failing_reasons/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @vbrkicTT @vobojevicTT @kmilanovicTT @nvukobratTT @dgolubovicTT @acicovicTT
+pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @acicovicTT
+.test_durations @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @acicovicTT
 
 # Model tests configs
-/tests/runner/test_config/ @AleksKnezevic @nvukobratTT @ajakovljevicTT @jameszianxuTT @kmabeeTT @mrakitaTT @mstojkovicTT @ndrakulicTT @ppadjinTT @sdjukicTT @sgligorijevicTT @vkovinicTT @vzeljkovicTT
+/tests/runner/test_config/ @AleksKnezevic @nvukobratTT @ajakovljevicTT @jameszianxuTT @kmabeeTT @mrakitaTT @mstojkovicTT @ndrakulicTT @ppadjinTT @sdjukicTT @sgligorijevicTT @vkovinicTT @vzeljkovicTT @acicovicTT
 
 # Python package
-/python_package/ @mrakitaTT @pilkicTT @nvukobratTT @ajakovljevicTT @sgligorijevicTT
-/python_package/tt_jax/ @mrakitaTT @ajakovljevicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT
-/python_package/tt_torch/ @nvukobratTT @dgolubovicTT @jameszianxuTT @AleksKnezevic @mstojkovicTT @ppadjinTT @vkovinicTT
+/python_package/ @mrakitaTT @pilkicTT @nvukobratTT @ajakovljevicTT @sgligorijevicTT @acicovicTT
+/python_package/tt_jax/ @mrakitaTT @ajakovljevicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @acicovicTT
+/python_package/tt_torch/ @nvukobratTT @dgolubovicTT @jameszianxuTT @AleksKnezevic @mstojkovicTT @ppadjinTT @vkovinicTT @acicovicTT
 
 # Third Party
-/third_party/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @sdjukicTT @sgligorijevicTT
+/third_party/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @ajakovljevicTT @jameszianxuTT @sdjukicTT @sgligorijevicTT @acicovicTT
 /third_party/tt_forge_models @AleksKnezevic @kmabeeTT @mrakitaTT @nvukobratTT
 
 # Integrations
