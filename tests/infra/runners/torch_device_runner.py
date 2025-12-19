@@ -147,7 +147,21 @@ class TorchDeviceRunner(DeviceRunner):
 
         if shard_specs is not None and is_multichip and device.type != "cpu":
             for tensor, shard_spec in shard_specs.items():
-                xs.mark_sharding(tensor, workload.mesh, shard_spec)
+                # shard_spec can be:
+                # 1. partition_spec only: ("batch", None)
+                # 2. (partition_spec, priority): (("batch", None), (0, None))
+                # Check if first element is a tuple to distinguish
+                if (
+                    isinstance(shard_spec, tuple)
+                    and len(shard_spec) == 2
+                    and isinstance(shard_spec[0], tuple)
+                ):
+                    partition_spec, priority = shard_spec
+                    xs.mark_sharding(
+                        tensor, workload.mesh, partition_spec, priority=priority
+                    )
+                else:
+                    xs.mark_sharding(tensor, workload.mesh, shard_spec)
 
         # In the future, we will deprecate `workload.model` and use only
         # `workload.compiled_executable` carrying the model.
