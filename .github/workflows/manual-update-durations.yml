@@ -1,7 +1,7 @@
 name: Update Test Durations
 
-# This workflow updates test durations based on the latest nightly and push workflow runs.
-# It processes the JUnit XML reports from the last successful nightly and push workflows,
+# This workflow updates test durations based on the latest nightly, weekly, weekly training and push workflow runs.
+# It processes the JUnit XML reports from the last successful nightly, weekly, weekly training and push workflows,
 # calculates the test durations, and creates a pull request to update the `.test_durations` file.
 
 on:
@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
           # ref: main
       - uses: actions/setup-python@v5
-      - name: Process nightly test durations
+      - name: Process test durations from latest workflows
         id: get-test-durations
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -69,6 +69,9 @@ jobs:
           # get test results from the last weekly that was success or failure
           get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
 
+          # get test results from the last weekly training that was success or failure
+          get_test_results_from_wf "schedule-weekly-training.yml" "success,failure" "weekly-training"
+
           python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
           echo "" >> .test_durations
           echo "----- NEW DURATIONS"
@@ -86,7 +89,7 @@ jobs:
           base: main
           commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
           title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
+          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
           labels: tooling
           delete-branch: true
           token: ${{ secrets.GH_TOKEN }}
@@ -102,4 +105,6 @@ jobs:
           echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
           echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
           echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "And [Weekly](${{ steps.get-test-durations.outputs.curr_weekly_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "And [Weekly Training](${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }})" >> $GITHUB_STEP_SUMMARY
           echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
