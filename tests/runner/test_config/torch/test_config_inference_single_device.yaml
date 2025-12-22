@@ -2523,3 +2523,7 @@ test_config:
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks, where each bank needs to store 12234752 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+  wan/pytorch-wan2.2-ti2v-5b-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Wan2.2 model requires a lot of memeory and takes a lot of time to load hence skipping it for now."
