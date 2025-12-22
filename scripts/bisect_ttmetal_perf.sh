@@ -420,6 +420,7 @@ echo "Build completed successfully" | tee -a "$LOG_FILE"
 
 # Run the benchmark
 echo "Running benchmark..." | tee -a "$LOG_FILE"
+echo "Executing command: $BENCHMARK_COMMAND"
 BENCHMARK_OUTPUT=$(eval "$BENCHMARK_COMMAND" 2>&1 | tee -a "$LOG_FILE")
 BENCHMARK_EXIT_CODE=${PIPESTATUS[0]}
 
