@@ -48,7 +48,7 @@ jobs:
     secrets: inherit
     needs: [ build-image ]
     with:
-      docker_tag: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
 
   build-ttxla-release:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
