@@ -52,6 +52,7 @@ jobs:
         run: |
             echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
             echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+            echo "test-report-name=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -75,6 +76,7 @@ jobs:
             source venv/activate
             cd ${{ steps.strings.outputs.build-output-dir }}
             ctest -R PJRT -V 2>&1 | tee ctest.log
+            mv gtest_report.xml ${{ steps.strings.outputs.test-report-name }}
 
       - name: Upload test log
         if: success() || failure()
@@ -88,7 +90,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
             name: test-reports-pjrt-unit-tests-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
-            path: ${{ steps.strings.outputs.build-output-dir }}/gtest_report.xml
+            path: ${{ steps.strings.outputs.build-output-dir }}/${{ steps.strings.outputs.test-report-name }}
 
       - name: Show unit test report
         if: success() || failure()
