@@ -81,9 +81,8 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
       m_host_runtime_tensor(std::nullopt), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
       m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {
-  if (m_client) {
-    m_client->registerBuffer(this);
-  }
+  assert(m_client && "Client instance cannot be null");
+  m_client->registerBuffer(this);
 }
 
 BufferInstance::BufferInstance(
@@ -108,15 +107,14 @@ BufferInstance::BufferInstance(
     tt::runtime::setTensorRetain(*m_prepared_runtime_tensor, /*retain=*/true);
   }
 
-  if (m_client) {
-    m_client->registerBuffer(this);
-  }
+  assert(m_device && "Device instance cannot be null");
+  m_client->registerBuffer(this);
 }
 
 BufferInstance::~BufferInstance() {
-  if (m_client) {
-    m_client->unregisterBuffer(this);
-  }
+  assert(m_client && "Client instance cannot be null");
+  m_client->unregisterBuffer(this);
+
   deleteData();
 }
 

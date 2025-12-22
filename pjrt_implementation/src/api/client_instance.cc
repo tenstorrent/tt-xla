@@ -442,8 +442,8 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
 void ClientInstance::closeMeshDevice() {
   // Materialize all buffers to host and clear prepared tensors before closing
   // the mesh. This ensures buffers don't hold references to deallocated tensors
-  // after mesh close, which could cause assertion failures in prepareInputTensor
-  // when buffers are reused as inputs to subsequent graphs.
+  // after mesh close, which could cause assertion failures in
+  // prepareInputTensor when buffers are reused as inputs to subsequent graphs.
   materializeAllBuffersToHost();
 
   closeOptimizerSubmesh();
@@ -783,10 +783,9 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   }
 
   std::unique_ptr<BufferInstance> buffer =
-      BufferInstance::createInputBufferInstance(args->type, args->dims,
-                                                args->num_dims, device_instance,
-                                                memory_instance,
-                                                client_instance);
+      BufferInstance::createInputBufferInstance(
+          args->type, args->dims, args->num_dims, device_instance,
+          memory_instance, client_instance);
 
   buffer->copyFromHost(
       args->data, args->type, args->dims, args->num_dims, args->byte_strides,
