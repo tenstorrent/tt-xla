@@ -990,7 +990,9 @@ test_config:
   segformer/pytorch-mit_b1-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   segformer/pytorch-mit_b2-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs (Runs for 3 hours)"
   segformer/pytorch-mit_b3-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
