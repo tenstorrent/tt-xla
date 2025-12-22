@@ -96,7 +96,10 @@ METRIC_PATTERN="${METRIC_PATTERN:-$DEFAULT_PATTERN}"
 
 # Determine tt-xla root (script is in scripts/ subdirectory of tt-xla)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+echo "Script directory: $SCRIPT_DIR"
 TTXLA_ROOT="$(dirname "$SCRIPT_DIR")"
+TTXLA_ROOT="$(dirname "$TTXLA_ROOT")"
+echo "TT-XLA root directory: $TTXLA_ROOT"
 
 TTMLIR_COMMIT=$(git rev-parse --short HEAD)
 TTMLIR_COMMIT_FULL=$(git rev-parse HEAD)
@@ -155,6 +158,7 @@ cleanup() {
 
 # Activate the TT-XLA environment
 echo "Activating TT-XLA environment..." | tee -a "$LOG_FILE"
+pwd
 source venv/activate
 
 # Modify CMakeLists.txt to use current tt-mlir commit
@@ -173,6 +177,7 @@ echo "Build completed successfully" | tee -a "$LOG_FILE"
 
 # Run the benchmark
 echo "Running benchmark..." | tee -a "$LOG_FILE"
+echo "Executing command: $BENCHMARK_COMMAND"
 BENCHMARK_OUTPUT=$(eval "$BENCHMARK_COMMAND" 2>&1 | tee -a "$LOG_FILE")
 BENCHMARK_EXIT_CODE=${PIPESTATUS[0]}
 

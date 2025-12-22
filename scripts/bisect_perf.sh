@@ -198,6 +198,7 @@ fi
 
 # Run the benchmark
 echo "Running benchmark..."
+echo "Executing command: $BENCHMARK_COMMAND"
 BENCHMARK_OUTPUT=$(eval "$BENCHMARK_COMMAND" 2>&1)
 BENCHMARK_EXIT_CODE=$?
 echo "$BENCHMARK_OUTPUT"
