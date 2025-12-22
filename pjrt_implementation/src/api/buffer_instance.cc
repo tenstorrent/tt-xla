@@ -96,6 +96,10 @@ BufferInstance::BufferInstance(
   if (m_host_runtime_tensor.has_value()) {
     tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
   }
+
+  if (m_prepared_runtime_tensor.has_value()) {
+    tt::runtime::setTensorRetain(*m_prepared_runtime_tensor, /*retain=*/true);
+  }
 }
 
 BufferInstance::~BufferInstance() { deleteData(); }

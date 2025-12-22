@@ -1,6 +1,6 @@
 [
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "unspecified and inference and single_device", "parallel-groups": 3 },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "unspecified and inference and single_device", "parallel-groups": 3 },
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "unspecified and inference and single_device", "parallel-groups": 1 },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "unspecified and inference and single_device", "parallel-groups": 1 }
+  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n150 and unspecified and inference and single_device", "parallel-groups": 3 },
+  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "p150 and unspecified and inference and single_device", "parallel-groups": 3 },
+  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n150 and unspecified and inference and single_device", "parallel-groups": 1 },
+  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and unspecified and inference and single_device", "parallel-groups": 1 }
 ]

@@ -5,12 +5,14 @@
 import collections
 import importlib.util
 import inspect
+import json
 import math
 import numbers
 import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 import numpy as np
 import pytest
@@ -265,6 +267,39 @@ def _to_marshal_safe(value):
     return str(value)
 
 
+def _derive_guidance_from_status(test_metadata_status, bringup_status) -> list[str]:
+    """
+    Derive guidance tags from test metadata status and bringup status.
+
+    These tags are intended to guide configuration updates for tests that are passing
+    or showing incorrect results when their status doesn't match their actual behavior.
+
+    Meanings:
+    - RM_XFAIL: Test is marked as KNOWN_FAILURE_XFAIL but is passing or showing
+      incorrect results → suggest removing the xfail marker.
+    - ADD_CONFIG: Test is marked as UNSPECIFIED but is passing or showing incorrect
+      results → suggest adding proper configuration for the test. This is typically
+      tests running in experimental nightly that can be promoted to nightly/weekly.
+    """
+    guidance: list[str] = []
+
+    # Check if bringup_status is PASSED or INCORRECT_RESULT
+    is_passed_or_incorrect = bringup_status in (
+        BringupStatus.PASSED,
+        BringupStatus.INCORRECT_RESULT,
+    )
+
+    if is_passed_or_incorrect:
+        # Suggest removing xfail if test is actually passing or showing results
+        if test_metadata_status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
+            guidance.append("RM_XFAIL")
+        # Suggest adding config if test is unspecified but showing results
+        elif test_metadata_status == ModelTestStatus.UNSPECIFIED:
+            guidance.append("ADD_CONFIG")
+
+    return guidance
+
+
 def _derive_guidance_from_pcc(comparison_result, comparison_config) -> list[str]:
     """
     Derive guidance tags from PCC metrics and thresholds.
@@ -413,6 +448,7 @@ def record_model_test_properties(
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
         "bringup_status": str(bringup_status),
+        "model_test_status": str(test_metadata.status),
         "failing_reason": (
             {
                 "name": failing_reason.name,
@@ -456,7 +492,11 @@ def record_model_test_properties(
         )
 
     # Derive guidance tags based on PCC metrics and thresholds (always include; may be empty).
-    tags["guidance"] = _derive_guidance_from_pcc(comparison_result, comparison_config)
+    guidance_pcc = _derive_guidance_from_pcc(comparison_result, comparison_config)
+    # Derive guidance tags based on test status and bringup status.
+    guidance_status = _derive_guidance_from_status(test_metadata.status, bringup_status)
+    # Combine all guidance tags.
+    tags["guidance"] = guidance_pcc + guidance_status
 
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
@@ -474,3 +514,115 @@ def record_model_test_properties(
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         pytest.xfail(reason)
+
+
+def create_measurement(
+    step_name: str,
+    measurement_name: str,
+    step_warm_up_num_iterations: int = 1,
+    iteration: int = 1,
+    value: float = 0.0,
+    target: float = -1.0,
+) -> dict[str, Any]:
+    """Create a single perf measurement dictionary."""
+    return {
+        "step_name": step_name,
+        "measurement_name": measurement_name,
+        "step_warm_up_num_iterations": step_warm_up_num_iterations,
+        "iteration": iteration,
+        "value": value,
+        "target": target,
+    }
+
+
+def create_benchmark_result(
+    full_model_name: str,
+    output_dir: str,
+    perf_id: str,
+    measurements: list[dict[str, Any]],
+    model_type: str = "generic",
+    training: bool = False,
+    model_info: str = "",
+    device_name: str = "",
+) -> dict[str, Any]:
+    """
+    Create a benchmark result dictionary and write it to a JSON file.
+
+    Builds a standardized benchmark result containing model metadata and
+    performance measurements, then writes it to given output directory.
+    The filename follows the format:
+        report_perf_<model_name>_<perf_id>.json
+    """
+
+    # Extract e2e stats from the passed measurements list
+    metric_list = []
+
+    if measurements and len(measurements) > 0:
+        # extract e2e perf stats and create measurements using them
+        perf_stats = measurements[0]
+        warmup_iters = perf_stats["warmup_iters"]
+        perf_iters = perf_stats["perf_iters"]
+        metric_list.append(
+            create_measurement(
+                "e2e_perf",
+                "total_time",
+                warmup_iters,
+                perf_iters,
+                perf_stats["total_time"],
+            )
+        )
+        metric_list.append(
+            create_measurement(
+                "e2e_perf",
+                "avg_time",
+                warmup_iters,
+                perf_iters,
+                perf_stats["avg_time"],
+            )
+        )
+
+    config = {
+        "model_size": "small",
+        "model_info": model_info,
+    }
+
+    benchmark_results = {
+        "model": full_model_name,
+        "model_type": model_type,
+        "run_type": f"{'_'.join(full_model_name.split())}_{device_name}",
+        "config": config,
+        "measurements": metric_list,
+        "device_info": {
+            "device_name": device_name,
+        },
+        "training": training,
+        "project": "tt-xla",
+    }
+
+    # Add metadata required for collect_data parser
+    benchmark_results["project"] = "tt-xla"
+    benchmark_results["model_rawname"] = full_model_name
+
+    # print benchmark results to console if there are measurements
+    if len(benchmark_results["measurements"]) > 0:
+        print("====================================================================")
+        print(f"| {benchmark_results['model']} BENCHMARK:  ")
+        print("--------------------------------------------------------------------")
+        for measurement in benchmark_results["measurements"]:
+            print(
+                f"| {measurement['step_name']}-{measurement['measurement_name']}: {measurement['value']}"
+            )
+        print("====================================================================")
+
+    # dump benchmark results to JSON file if output_dir is given
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        # add model name and perf id (Job ID from CI) to the filename
+        # Sanitize model name to avoid path separator issues
+        safe_model_name = full_model_name.replace("/", "_").replace("\\", "_")
+        output_path = os.path.join(
+            output_dir, f"report_perf_{safe_model_name}_{perf_id}.json"
+        )
+        with open(output_path, "w") as file:
+            json.dump(benchmark_results, file, indent=2)
+            print(f"Benchmark results saved to {output_path}")

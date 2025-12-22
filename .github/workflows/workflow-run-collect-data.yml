@@ -8,6 +8,7 @@ on:
       - "On push"
       - "On nightly"
       - "On weekly"
+      - "On weekly training"
       - "Performance Benchmark"
       - "On nightly Experimental"
       - "Run Test Single"

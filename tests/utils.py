@@ -9,6 +9,7 @@ from typing import Callable, Optional
 import jax
 import jax.lax as jlx
 import jax.numpy as jnp
+import pytest
 import torch_xla
 from infra import Framework
 
@@ -196,3 +197,25 @@ def get_torch_device_arch() -> TTArch:
         return TTArch.BLACKHOLE
     else:
         raise ValueError(f"Unknown TT device architecture: {device_kind}")
+
+
+def parametrize_arch(archs=["single_device"]):
+    valid_archs = {"single_device", "dual_chip", "llmbox", "galaxy"}
+    invalid_archs = set(archs) - valid_archs
+
+    if invalid_archs:
+        raise ValueError(
+            f"Invalid architecture(s): {invalid_archs}. "
+            f"Valid options are: {valid_archs}"
+        )
+
+    arch_marks = {
+        "single_device": pytest.mark.single_device,
+        "dual_chip": pytest.mark.dual_chip,
+        "llmbox": pytest.mark.llmbox,
+        "galaxy": pytest.mark.galaxy,
+    }
+
+    params = [pytest.param(arch, marks=arch_marks[arch]) for arch in archs]
+
+    return pytest.mark.parametrize("arch", params)

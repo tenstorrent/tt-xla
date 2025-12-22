@@ -98,8 +98,14 @@ runs:
 
           # Detect TT-MLIR dependency updates in PRs.
           if echo "$CHANGED_FILES" | grep -q "^third_party/CMakeLists.txt$"; then
-            TT_MLIR_DIFF=$(gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }} -- third_party/CMakeLists.txt || true)
-            if echo "$TT_MLIR_DIFF" | grep -qE '^[+-][[:space:]]*set\(TT_MLIR_VERSION'; then
+            TT_MLIR_DIFF=$(gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }} || true)
+
+            CMAKE_FILE_DIFF=$(
+              echo "$TT_MLIR_DIFF" |
+              sed -n '/^diff --git a\/third_party\/CMakeLists\.txt/,/^diff --git /p'
+            )
+
+            if echo "$CMAKE_FILE_DIFF" | grep -qE '^[+-][[:space:]]*set\(TT_MLIR_VERSION'; then
               echo "Detected TT_MLIR_VERSION change in PR diff."
               tt_mlir_version_changed=true
             fi

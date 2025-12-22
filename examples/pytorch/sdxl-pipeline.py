@@ -313,6 +313,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", type=str, default="a photo of a cat")
     parser.add_argument("--uncond_prompt", type=str, default="a photo of a dog")
+    parser.add_argument("--optimization_level", type=int, default=1)
     parser.add_argument("--do_cfg", type=bool, default=True)
     parser.add_argument("--cfg_scale", type=float, default=7.5)
     parser.add_argument("--num_inference_steps", type=int, default=50)
@@ -322,6 +323,9 @@ if __name__ == "__main__":
 
     xr.set_device_type("TT")
 
+    torch_xla.set_custom_compile_options(
+        {"optimization_level": args.optimization_level}
+    )
     # only 512x512 is supported for now
     config = SDXLConfig(width=512, height=512, device="cpu")
     pipeline = SDXLPipeline(config=config)
