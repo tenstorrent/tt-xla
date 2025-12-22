@@ -38,12 +38,12 @@ TEST(PluginAttributesUnitTests, getAttributes_containsExpectedAttributes) {
   }
 }
 
-// Tests that getAttributes returns stablehlo_current_version attribute.
+// Tests that getAttributes returns the stablehlo_current_version attribute.
 TEST(PluginAttributesUnitTests, getAttributes_containsCurrentVersion) {
   bool found = false;
   for (const PJRT_NamedValue &attr : PluginAttributes::getAttributes()) {
     std::string name(attr.name, attr.name_size);
-    if (name == "stablehlo_current_version") {
+    if (name == StableHLOVersionAttribute::current_version_attribute_name) {
       found = true;
       EXPECT_NE(attr.int64_array_value, nullptr);
       EXPECT_GE(attr.int64_array_value[0], 0);
@@ -55,12 +55,12 @@ TEST(PluginAttributesUnitTests, getAttributes_containsCurrentVersion) {
   EXPECT_TRUE(found);
 }
 
-// Tests that getAttributes returns stablehlo_minimum_version attribute.
+// Tests that getAttributes returns the stablehlo_minimum_version attribute.
 TEST(PluginAttributesUnitTests, getAttributes_containsMinimumVersion) {
   bool found = false;
   for (const PJRT_NamedValue &attr : PluginAttributes::getAttributes()) {
     std::string name(attr.name, attr.name_size);
-    if (name == "stablehlo_minimum_version") {
+    if (name == StableHLOVersionAttribute::minimum_version_attribute_name) {
       found = true;
       EXPECT_NE(attr.int64_array_value, nullptr);
       EXPECT_GE(attr.int64_array_value[0], 0);
