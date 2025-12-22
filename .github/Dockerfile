@@ -13,7 +13,20 @@ COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
 
-FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-manylinux-2-34:${MLIR_TAG} AS ci
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:${MLIR_TAG} as ci
+SHELL ["/bin/bash", "-c"]
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install requirements.txt as global Python 3.11 packages
+COPY python_package/requirements.txt /tmp/requirements.txt
+COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
+COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
+RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
+    rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
+
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-manylinux-2-34:${MLIR_TAG} AS cibw
 SHELL ["/bin/bash", "-c"]
 
 # Set environment variables
