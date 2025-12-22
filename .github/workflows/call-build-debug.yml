@@ -52,7 +52,7 @@ jobs:
         run: |
             echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
             echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-            echo "test-report-name=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
+            echo "test-report-name=report_${{ steps.fetch-job-id.outputs.job_id }}.xml" >> "$GITHUB_OUTPUT"
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
