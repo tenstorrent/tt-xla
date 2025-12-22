@@ -14,7 +14,7 @@ pkg_install \
     protobuf-compiler
 
 if [ "$1" == "dnf" ]; then
-    # For Mulitlinux based images
+    # For Manylinux based images
     pkg_install \
         protobuf-devel \
         ffmpeg-free
