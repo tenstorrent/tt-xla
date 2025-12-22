@@ -4,7 +4,9 @@
 
 import ctypes
 import gc
+import io
 import os
+import select
 import shutil
 import sys
 import threading
@@ -482,11 +484,157 @@ def clear_torchxla_computation_cache():
     xr.clear_computation_cache()
 
 
+class TeeCaptureResult:
+    """Result object mimicking pytest's CaptureResult."""
+
+    def __init__(self, out: str, err: str):
+        self.out = out
+        self.err = err
+
+
+class TeeCapture:
+    """
+    Captures stderr at fd level while still writing to terminal in real-time.
+    This allows capturing C++ output (like MLIR errors) without suppressing it.
+    """
+
+    def __init__(self):
+        self._stderr_buffer = io.StringIO()
+        self._stdout_buffer = io.StringIO()
+        self._original_stderr_fd = None
+        self._original_stdout_fd = None
+        self._saved_stderr_fd = None
+        self._saved_stdout_fd = None
+        self._stderr_read_fd = None
+        self._stderr_write_fd = None
+        self._stdout_read_fd = None
+        self._stdout_write_fd = None
+        self._stderr_thread = None
+        self._stdout_thread = None
+        self._stop_event = threading.Event()
+
+    def start(self):
+        # Save original fds
+        self._original_stderr_fd = sys.stderr.fileno()
+        self._original_stdout_fd = sys.stdout.fileno()
+        self._saved_stderr_fd = os.dup(self._original_stderr_fd)
+        self._saved_stdout_fd = os.dup(self._original_stdout_fd)
+
+        # Create pipes
+        self._stderr_read_fd, self._stderr_write_fd = os.pipe()
+        self._stdout_read_fd, self._stdout_write_fd = os.pipe()
+
+        # Redirect stderr/stdout to pipe write ends
+        os.dup2(self._stderr_write_fd, self._original_stderr_fd)
+        os.dup2(self._stdout_write_fd, self._original_stdout_fd)
+
+        # Start threads to read from pipes and tee to both terminal and buffer
+        def tee_reader(read_fd, saved_fd, buffer, stop_event):
+            while not stop_event.is_set():
+                ready, _, _ = select.select([read_fd], [], [], 0.1)
+                if ready:
+                    try:
+                        data = os.read(read_fd, 4096)
+                        if data:
+                            # Write to original terminal
+                            os.write(saved_fd, data)
+                            # Write to buffer
+                            try:
+                                buffer.write(data.decode("utf-8", errors="replace"))
+                            except:
+                                pass
+                    except OSError:
+                        break
+
+        self._stop_event.clear()
+        self._stderr_thread = threading.Thread(
+            target=tee_reader,
+            args=(
+                self._stderr_read_fd,
+                self._saved_stderr_fd,
+                self._stderr_buffer,
+                self._stop_event,
+            ),
+        )
+        self._stdout_thread = threading.Thread(
+            target=tee_reader,
+            args=(
+                self._stdout_read_fd,
+                self._saved_stdout_fd,
+                self._stdout_buffer,
+                self._stop_event,
+            ),
+        )
+        self._stderr_thread.daemon = True
+        self._stdout_thread.daemon = True
+        self._stderr_thread.start()
+        self._stdout_thread.start()
+
+    def stop(self):
+        # Flush Python streams
+        sys.stderr.flush()
+        sys.stdout.flush()
+
+        # Signal threads to stop
+        self._stop_event.set()
+
+        # Restore original fds
+        os.dup2(self._saved_stderr_fd, self._original_stderr_fd)
+        os.dup2(self._saved_stdout_fd, self._original_stdout_fd)
+
+        # Close pipe write ends to unblock readers
+        os.close(self._stderr_write_fd)
+        os.close(self._stdout_write_fd)
+
+        # Wait for threads to finish
+        self._stderr_thread.join(timeout=1.0)
+        self._stdout_thread.join(timeout=1.0)
+
+        # Read any remaining data from pipes
+        import select
+
+        for read_fd, saved_fd, buffer in [
+            (self._stderr_read_fd, self._saved_stderr_fd, self._stderr_buffer),
+            (self._stdout_read_fd, self._saved_stdout_fd, self._stdout_buffer),
+        ]:
+            while True:
+                ready, _, _ = select.select([read_fd], [], [], 0)
+                if ready:
+                    try:
+                        data = os.read(read_fd, 4096)
+                        if data:
+                            os.write(saved_fd, data)
+                            try:
+                                buffer.write(data.decode("utf-8", errors="replace"))
+                            except:
+                                pass
+                        else:
+                            break
+                    except OSError:
+                        break
+                else:
+                    break
+
+        # Close remaining fds
+        os.close(self._stderr_read_fd)
+        os.close(self._stdout_read_fd)
+        os.close(self._saved_stderr_fd)
+        os.close(self._saved_stdout_fd)
+
+    def readouterr(self):
+        return TeeCaptureResult(
+            self._stdout_buffer.getvalue(), self._stderr_buffer.getvalue()
+        )
+
+
 @pytest.fixture()
-def capteesys(capfd):
+def capteesys():
     """
-    Pytest fixture that provides file descriptor-level capture for stdout/stderr.
-    Uses capfd instead of capsys to capture C++ output (like MLIR errors) that
-    bypasses Python's stdout/stderr buffering.
+    Pytest fixture that captures stdout/stderr at fd level while still
+    writing to terminal in real-time (tee behavior). This allows capturing
+    C++ output (like MLIR errors) without suppressing terminal output.
     """
-    return capfd
+    tee = TeeCapture()
+    tee.start()
+    yield tee
+    tee.stop()

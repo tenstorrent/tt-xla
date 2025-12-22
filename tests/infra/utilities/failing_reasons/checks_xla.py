@@ -559,6 +559,30 @@ class FailingReasons(Enum):
                     ),
                 ],
             ),
+            # Circular buffers exceed L1 size
+            ExceptionCheck(
+                stderr=[
+                    M.contains("circular buffers"),
+                    M.contains("beyond max L1 size"),
+                ],
+            ),
+            ExceptionCheck(
+                stdout=[
+                    M.contains("circular buffers"),
+                    M.contains("beyond max L1 size"),
+                ],
+            ),
+            # Out of Memory: Not enough space to allocate
+            ExceptionCheck(
+                stdout=[
+                    M.contains("Out of Memory: Not enough space to allocate"),
+                ],
+            ),
+            ExceptionCheck(
+                stderr=[
+                    M.contains("Out of Memory: Not enough space to allocate"),
+                ],
+            ),
             # Fallback: classify OOM when message is a StatusOr INTERNAL:13 error
             ExceptionCheck(
                 message=[
@@ -648,7 +672,6 @@ class FailingReasons(Enum):
         ],
     )
 
-    # Generic MLIR op verification error (catches any 'xxx' op pattern)
     MLIR_OP_VERIFICATION_ERROR = FailingReason(
         description="MLIR op verification error",
         checks=[
@@ -656,18 +679,45 @@ class FailingReasons(Enum):
                 component=ComponentChecker.XLA.value,
                 stderr=[
                     M.regex(r"loc\(.*\): error:"),
+                    M.neg(M.contains("'ttir.")),
+                    M.neg(M.contains("'ttnn.")),
+                    M.neg(M.contains("stablehlo.")),
                 ],
             ),
             ExceptionCheck(
                 component=ComponentChecker.XLA.value,
                 stdout=[
                     M.regex(r"loc\(.*\): error:"),
+                    M.neg(M.contains("'ttir.")),
+                    M.neg(M.contains("'ttnn.")),
+                    M.neg(M.contains("stablehlo.")),
                 ],
             ),
             ExceptionCheck(
                 component=ComponentChecker.XLA.value,
                 error_log=[
                     M.regex(r"error:.*'\w+\.\w+' op"),
+                    M.neg(M.contains("'ttir.")),
+                    M.neg(M.contains("'ttnn.")),
+                    M.neg(M.contains("stablehlo.")),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stderr=[
+                    M.regex(r"error:.*'\w+\.\w+' op"),
+                    M.neg(M.contains("'ttir.")),
+                    M.neg(M.contains("'ttnn.")),
+                    M.neg(M.contains("stablehlo.")),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stdout=[
+                    M.regex(r"error:.*'\w+\.\w+' op"),
+                    M.neg(M.contains("'ttir.")),
+                    M.neg(M.contains("'ttnn.")),
+                    M.neg(M.contains("stablehlo.")),
                 ],
             ),
         ],
