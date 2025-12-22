@@ -12,10 +12,19 @@ import torch_xla.runtime as xr
 from infra import Framework, run_op_test
 from infra.comparators.torch_comparator import TorchComparator
 from infra.connectors.torch_device_connector import TorchDeviceConnector
+from infra.workloads import TorchWorkload
 from torch_xla.distributed.spmd import Mesh
+from tt_torch.serialization import parse_compiled_artifacts_from_cache_to_disk
 
 from tests.infra import RunMode, TorchModelTester
 from tests.infra.comparators.comparison_config import AtolConfig, ComparisonConfig
+from tests.infra.connectors.torch_device_connector import TorchDeviceConnector
+from tests.infra.testers.single_chip.op.op_tester import OpTester
+from tests.infra.utilities import sanitize_test_name
+from tests.infra.utilities.filecheck_utils import (
+    run_filecheck,
+    validate_filecheck_results,
+)
 
 # TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/1137
 # We would like to use the OpTester/GraphTester infra instead of manually
@@ -403,3 +412,62 @@ def test_spmd_sharding(axis_names, input_shape, sharding_mode):
         mesh=mesh,
         shard_spec_fn=shard_spec_function,
     )
+
+
+@pytest.mark.nightly
+@pytest.mark.push
+@pytest.mark.llmbox
+def test_spmd_priority(request):
+    class EmbeddingModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embedding = torch.nn.Embedding(1000, 512)
+            self.norm = torch.nn.RMSNorm(512)
+
+        def forward(self, x):
+            return self.norm(self.embedding(x))
+
+    num_batches = 2
+    mesh_shape = (2, xr.global_runtime_device_count() // 2)
+    device_ids = np.array(range(xr.global_runtime_device_count()))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    inputs = torch.randint(0, 1000, (num_batches, 32))
+
+    def shard_spec_function(model, args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = (
+            ("batch", None),
+            (0, None),
+        )  # priority 0 for input activations
+        shard_specs[model.embedding.weight] = (
+            (None, "batch"),
+            (None, 1),
+        )  # priority 1 for weights
+        shard_specs[model.norm.weight] = (None,)
+        return shard_specs
+
+    tester = OpTester(framework=Framework.TORCH)
+    workload = TorchWorkload(
+        model=EmbeddingModel(),
+        args=[inputs],
+        mesh=mesh,
+        shard_spec_fn=shard_spec_function,
+    )
+    tester.test(workload)
+
+    # Parse IR from cache after test
+    pattern_files = ["sharding_conflict_priority.ttir.mlir"]
+    clean_name = sanitize_test_name(request.node.name)
+    output_prefix = f"output_artifact/{clean_name}"
+    parse_compiled_artifacts_from_cache_to_disk(
+        TorchDeviceConnector.get_cache_dir(), output_prefix
+    )
+
+    # Run FileCheck
+    filecheck_results = run_filecheck(
+        test_node_name=request.node.name,
+        irs_filepath="output_artifact",
+        pattern_files=pattern_files,
+    )
+    validate_filecheck_results(filecheck_results)
