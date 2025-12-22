@@ -245,17 +245,6 @@ def update_test_metadata_for_exception(
     # Use detailed error if found, otherwise fall back to exception message
     runtime_reason = detailed_error if detailed_error else message
 
-    # Debug: show what will be sent to Superset
-    print("\n" + "=" * 60)
-    print(
-        "[SUPERSET DEBUG] Failing reason:",
-        failing_reason.name if failing_reason else None,
-    )
-    print("[SUPERSET DEBUG] Runtime reason:", runtime_reason)
-    print("=" * 60 + "\n")
-
-    # TODO: remove this once we have a better way to set the reason dynamically.
-    # and handle it in record_model_test_properties.
     setattr(test_metadata, "runtime_reason", runtime_reason)
     setattr(test_metadata, "failing_reason", failing_reason)
 
