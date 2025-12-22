@@ -1,0 +1,63 @@
+name: Build Manylinux Wheel (call)
+
+on:
+  workflow_call:
+    inputs:
+      docker-image:
+        description: 'Docker manylinux image'
+        required: false
+        type: string
+        default: 'latest'
+
+jobs:
+  build-wheels:
+    name: Build Manylinux Wheel
+    timeout-minutes: 90
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - uses: actions/checkout@v4
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+          echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+          echo "wheel-output-dir=$(pwd)/python_package/dist" >> "$GITHUB_OUTPUT"}
+
+      - name: Git safe dir
+        run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Build ttxla  Wheel (manylinux)
+        uses: pypa/cibuildwheel@v3.2
+        env:
+          CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
+          CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
+        with:
+          output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
+          package-dir: ${{ steps.strings.outputs.work-dir }}/python_package
+          config-file: "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml"
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ttxla-manylinux-wheel
+          path: ${{ steps.strings.outputs.wheel-output-dir }}/*.whl
+          if-no-files-found: error

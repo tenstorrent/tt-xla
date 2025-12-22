@@ -8,7 +8,8 @@ set -e
 # Parse command line arguments
 CHECK_ONLY=false
 tt_mlir_sha=$1
-if [[ "$2" == "--check-only" ]]; then
+dockbuild="$2"
+if [[ "$3" == "--check-only" ]]; then
     CHECK_ONLY=true
 fi
 
@@ -93,7 +94,12 @@ build_and_push() {
 build_and_push $BASE_IMAGE_NAME .github/Dockerfile base
 build_and_push $CI_IMAGE_NAME .github/Dockerfile ci
 build_and_push $IRD_IMAGE_NAME .github/Dockerfile ird
-#build_and_push $CIBW_IMAGE_NAME .github/Dockerfile cibw
+if [ "$dockbuild" == "all" ] || [ "$dockbuild" == "cibuildwheel" ]; then
+  echo "Building cibuildwheel image"
+  build_and_push $CIBW_IMAGE_NAME .github/Dockerfile cibw
+else
+  echo "Skipping cibuildwheel image build"
+fi
 
 echo "All images built and pushed successfully"
 echo "CI_IMAGE_NAME:"

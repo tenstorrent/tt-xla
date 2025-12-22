@@ -39,6 +39,16 @@ jobs:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      dockbuild: all
+
+  build-manylinux-ttxla:
+    uses: ./.github/workflows/call-build-manylinux.yml
+    name: "Build tt-xla manylinux wheels"
+    secrets: inherit
+    needs: [ build-image ]
+    with:
+      docker_tag: ${{ needs.build-image.outputs.docker-image-manylinux }}
 
   build-ttxla-release:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
