@@ -141,7 +141,8 @@ jobs:
           --dir wheels \
           --name ${{ steps.strings.outputs.wheel_artifact_name }}
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_n300_tests" ]]; then
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
           gh run download ${{ steps.strings.outputs.artifact_run_id }} \
             --repo ${{ github.repository }} \
@@ -294,7 +295,8 @@ jobs:
       run: |
         source venv/activate
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_n300_tests" ]]; then
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
           $(pwd)/venv/bin/pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
           pip freeze
         fi
@@ -305,7 +307,8 @@ jobs:
                2>&1 | tee pytest.log
 
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_n300_tests" ]]; then
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
           $(pwd)/venv/bin/pip uninstall -y vllm transformers
           $(pwd)/venv/bin/pip install -r $(pwd)/venv/requirements-dev.txt
         fi

@@ -274,19 +274,21 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_devices = xr.global_runtime_device_count()
         # Model loader try to parallelize everything for SPMD mode. So we are
         # processing data parallel separately.
-        self.data_parallel_inference = self.tt_config.is_data_parallel
-        if self.data_parallel_inference:
+        self.enable_data_parallel = self.tt_config.enable_data_parallel
+        if self.enable_data_parallel:
             if self.batch_size == 1:
                 logger.warning(
                     "Data parallel execution is possible for 'batch_size > 1' but got 'batch_size = 1'. Disabling multi device execution and proceeding with single device execution."
                 )
-                self.data_parallel_inference = False
+                self.enable_data_parallel = False
 
             if self.num_devices == 1:
                 logger.warning(
                     "Data parallel execution is possible with multiple devices but found single device. Disabling multi device execution and proceeding with single device execution."
                 )
-                self.data_parallel_inference = False
+                self.enable_data_parallel = False
+
+        self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
 
         model_config = self.model_config
         cache_config = self.cache_config
@@ -299,9 +301,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_additional_inputs = 0
 
         # SPMD Related
-        self.use_spmd = envs.VLLM_XLA_USE_SPMD
         # Setup for parallel execution.
-        if self.use_spmd or self.data_parallel_inference:
+        if self.enable_tensor_parallel or self.enable_data_parallel:
             mesh_shape = (self.num_devices, 1)
             device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
@@ -512,7 +513,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else None
         )
 
-        if not self.use_spmd:
+        if not self.enable_tensor_parallel:
             self.sample_from_logits_func = torch.compile(
                 self.sample_from_logits,
                 backend="tt",
@@ -912,7 +913,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Add additional rows to make batch divisible by num_devices so inputs
             # can be divided equally between devices for data parallel execution.
-            if self.data_parallel_inference:
+            if self.enable_data_parallel:
                 # Compute how many extra rows are needed to make batch divisible by num_devices.
                 remainder = self.input_ids_cpu.shape[0] % self.num_devices
                 if remainder > 0:
@@ -983,7 +984,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             is_causal = False
 
-        if self.data_parallel_inference and attn_mask is not None:
+        if self.enable_data_parallel and attn_mask is not None:
             xs.mark_sharding(attn_mask, self.mesh, ("x", None, None, None))
 
         attn_metadata = TTMetadata(
@@ -1187,7 +1188,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             xm.mark_step()
 
             # Mark inputs for data parallel sharding.
-            if self.data_parallel_inference:
+            if self.enable_data_parallel:
                 xs.mark_sharding(input_ids, self.mesh, ("x", None))
                 xs.mark_sharding(self.position_ids, self.mesh, ("x", None))
 
@@ -1211,7 +1212,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Remove additional rows/inputs which were added to make batch size
             # divisible by num_devices.
-            if self.data_parallel_inference and self.num_additional_inputs > 0:
+            if self.enable_data_parallel and self.num_additional_inputs > 0:
                 hidden_states_list = hidden_states_list[: -self.num_additional_inputs]
 
             if self.batch_size > 1:
@@ -1301,7 +1302,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return_value=xm_tp_rank,
         ):
             try:
-                if self.use_spmd:
+                if self.enable_tensor_parallel:
                     tpu_loader = TPUModelLoader(
                         load_config=self.vllm_config.load_config
                     )
@@ -1374,7 +1375,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         context_lens = torch.ones((batch_size,), dtype=torch.int32)
 
         # Mark inputs for data parallel sharding.
-        if self.data_parallel_inference:
+        if self.enable_data_parallel:
             xs.mark_sharding(input_ids, self.mesh, ("x", None))
             xs.mark_sharding(position_ids, self.mesh, ("x", None))
 
@@ -1399,7 +1400,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal = False
 
         # Mark attention mask for data parallel sharding.
-        if self.data_parallel_inference and attn_mask is not None:
+        if self.enable_data_parallel and attn_mask is not None:
             xs.mark_sharding(attn_mask, self.mesh, ("x", None, None, None))
 
         attn_metadata = TTMetadata(
@@ -1515,7 +1516,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         # Keep only batch sizes divisible by num_devices for data-parallel model
         # execution.
-        if self.data_parallel_inference:
+        if self.enable_data_parallel:
             batch_variants = [
                 batch for batch in batch_variants if batch % self.num_devices == 0
             ]

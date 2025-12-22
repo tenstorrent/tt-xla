@@ -1,4 +1,6 @@
 [
-    { "runs-on": "n150",               "name": "run_vllm_n150_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "n150 and push and single_device", "shared-runners": "true" },
-    { "runs-on": "n300",               "name": "run_vllm_n300_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "n300 and push and data_parallel", "shared-runners": "true" }
+    { "runs-on": "n150",               "name": "run_vllm_n150_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "push and single_device", "shared-runners": "true" },
+    { "runs-on": "n300",               "name": "run_vllm_n300_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "push and data_parallel", "shared-runners": "true" },
+    { "runs-on": "n300",               "name": "run_vllm_n300_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "push and tensor_parallel and dual_chip", "shared-runners": "true" },
+    { "runs-on": "n300-llmbox",        "name": "run_vllm_llmbox_tests", "dir": "./tests/integrations/vllm_plugin",        "test-mark": "push and tensor_parallel and llmbox", "shared-runners": "true" }
 ]
