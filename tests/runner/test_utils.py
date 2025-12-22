@@ -267,6 +267,39 @@ def _to_marshal_safe(value):
     return str(value)
 
 
+def _derive_guidance_from_status(test_metadata_status, bringup_status) -> list[str]:
+    """
+    Derive guidance tags from test metadata status and bringup status.
+
+    These tags are intended to guide configuration updates for tests that are passing
+    or showing incorrect results when their status doesn't match their actual behavior.
+
+    Meanings:
+    - RM_XFAIL: Test is marked as KNOWN_FAILURE_XFAIL but is passing or showing
+      incorrect results → suggest removing the xfail marker.
+    - ADD_CONFIG: Test is marked as UNSPECIFIED but is passing or showing incorrect
+      results → suggest adding proper configuration for the test. This is typically
+      tests running in experimental nightly that can be promoted to nightly/weekly.
+    """
+    guidance: list[str] = []
+
+    # Check if bringup_status is PASSED or INCORRECT_RESULT
+    is_passed_or_incorrect = bringup_status in (
+        BringupStatus.PASSED,
+        BringupStatus.INCORRECT_RESULT,
+    )
+
+    if is_passed_or_incorrect:
+        # Suggest removing xfail if test is actually passing or showing results
+        if test_metadata_status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
+            guidance.append("RM_XFAIL")
+        # Suggest adding config if test is unspecified but showing results
+        elif test_metadata_status == ModelTestStatus.UNSPECIFIED:
+            guidance.append("ADD_CONFIG")
+
+    return guidance
+
+
 def _derive_guidance_from_pcc(comparison_result, comparison_config) -> list[str]:
     """
     Derive guidance tags from PCC metrics and thresholds.
@@ -415,6 +448,7 @@ def record_model_test_properties(
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
         "bringup_status": str(bringup_status),
+        "model_test_status": str(test_metadata.status),
         "failing_reason": (
             {
                 "name": failing_reason.name,
@@ -458,7 +492,11 @@ def record_model_test_properties(
         )
 
     # Derive guidance tags based on PCC metrics and thresholds (always include; may be empty).
-    tags["guidance"] = _derive_guidance_from_pcc(comparison_result, comparison_config)
+    guidance_pcc = _derive_guidance_from_pcc(comparison_result, comparison_config)
+    # Derive guidance tags based on test status and bringup status.
+    guidance_status = _derive_guidance_from_status(test_metadata.status, bringup_status)
+    # Combine all guidance tags.
+    tags["guidance"] = guidance_pcc + guidance_status
 
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)

@@ -43,7 +43,7 @@ def training_tester() -> StableDiffusion35Tester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason="Out of Memory: Not enough space to allocate 94633984 B DRAM buffer across 12 banks"
 )
 def test_torch_stable_diffusion_3_5_medium_inference(

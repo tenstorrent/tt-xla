@@ -197,7 +197,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         device: torch.device,
         original_parallel_config: Optional[ParallelConfig] = None,
     ):
-
         self.tt_config = TTConfig(**vllm_config.additional_config)
         torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
 
@@ -222,7 +221,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
 
         # SPMD Related
-        self.use_spmd = envs.VLLM_XLA_USE_SPMD
+        self.use_spmd = self.tt_config.enable_tensor_parallel
         if self.use_spmd:
             num_devices = xr.global_runtime_device_count()
             mesh_shape = (num_devices, 1)
@@ -250,8 +249,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.block_size = cache_config.block_size
         self.max_model_len = model_config.max_model_len
         assert (
-            self.max_model_len == scheduler_config.max_num_batched_tokens
-        ), f"The TT plugin only supports max_model_len == max_num_batched_tokens currently, received: max_model_len: {self.max_model_len}, max_num_batched_tokens: {scheduler_config.max_num_batched_tokens}"
+            self.max_model_len * scheduler_config.max_num_seqs
+            <= scheduler_config.max_num_batched_tokens
+        ), f"The max_num_batched_tokens {scheduler_config.max_num_batched_tokens} must be larger than or equal to max_model_len ({self.max_model_len}) * max_num_seqs ({scheduler_config.max_num_seqs})"
         self.most_model_len = envs.VLLM_TPU_MOST_MODEL_LEN
         self.max_num_blocks_per_req = cdiv(self.max_model_len, self.block_size)
         self.num_blocks_per_most_len_req = (
@@ -261,9 +261,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         # InputBatch needs to work with sampling tensors greater than padding
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
-        assert (
-            scheduler_config.max_num_seqs == 1
-        ), f"The TT plugin only supports max_num_seqs == 1 currently, received: max_num_seqs: {scheduler_config.max_num_seqs}"
         self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
@@ -273,6 +270,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
             max_token_size=scheduler_config.max_num_batched_tokens,
+            max_num_reqs=self.max_num_reqs,
         )
 
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
@@ -502,6 +500,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # consecutive batches contain mostly the same requests. If batches
         # have low request overlap (e.g., alternating between two distinct
         # sets of requests), this optimization becomes very inefficient.
+
         for req_id in unscheduled_req_ids:
             req_index = self.input_batch.remove_request(req_id)
             assert req_index is not None
@@ -784,6 +783,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 end_index = start_index + self.num_reqs_most_model_len
             else:
                 end_index = num_reqs
+
         max_num_scheduled_tokens_all_reqs = max(num_scheduled_tokens_per_req)
         num_scheduled_tokens_per_req = np.array(
             num_scheduled_tokens_per_req, dtype=np.int32
@@ -875,7 +875,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ]
             )
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
-        cache_position = (seq_lens - 1).to(self.device)
+
+        cache_position = seq_lens - 1
+
+        if num_reqs == 1:
+            cache_position[1:] = -1
+            page_table[1:, :] = 0
+
+        cache_position = cache_position.to(self.device)
         page_table = page_table.to(self.device)
 
         if self.lora_config is not None:
@@ -1102,7 +1109,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.vllm_config,
                 num_tokens=scheduler_output.total_num_scheduled_tokens,
             ):
-
                 hidden_states = self.model(
                     input_ids=input_ids,
                     positions=self.position_ids,
@@ -1316,7 +1322,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     model = model_loader.load_model(
                         vllm_config=self.vllm_config, model_config=self.model_config
                     )
-
                 model = model.to("xla")
             except RuntimeError as e:
                 raise RuntimeError(
@@ -1359,8 +1364,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.supports_mm_inputs:
             input_ids = None
             inputs_embeds = torch.zeros(
-                (num_tokens, self.hidden_size), dtype=self.dtype, device=self.device
-            )
+                (num_tokens, self.hidden_size),
+                dtype=self.dtype,
+            ).to(self.device)
         else:
             input_ids = torch.zeros((num_tokens), dtype=torch.int32).to(self.device)
             inputs_embeds = None
@@ -1370,6 +1376,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.device
         )
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
@@ -1388,6 +1395,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             out = self.model(
                 input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
             )
+
         self._hidden_states_dtype = out.dtype
 
     def _set_active_loras(
@@ -1506,7 +1514,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (num_tokens, hsize), device=self.device, dtype=self._hidden_states_dtype
             )
             for num_reqs in self.num_reqs_paddings:
-                indices = torch.zeros(num_reqs, dtype=torch.int32, device=self.device)
+                indices = torch.zeros(num_reqs, dtype=torch.int32)
+                indices = indices.to(self.device)
                 self.select_hidden_states(dummy_hidden, indices)
                 logger.info("  -- num_tokens: %d, num_seqs: %d", num_tokens, num_reqs)
                 # Requests can't be more than tokens. But do compile for the
@@ -1525,8 +1534,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         hsize = self.model_config.get_hidden_size()
         for num_reqs in self.num_reqs_paddings:
             dummy_hidden = torch.zeros(
-                (num_reqs, hsize), device=self.device, dtype=self._hidden_states_dtype
+                (num_reqs, hsize), dtype=self._hidden_states_dtype
             )
+            dummy_hidden = dummy_hidden.to(self.device)
             self.compute_logits(dummy_hidden)
             logger.info("  -- num_seqs: %d", num_reqs)
         xm.wait_device_ops()
@@ -1541,9 +1551,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for num_reqs in self.num_reqs_paddings:
             dummy_logits = torch.zeros(
                 (num_reqs, self.vocab_size),
-                device=self.device,
                 dtype=self._hidden_states_dtype,
             )
+            dummy_logits = dummy_logits.to(self.device)
             dummy_require_struct_decoding = self.require_structured_out_cpu[
                 :num_reqs
             ].to(self.device)
@@ -1602,9 +1612,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for num_reqs in self.num_reqs_paddings:
             dummy_logits = torch.zeros(
                 (num_reqs, self.vocab_size),
-                device=self.device,
                 dtype=self._hidden_states_dtype,
             )
+            dummy_logits = dummy_logits.to(self.device)
             dummy_tokens = torch.zeros((num_reqs, 1), dtype=torch.int64).to(self.device)
             with self.maybe_select_dummy_loras(
                 self.lora_config, np.array([num_reqs], dtype=np.int32)
@@ -1820,7 +1830,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.use_spmd:
             # Shard KV Cache
             for cache in self.kv_caches:
-                xs.mark_sharding(cache, self.mesh, (None, "x", None, None))
+                assert cache.ndim == 5, "KV cache tensor must be 5D."
+                xs.mark_sharding(cache, self.mesh, (None, None, "x", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
@@ -1843,10 +1854,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
-        device = hidden_states.device
-        indices_do_sample = indices_do_sample.to("cpu")
-        hidden_states = hidden_states.to("cpu")
-        return hidden_states[indices_do_sample].to(device)
+        return hidden_states[indices_do_sample]
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
@@ -1878,18 +1886,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         of logprobs as an alternative to having multiple pre-compiled graphs.
         Select the number of logprobs actually demanded by each request on CPU.
         """
-        device = logits.device
-        logprobs = self.sampler.compute_logprobs(logits.to("cpu"))
+        logprobs = self.sampler.compute_logprobs(logits)
         logprobTensors = self.sampler.gather_logprobs(
             logprobs,
             self.model_config.max_logprobs,
-            token_ids=sampled_tokens.to("cpu").squeeze(-1),
+            token_ids=sampled_tokens.squeeze(-1),
         )
 
         return LogprobsTensors(
-            logprob_token_ids=logprobTensors.logprob_token_ids.to(device),
-            logprobs=logprobTensors.logprobs.to(device),
-            selected_token_ranks=logprobTensors.selected_token_ranks.to(device),
+            logprob_token_ids=logprobTensors.logprob_token_ids,
+            logprobs=logprobTensors.logprobs,
+            selected_token_ranks=logprobTensors.selected_token_ranks,
         )
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -1900,19 +1907,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logits: torch.Tensor,
         arange: torch.Tensor,
     ) -> torch.Tensor:
-        device = logits.device
         return torch.where(
-            require_struct_decoding.to("cpu"),
-            self.apply_grammar_bitmask(
-                logits.to("cpu"), grammar_bitmask.to("cpu"), arange.to("cpu")
-            ),
-            logits.to("cpu"),
-        ).to(device)
+            require_struct_decoding,
+            self.apply_grammar_bitmask(logits, grammar_bitmask, arange),
+            logits,
+        )
 
     def apply_grammar_bitmask(
         self, logits: torch.Tensor, grammar_bitmask: torch.Tensor, arange: torch.Tensor
     ):
         assert logits.shape[0] == grammar_bitmask.shape[0]
+        device = logits.device
+        logits = logits.to("cpu")
+        grammar_bitmask = grammar_bitmask.to("cpu")
+        arange = arange.to("cpu")
+
         logits_cloned = logits.clone()
         for i in range(logits.shape[0]):
             unpacked_bitmask = (
@@ -1923,7 +1932,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logits_cloned[i] = logits_cloned[i].masked_fill(
                 unpacked_bitmask, -float("inf")
             )
-        return logits_cloned
+        return logits_cloned.to(device)
 
     def get_multimodal_embeddings(self, *args, **kwargs):
         return self.model.get_multimodal_embeddings(*args, **kwargs)
@@ -2042,17 +2051,22 @@ def _adjust_min_token(min_token_size: int) -> int:
     return adjusted_value
 
 
-def _get_token_paddings(min_token_size: int, max_token_size: int) -> list[int]:
+def _get_token_paddings(
+    min_token_size: int, max_token_size: int, max_num_reqs: int
+) -> list[int]:
     """
     Generate a list of padding size, starting from min_token_size, ending with
     a number that can cover max_token_size. Increase padding size exponentially.
-    This list also includes 1 to support 1-token decode requests.
+    This list also includes max_num_reqs to support 1-token decode requests per user.
 
     First adjust min_token_size so it is power-of-two and divisible by 32.
     """
     # Adjust min_token_size to be power of 2 and >=32 (if required)
     num = _adjust_min_token(min_token_size)
-    paddings = [1]  # We need to support 1 token requests for decode graphs.
+    # Scale by max_num_reqs once (max_token_size is the combined max for all requests)
+    num *= max_num_reqs
+    # Minimum padding = max_num_reqs so each user can decode 1 token at a time.
+    paddings = [max_num_reqs]
 
     logger.info("Using exponential token paddings:")
     while True:

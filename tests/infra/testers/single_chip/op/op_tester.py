@@ -29,11 +29,13 @@ class OpTester(BaseTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         framework: Framework = Framework.JAX,
         compiler_config: CompilerConfig = None,
+        torch_options: dict = None,
     ) -> None:
         """Protected constructor for subclasses to use."""
         if compiler_config is None:
             compiler_config = CompilerConfig()
         self._compiler_config = compiler_config
+        self._torch_options = torch_options if torch_options is not None else {}
         super().__init__(comparison_config, framework)
 
     def test(self, workload: Workload) -> None:
@@ -77,7 +79,9 @@ class OpTester(BaseTester):
                 torch_xla.set_custom_compile_options(
                     self._compiler_config.to_torch_compile_options()
                 )
-            workload.compiled_executable = torch.compile(to_compile, backend="tt")
+            workload.compiled_executable = torch.compile(
+                to_compile, backend="tt", options=self._torch_options
+            )
 
         if self._framework == Framework.JAX:
             assert workload.is_jax, "Workload must be JAX workload to compile"
@@ -259,6 +263,7 @@ def run_op_test_with_random_inputs(
     comparison_config: ComparisonConfig = ComparisonConfig(),
     framework: Framework = Framework.JAX,
     compiler_config: CompilerConfig = None,
+    torch_options: dict = None,
 ) -> None:
     """
     Tests `op` with random inputs in range [`minval`, `maxval`) by running it on
@@ -266,5 +271,10 @@ def run_op_test_with_random_inputs(
     """
     if compiler_config is None:
         compiler_config = CompilerConfig()
-    tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
+    tester = OpTester(
+        comparison_config,
+        framework,
+        compiler_config=compiler_config,
+        torch_options=torch_options,
+    )
     tester.test_with_random_inputs(op, input_shapes, minval, maxval, dtype)

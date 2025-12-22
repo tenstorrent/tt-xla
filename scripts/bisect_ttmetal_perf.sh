@@ -98,6 +98,10 @@ BENCHMARK_COMMAND="${BENCHMARK_COMMAND:-$DEFAULT_COMMAND}"
 PERF_THRESHOLD="${PERF_THRESHOLD:-$DEFAULT_THRESHOLD}"
 METRIC_PATTERN="${METRIC_PATTERN:-$DEFAULT_PATTERN}"
 
+# Determine tt-xla root (we're in tt-metal which is 8 levels deep)
+TTMETAL_DIR=$(pwd)
+TTXLA_ROOT="$(cd "$TTMETAL_DIR/../../../../../../../.." && pwd)"
+
 TTMETAL_COMMIT=$(git rev-parse --short HEAD)
 TTMETAL_COMMIT_FULL=$(git rev-parse HEAD)
 
@@ -127,11 +131,8 @@ if ! git submodule update --init --recursive >> "$LOG_FILE" 2>&1; then
     echo "Warning: Submodule update failed, continuing anyway" | tee -a "$LOG_FILE"
 fi
 
-# Navigate to directories first (needed for revert logic)
-# tt-metal is at: tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
-# Up 8 levels: ../../../../../../../../
-TTMETAL_DIR=$(pwd)
-TTXLA_ROOT="$(cd "$TTMETAL_DIR/../../../../../../../.." && pwd)"
+# Navigate to directories (needed for revert logic)
+
 # tt-mlir third_party dir is 3 levels up from tt-metal
 TTMLIR_THIRD_PARTY_DIR="$(cd "$TTMETAL_DIR/../../.." && pwd)"
 # tt-mlir source root is parent of third_party
