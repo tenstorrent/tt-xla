@@ -2234,7 +2234,7 @@ test_config:
 
   detr/segmentation/pytorch-resnet_50_panoptic-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
+    # reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
   panoptic_segmentation/pytorch-resnet101_3x_coco-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
