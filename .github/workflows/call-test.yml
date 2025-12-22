@@ -7,33 +7,16 @@ on:
         description: 'Docker image to use for the build'
         required: true
         type: string
-      codecov:
-        description: 'Run code coverage tests and uploads'
-        required: false
-        default: true
-        type: boolean
       artifact_release_run_id:
         description: 'Run ID of the artifacts (release)'
         required: true
-        type: string
-      artifact_codecov_run_id:
-        description: 'Run ID of the artifacts (codecov)'
-        required: false
         type: string
       wheel_release_artifact_name:
         description: 'Name of the wheel artifact (release)'
         required: true
         type: string
-      wheel_codecov_artifact_name:
-        description: 'Name of the wheel artifact (codecov)'
-        required: false
-        type: string
       wheel_release_vllm_tt_artifact_name:
         description: 'Name of the wheel artifact (release vllm-tt)'
-        required: false
-        type: string
-      build_artifact_name:
-        description: 'Name of the build artifact (codecov)'
         required: false
         type: string
       test_suite:
@@ -44,6 +27,11 @@ on:
         description: 'Custom test suite json'
         required: false
         type: string
+      include_passed:
+        description: 'Include passed tests in the summary'
+        required: false
+        default: false
+        type: boolean
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -108,6 +96,8 @@ jobs:
           .github/scripts
           .gitmodules
           .test_durations
+          pjrt_implementation
+          third_party/pjrt_c_api
           pytest.ini
           python_package/requirements.txt
           integrations/vllm_plugin/requirements-vllm-plugin.txt
@@ -129,16 +119,10 @@ jobs:
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
-        if [[ "${{ inputs.codecov }}" == "true" && "${{ matrix.build.codecov }}" == "true" ]]; then
-          echo "do_codecov=true" >> "$GITHUB_OUTPUT"
-          echo "wheel_artifact_name=${{ inputs.wheel_codecov_artifact_name }}" >> "$GITHUB_OUTPUT"
-          echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
-          echo "artifact_run_id=${{ inputs.artifact_codecov_run_id }}" >> "$GITHUB_OUTPUT"
-        else
-          echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
-          echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
-          echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
-        fi
+        echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
+        echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
+        echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
+        echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
 
         # Precompute forge models detection as a reusable output
         if [[ "${{ matrix.build.dir }}" == *"tests/runner/test_models.py"* ]]; then
@@ -156,7 +140,9 @@ jobs:
           --repo ${{ github.repository }} \
           --dir wheels \
           --name ${{ steps.strings.outputs.wheel_artifact_name }}
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
           gh run download ${{ steps.strings.outputs.artifact_run_id }} \
             --repo ${{ github.repository }} \
@@ -169,19 +155,6 @@ jobs:
         echo "=== Installing wheel ==="
         source venv/activate
         pip install wheels/*.whl
-
-    - name: Download build artifacts
-      if: steps.strings.outputs.do_codecov
-      run: |
-        echo "Downloading build artifacts"
-        gh run download ${{ inputs.artifact_codecov_run_id }} \
-          --repo ${{ github.repository }} \
-          --dir build \
-          --name ${{ inputs.build_artifact_name }}
-        echo "Untar build artifacts"
-        cd build
-        tar xf artifact.tar
-        rm -f artifact.tar
 
     - name: Check for re-run attempt
       id: check-rerun-attempt
@@ -314,21 +287,28 @@ jobs:
       timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
       env:
         HF_HOME: /mnt/dockercache/huggingface
+        TORCH_HOME: /mnt/dockercache/torchhub
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
       shell: bash
       run: |
         source venv/activate
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
           $(pwd)/venv/bin/pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
           pip freeze
         fi
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
+               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
+               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
                2>&1 | tee pytest.log
 
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" ]]; then
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
           $(pwd)/venv/bin/pip uninstall -y vllm transformers
           $(pwd)/venv/bin/pip install -r $(pwd)/venv/requirements-dev.txt
         fi
@@ -356,21 +336,15 @@ jobs:
         name: test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
 
-    - name: Prepare code coverage report
-      if: steps.strings.outputs.do_codecov && (success() || failure())
-      run: |
-        lcov --directory build --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh
-        lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
-        sed -i 's|SF:/__w/tt-xla/tt-xla/pjrt_implementation/src/|SF:src/|' coverage.info
-        lcov --list coverage.info
-
-    - name: Upload coverage reports to Codecov
-      if: steps.strings.outputs.do_codecov && (success() || failure())
-      uses: codecov/codecov-action@v5
+    # If no perf tests ran, this step will emit a warning (no files to upload) but won't fail the job.
+    - name: Upload Benchmark Report
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
       with:
-        files: coverage.info
-        disable_search: true
-        token: ${{ secrets.CODECOV_TOKEN }}
+        name: perf-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ steps.strings.outputs.perf_report_dir }}
+        # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
+        if-no-files-found: 'ignore'
 
 
   test-summary:
@@ -396,5 +370,6 @@ jobs:
           report_paths: test_reports/report_*.xml
           check_name: TT-XLA ${{ needs.generate-matrix-test.outputs.test_matrix_name }}
           detailed_summary: true
+          include_passed: ${{ inputs.include_passed }}
           group_suite: true
           token: ${{ github.token }}

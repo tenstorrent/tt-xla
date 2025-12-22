@@ -22,9 +22,7 @@ test_config:
 
   gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9626210927963257. Required: pcc=0.97"
 
   gemma/pytorch-google/gemma-2-9b-it-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -66,6 +64,7 @@ test_config:
   qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2550
 
   qwen_3/causal_lm/pytorch-14b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
@@ -75,6 +74,7 @@ test_config:
   qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2550
 
   qwen_3/causal_lm/pytorch-32b-tensor_parallel-full-inference:
     supported_archs: [n300-llmbox]

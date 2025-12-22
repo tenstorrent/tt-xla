@@ -42,7 +42,11 @@ class TTConfig:
     # - batch_size > 1
     # - max_num_seqs > 1
     # Only supported for pooling/embedding models.
-    is_data_parallel: bool = False
+    enable_data_parallel: bool = False
+
+    # Flag to enable tensor parallel execution of a model. We are relying on
+    # TPU model loader to share the model across multiple devices.
+    enable_tensor_parallel: bool = False
 
     def get_pjrt_compile_config(self) -> dict:
         return {
@@ -85,7 +89,7 @@ class TTPlatform(Platform):
     ) -> str:
         if not use_v1:
             raise ValueError("TT backend only supports V1.")
-        logger.info("Using Pallas V1 backend.")
+        logger.info("Using TT Attention layer.")
         return "vllm_tt.attention.TTAttentionBackend"
 
     @classmethod
@@ -131,6 +135,12 @@ class TTPlatform(Platform):
     @classmethod
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationLevel, CUDAGraphMode
+
+        # Use AscendScheduler as the default scheduler for TT (except for pooling models)
+        if vllm_config.model_config.runner_type != "pooling":
+            vllm_config.scheduler_config.scheduler_cls = (
+                "vllm_tt.scheduler.AscendScheduler"
+            )
 
         cache_config = vllm_config.cache_config
         # For v0, the default block size is 16.

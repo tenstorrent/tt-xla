@@ -77,6 +77,13 @@ struct CompileOptions {
   // https://github.com/tenstorrent/tt-mlir/issues/3888
   bool enable_const_eval = true;
 
+  // Enables transpose + matmul and transpose + linear ops fusion.
+  // This controls fusing of transpose + matmul and transpose + linear ops.
+  // When disabled, transpose is kept as a separate op which can be constevaled,
+  // potentially improving performance. However, this may cause OOM errors on
+  // some models until https://github.com/tenstorrent/tt-mlir/pull/6198 lands.
+  bool experimental_enable_permute_matmul_fusion = true;
+
   // Enable collection of TTNN performance metrics during execution.
   bool ttnn_perf_metrics_enabled = false;
 

@@ -1,0 +1,120 @@
+name: Build tt-xla (debug)
+
+on:
+  workflow_call:
+    inputs:
+        mlir_override:
+            description: 'Git SHA of commit in tenstorrent/tt-mlir'
+            required: false
+            type: string
+        docker_image:
+            description: 'Docker image to use for the build'
+            required: true
+            type: string
+
+jobs:
+  build-and-test-ttxla:
+    timeout-minutes: 120
+    runs-on: tt-ubuntu-2204-large-stable
+    name: "Build tt-xla (debug)"
+    container:
+      image: ${{ inputs.docker_image }}
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+            echo "Current user: $(whoami)"
+            ls -ld $(pwd)
+            git config --global --add safe.directory /__w/tt-xla/tt-xla
+            git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - uses: actions/checkout@v4
+        with:
+            submodules: recursive
+            repository: 'tenstorrent/tt-xla'
+
+      - name: Fetch job ID
+        id: fetch-job-id
+        uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+        with:
+          job_name: "Build tt-xla (debug)"
+
+      - name: Override tt-mlir SHA if mlir_override is set
+        if: ${{ inputs.mlir_override }}
+        shell: bash
+        run: |
+            # Update the CMakeLists.txt file with the new SHA
+            sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/\" third_party/CMakeLists.txt
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+            echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+            echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+            create-symlink: true
+            key: "debug-build"
+
+      - name: Build with CMake (with debug symbols and code coverage)
+        shell: bash
+        run: |
+            source venv/activate
+            cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON
+            cmake --build ${{ steps.strings.outputs.build-output-dir }}
+
+      - name: Run unit tests with ctest
+        shell: bash
+        env:
+          # libTTMLICompiler.so install dir is not present in any of the defaul search paths
+          LD_LIBRARY_PATH: ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/install/lib
+        run: |
+            source venv/activate
+            cd ${{ steps.strings.outputs.build-output-dir }}
+            ctest -R PJRT -V 2>&1 | tee ctest.log
+
+      - name: Upload test log
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log-pjrt-unit-tests-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
+          path: ${{ steps.strings.outputs.build-output-dir }}/ctest.log
+
+      - name: Upload test report
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+            name: test-reports-pjrt-unit-tests-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
+            path: ${{ steps.strings.outputs.build-output-dir }}/gtest_report.xml
+
+      - name: Show unit test report
+        if: success() || failure()
+        continue-on-error: true
+        uses: mikepenz/action-junit-report@v5
+        with:
+            report_paths: ${{ steps.strings.outputs.build-output-dir }}/gtest_report.xml
+            check_name: TT-XLA Unit Tests
+            group_suite: true
+            detailed_summary: true
+            include_passed: true
+            token: ${{ github.token }}
+
+      - name: Prepare code coverage report
+        if: success() || failure()
+        shell: bash
+        run: |
+            lcov --directory ${{ steps.strings.outputs.build-output-dir }} --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh
+            lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
+            sed -i 's|SF:${{ steps.strings.outputs.work-dir }}/pjrt_implementation/src/|SF:src/|' coverage.info
+            lcov --list coverage.info
+
+      - name: Upload coverage report to Codecov
+        if: success() || failure()
+        uses: codecov/codecov-action@v5
+        with:
+            files: coverage.info
+            disable_search: true
+            token: ${{ secrets.CODECOV_TOKEN }}
