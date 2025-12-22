@@ -97,7 +97,7 @@ jobs:
         continue-on-error: true
         uses: mikepenz/action-junit-report@v5
         with:
-            report_paths: ${{ steps.strings.outputs.build-output-dir }}/gtest_report.xml
+            report_paths: ${{ steps.strings.outputs.build-output-dir }}/${{ steps.strings.outputs.test-report-name }}
             check_name: TT-XLA Unit Tests
             group_suite: true
             detailed_summary: true
