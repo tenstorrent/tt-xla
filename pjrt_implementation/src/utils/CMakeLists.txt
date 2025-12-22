@@ -29,6 +29,7 @@ add_dependencies(TTPJRTUtils
 )
 
 target_link_libraries(TTPJRTUtils PUBLIC
+    coverage_config
     loguru
 )
 
