@@ -31,8 +31,16 @@ def run_sdpa():
     model.eval()
     with torch.no_grad():
         tt_output = model(query, key, value)
-    tt_output_cpu = tt_output.cpu()
-    print(tt_output_cpu)
+    tt_output = tt_output.cpu()
+    print(tt_output)
+
+    import time
+    start_time = time.time()
+    with torch.no_grad():
+        tt_output = model(query, key, value)
+    tt_output = tt_output.cpu()
+    end_time = time.time()
+    print(f"Time taken: {end_time - start_time} seconds")
 
 if __name__ == "__main__":
     run_sdpa()

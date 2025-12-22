@@ -126,6 +126,79 @@ def composite_layer_norm(
 
     return output
 
+def composite_sdpa(query: Tensor, key: Tensor, value: Tensor, attn_mask: Tensor | None = None, dropout_p: float = 0.0, is_causal: bool = False, scale = None, enable_gqa: bool = False) -> Tensor:
+    """
+    Creates composite scaled dot product attention operation for torch xla using StableHLOCompositeBuilder.
+    Note that operation name must be tenstorrent.scaled_dot_product_attention for MLIR to handle it.
+
+    Args:
+        query: Query tensor [batch, num_heads, query_seq_len, head_size]
+        key: Key tensor [batch, num_kv_heads, kv_seq_len, head_size]
+        value: Value tensor [batch, num_kv_heads, kv_seq_len, head_size]
+        attn_mask: Optional attention mask tensor
+        dropout_p: Dropout probability (default: 0.0)
+        is_causal: Whether to apply causal mask (default: False)
+        scale: Optional scale factor for attention scores
+        enable_gqa: Whether to enable group query attention optimization (TT-specific, default: False)
+
+    Returns a tensor with shape [batch, num_heads, query_seq_len, head_size].
+    
+    NOTE: The decomposition uses a an equivalent implementation of SDPA
+    because XLA's standard SDPA decomposition fails to legalize the operation.
+    Since tt-mlir will replace this composite with ttir.scaled_dot_product_attention,
+    the decomposition body is never actually executed on TT hardware, it just serves as golden.
+    """
+
+    def __scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.0,
+        is_causal=False, scale=None, enable_gqa=False) -> torch.Tensor:
+        """
+        An equivalent implementation of SDPA that can successfully legalize on XLA.
+        Source: https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+        """
+        import math
+        L, S = query.size(-2), key.size(-2)
+        scale_factor = 1 / math.sqrt(query.size(-1)) if scale is None else scale
+        attn_bias = torch.zeros(L, S, dtype=query.dtype, device=query.device)
+        if is_causal:
+            assert attn_mask is None
+            temp_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
+            attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
+
+        if attn_mask is not None:
+            if attn_mask.dtype == torch.bool:
+                attn_bias.masked_fill_(attn_mask.logical_not(), float("-inf"))
+            else:
+                attn_bias = attn_mask + attn_bias
+
+        if enable_gqa:
+            key = key.repeat_interleave(query.size(-3)//key.size(-3), -3)
+            value = value.repeat_interleave(query.size(-3)//value.size(-3), -3)
+
+        attn_weight = query @ key.transpose(-2, -1) * scale_factor
+        attn_weight += attn_bias
+        attn_weight = torch.softmax(attn_weight, dim=-1)
+        attn_weight = torch.dropout(attn_weight, dropout_p, train=True)
+        return attn_weight @ value
+    
+    attr = {
+        "is_causal": is_causal,
+    }
+    if scale is not None:
+        attr["scale"] = float(scale)  # Ensure it's a Python float
+
+    builder = StableHLOCompositeBuilder(name="tenstorrent.scaled_dot_product_attention", attr=attr)
+
+    if attn_mask is not None:
+        query, key, value, attn_mask = builder.mark_inputs(query, key, value, attn_mask)
+    else:
+        query, key, value = builder.mark_inputs(query, key, value)
+
+    
+    output = __scaled_dot_product_attention(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale, enable_gqa=enable_gqa)
+    
+    output = builder.mark_outputs(output)
+    return output
+
 
 ################# module replacements #################
 
@@ -193,6 +266,7 @@ replacements = {
     torch.nn.functional.gelu: composite_gelu,
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
+    torch.nn.functional.scaled_dot_product_attention: composite_sdpa,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
 }
