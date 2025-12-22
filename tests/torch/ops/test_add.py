@@ -8,7 +8,10 @@ from infra.utilities.types import Framework
 from utils import Category
 
 from tests.infra.testers.compiler_config import CompilerConfig
-from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
+from tests.infra.testers.single_chip.op.op_tester import (
+    run_op_test_with_random_inputs,
+    serialize_op_with_random_inputs,
+)
 
 
 @pytest.mark.push
@@ -27,7 +30,7 @@ from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random
     ids=lambda val: f"{val}",
 )
 @pytest.mark.parametrize("format", ["float32", "bfloat16", "bfp8"])
-def test_add(x_shape: tuple, y_shape: tuple, format: str):
+def test_add(x_shape: tuple, y_shape: tuple, format: str, request):
     def add(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return torch.add(x, y)
 
@@ -48,3 +51,12 @@ def test_add(x_shape: tuple, y_shape: tuple, format: str):
         compiler_config=compiler_config,
         framework=Framework.TORCH,
     )
+    # if request.config.getoption("--serialize", default=False):
+    #     serialize_op_with_random_inputs(
+    #         add,
+    #         [x_shape, y_shape],
+    #         test_name=request.node.name,
+    #         dtype=dtype,
+    #         compiler_config=compiler_config,
+    #         framework=Framework.TORCH,
+    #     )
