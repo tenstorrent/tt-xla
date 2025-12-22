@@ -594,7 +594,6 @@ class FailingReasons(Enum):
     )
 
     # MLIR/TTIR compilation errors - these show up in stdout/stderr with "error:" pattern
-    # Example: loc("convolution.1254"): error: 'ttir.conv_transpose2d' op Number of input channels...
     MLIR_TTIR_COMPILATION_ERROR = FailingReason(
         description="MLIR/TTIR compilation error",
         checks=[

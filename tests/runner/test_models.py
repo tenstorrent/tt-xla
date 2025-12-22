@@ -156,6 +156,7 @@ def test_all_models_torch(
 
         except Exception as e:
             captured = capteesys.readouterr()
+            # Record runtime failure info so it can be reflected in report properties
             update_test_metadata_for_exception(
                 test_metadata, e, stdout=captured.out, stderr=captured.err
             )
