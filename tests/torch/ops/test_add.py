@@ -51,12 +51,12 @@ def test_add(x_shape: tuple, y_shape: tuple, format: str, request):
         compiler_config=compiler_config,
         framework=Framework.TORCH,
     )
-    # if request.config.getoption("--serialize", default=False):
-    #     serialize_op_with_random_inputs(
-    #         add,
-    #         [x_shape, y_shape],
-    #         test_name=request.node.name,
-    #         dtype=dtype,
-    #         compiler_config=compiler_config,
-    #         framework=Framework.TORCH,
-    #     )
+    if request.config.getoption("--serialize", default=False):
+        serialize_op_with_random_inputs(
+            add,
+            [x_shape, y_shape],
+            test_name=request.node.name,
+            dtype=dtype,
+            compiler_config=compiler_config,
+            framework=Framework.TORCH,
+        )
