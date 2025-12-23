@@ -1,0 +1,81 @@
+name: Publish the xla wheel to pypi
+
+on:
+  workflow_call:
+    inputs:
+      wheel_release_artifact_run_id:
+        description: 'Run id of the release wheel'
+        type: string
+        required: true
+      wheel_release_artifact_name:
+        description: 'Artifact name of the wheel'
+        type: string
+        required: true
+      is_nightly_release:
+        description: 'Is the docker a nigthly release'
+        type: boolean
+        required: true
+      should_overwrite_release:
+        description: 'Should we overwrite an existing pypi wheel'
+        type: boolean
+        required: true
+
+jobs:
+  publish-wheel:
+    name: Publish wheel to pypi
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set tag
+        shell: bash
+        id: set-tag
+        run: |
+          source .version
+          tag="$VERSION"
+
+          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
+            nigthly_release_suffix="dev$(date +'%Y%m%d')"
+            tag="$VERSION.$nigthly_release_suffix"
+          fi
+
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_PYPI_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Download wheel
+        shell: bash
+        run: |
+          mkdir wheel
+
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_artifact_name }}"
+          gh run download ${{ inputs.wheel_release_artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheel \
+            --name ${{ inputs.wheel_release_artifact_name }}
+
+          echo "Downloaded wheel"
+          ls -l wheel
+
+      - name: Publish Tenstorrent PyPI package
+        shell: bash
+        run: |
+          pip install s3pypi
+          wheel_file=$(realpath wheel/*.whl)
+
+          echo "Pyblishing the tt-xla pypi wheel"
+          if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
+            s3pypi upload "$wheel_file" --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
+          else
+            s3pypi upload "$wheel_file" --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
+          fi

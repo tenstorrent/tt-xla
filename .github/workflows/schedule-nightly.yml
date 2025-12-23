@@ -71,6 +71,36 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
+  publish-release:
+    uses: ./.github/workflows/call-publish-release.yml
+    secrets: inherit
+    # needs: [ test_shield_models ]
+    with:
+      wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      is_nigthly_release: true
+
+  create_release_docker:
+    uses: ./.github/workflows/call-create-release-docker.yml
+    secrets: inherit
+    needs: [ publish-release ]
+    with:
+      wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      is_nigthly_release: true
+
+  release_tests:
+    uses: ./.github/workflows/call-publish-release.yml
+    secrets: inherit
+    needs: [ create_release_docker ]
+    with:
+      release_docker_image: ${{ needs.create_release_docker.outputs.docker_image }}
+
+  # publish_release:
+
+  # forge_release:
+
+
   fail-notify:
     if: always()
     needs:
