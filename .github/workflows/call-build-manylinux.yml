@@ -58,7 +58,7 @@ jobs:
               --exclude libtracy.so \
               --exclude libtt_stl.so \
               --exclude _ttnncpp.so \
-              --plat manylinux_2_35_x86_64 pjrt_plugin_tt*.whl -w wheelhouse/
+              --plat manylinux_2_35_x86_64 "$wheel" -w wheelhouse/
           echo "new wheel files:"
           ls wheelhouse/pjrt_plugin_tt*.whl
 
