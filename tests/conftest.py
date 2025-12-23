@@ -537,8 +537,13 @@ class TeeCapture:
                     try:
                         data = os.read(read_fd, 4096)
                         if data:
-                            # Write to original terminal
-                            os.write(saved_fd, data)
+                            # Write to original output
+                            try:
+                                os.write(saved_fd, data)
+                            except OSError as e:
+                                if e.errno not in (errno.ESPIPE, errno.EPIPE):
+                                    raise
+                                # Can't write to destination, but continue capturing to buffer
                             # Write to buffer
                             try:
                                 buffer.write(data.decode("utf-8", errors="replace"))
@@ -614,7 +619,12 @@ class TeeCapture:
                     try:
                         data = os.read(read_fd, 4096)
                         if data:
-                            os.write(saved_fd, data)
+                            try:
+                                os.write(saved_fd, data)
+                            except OSError as e:
+                                if e.errno not in (errno.ESPIPE, errno.EPIPE):
+                                    raise
+                                # Can't write to destination, but continue to drain the buffer
                             try:
                                 buffer.write(data.decode("utf-8", errors="replace"))
                             except:
@@ -647,5 +657,11 @@ def capteesys():
     """
     tee = TeeCapture()
     tee.start()
-    yield tee
-    tee.stop()
+    try:
+        yield tee
+    finally:
+        try:
+            tee.stop()
+        except OSError as e:
+            if e.errno != errno.ESPIPE:
+                raise
