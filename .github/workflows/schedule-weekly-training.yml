@@ -1,4 +1,4 @@
-name: On weekly
+name: On weekly training
 
 on:
   workflow_dispatch:
@@ -22,23 +22,12 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-  # This is a single test job that runs all passing tt-forge-models tests.
-  test_forge_models_passing:
+  test_forge_models_training:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
     with:
-      test_suite: model-test-passing-weekly.json
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-
-  test_forge_models_xfail:
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    needs: [ build-image, build-ttxla ]
-    with:
-      test_suite: model-test-xfail-weekly.json
+      test_suite: model-test-training-xfail-weekly.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
@@ -46,8 +35,7 @@ jobs:
   fail-notify:
     if: always()
     needs:
-      - test_forge_models_passing
-      - test_forge_models_xfail
+      - test_forge_models_training
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest
@@ -76,7 +64,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "Bad bad weekly - inference: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "text": "Bad bad weekly - training: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
               "channel": "C08GYB57C8M",
               "unfurl_links": false, "unfurl_media": false
             }

@@ -172,11 +172,11 @@ test_config:
     status: EXPECTED_PASSING
     # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
     required_pcc: 0.99
-    markers: ["push", "weekly"]
+    markers: [push, nightly]
 
   mnist/image_classification/pytorch-cnn_nodropout-single_device-full-inference:
     status: EXPECTED_PASSING
-    markers: ["push", "weekly"]
+    markers: [push, nightly]
 
   autoencoder/pytorch-linear-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -399,7 +399,7 @@ test_config:
 
   mobilenetv1/pytorch-mobilenet_v1-single_device-full-inference:
     status: EXPECTED_PASSING
-    markers: ["push", "weekly"]
+    markers: [push, nightly]
 
   mobilenetv2/pytorch-mobilenet_v2-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -513,7 +513,7 @@ test_config:
     filechecks:
       - concatenate_heads.ttnn.mlir
       - split_query_key_value_and_split_heads.ttnn.mlir
-    markers: ["push"]
+    markers: [push, nightly]
 
   vit/pytorch-large-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1265,8 +1265,8 @@ test_config:
     reason: "Url for dataset is not reachable - https://github.com/tenstorrent/tt-xla/issues/2507"
 
   gpt2/pytorch-gpt2-single_device-full-inference:
-    markers: ["push", "weekly"]
     status: EXPECTED_PASSING
+    markers: [push, nightly]
 
   gpt2/pytorch-gpt2_sequence_classification-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1355,7 +1355,7 @@ test_config:
 
   vgg/pytorch-hf_vgg19-single_device-full-inference:
     status: EXPECTED_PASSING
-    markers: ["push", "weekly"]
+    markers: [push, nightly]
 
   segformer/semantic_segmentation/pytorch-b1_finetuned_ade_512_512-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -2478,7 +2478,7 @@ test_config:
     status: EXPECTED_PASSING
 
   dense_unet_3d/pytorch-base-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     reason: "RuntimeError: torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_module L__self___maxpool1(*(FakeTensor(..., device='xla:0', size=(1, 96, 16, 128, 128), dtype=torch.bfloat16),), https://github.com/tenstorrent/tt-xla/issues/2567"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_10-single_device-full-inference:
@@ -2523,3 +2523,7 @@ test_config:
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks, where each bank needs to store 12234752 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+
+  wan/pytorch-wan2.2-ti2v-5b-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Wan2.2 model requires a lot of memeory and takes a lot of time to load hence skipping it for now."

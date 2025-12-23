@@ -110,6 +110,7 @@ class OpTester(BaseTester):
             compiler_options = self._compiler_config.to_jax_compiler_options()
         elif self._framework == Framework.TORCH:
             compiler_options = self._compiler_config.to_torch_compile_options()
+            self._compile_for_tt_device(workload)
         else:
             compiler_options = None
 
