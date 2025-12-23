@@ -141,8 +141,7 @@ jobs:
         run: |
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/python_package
-            export TTXLA_WHEEL_VERSION_OVERRIDE=0.7.0.dev20251229
-            python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
+            python setup.py bdist_wheel --build-type ${{ inputs.build_type }} --package-version 0.7.0.dev20251229
             find ${{ steps.strings.outputs.work-dir }}/ -name "*.whl"
 
       - name: Validate build type of wheel build

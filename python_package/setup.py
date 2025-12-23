@@ -202,12 +202,14 @@ class BdistWheel(bdist_wheel):
 
     user_options = bdist_wheel.user_options + [
         ("build-type=", None, "Build type: release, codecov, debug, or explorer"),
+        ("package-version=", None, "Override package version (PEP 440)"),
     ]
 
     def initialize_options(self):
         super().initialize_options()
         # Default build type is release
         self.build_type = "release"
+        self.package_version = None
 
     def finalize_options(self):
         build_types = ["release", "codecov", "debug", "explorer"]
@@ -215,6 +217,9 @@ class BdistWheel(bdist_wheel):
             raise ValueError(
                 f"Invalid build type: {self.build_type}. Valid options are: {', '.join(build_types)}"
             )
+
+        if self.package_version:
+            self.distribution.metadata.version = self.package_version
 
         config.build_type = self.build_type
         config.enable_explorer = self.build_type == "explorer"
