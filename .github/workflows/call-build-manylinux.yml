@@ -39,7 +39,7 @@ jobs:
       - name: Download xla wheel artifact
         uses: actions/download-artifact@v5
         with:
-          pattern: 'xla-whl-release-*'
+          pattern: 'xla-whl-release*'
 
       - name: Audit wheel
         shell: bash
