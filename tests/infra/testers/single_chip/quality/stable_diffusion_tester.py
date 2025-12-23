@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
 import torch
+from infra.comparators import ComparisonConfig
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.utilities import sanitize_test_name
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
@@ -29,7 +30,6 @@ class StableDiffusionTester(QualityTester):
             pipeline_config=SDXLConfig(width=512, height=512),
             dataset=CocoDataset(),
             metric="clip",
-            min_threshold=25.0,
         )
         tester.test()
     """
@@ -40,10 +40,9 @@ class StableDiffusionTester(QualityTester):
         pipeline_config: Any,
         dataset: Any,
         metric: str,
-        min_threshold: float = 25.0,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
         warmup: bool = True,
         seed: int = 42,
-        device_type: str = "TT",
     ) -> None:
         """
         Initialize the diffusion tester.
@@ -53,18 +52,16 @@ class StableDiffusionTester(QualityTester):
             pipeline_config: Configuration object for the pipeline (e.g., SDXLConfig)
             dataset: Dataset providing captions/prompts for generation
             metric: Metric name string for evaluation ('clip', 'fid')
-            min_threshold: Minimum acceptable metric score (default: 25.0 for CLIP)
+            comparison_config: Configuration for quality thresholds
             warmup: Whether to run warmup inference (default: True)
             seed: Random seed for reproducibility (default: 42)
-            device_type: Device type to run on (default: "TT")
         """
-        super().__init__(device_type=device_type)
+        super().__init__(comparison_config=comparison_config)
 
         self._pipeline_cls = pipeline_cls
         self._pipeline_config = pipeline_config
         self._dataset = dataset
         self._metric = self._resolve_metric(metric)
-        self._min_threshold = min_threshold
         self._seed = seed
 
         # Will be set during compute_metrics
@@ -150,11 +147,12 @@ class StableDiffusionTester(QualityTester):
             AssertionError: If clip_min is below min_threshold
         """
         clip_min = metrics["clip_min"]
+        min_clip_threshold = self._comparison_config.quality.min_clip_threshold
         logging.info(f"CLIP score: {clip_min:.2f}")
-        logging.info(f"Minimum threshold: {self._min_threshold:.2f}")
-        assert clip_min > self._min_threshold, (
+        logging.info(f"Minimum threshold: {min_clip_threshold:.2f}")
+        assert clip_min > min_clip_threshold, (
             f"CLIP score regression detected: "
-            f"clip_min={clip_min:.2f} < threshold={self._min_threshold:.2f}"
+            f"clip_min={clip_min:.2f} < threshold={min_clip_threshold:.2f}"
         )
 
     @property

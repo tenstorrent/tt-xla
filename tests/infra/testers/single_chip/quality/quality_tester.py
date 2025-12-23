@@ -5,11 +5,12 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-import torch_xla.runtime as xr
+from infra.comparators import ComparisonConfig
+from infra.utilities import Framework
 
-from tests.infra.testers.base_tester import BaseTester
+from ...base_tester import BaseTester
 
 
 class QualityTester(BaseTester):
@@ -25,19 +26,18 @@ class QualityTester(BaseTester):
         - assert_quality(): Validate that computed metrics meet quality thresholds
     """
 
-    def __init__(self, device_type: str = "TT") -> None:
+    def __init__(
+        self,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
+    ) -> None:
         """
         Initialize the quality tester.
 
         Args:
-            device_type: The device type to run on (default: "TT" for Tenstorrent)
+            comparison_config: Configuration for quality thresholds
         """
-        self._device_type = device_type
+        super().__init__(comparison_config=comparison_config, framework=Framework.TORCH)
         self._metrics: Dict[str, Any] = {}
-
-    def _setup_device(self) -> None:
-        """Sets up the XLA device for testing."""
-        xr.set_device_type(self._device_type)
 
     @abstractmethod
     def compute_metrics(self) -> Dict[str, Any]:
@@ -70,9 +70,8 @@ class QualityTester(BaseTester):
         """
         Main test entry point.
 
-        Sets up the device, computes metrics, and validates quality thresholds.
+        Computes metrics and validates quality thresholds.
         """
-        self._setup_device()
         self._metrics = self.compute_metrics()
         self.assert_quality(self._metrics)
 

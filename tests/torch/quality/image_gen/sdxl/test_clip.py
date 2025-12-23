@@ -4,8 +4,11 @@
 
 import pytest
 
-from tests.infra import RunMode
-from tests.infra.testers.single_chip.quality import StableDiffusionTester
+from infra.comparators import ComparisonConfig
+from infra.testers.single_chip.model.model_tester import RunMode
+from infra.testers.single_chip.quality.stable_diffusion_tester import (
+    StableDiffusionTester,
+)
 from tests.utils import Category
 
 from .data import CocoDataset
@@ -38,12 +41,16 @@ def test_clip_sdxl(request):
         width=MODEL_INFO["width"],
         height=MODEL_INFO["height"],
     )
+
+    comparison_config = ComparisonConfig()
+    comparison_config.quality.min_clip_threshold = 25.0
+
     tester = StableDiffusionTester(
         pipeline_cls=SDXLPipeline,
         pipeline_config=pipeline_config,
         dataset=dataset,
         metric="clip",
-        min_threshold=25.0,
+        comparison_config=comparison_config,
         warmup=True,
         seed=42,
     )
