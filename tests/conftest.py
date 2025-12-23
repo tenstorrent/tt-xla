@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import ctypes
+import errno
 import gc
 import io
 import os
@@ -571,9 +572,19 @@ class TeeCapture:
         self._stdout_thread.start()
 
     def stop(self):
-        # Flush Python streams
-        sys.stderr.flush()
-        sys.stdout.flush()
+        # Flush Python streams. We catch ESPIPE (Illegal seek) because Python's
+        # TextIOWrapper may try to call tell()/seek() based on cached seekability
+        # from when it was initialized, but we've redirected the fd to a pipe.
+        try:
+            sys.stderr.flush()
+        except OSError as e:
+            if e.errno != errno.ESPIPE:
+                raise
+        try:
+            sys.stdout.flush()
+        except OSError as e:
+            if e.errno != errno.ESPIPE:
+                raise
 
         # Signal threads to stop
         self._stop_event.set()
