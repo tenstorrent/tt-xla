@@ -31,6 +31,10 @@ def test_sharded_copyFromBuffer():
     """
     original_platforms = jax.config.jax_platforms
 
+    @jax.jit  # Apply jit to this function.
+    def add(x: jax.Array, y: jax.Array):
+        return x + y
+
     try:
         jax.config.update(
             "jax_platforms",
@@ -43,12 +47,20 @@ def test_sharded_copyFromBuffer():
         # Create tensor on CPU
         with jax.default_device(jax.devices("cpu")[0]):
             a = jax.random.normal(jax.random.PRNGKey(0), (4, 4))
+            b = jax.random.normal(jax.random.PRNGKey(0), (4, 4))
 
         # Shard tensor across data dimension
         a_tt = jax.device_put(a, NamedSharding(mesh, PartitionSpec("data")))
+        b_tt = jax.device_put(b, NamedSharding(mesh, PartitionSpec("data")))
+        tt_device_res = add(a_tt, b_tt)
+        print(tt_device_res)
+
+        # We want to do comparison on CPU, so we put tt_device_res on CPU before that.
+        # tt_device_res = jax.device_put(tt_device_res, cpu)
 
         # Verify sharding
         assert a_tt.sharding is not None
+        assert b_tt.sharding is not None
     finally:
         # Restore original config
         jax.config.update("jax_platforms", original_platforms)

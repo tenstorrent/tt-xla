@@ -30,22 +30,65 @@ def test_composite_gelu(approx):
     class GeluModel(torch.nn.Module):
         def forward(self, x):
             return composite_gelu(x, approx)
+        def size(self):
+               return 10; 
 
     options = {"tt_enable_composite_ops": False}
 
-    input = torch.randn(32, 32)
+    # input = torch.randn(32, 32)
+    # input = torch.randn(51000, 51000)
     model = GeluModel()
+    print("Creating input")
+    # input = torch.randn(46340, 46340) # ~ 8GB
+    input = torch.randn(16384, 16384) # ~ 1GB
 
-    # Disable inplace buffers for inductor compilation
-    # so that we can compare the results with the golden model.
-    with torch._inductor.config.patch({"inplace_buffers": False}):
-        run_graph_test(
-            model,
-            [input],
-            comparison_config=ComparisonConfig(),
-            framework=Framework.TORCH,
-            torch_options=options,
-        )
+    print("Moving inpuut to CPU (maybe)?")
+    golden = model(input)
+
+    device = xm.xla_device()
+    print("Moving model to device")
+    model = torch.compile(model.to(device), backend="tt", options=options)
+
+    # print("Creating input")
+    # # input = torch.randn(46340, 46340) # ~ 8GB
+    # input = torch.randn(16384, 16384) # ~ 1GB
+
+    print("Moving input to device")
+    tensor = input.to(device)
+
+    print("Calling forward")
+    output = model(tensor)
+
+    output.size()
+
+    comparator = TorchComparator(ComparisonConfig())
+    comparator.compare(output, golden)
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize("approx", ["none", "tanh"])
+def test_composite_gelu_eager(approx):
+    """
+    Tests example model in eager mode that has a composite gelu operation.
+    """
+
+    class MM(torch.nn.Module):
+        def forward(self, x):
+            return composite_gelu(x, approx)
+
+    input = torch.randn(32, 32)
+
+    model = MM()
+    golden = model(input)
+
+    device = xm.xla_device()
+    model = model.to(device)
+    input = input.to(device)
+
+    output = model(input).to("cpu")
+
+    comparator = TorchComparator(ComparisonConfig())
+    comparator.compare(output, golden)
 
 
 @pytest.mark.single_device

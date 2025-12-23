@@ -18,6 +18,7 @@
 #include <vector>
 
 // PJRT C API includes
+#include "tt/runtime/types.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
@@ -34,6 +35,7 @@ namespace tt::pjrt {
 
 class DeviceInstance;
 class MemoryInstance;
+class Tenzorica;
 
 // Represents PJRT_Buffer structure and the functionality around it. Wraps
 // `tt::runtime::Tensor` underneath. `PJRT_Buffer` was designed to represent
@@ -166,6 +168,10 @@ public:
   // Returns buffer's device id relative to mesh on which a output shard resides
   std::optional<uint32_t> getDeviceId() const { return m_device_id; }
 
+  void setTenzorica(std::shared_ptr<Tenzorica> tenzorica) {
+    m_tenzorica = std::move(tenzorica);
+  }
+
 private:
   // Constructor used for the input buffers.
   BufferInstance(PJRT_Buffer_Type data_type, const std::int64_t *dims,
@@ -268,7 +274,107 @@ private:
   // Metal+Program Cache is not thread safe when untilizing on device, so
   //  even different bufferInstances may not be concurrently copied to host.
   static std::mutex s_copy_to_host_internal_mutex;
+
+  std::shared_ptr<Tenzorica> m_tenzorica;
 };
+
+class Tenzorica {
+public:
+  static Tenzorica *init(const std::vector<BufferInstance *> &shards,
+                         tt::runtime::Layout &layout) {
+    validate_shards(shards);
+
+    auto tenzorica = std::make_shared<Tenzorica>(shards);
+    for (BufferInstance *shard : tenzorica->shards()) {
+      shard->setTenzorica(tenzorica);
+    }
+
+    return tenzorica.get();
+  }
+
+  ~Tenzorica() {
+    std::string s = "Killing tenzorica.\n";
+    return;
+  }
+
+  std::vector<BufferInstance *> &shards() { return m_shards; };
+  const std::vector<BufferInstance *> &shards() const { return m_shards; };
+
+private:
+  Tenzorica(const std::vector<BufferInstance *> &arg_buffers)
+      : m_shards{arg_buffers} {
+    m_device_tensor = *m_shards[0]->getPreparedTensor();
+  }
+
+  // Assert that all buffer instances have the same prepared tensor.
+  // NOTE: In case of sharded tensor we have multiple buffer instances on the
+  // PJRT side, but on our side (tt-mlir runtime) we prepare a single
+  // multi-device tensor.
+  static void validate_shards(const std::vector<BufferInstance *> &shards) {
+    assert(!shards.empty());
+    // std::optional<tt::runtime::Tensor> prepared_tensor =
+    //     shards[0]->getPreparedTensor();
+    // for (size_t i = 1; i < shards.size(); ++i) {
+    //   assert(shards[i]->getPreparedTensor().has_value() ==
+    //          prepared_tensor.has_value());
+    //   if (prepared_tensor.has_value()) {
+    //     assert(shards[i]->getPreparedTensor()->handle ==
+    //            prepared_tensor->handle);
+    //   }
+    // }
+    // TODO: Validate that tenzor constructed from this shards has the same
+    // runtime tenzor. Is that even true??
+  }
+
+  std::vector<BufferInstance *> m_shards;
+  // tt::runtime::Tensor m_host_tensor; // for now, let's keep host shards on
+  // buffer instances.
+  tt::runtime::Tensor m_device_tensor;
+};
+
+// // Gets next UID for buffer instances, used in buffer instance constructor
+// // to assign unique identifier to each buffer instance.
+// static uint64_t nextUID() {
+//   static std::atomic<uint64_t> uid{0};
+//   return uid.fetch_add(1, std::memory_order_relaxed);
+// }
+
+// class Tenzorica;
+
+// class TenzoricaShard {
+// public:
+//   const Tenzorica *m_parent;
+
+//   // Unique identifier for this buffer instance.
+//   const uint64_t m_uid = nextUID();
+
+//   // Buffer's data type.
+//   PJRT_Buffer_Type m_data_type;
+
+//   // Buffer's dimensions. Shouldn't be changed after construction because
+//   client
+//   // might depend on the raw pointer to these dimensions.
+//   const std::vector<std::int64_t> m_dim;
+
+//   // Device instance on which this buffer resides.
+//   DeviceInstance *m_device;
+
+//   // Device index relative to mesh on which a output shard resides
+//   const std::optional<uint32_t> m_device_id;
+
+//   // Memory on which this buffer resides, Can be nullptr if buffer is created
+//   // via `PJRT_Client_BufferFromHostBuffer_Args` and memory was not
+//   // specified.
+//   MemoryInstance *m_memory;
+// };
+
+// class Tenzorica {
+// public:
+//   tt::runtime::Tensor m_tensor; // In BufferInstance
+//   // m_prepared_runtime_tensor
+//   // (in multidevice, full tensor)
+//   std::vector<TenzoricaShard> m_shards;
+// };
 
 namespace internal {
 
