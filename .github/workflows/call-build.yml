@@ -141,7 +141,7 @@ jobs:
         run: |
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/python_package
-            export TTXLA_WHEEL_VERSION_OVERRIDE=0.7.0devCUSTOM
+            export TTXLA_WHEEL_VERSION_OVERRIDE=0.7.0.dev20251229
             python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
             find ${{ steps.strings.outputs.work-dir }}/ -name "*.whl"
 
