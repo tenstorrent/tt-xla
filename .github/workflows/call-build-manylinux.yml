@@ -45,6 +45,13 @@ jobs:
         shell: bash
         run: |
           echo "Running auditwheel..."
+          wheel=$(find . -name "*.whl" -type f)
+          if [ $(echo "$wheel" | wc -l) -gt 1 ]; then
+            echo "::warning::Multiple wheel files found:"
+            echo "$wheel"
+            wheel=$(echo "$wheel" | head -n 1)
+          fi
+          echo "Using wheel: $wheel"
           auditwheel repair \
               --exclude libtt_metal.so \
               --exclude libdevice.so \
