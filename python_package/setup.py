@@ -46,10 +46,6 @@ class SetupConfig:
     @property
     def version(self) -> str:
         """Wheel version."""
-        custom_version = os.environ.get("TTXLA_WHEEL_VERSION_OVERRIDE")
-        if custom_version:
-            return custom_version
-
         short_hash = (
             subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
             .decode("ascii")
