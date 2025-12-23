@@ -14,6 +14,8 @@ jobs:
     name: Build Manylinux Wheel
     timeout-minutes: 90
     runs-on: ubuntu-latest
+    container:
+      image: ${{ inputs.docker-image }}
 
     steps:
       - name: Free Disk Space (Ubuntu)
@@ -45,16 +47,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Build ttxla  Wheel (manylinux)
-        uses: pypa/cibuildwheel@v3.2
-        env:
-          CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
-          CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
-          CIBW_BEFORE_BUILD: "source venv/activate"
-        with:
-          output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
-          package-dir: ${{ steps.strings.outputs.work-dir }}/python_package
-          config-file: "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml"
+      - name: Download xla wheel artifact
+        shell: bash
+        run: |
+          gh run download -R tenstorrent/tt-xla ${{ github.run_id }} --pattern "xla-whl-release-*"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
