@@ -61,6 +61,8 @@ jobs:
               --plat manylinux_2_35_x86_64 "$wheel" -w wheelhouse/
           echo "new wheel files:"
           ls wheelhouse/pjrt_plugin_tt*.whl
+          echo "auditwheel show":
+          auditwheel show wheelhouse/pjrt_plugin_tt*.whl
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
