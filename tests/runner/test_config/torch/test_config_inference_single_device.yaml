@@ -1507,7 +1507,7 @@ test_config:
 
   oft/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
+    # reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
 
   mistral/pixtral/pytorch-single_device-full-inference:
     assert_pcc: false
