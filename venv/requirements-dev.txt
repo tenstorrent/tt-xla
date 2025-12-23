@@ -6,14 +6,10 @@ einops
 flax==0.10.4
 fsspec
 jaxtyping
-librosa
 lit
 loguru
 graphviz
 ruamel.yaml>=0.18,<0.19
-
-# monodepth2 model
-matplotlib
 
 ml_collections
 ninja
@@ -29,7 +25,6 @@ pytorchcv
 rjieba
 sentencepiece
 setuptools
-soundfile
 tabulate
 timm
 # torchvision 0.23.0 causes torch v2.8.0 to be installed, which isn't supported by our torch_xla whl
@@ -37,32 +32,20 @@ torchvision==0.22.1
 torchxrayvision
 transformers>=4.50.0,<4.53.0
 
-# vgg model
-vgg_pytorch
-
 wheel
-# monodepth2 model
 matplotlib
 
 seaborn
 diffusers
-scikit-image>=0.24 # For DenseNet 121 HF XRay model
-ase==3.24.0 # For hippynn
-hippynn==0.0.3
-pycocotools # for yolox
+scikit-image>=0.24
+pycocotools
 
-surya-ocr==0.13.0
 peft
 bi-lstm-crf==0.2.1
 yolov5
-patool
 yolov6detect
 
 # bge-m3 model
 FlagEmbedding
 
-# Qwen2.5 VL models
-qwen-vl-utils[decord]==0.0.8
-
-# whisper and wav2vec2 models
 torchcodec
