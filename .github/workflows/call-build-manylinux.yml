@@ -13,7 +13,7 @@ jobs:
   build-wheels:
     name: Build Manylinux Wheel
     timeout-minutes: 90
-    runs-on: ubuntu-latest
+    runs-on: tt-ubuntu-2204-large-stable
     container:
       image: ${{ inputs.docker-image }}
 
