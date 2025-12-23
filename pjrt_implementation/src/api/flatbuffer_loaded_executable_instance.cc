@@ -142,7 +142,9 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     arg_buffers[i]->setPreparedTensor(laid_out_tensor);
   }
 
-  Tenzorica *t = Tenzorica::init(arg_buffers, expected_layout);
+  Tenzorica *t =
+      Tenzorica::init(arg_buffers, runtime_device, expected_layout,
+                      m_executable_image->getDevicesMeshShape(), *strategy);
 
   return laid_out_tensor;
 }
