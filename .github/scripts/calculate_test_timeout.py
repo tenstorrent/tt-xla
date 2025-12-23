@@ -62,7 +62,7 @@ def main():
         timeout_minutes = args.default_timeout
     else:
         total_duration_seconds = sum(durations[test] for test in collected_tests)
-        timeout_minutes = max(int((total_duration_seconds / 60) * 3), 10)
+        timeout_minutes = max(int((total_duration_seconds / 60) * 3), 30)
         print(
             f"Total duration: {total_duration_seconds:.1f} seconds ({total_duration_seconds/60:.1f} minutes)"
         )

@@ -76,7 +76,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "Bad bad weekly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "text": "Bad bad weekly - inference: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
               "channel": "C08GYB57C8M",
               "unfurl_links": false, "unfurl_media": false
             }

@@ -2,7 +2,7 @@ name: Build tt-xla
 
 # Implements artifact caching to avoid unnecessary rebuilds.
 # Artifacts are reused only when: not a PR, no mlir_override, and exact name match exists.
-# Naming: "xla-whl-{release|codecov}[-commit_sha]" (SHA added for individual commits only).
+# Naming: "xla-whl-{release|explorer}[-commit_sha]" (SHA added for individual commits only).
 
 on:
   workflow_call:
@@ -16,7 +16,7 @@ on:
             required: true
             type: string
         build_type:
-            description: 'Build type for the wheel: release, codecov, debug, explorer'
+            description: 'Build type: release, explorer'
             default: release
             type: string
             required: false
@@ -27,9 +27,6 @@ on:
         wheel_release_vllm_tt_artifact_name:
             description: 'Name of the vllm-tt plugin wheel artifact'
             value: ${{ jobs.check-existing-artifact.outputs.wheel_release_vllm_tt_artifact_name }}
-        build_artifact_name:
-            description: 'Name of the build artifact'
-            value: ${{ jobs.check-existing-artifact.outputs.build_artifact_name }}
         artifacts_run_id:
             description: 'Run ID of the artifacts'
             value: ${{ jobs.check-existing-artifact.outputs.artifacts_run_id || github.run_id }}
@@ -42,7 +39,6 @@ jobs:
       artifacts_run_id: ${{ steps.check-artifact.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ steps.generate-name.outputs.wheel_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ steps.generate-name.outputs.wheel_release_vllm_tt_artifact_name }}
-      build_artifact_name: ${{ steps.generate-name.outputs.build_artifact_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -67,10 +63,8 @@ jobs:
           fi
           wheel_artifact_name="xla-whl-${build_name}${artifact_suffix}"
           wheel_release_vllm_tt_artifact_name="vllm-tt-whl-${build_name}${artifact_suffix}"
-          build_artifact_name="build-artifacts${artifact_suffix}"
           echo "wheel_artifact_name=${wheel_artifact_name}" >> "$GITHUB_OUTPUT"
           echo "wheel_release_vllm_tt_artifact_name=${wheel_release_vllm_tt_artifact_name}" >> "$GITHUB_OUTPUT"
-          echo "build_artifact_name=${build_artifact_name}" >> "$GITHUB_OUTPUT"
           echo "Generated artifact name: $wheel_artifact_name"
 
       - name: Check if artifact exists
@@ -104,7 +98,7 @@ jobs:
     if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id }}
     timeout-minutes: 120
     runs-on: tt-ubuntu-2204-large-stable
-    name: "Build tt-xla"
+    name: "Build tt-xla (${{ inputs.build_type }})"
     container:
       image: ${{ inputs.docker_image }}
 
@@ -185,21 +179,3 @@ jobs:
         with:
             name: ${{ needs.check-existing-artifact.outputs.wheel_release_vllm_tt_artifact_name }}
             path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl
-
-      - name: Archive Build Directory
-        if: inputs.build_type == 'codecov'
-        shell: bash
-        working-directory: ${{ steps.strings.outputs.build-output-dir }}
-        run: tar cf artifact.tar .
-
-      - name: Upload Build Folder
-        if: inputs.build_type == 'codecov'
-        uses: actions/upload-artifact@v4
-        with:
-            name: ${{ needs.check-existing-artifact.outputs.build_artifact_name }}
-            path: ${{ steps.strings.outputs.build-output-dir }}/artifact.tar
-
-      - name: Remove tar archive
-        if: inputs.build_type == 'codecov'
-        shell: bash
-        run: rm -f ${{ steps.strings.outputs.build-output-dir }}/artifact.tar

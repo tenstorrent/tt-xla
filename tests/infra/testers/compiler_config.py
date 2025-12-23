@@ -36,6 +36,20 @@ class CompilerConfig:
     # should provide and get tensors of common dtype.
     enable_bfp8_conversion: bool = False
 
+    # Enables experimental BFP8 weight conversion in MLIR optimizer passes.
+    experimental_enable_weight_bfp8_conversion: bool = False
+
+    # Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
+    # TODO(sdjordjevicTT): This is a temporary option and will be removed once the underlying
+    # issue https://github.com/tenstorrent/tt-mlir/issues/4628 is fixed.
+    experimental_enable_fusing_conv2d_with_multiply_pattern: bool = False
+
+    # Enables transpose + matmul and transpose + linear ops fusion.
+    # When disabled, transpose is kept as a separate op which can be constevaled,
+    # potentially improving performance. However, this may cause OOM errors on
+    # some models until https://github.com/tenstorrent/tt-mlir/pull/6198 lands.
+    experimental_enable_permute_matmul_fusion: bool = True
+
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
@@ -53,6 +67,15 @@ class CompilerConfig:
 
         if self.enable_bfp8_conversion:
             options["enable_bfp8_conversion"] = "true"
+
+        if self.experimental_enable_weight_bfp8_conversion:
+            options["experimental_enable_weight_bfp8_conversion"] = "true"
+
+        if self.experimental_enable_fusing_conv2d_with_multiply_pattern:
+            options["experimental_enable_fusing_conv2d_with_multiply_pattern"] = "true"
+
+        if not self.experimental_enable_permute_matmul_fusion:
+            options["experimental_enable_permute_matmul_fusion"] = "false"
 
         if self.enable_trace:
             options["enable_trace"] = "true"

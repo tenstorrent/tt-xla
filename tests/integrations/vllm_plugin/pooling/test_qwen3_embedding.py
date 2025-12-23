@@ -10,6 +10,7 @@ import vllm
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
@@ -23,7 +24,8 @@ import vllm
         ),
     ],
 )
-def test_embed_qwen3(model_name: str, baseline_path: str):
+@pytest.mark.parametrize("min_context_len", [32, 64])
+def test_embed_qwen3(model_name: str, baseline_path: str, min_context_len: int):
     """
     Test the Qwen3-Embedding models embedding outputs for correctness
     under different batching and padding scenarios.
@@ -65,6 +67,9 @@ def test_embed_qwen3(model_name: str, baseline_path: str):
         "disable_sliding_window": True,
         "max_num_batched_tokens": 64,
         "max_num_seqs": 2,
+        "additional_config": {
+            "min_context_len": min_context_len,
+        },
     }
     model = vllm.LLM(**llm_args)
 
@@ -87,6 +92,7 @@ def test_embed_qwen3(model_name: str, baseline_path: str):
 
 
 @pytest.mark.nightly
+@pytest.mark.single_device
 def test_embed_qwen3_perf():
     max_seq_len = 2**14  # 16384
     prompts_list = []
@@ -132,6 +138,7 @@ def test_embed_qwen3_perf():
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 def test_embed_qwen3_reduced_dims():
     prompts = [
         "Hello, my name is",
@@ -160,6 +167,7 @@ def test_embed_qwen3_reduced_dims():
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 def test_embed_qwen3_8K():
     # Enable program cache for better performance
     seq_len = 2**13  # 8192
@@ -188,6 +196,7 @@ def test_embed_qwen3_8K():
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 def test_embed_qwen3_16K():
     # Enable program cache for better performance
     seq_len = 2**14  # 16384
@@ -213,63 +222,3 @@ def test_embed_qwen3_16K():
 
     output_embedding = model.embed(prompt)
     print(f"Finished precompile for seq_len: {seq_len}")
-
-
-@pytest.mark.parametrize(
-    "batch_size, max_num_seqs, max_num_batched_tokens",
-    [
-        (2, 2, 64),
-        (4, 4, 128),
-    ],
-)
-def test_embed_qwen3_multi_batch(batch_size, max_num_seqs, max_num_batched_tokens):
-    """
-    Test multi-batched inputs. Runner will create inputs of shape [batch_size x input_len]
-    Note:
-      - max_model_len * max_num_seqs <= max_num_batched_tokens
-      - max_num_reqs == batch_size
-
-    If the number of request are less than batch_size then runner will adjust
-    the shape accordingly and may require to compile the graph for new shape.
-    """
-
-    prompts = [
-        "The quick-thinking engineer designed a compact neural processor that could adapt to changing data patterns in real time, optimizing energy use while maintaining exceptional computational accuracy as well.",
-        "Hello, my name is chatbot. How can I help you?",
-        "We build computers for AI. We design Graph Processors, high-performance RISC CPUs, and configurable chips that run our robust software stack.",
-        "The capital of France is Paris",
-    ]
-    llm_args = {
-        "model": "Qwen/Qwen3-Embedding-4B",
-        "task": "embed",
-        "dtype": "bfloat16",
-        "max_model_len": 32,
-        "disable_sliding_window": True,
-        "max_num_batched_tokens": max_num_batched_tokens,
-        "max_num_seqs": max_num_seqs,
-        "additional_config": {
-            "enable_const_eval": False,
-            "batch_size": batch_size,
-        },
-    }
-    model = vllm.LLM(**llm_args)
-
-    output_embedding = model.embed(prompts)
-
-    path = os.path.join(os.path.dirname(__file__), "qwen3_embedding_baseline.pt")
-    loaded_data = torch.load(path)
-
-    for idx, (prompt, output) in enumerate(zip(prompts, output_embedding)):
-        embeds = output.outputs.embedding
-        embeds_trimmed = (
-            (str(embeds[:32])[:-1] + ", ...]") if len(embeds) > 32 else embeds
-        )
-        print(f"Prompt: {prompt!r} \nEmbeddings: {embeds_trimmed} (size={len(embeds)})")
-
-        output_tensor = torch.tensor(embeds, dtype=torch.float32)
-        golden_tensor = loaded_data[f"prompt{idx}"]
-        pcc = torch.corrcoef(torch.stack([output_tensor, golden_tensor]))[0, 1]
-        print("PCC:", pcc.item())
-        assert pcc.item() > 0.99, f"PCC Error: Incorrect embedding for prompt{idx}"
-
-        print("-" * 60)

@@ -6,6 +6,7 @@
 #include "api/module_builder/module_builder.h"
 
 // c++ standard library includes
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cstdlib>
@@ -97,35 +98,16 @@ TTAlchemistHandler::~TTAlchemistHandler() {
 }
 
 std::optional<std::string> TTAlchemistHandler::findTTAlchemistLibraryPath() {
-  // HACK: Currently tt-alchemist is packaged as a python package that contains
-  // an .so file. We rely on python venv activate script always exporting
-  // VIRTUAL_ENV environment variable to find the .so file. Long term, this code
-  // should be made redundant once we think of a better way to package
-  // tt-alchemist. Packaging tracked at:
-  // https://github.com/tenstorrent/tt-mlir/issues/5250
-
-  const char *venv_cstr = std::getenv("VIRTUAL_ENV");
-  if (venv_cstr == nullptr) {
-    return std::nullopt;
-  }
-  std::string venv(venv_cstr);
-  if (venv.empty()) {
+  const char *mlir_home = std::getenv("TT_MLIR_HOME");
+  if (mlir_home == nullptr) {
     return std::nullopt;
   }
 
-  // We can't assume it will be a python3.11 venv.
-  for (const auto &entry : std::filesystem::directory_iterator(venv + "/lib")) {
-    if (entry.is_directory() &&
-        entry.path().filename().string().find("python") == std::string::npos) {
-      continue;
-    }
+  std::string alchemist_lib_path =
+      std::string(mlir_home) + "/build/lib/libtt-alchemist-lib.so";
 
-    std::string python_dir_path =
-        entry.path().string() +
-        "/site-packages/tt_alchemist/lib/libtt-alchemist-lib.so";
-    if (std::filesystem::exists(python_dir_path)) {
-      return python_dir_path;
-    }
+  if (std::filesystem::exists(alchemist_lib_path)) {
+    return alchemist_lib_path;
   }
 
   return std::nullopt;
@@ -827,6 +809,9 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_mlir) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
+  // Static counter for auto-numbering graphs when perf metrics are enabled
+  static std::atomic<int> graph_counter{0};
+
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
   // Optimizer passes are not supported in distributed runtime.
@@ -839,9 +824,47 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   options.optimizationLevel = compile_options.optimization_level;
   options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
+  options.experimentalBfp8Weights =
+      compile_options.experimental_enable_weight_bfp8_conversion;
+  options.enableFusingConv2dWithMultiplyPattern =
+      compile_options.experimental_enable_fusing_conv2d_with_multiply_pattern;
+  options.enablePermuteMatmulFusion =
+      compile_options.experimental_enable_permute_matmul_fusion;
   options.enableTrace = compile_options.enable_trace;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
+  options.ttnnPerfMetricsEnabled = compile_options.ttnn_perf_metrics_enabled;
+
+  // Auto-number performance metrics output file if enabled
+  if (compile_options.ttnn_perf_metrics_enabled &&
+      !compile_options.ttnn_perf_metrics_output_file.empty()) {
+    // Get current graph index and increment for next compilation
+    int current_graph_idx = graph_counter.fetch_add(1);
+
+    std::string base_path = compile_options.ttnn_perf_metrics_output_file;
+
+    // Check if the base path already has a file extension
+    size_t last_dot = base_path.find_last_of('.');
+    if (last_dot != std::string::npos &&
+        last_dot > base_path.find_last_of('/')) {
+      // Has extension, insert number before it: "path/file.json" ->
+      // "path/file_0.json"
+      options.ttnnPerfMetricsOutputFile = base_path.substr(0, last_dot) + "_" +
+                                          std::to_string(current_graph_idx) +
+                                          base_path.substr(last_dot);
+    } else {
+      // No extension, append number and .json: "path/file" ->
+      // "path/file_0.json"
+      options.ttnnPerfMetricsOutputFile =
+          base_path + "_" + std::to_string(current_graph_idx) + ".json";
+    }
+
+    DLOG_F(INFO, "Graph %d: Writing performance metrics to %s",
+           current_graph_idx, options.ttnnPerfMetricsOutputFile.c_str());
+  } else {
+    options.ttnnPerfMetricsOutputFile =
+        compile_options.ttnn_perf_metrics_output_file;
+  }
 
   if (devices_mesh_shape.size() != 2) {
     DLOG_F(ERROR,

@@ -4,8 +4,11 @@
 
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
+import torch_xla.runtime as xr
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.utilities import Framework, Mesh, Model
 from tt_jax import serialize_compiled_artifacts_to_disk
@@ -98,8 +101,21 @@ class Workload:
             )
         elif self.is_torch:
             cache_dir = TorchDeviceConnector.get_cache_dir()
+
+            # Clear existing cache files to ensure we get exactly one file
+            cache_dir_path = Path(cache_dir)
+            if cache_dir_path.exists():
+                for f in cache_dir_path.iterdir():
+                    if f.is_file():
+                        f.unlink()
+
+            xr.clear_computation_cache()
+
             self.execute()
             parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
+
+            # Recreate the cache directory after parsing
+            Path(cache_dir).mkdir(parents=True, exist_ok=True)
 
         else:
             raise ValueError(

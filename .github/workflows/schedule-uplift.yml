@@ -7,6 +7,11 @@ on:
   schedule:
     - cron: '0 6 * * *'  # Runs at 06:00 UTC every day
   workflow_dispatch:  # Manual trigger
+    inputs:
+      force-overwrite:
+        description: 'Proceed to force overwrite existing uplift branch PR if one exists.'
+        type: boolean
+        default: false
 
 jobs:
   uplift-pr:
@@ -21,6 +26,20 @@ jobs:
           submodules: recursive
           fetch-depth: 0
           ref: main
+
+      - name: Abort if existing uplift PR exists and not forced
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "Manual dispatch detected. Checking for existing uplift PR..."
+          # Find existing PR with head branch 'uplift'
+          EXISTING_PR_NUMBER=$(gh pr list --head uplift --base main --state open --json number --jq '.[0].number')
+          FORCE_INPUT="${{ github.event.inputs.force-overwrite }}"
+          if [ -n "$EXISTING_PR_NUMBER" ] && [ "$FORCE_INPUT" != "true" ]; then
+            echo "Existing uplift PR #$EXISTING_PR_NUMBER found and force-overwrite is not set. Aborting run."
+            exit 1
+          fi
 
       - name: Set env variables
         run: |

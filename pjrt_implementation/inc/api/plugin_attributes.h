@@ -25,6 +25,11 @@ public:
 
   PJRT_NamedValue toNamedValue() const;
 
+  static constexpr std::string_view current_version_attribute_name =
+      "stablehlo_current_version";
+  static constexpr std::string_view minimum_version_attribute_name =
+      "stablehlo_minimum_version";
+
 private:
   static constexpr std::size_t c_version_id_size = 3;
 

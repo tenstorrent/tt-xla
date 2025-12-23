@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Optional, Tuple, Union
+
 import torch
 from torch_xla.experimental import stablehlo_custom_call
 
@@ -65,6 +67,59 @@ def _(tensor: torch.Tensor, argument_type: str, name: str = None) -> torch.Tenso
 
 
 @torch.library.custom_op(
+    "tt::sharding_constraint", mutates_args=[], device_types=["cpu", "xla"]
+)
+def sharding_constraint(tensor: torch.Tensor, sdy_sharding: str) -> torch.Tensor:
+    """
+    Apply a sharding constraint to a tensor for Shardy propagation.
+
+    This function is a custom registered operator accessible as torch.ops.tt.sharding_constraint.
+    It creates a stablehlo.custom_call @tt.sharding_constraint op that tt-mlir converts to sdy.sharding_constraint.
+
+    Args:
+        tensor: The input tensor to apply sharding to
+        sdy_sharding: The sdy.sharding string (e.g., '#sdy.sharding_per_value<[<@mesh, [{"_axis_0"}, {}, {}]>]>')
+
+    Returns:
+        A tensor with sharding constraint applied
+    """
+    if tensor.device.type == "cpu":
+        return tensor.clone()
+
+    frontend_attributes = {
+        "xla.sdy.sharding": sdy_sharding,
+    }
+
+    # Handle shape requirements (same workaround as mark_argument_attributes)
+    original_shape = list(tensor.shape)
+    if len(tensor.shape) < 3:
+        extra_dims = [1] * (3 - len(original_shape))
+        tensor = tensor.reshape((*extra_dims, *original_shape))
+
+    result = stablehlo_custom_call.stablehlo_custom_call(
+        [tensor],
+        "tt.sharding_constraint",  # tt-mlir converts this to sdy.sharding_constraint
+        [tensor.shape],
+        [tensor.dtype],
+        frontend_attributes=frontend_attributes,
+    )
+
+    if len(original_shape) < 3:
+        result = result.reshape(original_shape)
+
+    return result
+
+
+@sharding_constraint.register_fake
+def _(tensor: torch.Tensor, sdy_sharding: str) -> torch.Tensor:
+    """
+    FakeTensor implementation of torch.ops.tt.sharding_constraint.
+    This must be implemented in order for dynamo to trace the function.
+    """
+    return tensor.clone()
+
+
+@torch.library.custom_op(
     "tt::scaled_dot_product_attention", mutates_args=[], device_types=["xla", "cpu"]
 )
 def scaled_dot_product_attention(
@@ -121,8 +176,6 @@ def scaled_dot_product_attention(
         assert (
             query.shape[0] == attn_mask.shape[0]
         ), "Attention mask batch size must match query batch size."
-    else:
-        assert is_causal == True, "Attention mask is required when is_causal is false."
 
     if query.device.type == "xla":
         inputs = [query, key, value]

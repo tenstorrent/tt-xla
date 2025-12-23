@@ -7,6 +7,7 @@
 import inspect
 
 import jax
+from flax import linen
 from infra.comparators import ComparisonConfig
 from infra.testers.single_chip.model import JaxModelTester, RunMode
 from transformers import FlaxPreTrainedModel
@@ -163,10 +164,13 @@ class DynamicJaxModelTester(JaxModelTester):
         """Get forward method name, checking loader first then using default.
 
         Returns:
-            Forward method name from loader if available, otherwise "__call__"
+            Forward method name from loader if available, "apply" for Flax
+            linen.Module models, otherwise "__call__"
         """
         if hasattr(self.dynamic_loader.loader, "get_forward_method_name"):
             return self.dynamic_loader.loader.get_forward_method_name()
+        elif isinstance(self._get_model(), linen.Module):
+            return "apply"
 
         return "__call__"
 

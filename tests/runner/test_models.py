@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import socket
 
 import pytest
 from infra import RunMode
@@ -18,6 +19,7 @@ from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
+    create_benchmark_result,
     fix_venv_isolation,
     record_model_test_properties,
     update_test_metadata_for_exception,
@@ -28,7 +30,7 @@ from tests.runner.testers import (
     DynamicTorchModelTester,
 )
 from tests.utils import BringupStatus
-from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.config import ModelSource, Parallelism
 
 # Setup test discovery using TorchDynamicLoader and JaxDynamicLoader
 TEST_DIR = os.path.dirname(__file__)
@@ -184,6 +186,21 @@ def test_all_models_torch(
                 comparison_config=comparison_config,
             )
 
+            # prints perf benchmark results to console
+            # Dumps perf benchmark results to JSON report if --perf-report-dir is given
+            measurements = getattr(tester, "_perf_measurements", None)
+            output_dir = request.config.getoption("--perf-report-dir")
+            create_benchmark_result(
+                full_model_name=model_info.name,
+                output_dir=output_dir,
+                perf_id=request.config.getoption("--perf-id"),
+                measurements=measurements,
+                model_type="generic",
+                training=False,
+                model_info=model_info.name,
+                device_name=socket.gethostname(),
+            )
+
 
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
@@ -207,12 +224,11 @@ def test_all_models_torch(
             id="single_device",
             marks=pytest.mark.single_device,
         ),
-        # TODO(kmabee): Add when data_parallel is supported next.
-        # pytest.param(
-        #     Parallelism.DATA_PARALLEL,
-        #     id="data_parallel",
-        #     marks=pytest.mark.data_parallel,
-        # ),
+        pytest.param(
+            Parallelism.DATA_PARALLEL,
+            id="data_parallel",
+            marks=pytest.mark.data_parallel,
+        ),
         pytest.param(
             Parallelism.TENSOR_PARALLEL,
             id="tensor_parallel",
@@ -258,19 +274,29 @@ def test_all_models_jax(
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
-                # Use DynamicJaxMultiChipModelTester for tensor parallel
-                if parallelism == Parallelism.TENSOR_PARALLEL:
+                if (
+                    parallelism == Parallelism.TENSOR_PARALLEL
+                    or parallelism == Parallelism.DATA_PARALLEL
+                ):
                     tester = DynamicJaxMultiChipModelTester(
                         model_loader=loader,
                         run_mode=run_mode,
                         comparison_config=test_metadata.to_comparison_config(),
                     )
                 else:
-                    tester = DynamicJaxModelTester(
-                        run_mode,
-                        loader=loader,
-                        comparison_config=test_metadata.to_comparison_config(),
-                    )
+                    if model_info.source.name == ModelSource.EASYDEL.name:
+                        # In EasyDel, single-device models use multi-chip setup with (1,1) mesh
+                        tester = DynamicJaxMultiChipModelTester(
+                            model_loader=loader,
+                            comparison_config=test_metadata.to_comparison_config(),
+                            num_devices=1,
+                        )
+                    else:
+                        tester = DynamicJaxModelTester(
+                            run_mode,
+                            loader=loader,
+                            comparison_config=test_metadata.to_comparison_config(),
+                        )
 
                 comparison_result = tester.test()
 
@@ -305,9 +331,11 @@ def test_all_models_jax(
                 validate_filecheck_results(filecheck_results)
 
         except Exception as e:
-            err = capteesys.readouterr().err
+            captured = capteesys.readouterr()
             # Record runtime failure info so it can be reflected in report properties
-            update_test_metadata_for_exception(test_metadata, e, stderr=err)
+            update_test_metadata_for_exception(
+                test_metadata, e, stdout=captured.out, stderr=captured.err
+            )
             raise
         finally:
             # If there are multiple comparison results, only record the first one because the

@@ -29,9 +29,14 @@ add_dependencies(TTPJRTUtils
 )
 
 target_link_libraries(TTPJRTUtils PUBLIC
+    coverage_config
     loguru
 )
 
 target_link_directories(TTPJRTUtils PUBLIC
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
+)
+
+set_target_properties(TTPJRTUtils PROPERTIES
+    UNIT_TESTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/unit_tests"
 )

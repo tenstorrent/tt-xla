@@ -32,9 +32,11 @@ PJRT_NamedValue StableHLOVersionAttribute::toNamedValue() const {
 
 const std::vector<PJRT_NamedValue> &PluginAttributes::getAttributes() {
   static StableHLOVersionAttribute current{
-      "stablehlo_current_version", mlir::vhlo::Version::getCurrentVersion()};
+      StableHLOVersionAttribute::current_version_attribute_name,
+      mlir::vhlo::Version::getCurrentVersion()};
   static StableHLOVersionAttribute minimum{
-      "stablehlo_minimum_version", mlir::vhlo::Version::getMinimumVersion()};
+      StableHLOVersionAttribute::minimum_version_attribute_name,
+      mlir::vhlo::Version::getMinimumVersion()};
 
   static const std::vector<PJRT_NamedValue> attrs = []() {
     std::vector<PJRT_NamedValue> versions;

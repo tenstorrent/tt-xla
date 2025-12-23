@@ -91,17 +91,6 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
            "shape %s",
            arg_index, arg_buffers[0]->toShapeStr().c_str());
 
-    // This prepared tensor may be from a previous graph output aliased to
-    // input, so
-    //  we should set its retention flag to true.
-    if (tt::runtime::getTensorRetain(*prepared_tensor) == false) {
-      DLOG_F(LOG_DEBUG,
-             "Prepared tensor for argument index %zu with shape %s had "
-             "retain=false; setting "
-             "to true to avoid deallocation during execution.",
-             arg_index, arg_buffers[0]->toShapeStr().c_str());
-    }
-    tt::runtime::setTensorRetain(*prepared_tensor, /*retain=*/true);
     return *prepared_tensor;
   }
 
@@ -310,9 +299,9 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
-  auto r = utils::invoke(tt::runtime::submit, *runtime_device,
-                         executable_image->getFlatbufferBinary(), program_index,
-                         input_tensors);
+  auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
+                                  executable_image->getFlatbufferBinary(),
+                                  program_index, input_tensors);
 
   if (!r) {
     m_client_instance->closeMeshDevice();
