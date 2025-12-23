@@ -10,7 +10,7 @@ import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
 
-from setuptools import find_packages, setup
+from setuptools import Extension, find_packages, setup
 from setuptools.command.build_py import build_py
 from wheel.bdist_wheel import bdist_wheel
 
@@ -329,6 +329,12 @@ setup(
         # Entry point used by torch xla to register the plugin automatically.
         "torch_xla.plugins": ["tt = torch_plugin_tt:TTPlugin"],
     },
+    ext_modules=[
+        Extension(
+            name="pjrt_plugin_tt.native",
+            sources=[],
+        )
+    ],
     include_package_data=True,
     install_requires=config.requirements,
     license="Apache-2.0",
