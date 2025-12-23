@@ -214,8 +214,8 @@ class BdistWheel(bdist_wheel):
         config.build_type = self.build_type
         config.enable_explorer = self.build_type == "explorer"
 
-        bdist_wheel.finalize_options(self)
         self.root_is_pure = False
+        bdist_wheel.finalize_options(self)
 
     def run(self):
         # Update the description with version info after options are finalized (e.g. self.build_type)

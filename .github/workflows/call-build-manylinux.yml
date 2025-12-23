@@ -26,7 +26,6 @@ jobs:
           dotnet: true
           haskell: true
           large-packages: true
-          docker-images: true
           swap-storage: true
 
       - uses: actions/checkout@v4
@@ -48,13 +47,27 @@ jobs:
           python-version: '3.11'
 
       - name: Download xla wheel artifact
+        uses: actions/download-artifact@v5
+        with:
+          pattern: 'xla-whl-release-*'
+
+      - name: Audit wheel
         shell: bash
         run: |
-          gh run download -R tenstorrent/tt-xla ${{ github.run_id }} --pattern "xla-whl-release-*"
+          echo "Running auditwheel..."
+          auditwheel repair \
+              --exclude libtt_metal.so \
+              --exclude libdevice.so \
+              --exclude libtracy.so \
+              --exclude libtt_stl.so \
+              --exclude _ttnncpp.so \
+              --plat manylinux_2_35_x86_64 pjrt_plugin_tt*.whl -w wheelhouse/
+          echo "new wheel files:"
+          ls wheelhouse/pjrt_plugin_tt*.whl
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ttxla-manylinux-wheel
-          path: ${{ steps.strings.outputs.wheel-output-dir }}/*.whl
+          name: xla-whl-manylinux
+          path: wheelhouse/*.whl
           if-no-files-found: error
