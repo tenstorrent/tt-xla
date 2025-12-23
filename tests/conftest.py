@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import ctypes
-import errno
 import gc
 import io
 import os
@@ -498,7 +497,8 @@ class TeeCapture:
     Captures stderr/stdout at fd level while still writing to terminal in real-time.
     This allows capturing C++ output (like MLIR errors) without suppressing it.
 
-    Designed to work with pytest-forked by being defensive about fd operations.
+    NOTE: This does NOT work with pytest-forked due to interpreter shutdown issues.
+    Use capfd instead when running with --forked.
     """
 
     def __init__(self):
@@ -515,145 +515,105 @@ class TeeCapture:
         self._stderr_thread = None
         self._stdout_thread = None
         self._stop_event = threading.Event()
-        self._started = False
-
-    def _safe_close(self, fd):
-        """Safely close a file descriptor, ignoring errors."""
-        if fd is not None:
-            try:
-                os.close(fd)
-            except OSError:
-                pass
-
-    def _safe_dup2(self, fd1, fd2):
-        """Safely duplicate fd1 to fd2, ignoring errors."""
-        try:
-            os.dup2(fd1, fd2)
-            return True
-        except OSError:
-            return False
-
-    def _safe_flush(self, stream):
-        """Safely flush a stream, ignoring ESPIPE and other errors."""
-        try:
-            stream.flush()
-        except OSError:
-            pass
 
     def start(self):
-        try:
-            # Save original fds
-            self._original_stderr_fd = sys.stderr.fileno()
-            self._original_stdout_fd = sys.stdout.fileno()
-            self._saved_stderr_fd = os.dup(self._original_stderr_fd)
-            self._saved_stdout_fd = os.dup(self._original_stdout_fd)
+        # Save original fds
+        self._original_stderr_fd = sys.stderr.fileno()
+        self._original_stdout_fd = sys.stdout.fileno()
+        self._saved_stderr_fd = os.dup(self._original_stderr_fd)
+        self._saved_stdout_fd = os.dup(self._original_stdout_fd)
 
-            # Create pipes
-            self._stderr_read_fd, self._stderr_write_fd = os.pipe()
-            self._stdout_read_fd, self._stdout_write_fd = os.pipe()
+        # Create pipes
+        self._stderr_read_fd, self._stderr_write_fd = os.pipe()
+        self._stdout_read_fd, self._stdout_write_fd = os.pipe()
 
-            # Redirect stderr/stdout to pipe write ends
-            os.dup2(self._stderr_write_fd, self._original_stderr_fd)
-            os.dup2(self._stdout_write_fd, self._original_stdout_fd)
+        # Redirect stderr/stdout to pipe write ends
+        os.dup2(self._stderr_write_fd, self._original_stderr_fd)
+        os.dup2(self._stdout_write_fd, self._original_stdout_fd)
 
-            # Start threads to read from pipes and tee to both terminal and buffer
-            def tee_reader(read_fd, saved_fd, buffer, stop_event):
-                while not stop_event.is_set():
+        # Start threads to read from pipes and tee to both terminal and buffer
+        def tee_reader(read_fd, saved_fd, buffer, stop_event):
+            while not stop_event.is_set():
+                ready, _, _ = select.select([read_fd], [], [], 0.1)
+                if ready:
                     try:
-                        ready, _, _ = select.select([read_fd], [], [], 0.1)
-                    except (OSError, ValueError):
+                        data = os.read(read_fd, 4096)
+                        if data:
+                            os.write(saved_fd, data)
+                            try:
+                                buffer.write(data.decode("utf-8", errors="replace"))
+                            except Exception:
+                                pass
+                    except OSError:
                         break
-                    if ready:
-                        try:
-                            data = os.read(read_fd, 4096)
-                            if data:
-                                # Write to original terminal (ignore errors)
-                                try:
-                                    os.write(saved_fd, data)
-                                except OSError:
-                                    pass
-                                # Write to buffer
-                                try:
-                                    buffer.write(data.decode("utf-8", errors="replace"))
-                                except Exception:
-                                    pass
-                        except OSError:
-                            break
 
-            self._stop_event.clear()
-            self._stderr_thread = threading.Thread(
-                target=tee_reader,
-                args=(
-                    self._stderr_read_fd,
-                    self._saved_stderr_fd,
-                    self._stderr_buffer,
-                    self._stop_event,
-                ),
-            )
-            self._stdout_thread = threading.Thread(
-                target=tee_reader,
-                args=(
-                    self._stdout_read_fd,
-                    self._saved_stdout_fd,
-                    self._stdout_buffer,
-                    self._stop_event,
-                ),
-            )
-            self._stderr_thread.daemon = True
-            self._stdout_thread.daemon = True
-            self._stderr_thread.start()
-            self._stdout_thread.start()
-            self._started = True
-        except OSError:
-            # If start fails, clean up any partially created resources
-            self._cleanup_fds()
-            self._started = False
-
-    def _cleanup_fds(self):
-        """Clean up all file descriptors safely."""
-        self._safe_close(self._stderr_write_fd)
-        self._safe_close(self._stdout_write_fd)
-        self._safe_close(self._stderr_read_fd)
-        self._safe_close(self._stdout_read_fd)
-        self._safe_close(self._saved_stderr_fd)
-        self._safe_close(self._saved_stdout_fd)
+        self._stop_event.clear()
+        self._stderr_thread = threading.Thread(
+            target=tee_reader,
+            args=(
+                self._stderr_read_fd,
+                self._saved_stderr_fd,
+                self._stderr_buffer,
+                self._stop_event,
+            ),
+        )
+        self._stdout_thread = threading.Thread(
+            target=tee_reader,
+            args=(
+                self._stdout_read_fd,
+                self._saved_stdout_fd,
+                self._stdout_buffer,
+                self._stop_event,
+            ),
+        )
+        self._stderr_thread.daemon = True
+        self._stdout_thread.daemon = True
+        self._stderr_thread.start()
+        self._stdout_thread.start()
 
     def stop(self):
-        if not self._started:
-            return
-
-        # Flush Python streams (ignore errors)
-        self._safe_flush(sys.stderr)
-        self._safe_flush(sys.stdout)
+        # Flush Python streams (ignore errors - stream may be non-seekable)
+        try:
+            sys.stderr.flush()
+        except OSError:
+            pass
+        try:
+            sys.stdout.flush()
+        except OSError:
+            pass
 
         # Signal threads to stop
         self._stop_event.set()
 
         # Restore original fds (ignore errors)
-        if self._saved_stderr_fd is not None and self._original_stderr_fd is not None:
-            self._safe_dup2(self._saved_stderr_fd, self._original_stderr_fd)
-        if self._saved_stdout_fd is not None and self._original_stdout_fd is not None:
-            self._safe_dup2(self._saved_stdout_fd, self._original_stdout_fd)
+        try:
+            os.dup2(self._saved_stderr_fd, self._original_stderr_fd)
+        except OSError:
+            pass
+        try:
+            os.dup2(self._saved_stdout_fd, self._original_stdout_fd)
+        except OSError:
+            pass
 
         # Close pipe write ends to unblock readers
-        self._safe_close(self._stderr_write_fd)
-        self._stderr_write_fd = None
-        self._safe_close(self._stdout_write_fd)
-        self._stdout_write_fd = None
+        try:
+            os.close(self._stderr_write_fd)
+        except OSError:
+            pass
+        try:
+            os.close(self._stdout_write_fd)
+        except OSError:
+            pass
 
         # Wait for threads to finish
-        if self._stderr_thread is not None:
-            self._stderr_thread.join(timeout=1.0)
-        if self._stdout_thread is not None:
-            self._stdout_thread.join(timeout=1.0)
+        self._stderr_thread.join(timeout=1.0)
+        self._stdout_thread.join(timeout=1.0)
 
         # Read any remaining data from pipes
         for read_fd, saved_fd, buffer in [
             (self._stderr_read_fd, self._saved_stderr_fd, self._stderr_buffer),
             (self._stdout_read_fd, self._saved_stdout_fd, self._stdout_buffer),
         ]:
-            if read_fd is None:
-                continue
             while True:
                 try:
                     ready, _, _ = select.select([read_fd], [], [], 0)
@@ -663,11 +623,10 @@ class TeeCapture:
                     try:
                         data = os.read(read_fd, 4096)
                         if data:
-                            if saved_fd is not None:
-                                try:
-                                    os.write(saved_fd, data)
-                                except OSError:
-                                    pass
+                            try:
+                                os.write(saved_fd, data)
+                            except OSError:
+                                pass
                             try:
                                 buffer.write(data.decode("utf-8", errors="replace"))
                             except Exception:
@@ -679,15 +638,17 @@ class TeeCapture:
                 else:
                     break
 
-        # Close remaining fds
-        self._safe_close(self._stderr_read_fd)
-        self._stderr_read_fd = None
-        self._safe_close(self._stdout_read_fd)
-        self._stdout_read_fd = None
-        self._safe_close(self._saved_stderr_fd)
-        self._saved_stderr_fd = None
-        self._safe_close(self._saved_stdout_fd)
-        self._saved_stdout_fd = None
+        # Close remaining fds (ignore errors)
+        for fd in [
+            self._stderr_read_fd,
+            self._stdout_read_fd,
+            self._saved_stderr_fd,
+            self._saved_stdout_fd,
+        ]:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
 
     def readouterr(self):
         return TeeCaptureResult(
@@ -696,19 +657,27 @@ class TeeCapture:
 
 
 @pytest.fixture()
-def capteesys():
+def capteesys(capfd, request):
     """
-    Pytest fixture that captures stdout/stderr at fd level while still
-    writing to terminal in real-time (tee behavior). This allows capturing
-    C++ output (like MLIR errors) without suppressing terminal output.
+    Pytest fixture that captures stdout/stderr at fd level.
+
+    When running normally: Uses TeeCapture to show output in real-time while capturing.
+    When running with --forked: Uses pytest's capfd which handles forked processes correctly.
     """
-    tee = TeeCapture()
-    tee.start()
+    # Check if --forked option was passed to pytest
+    # pytest-forked registers this option, so we check if it exists and is True
     try:
+        is_forked = request.config.getoption("--forked", default=False)
+    except ValueError:
+        # Option doesn't exist (pytest-forked not installed)
+        is_forked = False
+
+    if is_forked:
+        # Use pytest's capfd - it handles forked processes correctly
+        yield capfd
+    else:
+        # Use TeeCapture for real-time output
+        tee = TeeCapture()
+        tee.start()
         yield tee
-    finally:
-        # Wrap stop in try/except to handle any remaining edge cases
-        try:
-            tee.stop()
-        except Exception:
-            pass  # Silently ignore cleanup errors
+        tee.stop()
