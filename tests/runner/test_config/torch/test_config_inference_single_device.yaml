@@ -2228,7 +2228,7 @@ test_config:
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
 
   deepseek/qwen/pytorch-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23611392 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
     markers: [large]
 
