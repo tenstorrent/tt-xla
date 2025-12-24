@@ -10,13 +10,13 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
 
   albert/masked_lm/jax-xlarge-v2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
 
   albert/masked_lm/jax-xxlarge-v2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
 
   alexnet/image_classification/jax-custom-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
 
   bart/causal_lm/jax-base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
