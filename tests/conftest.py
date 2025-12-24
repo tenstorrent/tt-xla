@@ -614,7 +614,7 @@ class TeeCapture:
 
 
 @pytest.fixture()
-def capteesys(request):
+def captured_output_fixture(request):
     """
     Pytest fixture that captures stdout/stderr at fd level.
 
