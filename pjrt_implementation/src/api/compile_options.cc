@@ -68,9 +68,6 @@ CompileOptions CompileOptions::parse(
   options.export_model_name =
       internal::parseStringOption(compile_options, "export_model_name")
           .value_or("");
-  options.export_suffix =
-      internal::parseStringOption(compile_options, "export_suffix")
-          .value_or("");
 
   if (!options.export_path.has_value() &&
       options.backend != BackendRuntime::TTNNFlatbuffer) {
