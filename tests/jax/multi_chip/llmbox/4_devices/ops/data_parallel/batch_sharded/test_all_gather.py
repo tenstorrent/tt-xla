@@ -24,11 +24,6 @@ from utils import failed_fe_compilation, incorrect_result
 @pytest.mark.parametrize(
     ("x_shape", "mesh_shape", "axis_names"), [((8192, 784), (1, 4), ("batch", "model"))]
 )
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
-    )
-)
 # Cannot use ShardingMode.INPUTS because it does not define axis names and we are using jax.lax.all_gather
 @pytest.mark.parametrize(
     "sharding_mode",
