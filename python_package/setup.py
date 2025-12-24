@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import hashlib
 import inspect
 import json
 import os
@@ -296,6 +297,19 @@ class CMakeBuildPy(build_py):
         subprocess.check_call(["cmake", *build_command], cwd=REPO_DIR)
         subprocess.check_call(["cmake", *install_command], cwd=REPO_DIR)
 
+        self._prune_install_tree(install_dir)
+
+    def _prune_install_tree(self, install_dir: Path) -> None:
+        if not install_dir.exists():
+            return
+
+        _remove_static_archives(install_dir)
+
+        if config.build_type == "release":
+            _strip_shared_objects(install_dir)
+
+        _deduplicate_shared_objects(install_dir)
+
     def copy_plugin_scripts(self):
         scripts_to_copy = ["__init__.py", "monkeypatch.py"]
         for script_file in scripts_to_copy:
@@ -306,6 +320,62 @@ class CMakeBuildPy(build_py):
                 shutil.copy2(script_src, config.jax_plugin_target_dir)
             else:
                 print(f"{script_file} already copied.")
+
+
+def _remove_static_archives(root: Path) -> None:
+    for archive in root.rglob("*.a"):
+        if archive.is_symlink() or not archive.is_file():
+            continue
+        rel = archive.relative_to(root)
+        if rel.parts and rel.parts[0] == "lib":
+            print(f"Removing static archive: {rel}")
+            archive.unlink()
+
+
+def _strip_shared_objects(root: Path) -> None:
+    strip_path = shutil.which("strip")
+    if strip_path is None:
+        print("strip tool not found; skipping debug symbol stripping")
+        return
+
+    for so_file in root.rglob("*.so"):
+        if so_file.is_symlink() or not so_file.is_file():
+            continue
+        try:
+            subprocess.run([strip_path, "--strip-unneeded", str(so_file)], check=True)
+            rel = so_file.relative_to(root)
+            print(f"Stripped debug symbols: {rel}")
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(f"Failed to strip {so_file}: {exc}")
+
+
+def _deduplicate_shared_objects(root: Path) -> None:
+    seen: dict[str, Path] = {}
+    for so_file in sorted(
+        root.rglob("*.so*"), key=lambda p: p.relative_to(root).as_posix()
+    ):
+        if so_file.is_symlink() or not so_file.is_file():
+            continue
+
+        checksum = _sha256_file(so_file)
+        if checksum in seen:
+            target = seen[checksum]
+            link_target = os.path.relpath(target, so_file.parent)
+            print(
+                f"Deduplicating shared object: {so_file.relative_to(root)} -> {link_target}"
+            )
+            so_file.unlink()
+            os.symlink(link_target, so_file)
+        else:
+            seen[checksum] = so_file
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 setup(
