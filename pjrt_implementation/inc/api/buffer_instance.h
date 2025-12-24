@@ -335,9 +335,9 @@ public:
   }
 
   void relay(tt::runtime::Layout &layout) {
+    bool retain = tt::runtime::getTensorRetain(m_device_tensor);
     m_device_tensor =
-        tt::runtime::toLayout(m_device_tensor, m_device, layout,
-                              tt::runtime::getTensorRetain(m_device_tensor));
+        tt::runtime::toLayout(m_device_tensor, m_device, layout, retain);
 
     // TODO: Check if this is needed.
     tt::runtime::setTensorRetain(m_device_tensor, true);
@@ -346,11 +346,13 @@ public:
   std::vector<BufferInstance *> &shards() { return m_shards; };
   const std::vector<BufferInstance *> &shards() const { return m_shards; };
 
+  tt::runtime::Tensor &device_tensor() { return m_device_tensor; }
+  const tt::runtime::Tensor &device_tensor() const { return m_device_tensor; }
+
   static Tenzorica *from_shards(const std::vector<BufferInstance *> &shards) {
     return shards[0]->tenzorica().get();
   }
 
-private:
   Tenzorica(std::vector<BufferInstance *> shards, tt::runtime::Device device,
             tt::runtime::Layout &layout,
             const std::vector<std::uint32_t> &mesh_shape,
@@ -362,6 +364,7 @@ private:
       relay(layout);
   }
 
+private:
   void construct_from_strategy(
       const std::unordered_map<std::string, std::string> &strategy,
       const std::vector<std::uint32_t> &mesh_shape) {
@@ -373,6 +376,7 @@ private:
 
     m_device_tensor = tt::runtime::createMultiDeviceHostTensor(
         shards_tensors(), strategy, mesh_shape);
+    tt::runtime::setTensorRetain(m_device_tensor, true);
   }
 
   void construct_from_strategy() {
@@ -405,17 +409,18 @@ private:
   // PJRT side, but on our side (tt-mlir runtime) we prepare a single
   // multi-device tensor.
   static void validate_shards(const std::vector<BufferInstance *> &shards) {
+
     assert(!shards.empty());
-    // std::optional<tt::runtime::Tensor> prepared_tensor =
-    //     shards[0]->getPreparedTensor();
-    // for (size_t i = 1; i < shards.size(); ++i) {
-    //   assert(shards[i]->getPreparedTensor().has_value() ==
-    //          prepared_tensor.has_value());
-    //   if (prepared_tensor.has_value()) {
-    //     assert(shards[i]->getPreparedTensor()->handle ==
-    //            prepared_tensor->handle);
-    //   }
-    // }
+    std::optional<tt::runtime::Tensor> first = shards[0]->getPreparedTensor();
+
+    for (size_t i = 1; i < shards.size(); ++i) {
+      std::optional<tt::runtime::Tensor> other = shards[i]->getPreparedTensor();
+      assert(first.has_value() == other.has_value());
+      if (first.has_value()) {
+        assert(first->handle == other->handle);
+      }
+    }
+
     // TODO: Validate that tenzor constructed from this shards has the same
     // runtime tenzor. Is that even true??
   }
