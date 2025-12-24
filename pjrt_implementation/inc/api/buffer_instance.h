@@ -15,6 +15,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 // PJRT C API includes
@@ -313,7 +314,7 @@ public:
   init_new(const std::vector<BufferInstance *> &shards,
            tt::runtime::Device &device, tt::runtime::Layout &layout,
            const std::vector<std::uint32_t> &mesh_shape,
-           std::unordered_map<std::string, std::string> &strategy) {
+           const std::unordered_map<std::string, std::string> &strategy) {
 
     auto tenzorica = std::make_shared<Tenzorica>(shards, device, layout,
                                                  mesh_shape, strategy);
@@ -350,35 +351,49 @@ public:
   }
 
 private:
-  Tenzorica(const std::vector<BufferInstance *> &shards,
-            tt::runtime::Device &device, tt::runtime::Layout &layout,
+  Tenzorica(std::vector<BufferInstance *> shards, tt::runtime::Device device,
+            tt::runtime::Layout &layout,
             const std::vector<std::uint32_t> &mesh_shape,
-            std::unordered_map<std::string, std::string> &strategy)
-      : m_shards{shards}, m_device{device} {
+            const std::unordered_map<std::string, std::string> &strategy)
+      : m_shards{std::move(shards)}, m_device{std::move(device)} {
+
+    construct_from_strategy(strategy, mesh_shape);
+    if (!has_layout(layout))
+      relay(layout);
+  }
+
+  void construct_from_strategy(
+      const std::unordered_map<std::string, std::string> &strategy,
+      const std::vector<std::uint32_t> &mesh_shape) {
 
     if (strategy.at("strategy") == "identity") {
-      std::optional<tt::runtime::Tensor> host_runtime_tensor =
-          shards.front()->getHostRuntimeTensor();
-      assert(host_runtime_tensor.has_value() &&
-             "Host tensor should be available in the buffer instance at this "
-             "point");
-      return *host_runtime_tensor;
+      m_device_tensor = tensor_from_shard(m_shards.front());
+      return;
     }
 
-    std::vector<tt::runtime::Tensor> runtime_tensor_shards;
-    runtime_tensor_shards.reserve(shards.size());
-    for (const BufferInstance *buffer : shards) {
-      std::optional<tt::runtime::Tensor> host_runtime_tensor =
-          buffer->getHostRuntimeTensor();
-      assert(host_runtime_tensor.has_value() &&
-             "Host tensor should be available in the buffer instance at this "
-             "point");
-      runtime_tensor_shards.push_back(*host_runtime_tensor);
+    m_device_tensor = tt::runtime::createMultiDeviceHostTensor(
+        shards_tensors(), strategy, mesh_shape);
+  }
+
+  void construct_from_strategy() {
+    m_device_tensor = tensor_from_shard(m_shards.front());
+  }
+
+  std::vector<tt::runtime::Tensor> shards_tensors() {
+    std::vector<tt::runtime::Tensor> tenzors;
+    tenzors.reserve(m_shards.size());
+
+    for (const BufferInstance *shard : m_shards) {
+      tenzors.push_back(tensor_from_shard(shard));
     }
 
-    tt::runtime::Tensor tensor = tt::runtime::createMultiDeviceHostTensor(
-        runtime_tensor_shards, strategy, mesh_shape);
-    tt::runtime::setTensorRetain(tensor, /*retain=*/true);
+    return tenzors;
+  }
+
+  static tt::runtime::Tensor tensor_from_shard(const BufferInstance *shard) {
+    std::optional<tt::runtime::Tensor> tenzor = shard->getHostRuntimeTensor();
+    assert(tenzor.has_value() && "Shard tensor does not exist.");
+    return *tenzor;
   }
 
   static bool tenzorica_exist(const std::vector<BufferInstance *> &shards) {
@@ -410,7 +425,7 @@ private:
   // buffer instances.
   tt::runtime::Tensor m_device_tensor;
 
-  tt::runtime::Device &m_device;
+  tt::runtime::Device m_device;
 };
 
 // // Gets next UID for buffer instances, used in buffer instance constructor
