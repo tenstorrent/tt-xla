@@ -7,7 +7,7 @@
 from enum import Enum
 from typing import Optional
 
-from .utils import ExceptionCheck, FailingReason, M
+from .utils import ME, ExceptionCheck, FailingReason, M
 
 
 class ComponentChecker(Enum):
@@ -588,6 +588,17 @@ class FailingReasons(Enum):
                 message=[
                     M.contains("Bad StatusOr access"),
                     M.contains("Error code: 13"),
+                ],
+                summary=[
+                    ME.regex(
+                        "(TT_THROW: Statically allocated circular buffers on core range)"
+                    ),
+                    ME.regex(
+                        "(# Only run the actual model test if not marked for skip)"
+                    ),
+                    ME.regex(
+                        "(# function in finally block will always be called and handles the pytest.skip.)"
+                    ),
                 ],
             ),
         ],
