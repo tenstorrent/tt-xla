@@ -88,7 +88,7 @@ def test_all_models_torch(
     record_property,
     test_metadata,
     request,
-    capteesys,
+    captured_output_fixture,
     clear_torchxla_computation_cache,
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
@@ -155,10 +155,11 @@ def test_all_models_torch(
                 validate_filecheck_results(filecheck_results)
 
         except Exception as e:
-            out = capteesys.readouterr().out
-            err = capteesys.readouterr().err
+            captured = captured_output_fixture.readouterr()
             # Record runtime failure info so it can be reflected in report properties
-            update_test_metadata_for_exception(test_metadata, e, stdout=out, stderr=err)
+            update_test_metadata_for_exception(
+                test_metadata, e, stdout=captured.out, stderr=captured.err
+            )
             raise
         finally:
             # If there are multiple comparison results, only record the first one because the
@@ -249,7 +250,7 @@ def test_all_models_jax(
     record_property,
     test_metadata,
     request,
-    capteesys,
+    captured_output_fixture,
 ):
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     fix_venv_isolation()
@@ -331,8 +332,7 @@ def test_all_models_jax(
                 validate_filecheck_results(filecheck_results)
 
         except Exception as e:
-            captured = capteesys.readouterr()
-            # Record runtime failure info so it can be reflected in report properties
+            captured = captured_output_fixture.readouterr()
             update_test_metadata_for_exception(
                 test_metadata, e, stdout=captured.out, stderr=captured.err
             )

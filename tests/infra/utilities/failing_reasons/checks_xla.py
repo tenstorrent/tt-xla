@@ -559,11 +559,164 @@ class FailingReasons(Enum):
                     ),
                 ],
             ),
+            # Circular buffers exceed L1 size
+            ExceptionCheck(
+                stderr=[
+                    M.contains("circular buffers"),
+                    M.contains("beyond max L1 size"),
+                ],
+            ),
+            ExceptionCheck(
+                stdout=[
+                    M.contains("circular buffers"),
+                    M.contains("beyond max L1 size"),
+                ],
+            ),
+            # Out of Memory: Not enough space to allocate
+            ExceptionCheck(
+                stdout=[
+                    M.contains("Out of Memory: Not enough space to allocate"),
+                ],
+            ),
+            ExceptionCheck(
+                stderr=[
+                    M.contains("Out of Memory: Not enough space to allocate"),
+                ],
+            ),
             # Fallback: classify OOM when message is a StatusOr INTERNAL:13 error
             ExceptionCheck(
                 message=[
                     M.contains("Bad StatusOr access"),
                     M.contains("Error code: 13"),
+                ],
+            ),
+        ],
+    )
+
+    # MLIR/TTIR compilation errors - these show up in stdout/stderr with "error:" pattern
+    MLIR_TTIR_COMPILATION_ERROR = FailingReason(
+        description="MLIR/TTIR compilation error",
+        checks=[
+            # Matches MLIR errors in stderr (compilation output)
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stderr=[
+                    M.regex(r"loc\(.*\): error:.*'ttir\."),
+                ],
+            ),
+            # Matches MLIR errors in stdout
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stdout=[
+                    M.regex(r"loc\(.*\): error:.*'ttir\."),
+                ],
+            ),
+            # Fallback: check error_log too
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                error_log=[
+                    M.regex(r"loc\(.*\): error:.*'ttir\."),
+                ],
+            ),
+        ],
+    )
+
+    # MLIR/TTNN compilation errors
+    MLIR_TTNN_COMPILATION_ERROR = FailingReason(
+        description="MLIR/TTNN compilation error",
+        checks=[
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stderr=[
+                    M.regex(r"loc\(.*\): error:.*'ttnn\."),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stdout=[
+                    M.regex(r"loc\(.*\): error:.*'ttnn\."),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                error_log=[
+                    M.regex(r"loc\(.*\): error:.*'ttnn\."),
+                ],
+            ),
+        ],
+    )
+
+    # StableHLO compilation errors
+    MLIR_STABLEHLO_COMPILATION_ERROR = FailingReason(
+        description="MLIR/StableHLO compilation error",
+        checks=[
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stderr=[
+                    M.regex(r"loc\(.*\): error:.*'stablehlo\."),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stdout=[
+                    M.regex(r"loc\(.*\): error:.*'stablehlo\."),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                error_log=[
+                    M.regex(r"loc\(.*\): error:.*'stablehlo\."),
+                ],
+            ),
+        ],
+    )
+
+    MLIR_OP_VERIFICATION_ERROR = FailingReason(
+        description="MLIR op verification error",
+        checks=[
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stderr=[
+                    M.regex(r"loc\(.*\): error:"),
+                    M.neg(M.contains("'ttir.")),
+                    M.neg(M.contains("'ttnn.")),
+                    M.neg(M.contains("stablehlo.")),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stdout=[
+                    M.regex(r"loc\(.*\): error:"),
+                    M.neg(M.contains("'ttir.")),
+                    M.neg(M.contains("'ttnn.")),
+                    M.neg(M.contains("stablehlo.")),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                error_log=[
+                    M.regex(r"error:.*'\w+\.\w+' op"),
+                    M.neg(M.contains("'ttir.")),
+                    M.neg(M.contains("'ttnn.")),
+                    M.neg(M.contains("stablehlo.")),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stderr=[
+                    M.regex(r"error:.*'\w+\.\w+' op"),
+                    M.neg(M.contains("'ttir.")),
+                    M.neg(M.contains("'ttnn.")),
+                    M.neg(M.contains("stablehlo.")),
+                ],
+            ),
+            ExceptionCheck(
+                component=ComponentChecker.XLA.value,
+                stdout=[
+                    M.regex(r"error:.*'\w+\.\w+' op"),
+                    M.neg(M.contains("'ttir.")),
+                    M.neg(M.contains("'ttnn.")),
+                    M.neg(M.contains("stablehlo.")),
                 ],
             ),
         ],

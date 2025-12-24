@@ -52,7 +52,21 @@ class FailingReasonsFinder:
             # If no failing reason is found, classify as UNCLASSIFIED
             return FailingReasons.UNCLASSIFIED
         if len(reasons) > 1:
-            logger.warning(f"Multiple reasons found: {reasons} for ex: {ex}")
+            # Extract just the error message from stderr for cleaner logging
+            error_msg = None
+            if ex.stderr:
+                for line in ex.stderr.split("\n"):
+                    if "error:" in line:
+                        error_start = line.find("error:")
+                        if error_start != -1:
+                            error_msg = line[error_start:].strip()
+                            break
+            if error_msg:
+                logger.warning(
+                    f"Multiple reasons found: {[r.name for r in reasons]} for: {error_msg}"
+                )
+            else:
+                logger.warning(f"Multiple reasons found: {[r.name for r in reasons]}")
         return reasons[0]
 
     @classmethod
