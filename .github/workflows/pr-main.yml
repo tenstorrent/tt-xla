@@ -90,6 +90,7 @@ jobs:
       run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       run_id_source: tt-xla
       ref: main
+      perf_regression_check: true
 
   test_forge_models_push:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'

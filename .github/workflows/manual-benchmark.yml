@@ -16,7 +16,7 @@ on:
         required: false
         type: string
       test_filter:
-        description: "Only run tests with name that contains"
+        description: "Filter tests based on the name property. One or more strings which are contained (case insensitive) in the name (e.g. 'resn' or 'resn,mni,yol')"
         required: false
         type: string
       sh-runner:
