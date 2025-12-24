@@ -524,12 +524,6 @@ def record_model_test_properties(
     if reason:
         record_property("error_message", _to_marshal_safe(reason))
 
-    # Debug: print what's being sent to Superset
-    print(f"\n[DEBUG SUPERSET] Recording properties for: {request.node.name}")
-    print(f"[DEBUG SUPERSET] tags = {_to_marshal_safe(tags)}")
-    if reason:
-        print(f"[DEBUG SUPERSET] error_message = {_to_marshal_safe(reason)}")
-
     # Write properties
     record_property("tags", _to_marshal_safe(tags))
     record_property("owner", "tt-xla")
