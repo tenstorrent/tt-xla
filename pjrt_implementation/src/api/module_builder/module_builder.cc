@@ -236,9 +236,6 @@ ModuleBuilder::buildModule(
   }
   if (!compile_options.export_model_name.empty()) {
     compile_options.export_model_name += "_g" + std::to_string(graph_num);
-    if (!compile_options.export_suffix.empty()) {
-      compile_options.export_model_name += "_" + compile_options.export_suffix;
-    }
   }
 
   tt_pjrt_status status;

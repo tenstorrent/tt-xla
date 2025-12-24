@@ -115,13 +115,9 @@ struct CompileOptions {
   // Setting this will enable IR dumping.
   std::optional<std::string> export_path = std::nullopt;
 
-  // Model name/identifier for exported file names (e.g., 1lyr_phi1_bs32).
-  // This comes before the graph number in filenames.
+  // Model name/identifier for exported file names (e.g., blk_phi1_bs32_a7f3).
+  // The graph number (g0, g1, etc.) is automatically appended.
   std::string export_model_name = "";
-
-  // Suffix to append after graph number in exported file names (e.g., run_id).
-  // This comes after the graph number in filenames.
-  std::string export_suffix = "";
 
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
