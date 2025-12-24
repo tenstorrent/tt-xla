@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
-import ase.build
-import ase.units
 import os
 from ...config import (
     ModelInfo,
@@ -15,7 +13,6 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from hippynn.graphs import GraphModule, inputs, networks, targets
 
 
 class ModelVariant(StrEnum):
@@ -51,6 +48,9 @@ class ModelLoader(ForgeModel):
         Args:
             dtype_override: Optional torch.dtype to override model precision.
         """
+
+        from hippynn.graphs import GraphModule, inputs, networks, targets
+
         network_params = {
             "possible_species": [0, 1, 6, 7, 8, 16],
             "n_features": 20,
@@ -87,6 +87,10 @@ class ModelLoader(ForgeModel):
         Args:
             dtype_override: Optional torch.dtype to override input precision.
         """
+
+        import ase.build
+        import ase.units
+
         atoms = ase.build.molecule("H2O")
         positions = (
             torch.as_tensor(atoms.positions / ase.units.Bohr)

@@ -24,8 +24,6 @@ from ...config import (
 from ...base import ForgeModel
 from ...tools.utils import get_file
 
-from surya.detection import DetectionPredictor
-from surya.recognition import RecognitionPredictor
 
 from .src.utils import (
     SuryaOCRWrapper,
@@ -88,6 +86,9 @@ class ModelLoader(ForgeModel):
         Returns:
             nn.Module: A wrapper module that calls Surya predictors.
         """
+
+        from surya.detection import DetectionPredictor
+        from surya.recognition import RecognitionPredictor
 
         if DetectionPredictor is None or RecognitionPredictor is None:
             raise ImportError(

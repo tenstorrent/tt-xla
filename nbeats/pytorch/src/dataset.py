@@ -31,7 +31,6 @@ from datetime import datetime
 from typing import Tuple
 
 import numpy as np
-import patoolib
 from tqdm import tqdm
 
 from .http_utils import download, url_file_name
@@ -142,6 +141,9 @@ class ElectricityDataset:
         if os.path.isdir(DATASET_DIR):
             logging.info(f"skip: {DATASET_DIR} directory already exists.")
             return
+
+        import patoolib
+
         download(DATASET_URL, DATASET_FILE_PATH)
         patoolib.extract_archive(DATASET_FILE_PATH, outdir=DATASET_DIR)
         with open(RAW_DATA_FILE_PATH, "r") as f:

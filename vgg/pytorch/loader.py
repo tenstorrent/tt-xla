@@ -26,7 +26,6 @@ import timm
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 from pytorchcv.model_provider import get_model as ptcv_get_model
-from vgg_pytorch import VGG as HFVGG
 from torchvision import models as tv_models
 
 
@@ -200,6 +199,9 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The VGG model instance.
         """
+
+        from vgg_pytorch import VGG as HFVGG
+
         # Get the pretrained model name from the instance's variant config
         cfg = self._variant_config
         model_name = cfg.pretrained_model_name

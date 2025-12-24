@@ -11,16 +11,15 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 from loguru import logger
 from PIL import Image
-from surya.debug.text import draw_text_on_image
-from surya.debug.draw import draw_polys_on_image
-from surya.detection import DetectionPredictor
-from surya.foundation import FoundationPredictor
-from surya.recognition import RecognitionPredictor
 
 
 class SuryaOCRWrapper(nn.Module):
     def __init__(self, image_tensor=None, device: str = "cpu"):
         super().__init__()
+        from surya.detection import DetectionPredictor
+        from surya.foundation import FoundationPredictor
+        from surya.recognition import RecognitionPredictor
+
         self.detection_predictor = DetectionPredictor(device=device)
         self.foundation_predictor = FoundationPredictor(device=device)
         self.rec_predictor = RecognitionPredictor(self.foundation_predictor)
@@ -292,6 +291,8 @@ def save_outputs_ocr_text(co_out, images, result_path):
 
     os.makedirs(result_path, exist_ok=True)
 
+    from surya.debug.text import draw_text_on_image
+
     # Save visualization PNGs
     for idx, (name, image, pred) in enumerate(zip(names, images, predictions_by_image)):
         bboxes = [line.bbox for line in pred.text_lines]
@@ -324,6 +325,8 @@ def save_outputs_ocr_detection(co_out, images, result_path):
         boxes, polys, confs, lengths, image_bboxes
     )
     os.makedirs(result_path, exist_ok=True)
+
+    from surya.debug.draw import draw_polys_on_image
 
     # Save bbox visualization PNGs
     for idx, (name, pred, page_image) in enumerate(
