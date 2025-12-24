@@ -668,23 +668,26 @@ class TeeCapture:
 
 
 @pytest.fixture()
-def capteesys(capfd, request):
+def capteesys(request):
     """
     Pytest fixture that captures stdout/stderr at fd level.
 
     When running normally: Uses TeeCapture to show output in real-time while capturing.
     When running with --forked: Uses pytest's capfd which handles forked processes correctly.
+    When running in distributed mode: Uses capfd (TeeCapture doesn't work in subprocesses).
     """
     # Check if --forked option was passed to pytest
-    # pytest-forked registers this option, so we check if it exists and is True
     try:
         is_forked = request.config.getoption("--forked", default=False)
     except ValueError:
-        # Option doesn't exist (pytest-forked not installed)
         is_forked = False
 
-    if is_forked:
-        # Use pytest's capfd - it handles forked processes correctly
+    # Check if running in distributed/multi_host subprocess
+    is_distributed = os.environ.get("TT_RUNTIME_ENABLE_DISTRIBUTED") == "1"
+
+    if is_forked or is_distributed:
+        # Use capfd - handles forked/subprocess environments correctly
+        capfd = request.getfixturevalue("capfd")
         yield capfd
     else:
         # Use TeeCapture for real-time output
