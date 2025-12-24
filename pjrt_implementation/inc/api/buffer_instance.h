@@ -288,60 +288,9 @@ public:
   init(const std::vector<BufferInstance *> &shards, tt::runtime::Device &device,
        tt::runtime::Layout &layout,
        const std::vector<std::uint32_t> &mesh_shape,
-       std::unordered_map<std::string, std::string> &strategy) {
+       std::unordered_map<std::string, std::string> &strategy);
 
-    validate_shards(shards);
-
-    if (tenzorica_exist(shards))
-      return init_from_existing(shards, layout, mesh_shape);
-
-    return init_new(shards, device, layout, mesh_shape, strategy);
-  }
-
-  static Tenzorica *
-  init_from_existing(const std::vector<BufferInstance *> &shards,
-                     tt::runtime::Layout &layout,
-                     const std::vector<std::uint32_t> &mesh_shape) {
-
-    Tenzorica *tenzorica = from_shards(shards);
-    if (!tenzorica->has_layout(layout))
-      tenzorica->relay(layout);
-
-    return tenzorica;
-  }
-
-  static Tenzorica *
-  init_new(const std::vector<BufferInstance *> &shards,
-           tt::runtime::Device &device, tt::runtime::Layout &layout,
-           const std::vector<std::uint32_t> &mesh_shape,
-           const std::unordered_map<std::string, std::string> &strategy) {
-
-    auto tenzorica = std::make_shared<Tenzorica>(shards, device, layout,
-                                                 mesh_shape, strategy);
-    for (BufferInstance *shard : tenzorica->shards()) {
-      shard->setTenzorica(tenzorica);
-    }
-
-    return tenzorica.get();
-  }
-
-  ~Tenzorica() {
-    std::string s = "Killing tenzorica.\n";
-    return;
-  }
-
-  bool has_layout(tt::runtime::Layout &layout) {
-    return tt::runtime::hasLayout(m_device_tensor, layout);
-  }
-
-  void relay(tt::runtime::Layout &layout) {
-    bool retain = tt::runtime::getTensorRetain(m_device_tensor);
-    m_device_tensor =
-        tt::runtime::toLayout(m_device_tensor, m_device, layout, retain);
-
-    // TODO: Check if this is needed.
-    tt::runtime::setTensorRetain(m_device_tensor, true);
-  }
+  ~Tenzorica();
 
   std::vector<BufferInstance *> &shards() { return m_shards; };
   const std::vector<BufferInstance *> &shards() const { return m_shards; };
@@ -349,82 +298,65 @@ public:
   tt::runtime::Tensor &device_tensor() { return m_device_tensor; }
   const tt::runtime::Tensor &device_tensor() const { return m_device_tensor; }
 
-  static Tenzorica *from_shards(const std::vector<BufferInstance *> &shards) {
-    return shards[0]->tenzorica().get();
-  }
+  tt::runtime::Device &device() { return m_device; }
+  const tt::runtime::Device &device() const { return m_device; }
 
   Tenzorica(std::vector<BufferInstance *> shards, tt::runtime::Device device,
             tt::runtime::Layout &layout,
             const std::vector<std::uint32_t> &mesh_shape,
-            const std::unordered_map<std::string, std::string> &strategy)
-      : m_shards{std::move(shards)}, m_device{std::move(device)} {
-
-    construct_from_strategy(strategy, mesh_shape);
-    if (!has_layout(layout))
-      relay(layout);
-  }
+            const std::unordered_map<std::string, std::string> &strategy);
 
 private:
-  void construct_from_strategy(
-      const std::unordered_map<std::string, std::string> &strategy,
-      const std::vector<std::uint32_t> &mesh_shape) {
+  static Tenzorica *
+  init_from_existing(const std::vector<BufferInstance *> &shards,
+                     tt::runtime::Layout &layout,
+                     const std::vector<std::uint32_t> &mesh_shape);
 
-    if (strategy.at("strategy") == "identity") {
-      m_device_tensor = tensor_from_shard(m_shards.front());
-      return;
-    }
-
-    m_device_tensor = tt::runtime::createMultiDeviceHostTensor(
-        shards_tensors(), strategy, mesh_shape);
-    tt::runtime::setTensorRetain(m_device_tensor, true);
-  }
-
-  void construct_from_strategy() {
-    m_device_tensor = tensor_from_shard(m_shards.front());
-  }
-
-  std::vector<tt::runtime::Tensor> shards_tensors() {
-    std::vector<tt::runtime::Tensor> tenzors;
-    tenzors.reserve(m_shards.size());
-
-    for (const BufferInstance *shard : m_shards) {
-      tenzors.push_back(tensor_from_shard(shard));
-    }
-
-    return tenzors;
-  }
-
-  static tt::runtime::Tensor tensor_from_shard(const BufferInstance *shard) {
-    std::optional<tt::runtime::Tensor> tenzor = shard->getHostRuntimeTensor();
-    assert(tenzor.has_value() && "Shard tensor does not exist.");
-    return *tenzor;
-  }
-
-  static bool tenzorica_exist(const std::vector<BufferInstance *> &shards) {
-    return shards[0]->tenzorica().operator bool();
-  }
+  static Tenzorica *
+  init_new(const std::vector<BufferInstance *> &shards,
+           tt::runtime::Device &device, tt::runtime::Layout &layout,
+           const std::vector<std::uint32_t> &mesh_shape,
+           const std::unordered_map<std::string, std::string> &strategy);
 
   // Assert that all buffer instances have the same prepared tensor.
   // NOTE: In case of sharded tensor we have multiple buffer instances on the
   // PJRT side, but on our side (tt-mlir runtime) we prepare a single
   // multi-device tensor.
-  static void validate_shards(const std::vector<BufferInstance *> &shards) {
+  static void validate_shards(const std::vector<BufferInstance *> &shards);
 
-    assert(!shards.empty());
-    std::optional<tt::runtime::Tensor> first = shards[0]->getPreparedTensor();
-
-    for (size_t i = 1; i < shards.size(); ++i) {
-      std::optional<tt::runtime::Tensor> other = shards[i]->getPreparedTensor();
-      assert(first.has_value() == other.has_value());
-      if (first.has_value()) {
-        assert(first->handle == other->handle);
-      }
-    }
-
-    // TODO: Validate that tenzor constructed from this shards has the same
-    // runtime tenzor. Is that even true??
+  static bool tenzorica_exist(const std::vector<BufferInstance *> &shards) {
+    return shards[0]->tenzorica().operator bool();
   }
 
+  static Tenzorica *from_shards(const std::vector<BufferInstance *> &shards) {
+    return shards[0]->tenzorica().get();
+  }
+
+  static tt::runtime::Tensor tensor_from_shard(const BufferInstance *shard);
+
+  static bool has_layout(tt::runtime::Tensor &tensor,
+                         tt::runtime::Layout &layout) {
+    return tt::runtime::hasLayout(tensor, layout);
+  }
+
+  static void relay(tt::runtime::Tensor &tensor, tt::runtime::Device &device,
+                    tt::runtime::Layout &layout);
+
+  bool has_layout(tt::runtime::Layout &layout) {
+    return has_layout(m_device_tensor, layout);
+  }
+
+  void relay(tt::runtime::Layout &layout) {
+    relay(m_device_tensor, m_device, layout);
+  }
+
+  tt::runtime::Tensor tensor_from_strategy(
+      const std::unordered_map<std::string, std::string> &strategy,
+      const std::vector<std::uint32_t> &mesh_shape);
+
+  std::vector<tt::runtime::Tensor> tensors_from_shards();
+
+private: // members
   std::vector<BufferInstance *> m_shards;
   // tt::runtime::Tensor m_host_tensor; // for now, let's keep host shards on
   // buffer instances.
