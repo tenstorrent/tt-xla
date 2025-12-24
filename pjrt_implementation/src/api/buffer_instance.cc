@@ -507,38 +507,37 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
 }
 
 Tenzorica *
-Tenzorica::init(const std::vector<BufferInstance *> &shards,
-                tt::runtime::Device &device, tt::runtime::Layout &layout,
-                const std::vector<std::uint32_t> &mesh_shape,
-                std::unordered_map<std::string, std::string> &strategy) {
+TenzoricaPool::init(const std::vector<BufferInstance *> &shards,
+                    tt::runtime::Device &device, tt::runtime::Layout &layout,
+                    const std::vector<std::uint32_t> &mesh_shape,
+                    std::unordered_map<std::string, std::string> &strategy) {
 
-  validate_shards(shards);
+  Tenzorica::validate_shards(shards);
 
-  if (tenzorica_exist(shards))
+  if (Tenzorica::tenzorica_exist(shards))
     return init_from_existing(shards, layout, mesh_shape);
 
   return init_new(shards, device, layout, mesh_shape, strategy);
 }
 
-Tenzorica *
-Tenzorica::init_from_existing(const std::vector<BufferInstance *> &shards,
-                              tt::runtime::Layout &layout,
-                              const std::vector<std::uint32_t> &mesh_shape) {
+Tenzorica *TenzoricaPool::init_from_existing(
+    const std::vector<BufferInstance *> &shards, tt::runtime::Layout &layout,
+    const std::vector<std::uint32_t> &mesh_shape) {
 
-  Tenzorica *tenzorica = from_shards(shards);
+  Tenzorica *tenzorica = Tenzorica::from_shards(shards);
   if (!tenzorica->has_layout(layout))
     tenzorica->relay(layout);
 
   return tenzorica;
 }
 
-Tenzorica *Tenzorica::init_new(
+Tenzorica *TenzoricaPool::init_new(
     const std::vector<BufferInstance *> &shards, tt::runtime::Device &device,
     tt::runtime::Layout &layout, const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy) {
 
   auto tenzorica =
-      std::make_shared<Tenzorica>(shards, device, layout, mesh_shape, strategy);
+      Tenzorica::create(shards, device, layout, mesh_shape, strategy);
 
   for (BufferInstance *shard : tenzorica->shards()) {
     shard->setTenzorica(tenzorica);
@@ -553,7 +552,7 @@ Tenzorica::~Tenzorica() {
 }
 
 Tenzorica::Tenzorica(
-    std::vector<BufferInstance *> shards, tt::runtime::Device device,
+    Private, std::vector<BufferInstance *> shards, tt::runtime::Device device,
     tt::runtime::Layout &layout, const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy)
     : m_shards{std::move(shards)}, m_device{std::move(device)} {
@@ -577,7 +576,6 @@ tt::runtime::Tensor Tenzorica::tensor_from_strategy(
     const std::unordered_map<std::string, std::string> &strategy,
     const std::vector<std::uint32_t> &mesh_shape) {
 
-  // TODO: This should never execute. Check and delete it.
   if (strategy.at("strategy") == "identity") {
     return tensor_from_shard(m_shards.front());
   }
@@ -623,7 +621,7 @@ void Tenzorica::validate_shards(const std::vector<BufferInstance *> &shards) {
     }
   }
 
-  // TODO: Validate that tenzor constructed from this shards has the same
+  // TODO: Validate that tenzor constructed from these shards have the same
   // runtime tenzor. Is that even true??
 }
 
@@ -682,20 +680,20 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ToHostBuffer");
 
   // TODO(mrakita): The caller can specify an optional `host_layout` arg to
-  // specify the memory layout in which data should be copied. It can sometimes
-  // be tiled layout but we support only strided, which might explain accuracy
-  // issues for some models. We need to investigate and add support for both
-  // layouts.
+  // specify the memory layout in which data should be copied. It can
+  // sometimes be tiled layout but we support only strided, which might
+  // explain accuracy issues for some models. We need to investigate and add
+  // support for both layouts.
   // https://github.com/tenstorrent/tt-xla/issues/500
 
   BufferInstance *buffer = BufferInstance::unwrap(args->src);
 
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
-    // For output buffers, use the prepared tensor; for input buffers, use host
-    // tensor. Prepared tensor will always have a >= size than host tensor
-    // since it rounds up to tile size and gives physical tensor volume.
-    // There may not be an associated host runtime tensor with all
+    // For output buffers, use the prepared tensor; for input buffers, use
+    // host tensor. Prepared tensor will always have a >= size than host
+    // tensor since it rounds up to tile size and gives physical tensor
+    // volume. There may not be an associated host runtime tensor with all
     // buffer instances, eg. if it represents an output that never returned to
     // host.
     if (buffer->getPreparedTensor().has_value()) {
@@ -776,7 +774,8 @@ PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
 PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsOnCpu");
 
-  // Currently all our inputs are transferred to device where computation runs.
+  // Currently all our inputs are transferred to device where computation
+  // runs.
   args->is_on_cpu = false;
 
   return nullptr;

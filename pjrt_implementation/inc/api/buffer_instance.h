@@ -282,13 +282,31 @@ private:
   std::shared_ptr<Tenzorica> m_tenzorica;
 };
 
+class TensoricaPool;
+
 class Tenzorica {
+  friend class TenzoricaPool;
+
+  struct Private {
+    explicit Private() = default;
+  };
+
 public:
-  static Tenzorica *
-  init(const std::vector<BufferInstance *> &shards, tt::runtime::Device &device,
-       tt::runtime::Layout &layout,
-       const std::vector<std::uint32_t> &mesh_shape,
-       std::unordered_map<std::string, std::string> &strategy);
+  static std::shared_ptr<Tenzorica>
+  create(std::vector<BufferInstance *> shards, tt::runtime::Device device,
+         tt::runtime::Layout &layout,
+         const std::vector<std::uint32_t> &mesh_shape,
+         const std::unordered_map<std::string, std::string> &strategy) {
+
+    return std::make_shared<Tenzorica>(Private{}, std::move(shards),
+                                       std::move(device), layout, mesh_shape,
+                                       strategy);
+  }
+
+  Tenzorica(Private, std::vector<BufferInstance *> shards,
+            tt::runtime::Device device, tt::runtime::Layout &layout,
+            const std::vector<std::uint32_t> &mesh_shape,
+            const std::unordered_map<std::string, std::string> &strategy);
 
   ~Tenzorica();
 
@@ -301,23 +319,7 @@ public:
   tt::runtime::Device &device() { return m_device; }
   const tt::runtime::Device &device() const { return m_device; }
 
-  Tenzorica(std::vector<BufferInstance *> shards, tt::runtime::Device device,
-            tt::runtime::Layout &layout,
-            const std::vector<std::uint32_t> &mesh_shape,
-            const std::unordered_map<std::string, std::string> &strategy);
-
 private:
-  static Tenzorica *
-  init_from_existing(const std::vector<BufferInstance *> &shards,
-                     tt::runtime::Layout &layout,
-                     const std::vector<std::uint32_t> &mesh_shape);
-
-  static Tenzorica *
-  init_new(const std::vector<BufferInstance *> &shards,
-           tt::runtime::Device &device, tt::runtime::Layout &layout,
-           const std::vector<std::uint32_t> &mesh_shape,
-           const std::unordered_map<std::string, std::string> &strategy);
-
   // Assert that all buffer instances have the same prepared tensor.
   // NOTE: In case of sharded tensor we have multiple buffer instances on the
   // PJRT side, but on our side (tt-mlir runtime) we prepare a single
@@ -363,6 +365,27 @@ private: // members
   tt::runtime::Tensor m_device_tensor;
 
   tt::runtime::Device m_device;
+};
+
+class TenzoricaPool {
+public:
+  static Tenzorica *
+  init(const std::vector<BufferInstance *> &shards, tt::runtime::Device &device,
+       tt::runtime::Layout &layout,
+       const std::vector<std::uint32_t> &mesh_shape,
+       std::unordered_map<std::string, std::string> &strategy);
+
+private:
+  static Tenzorica *
+  init_from_existing(const std::vector<BufferInstance *> &shards,
+                     tt::runtime::Layout &layout,
+                     const std::vector<std::uint32_t> &mesh_shape);
+
+  static Tenzorica *
+  init_new(const std::vector<BufferInstance *> &shards,
+           tt::runtime::Device &device, tt::runtime::Layout &layout,
+           const std::vector<std::uint32_t> &mesh_shape,
+           const std::unordered_map<std::string, std::string> &strategy);
 };
 
 // // Gets next UID for buffer instances, used in buffer instance constructor

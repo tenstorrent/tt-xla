@@ -142,8 +142,8 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   // }
 
   Tenzorica *tensor =
-      Tenzorica::init(arg_buffers, runtime_device, expected_layout,
-                      m_executable_image->getDevicesMeshShape(), *strategy);
+      TenzoricaPool::init(arg_buffers, runtime_device, expected_layout,
+                          m_executable_image->getDevicesMeshShape(), *strategy);
 
   return tensor->device_tensor();
 
