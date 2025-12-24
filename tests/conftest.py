@@ -515,63 +515,72 @@ class TeeCapture:
         self._stderr_thread = None
         self._stdout_thread = None
         self._stop_event = threading.Event()
+        self._started = False
 
     def start(self):
-        # Save original fds
-        self._original_stderr_fd = sys.stderr.fileno()
-        self._original_stdout_fd = sys.stdout.fileno()
-        self._saved_stderr_fd = os.dup(self._original_stderr_fd)
-        self._saved_stdout_fd = os.dup(self._original_stdout_fd)
+        try:
+            # Save original fds
+            self._original_stderr_fd = sys.stderr.fileno()
+            self._original_stdout_fd = sys.stdout.fileno()
+            self._saved_stderr_fd = os.dup(self._original_stderr_fd)
+            self._saved_stdout_fd = os.dup(self._original_stdout_fd)
 
-        # Create pipes
-        self._stderr_read_fd, self._stderr_write_fd = os.pipe()
-        self._stdout_read_fd, self._stdout_write_fd = os.pipe()
+            # Create pipes
+            self._stderr_read_fd, self._stderr_write_fd = os.pipe()
+            self._stdout_read_fd, self._stdout_write_fd = os.pipe()
 
-        # Redirect stderr/stdout to pipe write ends
-        os.dup2(self._stderr_write_fd, self._original_stderr_fd)
-        os.dup2(self._stdout_write_fd, self._original_stdout_fd)
+            # Redirect stderr/stdout to pipe write ends
+            os.dup2(self._stderr_write_fd, self._original_stderr_fd)
+            os.dup2(self._stdout_write_fd, self._original_stdout_fd)
 
-        # Start threads to read from pipes and tee to both terminal and buffer
-        def tee_reader(read_fd, saved_fd, buffer, stop_event):
-            while not stop_event.is_set():
-                ready, _, _ = select.select([read_fd], [], [], 0.1)
-                if ready:
-                    try:
-                        data = os.read(read_fd, 4096)
-                        if data:
-                            os.write(saved_fd, data)
-                            try:
-                                buffer.write(data.decode("utf-8", errors="replace"))
-                            except Exception:
-                                pass
-                    except OSError:
-                        break
+            # Start threads to read from pipes and tee to both terminal and buffer
+            def tee_reader(read_fd, saved_fd, buffer, stop_event):
+                while not stop_event.is_set():
+                    ready, _, _ = select.select([read_fd], [], [], 0.1)
+                    if ready:
+                        try:
+                            data = os.read(read_fd, 4096)
+                            if data:
+                                os.write(saved_fd, data)
+                                try:
+                                    buffer.write(data.decode("utf-8", errors="replace"))
+                                except Exception:
+                                    pass
+                        except OSError:
+                            break
 
-        self._stop_event.clear()
-        self._stderr_thread = threading.Thread(
-            target=tee_reader,
-            args=(
-                self._stderr_read_fd,
-                self._saved_stderr_fd,
-                self._stderr_buffer,
-                self._stop_event,
-            ),
-        )
-        self._stdout_thread = threading.Thread(
-            target=tee_reader,
-            args=(
-                self._stdout_read_fd,
-                self._saved_stdout_fd,
-                self._stdout_buffer,
-                self._stop_event,
-            ),
-        )
-        self._stderr_thread.daemon = True
-        self._stdout_thread.daemon = True
-        self._stderr_thread.start()
-        self._stdout_thread.start()
+            self._stop_event.clear()
+            self._stderr_thread = threading.Thread(
+                target=tee_reader,
+                args=(
+                    self._stderr_read_fd,
+                    self._saved_stderr_fd,
+                    self._stderr_buffer,
+                    self._stop_event,
+                ),
+            )
+            self._stdout_thread = threading.Thread(
+                target=tee_reader,
+                args=(
+                    self._stdout_read_fd,
+                    self._saved_stdout_fd,
+                    self._stdout_buffer,
+                    self._stop_event,
+                ),
+            )
+            self._stderr_thread.daemon = True
+            self._stdout_thread.daemon = True
+            self._stderr_thread.start()
+            self._stdout_thread.start()
+            self._started = True
+        except OSError:
+            # Can't capture in this environment (e.g., subprocess without proper TTY)
+            self._started = False
 
     def stop(self):
+        if not self._started:
+            return
+
         # Flush Python streams (ignore errors - stream may be non-seekable)
         try:
             sys.stderr.flush()
@@ -606,8 +615,10 @@ class TeeCapture:
             pass
 
         # Wait for threads to finish
-        self._stderr_thread.join(timeout=1.0)
-        self._stdout_thread.join(timeout=1.0)
+        if self._stderr_thread:
+            self._stderr_thread.join(timeout=1.0)
+        if self._stdout_thread:
+            self._stdout_thread.join(timeout=1.0)
 
         # Read any remaining data from pipes
         for read_fd, saved_fd, buffer in [
