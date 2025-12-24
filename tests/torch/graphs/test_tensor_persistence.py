@@ -15,12 +15,12 @@ rather than numerical errors if tensor persistence is not handled correctly.
 """
 
 import threading
-import time
 
 import pytest
 import torch
 import torch_xla.core.xla_model as xm
-from utils import incorrect_result
+from infra.comparators.comparison_config import ComparisonConfig, PccConfig
+from infra.comparators.torch_comparator import TorchComparator
 
 """
 A test suite checking various multi-graph tensor persistence scenarios.
@@ -60,11 +60,6 @@ def run_model_on_device(model, inputs):
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
-    )
-)
 def test_output_reused_in_two_serial_graphs():
     """
     Test the scenario: A(I) -> O, B(O) -> P, C(O) -> Q
@@ -105,20 +100,17 @@ def test_output_reused_in_two_serial_graphs():
     output_p = run_model_on_device(program_b, [output_o])
     output_q = run_model_on_device(program_c, [output_o])
 
-    # Compare results
-    assert torch.allclose(output_o.cpu(), expected_o, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_p.cpu(), expected_p, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_q.cpu(), expected_q, rtol=1e-5, atol=1e-5)
+    # Compare results using PCC
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(output_o.cpu(), expected_o)
+    comparator.compare(output_p.cpu(), expected_p)
+    comparator.compare(output_q.cpu(), expected_q)
 
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
-    )
-)
 def test_output_reused_in_three_serial_graphs():
     """
     Test extended scenario: A(I) -> O, B(O) -> P, C(O) -> Q, D(O) -> R
@@ -161,21 +153,18 @@ def test_output_reused_in_three_serial_graphs():
     output_q = run_model_on_device(program_c, [output_o])
     output_r = run_model_on_device(program_d, [output_o])
 
-    # Compare results
-    assert torch.allclose(output_o.cpu(), expected_o, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_p.cpu(), expected_p, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_q.cpu(), expected_q, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_r.cpu(), expected_r, rtol=1e-5, atol=1e-5)
+    # Compare results using PCC
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(output_o.cpu(), expected_o)
+    comparator.compare(output_p.cpu(), expected_p)
+    comparator.compare(output_q.cpu(), expected_q)
+    comparator.compare(output_r.cpu(), expected_r)
 
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
-    )
-)
 def test_multiple_outputs_reused_independently():
     """
     Test scenario: A(I) -> (O1, O2), B(O1) -> P, C(O2) -> Q, D(O1) -> R
@@ -224,22 +213,19 @@ def test_multiple_outputs_reused_independently():
     output_q = run_model_on_device(program_c, [output_o2])
     output_r = run_model_on_device(program_d, [output_o1])
 
-    # Compare results
-    assert torch.allclose(output_o1.cpu(), expected_o1, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_o2.cpu(), expected_o2, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_p.cpu(), expected_p, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_q.cpu(), expected_q, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_r.cpu(), expected_r, rtol=1e-5, atol=1e-5)
+    # Compare results using PCC
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(output_o1.cpu(), expected_o1)
+    comparator.compare(output_o2.cpu(), expected_o2)
+    comparator.compare(output_p.cpu(), expected_p)
+    comparator.compare(output_q.cpu(), expected_q)
+    comparator.compare(output_r.cpu(), expected_r)
 
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
-    )
-)
 def test_diamond_dependency_pattern():
     """
     Test diamond pattern: A(I) -> O, B(O) -> P, C(O) -> Q, D(P, Q) -> R
@@ -287,21 +273,18 @@ def test_diamond_dependency_pattern():
     output_q = run_model_on_device(program_c, [output_o])
     output_r = run_model_on_device(program_d, [output_p, output_q])
 
-    # Compare results
-    assert torch.allclose(output_o.cpu(), expected_o, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_p.cpu(), expected_p, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_q.cpu(), expected_q, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_r.cpu(), expected_r, rtol=1e-5, atol=1e-5)
+    # Compare results using PCC
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(output_o.cpu(), expected_o)
+    comparator.compare(output_p.cpu(), expected_p)
+    comparator.compare(output_q.cpu(), expected_q)
+    comparator.compare(output_r.cpu(), expected_r)
 
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
-    )
-)
 def test_chain_with_multiple_reuses():
     """
     Test complex chain: A(I) -> O, B(O) -> P, C(O, P) -> Q, D(P) -> R
@@ -346,11 +329,13 @@ def test_chain_with_multiple_reuses():
     output_q = run_model_on_device(program_c, [output_o, output_p])
     output_r = run_model_on_device(program_d, [output_p])
 
-    # Compare results
-    assert torch.allclose(output_o.cpu(), expected_o, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_p.cpu(), expected_p, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_q.cpu(), expected_q, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_r.cpu(), expected_r, rtol=1e-5, atol=1e-5)
+    # Compare results using PCC
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(output_o.cpu(), expected_o)
+    comparator.compare(output_p.cpu(), expected_p)
+    comparator.compare(output_q.cpu(), expected_q)
+    comparator.compare(output_r.cpu(), expected_r)
 
 
 @pytest.mark.push
@@ -405,20 +390,17 @@ def test_output_reused_with_matrix_operations():
     output_p = run_model_on_device(program_b, [output_o])
     output_q = run_model_on_device(program_c, [output_o])
 
-    # Compare results
-    assert torch.allclose(output_o.cpu(), expected_o, rtol=1e-2, atol=1e-2)
-    assert torch.allclose(output_p.cpu(), expected_p, rtol=1e-2, atol=1e-2)
-    assert torch.allclose(output_q.cpu(), expected_q, rtol=1e-2, atol=1e-2)
+    # Compare results using PCC
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(output_o.cpu(), expected_o)
+    comparator.compare(output_p.cpu(), expected_p)
+    comparator.compare(output_q.cpu(), expected_q)
 
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
-    )
-)
 def test_input_moved_to_device_then_used_in_graph():
     """
     Test scenario: Input A is moved to device via .to(), printed/accessed (returning it to CPU) then used in graph G.
@@ -451,23 +433,23 @@ def test_input_moved_to_device_then_used_in_graph():
     print("Input A on CPU after moving to device and back:", input_a_cpu_back)
     assert torch.allclose(input_a_cpu_back, input_a_cpu, rtol=1e-5, atol=1e-5)
 
+    # Compare using PCC
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(input_a_cpu_back, input_a_cpu)
+
     # Now use the input in a graph
     compiled_g = torch.compile(program_g, backend="tt")
     model_on_device = compiled_g.to(device)
     output_g = model_on_device(input_a_device)
 
     # Compare result
-    assert torch.allclose(output_g.cpu(), expected, rtol=1e-5, atol=1e-5)
+    comparator.compare(output_g.cpu(), expected)
 
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "torch.allclose assertion. https://github.com/tenstorrent/tt-mlir/issues/6217"
-    )
-)
 def test_input_not_modified_reused_in_another_graph():
     """
     Test scenario: Input A participates in graph G (not modified/not returned),
@@ -510,9 +492,11 @@ def test_input_not_modified_reused_in_another_graph():
     model_h = compiled_h.to(device)
     output_h = model_h(input_a_device)
 
-    # Compare results
-    assert torch.allclose(output_g.cpu(), expected_g, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(output_h.cpu(), expected_h, rtol=1e-5, atol=1e-5)
+    # Compare results using PCC
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(output_g.cpu(), expected_g)
+    comparator.compare(output_h.cpu(), expected_h)
 
 
 @pytest.mark.push

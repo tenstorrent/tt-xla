@@ -1165,7 +1165,6 @@ test_config:
     status: EXPECTED_PASSING
 
   regnet/pytorch-regnet_y_32gf-single_device-full-inference:
-    required_pcc: 0.98 # PCC comparison failed. Calculated: pcc=0.9892786145210266. Required: pcc=0.99. Issue: https://github.com/tenstorrent/tt-mlir/issues/6217
     status: EXPECTED_PASSING
 
   regnet/pytorch-regnet_x_400mf-single_device-full-inference:
