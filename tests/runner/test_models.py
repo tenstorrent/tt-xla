@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import warnings
 from typing import List, Optional
-import socket
 
 import pytest
 from infra import RunMode
@@ -26,8 +26,8 @@ from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
-    find_dumped_ir_files,
     create_benchmark_result,
+    find_dumped_ir_files,
     fix_venv_isolation,
     record_model_test_properties,
     update_test_metadata_for_exception,
