@@ -97,6 +97,8 @@ jobs:
     with:
       release_docker_image: ${{ needs.create_release_docker.outputs.docker_image }}
 
+  # todo(vvukoman): github release, git tag, add tags to Docker image (latests and release tags)
+  # before it had only a commit hash tag
   # publish_release:
 
   # forge_release:
