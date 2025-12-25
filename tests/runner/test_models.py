@@ -392,7 +392,7 @@ def test_all_models_op_by_op(
         f"[{model_test_id}-{parallelism.value}-{run_mode.value}]"
     )
 
-    pytest_cmd = [sys.executable, "-m", "pytest", pytest_node_id, "-v", "--dump-irs"]
+    pytest_cmd = [sys.executable, "-m", "pytest", pytest_node_id, "-sv", "--dump-irs"]
 
     subprocess_result = subprocess.run(
         pytest_cmd,
