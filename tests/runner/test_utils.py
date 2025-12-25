@@ -13,7 +13,7 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Any
+from typing import Any, List
 
 import numpy as np
 import pytest
