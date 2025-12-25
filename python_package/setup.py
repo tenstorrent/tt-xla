@@ -215,8 +215,12 @@ class BdistWheel(bdist_wheel):
         config.build_type = self.build_type
         config.enable_explorer = self.build_type == "explorer"
 
-        bdist_wheel.finalize_options(self)
+        # Set root_is_pure BEFORE calling parent finalize_options.
+        # This ensures the wheel is built as platlib (platform-specific) rather than
+        # purelib (pure Python), which is required for auditwheel to process it correctly.
         self.root_is_pure = False
+
+        bdist_wheel.finalize_options(self)
 
     def run(self):
         # Update the description with version info after options are finalized (e.g. self.build_type)
