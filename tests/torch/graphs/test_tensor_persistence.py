@@ -24,8 +24,6 @@ from infra.comparators.torch_comparator import TorchComparator
 
 """
 A test suite checking various multi-graph tensor persistence scenarios.
-
-Computations are done in fp32 to allow simple use of torch.allclose to validate.
 """
 
 
