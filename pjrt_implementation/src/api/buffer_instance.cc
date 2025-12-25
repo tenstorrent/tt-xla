@@ -567,7 +567,7 @@ Tenzorica::Tenzorica(
 void Tenzorica::relay(tt::runtime::Tensor &tensor, tt::runtime::Device &device,
                       tt::runtime::Layout &layout) {
 
-  bool retain = tt::runtime::getTensorRetain(tensor);
+  const bool retain = tt::runtime::getTensorRetain(tensor);
   tensor = tt::runtime::toLayout(tensor, device, layout, retain);
   tt::runtime::setTensorRetain(tensor, true);
 }
@@ -611,13 +611,22 @@ std::vector<tt::runtime::Tensor> Tenzorica::tensors_from_shards() {
 void Tenzorica::validate_shards(const std::vector<BufferInstance *> &shards) {
 
   assert(!shards.empty());
-  std::optional<tt::runtime::Tensor> first = shards[0]->getPreparedTensor();
+  // std::optional<tt::runtime::Tensor> first = shards[0]->getPreparedTensor();
 
+  // for (size_t i = 1; i < shards.size(); ++i) {
+  //   std::optional<tt::runtime::Tensor> other =
+  //   shards[i]->getPreparedTensor(); assert(first.has_value() ==
+  //   other.has_value()); if (first.has_value()) {
+  //     assert(first->handle == other->handle);
+  //   }
+  // }
+
+  auto &first = shards[0]->tenzorica();
   for (size_t i = 1; i < shards.size(); ++i) {
-    std::optional<tt::runtime::Tensor> other = shards[i]->getPreparedTensor();
-    assert(first.has_value() == other.has_value());
-    if (first.has_value()) {
-      assert(first->handle == other->handle);
+    auto &other = shards[i]->tenzorica();
+    assert(first == other);
+    if (first) {
+      assert(first->device_tensor().handle == other->device_tensor().handle);
     }
   }
 

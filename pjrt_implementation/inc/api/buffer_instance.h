@@ -287,6 +287,7 @@ class TensoricaPool;
 class Tenzorica {
   friend class TenzoricaPool;
 
+  // Use create - this prevents construction.
   struct Private {
     explicit Private() = default;
   };
