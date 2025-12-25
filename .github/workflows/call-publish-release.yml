@@ -67,6 +67,13 @@ jobs:
           echo "Downloaded wheel"
           ls -l wheel
 
+      - name: Rename wheel
+        shell: bash
+        run: |
+          tag="${{ steps.set-tag.outputs.tag}}"
+
+          .github/scripts/modify_wheel_version.sh wheel/*.whl $tag
+
       - name: Publish Tenstorrent PyPI package
         shell: bash
         run: |
