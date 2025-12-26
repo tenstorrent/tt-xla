@@ -36,16 +36,26 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Build ttxla  Wheel (manylinux)
-        uses: pypa/cibuildwheel@v3.3
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel==3.3.0
+
+      - name: Build wheels
         env:
           CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
           CIBW_PROJECT_REQUIRES_PYTHON: "=3.11.*"
-        with:
-          output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
-          package-dir: ${{ steps.strings.outputs.work-dir }}/python_package
-          config-file: "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml"
+        run: python -m cibuildwheel --output-dir ${{ steps.strings.outputs.wheel-output-dir }} --config "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml" ${{ steps.strings.outputs.work-dir }}/python_package
+
+      # - name: Build ttxla  Wheel (manylinux)
+      #   uses: pypa/cibuildwheel@v3.3
+      #   env:
+      #     CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
+      #     CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
+      #     CIBW_PROJECT_REQUIRES_PYTHON: "=3.11.*"
+      #   with:
+      #     output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
+      #     package-dir: ${{ steps.strings.outputs.work-dir }}/python_package
+      #     config-file: "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
