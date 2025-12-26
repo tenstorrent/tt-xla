@@ -43,6 +43,11 @@ class PccConfig(ConfigBase):
     # therefore test will be able to pass without pcc comparison.
     allclose: AllcloseConfig = field(default_factory=AllcloseConfig)
 
+@dataclass
+class QualityConfig(ConfigBase):
+    min_clip_threshold: float = 25.0 # higher is better
+    max_fid_threshold: float = float('inf') # lower is better
+
 
 @dataclass
 class ComparisonConfig:
@@ -50,6 +55,7 @@ class ComparisonConfig:
     atol: AtolConfig = field(default_factory=lambda: AtolConfig(False))
     pcc: PccConfig = field(default_factory=PccConfig)
     allclose: AllcloseConfig = field(default_factory=lambda: AllcloseConfig(False))
+    quality: QualityConfig = field(default_factory=QualityConfig)
     assert_on_failure: bool = True  # Default to True for backwards compatibility
 
     def enable_all(self) -> None:

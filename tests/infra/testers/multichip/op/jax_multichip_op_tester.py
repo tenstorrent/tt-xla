@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Sequence
+from typing import Callable, Sequence
 
 import jax
 from infra.comparators import ComparisonConfig
@@ -14,13 +14,12 @@ from infra.utilities import (
     Framework,
     ShardingMode,
     Tensor,
+    compile_jax_multichip_workload,
     enable_shardy,
     random_tensor,
     sanitize_test_name,
 )
 from infra.workloads import JaxMultichipWorkload, Workload
-from jax.experimental.shard_map import shard_map
-from jax.sharding import NamedSharding
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
@@ -128,44 +127,16 @@ class JaxMultichipOpTester(BaseTester):
 
         self._comparator.compare(device_res, cpu_res)
 
-    # @override
     def _compile_for_cpu(self, workload: Workload) -> None:
+        """Compile JAX multichip workload for CPU."""
         assert isinstance(workload, JaxMultichipWorkload)
+        compile_jax_multichip_workload(workload, compiler_options={})
 
-        # Compile options are not used for CPU compilation since they are TT backend specific.
-        self._compile(workload, compiler_options={})
-
-    # @override
     def _compile_for_tt_device(self, workload: Workload) -> None:
+        """Compile JAX multichip workload for TT device."""
         assert isinstance(workload, JaxMultichipWorkload)
-
-        compiler_options = self._compiler_config.to_jax_compiler_options()
-        self._compile(workload, compiler_options)
-
-    # @override
-    def _compile(self, workload: Workload, compiler_options: Dict[str, str]) -> None:
-        """
-        Sets up `workload.executable` for just-in-time compile and execution.
-        `workload.device_mesh` defines for which device (TT or CPU) it will be compiled.
-        """
-        assert isinstance(workload, JaxMultichipWorkload)
-
-        module_sharded_executable = (
-            shard_map(
-                workload.executable,
-                mesh=workload.device_mesh,
-                in_specs=workload.in_specs,
-                out_specs=workload.out_spec,
-            )
-            if workload.sharding_mode.requires_shard_map
-            else workload.executable
-        )
-        output_sharding = NamedSharding(workload.device_mesh, workload.out_spec)
-        workload.compiled_executable = jax.jit(
-            module_sharded_executable,
-            out_shardings=output_sharding,
-            static_argnames=workload.static_argnames,
-            compiler_options=compiler_options,
+        compile_jax_multichip_workload(
+            workload, self._compiler_config.to_jax_compiler_options()
         )
 
     # --- Convenience wrappers ---

@@ -12,7 +12,14 @@ import jax.numpy as jnp
 from flax import linen, nnx
 from huggingface_hub import snapshot_download
 from infra.comparators import ComparisonConfig
-from infra.utilities import Framework, Model, PyTree, random_tensor
+from infra.utilities import (
+    Framework,
+    Model,
+    PyTree,
+    compile_jax_workload_for_cpu,
+    compile_jax_workload_for_tt_device,
+    random_tensor,
+)
 from infra.workloads import Workload
 from loguru import logger
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
@@ -203,27 +210,15 @@ class JaxModelTester(ModelTester):
             static_argnames.append("mutable")
         return static_argnames
 
-    # @override
     def _compile_for_tt_device(self, workload: Workload) -> None:
-        """JIT-compiles model's forward pass into optimized kernels."""
-        assert workload.is_jax, "Workload must be JAX workload to compile"
-        compiler_options = self._compiler_config.to_jax_compiler_options()
-
-        workload.compiled_executable = jax.jit(
-            workload.executable,
-            static_argnames=workload.static_argnames,
-            compiler_options=compiler_options,
+        """Compile JAX workload for TT device."""
+        compile_jax_workload_for_tt_device(
+            workload, self._compiler_config.to_jax_compiler_options()
         )
 
-    # @override
     def _compile_for_cpu(self, workload: Workload) -> None:
-        """JIT-compiles model's forward pass into optimized kernels."""
-        assert workload.is_jax, "Workload must be JAX workload to compile"
-
-        workload.compiled_executable = jax.jit(
-            workload.executable,
-            static_argnames=workload.static_argnames,
-        )
+        """Compile JAX workload for CPU."""
+        compile_jax_workload_for_cpu(workload)
 
     def _wrapper_model(self, f):
         def model(args, kwargs):
