@@ -1,6 +1,6 @@
 # Breaking Into the Source With a Debugger
 
-This page explains how to break into the native source code of the PJRT plugin.
+This page explains how to debug the native source code of the PJRT plugin.
 
 ## Prerequisites
 
@@ -10,26 +10,24 @@ This page explains how to break into the native source code of the PJRT plugin.
 - Verify `gdb` is installed by running `gdb --version`.
     - Needed for debugging of native code.
 - This guide is scoped to Visual Studio Code only.
-- Install "C/C++" (Microsoft) and "Python" (Microsoft) VS Code extensions.
+- Install "C/C++" (by Microsoft) and "Python" (by Microsoft) VS Code extensions.
     - "Python" will auto-install the "Python Debugger" extension as well.
     - "Python Debugger" extension enables `debugpy` debugging.
+- Create an empty `launch.json` file.
+    - In the repository root, create a `.vscode/` directory (note that this
+      directory is ignored by `git`).
+    - Create a new file `.vscode/launch.json` with the following JSON content:
+      ```json
+      {
+        "version": "0.2.0",
+        "configurations": []
+      }
+      ```
+      This file is used for configuring multiple debugging profiles.
 
-## Step 1. Create an empty `launch.json` file
+## Debugging Python Integration Tests
 
-1. In the repository root, create a `.vscode/` directory.
-    - Note: This directory is not tracked by `git`.
-2. Create a new file `.vscode/launch.json` with the following JSON content:
-
-```json
-{
-  "version": "0.2.0",
-  "configurations": []
-}
-```
-
-This file is used for configuring multiple debugging profiles.
-
-## Step 2. Run a Python script / test in `debugpy`
+### How to run a Python script or test in `debugpy`
 
 Create a new debugging profile called `Python: Current File` in `launch.json`:
 
@@ -49,7 +47,7 @@ Create a new debugging profile called `Python: Current File` in `launch.json`:
 }
 ```
 
-Verify that this profile works:
+Verify that the profile works:
 
 1. Create a new Python script and set a breakpoint in VS Code.
 2. Run a VS Code command `Debug: Select and Start Debugging` and select the
@@ -86,12 +84,12 @@ Verify that this profile works:
 3. Run the new `PyTest: Current File` profile and validate that the breakpoint
    will be hit.
 
-## Step 3. Attach `gdb` to a running PJRT client
+### How to attach `gdb` to a running PJRT client
 
 Since running Python tests is the most common way to also test the PJRT plugin,
 and because it is common to debug Python and native code side-by-side, this
-guide will focus on that scenario. However, this step can be applied to
-any running process, assuming you have the time to attach the debugger to your
+section will focus on that scenario. However, this step can be applied to
+any running process, assuming you have the time to attach the debugger to the
 process before it exits.
 
 First, create a new debugging profile `Native: Attach to PJRT Client`
@@ -101,7 +99,7 @@ in `launch.json`:
 {
   "version": "0.2.0",
   "configurations": [
-    { // PyTest: Current File (from Step 2)
+    { // PyTest: Current File (from previous section)
     },
     { // Native: Attach to PJRT Client
       "name": "Native: Attach to PJRT Client",
@@ -131,11 +129,55 @@ Verify that this profile works:
    `ClientInstance::initialize`.
 5. Run the `Native: Attach to PJRT Client` debugging profile without stopping
    the existing `PyTest: Current File` profile (that would kill the test driver
-   process), which will prompt you to select which process you wish to attach.
+   process), which will prompt you to select which process you want to attach to.
    Select the `pytest` process that is running your test. Note that
    when you are in a remote SSH workspace session you will see
-   multiple options, and you need to pick the right one (the server).
+   multiple options, and you need to pick the remote one (the server).
 6. Resume execution of the `PyTest: Current File` profile to unblock the Python
    interpreter, and wait for the breakpoint in C++ code to be hit in the
    `Native: Attach to PJRT Client` debugger session.
 7. Once the breakpoint is hit, you can debug the native PJRT code.
+
+## Debugging PJRT Unit Tests
+
+Create a new debugging profile called `GTest: Filter and Run Tests` in
+`launch.json`:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    { // GTest: Filter and Run Tests
+      "name": "GTest: Filter and Run Tests",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/tests/pjrt/TTPJRTTests",
+      "args": [
+        "--gtest_filter=${input:gtestFilter}"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+    }
+  ],
+  "inputs": [
+    {
+      "id": "gtestFilter",
+      "type": "promptString",
+      "description": "Enter gtest filter (e.g., TestSuite.TestName or TestSuite.* for all tests in a suite)",
+      "default": "*"
+    }
+  ]
+}
+```
+
+Verify that this profile works:
+
+1. Set a breakpoint in one of the PJRT unit tests.
+2. Run the `GTest: Filter and Run Tests` debugging profile and enter a filter
+   that matches the test (e.g. `*TestName*`).
+3. Once the breakpoint is hit, you can start debugging the test. Note that you
+   can debug multiple tests within the same session, as long as they match the
+   given filter.

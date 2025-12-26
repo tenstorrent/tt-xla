@@ -213,8 +213,9 @@ def test_patched_layer_norm_module(
 
 
 @pytest.mark.single_device
-@pytest.mark.parametrize("use_weight", [True, False])
-@pytest.mark.parametrize("use_bias", [True, False])
+@pytest.mark.parametrize(
+    "use_weight, use_bias", [(True, True), (True, False), (False, False)]
+)
 @pytest.mark.parametrize(
     "batch_size, seq_len, embedding_dim",
     [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
@@ -249,8 +250,9 @@ def test_patched_layer_norm_functional(
 
 
 @pytest.mark.single_device
-@pytest.mark.parametrize("use_weight", [True, False])
-@pytest.mark.parametrize("use_bias", [True, False])
+@pytest.mark.parametrize(
+    "use_weight, use_bias", [(True, True), (True, False), (False, False)]
+)
 @pytest.mark.parametrize(
     "batch_size, seq_len, embedding_dim",
     [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],

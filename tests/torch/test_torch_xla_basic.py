@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import shutil
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -12,10 +14,20 @@ import torch_xla.runtime as xr
 from infra import Framework, run_op_test
 from infra.comparators.torch_comparator import TorchComparator
 from infra.connectors.torch_device_connector import TorchDeviceConnector
+from infra.workloads import TorchWorkload
 from torch_xla.distributed.spmd import Mesh
+from tt_torch.serialization import parse_compiled_artifacts_from_cache_to_disk
+from tt_torch.sharding import sharding_constraint_hook
 
 from tests.infra import RunMode, TorchModelTester
 from tests.infra.comparators.comparison_config import AtolConfig, ComparisonConfig
+from tests.infra.connectors.torch_device_connector import TorchDeviceConnector
+from tests.infra.testers.single_chip.op.op_tester import OpTester
+from tests.infra.utilities import sanitize_test_name
+from tests.infra.utilities.filecheck_utils import (
+    run_filecheck,
+    validate_filecheck_results,
+)
 
 # TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/1137
 # We would like to use the OpTester/GraphTester infra instead of manually
@@ -403,3 +415,63 @@ def test_spmd_sharding(axis_names, input_shape, sharding_mode):
         mesh=mesh,
         shard_spec_fn=shard_spec_function,
     )
+
+
+@pytest.mark.nightly
+@pytest.mark.push
+@pytest.mark.llmbox
+def test_spmd_sharding_constraints(request):
+    # Clear cache directory before test to avoid multiple files from previous runs
+    cache_dir = Path(TorchDeviceConnector.get_cache_dir())
+    if cache_dir.exists():
+        shutil.rmtree(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    class EmbeddingModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embedding = torch.nn.Embedding(1000, 512)
+            self.norm = torch.nn.RMSNorm(512)
+
+        def forward(self, x):
+            return self.norm(self.embedding(x))
+
+    num_batches = 2
+    mesh_shape = (2, xr.global_runtime_device_count() // 2)
+    device_ids = np.array(range(xr.global_runtime_device_count()))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    inputs = torch.randint(0, 1000, (num_batches, 32))
+
+    def shard_spec_function(model, args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = ("batch", None)
+        shard_specs[model.embedding.weight] = (None, "model")
+        return shard_specs
+
+    model = EmbeddingModel()
+    hook = sharding_constraint_hook(model.embedding, mesh, ("batch", None, None))
+    model.embedding.register_forward_hook(hook)
+
+    tester = OpTester(framework=Framework.TORCH)
+    workload = TorchWorkload(
+        model=model,
+        args=[inputs],
+        mesh=mesh,
+        shard_spec_fn=shard_spec_function,
+    )
+    tester.test(workload)
+
+    # Parse IR from cache after test
+    pattern_files = ["sharding_constraints.ttir.mlir"]
+    clean_name = sanitize_test_name(request.node.name)
+    output_prefix = f"output_artifact/{clean_name}"
+    parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
+
+    # Run FileCheck
+    filecheck_results = run_filecheck(
+        test_node_name=request.node.name,
+        irs_filepath="output_artifact",
+        pattern_files=pattern_files,
+    )
+    validate_filecheck_results(filecheck_results)

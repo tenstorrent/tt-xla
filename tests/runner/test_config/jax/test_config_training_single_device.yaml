@@ -4,46 +4,25 @@
 
 test_config:
   albert/masked_lm/jax-base_v2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   albert/masked_lm/jax-large-v2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   albert/masked_lm/jax-xlarge-v2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   albert/masked_lm/jax-xxlarge-v2-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   alexnet/image_classification/jax-custom-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   bart/causal_lm/jax-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   bart/causal_lm/jax-large-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   beit/image_classification/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -58,16 +37,10 @@ test_config:
     execution_pass: BACKWARD
 
   bert/masked_lm/jax-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   bert/masked_lm/jax-large-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   bigbird/causal_lm/jax-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -75,48 +48,27 @@ test_config:
     execution_pass: FORWARD
 
   bigbird/question_answering/jax-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: FORWARD
+    status: KNOWN_FAILURE_XFAIL
 
   bigbird/question_answering/jax-large-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: FORWARD
+    status: KNOWN_FAILURE_XFAIL
 
   blenderbot/summarization/jax-1B-distill-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   blenderbot/summarization/jax-3B-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
     markers: [large]
 
   blenderbot/summarization/jax-400M-distill-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
     markers: [nightly]
 
   blenderbot/summarization/jax-small-90M-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   bloom/causal_lm/jax-1b1-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   bloom/causal_lm/jax-1b7-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -131,10 +83,7 @@ test_config:
     execution_pass: BACKWARD
 
   bloom/causal_lm/jax-560m-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   bloom/causal_lm/jax-7b-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -143,10 +92,7 @@ test_config:
     execution_pass: FORWARD
 
   clip/image_classification/jax-base_patch16-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   clip/image_classification/jax-base_patch32-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -155,16 +101,10 @@ test_config:
     execution_pass: FORWARD
 
   clip/image_classification/jax-large_patch14-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   clip/image_classification/jax-large_patch14_336-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   dinov2/image_classification/jax-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -181,39 +121,24 @@ test_config:
 
   dinov2/image_classification/jax-large-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 21471744 B L1 buffer across 7 banks, where each bank needs to store 3067392 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
   distilbert/masked_lm/jax-base-uncased-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   electra/causal_lm/jax-base-discriminator-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   electra/causal_lm/jax-base-generator-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   electra/causal_lm/jax-large-discriminator-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   electra/causal_lm/jax-small-discriminator-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   gpt2/causal_lm/jax-base-single_device-full-training:
     status: EXPECTED_PASSING
@@ -235,24 +160,15 @@ test_config:
     execution_pass: FORWARD
 
   gpt_neo/causal_lm/jax-_125m-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   gpt_neo/causal_lm/jax-_1_3b-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP # Model too large for our runners
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
+    status: KNOWN_FAILURE_XFAIL # Model too large for our runners
     markers: [large, nightly]
-    execution_pass: BACKWARD
 
   gpt_neo/causal_lm/jax-_2_7b-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP # Model too large for our runners
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
+    status: KNOWN_FAILURE_XFAIL # Model too large for our runners
     markers: [large]
-    execution_pass: BACKWARD
 
   gpt_sw3/causal_lm/jax-1_3b_instruct-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -286,16 +202,10 @@ test_config:
     execution_pass: FORWARD
 
   marian_mt/text_classification/jax-opus-mt-en-de-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: FORWARD
+    status: KNOWN_FAILURE_XFAIL
 
   mbart50/nlp_summarization/jax-large_many_to_many-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   mistral/causal_lm/jax-v0_1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -344,24 +254,15 @@ test_config:
     markers: [push, nightly]
 
   mt5/nlp_summarization/jax-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   mt5/nlp_summarization/jax-large-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
+    status: KNOWN_FAILURE_XFAIL
     markers: [large]
-    execution_pass: BACKWARD
 
   mt5/nlp_summarization/jax-xl-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP # Model too large for our runners
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
+    status: KNOWN_FAILURE_XFAIL # Model too large for our runners
     markers: [large]
-    execution_pass: FORWARD
 
   opt/causal_lm/jax-1.3B-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -370,10 +271,7 @@ test_config:
     execution_pass: BACKWARD
 
   opt/causal_lm/jax-125M-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   opt/causal_lm/jax-2.7B-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -382,10 +280,7 @@ test_config:
     execution_pass: FORWARD
 
   opt/causal_lm/jax-350M-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   opt/causal_lm/jax-6.7B-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -406,10 +301,7 @@ test_config:
     execution_pass: BACKWARD
 
   regnet/image_classification/jax-y-040-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 1088 input channels and 64 in the weight tensor."
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   regnet/image_classification/jax-y-160-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -425,13 +317,13 @@ test_config:
 
   resnet/image_classification/jax-resnet-101-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
   resnet/image_classification/jax-resnet-152-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
@@ -462,70 +354,37 @@ test_config:
     execution_pass: BACKWARD
 
   roberta/masked_lm/jax-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   roberta/masked_lm/jax-large-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   roberta_prelayernorm/masked_lm/jax-efficient-mlm-m0.40-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   roformer/masked_lm/jax-chinese-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   roformer/masked_lm/jax-chinese-char-small-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   roformer/masked_lm/jax-chinese-small-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   squeezebert/masked_lm/jax-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   t5/summarization/jax-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   t5/summarization/jax-large-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   t5/summarization/jax-small-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   vision_text_dual_encoder/mm_image_ttt/jax-base-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
-    execution_pass: BACKWARD
+    status: KNOWN_FAILURE_XFAIL
 
   vit/image_classification/jax-base_patch16_224-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
@@ -596,13 +455,13 @@ test_config:
   whisper/audio_classification/jax-large_v3-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     reason: " Assertion `Index < Length && \"Invalid index!\"' failed."
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    bringup_status: FAILED_RUNTIME
     markers: [large]
     execution_pass: BACKWARD
 
   whisper/audio_classification/jax-medium-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    bringup_status: FAILED_RUNTIME
     reason: "Out of memory"
     execution_pass: BACKWARD
 

@@ -94,6 +94,10 @@ BENCHMARK_COMMAND="${BENCHMARK_COMMAND:-$DEFAULT_COMMAND}"
 PERF_THRESHOLD="${PERF_THRESHOLD:-$DEFAULT_THRESHOLD}"
 METRIC_PATTERN="${METRIC_PATTERN:-$DEFAULT_PATTERN}"
 
+# Determine tt-xla root (script is in scripts/ subdirectory of tt-xla)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TTXLA_ROOT="$(dirname "$SCRIPT_DIR")"
+
 TTMLIR_COMMIT=$(git rev-parse --short HEAD)
 TTMLIR_COMMIT_FULL=$(git rev-parse HEAD)
 
@@ -134,9 +138,7 @@ if [ -n "$REVERT_COMMIT" ]; then
     fi
 fi
 
-# Go to tt-xla root (script is in scripts/ subdirectory of tt-xla)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TTXLA_ROOT="$(dirname "$SCRIPT_DIR")"
+# Go to tt-xla root
 cd "$TTXLA_ROOT"
 
 # Cleanup function (defined here for use throughout the script)

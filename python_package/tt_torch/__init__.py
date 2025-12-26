@@ -16,4 +16,5 @@ from .serialization import (
     parse_compiled_artifacts_from_cache,
     parse_compiled_artifacts_from_cache_to_disk,
 )
+from .sharding import sharding_constraint_hook
 from .tools import mark_module_user_inputs

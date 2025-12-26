@@ -87,8 +87,9 @@ test_config:
   mlp_mixer/pytorch-mixer_s32_224-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   stable_diffusion_unet/pytorch-base-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Invalid head size: 120. The head size must be a multiple of the tile width (32). Please adjust the dimensions accordingly."
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   centernet/pytorch-resnet18_coco-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -573,18 +574,14 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   albert/sequence_classification/pytorch-imdb-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   swin/image_classification/pytorch-swin_t-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   swin/image_classification/pytorch-swin_s-single_device-full-training:
@@ -607,7 +604,6 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   bart/pytorch-large-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-full-training:
@@ -632,10 +628,8 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   roberta/masked_lm/pytorch-xlm_base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.gather'"
   unet/pytorch-unet_cityscapes-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.gather'"
   vilt/masked_lm/pytorch-mlm-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -646,22 +640,16 @@ test_config:
     reason: "Fatal Python error: Floating point exception"
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   llama/sequence_classification/pytorch-llama_3_2_1b_instruct-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   opt/sequence_classification/pytorch-facebook/opt-125m-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   opt/sequence_classification/pytorch-facebook/opt-350m-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   gpt2/pytorch-gpt2_sequence_classification-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   resnext/pytorch-resnext50_32x4d-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   resnext/pytorch-resnext101_32x8d-single_device-full-training:
@@ -682,10 +670,8 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   vovnet/pytorch-vovnet39-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
   vovnet/pytorch-vovnet57-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid."
   vovnet/pytorch-vovnet39_th-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   vovnet/pytorch-vovnet57_th-single_device-full-training:
@@ -702,14 +688,14 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   inception/pytorch-inception_v4.tf_in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
   inception/pytorch-inceptionv4-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
   dla/pytorch-dla34.in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   googlenet/pytorch-googlenet-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   resnet/pytorch-resnet_50_hf-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   resnet/pytorch-resnet_50_hf_high_res-single_device-full-training:
@@ -736,7 +722,9 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: TT_FATAL conv2d"
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   wide_resnet/pytorch-wide_resnet50_2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   wide_resnet/pytorch-wide_resnet101_2-single_device-full-training:
@@ -958,32 +946,24 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnet_w18_small_v2_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnetv2_w18_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnetv2_w30_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnetv2_w32_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnetv2_w40_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   hrnet/pytorch-hrnetv2_w44_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   hrnet/pytorch-hrnetv2_w48_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   hrnet/pytorch-hrnetv2_w64_osmr-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.avg_pool2d' op Kernel height 7 is greater than input height 1. This ttnn.avg_pool2d configuration is invalid. https://github.com/tenstorrent/tt-mlir/issues/5785"
   glpn_kitti/pytorch-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
   albert/masked_lm/pytorch-large_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -995,13 +975,21 @@ test_config:
   segformer/pytorch-mit_b1-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   segformer/pytorch-mit_b2-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs (Runs for 3 hours)"
   segformer/pytorch-mit_b3-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   segformer/pytorch-mit_b4-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   segformer/pytorch-mit_b5-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   ghostnet/pytorch-ghostnet_100-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   ghostnet/pytorch-ghostnet_100.in1k-single_device-full-training:
@@ -1185,7 +1173,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
   gemma/pytorch-google/gemma-2b-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "RuntimeError: Test Hangs"
   gemma/pytorch-google/gemma-2-2b-it-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME

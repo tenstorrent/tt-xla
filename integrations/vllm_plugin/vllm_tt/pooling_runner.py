@@ -274,19 +274,21 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_devices = xr.global_runtime_device_count()
         # Model loader try to parallelize everything for SPMD mode. So we are
         # processing data parallel separately.
-        self.data_parallel_inference = self.tt_config.is_data_parallel
-        if self.data_parallel_inference:
+        self.enable_data_parallel = self.tt_config.enable_data_parallel
+        if self.enable_data_parallel:
             if self.batch_size == 1:
                 logger.warning(
                     "Data parallel execution is possible for 'batch_size > 1' but got 'batch_size = 1'. Disabling multi device execution and proceeding with single device execution."
                 )
-                self.data_parallel_inference = False
+                self.enable_data_parallel = False
 
             if self.num_devices == 1:
                 logger.warning(
                     "Data parallel execution is possible with multiple devices but found single device. Disabling multi device execution and proceeding with single device execution."
                 )
-                self.data_parallel_inference = False
+                self.enable_data_parallel = False
+
+        self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
 
         model_config = self.model_config
         cache_config = self.cache_config
@@ -299,9 +301,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_additional_inputs = 0
 
         # SPMD Related
-        self.use_spmd = envs.VLLM_XLA_USE_SPMD
         # Setup for parallel execution.
-        if self.use_spmd or self.data_parallel_inference:
+        if self.enable_tensor_parallel or self.enable_data_parallel:
             mesh_shape = (self.num_devices, 1)
             device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
@@ -512,7 +513,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else None
         )
 
-        if not self.use_spmd:
+        if not self.enable_tensor_parallel:
             self.sample_from_logits_func = torch.compile(
                 self.sample_from_logits,
                 backend="tt",
@@ -912,7 +913,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Add additional rows to make batch divisible by num_devices so inputs
             # can be divided equally between devices for data parallel execution.
-            if self.data_parallel_inference:
+            if self.enable_data_parallel:
                 # Compute how many extra rows are needed to make batch divisible by num_devices.
                 remainder = self.input_ids_cpu.shape[0] % self.num_devices
                 if remainder > 0:
@@ -983,7 +984,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             is_causal = False
 
-        if self.data_parallel_inference and attn_mask is not None:
+        if self.enable_data_parallel and attn_mask is not None:
             xs.mark_sharding(attn_mask, self.mesh, ("x", None, None, None))
 
         attn_metadata = TTMetadata(
@@ -1187,7 +1188,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             xm.mark_step()
 
             # Mark inputs for data parallel sharding.
-            if self.data_parallel_inference:
+            if self.enable_data_parallel:
                 xs.mark_sharding(input_ids, self.mesh, ("x", None))
                 xs.mark_sharding(self.position_ids, self.mesh, ("x", None))
 
@@ -1211,7 +1212,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Remove additional rows/inputs which were added to make batch size
             # divisible by num_devices.
-            if self.data_parallel_inference and self.num_additional_inputs > 0:
+            if self.enable_data_parallel and self.num_additional_inputs > 0:
                 hidden_states_list = hidden_states_list[: -self.num_additional_inputs]
 
             if self.batch_size > 1:
@@ -1301,7 +1302,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return_value=xm_tp_rank,
         ):
             try:
-                if self.use_spmd:
+                if self.enable_tensor_parallel:
                     tpu_loader = TPUModelLoader(
                         load_config=self.vllm_config.load_config
                     )
@@ -1374,7 +1375,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         context_lens = torch.ones((batch_size,), dtype=torch.int32)
 
         # Mark inputs for data parallel sharding.
-        if self.data_parallel_inference:
+        if self.enable_data_parallel:
             xs.mark_sharding(input_ids, self.mesh, ("x", None))
             xs.mark_sharding(position_ids, self.mesh, ("x", None))
 
@@ -1399,7 +1400,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal = False
 
         # Mark attention mask for data parallel sharding.
-        if self.data_parallel_inference and attn_mask is not None:
+        if self.enable_data_parallel and attn_mask is not None:
             xs.mark_sharding(attn_mask, self.mesh, ("x", None, None, None))
 
         attn_metadata = TTMetadata(
@@ -1429,82 +1430,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         xm.mark_step()  # Captures metadata updates
 
-    def _precompile_mm_encoder(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
-        if not self.supports_mm_inputs:
-            return
-
-        # Pre-compile MM encoder for all supported data modalities.
-        hf_config = self.vllm_config.model_config.hf_config
-
-        mm_budget = self.mm_budget
-        assert mm_budget is not None
-
-        max_items_per_seq_by_modality = (
-            mm_budget.max_items_per_batch_by_modality
-        )  # noqa: E501
-
-        for mode, max_items_per_seq in max_items_per_seq_by_modality.items():
-            logger.info(
-                "Compiling Multimodal %s Encoder with different input" " shapes.", mode
-            )
-            start = time.perf_counter()
-            # No padding for MM encoder just yet.
-            for num_items in range(1, max_items_per_seq + 1):
-                logger.info("  -- mode: %s items: %d", mode, num_items)
-                batched_dummy_mm_inputs = self._get_mm_dummy_batch(
-                    mode,
-                    num_items,
-                )
-                # Run multimodal encoder.
-                xm.mark_step()
-                mm_embeds = self.model.get_multimodal_embeddings(
-                    **batched_dummy_mm_inputs
-                )
-                xm.mark_step()
-                num_patches = mm_embeds[0].shape[0]
-                items_size = num_patches * num_items
-
-                # NOTE (NickLucche) pre-compile `get_input_embeddings` when mm
-                # embeddings are present. We assume `--disable-mm-chunked`,
-                # hence only whole items can be scheduled. This implies we just
-                # need to compile when `num_items` fit the (padded) `input_ids`
-                for num_tokens in self.num_tokens_paddings:
-                    if num_tokens >= items_size:
-                        # XLA Workaround: if torch.zeros(..device) is used, XLA
-                        # compiles a scalar+expansion op, which won't match
-                        # the graph generated at runtime. CPU->TPU must be used
-                        placeholders_ids = torch.zeros(
-                            num_tokens, dtype=torch.int32, device="cpu"
-                        )
-                        # Align placeholders and actual num mm_embeddings.
-                        placeholders_ids[:items_size] = hf_config.image_token_index
-
-                        placeholders_ids = placeholders_ids.to(self.device)
-                        # Assign outputs or the graph will be cut short.
-                        a, b = self._get_model_inputs(placeholders_ids, [mm_embeds])
-                        assert a is None
-                        xm.mark_step()
-
-            # Pre-compile `get_input_embeddings` when mm_embeddings are not
-            # present. Chunk is only made of text, no mm_placeholders.
-            for num_tokens in self.num_tokens_paddings:
-                placeholders_ids = torch.zeros(
-                    num_tokens, dtype=torch.int32, device="cpu"
-                )
-                placeholders_ids = placeholders_ids.to(self.device)
-                a, b = self._get_model_inputs(placeholders_ids, [])
-                assert a is None
-                xm.mark_step()
-
-            xm.wait_device_ops()
-            end = time.perf_counter()
-            logger.info(
-                "Multimodal %s Encoder compilation finished in in %.2f " "[secs].",
-                mode,
-                end - start,
-            )
-
     def _precompile_backbone(self) -> None:
         torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling the model with different input shapes.")
@@ -1515,7 +1440,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         # Keep only batch sizes divisible by num_devices for data-parallel model
         # execution.
-        if self.data_parallel_inference:
+        if self.enable_data_parallel:
             batch_variants = [
                 batch for batch in batch_variants if batch % self.num_devices == 0
             ]
@@ -1541,128 +1466,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("model backbone")
-
-    def _precompile_select_hidden_states(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
-        # Compile hidden state selection function for bucketed
-        # n_tokens x max_num_reqs. Graph is really small so this is fine.
-        logger.info("Compiling select_hidden_states with different input shapes.")
-        start = time.perf_counter()
-        hsize = self.model_config.get_hidden_size()
-        for num_tokens in self.num_tokens_paddings:
-            dummy_hidden = torch.zeros(
-                (num_tokens, hsize), device=self.device, dtype=self._hidden_states_dtype
-            )
-            for num_reqs in self.num_reqs_paddings:
-                indices = torch.zeros(num_reqs, dtype=torch.int32, device=self.device)
-                self.select_hidden_states(dummy_hidden, indices)
-                logger.info("  -- num_tokens: %d, num_seqs: %d", num_tokens, num_reqs)
-                # Requests can't be more than tokens. But do compile for the
-                # next bigger value in case num_tokens uses bucketed padding.
-                if num_reqs >= min(num_tokens, self.max_num_reqs):
-                    break
-        xm.wait_device_ops()
-        end = time.perf_counter()
-        logger.info("Compilation finished in %.2f [secs].", end - start)
-        self._update_num_xla_graphs("select_hidden_states")
-
-    def _precompile_compute_logits(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
-        logger.info("Compiling compute_logits with different input shapes.")
-        start = time.perf_counter()
-        hsize = self.model_config.get_hidden_size()
-        for num_reqs in self.num_reqs_paddings:
-            dummy_hidden = torch.zeros(
-                (num_reqs, hsize), device=self.device, dtype=self._hidden_states_dtype
-            )
-            self.compute_logits(dummy_hidden)
-            logger.info("  -- num_seqs: %d", num_reqs)
-        xm.wait_device_ops()
-        end = time.perf_counter()
-        logger.info("Compilation finished in %.2f [secs].", end - start)
-        self._update_num_xla_graphs("compute_logits")
-
-    def _precompile_structured_decoding(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
-        logger.info("Compiling structured_decoding with different input shapes.")
-        start = time.perf_counter()
-        for num_reqs in self.num_reqs_paddings:
-            dummy_logits = torch.zeros(
-                (num_reqs, self.vocab_size),
-                device=self.device,
-                dtype=self._hidden_states_dtype,
-            )
-            dummy_require_struct_decoding = self.require_structured_out_cpu[
-                :num_reqs
-            ].to(self.device)
-            dummy_grammar_bitmask = self.grammar_bitmask_cpu[:num_reqs].to(self.device)
-            # The first dimension of the above 3 dummy tensors cannot be
-            # mark_dynamic because some operations in structured_decode require
-            # them to be static.
-            arange = self.structured_decode_arange.to(self.device)
-            self.structured_decode(
-                dummy_require_struct_decoding,
-                dummy_grammar_bitmask,
-                dummy_logits,
-                arange,
-            )
-            logger.info("  -- num_seqs: %d", num_reqs)
-        xm.wait_device_ops()
-        end = time.perf_counter()
-        logger.info("Compilation finished in %.2f [secs].", end - start)
-        self._update_num_xla_graphs("structured_decoding")
-
-    def _precompile_sample_from_logits(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
-        logger.info("Compiling sample_from_logits with different input shapes.")
-        start = time.perf_counter()
-        for num_reqs in self.num_reqs_paddings:
-            dummy_logits = torch.zeros(
-                (num_reqs, self.vocab_size),
-                device=self.device,
-                dtype=self._hidden_states_dtype,
-            )
-            # The first dimension of dummy_logits cannot be mark_dynamic
-            # because some operations in the sampler require it to be static.
-            for all_greedy in [False, True]:
-                generate_params_if_all_greedy = not all_greedy
-                sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
-                    self.input_batch,
-                    num_reqs,
-                    self.device,
-                    generate_params_if_all_greedy,
-                )
-                sampling_metadata.all_greedy = all_greedy
-                with self.maybe_select_dummy_loras(
-                    self.lora_config, np.array([num_reqs], dtype=np.int32)
-                ):
-                    self.sample_from_logits_func(dummy_logits, sampling_metadata)
-            logger.info("  -- num_seqs: %d", num_reqs)
-        xm.wait_device_ops()
-        end = time.perf_counter()
-        logger.info("Compilation finished in %.2f [secs].", end - start)
-        self._update_num_xla_graphs("sample_from_logits")
-
-    def _precompile_gather_logprobs(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
-        logger.info("Compiling gather_logprobs with different input shapes.")
-        start = time.perf_counter()
-        for num_reqs in self.num_reqs_paddings:
-            dummy_logits = torch.zeros(
-                (num_reqs, self.vocab_size),
-                device=self.device,
-                dtype=self._hidden_states_dtype,
-            )
-            dummy_tokens = torch.zeros((num_reqs, 1), dtype=torch.int64).to(self.device)
-            with self.maybe_select_dummy_loras(
-                self.lora_config, np.array([num_reqs], dtype=np.int32)
-            ):
-                self.gather_logprobs(dummy_logits, dummy_tokens)
-            logger.info("  -- num_seqs: %d", num_reqs)
-        xm.wait_device_ops()
-        end = time.perf_counter()
-        logger.info("Compilation finished in %.2f [secs].", end - start)
-        self._update_num_xla_graphs("gather_logprobs")
 
     def capture_model(self) -> None:
         """

@@ -62,9 +62,10 @@ class TTWorker:
         self.parallel_config = vllm_config.parallel_config
 
         self.tt_config = TTConfig(**vllm_config.additional_config)
-        data_parallel_inference = self.tt_config.is_data_parallel
+        enable_data_parallel = self.tt_config.enable_data_parallel
+        enable_tensor_parallel = self.tt_config.enable_tensor_parallel
 
-        self.use_spmd = envs.VLLM_XLA_USE_SPMD or data_parallel_inference
+        self.use_spmd = enable_tensor_parallel or enable_data_parallel
         self.original_parallel_config = None
         if self.use_spmd:
             # Under SPMD mode, distributed env is initialized as if there is
@@ -129,7 +130,7 @@ class TTWorker:
         torch.set_default_dtype(self.model_config.dtype)
 
         # Initialize the distributed environment.
-        self._init_tpu_worker_distributed_environment(
+        self._init_tt_worker_distributed_environment(
             self.vllm_config, self.rank, self.distributed_init_method, self.local_rank
         )
 
@@ -311,7 +312,7 @@ class TTWorker:
         # worker will always be healthy as long as it's running.
         return
 
-    def _init_tpu_worker_distributed_environment(
+    def _init_tt_worker_distributed_environment(
         self,
         vllm_config: VllmConfig,
         rank: int,
