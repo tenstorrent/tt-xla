@@ -48,7 +48,7 @@ def torch_pass_pipeline(
     # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
     program = torch.export.export_for_training(
         gm, tuple(example_inputs), strict=False
-    ).run_decompositions(decompositions)
+    )  # .run_decompositions(decompositions)
 
     compiled_graph = program.module()
     compiled_graph = insert_argument_type_markers(
