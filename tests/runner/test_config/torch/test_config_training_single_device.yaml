@@ -574,18 +574,14 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   albert/sequence_classification/pytorch-imdb-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   swin/image_classification/pytorch-swin_t-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   swin/image_classification/pytorch-swin_s-single_device-full-training:
@@ -608,7 +604,6 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   bart/pytorch-large-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-full-training:
@@ -633,10 +628,8 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   roberta/masked_lm/pytorch-xlm_base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.gather'"
   unet/pytorch-unet_cityscapes-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.gather'"
   vilt/masked_lm/pytorch-mlm-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -647,22 +640,16 @@ test_config:
     reason: "Fatal Python error: Floating point exception"
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   llama/sequence_classification/pytorch-llama_3_2_1b_instruct-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   opt/sequence_classification/pytorch-facebook/opt-125m-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   opt/sequence_classification/pytorch-facebook/opt-350m-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   gpt2/pytorch-gpt2_sequence_classification-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   resnext/pytorch-resnext50_32x4d-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   resnext/pytorch-resnext101_32x8d-single_device-full-training:
@@ -701,7 +688,6 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   inception/pytorch-inception_v4.tf_in1k-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.pooling' that was explicitly marked illegal"
   inception/pytorch-inceptionv4-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   dla/pytorch-dla34.in1k-single_device-full-training:
@@ -978,7 +964,6 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   glpn_kitti/pytorch-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal"
   albert/masked_lm/pytorch-large_v1-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION

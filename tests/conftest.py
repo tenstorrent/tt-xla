@@ -2,9 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import contextlib
 import ctypes
 import gc
+import io
 import os
+import select
 import shutil
 import sys
 import threading
@@ -480,3 +483,177 @@ def clear_torchxla_computation_cache():
     """
     yield
     xr.clear_computation_cache()
+
+
+class TeeCaptureResult:
+    """Result object mimicking pytest's CaptureResult."""
+
+    def __init__(self, out: str, err: str):
+        self.out = out
+        self.err = err
+
+
+class TeeCapture:
+    """
+    Captures stderr/stdout at fd level while still writing to terminal in real-time.
+    This allows capturing C++ output (like MLIR errors) without suppressing it.
+
+    NOTE: This does NOT work with pytest-forked due to interpreter shutdown issues.
+    Use capfd instead when running with --forked.
+    """
+
+    def __init__(self):
+        self._stderr_buffer = io.StringIO()
+        self._stdout_buffer = io.StringIO()
+        self._fds = {}
+        self._threads = []
+        self._stop_event = threading.Event()
+        self._started = False
+
+    def _safe_close(self, fd):
+        if fd is not None:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+
+    def _tee_reader(self, read_fd, saved_fd, buffer):
+        while not self._stop_event.is_set():
+            try:
+                ready, _, _ = select.select([read_fd], [], [], 0.1)
+                if not ready:
+                    continue
+                data = os.read(read_fd, 4096)
+                if not data:
+                    return
+                os.write(saved_fd, data)
+                with contextlib.suppress(Exception):
+                    buffer.write(data.decode("utf-8", errors="replace"))
+            except OSError:
+                return
+
+    def start(self):
+        try:
+            # Save original fds and create pipes
+            for name, stream, buffer in [
+                ("stderr", sys.stderr, self._stderr_buffer),
+                ("stdout", sys.stdout, self._stdout_buffer),
+            ]:
+                original_fd = stream.fileno()
+                saved_fd = os.dup(original_fd)
+                read_fd, write_fd = os.pipe()
+                os.dup2(write_fd, original_fd)
+
+                self._fds[name] = {
+                    "original": original_fd,
+                    "saved": saved_fd,
+                    "read": read_fd,
+                    "write": write_fd,
+                }
+
+                thread = threading.Thread(
+                    target=self._tee_reader,
+                    args=(read_fd, saved_fd, buffer),
+                    daemon=True,
+                )
+                thread.start()
+                self._threads.append(thread)
+
+            self._started = True
+        except OSError:
+            self._started = False
+
+    def stop(self):
+        if not self._started:
+            return
+
+        with contextlib.suppress(OSError):
+            sys.stderr.flush()
+        with contextlib.suppress(OSError):
+            sys.stdout.flush()
+
+        self._stop_event.set()
+
+        # Restore original fds and close pipe write ends
+        for fds in self._fds.values():
+            with contextlib.suppress(OSError):
+                os.dup2(fds["saved"], fds["original"])
+            self._safe_close(fds["write"])
+
+        for thread in self._threads:
+            thread.join(timeout=1.0)
+
+        # Drain remaining data from pipes
+        for name, fds in self._fds.items():
+            buffer = self._stderr_buffer if name == "stderr" else self._stdout_buffer
+            self._drain_pipe(fds["read"], fds["saved"], buffer)
+
+        # Close all remaining fds
+        for fds in self._fds.values():
+            self._safe_close(fds["read"])
+            self._safe_close(fds["saved"])
+
+    def _drain_pipe(self, read_fd, saved_fd, buffer):
+        while True:
+            try:
+                ready, _, _ = select.select([read_fd], [], [], 0)
+                if not ready:
+                    return
+                data = os.read(read_fd, 4096)
+                if not data:
+                    return
+                with contextlib.suppress(OSError):
+                    os.write(saved_fd, data)
+                with contextlib.suppress(Exception):
+                    buffer.write(data.decode("utf-8", errors="replace"))
+            except (OSError, ValueError):
+                return
+
+    def readouterr(self):
+        return TeeCaptureResult(
+            self._stdout_buffer.getvalue(), self._stderr_buffer.getvalue()
+        )
+
+
+def _should_use_capfd(request) -> bool:
+    """
+    Determine if capfd should be used instead of TeeCapture.
+
+    Returns True when:
+    - Running with --forked (TeeCapture doesn't work with pytest-forked)
+    - Running in distributed mode (TeeCapture doesn't work in subprocesses)
+    - Pytest capture is enabled (TeeCapture conflicts with pytest's capture pipes)
+    """
+    # Check if --forked option was passed to pytest
+    try:
+        is_forked = request.config.getoption("--forked", default=False)
+    except ValueError:
+        is_forked = False
+
+    # Check if running in distributed/multi_host subprocess
+    is_distributed = os.environ.get("TT_RUNTIME_ENABLE_DISTRIBUTED") == "1"
+
+    # Check if pytest capture is enabled (not disabled via -s)
+    capture_mode = request.config.getoption("capture")
+    is_capturing = capture_mode != "no"
+
+    return is_forked or is_distributed or is_capturing
+
+
+@pytest.fixture()
+def captured_output_fixture(request):
+    """
+    Pytest fixture that captures stdout/stderr at fd level.
+
+    When running normally: Uses TeeCapture to show output in real-time while capturing.
+    When running with --forked: Uses pytest's capfd which handles forked processes correctly.
+    When running in distributed mode: Uses capfd (TeeCapture doesn't work in subprocesses).
+    """
+    if _should_use_capfd(request):
+        # Use capfd - handles forked/subprocess environments correctly
+        capfd = request.getfixturevalue("capfd")
+        yield capfd
+    else:
+        # Use TeeCapture for real-time output
+        tee = TeeCapture()
+        tee.start()
+        yield tee
+        tee.stop()
