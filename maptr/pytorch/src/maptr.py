@@ -5753,43 +5753,53 @@ class MapTRPerceptionTransformer(BaseModule):
         bev_queries = bev_queries.unsqueeze(1).repeat(1, bs, 1)
         bev_pos = bev_pos.flatten(2).permute(2, 0, 1)
 
-        delta_x = np.array([each["can_bus"][0] for each in kwargs["img_metas"]])
-        delta_y = np.array([each["can_bus"][1] for each in kwargs["img_metas"]])
-        ego_angle = np.array(
-            [each["can_bus"][-2] / np.pi * 180 for each in kwargs["img_metas"]]
-        )
-        grid_length_y = grid_length[0]
-        grid_length_x = grid_length[1]
-        translation_length = np.sqrt(delta_x**2 + delta_y**2)
-        translation_angle = np.arctan2(delta_y, delta_x) / np.pi * 180
-        bev_angle = ego_angle - translation_angle
-        shift_y = (
-            translation_length * np.cos(bev_angle / 180 * np.pi) / grid_length_y / bev_h
-        )
-        shift_x = (
-            translation_length * np.sin(bev_angle / 180 * np.pi) / grid_length_x / bev_w
-        )
-        shift_y = shift_y * self.use_shift
-        shift_x = shift_x * self.use_shift
-
-        shift_x_t = torch.as_tensor(
-            shift_x, device=bev_queries.device, dtype=bev_queries.dtype
-        )
-        shift_y_t = torch.as_tensor(
-            shift_y, device=bev_queries.device, dtype=bev_queries.dtype
-        )
-        shift = torch.stack([shift_x_t, shift_y_t], dim=0).permute(1, 0)
-
         can_bus_list = [each["can_bus"] for each in kwargs["img_metas"]]
         if torch.is_tensor(can_bus_list[0]):
-            can_bus = torch.stack(can_bus_list, dim=0).to(
+            can_bus_raw = torch.stack(can_bus_list, dim=0).to(
                 device=bev_queries.device, dtype=bev_queries.dtype
             )
         else:
-            can_bus = torch.as_tensor(
+            can_bus_raw = torch.as_tensor(
                 can_bus_list, device=bev_queries.device, dtype=bev_queries.dtype
-            )  # [:, :]
-        can_bus = self.can_bus_mlp(can_bus[:, : self.len_can_bus])[None, :, :]
+            )
+
+        delta_x = can_bus_raw[:, 0]
+        delta_y = can_bus_raw[:, 1]
+        ego_angle = can_bus_raw[:, -2] / torch.pi * 180.0
+
+        grid_length_y = torch.as_tensor(
+            grid_length[0], device=bev_queries.device, dtype=bev_queries.dtype
+        )
+        grid_length_x = torch.as_tensor(
+            grid_length[1], device=bev_queries.device, dtype=bev_queries.dtype
+        )
+        bev_h_t = torch.as_tensor(
+            bev_h, device=bev_queries.device, dtype=bev_queries.dtype
+        )
+        bev_w_t = torch.as_tensor(
+            bev_w, device=bev_queries.device, dtype=bev_queries.dtype
+        )
+
+        translation_length = torch.sqrt(delta_x**2 + delta_y**2)
+        translation_angle = torch.atan2(delta_y, delta_x) / torch.pi * 180.0
+        bev_angle = ego_angle - translation_angle
+        shift_y = (
+            translation_length
+            * torch.cos(bev_angle / 180.0 * torch.pi)
+            / grid_length_y
+            / bev_h_t
+        )
+        shift_x = (
+            translation_length
+            * torch.sin(bev_angle / 180.0 * torch.pi)
+            / grid_length_x
+            / bev_w_t
+        )
+        shift_y = shift_y * self.use_shift
+        shift_x = shift_x * self.use_shift
+        shift = torch.stack([shift_x, shift_y], dim=0).permute(1, 0)
+
+        can_bus = self.can_bus_mlp(can_bus_raw[:, : self.len_can_bus])[None, :, :]
         bev_queries = bev_queries + can_bus * self.use_can_bus
 
         feat_flatten = []
