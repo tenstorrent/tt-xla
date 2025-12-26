@@ -185,34 +185,7 @@ SOLoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,
     tt::runtime::Device runtime_device, size_t num_devices,
     std::uint32_t program_index, size_t arg_index) {
-  // Assert that all buffer instances have the same prepared tensor.
-  // NOTE: In case of sharded tensor we have multiple buffer instances on the
-  // PJRT side, but on our side (tt-mlir runtime) we prepare a single
-  // multi-device tensor.
-  // assert(!arg_buffers.empty());
-  // std::optional<tt::runtime::Tensor> prepared_tensor =
-  //     arg_buffers[0]->getPreparedTensor();
-  // for (size_t i = 1; i < arg_buffers.size(); ++i) {
-  //   assert(arg_buffers[i]->getPreparedTensor().has_value() ==
-  //          prepared_tensor.has_value());
-  //   if (prepared_tensor.has_value()) {
-  //     assert(arg_buffers[i]->getPreparedTensor()->handle ==
-  //            prepared_tensor->handle);
-  //   }
-  // }
 
-  // For SO path, we don't have layout information from flatbuffer,
-  // so we can't check if the prepared tensor has the correct layout.
-  // As a hack, we'll always use whatever we have prepared.
-
-  // if (prepared_tensor.has_value()) {
-  //   DLOG_F(LOG_DEBUG,
-  //          "Reusing already prepared input tensor for argument index %zu",
-  //          arg_index);
-  //   return *prepared_tensor;
-  // }
-
-  // We don't have an already prepared tensor so we need to prepare it now.
   mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
       fillStrategyMapFromSharding(
           m_executable_image->getInputSharding(arg_index), num_devices);
@@ -221,25 +194,11 @@ SOLoadedExecutableInstance::prepareInputTensor(
     return std::nullopt;
   }
 
-  // tt::runtime::Tensor input_tensor =
-  //     getTensorFromStrategy(arg_buffers, *strategy);
+  Tenzorica &tensor =
+      Tenzorica::init(arg_buffers, runtime_device, {},
+                      m_executable_image->getDevicesMeshShape(), *strategy);
 
-  // tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
-  //     input_tensor, program_index, arg_index, runtime_device);
-
-  Tenzorica *tensor =
-      TenzoricaPool::init(arg_buffers, runtime_device, {},
-                          m_executable_image->getDevicesMeshShape(), *strategy);
-
-  // Right now we don't actually lay out tensors, so no need to save it.
-
-  return tensor->device_tensor();
-}
-
-tt::runtime::Tensor SOLoadedExecutableInstance::convertTensorLayout(
-    tt::runtime::Tensor input_tensor, std::uint32_t program_index,
-    size_t arg_index, const tt::runtime::Device &runtime_device) {
-  return input_tensor;
+  return tensor.device_tensor();
 }
 
 } // namespace tt::pjrt

@@ -529,71 +529,63 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
   return tt_pjrt_status::kSuccess;
 }
 
-Tenzorica *TenzoricaPool::init(
-    const std::vector<BufferInstance *> &shards,
-    const tt::runtime::Device &device,
-    const std::optional<const tt::runtime::Layout> &layout,
-    const std::vector<std::uint32_t> &mesh_shape,
-    const std::unordered_map<std::string, std::string> &strategy) {
+Tenzorica &
+Tenzorica::init(const std::vector<BufferInstance *> &shards,
+                const tt::runtime::Device &device,
+                const std::optional<const tt::runtime::Layout> &layout,
+                const std::vector<std::uint32_t> &mesh_shape,
+                const std::unordered_map<std::string, std::string> &strategy) {
 
-  Tenzorica::validate_shards(shards);
+  validate_shards(shards);
 
-  if (Tenzorica::tenzorica_exist(shards))
+  if (tenzorica_exist(shards))
     return init_from_existing(shards, layout, mesh_shape);
 
   return init_new(shards, device, layout, mesh_shape, strategy);
 }
 
-Tenzorica *TenzoricaPool::init(const std::vector<BufferInstance *> &shards,
-                               const tt::runtime::Tensor &tensor,
-                               const tt::runtime::Device &device) {
+Tenzorica &Tenzorica::init(const std::vector<BufferInstance *> &shards,
+                           const tt::runtime::Tensor &tensor,
+                           const tt::runtime::Device &device) {
 
-  Tenzorica::validate_shards(shards);
+  validate_shards(shards);
 
-  auto tenzorica = Tenzorica::create(shards, tensor, device);
+  auto tenzorica = create(shards, tensor, device);
 
   for (BufferInstance *shard : tenzorica->shards()) {
     shard->setTenzorica(tenzorica);
   }
 
-  return tenzorica.get();
+  return *tenzorica;
 }
 
-Tenzorica *TenzoricaPool::init_from_existing(
+Tenzorica &Tenzorica::init_from_existing(
     const std::vector<BufferInstance *> &shards,
     const std::optional<const tt::runtime::Layout> &layout,
     const std::vector<std::uint32_t> &mesh_shape) {
 
-  Tenzorica *tenzorica = Tenzorica::from_shards(shards);
-  assert(tt::runtime::isTensorAllocated(tenzorica->device_tensor()));
+  Tenzorica &tenzorica = from_shards(shards);
 
-  if (layout && !tenzorica->has_layout(*layout))
-    tenzorica->relay(*layout);
+  if (layout && !tenzorica.has_layout(*layout))
+    tenzorica.relay(*layout);
 
-  assert(tt::runtime::isTensorAllocated(tenzorica->device_tensor()));
   return tenzorica;
 }
 
-Tenzorica *TenzoricaPool::init_new(
+Tenzorica &Tenzorica::init_new(
     const std::vector<BufferInstance *> &shards,
     const tt::runtime::Device &device,
     const std::optional<const tt::runtime::Layout> &layout,
     const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy) {
 
-  auto tenzorica =
-      Tenzorica::create(shards, device, layout, mesh_shape, strategy);
+  auto tenzorica = create(shards, device, layout, mesh_shape, strategy);
 
   for (BufferInstance *shard : tenzorica->shards()) {
     shard->setTenzorica(tenzorica);
   }
 
-  return tenzorica.get();
-}
-
-Tenzorica::~Tenzorica() {
-  std::string s = "Killing tenzorica.\n";
-  return;
+  return *tenzorica;
 }
 
 Tenzorica::Tenzorica(
@@ -604,12 +596,10 @@ Tenzorica::Tenzorica(
     : m_shards{std::move(shards)}, m_device{std::move(device)} {
 
   tt::runtime::Tensor tensor = tensor_from_strategy(strategy, mesh_shape);
-  assert(tt::runtime::isTensorAllocated(tensor));
 
   if (layout && !has_layout(tensor, *layout))
     relay(tensor, m_device, *layout);
 
-  assert(tt::runtime::isTensorAllocated(tensor));
   m_device_tensor = tensor;
 }
 
@@ -665,15 +655,6 @@ std::vector<tt::runtime::Tensor> Tenzorica::tensors_from_shards() {
 void Tenzorica::validate_shards(const std::vector<BufferInstance *> &shards) {
 
   assert(!shards.empty());
-  // std::optional<tt::runtime::Tensor> first = shards[0]->getPreparedTensor();
-
-  // for (size_t i = 1; i < shards.size(); ++i) {
-  //   std::optional<tt::runtime::Tensor> other =
-  //   shards[i]->getPreparedTensor(); assert(first.has_value() ==
-  //   other.has_value()); if (first.has_value()) {
-  //     assert(first->handle == other->handle);
-  //   }
-  // }
 
   auto &first = shards[0]->tenzorica();
   for (size_t i = 1; i < shards.size(); ++i) {
@@ -683,9 +664,6 @@ void Tenzorica::validate_shards(const std::vector<BufferInstance *> &shards) {
       assert(first->device_tensor().handle == other->device_tensor().handle);
     }
   }
-
-  // TODO: Validate that tenzor constructed from these shards have the same
-  // runtime tenzor. Is that even true??
 }
 
 namespace internal {

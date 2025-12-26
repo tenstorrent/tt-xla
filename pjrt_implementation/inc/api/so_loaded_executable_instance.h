@@ -58,17 +58,6 @@ private:
                      tt::runtime::Device device, size_t num_devices,
                      std::uint32_t program_index, size_t arg_index) override;
 
-  // Converts input tensor to desired layout. This might move it on device.
-  // For SO path, we don't have layout information as we don't have a
-  // flatbuffer. HACK: we just return the input tensor (host tensor) without any
-  // layout conversion in cases we can't reuse the prepared tensor. This works
-  // because codegen code forces layouts (and therefore can basically accept
-  // anything).
-  tt::runtime::Tensor
-  convertTensorLayout(tt::runtime::Tensor input_tensor,
-                      std::uint32_t program_index, size_t arg_index,
-                      const tt::runtime::Device &runtime_device);
-
   // Create default-initialized output buffers for SO execution
   void createDefaultOutputBuffers(PJRT_Buffer **const *output_lists,
                                   size_t num_devices);
