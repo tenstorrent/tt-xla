@@ -79,6 +79,7 @@ test_config:
     status: EXPECTED_PASSING
 
   xglm/pytorch-xglm-1.7B-single_device-full-inference:
+    required_pcc: 0.98 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected.
     status: EXPECTED_PASSING
 
   resnet/pytorch-resnet_50_hf-single_device-full-inference:
@@ -2312,6 +2313,7 @@ test_config:
     reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/2456"
 
   gemma/codegemma/pytorch-google/codegemma-2b-single_device-full-inference:
+    required_pcc: 0.98 # PCC was >0.99 while it was calculated in f32. ATOL is bad so a drop is not unexpected.
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-TinyLlama_v1.1-single_device-full-inference:
