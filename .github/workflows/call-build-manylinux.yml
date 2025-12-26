@@ -41,7 +41,7 @@ jobs:
         env:
           CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
-          CIBW_PROJECT_REQUIRES_PYTHON: "3.11"
+          CIBW_PROJECT_REQUIRES_PYTHON: "<3.12"
         with:
           output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
           package-dir: ${{ steps.strings.outputs.work-dir }}/python_package
