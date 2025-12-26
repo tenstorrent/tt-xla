@@ -23,6 +23,7 @@
 #include "ttmlir/Target/Common/types_generated.h"
 
 // tt-xla includes
+#include "api/client_instance.h"
 #include "api/device_instance.h"
 #include "api/error_instance.h"
 #include "api/memory_instance.h"
@@ -37,57 +38,62 @@ std::mutex BufferInstance::s_copy_to_host_internal_mutex;
 
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
-    DeviceInstance *device, MemoryInstance *memory) {
+    DeviceInstance *device, MemoryInstance *memory, ClientInstance *client) {
   struct make_unique_enabler : public BufferInstance {
     make_unique_enabler(PJRT_Buffer_Type data_type, const std::int64_t *dims,
                         size_t num_dims, DeviceInstance *device,
-                        MemoryInstance *memory)
-        : BufferInstance(data_type, dims, num_dims, device, memory) {}
+                        MemoryInstance *memory, ClientInstance *client)
+        : BufferInstance(data_type, dims, num_dims, device, memory, client) {}
   };
 
   return std::make_unique<make_unique_enabler>(data_type, dims, num_dims,
-                                               device, memory);
+                                               device, memory, client);
 }
 
 std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
     const tt::runtime::Tensor &device_tensor,
     std::vector<std::uint32_t> &&dimensions, DeviceInstance *device,
-    MemoryInstance *memory, PJRT_Buffer_Type data_type, uint32_t device_id) {
+    MemoryInstance *memory, PJRT_Buffer_Type data_type, uint32_t device_id,
+    ClientInstance *client) {
   struct make_unique_enabler : public BufferInstance {
     make_unique_enabler(std::vector<std::uint32_t> &&dimensions,
                         DeviceInstance *device, MemoryInstance *memory,
-                        PJRT_Buffer_Type data_type,
+                        PJRT_Buffer_Type data_type, ClientInstance *client,
                         const std::optional<tt::runtime::Tensor> &host_tensor,
                         const std::optional<tt::runtime::Tensor> &device_tensor,
                         std::optional<uint32_t> device_id)
         : BufferInstance(std::move(dimensions), device, memory, data_type,
-                         host_tensor, device_tensor, device_id) {}
+                         client, host_tensor, device_tensor, device_id) {}
   };
 
-  return std::make_unique<make_unique_enabler>(std::move(dimensions), device,
-                                               memory, data_type, std::nullopt,
-                                               device_tensor, device_id);
+  return std::make_unique<make_unique_enabler>(
+      std::move(dimensions), device, memory, data_type, client, std::nullopt,
+      device_tensor, device_id);
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
                                const std::int64_t *dims, size_t num_dims,
-                               DeviceInstance *device, MemoryInstance *memory)
+                               DeviceInstance *device, MemoryInstance *memory,
+                               ClientInstance *client)
     : m_uid(nextUID()), m_data_type(data_type),
-      m_dimensions(dims, dims + num_dims), m_device(device),
+      m_dimensions(dims, dims + num_dims), m_device(device), m_client(client),
       m_device_id(std::nullopt), m_memory(memory),
       m_host_runtime_tensor(std::nullopt), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {}
+      m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {
+  assert(m_client && "Client instance cannot be null");
+  m_client->registerBuffer(this);
+}
 
 BufferInstance::BufferInstance(
     const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
-    MemoryInstance *memory, PJRT_Buffer_Type data_type,
+    MemoryInstance *memory, PJRT_Buffer_Type data_type, ClientInstance *client,
     const std::optional<tt::runtime::Tensor> &host_tensor,
     const std::optional<tt::runtime::Tensor> &device_tensor,
     std::optional<uint32_t> device_id)
     : m_uid(nextUID()), m_data_type(data_type),
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
-      m_device_id(device_id), m_memory(memory),
+      m_client(client), m_device_id(device_id), m_memory(memory),
       m_host_runtime_tensor(host_tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
       m_data_deleted(false), m_prepared_runtime_tensor(device_tensor) {
@@ -100,9 +106,17 @@ BufferInstance::BufferInstance(
   if (m_prepared_runtime_tensor.has_value()) {
     tt::runtime::setTensorRetain(*m_prepared_runtime_tensor, /*retain=*/true);
   }
+
+  assert(m_device && "Device instance cannot be null");
+  m_client->registerBuffer(this);
 }
 
-BufferInstance::~BufferInstance() { deleteData(); }
+BufferInstance::~BufferInstance() {
+  assert(m_client && "Client instance cannot be null");
+  m_client->unregisterBuffer(this);
+
+  deleteData();
+}
 
 void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Destroy = internal::onBufferDestroy;
@@ -181,6 +195,11 @@ void BufferInstance::copyFromHost(
     EventInstance **out_done_with_host_buffer_event) {
 
   assert(data_type == m_data_type && "m_data_type and data_type do not match");
+
+  // Clear any existing prepared tensor since we're setting new host data.
+  // This ensures prepareInputTensor will use the new host data instead of
+  // stale device data from a previous operation.
+  clearPreparedTensor();
 
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
@@ -407,8 +426,14 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
           // If device_id is not set, we are returning a replicated input
           // buffer instance to host (eg. cache position for update). This means
           // we can pull back the first, or any, runtime tensor shard since it's
-          // replicated
+          // replicated.
+          // For replicated outputs, toHost() returns only 1 tensor even though
+          // we have multiple BufferInstances (one per device). In this case,
+          // use index 0 since all devices have the same data.
           uint32_t shard_index = device_id.value_or(0);
+          if (shard_index >= host_runtime_tensors.size()) {
+            shard_index = 0;
+          }
 
           tt::runtime::Tensor host_shard_runtime_tensor =
               host_runtime_tensors[shard_index];
@@ -474,7 +499,7 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
   std::unique_ptr<BufferInstance> dst_buffer_instance =
       BufferInstance::createInputBufferInstance(
           getDataType(), getDimensionsRaw(), getNumberOfDimensions(),
-          dst_device, dst_memory);
+          dst_device, dst_memory, m_client);
 
   dst_buffer_instance->copyFromBuffer(this);
 
