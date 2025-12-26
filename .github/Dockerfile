@@ -83,11 +83,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ENV CCACHE_COMPRESS="true"
 
 # Install requirements.txt as global Python 3.11 packages
-COPY python_package/requirements.txt /tmp/requirements.txt
-COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
-COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
-RUN pkg_install() { dnf install --refresh -y "$@"; } && export -f pkg_install && /tmp/script.sh dnf && \
-    rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
+# RUN dnf install --refresh -y \
+#     git-lfs \
+#     patchelf \
+#     protobuf-compiler \
+    # protobuf-devel \
+    # ffmpeg-free
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${MLIR_TAG} AS ird
 SHELL ["/bin/bash", "-c"]

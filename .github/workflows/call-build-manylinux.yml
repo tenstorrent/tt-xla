@@ -36,38 +36,19 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download xla wheel artifact
-        uses: actions/download-artifact@v5
+      - name: Build ttxla  Wheel (manylinux)
+        uses: pypa/cibuildwheel@v3.2
+        env:
+          CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
+          CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
         with:
-          pattern: 'xla-whl-release*'
-
-      - name: Audit wheel
-        shell: bash
-        run: |
-          echo "Running auditwheel..."
-          wheel=$(find . -name "*.whl" -type f)
-          if [ $(echo "$wheel" | wc -l) -gt 1 ]; then
-            echo "::warning::Multiple wheel files found:"
-            echo "$wheel"
-            wheel=$(echo "$wheel" | head -n 1)
-          fi
-          echo "Using wheel: $wheel"
-          auditwheel repair \
-              --exclude libtt_metal.so \
-              --exclude libdevice.so \
-              --exclude libtracy.so \
-              --exclude libtt_stl.so \
-              --exclude _ttnncpp.so \
-              --exclude libtracy.so.0.10.0 \
-              --plat manylinux_2_35_x86_64 "$wheel" -w wheelhouse/
-          echo "new wheel files:"
-          ls wheelhouse/pjrt_plugin_tt*.whl
-          echo "auditwheel show":
-          auditwheel show wheelhouse/pjrt_plugin_tt*.whl
+          output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
+          package-dir: ${{ steps.strings.outputs.work-dir }}/python_package
+          config-file: "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
         with:
           name: xla-whl-manylinux
-          path: wheelhouse/*.whl
+          path: ${{ steps.strings.outputs.wheel-output-dir }}/*.whl
           if-no-files-found: error

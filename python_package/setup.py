@@ -283,7 +283,6 @@ class CMakeBuildPy(build_py):
             "Ninja",
             "-B",
             "build",
-            "-DTTMLIR_ENABLE_PERF_TRACE=ON",
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
