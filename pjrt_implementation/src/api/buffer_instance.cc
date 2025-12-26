@@ -11,6 +11,7 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <optional>
 #include <stdexcept>
 #include <thread>
 
@@ -78,7 +79,9 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
       m_device_id(std::nullopt), m_memory(memory),
       m_host_runtime_tensor(std::nullopt), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {}
+      m_data_deleted(false)
+//, m_prepared_runtime_tensor(std::nullopt)
+{}
 
 BufferInstance::BufferInstance(
     const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
@@ -91,16 +94,19 @@ BufferInstance::BufferInstance(
       m_device_id(device_id), m_memory(memory),
       m_host_runtime_tensor(host_tensor), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false), m_prepared_runtime_tensor(device_tensor) {
+      m_data_deleted(false)
+// , m_prepared_runtime_tensor(device_tensor)
+{
   // We want to be in control when buffers are deallocated, which happens during
   // buffer destruction or on delete/destroy API calls.
   if (m_host_runtime_tensor.has_value()) {
     tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
   }
 
-  if (m_prepared_runtime_tensor.has_value()) {
-    tt::runtime::setTensorRetain(*m_prepared_runtime_tensor, /*retain=*/true);
-  }
+  // if (m_prepared_runtime_tensor.has_value()) {
+  //   tt::runtime::setTensorRetain(*m_prepared_runtime_tensor,
+  //   /*retain=*/true);
+  // }
 }
 
 BufferInstance::~BufferInstance() { deleteData(); }
@@ -163,7 +169,7 @@ void BufferInstance::deleteData() {
   // Just reset the tensors, deallocation happens automatically when
   // reference count drops to zero.
   m_host_runtime_tensor = std::nullopt;
-  m_prepared_runtime_tensor = std::nullopt;
+  // m_prepared_runtime_tensor = std::nullopt;
 
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
@@ -267,23 +273,25 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
   std::vector<std::uint32_t> strides = calculateStrides(
       src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
 
+  auto prepared_runtime_tensor = device_tensor();
+
   // This function is expected to be used for device-to-device buffer
   // initialization of a new buffer instance, so destination buffer must not
   // have data yet, or it will be overwritten.
   assert((!m_host_runtime_tensor.has_value() &&
-          !m_prepared_runtime_tensor.has_value()) &&
+          !prepared_runtime_tensor.has_value()) &&
          "Destination buffer already has data");
 
   tt::runtime::Tensor source_host_runtime_tensor;
 
-  if (src_buffer->m_prepared_runtime_tensor != std::nullopt) {
+  if (src_buffer->device_tensor() != std::nullopt) {
     DLOG_F(WARNING,
            "BufferInstance::copyFromBuffer: Device-Device transfer is "
            "inefficient due to PJRT device modeling limitations. This will "
            "actually copy src to host, and fill dst host tensor, because at "
            "this callsite we do not know what dst device is.");
     std::vector<tt::runtime::Tensor> host_runtime_tensors = tt::runtime::toHost(
-        src_buffer->m_prepared_runtime_tensor.value(), /*untilize=*/true);
+        src_buffer->device_tensor().value(), /*untilize=*/true);
 
     assert(host_runtime_tensors.size() == 1 &&
            "Expected single host tensor when copying from device buffer");
@@ -344,11 +352,26 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
   return strides;
 }
 
+std::optional<const tt::runtime::Tensor> BufferInstance::device_tensor() const {
+  if (!m_tenzorica)
+    return std::nullopt;
+
+  return m_tenzorica->device_tensor();
+}
+
+std::optional<tt::runtime::Tensor> BufferInstance::device_tensor() {
+  if (!m_tenzorica)
+    return std::nullopt;
+
+  return m_tenzorica->device_tensor();
+}
+
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
 
-  assert((m_prepared_runtime_tensor.has_value() ||
+  auto prepared_runtime_tensor = device_tensor();
+  assert((prepared_runtime_tensor.has_value() ||
           m_host_runtime_tensor.has_value()) &&
          "Trying to copy from buffer instance without an associated device or "
          "host tensor.");
@@ -357,9 +380,9 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // In some cases an Input BufferInstance may be returned to host
   // without an execution taking place, in which case we use the host runtime
   // tensor.
-  bool is_tensor_on_host = !m_prepared_runtime_tensor.has_value();
+  bool is_tensor_on_host = !prepared_runtime_tensor.has_value();
   tt::runtime::Tensor runtime_tensor_to_retrieve =
-      m_prepared_runtime_tensor.value_or(*m_host_runtime_tensor);
+      prepared_runtime_tensor.value_or(*m_host_runtime_tensor);
 
   // Wait if there is a copy already in progress.
   // Needs to be locked for each BufferInstance since multiple framework
@@ -506,11 +529,12 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
   return tt_pjrt_status::kSuccess;
 }
 
-Tenzorica *
-TenzoricaPool::init(const std::vector<BufferInstance *> &shards,
-                    tt::runtime::Device &device, tt::runtime::Layout &layout,
-                    const std::vector<std::uint32_t> &mesh_shape,
-                    std::unordered_map<std::string, std::string> &strategy) {
+Tenzorica *TenzoricaPool::init(
+    const std::vector<BufferInstance *> &shards,
+    const tt::runtime::Device &device,
+    const std::optional<const tt::runtime::Layout> &layout,
+    const std::vector<std::uint32_t> &mesh_shape,
+    const std::unordered_map<std::string, std::string> &strategy) {
 
   Tenzorica::validate_shards(shards);
 
@@ -520,20 +544,41 @@ TenzoricaPool::init(const std::vector<BufferInstance *> &shards,
   return init_new(shards, device, layout, mesh_shape, strategy);
 }
 
+Tenzorica *TenzoricaPool::init(const std::vector<BufferInstance *> &shards,
+                               const tt::runtime::Tensor &tensor,
+                               const tt::runtime::Device &device) {
+
+  Tenzorica::validate_shards(shards);
+
+  auto tenzorica = Tenzorica::create(shards, tensor, device);
+
+  for (BufferInstance *shard : tenzorica->shards()) {
+    shard->setTenzorica(tenzorica);
+  }
+
+  return tenzorica.get();
+}
+
 Tenzorica *TenzoricaPool::init_from_existing(
-    const std::vector<BufferInstance *> &shards, tt::runtime::Layout &layout,
+    const std::vector<BufferInstance *> &shards,
+    const std::optional<const tt::runtime::Layout> &layout,
     const std::vector<std::uint32_t> &mesh_shape) {
 
   Tenzorica *tenzorica = Tenzorica::from_shards(shards);
-  if (!tenzorica->has_layout(layout))
-    tenzorica->relay(layout);
+  assert(tt::runtime::isTensorAllocated(tenzorica->device_tensor()));
 
+  if (layout && !tenzorica->has_layout(*layout))
+    tenzorica->relay(*layout);
+
+  assert(tt::runtime::isTensorAllocated(tenzorica->device_tensor()));
   return tenzorica;
 }
 
 Tenzorica *TenzoricaPool::init_new(
-    const std::vector<BufferInstance *> &shards, tt::runtime::Device &device,
-    tt::runtime::Layout &layout, const std::vector<std::uint32_t> &mesh_shape,
+    const std::vector<BufferInstance *> &shards,
+    const tt::runtime::Device &device,
+    const std::optional<const tt::runtime::Layout> &layout,
+    const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy) {
 
   auto tenzorica =
@@ -553,19 +598,28 @@ Tenzorica::~Tenzorica() {
 
 Tenzorica::Tenzorica(
     Private, std::vector<BufferInstance *> shards, tt::runtime::Device device,
-    tt::runtime::Layout &layout, const std::vector<std::uint32_t> &mesh_shape,
+    const std::optional<const tt::runtime::Layout> &layout,
+    const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy)
     : m_shards{std::move(shards)}, m_device{std::move(device)} {
 
   tt::runtime::Tensor tensor = tensor_from_strategy(strategy, mesh_shape);
-  if (!has_layout(tensor, layout))
-    relay(tensor, m_device, layout);
+  assert(tt::runtime::isTensorAllocated(tensor));
 
+  if (layout && !has_layout(tensor, *layout))
+    relay(tensor, m_device, *layout);
+
+  assert(tt::runtime::isTensorAllocated(tensor));
   m_device_tensor = tensor;
 }
 
+Tenzorica::Tenzorica(Private, std::vector<BufferInstance *> shards,
+                     tt::runtime::Tensor tensor, tt::runtime::Device device)
+    : m_shards{std::move(shards)}, m_device_tensor{std::move(tensor)},
+      m_device{std::move(device)} {}
+
 void Tenzorica::relay(tt::runtime::Tensor &tensor, tt::runtime::Device &device,
-                      tt::runtime::Layout &layout) {
+                      const tt::runtime::Layout &layout) {
 
   const bool retain = tt::runtime::getTensorRetain(tensor);
   tensor = tt::runtime::toLayout(tensor, device, layout, retain);
@@ -705,14 +759,14 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
     // volume. There may not be an associated host runtime tensor with all
     // buffer instances, eg. if it represents an output that never returned to
     // host.
-    if (buffer->getPreparedTensor().has_value()) {
+    if (buffer->device_tensor()) {
       DLOG_F(WARNING,
              "Calculating required host buffer size from device tensor when "
              "args->dst is nullptr to query the required size. This will give "
              "an overestimated tile-aligned physical tensor size instead of a "
              "logical size. TODO @jameszianxu");
       args->dst_size = BufferInstance::getConvertedRuntimeTensorSize(
-          buffer->getPreparedTensor().value(), buffer->getDataType());
+          *buffer->device_tensor(), buffer->getDataType());
     } else {
       assert(buffer->getHostRuntimeTensor().has_value() &&
              "Neither host nor device tensor initialized");

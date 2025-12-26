@@ -164,7 +164,8 @@ tt::runtime::Tensor FlatbufferLoadedExecutableInstance::convertTensorLayout(
 }
 
 void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
-    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
+    const std::vector<tt::runtime::Tensor> &output_tensors,
+    const tt::runtime::Device &device, size_t num_devices,
     PJRT_Buffer **const *output_lists,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
   size_t n_prog_output_tensors = output_tensors.size();
@@ -175,6 +176,9 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
   for (size_t output_index = 0; output_index < n_prog_output_tensors;
        output_index++) {
     tt::runtime::Tensor outputDeviceTensor = output_tensors[output_index];
+
+    std::vector<BufferInstance *> shards;
+    shards.reserve(num_devices);
 
     for (int device_index = 0; device_index < num_devices; ++device_index) {
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
@@ -200,10 +204,14 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
 
       output_buffer->markAsDataReady();
 
+      shards.emplace_back(output_buffer.get());
+
       // Releasing the ownership to the PJRT API caller since the caller is
       // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
       output_lists[device_index][output_index] = *output_buffer.release();
     }
+
+    TenzoricaPool::init(shards, outputDeviceTensor, device);
   }
 }
 
@@ -323,8 +331,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return tt_pjrt_status::kInternal;
   }
 
-  fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
-                      m_executable_image->getOutputTypes());
+  fillPJRTOutputLists(output_tensors, *runtime_device, args->num_devices,
+                      args->output_lists, m_executable_image->getOutputTypes());
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
