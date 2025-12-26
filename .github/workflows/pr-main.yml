@@ -52,7 +52,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
   build-manylinux-ttxla:
-    needs: [ build-ttxla-release, build-image ]
+    needs: [ build-image ]
     uses: ./.github/workflows/call-build-manylinux.yml
     name: "Build tt-xla manylinux wheels"
     secrets: inherit
