@@ -23,7 +23,7 @@ jobs:
         run: |
           echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
           echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-          echo "wheel-output-dir=$(pwd)/python_package/dist" >> "$GITHUB_OUTPUT"}
+          echo "wheel-output-dir=$(pwd)/python_package/dist" >> "$GITHUB_OUTPUT"
 
       - name: Git safe dir
         run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
@@ -41,7 +41,7 @@ jobs:
           CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
           CIBW_PROJECT_REQUIRES_PYTHON: "=3.11.*"
-        run: python -m cibuildwheel --output-dir ${{ steps.strings.outputs.wheel-output-dir }} --config "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml" ${{ steps.strings.outputs.work-dir }}/python_package
+        run: python -m cibuildwheel --output-dir "${{ steps.strings.outputs.wheel-output-dir }}" --config "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml" ${{ steps.strings.outputs.work-dir }}/python_package
 
       # - name: Build ttxla  Wheel (manylinux)
       #   uses: pypa/cibuildwheel@v3.3
