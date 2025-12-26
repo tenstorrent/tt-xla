@@ -33,10 +33,10 @@ SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install clang 17
-# RUN dnf install --refresh -y clang llvm llvm-devel llvm-toolset && \
-#     ln -s /usr/bin/clang-17 /usr/bin/clang && \
-#     ln -s /usr/bin/clang++-17 /usr/bin/clang++ && \
-#     ln -s /usr/bin/clangd-17 /usr/bin/clangd
+RUN dnf install --refresh -y clang llvm llvm-devel llvm-toolset && \
+    ln -s /usr/bin/clang-17 /usr/bin/clang && \
+    ln -s /usr/bin/clang++-17 /usr/bin/clang++ && \
+    ln -s /usr/bin/clangd-17 /usr/bin/clangd
 
 # Build and install LLVM/Clang 17 from source
 # RUN dnf install --refresh -y \
