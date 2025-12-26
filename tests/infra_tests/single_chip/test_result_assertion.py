@@ -7,11 +7,14 @@
 import jax.numpy as jnp
 import pytest
 import torch
-from infra.comparators import AtolConfig, ComparisonConfig, PccConfig
-
-from tests.infra.comparators.comparator import Comparator
-from tests.infra.comparators.jax_comparator import JaxComparator
-from tests.infra.comparators.torch_comparator import TorchComparator
+from infra.evaluators import (
+    AtolConfig,
+    ComparisonConfig,
+    ComparisonEvaluator,
+    JaxComparisonEvaluator,
+    PccConfig,
+    TorchComparisonEvaluator,
+)
 
 
 # Fixture to provide framework-specific test data
@@ -25,13 +28,13 @@ def framework_setup(request):
         def create_tensor(data):
             return torch.tensor(data, dtype=torch.float32)
 
-        comparator_class = TorchComparator
+        comparator_class = TorchComparisonEvaluator
     else:  # jax
 
         def create_tensor(data):
             return jnp.array(data, dtype=jnp.float32)
 
-        comparator_class = JaxComparator
+        comparator_class = JaxComparisonEvaluator
 
     return {
         "framework": framework,
@@ -235,7 +238,7 @@ def test_manual_assertion_after_assert_on_failure_false_still_fails(framework_se
 
     # But manually calling _assert_on_results should still raise
     with pytest.raises(AssertionError, match="Comparison result 0 failed"):
-        Comparator._assert_on_results(result)
+        ComparisonEvaluator._assert_on_results(result)
 
 
 @pytest.mark.push
@@ -267,7 +270,7 @@ def test_manual_assertion_on_tuple_of_results(framework_setup):
 
     # Manually calling assert on tuple should raise because result_2 failed
     with pytest.raises(AssertionError, match="Comparison result 1 failed"):
-        Comparator._assert_on_results((result_1, result_2))
+        ComparisonEvaluator._assert_on_results((result_1, result_2))
 
 
 @pytest.mark.push

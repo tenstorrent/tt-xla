@@ -3,12 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-
-from infra.comparators import ComparisonConfig
+from infra.evaluators import ComparisonConfig
 from infra.testers.single_chip.model.model_tester import RunMode
 from infra.testers.single_chip.quality.stable_diffusion_tester import (
     StableDiffusionTester,
 )
+
 from tests.utils import Category
 
 from .data import CocoDataset

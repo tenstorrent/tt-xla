@@ -10,8 +10,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
 import torch
-from infra.comparators import ComparisonConfig
 from infra.connectors.torch_device_connector import TorchDeviceConnector
+from infra.evaluators import (
+    ComparisonConfig,
+    EvaluatorFactory,
+    EvaluatorType,
+    QualityResult,
+)
 from infra.utilities import sanitize_test_name
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
 
@@ -51,7 +56,7 @@ class StableDiffusionTester(QualityTester):
             pipeline_cls: The pipeline class to instantiate (e.g., SDXLPipeline)
             pipeline_config: Configuration object for the pipeline (e.g., SDXLConfig)
             dataset: Dataset providing captions/prompts for generation
-            metric: Metric name string for evaluation ('clip', 'fid')
+            metric: Metric name string for evaluation
             comparison_config: Configuration for quality thresholds
             warmup: Whether to run warmup inference (default: True)
             seed: Random seed for reproducibility (default: 42)
@@ -61,45 +66,23 @@ class StableDiffusionTester(QualityTester):
         self._pipeline_cls = pipeline_cls
         self._pipeline_config = pipeline_config
         self._dataset = dataset
-        self._metric = self._resolve_metric(metric)
         self._seed = seed
+
+        metric_kwargs = {
+            "statistics_mean": self._dataset.statistics_mean,
+            "statistics_cov": self._dataset.statistics_cov,
+        }
+        self._evaluator = EvaluatorFactory.create_evaluator(
+            EvaluatorType.QUALITY,
+            quality_config=comparison_config.quality,
+            metric=metric,
+            metric_kwargs=metric_kwargs,
+        )
 
         # Will be set during compute_metrics
         self._pipeline: Optional[Any] = None
         self._images: Optional[torch.Tensor] = None
-
-    def _resolve_metric(self, metric: str) -> Any:
-        """
-        Resolve metric string to an instance.
-
-        Args:
-            metric: Metric name ('clip', 'fid')
-
-        Returns:
-            Instantiated metric object
-
-        Raises:
-            ValueError: If FID metric is requested but dataset lacks statistics
-        """
-        from tests.infra.metrics import get_metric
-
-        metric_kwargs = {}
-
-        # Auto-provide FID statistics from dataset if available
-        if metric.lower() == "fid":
-            if hasattr(self._dataset, "statistics_mean") and hasattr(
-                self._dataset, "statistics_cov"
-            ):
-                metric_kwargs["statistics_mean"] = self._dataset.statistics_mean
-                metric_kwargs["statistics_cov"] = self._dataset.statistics_cov
-            else:
-                raise ValueError(
-                    f"FID metric requires dataset with statistics_mean and "
-                    f"statistics_cov properties. Dataset {type(self._dataset).__name__} "
-                    f"does not provide these."
-                )
-
-        return get_metric(metric, **metric_kwargs)
+        self._quality_result: Optional[QualityResult] = None
 
     def compute_metrics(self) -> Dict[str, Any]:
         """
@@ -107,8 +90,9 @@ class StableDiffusionTester(QualityTester):
 
         Returns:
             Dictionary containing:
-                - "clip_mean": Mean CLIP score across all samples
-                - "clip_min": Minimum CLIP score across all samples
+                - "clip_mean": Mean CLIP score across all samples (if CLIP metric)
+                - "clip_min": Minimum CLIP score across all samples (if CLIP metric)
+                - "fid_score": FID score (if FID metric)
                 - "num_samples": Number of images generated
         """
         # Set up pipeline
@@ -127,33 +111,50 @@ class StableDiffusionTester(QualityTester):
         # Concatenate all images into a single tensor
         self._images = torch.cat(images, dim=0)
 
-        # Compute CLIP scores
-        clip_mean, clip_min = self._metric.compute(self._images, captions)
+        # Use the quality evaluator to compute metrics
+        self._quality_result = self._evaluator.evaluate(self._images, prompts=captions)
 
-        return {
-            "clip_mean": clip_mean,
-            "clip_min": clip_min,
-            "num_samples": len(captions),
+        # Build return dict based on available metrics
+        result: Dict[str, Any] = {
+            "num_samples": self._quality_result.num_samples,
         }
+        if self._quality_result.clip_mean is not None:
+            result["clip_mean"] = self._quality_result.clip_mean
+        if self._quality_result.clip_min is not None:
+            result["clip_min"] = self._quality_result.clip_min
+        if self._quality_result.fid_score is not None:
+            result["fid_score"] = self._quality_result.fid_score
+
+        return result
 
     def assert_quality(self, metrics: Dict[str, Any]) -> None:
         """
-        Assert that CLIP score meets the minimum threshold.
+        Assert that quality metrics meet the configured thresholds.
 
         Args:
             metrics: Dictionary of computed metrics from compute_metrics()
 
         Raises:
-            AssertionError: If clip_min is below min_threshold
+            AssertionError: If quality check failed
         """
-        clip_min = metrics["clip_min"]
-        min_clip_threshold = self._comparison_config.quality.min_clip_threshold
-        logging.info(f"CLIP score: {clip_min:.2f}")
-        logging.info(f"Minimum threshold: {min_clip_threshold:.2f}")
-        assert clip_min > min_clip_threshold, (
-            f"CLIP score regression detected: "
-            f"clip_min={clip_min:.2f} < threshold={min_clip_threshold:.2f}"
-        )
+        if self._quality_result is None:
+            raise RuntimeError("assert_quality called before compute_metrics")
+
+        # Log metrics based on what's available
+        if self._quality_result.clip_min is not None:
+            logging.info(f"CLIP score (min): {self._quality_result.clip_min:.2f}")
+            logging.info(
+                f"CLIP threshold: {self._comparison_config.quality.min_clip_threshold:.2f}"
+            )
+        if self._quality_result.fid_score is not None:
+            logging.info(f"FID score: {self._quality_result.fid_score:.2f}")
+            logging.info(
+                f"FID threshold: {self._comparison_config.quality.max_fid_threshold:.2f}"
+            )
+
+        # Use the evaluator's pass/fail determination
+        if not self._quality_result.passed:
+            raise AssertionError(self._quality_result.error_message)
 
     @property
     def images(self) -> Optional[torch.Tensor]:

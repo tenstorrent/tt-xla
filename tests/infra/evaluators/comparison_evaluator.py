@@ -3,19 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import math
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Tuple
 
 from infra.utilities import PyTree, Tensor
 
-from .comparison_config import (
+from .evaluation_config import (
     AllcloseConfig,
     AtolConfig,
     ComparisonConfig,
     EqualConfig,
     PccConfig,
 )
+from .evaluator import Evaluator
 
 
 @dataclass
@@ -28,16 +29,36 @@ class ComparisonResult:
     error_message: str | None = None
 
 
-class Comparator(ABC):
+class ComparisonEvaluator(Evaluator):
     """
-    Utility class providing comparison functionality.
+    Evaluator that compares device output with golden (CPU) output.
 
-    Provides an abstract interface for framework specific subclasses to implement.
+    Provides comparison functionality using metrics like PCC, ATOL, allclose, and equality.
+    This is an abstract class - use JaxComparisonEvaluator or TorchComparisonEvaluator
+    for framework-specific implementations.
     """
 
     def __init__(self, comparison_config: ComparisonConfig) -> None:
-        """Initialize the comparator with comparison configuration."""
+        """Initialize the evaluator with comparison configuration."""
         self._comparison_config = comparison_config
+
+    def evaluate(
+        self, device_output: Tensor, *, golden_output: Tensor, **kwargs
+    ) -> ComparisonResult:
+        """
+        Evaluate by comparing device output with golden output.
+
+        This is a convenience method that delegates to compare().
+
+        Args:
+            device_output: Output from the TT device
+            golden_output: Golden reference output (typically from CPU)
+            **kwargs: Additional arguments (unused)
+
+        Returns:
+            ComparisonResult with computed metrics and pass/fail status
+        """
+        return self.compare(device_output, golden_output)
 
     def compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
         """
@@ -76,7 +97,7 @@ class Comparator(ABC):
 
         # Check if any comparison failed and optionally assert
         if self._comparison_config.assert_on_failure:
-            Comparator._assert_on_results(_comparison_result)
+            ComparisonEvaluator._assert_on_results(_comparison_result)
 
         return _comparison_result
 

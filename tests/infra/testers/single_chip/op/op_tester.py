@@ -8,7 +8,7 @@ from typing import Callable, Optional, Sequence
 
 import torch
 import torch_xla
-from infra.comparators import ComparisonConfig
+from infra.evaluators import ComparisonConfig, EvaluatorType
 from infra.utilities import (
     Framework,
     Mesh,
@@ -44,7 +44,11 @@ class OpTester(BaseTester):
             compiler_config = CompilerConfig()
         self._compiler_config = compiler_config
         self._torch_options = torch_options if torch_options is not None else {}
-        super().__init__(comparison_config, framework)
+        super().__init__(
+            framework=framework,
+            evaluator_type=EvaluatorType.COMPARISON,
+            comparison_config=comparison_config,
+        )
 
     def test(self, workload: Workload) -> None:
         """
@@ -71,7 +75,7 @@ class OpTester(BaseTester):
             compile_torch_workload_for_tt_device(tt_workload, self._torch_options)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
-        self._comparator.compare(tt_res, cpu_res)
+        self._evaluator.compare(tt_res, cpu_res)
 
     def test_with_random_inputs(
         self,

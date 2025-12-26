@@ -12,18 +12,14 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra.comparators.torch_comparator import TorchComparator
+from infra.evaluators import TorchComparisonEvaluator
 from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from tests.infra.comparators.comparison_config import (
-    AtolConfig,
-    ComparisonConfig,
-    PccConfig,
-)
+from tests.infra.evaluators import AtolConfig, ComparisonConfig, PccConfig
 from tests.infra.testers.single_chip.model.model_tester import RunMode
 from tests.utils import BringupStatus, ModelGroup
 
@@ -177,7 +173,7 @@ def test_llama_step(run_mode):
             xs.mark_sharding(value, mesh, (None, "model", None, None))
 
     # Compare outputs for validation
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False),
             pcc=PccConfig(required_pcc=0.99),

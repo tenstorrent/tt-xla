@@ -7,8 +7,8 @@ from __future__ import annotations
 from typing import Callable, Sequence
 
 import jax
-from infra.comparators import ComparisonConfig
 from infra.connectors import JaxDeviceConnector
+from infra.evaluators import ComparisonConfig, EvaluatorType
 from infra.runners import JaxDeviceRunner
 from infra.utilities import (
     Framework,
@@ -68,7 +68,11 @@ class JaxMultichipOpTester(BaseTester):
         self._device_mesh: jax.sharding.Mesh = None
         self._cpu_mesh: jax.sharding.Mesh = None
 
-        super().__init__(comparison_config, Framework.JAX)
+        super().__init__(
+            framework=Framework.JAX,
+            evaluator_type=EvaluatorType.COMPARISON,
+            comparison_config=comparison_config,
+        )
         self._initialize_meshes()
 
     def _initialize_meshes(self) -> None:
@@ -125,7 +129,7 @@ class JaxMultichipOpTester(BaseTester):
             self._compile_for_cpu(cpu_workload)
             cpu_res = self._run_on_multichip_device(cpu_workload)
 
-        self._comparator.compare(device_res, cpu_res)
+        self._evaluator.compare(device_res, cpu_res)
 
     def _compile_for_cpu(self, workload: Workload) -> None:
         """Compile JAX multichip workload for CPU."""

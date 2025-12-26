@@ -7,12 +7,12 @@ from infra.runners import run_on_cpu
 from infra.utilities import Framework, PyTree
 from torch.utils._pytree import tree_flatten, tree_map
 
-from .comparator import Comparator
-from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
+from .comparison_evaluator import ComparisonEvaluator
+from .evaluation_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
 
 
-class TorchComparator(Comparator):
-    """Comparator for Torch tensors/pytrees."""
+class TorchComparisonEvaluator(ComparisonEvaluator):
+    """Comparison evaluator for Torch tensors/pytrees."""
 
     # @override
     @staticmethod
@@ -63,7 +63,7 @@ class TorchComparator(Comparator):
 
         # If tensors are really close, pcc will be nan. Handle that before calculating
         # pcc by checking allclose first.
-        if TorchComparator._compare_allclose(
+        if TorchComparisonEvaluator._compare_allclose(
             device_output, golden_output, pcc_config.allclose
         ):
             return 1.0  # Perfect correlation when values are essentially identical

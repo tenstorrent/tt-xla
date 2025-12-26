@@ -7,7 +7,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from typing import Any, Dict
 
-from infra.comparators import ComparisonConfig
+from infra.evaluators import ComparisonConfig, EvaluatorType
 from infra.utilities import Framework
 
 from ...base_tester import BaseTester
@@ -36,7 +36,12 @@ class QualityTester(BaseTester):
         Args:
             comparison_config: Configuration for quality thresholds
         """
-        super().__init__(comparison_config=comparison_config, framework=Framework.TORCH)
+        # Pass evaluator_type=None so subclasses can manage their own evaluator
+        super().__init__(
+            framework=Framework.TORCH,
+            evaluator_type=None,
+            comparison_config=comparison_config,
+        )
         self._metrics: Dict[str, Any] = {}
 
     @abstractmethod

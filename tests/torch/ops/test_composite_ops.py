@@ -11,7 +11,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra.comparators.torch_comparator import TorchComparator
+from infra.evaluators import TorchComparisonEvaluator
 from infra.utilities.types import Framework
 from torch.nn import functional as F
 from tt_torch.composite_ops import (
@@ -20,7 +20,7 @@ from tt_torch.composite_ops import (
     composite_rms_norm,
 )
 
-from tests.infra.comparators.comparison_config import ComparisonConfig
+from tests.infra.evaluators import ComparisonConfig
 from tests.infra.testers.single_chip.graph.graph_tester import run_graph_test
 
 
