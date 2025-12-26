@@ -121,7 +121,9 @@ def test_op_by_op_inference_from_file(record_property):
     for idx, op_wrapper in enumerate(ops):
         print(f"\n--- Operation {idx + 1}/{len(ops)} ---")
         print(f"op_name: {op_wrapper.op_name}")
-        print(f"origin_model: {op_wrapper.origin_model}")
+        print(f"origin_model: {', '.join(op_wrapper.origin_model) if op_wrapper.origin_model else 'None'}")
+        if len(op_wrapper.origin_model) > 1:
+            print(f"*** SHARED OPERATION: Found in {len(op_wrapper.origin_model)} models ***")
         print(f"op_string: {op_wrapper.op_string if op_wrapper.op_string else 'None'}...")
         print(f"func_op_string: {op_wrapper.func_op_string if op_wrapper.func_op_string else 'None'}...")
         print(f"Number of operands: {len(op_wrapper.operands)}")
