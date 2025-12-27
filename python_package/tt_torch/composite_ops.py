@@ -24,6 +24,25 @@ Since we want to run torch models wihout modifying them, we will substitute torc
 anything in model in order to get performance improvement.
 """
 
+################# helper functions #################
+
+
+def _normalize_tuple_param(param: Union[int, tuple]) -> List[int]:
+    """
+    Normalize int or tuple parameter to list of 2 ints for 2D operations.
+
+    Args:
+        param: Either an int or tuple of 2 ints
+
+    Returns:
+        List of 2 ints
+    """
+    if isinstance(param, int):
+        return [param, param]
+    else:
+        return list(param)
+
+
 ################# function replacements #################
 
 
@@ -127,6 +146,63 @@ def composite_layer_norm(
     return output
 
 
+def composite_conv_transpose2d(
+    input: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor] = None,
+    stride: Union[int, tuple] = 1,
+    padding: Union[int, tuple] = 0,
+    output_padding: Union[int, tuple] = 0,
+    groups: int = 1,
+    dilation: Union[int, tuple] = 1,
+) -> Tensor:
+    """
+    Creates composite conv_transpose2d operation for torch xla using StableHLOCompositeBuilder.
+    Operation name is tenstorrent.conv_transpose2d for MLIR to handle it.
+
+    Args:
+        input: Input tensor
+        weight: Weight tensor
+        bias: Optional bias tensor
+        stride: Stride of the convolution (default: 1)
+        padding: Padding added to both sides of the input (default: 0)
+        output_padding: Additional size added to one side of the output shape (default: 0)
+        groups: Number of blocked connections from input channels to output channels (default: 1)
+        dilation: Spacing between kernel elements (default: 1)
+
+    Returns:
+        Output tensor after transposed convolution
+    """
+    # Normalize tuple parameters to lists for StableHLO compatibility
+    stride_list = _normalize_tuple_param(stride)
+    padding_list = _normalize_tuple_param(padding)
+    output_padding_list = _normalize_tuple_param(output_padding)
+    dilation_list = _normalize_tuple_param(dilation)
+
+    attr = {
+        "stride": stride_list,
+        "padding": padding_list,
+        "output_padding": output_padding_list,
+        "groups": groups,
+        "dilation": dilation_list,
+    }
+
+    builder = StableHLOCompositeBuilder(name="tenstorrent.conv_transpose2d", attr=attr)
+
+    if bias is not None:
+        input, weight, bias = builder.mark_inputs(input, weight, bias)
+    else:
+        input, weight = builder.mark_inputs(input, weight)
+
+    output = torch.nn.functional.conv_transpose2d(
+        input, weight, bias, stride, padding, output_padding, groups, dilation
+    )
+
+    output = builder.mark_outputs(output)
+
+    return output
+
+
 ################# module replacements #################
 
 
@@ -183,6 +259,63 @@ def replace_layer_norm_module(
     gm.graph.erase_node(node)
 
 
+def replace_conv_transpose2d_module(
+    gm: torch.fx.GraphModule,
+    node: torch.fx.Node,
+    module: torch.nn.ConvTranspose2d,
+) -> None:
+    """
+    Replace nn.ConvTranspose2d call_module node with composite_conv_transpose2d call_function.
+
+    Transformation:
+        BEFORE: %out = call_module[target=upsample](args=(%x,))
+        AFTER:  %weight = get_attr[target=upsample.weight]
+                %bias = get_attr[target=upsample.bias]  # if bias exists
+                %out = call_function[target=composite_conv_transpose2d](
+                    args=(%x, %weight),
+                    kwargs={bias: %bias, stride: (2, 2), padding: (0, 0), ...}
+                )
+
+    Args:
+        gm: GraphModule containing the node
+        node: call_module node to replace
+        module: nn.ConvTranspose2d instance
+    """
+    stride = module.stride
+    padding = module.padding
+    output_padding = module.output_padding
+    groups = module.groups
+    dilation = module.dilation
+    has_bias = module.bias is not None
+
+    input_tensor = node.args[0]
+
+    kwargs = {
+        "stride": stride,
+        "padding": padding,
+        "output_padding": output_padding,
+        "groups": groups,
+        "dilation": dilation,
+    }
+
+    with gm.graph.inserting_before(node):
+        weight_node = gm.graph.get_attr(f"{node.target}.weight")
+        if has_bias:
+            bias_node = gm.graph.get_attr(f"{node.target}.bias")
+            kwargs["bias"] = bias_node
+        else:
+            kwargs["bias"] = None
+
+        new_node = gm.graph.call_function(
+            composite_conv_transpose2d,
+            args=(input_tensor, weight_node),
+            kwargs=kwargs,
+        )
+
+    node.replace_all_uses_with(new_node)
+    gm.graph.erase_node(node)
+
+
 """
 Dictionary holding replacement composite functions for torch functions and modules.
 Maps torch API calls and module types to composite implementations.
@@ -193,6 +326,8 @@ replacements = {
     torch.nn.functional.gelu: composite_gelu,
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
+    torch.nn.functional.conv_transpose2d: composite_conv_transpose2d,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
+    torch.nn.ConvTranspose2d: replace_conv_transpose2d_module,
 }
