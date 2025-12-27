@@ -2185,6 +2185,11 @@ test_config:
     assert_pcc: false # PCC is -0.715
     status: EXPECTED_PASSING
 
+  issac_groot/pytorch-GR00T_n1.5-3b-single_device-full-inference:
+    assert_pcc: false
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Invalid head size: 216. The head size must be a multiple of the tile width (32). Please adjust the dimensions accordingly - https://github.com/tenstorrent/tt-xla/issues/2204"
+
   # yolov11/pytorch-yolo11n-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
