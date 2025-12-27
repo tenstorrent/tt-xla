@@ -48,9 +48,13 @@ class TTConfig:
     # TPU model loader to share the model across multiple devices.
     enable_tensor_parallel: bool = False
 
+    # Optimization level for tt-mlir compilation.
+    optimization_level: int = 0
+
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
+            "optimization_level": self.optimization_level,
         }
 
 
