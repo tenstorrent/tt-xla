@@ -44,9 +44,8 @@ test_config:
   qwen_2_5_coder/pytorch-0_5b-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   clip/pytorch-base_patch32-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: failed to legalize operation 'stablehlo.scatter'"
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large]
@@ -78,8 +77,8 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
   oft/pytorch-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=3)] grow to 1518400 B which is beyond max L1 size of 1499136 B"
   mlp_mixer/pytorch-mixer_b32_224-single_device-full-training:
     status: KNOWN_FAILURE_XFAIL
   mlp_mixer/pytorch-mixer_l32_224-single_device-full-training:
@@ -260,8 +259,8 @@ test_config:
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   pointpillars/pytorch-pointpillars-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2003264 B which is beyond max L1 size of 1499136 B"
   fpn/pytorch-resnet50_fpn_v2-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -403,9 +402,8 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'ttnn.pad' op Output tensor shape (32,768) must match the inferred shape: (47,768)"
   dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-single-nq-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -425,15 +423,14 @@ test_config:
   centernet/pytorch-hourglass_coco-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    reason: "Buffer must be allocated on device"
   yolov6/pytorch-yolov6l-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   maptr/pytorch-tiny_r50_24e_bevformer-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    status: KNOWN_FAILURE_XFAIL
+    reason: "'func.call' op incorrect number of operands for callee"
   maptr/pytorch-tiny_r50_24e_bevformer_t4-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -467,9 +464,8 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   transfuser/pytorch-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    status: KNOWN_FAILURE_XFAIL
+    reason: "'func.call' op incorrect number of operands for callee"
   # yoloworld/pytorch-single_device-full-training:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
@@ -480,8 +476,8 @@ test_config:
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2396480 B which is beyond max L1 size of 1499136 B (assert.hpp:103)"
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -495,17 +491,16 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   detr3d/pytorch-single_device-full-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1330944 B"
   # yolov8/pytorch-yolov8n-single_device-full-training:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   yolov4/pytorch-base-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers on core range [(x=7,y=6) - (x=7,y=6)] grow to 2371840 B which is beyond max L1 size of 1499136 B (assert.hpp:103)"
   detr/object_detection/pytorch-resnet_50-single_device-full-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
