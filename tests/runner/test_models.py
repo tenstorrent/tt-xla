@@ -13,6 +13,7 @@ from infra.testers.single_chip.model import (
 )
 
 from tests.infra.comparators.comparator import Comparator, ComparisonResult
+from tests.infra.testers.compiler_config import CompilerConfig
 from tests.infra.utilities.filecheck_utils import *
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.torch import PLACEHOLDER_MODELS
@@ -119,6 +120,9 @@ def test_all_models_torch(
                     loader=loader,
                     comparison_config=test_metadata.to_comparison_config(),
                     parallelism=parallelism,
+                    compiler_config=CompilerConfig(
+                        export_path=f"output_artifact/{request.node.name}/ir"
+                    ),
                 )
 
                 comparison_result = tester.test()

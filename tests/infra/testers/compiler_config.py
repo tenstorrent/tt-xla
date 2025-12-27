@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 
 @dataclass
@@ -53,6 +53,12 @@ class CompilerConfig:
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
+    # Enable dumping of intermediate IRs to disk.
+    export_path: Optional[str] = None
+
+    # Enable dumping of model input and parameter tensors to disk.
+    export_tensors: bool = False
+
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
@@ -79,6 +85,12 @@ class CompilerConfig:
 
         if self.enable_trace:
             options["enable_trace"] = "true"
+
+        if self.export_path:
+            options["export_path"] = self.export_path
+
+        if self.export_tensors:
+            options["export_tensors"] = "true"
 
         return options
 
