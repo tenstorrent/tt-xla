@@ -39,6 +39,8 @@ jobs:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      dockbuild: all
 
   build-ttxla-release:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
@@ -48,6 +50,14 @@ jobs:
     needs: [ inspect-changes, build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  build-manylinux-ttxla:
+    needs: [ build-image ]
+    uses: ./.github/workflows/call-build-manylinux.yml
+    name: "Build tt-xla manylinux wheels"
+    secrets: inherit
+    with:
+      docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
 
   build-ttxla-explorer:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'

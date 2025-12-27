@@ -27,7 +27,14 @@
 cmake_minimum_required(VERSION 3.20)
 
 if (NOT DEFINED ENV{TTXLA_ENV_ACTIVATED})
-  message(FATAL_ERROR "tt-xla environment not activated. Please run 'source venv/activate'.")
+  message(STATUS "tt-xla environment not activated. Running activation script...")
+  execute_process(
+    COMMAND bash -c "source ${CMAKE_SOURCE_DIR}/venv/activate"
+    RESULT_VARIABLE ACTIVATION_RESULT
+  )
+  if(NOT ACTIVATION_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to activate tt-xla environment. Please run 'source venv/activate' manually.")
+  endif()
 endif()
 
 project(TT_PJRT)
