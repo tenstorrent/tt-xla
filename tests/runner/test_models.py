@@ -162,17 +162,7 @@ def test_all_models_torch(
             )
             raise
         finally:
-            # If there are multiple comparison results, only record the first one because the
-            #     DB only supports single comparison result for now
-            if comparison_result is not None and len(comparison_result) > 0:
-                if len(comparison_result) > 1:
-                    print(
-                        f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
-                    )
-                comparison_result = comparison_result[0]
-
             comparison_config = tester._comparison_config if tester else None
-
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
             record_model_test_properties(
@@ -183,7 +173,7 @@ def test_all_models_torch(
                 run_mode=run_mode,
                 parallelism=parallelism,
                 test_passed=succeeded,
-                comparison_result=comparison_result,
+                comparison_results=list(comparison_result) if comparison_result else [],
                 comparison_config=comparison_config,
             )
 
@@ -338,15 +328,6 @@ def test_all_models_jax(
             )
             raise
         finally:
-            # If there are multiple comparison results, only record the first one because the
-            #     DB only supports single comparison result for now
-            if comparison_result is not None and len(comparison_result) > 0:
-                if len(comparison_result) > 1:
-                    print(
-                        f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
-                    )
-                comparison_result = comparison_result[0]
-
             comparison_config = tester._comparison_config if tester else None
 
             # If we mark tests with xfail at collection time, then this isn't hit.
@@ -359,7 +340,7 @@ def test_all_models_jax(
                 run_mode=run_mode,
                 test_passed=succeeded,
                 parallelism=parallelism,
-                comparison_result=comparison_result,
+                comparison_results=list(comparison_result) if comparison_result else [],
                 comparison_config=comparison_config,
             )
 
