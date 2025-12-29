@@ -1,88 +1,82 @@
-name: Publish the xla wheel to pypi
+name: Publish github release, push git tag and push docker tag (call)
 
 on:
   workflow_call:
     inputs:
-      wheel_release_artifact_run_id:
-        description: 'Run id of the release wheel'
-        type: string
-        required: true
-      wheel_release_artifact_name:
-        description: 'Artifact name of the wheel'
+      release_tag:
+        description: 'Release tag'
         type: string
         required: true
       is_nightly_release:
         description: 'Is the docker a nigthly release'
         type: boolean
         required: true
-      should_overwrite_release:
-        description: 'Should we overwrite an existing pypi wheel'
-        type: boolean
+      docker_image_base:
+        description: 'Released docker image base'
+        type: string
         required: true
 
 jobs:
-  publish-wheel:
-    name: Publish wheel to pypi
+  publish-release:
+    name: Publish release
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set tag
-        shell: bash
-        id: set-tag
-        run: |
-          source .version
-          tag="$VERSION"
-
-          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
-            nigthly_release_suffix="dev$(date +'%Y%m%d')"
-            tag="$VERSION.$nigthly_release_suffix"
-          fi
-
-          echo "tag=$tag" >> $GITHUB_OUTPUT
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.11
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_PYPI_ROLE_TO_ASSUME }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Download wheel
+      - name: Create and push tag if missing
         shell: bash
         run: |
-          mkdir wheel
+          set -o pipefail
+          tag="${{ inputs.release_tag }}"
+          commit="${{ github.sha }}"
 
-          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_artifact_name }}"
-          gh run download ${{ inputs.wheel_release_artifact_run_id }} \
-            --repo ${{ github.repository }} \
-            --dir wheel \
-            --name ${{ inputs.wheel_release_artifact_name }}
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          echo "Downloaded wheel"
-          ls -l wheel
-
-      - name: Rename wheel
-        shell: bash
-        run: |
-          tag="${{ steps.set-tag.outputs.tag}}"
-
-          .github/scripts/modify_wheel_version.sh wheel/*.whl $tag
-
-      - name: Publish Tenstorrent PyPI package
-        shell: bash
-        run: |
-          pip install s3pypi
-          wheel_file=$(realpath wheel/*.whl)
-
-          echo "Pyblishing the tt-xla pypi wheel"
-          if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
-            s3pypi upload "$wheel_file" --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
+          if git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists"
           else
-            s3pypi upload "$wheel_file" --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
+            git tag -a "$tag" -m "Release $tag" "$commit"
+            git push origin "refs/tags/$tag"
           fi
+
+      - name: Publish github release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          generate_release_notes: true
+          draft: true
+
+      # - name: Set up Docker Buildx
+      #   uses: docker/setup-buildx-action@v3
+
+      # - name: Log in to GitHub Container Registry
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.repository_owner }}
+      #     password: ${{ github.token }}
+
+      # - name: Push release docker tag
+      #   shell: bash
+      #   run: |
+      #     docker_image_base=${{ inputs.docker_image_base }}
+      #     commit_tag="${{ github.sha }}"
+      #     version_tag="${{ inputs.release_tag }}"
+      #     latest_tag="latest"
+
+      #     if [[ "$is_nightly_release" == "true" ]]; then
+      #       latest_tag="nightly-latest"
+      #     fi
+
+      #     # do we always tag with latest when releasing?
+      #     printf "\nPushing latest tag for $docker_image_base"
+      #     docker buildx imagetools create $docker_image_base:$commit_tag --tag $docker_image_base:$latest_tag --tag $docker_image_base:$version_tag
+
+        # todo(make body ready)
+      # - name: Publish github release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: ${{ inputs.release_tag }}
+      #     generate_release_notes: true

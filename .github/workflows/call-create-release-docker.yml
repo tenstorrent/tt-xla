@@ -15,11 +15,21 @@ on:
         description: 'Is the docker a nigthly release'
         type: boolean
         required: true
+    outputs:
+      docker_image:
+        description: 'Built and pushed docker image'
+        value: ${{ jobs.build-release-docker.outputs.docker-image}}
+      docker_image_base:
+        description: 'Built and pushed docker image'
+        value: ${{ jobs.build-release-docker.outputs.docker-image-base}}
 
 jobs:
   build-release-docker:
     name: Build tt-xla release Docker image
     runs-on: builder
+    outputs:
+      docker-image: ${{ steps.build-docker.outputs.docker-image }}
+      docker-image-base: ${{ steps.build-docker.outputs.docker-image-base }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,6 +44,18 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ github.token }}
 
+      - name: Download wheel
+        shell: bash
+        run: |
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_artifact_name }}"
+          gh run download ${{ inputs.wheel_release_artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir . \
+            --name ${{ inputs.wheel_release_artifact_name }}
+
+          echo "Downloaded wheel"
+          ls -l wheel
+
       - name: Build & push Docker image
         shell: bash
         id: build-docker
@@ -47,5 +69,7 @@ jobs:
           .github/build-release-docker-image.sh $docker_tag $is_nigthly_release | tee docker.log
 
           docker_image=$(tail -n 1 docker.log)
+          docker_image_base=$(tail -n 2 docker.log)
           echo "Docker image built and pushed: $docker_image"
           echo "docker-image=$docker_image" >> "$GITHUB_OUTPUT"
+          echo "docker-image-base=$docker_image_base" >> "$GITHUB_OUTPUT"
