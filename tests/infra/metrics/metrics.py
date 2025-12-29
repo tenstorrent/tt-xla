@@ -60,7 +60,7 @@ class CLIPMetric(QualityMetric):
     generation quality without requiring reference images.
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         """Initialize CLIP metric with pretrained CLIP encoder."""
         self._clip_model = CLIPEncoder()
         self._clip_model.eval()
@@ -117,7 +117,9 @@ class FIDMetric(QualityMetric):
 
     MAX_BATCH_SIZE = 16
 
-    def __init__(self, statistics_mean: np.ndarray, statistics_cov: np.ndarray):
+    def __init__(
+        self, statistics_mean: np.ndarray, statistics_cov: np.ndarray, *args, **kwargs
+    ):
         """
         Initialize FID metric with reference dataset statistics.
 
@@ -281,5 +283,7 @@ def get_metric(metric_name: str, **kwargs) -> QualityMetric:
         **kwargs: Additional arguments for the metric
     """
     if metric_name not in metric_registry:
-        raise ValueError(f"Metric {metric_name} not found in registry")
+        raise ValueError(
+            f"Metric {metric_name} not found in registry. Available metrics: {list(metric_registry.keys())}"
+        )
     return metric_registry[metric_name](**kwargs)
