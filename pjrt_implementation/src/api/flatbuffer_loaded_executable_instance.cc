@@ -56,71 +56,13 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,
     tt::runtime::Device runtime_device, size_t num_devices,
     std::uint32_t program_index, size_t arg_index) {
-  // Assert that all buffer instances have the same prepared tensor.
-  // NOTE: In case of sharded tensor we have multiple buffer instances on the
-  // PJRT side, but on our side (tt-mlir runtime) we prepare a single
-  // multi-device tensor.
-  assert(!arg_buffers.empty());
-  std::optional<tt::runtime::Tensor> prepared_tensor =
-      arg_buffers[0]->getPreparedTensor();
-  for (size_t i = 1; i < arg_buffers.size(); ++i) {
-    assert(arg_buffers[i]->getPreparedTensor().has_value() ==
-           prepared_tensor.has_value());
-    if (prepared_tensor.has_value()) {
-      assert(arg_buffers[i]->getPreparedTensor()->handle ==
-             prepared_tensor->handle);
-    }
-  }
 
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
-  // Check if we already have a prepared tensor corresponding to the buffer
-  // instance(s); i.e. a tensor with the layout which this executable is
-  // expecting. If so, we can just reuse this tensor.
   tt::runtime::Layout expected_layout = tt::runtime::getLayout(
       executable_image->getFlatbufferBinary(), program_index, arg_index);
 
-  bool has_cached_tensor = prepared_tensor.has_value();
-  bool has_expected_layout =
-      has_cached_tensor &&
-      tt::runtime::hasLayout(*prepared_tensor, expected_layout);
-  if (has_expected_layout) {
-    DLOG_F(LOG_DEBUG,
-           "Reusing already prepared input tensor for argument index %zu with "
-           "shape %s",
-           arg_index, arg_buffers[0]->toShapeStr().c_str());
-
-    return *prepared_tensor;
-  }
-
-  // We might have a cached tensor in the wrong layout, for example
-  // if the cached tensor came from an output from a previous execution
-  // on a differently shaped mesh. An output BufferInstance will not have
-  // a host_runtime_tensor when reused in a future graph as input.
-  // In this case, we re-layout the cached tensor into the expected layout
-  // and return that while saving it back into the buffer instances for future
-  // reuse.
-  else if (!has_expected_layout && has_cached_tensor) {
-    DLOG_F(LOG_DEBUG,
-           "Re-laying out already prepared input tensor for argument index %zu "
-           "with shape %s.",
-           arg_index, arg_buffers[0]->toShapeStr().c_str());
-    tt::runtime::Tensor relaid_out_tensor = convertTensorLayout(
-        *prepared_tensor, program_index, arg_index, runtime_device);
-    for (size_t i = 0; i < arg_buffers.size(); ++i) {
-      arg_buffers[i]->setPreparedTensor(relaid_out_tensor);
-    }
-    tt::runtime::setTensorRetain(relaid_out_tensor, /*retain=*/true);
-    return relaid_out_tensor;
-  }
-
-  // We don't have an already prepared tensor so we need to prepare it now.
-  // This involves two steps:
-  // 1) Create a multi-device tensor from the input buffer instances
-  //   according to the sharding strategy (if needed).
-  // 2) Convert the layout of the tensor to the layout expected by the
-  //  executable.
   mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
       fillStrategyMapFromSharding(
           m_executable_image->getInputSharding(arg_index), num_devices);
@@ -129,37 +71,16 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     return std::nullopt;
   }
 
-  tt::runtime::Tensor input_tensor =
-      getTensorFromStrategy(arg_buffers, *strategy);
+  PjrtTensor &tensor =
+      PjrtTensor::init(arg_buffers, runtime_device, expected_layout,
+                       m_executable_image->getDevicesMeshShape(), *strategy);
 
-  tt::runtime::Tensor laid_out_tensor = convertTensorLayout(
-      input_tensor, program_index, arg_index, runtime_device);
-
-  // Save the prepared tensor (properly laid out tensor) inside of the buffer
-  // instance(s), so we can reuse it on subsequent executions of the same
-  // executable.
-  for (size_t i = 0; i < arg_buffers.size(); ++i) {
-    arg_buffers[i]->setPreparedTensor(laid_out_tensor);
-  }
-
-  return laid_out_tensor;
-}
-
-tt::runtime::Tensor FlatbufferLoadedExecutableInstance::convertTensorLayout(
-    tt::runtime::Tensor input_tensor, std::uint32_t program_index,
-    size_t arg_index, const tt::runtime::Device &runtime_device) {
-  FlatbufferExecutableImage *executable_image =
-      static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
-
-  tt::runtime::Layout layout = tt::runtime::getLayout(
-      executable_image->getFlatbufferBinary(), program_index, arg_index);
-
-  return tt::runtime::toLayout(input_tensor, runtime_device, layout,
-                               tt::runtime::getTensorRetain(input_tensor));
+  return tensor.device_tensor();
 }
 
 void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
-    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
+    const std::vector<tt::runtime::Tensor> &output_tensors,
+    const tt::runtime::Device &device, size_t num_devices,
     PJRT_Buffer **const *output_lists,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
   size_t n_prog_output_tensors = output_tensors.size();
@@ -170,6 +91,9 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
   for (size_t output_index = 0; output_index < n_prog_output_tensors;
        output_index++) {
     tt::runtime::Tensor outputDeviceTensor = output_tensors[output_index];
+
+    std::vector<BufferInstance *> shards;
+    shards.reserve(num_devices);
 
     for (int device_index = 0; device_index < num_devices; ++device_index) {
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
@@ -183,8 +107,7 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
       // CopyToHost.
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
-              outputDeviceTensor, std::move(output_shape),
-              m_addressable_devices[device_index],
+              std::move(output_shape), m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
               expected_output_data_types[output_index], device_index);
       DLOG_F(LOG_DEBUG,
@@ -195,10 +118,14 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
 
       output_buffer->markAsDataReady();
 
+      shards.emplace_back(output_buffer.get());
+
       // Releasing the ownership to the PJRT API caller since the caller is
       // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
       output_lists[device_index][output_index] = *output_buffer.release();
     }
+
+    PjrtTensor::init(outputDeviceTensor, shards, device);
   }
 }
 
@@ -318,8 +245,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return tt_pjrt_status::kInternal;
   }
 
-  fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
-                      m_executable_image->getOutputTypes());
+  fillPJRTOutputLists(output_tensors, *runtime_device, args->num_devices,
+                      args->output_lists, m_executable_image->getOutputTypes());
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {

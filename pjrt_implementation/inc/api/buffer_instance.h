@@ -15,9 +15,11 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 // PJRT C API includes
+#include "tt/runtime/types.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
@@ -34,6 +36,7 @@ namespace tt::pjrt {
 
 class DeviceInstance;
 class MemoryInstance;
+class PjrtTensor;
 
 // Represents PJRT_Buffer structure and the functionality around it. Wraps
 // `tt::runtime::Tensor` underneath. `PJRT_Buffer` was designed to represent
@@ -57,8 +60,7 @@ public:
 
   // Creates new buffer instance for output buffer.
   static std::unique_ptr<BufferInstance>
-  createOutputBufferInstance(const tt::runtime::Tensor &device_tensor,
-                             std::vector<std::uint32_t> &&dimensions,
+  createOutputBufferInstance(std::vector<std::uint32_t> &&dimensions,
                              DeviceInstance *device, MemoryInstance *memory,
                              PJRT_Buffer_Type data_type, uint32_t device_id);
 
@@ -96,15 +98,9 @@ public:
     return m_host_runtime_tensor;
   }
 
-  // Returns the prepared runtime tensor created for this buffer on last
-  // execution.
-  const std::optional<tt::runtime::Tensor> &getPreparedTensor() const {
-    return m_prepared_runtime_tensor;
-  }
-
-  // Sets the prepared runtime tensor created for this buffer.
-  void setPreparedTensor(const tt::runtime::Tensor &tensor) {
-    m_prepared_runtime_tensor = tensor;
+  // Returns the underlying host runtime tensor created for this buffer.
+  void setHostRuntimeTensor(tt::runtime::Tensor host_tensor) {
+    m_host_runtime_tensor = std::move(host_tensor);
   }
 
   // Returns the memory instance on which this buffers resides.
@@ -166,6 +162,21 @@ public:
   // Returns buffer's device id relative to mesh on which a output shard resides
   std::optional<uint32_t> getDeviceId() const { return m_device_id; }
 
+  // Sets PJRT tensor for this buffer instance (tensor shard).
+  void setPjrtTensor(std::shared_ptr<PjrtTensor> pjrt_tensor) {
+    m_pjrt_tensor = std::move(pjrt_tensor);
+  }
+
+  // Returns shards_ptr to PJRT tensor.
+  std::shared_ptr<PjrtTensor> &pjrtTensor() { return m_pjrt_tensor; };
+  const std::shared_ptr<PjrtTensor> &pjrtTensor() const {
+    return m_pjrt_tensor;
+  };
+
+  // Returns whole runtime tensor (if it exists) that this shard is part of.
+  std::optional<tt::runtime::Tensor> device_tensor();
+  std::optional<const tt::runtime::Tensor> device_tensor() const;
+
 private:
   // Constructor used for the input buffers.
   BufferInstance(PJRT_Buffer_Type data_type, const std::int64_t *dims,
@@ -173,12 +184,10 @@ private:
                  MemoryInstance *memory);
 
   // Constructor used for the output buffers.
-  BufferInstance(
-      const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
-      MemoryInstance *memory, PJRT_Buffer_Type data_type,
-      const std::optional<tt::runtime::Tensor> &host_tensor = std::nullopt,
-      const std::optional<tt::runtime::Tensor> &device_tensor = std::nullopt,
-      std::optional<uint32_t> device_id = std::nullopt);
+  BufferInstance(const std::vector<std::uint32_t> &dimensions,
+                 DeviceInstance *device, MemoryInstance *memory,
+                 PJRT_Buffer_Type data_type,
+                 std::optional<uint32_t> device_id = std::nullopt);
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   // Currently only used for device to device transfer in copy construction
@@ -221,16 +230,10 @@ private:
   // via `PJRT_Client_BufferFromHostBuffer_Args` and memory was not specified.
   MemoryInstance *m_memory;
 
-  // Underlying host runtime tensor created for this buffer. Unlike the prepared
-  // tensor this one is guaranteed to be on host and is exactly the shard that
+  // Underlying host runtime tensor created for this buffer.
+  // It is guaranteed to be on host and is exactly the shard that
   // the buffer instance represents.
   std::optional<tt::runtime::Tensor> m_host_runtime_tensor;
-
-  // Prepared runtime tensor created for this buffer on last execution. If this
-  // buffer is used in multiple programs, it will be the tensor prepared for the
-  // last program executed. If this buffer instance is a part of a multi-device
-  // tensor, this field contains the full tensor.
-  std::optional<tt::runtime::Tensor> m_prepared_runtime_tensor;
 
   // True if data in the buffer is ready (transferred from host or computed on
   // device).
@@ -268,6 +271,123 @@ private:
   // Metal+Program Cache is not thread safe when untilizing on device, so
   //  even different bufferInstances may not be concurrently copied to host.
   static std::mutex s_copy_to_host_internal_mutex;
+
+  std::shared_ptr<PjrtTensor> m_pjrt_tensor;
+};
+
+// PJRT tensor class.
+// Since PJRT does not operate on tensors but on BufferInstances (where each
+// BufferInstance represent single tensor shard), we will use our own tensor
+// abstraction.
+// Tensor can be constructed from shards (when program inputs are prepared) or
+// from an existing tensor (created as program outputs).
+// Each shard will hold shared pointer to this tensor for automatic memory
+// management.
+// Note that tensor must be constructed "in reverse", because we don't know what
+// the tensor even is, until PJRT provide us BufferInstances that we can operate
+// on.
+// This abstraction gives us control over host and device tensors and hides
+// complexity behind simple APIs.
+class PjrtTensor {
+  // Prevents direct construction. Use PjrtTensor::init instead.
+  struct Private {
+    explicit Private() = default;
+  };
+
+public:
+  // Initializes tensor from provided shards. If tensor already exists with the
+  // same layout, this will behave like a simple getter. If tensor exist but
+  // with different layout, tensor is relayed and returned. Otherwise, new
+  // tensor is created.
+  static PjrtTensor &
+  init(const std::vector<BufferInstance *> &shards,
+       const tt::runtime::Device &device,
+       const std::optional<const tt::runtime::Layout> &layout,
+       const std::vector<std::uint32_t> &mesh_shape,
+       const std::unordered_map<std::string, std::string> &strategy);
+
+  // Initializes tensor from an existing device tensor.
+  static PjrtTensor &init(tt::runtime::Tensor device_tensor,
+                          std::vector<BufferInstance *> shards,
+                          tt::runtime::Device device);
+
+public: // Constructors need to be public for std::shared_ptr.
+  PjrtTensor(Private, std::vector<BufferInstance *> shards,
+             tt::runtime::Device device,
+             const std::optional<const tt::runtime::Layout> &layout,
+             const std::vector<std::uint32_t> &mesh_shape,
+             const std::unordered_map<std::string, std::string> &strategy);
+
+  PjrtTensor(Private, tt::runtime::Tensor tensor,
+             std::vector<BufferInstance *> shards, tt::runtime::Device device);
+
+  PjrtTensor(const PjrtTensor &other) = delete;
+  PjrtTensor &operator=(const PjrtTensor &other) = delete;
+
+  PjrtTensor(PjrtTensor &&other) noexcept = delete;
+  PjrtTensor &operator=(PjrtTensor &&other) noexcept = delete;
+
+  std::vector<BufferInstance *> &shards() { return m_shards; };
+  const std::vector<BufferInstance *> &shards() const { return m_shards; };
+
+  tt::runtime::Tensor &device_tensor() { return m_device_tensor; }
+  const tt::runtime::Tensor &device_tensor() const { return m_device_tensor; }
+
+  tt::runtime::Device &device() { return m_device; }
+  const tt::runtime::Device &device() const { return m_device; }
+
+private:
+  static PjrtTensor &
+  init_from_existing(const std::vector<BufferInstance *> &shards,
+                     const std::optional<const tt::runtime::Layout> &layout,
+                     const std::vector<std::uint32_t> &mesh_shape);
+
+  static PjrtTensor &
+  init_new(std::vector<BufferInstance *> shards, tt::runtime::Device device,
+           const std::optional<const tt::runtime::Layout> &layout,
+           const std::vector<std::uint32_t> &mesh_shape,
+           const std::unordered_map<std::string, std::string> &strategy);
+
+  static void validate_shards(const std::vector<BufferInstance *> &shards);
+
+  static bool tensor_exist(const std::vector<BufferInstance *> &shards) {
+    return shards[0]->pjrtTensor().operator bool();
+  }
+
+  static PjrtTensor &from_shards(const std::vector<BufferInstance *> &shards) {
+    return *shards[0]->pjrtTensor();
+  }
+
+  static tt::runtime::Tensor from_shard(const BufferInstance *shard);
+
+  static bool has_layout(const tt::runtime::Tensor &tensor,
+                         const tt::runtime::Layout &layout) {
+    return tt::runtime::hasLayout(tensor, layout);
+  }
+
+  static void relay(tt::runtime::Tensor &tensor, tt::runtime::Device &device,
+                    const tt::runtime::Layout &layout);
+
+  bool has_layout(const tt::runtime::Layout &layout) const {
+    return has_layout(m_device_tensor, layout);
+  }
+
+  void relay(const tt::runtime::Layout &layout) {
+    relay(m_device_tensor, m_device, layout);
+  }
+
+  tt::runtime::Tensor tensor_from_strategy(
+      const std::unordered_map<std::string, std::string> &strategy,
+      const std::vector<std::uint32_t> &mesh_shape);
+
+  std::vector<tt::runtime::Tensor> tensors_from_shards();
+
+private: // members
+  tt::runtime::Tensor m_device_tensor;
+
+  std::vector<BufferInstance *> m_shards;
+
+  tt::runtime::Device m_device;
 };
 
 namespace internal {
