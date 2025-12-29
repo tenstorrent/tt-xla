@@ -59,7 +59,7 @@ jobs:
           echo "needs_uplift=$NEEDS_UPLIFT" >> "$GITHUB_OUTPUT"
 
           if [ "$NEEDS_UPLIFT" = "true" ]; then
-            echo "Uplift needed: $LOCAL_MAJOR.$LOCAL_MINOR -> $UPSTREAM_MAJOR.$UPSTREAM_MINOR"
+            echo "Uplift needed: v$LOCAL_MAJOR.$LOCAL_MINOR -> v$UPSTREAM_MAJOR.$UPSTREAM_MINOR"
 
             OLD_API_FIELDS=$(grep -oP '_PJRT_API_STRUCT_FIELD\(\K[^)]+' "$LOCAL_FILE" | sort -u)
             NEW_API_FIELDS=$(grep -oP '_PJRT_API_STRUCT_FIELD\(\K[^)]+' "$UPSTREAM_FILE" | sort -u)
@@ -114,7 +114,7 @@ jobs:
           body: |
             This PR uplifts the PJRT C API header file from the upstream [OpenXLA repository](https://github.com/openxla/xla).
 
-            **Version change:** `${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }}` -> `${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}`
+            **Version change:** `v${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }}` -> `v${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}`
 
             **Source file:** https://github.com/openxla/xla/blob/main/xla/pjrt/c/pjrt_c_api.h
 
@@ -122,18 +122,3 @@ jobs:
           draft: true
           delete-branch: true
           token: ${{ secrets.GH_TOKEN }}
-
-      - name: Generate Summary
-        run: |
-          echo "## PJRT C API Uplift Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Version | Major | Minor |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|-------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Local | ${{ steps.compare-versions.outputs.local_major }} | ${{ steps.compare-versions.outputs.local_minor }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Upstream | ${{ steps.compare-versions.outputs.upstream_major }} | ${{ steps.compare-versions.outputs.upstream_minor }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.compare-versions.outputs.needs_uplift }}" = "true" ]; then
-            echo "**Status:** Uplift available! PR created." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**Status:** No uplift needed. Local version is up to date." >> $GITHUB_STEP_SUMMARY
-          fi
