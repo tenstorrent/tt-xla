@@ -6,7 +6,6 @@ name: Uplift PJRT C API Header
 
 on:
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: write
