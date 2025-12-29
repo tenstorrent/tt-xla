@@ -2062,7 +2062,7 @@ test_config:
 
   ssr/pytorch-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B, but bank size is only 1364704 B - https://github.com/tenstorrent/tt-xla/issues/1923"
+    # reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B, but bank size is only 1364704 B - https://github.com/tenstorrent/tt-xla/issues/1923"
 
   bge_m3/pytorch-base-single_device-full-inference:
     status: EXCLUDE_MODEL  # This model has a hand written test, don't run via test_models.py
@@ -2141,7 +2141,7 @@ test_config:
 
   pointpillars/pytorch-pointpillars-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
+    # reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
 
   sam/pytorch-facebook/sam-vit-base-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
