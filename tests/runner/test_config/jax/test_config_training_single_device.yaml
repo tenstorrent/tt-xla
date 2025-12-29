@@ -61,7 +61,9 @@ test_config:
     markers: [large]
 
   blenderbot/summarization/jax-400M-distill-single_device-full-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "mlir::DenseElementsAttr::getValues() const [T = float]: Assertion `succeeded(range) && \"element type cannot be iterated\"' failed. - https://github.com/tenstorrent/tt-xla/issues/2693"
     markers: [nightly]
 
   blenderbot/summarization/jax-small-90M-single_device-full-training:
