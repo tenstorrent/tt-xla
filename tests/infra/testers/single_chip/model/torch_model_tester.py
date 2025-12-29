@@ -10,7 +10,7 @@ from typing import Any, Dict, Mapping, Sequence, Set, Tuple
 import torch
 import torch_xla
 import torch_xla.runtime as xr
-from infra.comparators import ComparisonConfig
+from infra.evaluators import ComparisonConfig
 from infra.utilities import (
     Framework,
     compile_torch_workload_for_cpu,
@@ -19,7 +19,7 @@ from infra.utilities import (
 from infra.workloads import TorchWorkload, Workload
 from loguru import logger
 
-from tests.infra.comparators.comparator import ComparisonResult
+from tests.infra.evaluators.evaluator import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.config import Parallelism
 

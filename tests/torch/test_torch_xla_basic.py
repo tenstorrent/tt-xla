@@ -12,15 +12,14 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_op_test
-from infra.comparators.torch_comparator import TorchComparator
 from infra.connectors.torch_device_connector import TorchDeviceConnector
+from infra.evaluators import AtolConfig, ComparisonConfig, TorchComparisonEvaluator
 from infra.workloads import TorchWorkload
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.serialization import parse_compiled_artifacts_from_cache_to_disk
 from tt_torch.sharding import sharding_constraint_hook
 
 from tests.infra import RunMode, TorchModelTester
-from tests.infra.comparators.comparison_config import AtolConfig, ComparisonConfig
 from tests.infra.connectors.torch_device_connector import TorchDeviceConnector
 from tests.infra.testers.single_chip.op.op_tester import OpTester
 from tests.infra.utilities import sanitize_test_name
@@ -57,7 +56,7 @@ def test_simple_mm_eager(bias):
 
     output = model(input_x).to("cpu")
 
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(required_atol=0.02),
         )
@@ -106,7 +105,7 @@ def test_conv2d_eager(
 
     output = model(input_x).to("cpu")
 
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.02),
         )
@@ -229,7 +228,7 @@ def test_eltwise_unary_eager(op):
     output = model(input_x).to("cpu")
 
     # Not verifying data as many are wrong. Simply testing compile and execute
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.01),
         )
@@ -328,7 +327,7 @@ def test_eltwise_binary_eager(op):
     output = model(input_x, input_y).to("cpu")
 
     # Not verifying data as many are wrong. Simply testing compile and execute
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.02),
         )
@@ -364,7 +363,7 @@ def test_fully_replicated_graph(spmd_mode):
     input_x = input_x.to(device)
     input_y = input_y.to(device)
     output = model(input_x, input_y).to("cpu")
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.02),
         )

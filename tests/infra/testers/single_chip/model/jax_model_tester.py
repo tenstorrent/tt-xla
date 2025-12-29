@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 from flax import linen, nnx
 from huggingface_hub import snapshot_download
-from infra.comparators import ComparisonConfig
+from infra.evaluators import ComparisonConfig
 from infra.utilities import (
     Framework,
     Model,
