@@ -162,13 +162,16 @@ public:
   // Returns buffer's device id relative to mesh on which a output shard resides
   std::optional<uint32_t> getDeviceId() const { return m_device_id; }
 
+  // Sets PJRT tensor for this buffer instance (tensor shard).
   void setTenzorica(std::shared_ptr<Tenzorica> tenzorica) {
     m_tenzorica = std::move(tenzorica);
   }
 
+  // Returns shards_ptr to PJRT tensor.
   std::shared_ptr<Tenzorica> &tenzorica() { return m_tenzorica; };
   const std::shared_ptr<Tenzorica> &tenzorica() const { return m_tenzorica; };
 
+  // Returns whole runtime tensor (if it exists) that this shard is part of.
   std::optional<tt::runtime::Tensor> device_tensor();
   std::optional<const tt::runtime::Tensor> device_tensor() const;
 
@@ -276,6 +279,19 @@ private:
   std::shared_ptr<Tenzorica> m_tenzorica;
 };
 
+// PJRT tensor class.
+// Since PJRT does not operate on tensors but on BufferInstances (where each
+// BufferInstance represent single tensor shard), we will use our own tensor
+// abstraction.
+// Tensor can be constructed from shards (when program inputs are prepared) or
+// from an existing tensor (created as program outputs).
+// Each shard will hold shared pointer to this tensor for automatic memory
+// management.
+// Note that tensor must be constructed "in reverse", because we don't know what
+// the tensor even is, until PJRT provide us BufferInstances that we can operate
+// on.
+// This abstraction gives us control over host and device tensors and hides
+// complexity behind simple APIs.
 class Tenzorica {
   // Prevents direct construction. Use Tenzorica::init instead.
   struct Private {
@@ -283,6 +299,10 @@ class Tenzorica {
   };
 
 public:
+  // Initializes tensor from provided shards. If tensor already exists with the
+  // same layout, this will behave like a simple getter. If tensor exist but
+  // with different layout, tensor is relayed and returned. Otherwise, new
+  // tensor is created.
   static Tenzorica &
   init(const std::vector<BufferInstance *> &shards,
        const tt::runtime::Device &device,
@@ -290,11 +310,12 @@ public:
        const std::vector<std::uint32_t> &mesh_shape,
        const std::unordered_map<std::string, std::string> &strategy);
 
-  static Tenzorica &init(const tt::runtime::Tensor &tensor,
-                         const std::vector<BufferInstance *> &shards,
-                         const tt::runtime::Device &device);
+  // Initializes tensor from an existing device tensor.
+  static Tenzorica &init(tt::runtime::Tensor device_tensor,
+                         std::vector<BufferInstance *> shards,
+                         tt::runtime::Device device);
 
-public: // Needs to be public for std::shared_ptr.
+public: // Constructors need to be public for std::shared_ptr.
   Tenzorica(Private, std::vector<BufferInstance *> shards,
             tt::runtime::Device device,
             const std::optional<const tt::runtime::Layout> &layout,
@@ -326,16 +347,11 @@ private:
                      const std::vector<std::uint32_t> &mesh_shape);
 
   static Tenzorica &
-  init_new(const std::vector<BufferInstance *> &shards,
-           const tt::runtime::Device &device,
+  init_new(std::vector<BufferInstance *> shards, tt::runtime::Device device,
            const std::optional<const tt::runtime::Layout> &layout,
            const std::vector<std::uint32_t> &mesh_shape,
            const std::unordered_map<std::string, std::string> &strategy);
 
-  // Assert that all buffer instances have the same prepared tensor.
-  // NOTE: In case of sharded tensor we have multiple buffer instances on the
-  // PJRT side, but on our side (tt-mlir runtime) we prepare a single
-  // multi-device tensor.
   static void validate_shards(const std::vector<BufferInstance *> &shards);
 
   static bool tenzorica_exist(const std::vector<BufferInstance *> &shards) {
@@ -371,58 +387,12 @@ private:
   std::vector<tt::runtime::Tensor> tensors_from_shards();
 
 private: // members
-  // tt::runtime::Tensor m_host_tensor; // for now, let's keep host shards on
-  // buffer instances.
   tt::runtime::Tensor m_device_tensor;
 
   std::vector<BufferInstance *> m_shards;
 
   tt::runtime::Device m_device;
 };
-
-// // Gets next UID for buffer instances, used in buffer instance constructor
-// // to assign unique identifier to each buffer instance.
-// static uint64_t nextUID() {
-//   static std::atomic<uint64_t> uid{0};
-//   return uid.fetch_add(1, std::memory_order_relaxed);
-// }
-
-// class Tenzorica;
-
-// class TenzoricaShard {
-// public:
-//   const Tenzorica *m_parent;
-
-//   // Unique identifier for this buffer instance.
-//   const uint64_t m_uid = nextUID();
-
-//   // Buffer's data type.
-//   PJRT_Buffer_Type m_data_type;
-
-//   // Buffer's dimensions. Shouldn't be changed after construction because
-//   client
-//   // might depend on the raw pointer to these dimensions.
-//   const std::vector<std::int64_t> m_dim;
-
-//   // Device instance on which this buffer resides.
-//   DeviceInstance *m_device;
-
-//   // Device index relative to mesh on which a output shard resides
-//   const std::optional<uint32_t> m_device_id;
-
-//   // Memory on which this buffer resides, Can be nullptr if buffer is created
-//   // via `PJRT_Client_BufferFromHostBuffer_Args` and memory was not
-//   // specified.
-//   MemoryInstance *m_memory;
-// };
-
-// class Tenzorica {
-// public:
-//   tt::runtime::Tensor m_tensor; // In BufferInstance
-//   // m_prepared_runtime_tensor
-//   // (in multidevice, full tensor)
-//   std::vector<TenzoricaShard> m_shards;
-// };
 
 namespace internal {
 

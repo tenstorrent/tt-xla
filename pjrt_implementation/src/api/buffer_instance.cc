@@ -519,23 +519,23 @@ Tenzorica::init(const std::vector<BufferInstance *> &shards,
                 const std::optional<const tt::runtime::Layout> &layout,
                 const std::vector<std::uint32_t> &mesh_shape,
                 const std::unordered_map<std::string, std::string> &strategy) {
-
   validate_shards(shards);
 
-  if (tenzorica_exist(shards))
+  if (tenzorica_exist(shards)) {
     return init_from_existing(shards, layout, mesh_shape);
+  }
 
   return init_new(shards, device, layout, mesh_shape, strategy);
 }
 
-Tenzorica &Tenzorica::init(const tt::runtime::Tensor &tensor,
-                           const std::vector<BufferInstance *> &shards,
-                           const tt::runtime::Device &device) {
-
+Tenzorica &Tenzorica::init(tt::runtime::Tensor device_tensor,
+                           std::vector<BufferInstance *> shards,
+                           tt::runtime::Device device) {
   validate_shards(shards);
 
-  auto tenzorica = std::make_shared<Tenzorica>(
-      Private{}, std::move(tensor), std::move(shards), std::move(device));
+  auto tenzorica =
+      std::make_shared<Tenzorica>(Private{}, std::move(device_tensor),
+                                  std::move(shards), std::move(device));
 
   for (BufferInstance *shard : tenzorica->shards()) {
     shard->setTenzorica(tenzorica);
@@ -551,15 +551,15 @@ Tenzorica &Tenzorica::init_from_existing(
 
   Tenzorica &tenzorica = from_shards(shards);
 
-  if (layout && !tenzorica.has_layout(*layout))
+  if (layout && !tenzorica.has_layout(*layout)) {
     tenzorica.relay(*layout);
+  }
 
   return tenzorica;
 }
 
 Tenzorica &Tenzorica::init_new(
-    const std::vector<BufferInstance *> &shards,
-    const tt::runtime::Device &device,
+    std::vector<BufferInstance *> shards, tt::runtime::Device device,
     const std::optional<const tt::runtime::Layout> &layout,
     const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy) {
@@ -584,8 +584,9 @@ Tenzorica::Tenzorica(
 
   tt::runtime::Tensor tensor = tensor_from_strategy(strategy, mesh_shape);
 
-  if (layout && !has_layout(tensor, *layout))
+  if (layout && !has_layout(tensor, *layout)) {
     relay(tensor, m_device, *layout);
+  }
 
   m_device_tensor = tensor;
 }
@@ -638,10 +639,7 @@ std::vector<tt::runtime::Tensor> Tenzorica::tensors_from_shards() {
   return tenzors;
 }
 
-// Assert that all buffer instances have the same prepared tensor.
-// NOTE: In case of sharded tensor we have multiple buffer instances on the
-// PJRT side, but on our side (tt-mlir runtime) we prepare a single
-// multi-device tensor.
+// Validate that all shards are part of the same device tensor.
 void Tenzorica::validate_shards(const std::vector<BufferInstance *> &shards) {
 
   assert(!shards.empty());
