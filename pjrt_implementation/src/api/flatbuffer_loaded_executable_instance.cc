@@ -107,8 +107,7 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
       // CopyToHost.
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
-              outputDeviceTensor, std::move(output_shape),
-              m_addressable_devices[device_index],
+              std::move(output_shape), m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
               expected_output_data_types[output_index], device_index);
       DLOG_F(LOG_DEBUG,
@@ -126,7 +125,7 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
       output_lists[device_index][output_index] = *output_buffer.release();
     }
 
-    Tenzorica::init(shards, outputDeviceTensor, device);
+    Tenzorica::init(outputDeviceTensor, shards, device);
   }
 }
 

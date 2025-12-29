@@ -60,8 +60,7 @@ public:
 
   // Creates new buffer instance for output buffer.
   static std::unique_ptr<BufferInstance>
-  createOutputBufferInstance(const tt::runtime::Tensor &device_tensor,
-                             std::vector<std::uint32_t> &&dimensions,
+  createOutputBufferInstance(std::vector<std::uint32_t> &&dimensions,
                              DeviceInstance *device, MemoryInstance *memory,
                              PJRT_Buffer_Type data_type, uint32_t device_id);
 
@@ -99,16 +98,10 @@ public:
     return m_host_runtime_tensor;
   }
 
-  // Returns the prepared runtime tensor created for this buffer on last
-  // execution.
-  // const std::optional<tt::runtime::Tensor> &getPreparedTensor() const {
-  //   return m_prepared_runtime_tensor;
-  // }
-
-  // Sets the prepared runtime tensor created for this buffer.
-  // void setPreparedTensor(const tt::runtime::Tensor &tensor) {
-  //   m_prepared_runtime_tensor = tensor;
-  // }
+  // Returns the underlying host runtime tensor created for this buffer.
+  void setHostRuntimeTensor(tt::runtime::Tensor host_tensor) {
+    m_host_runtime_tensor = std::move(host_tensor);
+  }
 
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
@@ -186,12 +179,10 @@ private:
                  MemoryInstance *memory);
 
   // Constructor used for the output buffers.
-  BufferInstance(
-      const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
-      MemoryInstance *memory, PJRT_Buffer_Type data_type,
-      const std::optional<tt::runtime::Tensor> &host_tensor = std::nullopt,
-      const std::optional<tt::runtime::Tensor> &device_tensor = std::nullopt,
-      std::optional<uint32_t> device_id = std::nullopt);
+  BufferInstance(const std::vector<std::uint32_t> &dimensions,
+                 DeviceInstance *device, MemoryInstance *memory,
+                 PJRT_Buffer_Type data_type,
+                 std::optional<uint32_t> device_id = std::nullopt);
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   // Currently only used for device to device transfer in copy construction
@@ -286,7 +277,7 @@ private:
 };
 
 class Tenzorica {
-  // Prevents direct construction. Use init for initialization.
+  // Prevents direct construction. Use Tenzorica::init instead.
   struct Private {
     explicit Private() = default;
   };
@@ -299,8 +290,8 @@ public:
        const std::vector<std::uint32_t> &mesh_shape,
        const std::unordered_map<std::string, std::string> &strategy);
 
-  static Tenzorica &init(const std::vector<BufferInstance *> &shards,
-                         const tt::runtime::Tensor &tensor,
+  static Tenzorica &init(const tt::runtime::Tensor &tensor,
+                         const std::vector<BufferInstance *> &shards,
                          const tt::runtime::Device &device);
 
 public: // Need to be public for std::shared_ptr.
@@ -310,8 +301,8 @@ public: // Need to be public for std::shared_ptr.
             const std::vector<std::uint32_t> &mesh_shape,
             const std::unordered_map<std::string, std::string> &strategy);
 
-  Tenzorica(Private, std::vector<BufferInstance *> shards,
-            tt::runtime::Tensor tensor, tt::runtime::Device device);
+  Tenzorica(Private, tt::runtime::Tensor tensor,
+            std::vector<BufferInstance *> shards, tt::runtime::Device device);
 
   Tenzorica(const Tenzorica &other) = delete;
   Tenzorica &operator=(const Tenzorica &other) = delete;
@@ -340,12 +331,12 @@ private:
                                        strategy);
   }
 
-  static std::shared_ptr<Tenzorica> create(std::vector<BufferInstance *> shards,
-                                           tt::runtime::Tensor tensor,
+  static std::shared_ptr<Tenzorica> create(tt::runtime::Tensor tensor,
+                                           std::vector<BufferInstance *> shards,
                                            tt::runtime::Device device) {
 
-    return std::make_shared<Tenzorica>(Private{}, std::move(shards),
-                                       std::move(tensor), std::move(device));
+    return std::make_shared<Tenzorica>(Private{}, std::move(tensor),
+                                       std::move(shards), std::move(device));
   }
 
   static Tenzorica &
@@ -374,7 +365,7 @@ private:
     return *shards[0]->tenzorica();
   }
 
-  static tt::runtime::Tensor tensor_from_shard(const BufferInstance *shard);
+  static tt::runtime::Tensor from_shard(const BufferInstance *shard);
 
   static bool has_layout(const tt::runtime::Tensor &tensor,
                          const tt::runtime::Layout &layout) {
@@ -399,11 +390,11 @@ private:
   std::vector<tt::runtime::Tensor> tensors_from_shards();
 
 private: // members
-  std::vector<BufferInstance *> m_shards;
-
   // tt::runtime::Tensor m_host_tensor; // for now, let's keep host shards on
   // buffer instances.
   tt::runtime::Tensor m_device_tensor;
+
+  std::vector<BufferInstance *> m_shards;
 
   tt::runtime::Device m_device;
 };

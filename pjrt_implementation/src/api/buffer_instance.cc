@@ -52,23 +52,19 @@ std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
 }
 
 std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
-    const tt::runtime::Tensor &device_tensor,
     std::vector<std::uint32_t> &&dimensions, DeviceInstance *device,
     MemoryInstance *memory, PJRT_Buffer_Type data_type, uint32_t device_id) {
   struct make_unique_enabler : public BufferInstance {
     make_unique_enabler(std::vector<std::uint32_t> &&dimensions,
                         DeviceInstance *device, MemoryInstance *memory,
                         PJRT_Buffer_Type data_type,
-                        const std::optional<tt::runtime::Tensor> &host_tensor,
-                        const std::optional<tt::runtime::Tensor> &device_tensor,
                         std::optional<uint32_t> device_id)
         : BufferInstance(std::move(dimensions), device, memory, data_type,
-                         host_tensor, device_tensor, device_id) {}
+                         device_id) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(dimensions), device,
-                                               memory, data_type, std::nullopt,
-                                               device_tensor, device_id);
+                                               memory, data_type, device_id);
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
@@ -79,34 +75,22 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
       m_device_id(std::nullopt), m_memory(memory),
       m_host_runtime_tensor(std::nullopt), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false)
-//, m_prepared_runtime_tensor(std::nullopt)
-{}
+      m_data_deleted(false) {}
 
-BufferInstance::BufferInstance(
-    const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
-    MemoryInstance *memory, PJRT_Buffer_Type data_type,
-    const std::optional<tt::runtime::Tensor> &host_tensor,
-    const std::optional<tt::runtime::Tensor> &device_tensor,
-    std::optional<uint32_t> device_id)
+BufferInstance::BufferInstance(const std::vector<std::uint32_t> &dimensions,
+                               DeviceInstance *device, MemoryInstance *memory,
+                               PJRT_Buffer_Type data_type,
+                               std::optional<uint32_t> device_id)
     : m_uid(nextUID()), m_data_type(data_type),
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
-      m_device_id(device_id), m_memory(memory),
-      m_host_runtime_tensor(host_tensor), m_data_ready(false),
+      m_device_id(device_id), m_memory(memory), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false)
-// , m_prepared_runtime_tensor(device_tensor)
-{
+      m_data_deleted(false) {
   // We want to be in control when buffers are deallocated, which happens during
   // buffer destruction or on delete/destroy API calls.
   if (m_host_runtime_tensor.has_value()) {
     tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
   }
-
-  // if (m_prepared_runtime_tensor.has_value()) {
-  //   tt::runtime::setTensorRetain(*m_prepared_runtime_tensor,
-  //   /*retain=*/true);
-  // }
 }
 
 BufferInstance::~BufferInstance() { deleteData(); }
@@ -544,13 +528,13 @@ Tenzorica::init(const std::vector<BufferInstance *> &shards,
   return init_new(shards, device, layout, mesh_shape, strategy);
 }
 
-Tenzorica &Tenzorica::init(const std::vector<BufferInstance *> &shards,
-                           const tt::runtime::Tensor &tensor,
+Tenzorica &Tenzorica::init(const tt::runtime::Tensor &tensor,
+                           const std::vector<BufferInstance *> &shards,
                            const tt::runtime::Device &device) {
 
   validate_shards(shards);
 
-  auto tenzorica = create(shards, tensor, device);
+  auto tenzorica = create(tensor, shards, device);
 
   for (BufferInstance *shard : tenzorica->shards()) {
     shard->setTenzorica(tenzorica);
@@ -603,10 +587,13 @@ Tenzorica::Tenzorica(
   m_device_tensor = tensor;
 }
 
-Tenzorica::Tenzorica(Private, std::vector<BufferInstance *> shards,
-                     tt::runtime::Tensor tensor, tt::runtime::Device device)
-    : m_shards{std::move(shards)}, m_device_tensor{std::move(tensor)},
-      m_device{std::move(device)} {}
+Tenzorica::Tenzorica(Private, tt::runtime::Tensor tensor,
+                     std::vector<BufferInstance *> shards,
+                     tt::runtime::Device device)
+    : m_device_tensor{std::move(tensor)}, m_shards{std::move(shards)},
+      m_device{std::move(device)} {
+  tt::runtime::setTensorRetain(m_device_tensor, true);
+}
 
 void Tenzorica::relay(tt::runtime::Tensor &tensor, tt::runtime::Device &device,
                       const tt::runtime::Layout &layout) {
@@ -621,7 +608,7 @@ tt::runtime::Tensor Tenzorica::tensor_from_strategy(
     const std::vector<std::uint32_t> &mesh_shape) {
 
   if (strategy.at("strategy") == "identity") {
-    return tensor_from_shard(m_shards.front());
+    return from_shard(m_shards.front());
   }
 
   tt::runtime::Tensor tensor = tt::runtime::createMultiDeviceHostTensor(
@@ -631,7 +618,7 @@ tt::runtime::Tensor Tenzorica::tensor_from_strategy(
   return tensor;
 }
 
-tt::runtime::Tensor Tenzorica::tensor_from_shard(const BufferInstance *shard) {
+tt::runtime::Tensor Tenzorica::from_shard(const BufferInstance *shard) {
   std::optional<tt::runtime::Tensor> tenzor = shard->getHostRuntimeTensor();
   assert(tenzor.has_value() && "Shard tensor does not exist.");
   return *tenzor;
@@ -642,7 +629,7 @@ std::vector<tt::runtime::Tensor> Tenzorica::tensors_from_shards() {
   tenzors.reserve(m_shards.size());
 
   for (const BufferInstance *shard : m_shards) {
-    tenzors.push_back(tensor_from_shard(shard));
+    tenzors.push_back(from_shard(shard));
   }
 
   return tenzors;

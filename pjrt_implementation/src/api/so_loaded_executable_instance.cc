@@ -162,15 +162,14 @@ void SOLoadedExecutableInstance::createDefaultOutputBuffers(
                           strides.rbegin(), std::uint32_t(1),
                           std::multiplies<>());
 
-      tt::runtime::Tensor host_tensor = tt::runtime::createOwnedHostTensor(
-          nullptr, output_shape, strides, element_size, runtime_data_type);
-
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
-              host_tensor, std::move(output_shape),
-              m_addressable_devices[device_index],
+              std::move(output_shape), m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
               output_type, device_index);
+
+      output_buffer->setHostRuntimeTensor(tt::runtime::createOwnedHostTensor(
+          nullptr, output_shape, strides, element_size, runtime_data_type));
 
       output_buffer->markAsDataReady();
 
@@ -189,6 +188,7 @@ SOLoadedExecutableInstance::prepareInputTensor(
   mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
       fillStrategyMapFromSharding(
           m_executable_image->getInputSharding(arg_index), num_devices);
+
   if (mlir::failed(strategy)) {
     DLOG_F(ERROR, "Failed to fill strategy map from sharding");
     return std::nullopt;
