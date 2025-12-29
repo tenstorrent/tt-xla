@@ -14,13 +14,19 @@ These tests are expected to produce program crashes (eg. Buffer is not allocated
 rather than numerical errors if tensor persistence is not handled correctly.
 """
 
+import os
 import threading
 
+import numpy as np
 import pytest
 import torch
+import torch_xla
 import torch_xla.core.xla_model as xm
+import torch_xla.distributed.spmd as xs
+import torch_xla.runtime as xr
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from infra.comparators.torch_comparator import TorchComparator
+from torch_xla.distributed.spmd import Mesh
 
 """
 A test suite checking various multi-graph tensor persistence scenarios.
@@ -576,3 +582,86 @@ def test_concurrent_multi_buffer_instance_transfer():
 
     for thread in threads:
         thread.join()
+
+
+def setup_spmd():
+    """Helper to enable SPMD mode with Shardy conversion."""
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    xr.use_spmd()
+
+
+def create_device_mesh(mesh_shape) -> Mesh:
+    """Helper to create a device mesh with specified shape."""
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+    return mesh
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+def test_shared_input_across_mesh_reshape():
+    """
+    Test scenario: Run 2 models back to back, one on 2x4 mesh and a 1x8 mesh,
+    and share a (replicated) input between them.
+
+    Issue repro:
+    A meshDevice close/open happens after execution of first and second model.
+    This causes all live tensors to be deallocated, silently invalidating the
+    prepared tensor cache. The shared input also gets deallocated, but PJRT
+    doesn't know about it so when the 1x8 model gets executed the shared input
+    is reused but fails due to prior deallocation.
+
+    This test is expected to fail with:
+    "Prepared input tensor is not allocated on device. This means it was
+    deallocated by a previous operation."
+    """
+
+    class Program2x4(torch.nn.Module):
+        def forward(self, x, y):
+            return x + 1, y + 1
+
+    class Program1x8(torch.nn.Module):
+        def forward(self, y):
+            return y + 1
+
+    xr.set_device_type("TT")
+    setup_spmd()
+    device = torch_xla.device()
+
+    # run 2x4 program
+    mesh = create_device_mesh(
+        (
+            2,
+            4,
+        )
+    )
+    t1 = torch.zeros(32, 32).to(device)
+    t2 = torch.zeros(32, 32).to(device)
+
+    # shard one input to 2x4 graph to signal to compiler that the graph is non-replicated
+    # eg. to avoid this case if no inputs are sharded:
+    # SPMD-enabled mesh has trivial size [1, 1], reshaping to [1, 8]
+    xs.mark_sharding(t1, mesh, (None, "model"))
+
+    print("Running 2x4", flush=True)
+    compiled_model = torch.compile(Program2x4(), backend="tt")
+    compiled_model = compiled_model.to(device)
+    output = compiled_model(t1, t2)
+    print(output)
+
+    # run 1x8 program, inducing a lazy meshDevice reshape pre-execution
+    print("Running 1x8", flush=True)
+    mesh = create_device_mesh(
+        (
+            1,
+            8,
+        )
+    )
+
+    compiled_model2 = torch.compile(Program1x8(), backend="tt")
+    compiled_model2 = compiled_model2.to(device)
+
+    # t2 is expected to have valid cached tensor at this point but does not.
+    output = compiled_model2(t2)
+    print(output)
