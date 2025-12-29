@@ -103,3 +103,23 @@ class ModelLoader(ForgeModel):
         }
 
         return kwargs
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract the differentiable tensor.
+
+        The Transfuser model returns (pred_wp, rotated_bboxes) where:
+        - pred_wp: Tensor of predicted waypoints [batch, 4, 2]
+        - rotated_bboxes: List of detected bounding boxes (not differentiable)
+
+        For training, we extract pred_wp which contains the predicted waypoints
+        used for computing gradients during backpropagation.
+
+        Args:
+            fwd_output: Output from the model's forward pass (tuple or tensor)
+
+        Returns:
+            torch.Tensor: The predicted waypoints tensor for backward pass
+        """
+        if isinstance(fwd_output, tuple):
+            return fwd_output[0]
+        return fwd_output

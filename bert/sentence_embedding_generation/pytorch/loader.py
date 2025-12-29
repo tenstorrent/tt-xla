@@ -5,6 +5,7 @@
 BERT model loader implementation for sentence embedding generation.
 """
 
+import torch
 from transformers import BertModel, BertTokenizer
 from third_party.tt_forge_models.config import (
     ModelInfo,
@@ -144,3 +145,33 @@ class ModelLoader(ForgeModel):
         ) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
         print("Sentence embeddings:", sentence_embeddings)
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        The BERT model returns a BaseModelOutputWithPoolingAndCrossAttentions
+        containing last_hidden_state and pooler_output tensors.
+
+        For training, we extract the main output tensors and concatenate them
+        to create a single differentiable tensor for backpropagation.
+
+        Args:
+            fwd_output: Output from the model's forward pass
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        tensors = []
+
+        # Handle HuggingFace model output objects
+        if hasattr(fwd_output, "last_hidden_state"):
+            tensors.append(fwd_output.last_hidden_state.flatten())
+        if (
+            hasattr(fwd_output, "pooler_output")
+            and fwd_output.pooler_output is not None
+        ):
+            tensors.append(fwd_output.pooler_output.flatten())
+
+        if tensors:
+            return torch.cat(tensors, dim=0)
+        return fwd_output

@@ -184,3 +184,35 @@ class ModelLoader(ForgeModel):
         # Print results
         for i, text in enumerate(self.text_prompts):
             print(f"Probability of '{text}':", probs[0, i].item())
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        The CLIP model (with return_dict=False) returns a tuple containing:
+        - logits_per_image: Image-text similarity scores
+        - logits_per_text: Text-image similarity scores
+        - text_embeds: Text embeddings
+        - image_embeds: Image embeddings
+        - text_model_output: Detailed text model outputs
+        - vision_model_output: Detailed vision model outputs
+
+        For training, we concatenate the main output tensors to create a single
+        differentiable tensor for backpropagation.
+
+        Args:
+            fwd_output: Output from the model's forward pass (tuple)
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        if isinstance(fwd_output, tuple):
+            tensors = []
+            for item in fwd_output:
+                if isinstance(item, torch.Tensor):
+                    tensors.append(item.flatten())
+                elif hasattr(item, "last_hidden_state"):
+                    # Handle model output objects with last_hidden_state
+                    tensors.append(item.last_hidden_state.flatten())
+            if tensors:
+                return torch.cat(tensors, dim=0)
+        return fwd_output

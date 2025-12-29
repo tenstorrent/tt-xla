@@ -6354,7 +6354,7 @@ class MapTR(MVXTwoStageDetector):
         B = img.size(0)
         if img is not None:
             if img.dim() == 5 and img.size(0) == 1:
-                img.squeeze_()
+                img = img.squeeze(0)
             img_feats = self.img_backbone(img)
 
         if self.with_img_neck:

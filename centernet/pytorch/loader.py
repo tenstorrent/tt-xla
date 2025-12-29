@@ -8,6 +8,7 @@ CenterNet model loader implementation
 from typing import Optional
 from dataclasses import dataclass
 import cv2
+import torch
 
 from ...config import (
     ModelConfig,
@@ -19,7 +20,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
+from ...tools.utils import get_file, extract_tensors_recursive
 from .src.model_utils import create_model, pre_process, load_model
 
 
@@ -182,3 +183,25 @@ class ModelLoader(ForgeModel):
             inputs = inputs.to(dtype_override)
 
         return inputs
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        The CenterNet model returns a list of dictionaries, one per stack:
+        [{"hm": heatmap_tensor, "wh": wh_tensor, "reg": reg_tensor}, ...]
+
+        For training, we extract all tensor outputs and concatenate them
+        to create a single differentiable tensor for backpropagation.
+
+        Args:
+            fwd_output: Output from the model's forward pass
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        tensors = []
+        extract_tensors_recursive(fwd_output, tensors)
+
+        if tensors:
+            return torch.cat(tensors, dim=0)
+        return fwd_output

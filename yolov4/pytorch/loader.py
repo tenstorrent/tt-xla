@@ -217,3 +217,27 @@ class ModelLoader(ForgeModel):
         plot_boxes_cv2(img_cv, results[0], output_path, class_names)
 
         return output_path
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        The YOLOv4 model returns (x4, x5, x6) where each tensor represents
+        detection outputs at different scales:
+        - x4: Small object detections [batch, 255, H1, W1]
+        - x5: Medium object detections [batch, 255, H2, W2]
+        - x6: Large object detections [batch, 255, H3, W3]
+
+        For training, we flatten and concatenate all outputs to create a single
+        tensor that allows gradients to flow through the entire network.
+
+        Args:
+            fwd_output: Output from the model's forward pass (tuple of tensors)
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        if isinstance(fwd_output, tuple):
+            # Flatten each tensor and concatenate along dim=1
+            flattened = [t.flatten(start_dim=1) for t in fwd_output]
+            return torch.cat(flattened, dim=1)
+        return fwd_output

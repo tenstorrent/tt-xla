@@ -16,7 +16,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
+from ...tools.utils import get_file, extract_tensors_recursive
 
 
 class ModelVariant(StrEnum):
@@ -167,3 +167,28 @@ class ModelLoader(ForgeModel):
             im = im.to(dtype_override)
 
         return im
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        The YOLOv9 model returns different structures depending on the mode:
+        - Training mode: list of detection tensors from each scale
+        - Inference mode: tuple (y, x) where y is processed output and x is raw
+
+        For training, we extract all tensor outputs and concatenate them
+        to create a single differentiable tensor for backpropagation.
+
+        Args:
+            fwd_output: Output from the model's forward pass
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        import torch
+
+        tensors = []
+        extract_tensors_recursive(fwd_output, tensors)
+
+        if tensors:
+            return torch.cat(tensors, dim=0)
+        return fwd_output

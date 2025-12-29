@@ -113,3 +113,34 @@ class ModelLoader(ForgeModel):
         class_names = [self.LABEL2CLASSES[label] for label in labels]
 
         print("Objects Found in Pointclouds are:", class_names)
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        The PointPillars model returns different outputs based on mode:
+        - test/val mode: List of result tensors [(k, 11), ...]
+        - train mode: (bbox_cls_pred, bbox_pred, bbox_dir_cls_pred, anchor_target_dict)
+          where each pred tensor has shape (bs, channels, H, W)
+
+        For training, we concatenate the prediction tensors (excluding the dict)
+        to create a single differentiable tensor for backpropagation.
+
+        Args:
+            fwd_output: Output from the model's forward pass
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        if isinstance(fwd_output, tuple):
+            # Train mode: (bbox_cls_pred, bbox_pred, bbox_dir_cls_pred, anchor_target_dict)
+            # Extract only the tensor outputs (skip the dict)
+            tensors = [t for t in fwd_output if isinstance(t, torch.Tensor)]
+            flattened = [t.flatten(start_dim=1) for t in tensors]
+            return torch.cat(flattened, dim=1)
+        elif isinstance(fwd_output, list):
+            # Test/val mode: list of result tensors
+            if len(fwd_output) > 0 and isinstance(fwd_output[0], torch.Tensor):
+                flattened = [t.flatten() for t in fwd_output]
+                return torch.cat(flattened, dim=0)
+            return fwd_output[0] if fwd_output else fwd_output
+        return fwd_output

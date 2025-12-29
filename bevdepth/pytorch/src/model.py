@@ -1290,10 +1290,14 @@ class VoxelPoolingTrain(Function):
     ) -> torch.Tensor:
         ctx.mark_non_differentiable(geom_xyz)
 
+        # Save original shape before reshape for gradient computation
+        original_input_shape = input_features.shape
+
         geom_xyz = geom_xyz.reshape(geom_xyz.shape[0], -1, geom_xyz.shape[-1])
         input_features = input_features.reshape(
             (geom_xyz.shape[0], -1, input_features.shape[-1])
         )
+        ctx.original_input_shape = original_input_shape
 
         batch_size = input_features.shape[0]
         num_points = input_features.shape[1]
@@ -1368,17 +1372,19 @@ class VoxelPoolingTrain(Function):
     def backward(ctx, grad_output_features):
         (grad_input_features, pos_memo) = ctx.saved_tensors
         kept = (pos_memo != -1)[..., 0]
-        grad_input_features_shape = grad_input_features.shape
+        # Use the original input shape saved in forward, not the reshaped tensor's shape
+        original_input_shape = ctx.original_input_shape
         grad_input_features = grad_input_features.reshape(
             grad_input_features.shape[0], -1, grad_input_features.shape[-1]
         )
+        grad_input_features = grad_input_features.clone()
         grad_input_features[kept] = grad_output_features[
             pos_memo[kept][..., 0].long(),
             :,
             pos_memo[kept][..., 1].long(),
             pos_memo[kept][..., 2].long(),
         ]
-        grad_input_features = grad_input_features.reshape(grad_input_features_shape)
+        grad_input_features = grad_input_features.reshape(original_input_shape)
         return None, grad_input_features, None
 
 

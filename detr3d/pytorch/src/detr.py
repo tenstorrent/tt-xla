@@ -134,7 +134,7 @@ class Detr3D(MVXTwoStageDetector):
             input_shape = img.shape[-2:]
 
             if img.dim() == 5 and img.size(0) == 1:
-                img.squeeze_()
+                img = img.squeeze(0)
             elif img.dim() == 5 and img.size(0) > 1:
                 B, N, C, H, W = img.size()
                 img = img.view(B * N, C, H, W)

@@ -20,7 +20,7 @@ from third_party.tt_forge_models.bevdepth.pytorch.src.model import (
     load_checkpoint,
     create_bevdepth_model,
 )
-from ...tools.utils import get_file
+from ...tools.utils import get_file, extract_tensors_recursive
 
 
 class ModelVariant(StrEnum):
@@ -122,3 +122,26 @@ class ModelLoader(ForgeModel):
             "bda_mat": torch.randn(1, 4, 4),
         }
         return [sweep_imgs, mats]
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        The BEVDepth model returns a nested structure from multi_apply:
+        tuple of lists of dicts, where each dict contains detection head outputs
+        like 'heatmap', 'reg', 'height', 'dim', 'rot', 'vel', etc.
+
+        For training, we extract all tensor outputs and concatenate them
+        to create a single differentiable tensor for backpropagation.
+
+        Args:
+            fwd_output: Output from the model's forward pass
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        tensors = []
+        extract_tensors_recursive(fwd_output, tensors)
+
+        if tensors:
+            return torch.cat(tensors, dim=0)
+        return fwd_output

@@ -97,3 +97,26 @@ class ModelLoader(ForgeModel):
         dummy_grid = torch.randn(batch_size, grid_depth, grid_width, 3)
 
         return (dummy_image, dummy_calib, dummy_grid)
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        The OFT model returns (scores, pos_offsets, dim_offsets, ang_offsets):
+        - scores: Detection scores [batch, num_classes, depth, width]
+        - pos_offsets: Position offsets [batch, num_classes, 3, depth, width]
+        - dim_offsets: Dimension offsets [batch, num_classes, 3, depth, width]
+        - ang_offsets: Angle offsets [batch, num_classes, 2, depth, width]
+
+        For training, we flatten and concatenate all outputs to create a single
+        tensor that allows gradients to flow through the entire network.
+
+        Args:
+            fwd_output: Output from the model's forward pass (tuple of tensors)
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        if isinstance(fwd_output, tuple):
+            flattened = [t.flatten(start_dim=1) for t in fwd_output]
+            return torch.cat(flattened, dim=1)
+        return fwd_output

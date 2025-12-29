@@ -31,6 +31,8 @@ from .src.maptr import (
 import numpy as np
 import copy
 
+from ...tools.utils import extract_tensors_recursive
+
 
 class ModelVariant(StrEnum):
     """Available MAPTR model variants."""
@@ -341,3 +343,26 @@ class ModelLoader(ForgeModel):
             data["points"] = [[torch.randn(196628, 5)]]
 
         return data
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        The MAPTR model returns bbox_results which is a list of dictionaries:
+        [{"pts_bbox": {"boxes_3d": tensor, "scores_3d": tensor,
+                       "labels_3d": tensor, "pts_3d": tensor}}, ...]
+
+        For training, we extract all tensor outputs and concatenate them
+        to create a single differentiable tensor for backpropagation.
+
+        Args:
+            fwd_output: Output from the model's forward pass
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        tensors = []
+        extract_tensors_recursive(fwd_output, tensors)
+
+        if tensors:
+            return torch.cat(tensors, dim=0)
+        return fwd_output

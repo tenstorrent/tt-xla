@@ -11,7 +11,7 @@ from ...base import ForgeModel
 from ...config import ModelGroup, ModelTask, ModelSource, Framework, StrEnum, ModelInfo
 from third_party.tt_forge_models.detr3d.pytorch.src.detr import Detr3D
 from third_party.tt_forge_models.detr3d.pytorch.src.dataset import LiDARInstance3DBoxes
-from third_party.tt_forge_models.tools.utils import get_file
+from third_party.tt_forge_models.tools.utils import get_file, extract_tensors_recursive
 
 
 class ModelVariant(StrEnum):
@@ -98,3 +98,26 @@ class ModelLoader(ForgeModel):
         }
 
         return kwargs
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        The DETR3D model returns bbox_list which is a list of dictionaries:
+        [{"pts_bbox": {"boxes_3d": tensor, "scores_3d": tensor,
+                       "labels_3d": tensor}}, ...]
+
+        For training, we extract all tensor outputs and concatenate them
+        to create a single differentiable tensor for backpropagation.
+
+        Args:
+            fwd_output: Output from the model's forward pass
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        tensors = []
+        extract_tensors_recursive(fwd_output, tensors)
+
+        if tensors:
+            return torch.cat(tensors, dim=0)
+        return fwd_output
