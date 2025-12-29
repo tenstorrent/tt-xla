@@ -3,8 +3,9 @@ name: Run Test Single
 on:
   workflow_dispatch:
     inputs:
-      dir:
-        description: 'Path passed to pytest'
+      release_tag:
+        description: 'Release tag'
+        type: string
         required: true
         type: string
       mark:
@@ -60,51 +61,33 @@ permissions:
 run-name: 'Test ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} - Shared runner: ${{ inputs.shared_runners }} )'
 
 jobs:
-  build-image:
-    uses: ./.github/workflows/call-build-docker.yml
-    secrets: inherit
-    with:
-      mlir_override: ${{ inputs.mlir_override }}
-
-  build-ttxla:
-    needs: build-image
-    uses: ./.github/workflows/call-build.yml
-    secrets: inherit
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      mlir_override: ${{ inputs.mlir_override }}
-
-  generate-test-config:
-    needs: build-ttxla
+  publish-release:
+    name: Publish release
     runs-on: ubuntu-latest
-    outputs:
-      test-config: ${{ steps.generate.outputs.test-config }}
     steps:
-      - id: generate
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create and push tag if missing
+        shell: bash
         run: |
-          TEST_CONFIG=$(jq -n \
-            --arg runs_on '${{ inputs.runs_on }}' \
-            --arg dir '${{ inputs.dir }}' \
-            --arg mark '${{ inputs.mark }}' \
-            --arg shared_runners '${{ inputs.shared_runners }}' \
-            --arg args '${{ inputs.args }}' \
-            --arg contains '${{ inputs.contains }}' \
-            --argjson parallel_groups '${{ inputs.parallel_groups }}' \
-            '[{"runs-on": $runs_on,"name": "Test","dir": $dir,"test-mark": $mark,"shared-runners": $shared_runners,"args": $args,"contains": $contains,"parallel-groups": $parallel_groups}]')
+          set -o pipefail
+          tag="${{ inputs.release_tag }}"
+          commit="${{ github.sha }}"
 
-          echo $TEST_CONFIG
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          echo "test-config=$(echo "$TEST_CONFIG" | jq -c)" >> $GITHUB_OUTPUT
+          if git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists"
+          else
+            git tag -a "$tag" -m "Release $tag" "$commit"
+            git push origin "refs/tags/$tag"
+          fi
 
-  test:
-    if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
-    uses: ./.github/workflows/call-test.yml
-    needs: [ build-image, build-ttxla, generate-test-config ]
-    secrets: inherit
-    with:
-      test_suite: 'Custom'
-      test_suite_custom: ${{ needs.generate-test-config.outputs.test-config }}
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
+      - name: Publish github release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          generate_release_notes: true
+          draft: true
