@@ -161,8 +161,7 @@ class ModelLoader(ForgeModel):
             model="ultra-fast-lane-detection",
             variant=variant,
             group=ModelGroup.RED
-            if variant
-            in [ModelVariant.TUSIMPLE_RESNET18, ModelVariant.TUSIMPLE_RESNET34]
+            if variant == ModelVariant.TUSIMPLE_RESNET18
             else ModelGroup.GENERALITY,
             source=ModelSource.GITHUB,
             task=ModelTask.CV_IMAGE_SEG,

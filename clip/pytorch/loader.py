@@ -80,7 +80,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="clip",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.RED
+            if variant == ModelVariant.BASE_PATCH16
+            else ModelGroup.GENERALITY,
             task=ModelTask.MM_IMAGE_TEXT_SIM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

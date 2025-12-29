@@ -92,7 +92,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="bevformer",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.RED
+            if variant == ModelVariant.BEVFORMER_TINY
+            else ModelGroup.GENERALITY,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.CUSTOM,
             framework=Framework.TORCH,

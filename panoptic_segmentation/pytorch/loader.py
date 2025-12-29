@@ -243,7 +243,9 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
             task=ModelTask.CV_PANOPTIC_SEG,
             source=ModelSource.DETECTRON2,
-            group=ModelGroup.RED,
+            group=ModelGroup.RED
+            if variant == ModelVariant.RESNET_50_1X_COCO
+            else ModelGroup.GENERALITY,
         )
 
     def load_model(self, **kwargs):

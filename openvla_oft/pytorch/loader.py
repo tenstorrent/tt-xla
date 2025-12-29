@@ -100,7 +100,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="openvla_oft",
             variant=variant,
-            group=ModelGroup.RED,
+            group=ModelGroup.RED
+            if variant == ModelVariant.OPENVLA_OFT_FINETUNED_LIBERO_10
+            else ModelGroup.GENERALITY,
             task=ModelTask.MM_ACTION_PREDICTION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
