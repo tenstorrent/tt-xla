@@ -1,0 +1,94 @@
+name: Uplift PJRT C API Header
+
+# This workflow uplifts the PJRT C API header from the upstream OpenXLA repo.
+# It compares the PJRT_API_MAJOR and PJRT_API_MINOR versions and creates a PR if
+# there's an uplift available.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  uplift-pjrt-api:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tt-xla
+        uses: actions/checkout@v4
+
+      - name: Clone OpenXLA repository
+        run: |
+          git clone --depth 1 https://github.com/openxla/xla.git ${{ runner.temp }}/xla
+
+      - name: Compare and uplift PJRT C API header
+        id: compare-versions
+        run: |
+          LOCAL_FILE="third_party/pjrt_c_api/xla/pjrt/c/pjrt_c_api.h"
+          LOCAL_MAJOR=$(grep -E "^#define PJRT_API_MAJOR" "$LOCAL_FILE" | awk '{print $3}')
+          LOCAL_MINOR=$(grep -E "^#define PJRT_API_MINOR" "$LOCAL_FILE" | awk '{print $3}')
+          echo "Local version: $LOCAL_MAJOR.$LOCAL_MINOR"
+
+          UPSTREAM_FILE="${{ runner.temp }}/xla/xla/pjrt/c/pjrt_c_api.h"
+          UPSTREAM_MAJOR=$(grep -E "^#define PJRT_API_MAJOR" "$UPSTREAM_FILE" | awk '{print $3}')
+          UPSTREAM_MINOR=$(grep -E "^#define PJRT_API_MINOR" "$UPSTREAM_FILE" | awk '{print $3}')
+          echo "Upstream version: $UPSTREAM_MAJOR.$UPSTREAM_MINOR"
+
+          echo "local_major=$LOCAL_MAJOR" >> "$GITHUB_OUTPUT"
+          echo "local_minor=$LOCAL_MINOR" >> "$GITHUB_OUTPUT"
+          echo "upstream_major=$UPSTREAM_MAJOR" >> "$GITHUB_OUTPUT"
+          echo "upstream_minor=$UPSTREAM_MINOR" >> "$GITHUB_OUTPUT"
+
+          # Compare versions
+          NEEDS_UPLIFT="false"
+          if [ "$UPSTREAM_MAJOR" -gt "$LOCAL_MAJOR" ]; then
+            NEEDS_UPLIFT="true"
+          elif [ "$UPSTREAM_MAJOR" -eq "$LOCAL_MAJOR" ] && [ "$UPSTREAM_MINOR" -gt "$LOCAL_MINOR" ]; then
+            NEEDS_UPLIFT="true"
+          fi
+
+          echo "needs_uplift=$NEEDS_UPLIFT" >> "$GITHUB_OUTPUT"
+
+          if [ "$NEEDS_UPLIFT" = "true" ]; then
+            echo "Uplift needed: $LOCAL_MAJOR.$LOCAL_MINOR -> $UPSTREAM_MAJOR.$UPSTREAM_MINOR"
+            cp "$UPSTREAM_FILE" "$LOCAL_FILE"
+          fi
+
+      - name: Create PR
+        if: steps.compare-versions.outputs.needs_uplift == 'true'
+        uses: peter-evans/create-pull-request@v7
+        id: create-pr
+        with:
+          branch: pjrt-api-uplift
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          base: main
+          commit-message: "Uplift PJRT C API header from ${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }} to ${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}"
+          title: "Uplift PJRT C API header from ${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }} to ${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}"
+          body: |
+            This PR uplifts the PJRT C API header file from the upstream [OpenXLA repository](https://github.com/openxla/xla).
+
+            **Version change:** `${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }}` -> `${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}`
+
+            **Source file:** https://github.com/openxla/xla/blob/main/xla/pjrt/c/pjrt_c_api.h
+
+            Please review the changes and ensure compatibility with the current implementation.
+          draft: true
+          delete-branch: true
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Generate Summary
+        run: |
+          echo "## PJRT C API Uplift Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | Major | Minor |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Local | ${{ steps.compare-versions.outputs.local_major }} | ${{ steps.compare-versions.outputs.local_minor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Upstream | ${{ steps.compare-versions.outputs.upstream_major }} | ${{ steps.compare-versions.outputs.upstream_minor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.compare-versions.outputs.needs_uplift }}" = "true" ]; then
+            echo "**Status:** Uplift available! PR created." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status:** No uplift needed. Local version is up to date." >> $GITHUB_STEP_SUMMARY
+          fi
