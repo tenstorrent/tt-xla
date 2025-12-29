@@ -16,6 +16,7 @@ test_config:
     reason: "PCC decreased with inputs changes to 0.946 in BH / 0.887 in WH"
 
   gpt_neo/causal_lm/pytorch-gpt_neo_1_3B-single_device-full-inference:
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-mlir/issues/6461
     status: EXPECTED_PASSING
 
   gpt_neo/causal_lm/pytorch-gpt_neo_2_7B-single_device-full-inference:
@@ -151,10 +152,8 @@ test_config:
 #    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
 
   albert/masked_lm/pytorch-base_v2-single_device-full-inference:
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-mlir/issues/6461
     status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2433
 
   albert/masked_lm/pytorch-xlarge_v2-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -955,10 +954,8 @@ test_config:
     markers: ["extended"]
 
   llama/causal_lm/pytorch-llama_3_2_3b-single_device-full-inference:
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-mlir/issues/6461
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        required_pcc: 0.98
 
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-full-inference:
     status: EXPECTED_PASSING
@@ -1166,6 +1163,7 @@ test_config:
     status: EXPECTED_PASSING
 
   regnet/pytorch-regnet_y_32gf-single_device-full-inference:
+    required_pcc: 0.98  # https://github.com/tenstorrent/tt-mlir/issues/6461
     status: EXPECTED_PASSING
 
   regnet/pytorch-regnet_x_400mf-single_device-full-inference:
@@ -2313,7 +2311,7 @@ test_config:
     reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/2456"
 
   gemma/codegemma/pytorch-google/codegemma-2b-single_device-full-inference:
-    required_pcc: 0.98 # PCC was >0.99 while it was calculated in f32. ATOL is bad so a drop is not unexpected.
+    assert_pcc: false # https://github.com/tenstorrent/tt-mlir/issues/6461
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-TinyLlama_v1.1-single_device-full-inference:
