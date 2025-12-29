@@ -47,11 +47,6 @@ class BaseTester(ABC):
         assert self._framework is not None
         # Creating runner will register plugin and connect the device properly.
         self._device_runner = DeviceRunnerFactory.create_runner(self._framework)
-        self._evaluator = EvaluatorFactory.create_evaluator(
-            "comparison",
-            framework=self._framework,
-            comparison_config=self._comparison_config,
-        )
 
     def serialize_compilation_artifacts(self, test_name: str) -> None:
         """Serialize the model with the appropriate output prefix.
