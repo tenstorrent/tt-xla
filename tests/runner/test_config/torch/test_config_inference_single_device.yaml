@@ -2509,3 +2509,17 @@ test_config:
   wan/pytorch-wan2.2-ti2v-5b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Wan2.2 model requires a lot of memeory and takes a lot of time to load hence skipping it for now."
+
+  gemma3/causal_lm/pytorch-google/gemma-3-270m-it-single_device-inference:
+    status: EXPECTED_PASSING
+
+  gemma3/causal_lm/pytorch-google/gemma-3-1b-it-single_device-inference:
+    status: EXPECTED_PASSING
+
+  gemma3/multimodal/pytorch-google/gemma-3-4b-it-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Shardy propagation only supports ranked tensors with a static shape."
+
+  gemma3/multimodal/pytorch-google/gemma-3-12b-it-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Shardy propagation only supports ranked tensors with a static shape."
