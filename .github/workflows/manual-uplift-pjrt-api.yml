@@ -63,6 +63,20 @@ jobs:
           if [ "$NEEDS_UPLIFT" = "true" ]; then
             echo "Uplift needed: $LOCAL_MAJOR.$LOCAL_MINOR -> $UPSTREAM_MAJOR.$UPSTREAM_MINOR"
             cp "$UPSTREAM_FILE" "$LOCAL_FILE"
+
+            # Prepend Tenstorrent license header to the file
+            {
+              echo "// SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC"
+              echo "//"
+              echo "// SPDX-License-Identifier: Apache-2.0"
+              echo "//"
+              echo "// This file incorporates work covered by the following copyright and permission"
+              echo "// notice: SPDX-FileCopyrightText: Copyright 2022 The OpenXLA Authors"
+              echo "// SPDX-License-Identifier: Apache-2.0"
+              echo ""
+              cat "$LOCAL_FILE"
+            } > temp_file && mv temp_file "$LOCAL_FILE"
+
             source venv/activate
             echo "Executing pre-commit hooks..."
             pre-commit run --files "$LOCAL_FILE"
