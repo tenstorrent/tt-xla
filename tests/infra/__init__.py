@@ -4,8 +4,8 @@
 
 """Exposes only what is really needed to write tests, nothing else."""
 
-from .evaluators import ComparisonConfig
 from .connectors import DeviceConnectorFactory, JaxDeviceConnector
+from .evaluators import ComparisonConfig
 from .testers import (
     JaxModelTester,
     RunMode,

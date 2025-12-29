@@ -11,8 +11,8 @@ import torch.nn as nn
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra.evaluators.evaluation_config import AtolConfig, ComparisonConfig, PccConfig
 from infra.evaluators import TorchComparisonEvaluator
+from infra.evaluators.evaluation_config import AtolConfig, ComparisonConfig, PccConfig
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 from utils import tensor_parallel_inference_mnist

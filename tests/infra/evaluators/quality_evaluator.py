@@ -152,3 +152,9 @@ class QualityEvaluator(Evaluator):
     def quality_config(self) -> QualityConfig:
         """Return the quality configuration."""
         return self._quality_config
+
+    @staticmethod
+    def _assert_on_results(result: QualityResult) -> None:
+        """Raise AssertionError if quality check failed."""
+        if not result.passed:
+            raise AssertionError(result.error_message)
