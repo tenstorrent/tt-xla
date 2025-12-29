@@ -1,3 +1,42 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Op-by-op test that processes MLIR IR files from a folder.
+
+This test allows the user to:
+1. Process all .mlir files recursively from a specified folder
+2. Extract operations from each IR file
+3. Filter duplicate operations
+4. Execute operations individually (with optional compile-only mode)
+
+Requires:
+    # Building with -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
+    cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
+    cmake --build build
+
+    # Having system descriptor saved
+    ttrt query --save-artifacts
+
+Usage Examples:
+    # Run with a folder containing .mlir files, generate JSON report
+    pytest -svv tests/op_by_op_wip/test_op_by_op.py::test_op_by_op --folder=/path/to/ir/folder --json-report --json-report-file=report.json
+
+    # Enable compile-only mode (skip execution)
+    pytest -svv tests/op_by_op_wip/test_op_by_op.py::test_op_by_op --folder=/path/to/ir/folder --compile-only --json-report --json-report-file=report.json
+
+Command Line Arguments:
+    --folder: Path to folder containing .mlir files (required)
+    --compile-only: Only compile operations without executing them (optional)
+
+Note:
+    - All .mlir files in the folder (including subdirectories) will be processed
+    - Each file should contain a MLIR module in StableHLO dialect
+    - Duplicate operations (same op signature) are filtered and consolidated
+    - Operations from different models are tracked via origin_model field
+"""
+
 import pytest
 from pathlib import Path
 import os
