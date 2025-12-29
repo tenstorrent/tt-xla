@@ -51,11 +51,9 @@ class MemoryInstance;
 class BufferInstance {
 public:
   // Creates new buffer instance for input buffer.
-  static std::unique_ptr<BufferInstance>
-  createInputBufferInstance(PJRT_Buffer_Type data_type,
-                            const std::int64_t *dims, size_t num_dims,
-                            DeviceInstance *device, MemoryInstance *memory,
-                            ClientInstance *client = nullptr);
+  static std::unique_ptr<BufferInstance> createInputBufferInstance(
+      PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
+      DeviceInstance *device, MemoryInstance *memory, ClientInstance *client);
 
   // Creates new buffer instance for output buffer.
   static std::unique_ptr<BufferInstance>
@@ -63,7 +61,7 @@ public:
                              std::vector<std::uint32_t> &&dimensions,
                              DeviceInstance *device, MemoryInstance *memory,
                              PJRT_Buffer_Type data_type, uint32_t device_id,
-                             ClientInstance *client = nullptr);
+                             ClientInstance *client);
 
   // Destructor, deletes buffer data if not already deleted.
   ~BufferInstance();

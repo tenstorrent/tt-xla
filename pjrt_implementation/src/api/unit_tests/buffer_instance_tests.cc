@@ -13,6 +13,7 @@
 
 // PJRT implementation headers
 #include "api/buffer_instance.h"
+#include "api/client_instance.h"
 
 namespace tt::pjrt::tests {
 
@@ -28,15 +29,21 @@ protected:
   // Runs before every test.
   void SetUp() override {
     PJRTComponentUnitTests::SetUp();
-    m_buffer = createInputBuffer();
+    // Create an uninitialized ClientInstance for buffer tracking only.
+    // We don't call initialize() since that requires hardware access.
+    m_mock_client = std::make_unique<ClientInstance>();
+    m_buffer = createInputBuffer(m_mock_client.get());
   }
 
   // Helper that creates an input buffer with default arguments.
-  std::unique_ptr<BufferInstance> createInputBuffer() {
+  std::unique_ptr<BufferInstance> createInputBuffer(ClientInstance *client) {
     return BufferInstance::createInputBufferInstance(
         DEFAULT_DATA_TYPE, DEFAULT_DIMS, DEFAULT_NUM_DIMS, m_device.get(),
-        m_default_memory.get());
+        m_default_memory.get(), client);
   }
+
+  // Mock client for buffer tracking (uninitialized, no hardware access).
+  std::unique_ptr<ClientInstance> m_mock_client;
 
   // Buffer that is unique per-test.
   std::unique_ptr<BufferInstance> m_buffer;
@@ -82,7 +89,8 @@ TEST_F(BufferInstanceUnitTests, getDimensionsRaw) {
 
 // Tests that unique ID is assigned to each buffer instance.
 TEST_F(BufferInstanceUnitTests, getUID_unique) {
-  std::unique_ptr<BufferInstance> another_buffer = createInputBuffer();
+  std::unique_ptr<BufferInstance> another_buffer =
+      createInputBuffer(m_mock_client.get());
   EXPECT_NE(m_buffer->getUID(), another_buffer->getUID());
 }
 

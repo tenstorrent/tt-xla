@@ -22,10 +22,10 @@ import pytest
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
-from infra.comparators.comparison_config import ComparisonConfig, PccConfig
-from infra.comparators.torch_comparator import TorchComparator
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from infra.comparators.comparison_config import ComparisonConfig, PccConfig
+from infra.comparators.torch_comparator import TorchComparator
 from torch_xla.distributed.spmd import Mesh
 
 """
