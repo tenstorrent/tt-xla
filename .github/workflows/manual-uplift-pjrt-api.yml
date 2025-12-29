@@ -54,7 +54,9 @@ jobs:
 
           if [ "$NEEDS_UPLIFT" = "true" ]; then
             echo "Uplift needed: $LOCAL_MAJOR.$LOCAL_MINOR -> $UPSTREAM_MAJOR.$UPSTREAM_MINOR"
+            source venv/activate
             cp "$UPSTREAM_FILE" "$LOCAL_FILE"
+            pre-commit run --files "$LOCAL_FILE"
           fi
 
       - name: Create PR
