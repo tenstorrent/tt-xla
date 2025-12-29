@@ -5,12 +5,9 @@
 Ghostnet model loader implementation
 """
 
-import timm
-import torch
 from typing import Optional
-from timm.data import resolve_data_config
-from timm.data.transforms_factory import create_transform
-from PIL import Image
+from dataclasses import dataclass
+import timm
 
 from ...config import (
     ModelConfig,
@@ -22,7 +19,17 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
+from ...tools.utils import VisionPreprocessor, VisionPostprocessor
+
+
+@dataclass
+class GhostNetConfig(ModelConfig):
+    """Configuration specific to GhostNet models"""
+
+    source: ModelSource
+    high_res_size: tuple = (
+        None  # None means use default size, otherwise (width, height)
+    )
 
 
 class ModelVariant(StrEnum):
@@ -38,14 +45,17 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.GHOSTNET_100: ModelConfig(
+        ModelVariant.GHOSTNET_100: GhostNetConfig(
             pretrained_model_name="ghostnet_100",
+            source=ModelSource.TIMM,
         ),
-        ModelVariant.GHOSTNET_100_IN1K: ModelConfig(
+        ModelVariant.GHOSTNET_100_IN1K: GhostNetConfig(
             pretrained_model_name="ghostnet_100.in1k",
+            source=ModelSource.TIMM,
         ),
-        ModelVariant.GHOSTNETV2_100_IN1K: ModelConfig(
+        ModelVariant.GHOSTNETV2_100_IN1K: GhostNetConfig(
             pretrained_model_name="ghostnetv2_100.in1k",
+            source=ModelSource.TIMM,
         ),
     }
 
@@ -60,6 +70,9 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
+        self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -74,12 +87,16 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
+        # Get source from variant config
+        source = cls._VARIANTS[variant].source
+
         return ModelInfo(
             model="ghostnet",
             variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_CLS,
-            source=ModelSource.TIMM,
+            source=source,
             framework=Framework.TORCH,
         )
 
@@ -93,76 +110,106 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The GhostNet model instance.
         """
-        # Get the pretrained model name from the instance's variant config
+        # Get the pretrained model name and source from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
+        source = self._variant_config.source
 
-        # Load model using timm
-        model = timm.create_model(model_name, pretrained=True)
+        if source == ModelSource.TIMM:
+            # Load model using timm
+            model = timm.create_model(model_name, pretrained=True)
+        else:
+            raise ValueError(f"Unsupported source for GhostNet: {source}")
+
         model.eval()
+
+        # Store model for potential use in input preprocessing and postprocessing
+        self.model = model
+
+        # Update preprocessor with cached model (for TIMM models)
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
+        # Update postprocessor with model instance (for HuggingFace models)
+        if self._postprocessor is not None:
+            self._postprocessor.set_model_instance(model)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
             model = model.to(dtype_override)
 
-        # Store model for use in load_inputs (to avoid reloading)
-        self._cached_model = model
-
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Prepare sample input for GhostNet model with this instance's variant settings.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
-            batch_size: Optional batch size to override the default batch size of 1.
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default COCO image).
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for GhostNet.
+            torch.Tensor: Preprocessed input tensor.
         """
-        # Get the Image
-        image_file = get_file(
-            "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
+        if self._preprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+            high_res_size = self._variant_config.high_res_size
+
+            self._preprocessor = VisionPreprocessor(
+                model_source=source,
+                model_name=model_name,
+                high_res_size=high_res_size,
+            )
+
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
+
+        model_for_config = None
+        if self._variant_config.source == ModelSource.TIMM:
+            if hasattr(self, "model") and self.model is not None:
+                model_for_config = self.model
+
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
         )
-        image = Image.open(image_file)
 
-        # Use cached model if available, otherwise load it
-        if hasattr(self, "_cached_model") and self._cached_model is not None:
-            model_for_config = self._cached_model
-        else:
-            model_for_config = self.load_model(dtype_override)
-
-        # Preprocess image using model's data config
-        data_config = resolve_data_config({}, model=model_for_config)
-        transforms = create_transform(**data_config)
-        inputs = transforms(image).unsqueeze(0)
-
-        # Replicate tensors for batch size
-        inputs = inputs.repeat_interleave(batch_size, dim=0)
-
-        # Only convert dtype if explicitly requested
-        if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
-
-        return inputs
-
-    def post_processing(self, co_out, top_k=5):
-        """Post-process the model outputs.
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs for the model.
 
         Args:
-            co_out: Compiled model outputs
-            top_k: Number of top predictions to show
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
 
         Returns:
-            None: Prints the top-k predicted classes
+            torch.Tensor: Preprocessed input tensor.
         """
-        probabilities = torch.nn.functional.softmax(co_out[0][0], dim=0)
-        class_file_path = get_file(
-            "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
         )
 
-        with open(class_file_path, "r") as f:
-            categories = [s.strip() for s in f.readlines()]
-        topk_prob, topk_catid = torch.topk(probabilities, top_k)
-        for i in range(topk_prob.size(0)):
-            print(categories[topk_catid[i]], topk_prob[i].item())
+    def output_postprocess(self, output):
+        """Post-process model outputs.
+
+        Args:
+            output: Model output tensor.
+
+        Returns:
+            dict: Prediction dict with top predictions.
+        """
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+
+            self._postprocessor = VisionPostprocessor(
+                model_source=source,
+                model_name=model_name,
+                model_instance=self.model,
+            )
+
+        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
