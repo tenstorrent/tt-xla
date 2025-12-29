@@ -7,3 +7,6 @@ on:
 jobs:
   release-tt-forge:
     runs-on: ubuntu-latest
+    steps:
+      - name: Release
+        run: echo "Release tt-forge"
