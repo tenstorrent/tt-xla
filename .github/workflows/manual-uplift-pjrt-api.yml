@@ -15,18 +15,26 @@ permissions:
 
 jobs:
   uplift-pjrt-api:
-    runs-on: tt-ubuntu-2204-large-stable
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout tt-xla
         uses: actions/checkout@v4
+        with:
+            repository: 'tenstorrent/tt-xla'
 
       - name: Clone OpenXLA repository
         run: |
           git clone --depth 1 https://github.com/openxla/xla.git ${{ runner.temp }}/xla
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Compare and uplift PJRT C API header
         id: compare-versions
         run: |
+
           LOCAL_FILE="third_party/pjrt_c_api/xla/pjrt/c/pjrt_c_api.h"
           LOCAL_MAJOR=$(grep -E "^#define PJRT_API_MAJOR" "$LOCAL_FILE" | awk '{print $3}')
           LOCAL_MINOR=$(grep -E "^#define PJRT_API_MINOR" "$LOCAL_FILE" | awk '{print $3}')
@@ -54,8 +62,8 @@ jobs:
 
           if [ "$NEEDS_UPLIFT" = "true" ]; then
             echo "Uplift needed: $LOCAL_MAJOR.$LOCAL_MINOR -> $UPSTREAM_MAJOR.$UPSTREAM_MINOR"
-            source venv/activate
             cp "$UPSTREAM_FILE" "$LOCAL_FILE"
+            source venv/activate
             echo "Executing pre-commit hooks..."
             pre-commit run --files "$LOCAL_FILE"
           fi
