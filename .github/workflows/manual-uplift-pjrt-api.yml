@@ -38,12 +38,12 @@ jobs:
           LOCAL_FILE="third_party/pjrt_c_api/xla/pjrt/c/pjrt_c_api.h"
           LOCAL_MAJOR=$(grep -E "^#define PJRT_API_MAJOR" "$LOCAL_FILE" | awk '{print $3}')
           LOCAL_MINOR=$(grep -E "^#define PJRT_API_MINOR" "$LOCAL_FILE" | awk '{print $3}')
-          echo "Local version: $LOCAL_MAJOR.$LOCAL_MINOR"
+          echo "Local PJRT API version: $LOCAL_MAJOR.$LOCAL_MINOR"
 
           UPSTREAM_FILE="${{ runner.temp }}/xla/xla/pjrt/c/pjrt_c_api.h"
           UPSTREAM_MAJOR=$(grep -E "^#define PJRT_API_MAJOR" "$UPSTREAM_FILE" | awk '{print $3}')
           UPSTREAM_MINOR=$(grep -E "^#define PJRT_API_MINOR" "$UPSTREAM_FILE" | awk '{print $3}')
-          echo "Upstream version: $UPSTREAM_MAJOR.$UPSTREAM_MINOR"
+          echo "Upstream PJRT API version: $UPSTREAM_MAJOR.$UPSTREAM_MINOR"
 
           echo "local_major=$LOCAL_MAJOR" >> "$GITHUB_OUTPUT"
           echo "local_minor=$LOCAL_MINOR" >> "$GITHUB_OUTPUT"
@@ -65,17 +65,18 @@ jobs:
             cp "$UPSTREAM_FILE" "$LOCAL_FILE"
 
             # Prepend Tenstorrent license header to the file
-            {
-              echo "// SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC"
-              echo "//"
-              echo "// SPDX-License-Identifier: Apache-2.0"
-              echo "//"
-              echo "// This file incorporates work covered by the following copyright and permission"
-              echo "// notice: SPDX-FileCopyrightText: Copyright 2022 The OpenXLA Authors"
-              echo "// SPDX-License-Identifier: Apache-2.0"
-              echo ""
-              cat "$LOCAL_FILE"
-            } > temp_file && mv temp_file "$LOCAL_FILE"
+            cat > temp_file << 'EOF'
+            // SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
+            //
+            // SPDX-License-Identifier: Apache-2.0
+            //
+            // This file incorporates work covered by the following copyright and permission
+            // notice: SPDX-FileCopyrightText: Copyright 2022 The OpenXLA Authors
+            // SPDX-License-Identifier: Apache-2.0
+
+            EOF
+            cat "$LOCAL_FILE" >> temp_file
+            mv temp_file "$LOCAL_FILE"
 
             source venv/activate
             echo "Executing pre-commit hooks..."
