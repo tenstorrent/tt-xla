@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
 import torch
-from infra.comparators import ComparisonConfig
+from infra.evaluators import ComparisonConfig
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.utilities import sanitize_test_name
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk

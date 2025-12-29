@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
 from flax import linen, nnx
-from infra.comparators import ComparisonConfig, ComparisonResult
+from infra.evaluators import ComparisonConfig, ComparisonResult
 from infra.connectors import DeviceConnectorFactory, JaxDeviceConnector
 from infra.runners import JaxDeviceRunner
 from infra.testers.single_chip.model import JaxModelTester, RunMode

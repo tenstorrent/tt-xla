@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Callable, Optional, Tuple
 
-from infra.comparators import ComparisonConfig, ComparisonResult
+from infra.evaluators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
 from loguru import logger
@@ -206,7 +206,7 @@ class ModelTester(BaseTester, ABC):
 
     def _compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
         """Compares device with golden output and returns the result."""
-        return self._comparator.compare(device_out, golden_out)
+        return self._evaluator.compare(device_out, golden_out)
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         """
