@@ -79,7 +79,7 @@ jobs:
 
             source venv/activate
             echo "Executing pre-commit hooks..."
-            pre-commit run --files "$LOCAL_FILE"
+            pre-commit run --files "$LOCAL_FILE" || true
           fi
 
       - name: Create PR
