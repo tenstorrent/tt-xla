@@ -37,5 +37,5 @@ build_and_push() {
 build_and_push $IMAGE_NAME .github/Dockerfile.release $ON_MAIN
 
 echo "Image built and pushed successfully"
-echo "IMAGE_NAME:"
+echo $IMAGE_NAME
 echo $IMAGE_NAME:$COMMIT_TAG
