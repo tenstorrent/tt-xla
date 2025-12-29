@@ -1008,37 +1008,25 @@ test_config:
     reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
   yolox/pytorch-yolox_nano-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
+    status: EXPECTED_PASSING
 
   yolox/pytorch-yolox_tiny-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
+    status: EXPECTED_PASSING
 
   yolox/pytorch-yolox_s-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    status: EXPECTED_PASSING
 
   yolox/pytorch-yolox_m-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    status: EXPECTED_PASSING
 
   yolox/pytorch-yolox_l-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
+    status: EXPECTED_PASSING
 
   yolox/pytorch-yolox_darknet-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
+    status: EXPECTED_PASSING
 
   yolox/pytorch-yolox_x-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
-    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
-    bringup_status: FAILED_FE_COMPILATION
+    status: EXPECTED_PASSING
 
   mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-inference:
     status: EXPECTED_PASSING
@@ -1270,24 +1258,19 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov9/pytorch-t-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+    status: EXPECTED_PASSING
 
   yolov9/pytorch-s-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+    status: EXPECTED_PASSING
 
   yolov9/pytorch-m-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+    status: EXPECTED_PASSING
 
   yolov9/pytorch-c-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+    status: EXPECTED_PASSING
 
   yolov9/pytorch-e-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+    status: EXPECTED_PASSING
 
 
   unet/pytorch-unet_cityscapes-single_device-inference:
