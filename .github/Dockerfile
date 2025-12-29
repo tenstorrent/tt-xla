@@ -32,6 +32,16 @@ SHELL ["/bin/bash", "-c"]
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Download Dockerfile.base from tt-mlir repository, find metal dependencies, and download/execute installation script
+RUN curl -fsSL https://raw.githubusercontent.com/tenstorrent/tt-mlir/main/.github/Dockerfile.base -o /tmp/Dockerfile.base && \
+    TT_METAL_DEPENDENCIES_COMMIT=$(grep 'TT_METAL_DEPENDENCIES_COMMIT=' /tmp/Dockerfile.base | cut -d'=' -f2) && \
+    echo "TT_METAL_DEPENDENCIES_COMMIT=${TT_METAL_DEPENDENCIES_COMMIT}" && \
+    rm /tmp/Dockerfile.base && \
+    wget https://raw.githubusercontent.com/tenstorrent/tt-metal/${TT_METAL_DEPENDENCIES_COMMIT}/{install_dependencies.sh,tt_metal/sfpi-info.sh,tt_metal/sfpi-version} && \
+    chmod u+x sfpi-info.sh && \
+    bash install_dependencies.sh --docker && \
+    rm install_dependencies.sh sfpi-info.sh sfpi-version
+
 # Install clang 17
 # RUN dnf install --refresh -y clang llvm llvm-devel llvm-toolset && \
 #     ln -s /usr/bin/clang-17 /usr/bin/clang && \
