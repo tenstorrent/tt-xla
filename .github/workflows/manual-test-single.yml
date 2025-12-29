@@ -60,6 +60,11 @@ permissions:
 
 run-name: 'Test ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} - Shared runner: ${{ inputs.shared_runners }} )'
 
+permissions:
+  contents: write
+  actions: read
+  id-token: write
+
 jobs:
   publish-release:
     name: Publish release
