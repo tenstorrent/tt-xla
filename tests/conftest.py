@@ -222,6 +222,12 @@ def pytest_addoption(parser):
         default=None,
         help="Perf ID for perf benchmark reports.",
     )
+    parser.addoption(
+        "--dump-irs",
+        action="store_true",
+        default=False,
+        help="Enable IR dumping during model tests",
+    )
 
 
 @pytest.fixture(autouse=True)

@@ -53,6 +53,9 @@ class CompilerConfig:
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
+    # Enables IR dumping to a specified path.
+    export_path: str = ""
+
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
@@ -79,6 +82,9 @@ class CompilerConfig:
 
         if self.enable_trace:
             options["enable_trace"] = "true"
+
+        if self.export_path != "":
+            options["export_path"] = self.export_path
 
         return options
 
