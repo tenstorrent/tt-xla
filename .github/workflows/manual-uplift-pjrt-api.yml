@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   uplift-pjrt-api:
-    runs-on: ubuntu-latest
+    runs-on: tt-ubuntu-2204-large-stable
     steps:
       - name: Checkout tt-xla
         uses: actions/checkout@v4
@@ -56,6 +56,7 @@ jobs:
             echo "Uplift needed: $LOCAL_MAJOR.$LOCAL_MINOR -> $UPSTREAM_MAJOR.$UPSTREAM_MINOR"
             source venv/activate
             cp "$UPSTREAM_FILE" "$LOCAL_FILE"
+            echo "Executing pre-commit hooks..."
             pre-commit run --files "$LOCAL_FILE"
           fi
 
