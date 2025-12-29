@@ -21,6 +21,10 @@ jobs:
     uses: ./.github/workflows/call-pre-commit.yml
     secrets: inherit
 
+  uplift-pjrt-api:
+    uses: ./.github/workflows/manual-uplift-pjrt-api.yml
+    secrets: inherit
+
   inspect-changes:
     runs-on: ubuntu-latest
     outputs:

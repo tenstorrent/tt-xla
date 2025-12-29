@@ -6,6 +6,7 @@ name: Uplift PJRT C API Header
 
 on:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: write
@@ -32,7 +33,6 @@ jobs:
       - name: Compare and uplift PJRT C API header
         id: compare-versions
         run: |
-
           LOCAL_FILE="third_party/pjrt_c_api/xla/pjrt/c/pjrt_c_api.h"
           LOCAL_MAJOR=$(grep -E "^#define PJRT_API_MAJOR" "$LOCAL_FILE" | awk '{print $3}')
           LOCAL_MINOR=$(grep -E "^#define PJRT_API_MINOR" "$LOCAL_FILE" | awk '{print $3}')
@@ -60,6 +60,26 @@ jobs:
 
           if [ "$NEEDS_UPLIFT" = "true" ]; then
             echo "Uplift needed: $LOCAL_MAJOR.$LOCAL_MINOR -> $UPSTREAM_MAJOR.$UPSTREAM_MINOR"
+
+            OLD_API_FIELDS=$(grep -oP '_PJRT_API_STRUCT_FIELD\(\K[^)]+' "$LOCAL_FILE" | sort -u)
+            NEW_API_FIELDS=$(grep -oP '_PJRT_API_STRUCT_FIELD\(\K[^)]+' "$UPSTREAM_FILE" | sort -u)
+
+            # Update stubs.inc file with new API entries
+            STUBS_FILE="pjrt_implementation/src/stubs.inc"
+            NEW_STUBS=$(comm -13 <(echo "$OLD_API_FIELDS") <(echo "$NEW_API_FIELDS"))
+
+            # Append new stubs to stubs.inc if any were found
+            if [ -n "$NEW_STUBS" ]; then
+              echo "Adding new stubs to $STUBS_FILE:"
+              echo "$NEW_STUBS"
+
+              echo "$NEW_STUBS" | while read -r stub; do
+                if [ -n "$stub" ]; then
+                  echo "  _STUB($stub);" >> "$STUBS_FILE"
+                fi
+              done
+            fi
+
             cp "$UPSTREAM_FILE" "$LOCAL_FILE"
 
             # Prepend Tenstorrent license header to the file
