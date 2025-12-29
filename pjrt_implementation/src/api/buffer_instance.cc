@@ -534,7 +534,8 @@ Tenzorica &Tenzorica::init(const tt::runtime::Tensor &tensor,
 
   validate_shards(shards);
 
-  auto tenzorica = create(tensor, shards, device);
+  auto tenzorica = std::make_shared<Tenzorica>(
+      Private{}, std::move(tensor), std::move(shards), std::move(device));
 
   for (BufferInstance *shard : tenzorica->shards()) {
     shard->setTenzorica(tenzorica);
@@ -563,7 +564,9 @@ Tenzorica &Tenzorica::init_new(
     const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy) {
 
-  auto tenzorica = create(shards, device, layout, mesh_shape, strategy);
+  auto tenzorica = std::make_shared<Tenzorica>(Private{}, std::move(shards),
+                                               std::move(device), layout,
+                                               mesh_shape, strategy);
 
   for (BufferInstance *shard : tenzorica->shards()) {
     shard->setTenzorica(tenzorica);

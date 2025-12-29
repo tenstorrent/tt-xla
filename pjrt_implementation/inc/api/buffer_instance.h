@@ -294,7 +294,7 @@ public:
                          const std::vector<BufferInstance *> &shards,
                          const tt::runtime::Device &device);
 
-public: // Need to be public for std::shared_ptr.
+public: // Needs to be public for std::shared_ptr.
   Tenzorica(Private, std::vector<BufferInstance *> shards,
             tt::runtime::Device device,
             const std::optional<const tt::runtime::Layout> &layout,
@@ -320,25 +320,6 @@ public: // Need to be public for std::shared_ptr.
   const tt::runtime::Device &device() const { return m_device; }
 
 private:
-  static std::shared_ptr<Tenzorica>
-  create(std::vector<BufferInstance *> shards, tt::runtime::Device device,
-         const std::optional<tt::runtime::Layout> &layout,
-         const std::vector<std::uint32_t> &mesh_shape,
-         const std::unordered_map<std::string, std::string> &strategy) {
-
-    return std::make_shared<Tenzorica>(Private{}, std::move(shards),
-                                       std::move(device), layout, mesh_shape,
-                                       strategy);
-  }
-
-  static std::shared_ptr<Tenzorica> create(tt::runtime::Tensor tensor,
-                                           std::vector<BufferInstance *> shards,
-                                           tt::runtime::Device device) {
-
-    return std::make_shared<Tenzorica>(Private{}, std::move(tensor),
-                                       std::move(shards), std::move(device));
-  }
-
   static Tenzorica &
   init_from_existing(const std::vector<BufferInstance *> &shards,
                      const std::optional<const tt::runtime::Layout> &layout,
