@@ -83,15 +83,10 @@ BufferInstance::BufferInstance(const std::vector<std::uint32_t> &dimensions,
                                std::optional<uint32_t> device_id)
     : m_uid(nextUID()), m_data_type(data_type),
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
-      m_device_id(device_id), m_memory(memory), m_data_ready(false),
+      m_device_id(device_id), m_memory(memory),
+      m_host_runtime_tensor(std::nullopt), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false) {
-  // We want to be in control when buffers are deallocated, which happens during
-  // buffer destruction or on delete/destroy API calls.
-  if (m_host_runtime_tensor.has_value()) {
-    tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
-  }
-}
+      m_data_deleted(false) {}
 
 BufferInstance::~BufferInstance() { deleteData(); }
 
@@ -641,7 +636,6 @@ std::vector<tt::runtime::Tensor> Tenzorica::tensors_from_shards() {
 
 // Validate that all shards are part of the same device tensor.
 void Tenzorica::validate_shards(const std::vector<BufferInstance *> &shards) {
-
   assert(!shards.empty());
 
   auto &first = shards[0]->tenzorica();

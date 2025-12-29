@@ -154,6 +154,12 @@ void SOLoadedExecutableInstance::createDefaultOutputBuffers(
       std::uint32_t element_size =
           tt::runtime::utils::dataTypeElementSize(runtime_data_type);
 
+      std::unique_ptr<BufferInstance> output_buffer =
+          BufferInstance::createOutputBufferInstance(
+              std::move(output_shape), m_addressable_devices[device_index],
+              m_addressable_devices[device_index]->getDefaultMemory(),
+              output_type, device_index);
+
       // We create a row-major tensor. Last stride is 1, one before is the last
       // dimension size, etc. That means the right algorithm is the exclusive
       // right scan.
@@ -162,15 +168,11 @@ void SOLoadedExecutableInstance::createDefaultOutputBuffers(
                           strides.rbegin(), std::uint32_t(1),
                           std::multiplies<>());
 
-      std::unique_ptr<BufferInstance> output_buffer =
-          BufferInstance::createOutputBufferInstance(
-              std::move(output_shape), m_addressable_devices[device_index],
-              m_addressable_devices[device_index]->getDefaultMemory(),
-              output_type, device_index);
+      tt::runtime::Tensor host_tensor = tt::runtime::createOwnedHostTensor(
+          nullptr, output_shape, strides, element_size, runtime_data_type);
+      tt::runtime::setTensorRetain(host_tensor, true);
 
-      output_buffer->setHostRuntimeTensor(tt::runtime::createOwnedHostTensor(
-          nullptr, output_shape, strides, element_size, runtime_data_type));
-
+      output_buffer->setHostRuntimeTensor(host_tensor);
       output_buffer->markAsDataReady();
 
       // Release ownership to the PJRT API caller
