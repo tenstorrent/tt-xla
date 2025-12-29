@@ -69,8 +69,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 ENV CC=clang
 ENV CXX=clang++
-# ENV CMAKE_C_COMPILER=clang
-# ENV CMAKE_CXX_COMPILER=clang++
+ENV CMAKE_C_COMPILER=clang
+ENV CMAKE_CXX_COMPILER=clang++
 
 # Install ccache for build caching and set up compiler wrappers
 # RUN dnf install --refresh -y ccache \
