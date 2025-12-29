@@ -6,13 +6,13 @@ import socket
 
 import pytest
 from infra import RunMode
-from infra.evaluators import ComparisonEvaluator, ComparisonResult
 from infra.testers.single_chip.model import (
     DynamicLoader,
     JaxDynamicLoader,
     TorchDynamicLoader,
 )
 
+from tests.infra.comparators.comparator import Comparator, ComparisonResult
 from tests.infra.utilities.filecheck_utils import *
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.torch import PLACEHOLDER_MODELS
@@ -151,7 +151,7 @@ def test_all_models_torch(
 
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
-                ComparisonEvaluator._assert_on_results(comparison_result)
+                Comparator._assert_on_results(comparison_result)
                 validate_filecheck_results(filecheck_results)
 
         except Exception as e:
@@ -327,7 +327,7 @@ def test_all_models_jax(
 
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
-                ComparisonEvaluator._assert_on_results(comparison_result)
+                Comparator._assert_on_results(comparison_result)
                 validate_filecheck_results(filecheck_results)
 
         except Exception as e:

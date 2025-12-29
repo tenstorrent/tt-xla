@@ -3,12 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra.evaluators.quality_config import QualityConfig
+
+from infra.comparators import ComparisonConfig
 from infra.testers.single_chip.model.model_tester import RunMode
 from infra.testers.single_chip.quality.stable_diffusion_tester import (
     StableDiffusionTester,
 )
-
 from tests.utils import Category
 
 from .data import CocoDataset
@@ -42,14 +42,15 @@ def test_clip_sdxl(request):
         height=MODEL_INFO["height"],
     )
 
-    quality_config = QualityConfig(min_clip_threshold=25.0)
+    comparison_config = ComparisonConfig()
+    comparison_config.quality.min_clip_threshold = 25.0
 
     tester = StableDiffusionTester(
         pipeline_cls=SDXLPipeline,
         pipeline_config=pipeline_config,
         dataset=dataset,
         metric="clip",
-        quality_config=quality_config,
+        comparison_config=comparison_config,
         warmup=True,
         seed=42,
     )

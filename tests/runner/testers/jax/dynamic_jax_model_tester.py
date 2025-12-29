@@ -8,7 +8,7 @@ import inspect
 
 import jax
 from flax import linen
-from infra.evaluators import ComparisonConfig
+from infra.comparators import ComparisonConfig
 from infra.testers.single_chip.model import JaxModelTester, RunMode
 from transformers import FlaxPreTrainedModel
 

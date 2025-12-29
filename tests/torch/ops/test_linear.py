@@ -10,10 +10,11 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_op_test, run_op_test_with_random_inputs
-from infra.evaluators import ComparisonConfig, TorchComparisonEvaluator
+from infra.comparators.torch_comparator import TorchComparator
 from torch_xla.distributed.spmd import Mesh
 from utils import Category
 
+from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelLoader as GemmaModelLoader,
@@ -94,7 +95,7 @@ def test_linear_torch_override():
     # Compute actual output with override active (eager mode, not compiled)
     output = F.linear(input_tensor, weight, bias)
 
-    comparator = TorchComparisonEvaluator(ComparisonConfig())
+    comparator = TorchComparator(ComparisonConfig())
     comparator.compare(output, golden)
 
 

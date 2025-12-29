@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Callable, Sequence
 
 import jax
-from infra.evaluators import ComparisonConfig
+from infra.comparators import ComparisonConfig
 from infra.utilities import ShardingMode, enable_shardy
 
 from ..op.jax_multichip_op_tester import JaxMultichipOpTester

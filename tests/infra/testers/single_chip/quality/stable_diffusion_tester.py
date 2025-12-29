@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
 import torch
+from infra.comparators import ComparisonConfig
 from infra.connectors.torch_device_connector import TorchDeviceConnector
-from infra.evaluators.quality_config import QualityConfig
 from infra.utilities import sanitize_test_name
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
 
@@ -22,10 +22,8 @@ class StableDiffusionTester(QualityTester):
     """
     Quality tester for stable-diffusion-like image generation models.
 
-    This definition assumes that the pipeline-like class will be provided. The benefit
-    of assuming a StableDiffusion architecture is that we can assume that there will
-    be a Unet model that will be used to generate images.
-
+    This definition assumes that the pipeline-like class will be provided. The benefit of assuming a StableDiffusion architecture
+    is that we can assume that there will be a Unet model that will be used to generate images.
     Example usage:
         tester = StableDiffusionTester(
             pipeline_cls=SDXLPipeline,
@@ -42,7 +40,7 @@ class StableDiffusionTester(QualityTester):
         pipeline_config: Any,
         dataset: Any,
         metric: str,
-        quality_config: Optional[QualityConfig] = None,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
         warmup: bool = True,
         seed: int = 42,
     ) -> None:
@@ -54,87 +52,112 @@ class StableDiffusionTester(QualityTester):
             pipeline_config: Configuration object for the pipeline (e.g., SDXLConfig)
             dataset: Dataset providing captions/prompts for generation
             metric: Metric name string for evaluation ('clip', 'fid')
-            quality_config: Configuration for quality metrics
+            comparison_config: Configuration for quality thresholds
             warmup: Whether to run warmup inference (default: True)
             seed: Random seed for reproducibility (default: 42)
         """
+        super().__init__(comparison_config=comparison_config)
+
         self._pipeline_cls = pipeline_cls
         self._pipeline_config = pipeline_config
         self._dataset = dataset
-        self._metric_name = metric
+        self._metric = self._resolve_metric(metric)
         self._seed = seed
-        self._warmup = warmup
 
+        # Will be set during compute_metrics
         self._pipeline: Optional[Any] = None
         self._images: Optional[torch.Tensor] = None
-        self._captions: Optional[List[str]] = None
 
-        metric_kwargs = self._build_metric_kwargs()
-
-        super().__init__(
-            quality_config=quality_config,
-            metric_kwargs=metric_kwargs,
-        )
-
-    def _build_metric_kwargs(self) -> Dict[str, Dict[str, Any]]:
+    def _resolve_metric(self, metric: str) -> Any:
         """
-        Build metric kwargs, e.g., FID statistics from dataset.
+        Resolve metric string to an instance.
+
+        Args:
+            metric: Metric name ('clip', 'fid')
 
         Returns:
-            Dictionary mapping metric names to their initialization kwargs.
+            Instantiated metric object
+
+        Raises:
+            ValueError: If FID metric is requested but dataset lacks statistics
         """
-        kwargs: Dict[str, Dict[str, Any]] = {}
-        if self._metric_name.lower() == "fid":
+        from tests.infra.metrics import get_metric
+
+        metric_kwargs = {}
+
+        # Auto-provide FID statistics from dataset if available
+        if metric.lower() == "fid":
             if hasattr(self._dataset, "statistics_mean") and hasattr(
                 self._dataset, "statistics_cov"
             ):
-                kwargs["fid"] = {
-                    "statistics_mean": self._dataset.statistics_mean,
-                    "statistics_cov": self._dataset.statistics_cov,
-                }
+                metric_kwargs["statistics_mean"] = self._dataset.statistics_mean
+                metric_kwargs["statistics_cov"] = self._dataset.statistics_cov
             else:
                 raise ValueError(
                     f"FID metric requires dataset with statistics_mean and "
                     f"statistics_cov properties. Dataset {type(self._dataset).__name__} "
                     f"does not provide these."
                 )
-        return kwargs
 
-    def _get_metric_names(self) -> List[str]:
-        """Return the configured metric name."""
-        return [self._metric_name]
+        return get_metric(metric, **metric_kwargs)
 
-    def _generate_outputs(self) -> torch.Tensor:
+    def compute_metrics(self) -> Dict[str, Any]:
         """
-        Set up the pipeline and generate images.
+        Set up the pipeline, generate images, and compute quality metrics.
 
         Returns:
-            Tensor of generated images (N, C, H, W)
+            Dictionary containing:
+                - "clip_mean": Mean CLIP score across all samples
+                - "clip_min": Minimum CLIP score across all samples
+                - "num_samples": Number of images generated
         """
         # Set up pipeline
         self._pipeline = self._pipeline_cls(config=self._pipeline_config)
-        self._pipeline.setup(warmup=self._warmup)
+        self._pipeline.setup(warmup=True)
 
         # Get captions from dataset
-        self._captions = self._dataset.captions
+        captions: List[str] = self._dataset.captions
 
         # Generate images for each caption
         images = []
-        for caption in self._captions:
+        for caption in captions:
             img = self._pipeline.generate(caption, seed=self._seed)
             images.append(img)
 
         # Concatenate all images into a single tensor
         self._images = torch.cat(images, dim=0)
-        return self._images
 
-    def _get_prompts(self) -> Optional[List[str]]:
-        """Return captions for CLIP metric."""
-        return self._captions
+        # Compute CLIP scores
+        clip_mean, clip_min = self._metric.compute(self._images, captions)
+
+        return {
+            "clip_mean": clip_mean,
+            "clip_min": clip_min,
+            "num_samples": len(captions),
+        }
+
+    def assert_quality(self, metrics: Dict[str, Any]) -> None:
+        """
+        Assert that CLIP score meets the minimum threshold.
+
+        Args:
+            metrics: Dictionary of computed metrics from compute_metrics()
+
+        Raises:
+            AssertionError: If clip_min is below min_threshold
+        """
+        clip_min = metrics["clip_min"]
+        min_clip_threshold = self._comparison_config.quality.min_clip_threshold
+        logging.info(f"CLIP score: {clip_min:.2f}")
+        logging.info(f"Minimum threshold: {min_clip_threshold:.2f}")
+        assert clip_min > min_clip_threshold, (
+            f"CLIP score regression detected: "
+            f"clip_min={clip_min:.2f} < threshold={min_clip_threshold:.2f}"
+        )
 
     @property
     def images(self) -> Optional[torch.Tensor]:
-        """Returns the generated images after _generate_outputs() has been called."""
+        """Returns the generated images after compute_metrics() has been called."""
         return self._images
 
     def serialize_on_device(self, output_prefix: str) -> None:
@@ -148,6 +171,7 @@ class StableDiffusionTester(QualityTester):
             output_prefix: Base path and filename prefix for output files
                            (creates {prefix}_ttir.mlir, {prefix}_ttnn.mlir, {prefix}.ttnn)
         """
+
         # Clear the torch compile cache to ensure clean serialization
         cache_dir = TorchDeviceConnector.get_cache_dir()
         cache_dir_path = Path(cache_dir)

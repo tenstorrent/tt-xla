@@ -9,7 +9,7 @@ from infra import (
     make_partition_spec,
     run_jax_multichip_graph_test_with_random_inputs,
 )
-from infra.evaluators import ComparisonConfig, PccConfig
+from infra.comparators import ComparisonConfig, PccConfig
 from utils import failed_fe_compilation
 
 

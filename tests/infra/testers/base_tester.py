@@ -7,7 +7,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from infra.evaluators import ComparisonConfig, ComparisonEvaluator, EvaluatorFactory
+from infra.comparators import Comparator, ComparatorFactory, ComparisonConfig
 from infra.runners import DeviceRunner, DeviceRunnerFactory
 from infra.utilities import Framework, sanitize_test_name
 
@@ -27,14 +27,14 @@ class BaseTester(ABC):
         # `_initialize_framework_specific_helpers`. Easier to spot if located in
         # constructor instead of dynamically creating them somewhere in methods.
         self._device_runner: DeviceRunner = None
-        self._comparison_evaluator: ComparisonEvaluator = None
+        self._comparator: Comparator = None
 
         # Automatically initialize framework-specific helpers
         self._initialize_framework_specific_helpers()
 
     def _initialize_framework_specific_helpers(self) -> None:
         """
-        Initializes `self._device_runner` and `self._comparison_evaluator`.
+        Initializes `self._device_runner` and `self._comparator`.
 
         Based on the framework instantiates a DeviceRunner (which internally
         instantiates a DeviceConnector singleton, ensuring plugin registration and
@@ -47,6 +47,9 @@ class BaseTester(ABC):
         assert self._framework is not None
         # Creating runner will register plugin and connect the device properly.
         self._device_runner = DeviceRunnerFactory.create_runner(self._framework)
+        self._comparator = ComparatorFactory.create_comparator(
+            self._framework, self._comparison_config
+        )
 
     def serialize_compilation_artifacts(self, test_name: str) -> None:
         """Serialize the model with the appropriate output prefix.

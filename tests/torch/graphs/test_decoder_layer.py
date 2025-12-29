@@ -9,7 +9,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
-from infra.evaluators import ComparisonConfig, PccConfig
+from infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers.models.gemma2.modeling_gemma2 import Gemma2DecoderLayer
 from transformers.models.gemma.modeling_gemma import GemmaDecoderLayer

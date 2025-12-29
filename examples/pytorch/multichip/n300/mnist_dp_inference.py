@@ -11,12 +11,8 @@ import torch.nn as nn
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra.evaluators import (
-    AtolConfig,
-    ComparisonConfig,
-    PccConfig,
-    TorchComparisonEvaluator,
-)
+from infra.comparators.comparison_config import AtolConfig, ComparisonConfig, PccConfig
+from infra.comparators.torch_comparator import TorchComparator
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 from utils import data_parallel_inference_generic
@@ -78,7 +74,7 @@ def test_mnist_inference_data_parallel(batch_size: int, input_size: int):
     with torch.no_grad():
         cpu_output = model_cpu(input_data)
 
-    comparator = TorchComparisonEvaluator(
+    comparator = TorchComparator(
         ComparisonConfig(
             atol=AtolConfig(required_atol=0.05),
             pcc=PccConfig(required_pcc=0.99),

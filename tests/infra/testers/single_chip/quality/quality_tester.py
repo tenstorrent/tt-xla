@@ -5,139 +5,77 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
-from infra.evaluators import EvaluatorFactory, QualityEvaluator, QualityResult
-from infra.evaluators.quality_config import QualityConfig
-from infra.runners import DeviceRunnerFactory
+from infra.comparators import ComparisonConfig
 from infra.utilities import Framework
 
+from ...base_tester import BaseTester
 
-class QualityTester:
+
+class QualityTester(BaseTester):
     """
     Abstract base class for quality metric-based testing.
 
     Unlike OpTester/GraphTester which compare CPU vs TT device outputs using PCC,
     QualityTester runs workloads on the target device and evaluates output quality
-    using application-specific metrics.
+    using application-specific metrics (e.g., CLIP score, FID, BLEU, etc.).
+
+    Subclasses must implement:
+        - compute_metrics(): Run the workload and compute quality metrics
+        - assert_quality(): Validate that computed metrics meet quality thresholds
     """
 
     def __init__(
         self,
-        quality_config: Optional[QualityConfig] = None,
-        metric_kwargs: Optional[Dict[str, Dict[str, Any]]] = None,
+        comparison_config: ComparisonConfig = ComparisonConfig(),
     ) -> None:
         """
         Initialize the quality tester.
 
         Args:
-            quality_config: Configuration for quality thresholds
-            metric_kwargs: Optional dict mapping metric_name -> kwargs for metric creation
+            comparison_config: Configuration for quality thresholds
         """
-        self._quality_config = (
-            quality_config if quality_config is not None else QualityConfig()
-        )
-        self._metric_kwargs = metric_kwargs or {}
-        self._quality_evaluator: Optional[QualityEvaluator] = None
-        self._last_result: Optional[QualityResult] = None
-
-        # Create device runner for torch framework (quality tests use torch)
-        self._device_runner = DeviceRunnerFactory.create_runner(Framework.TORCH)
-
-    def _initialize_quality_evaluator(self) -> None:
-        """
-        Initialize the QualityEvaluator with configured metrics.
-
-        Called lazily when metrics are first needed to allow subclasses
-        to set up metric_kwargs in their constructors.
-        """
-        metric_names = self._get_metric_names()
-        evaluator = EvaluatorFactory.create_evaluator(
-            evaluation_type="quality",
-            quality_config=self._quality_config,
-            metric_names=metric_names,
-            metric_kwargs=self._metric_kwargs,
-        )
-        # Factory returns Evaluator base type, but we know it's QualityEvaluator
-        assert isinstance(evaluator, QualityEvaluator)
-        self._quality_evaluator = evaluator
+        super().__init__(comparison_config=comparison_config, framework=Framework.TORCH)
+        self._metrics: Dict[str, Any] = {}
 
     @abstractmethod
-    def _get_metric_names(self) -> List[str]:
+    def compute_metrics(self) -> Dict[str, Any]:
         """
-        Return list of metric names to evaluate.
+        Run the workload and compute quality metrics.
 
-        Override in subclasses to specify which metrics to use.
-        E.g., ["clip"] or ["clip", "fid"]
+        This method should:
+            1. Set up any necessary pipelines/models
+            2. Run inference on the dataset/inputs
+            3. Compute and return quality metrics
+
+        Returns:
+            Dictionary of metric names to their computed values.
         """
-        raise NotImplementedError("Subclasses must implement _get_metric_names()")
+        raise NotImplementedError("Subclasses must implement compute_metrics()")
 
     @abstractmethod
-    def _generate_outputs(self) -> Any:
+    def assert_quality(self, metrics: Dict[str, Any]) -> None:
         """
-        Generate outputs to evaluate (e.g., images).
+        Validate that computed metrics meet quality thresholds.
 
-        Returns framework-specific output tensor.
+        This method should raise AssertionError if quality thresholds are not met.
+
+        Args:
+            metrics: Dictionary of computed metrics from compute_metrics()
         """
-        raise NotImplementedError("Subclasses must implement _generate_outputs()")
+        raise NotImplementedError("Subclasses must implement assert_quality()")
 
-    def _get_prompts(self) -> Optional[List[str]]:
-        """
-        Return prompts if needed for metrics like CLIP.
-
-        Override in subclasses that use prompt-based metrics.
-        Returns None by default.
-        """
-        return None
-
-    def test(self) -> QualityResult:
+    def test(self) -> None:
         """
         Main test entry point.
 
-        Generates outputs, evaluates quality, and optionally asserts on failure.
-
-        Returns:
-            QualityResult with computed metrics and pass/fail status
+        Computes metrics and validates quality thresholds.
         """
-        # lazy init
-        if self._quality_evaluator is None:
-            self._initialize_quality_evaluator()
-
-        outputs = self._generate_outputs()
-        prompts = self._get_prompts()
-
-        # At this point, evaluator is guaranteed to be initialized
-        assert self._quality_evaluator is not None
-        self._last_result = self._quality_evaluator.evaluate(outputs, prompts)
-
-        if self._quality_config.assert_on_failure and not self._last_result.passed:
-            QualityEvaluator._assert_on_results(self._last_result)
-
-        return self._last_result
+        self._metrics = self.compute_metrics()
+        self.assert_quality(self._metrics)
 
     @property
     def metrics(self) -> Dict[str, Any]:
         """Returns the computed metrics after test() has been called."""
-        if self._last_result is None:
-            return {}
-        return self._last_result.metrics or {}
-
-    @property
-    def result(self) -> Optional[QualityResult]:
-        """Returns the last evaluation result."""
-        return self._last_result
-
-    @property
-    def quality_config(self) -> QualityConfig:
-        """Returns the quality configuration."""
-        return self._quality_config
-
-    @abstractmethod
-    def serialize_on_device(self, output_prefix: str) -> None:
-        """
-        Serializes the model workload on TT device with proper compiler configuration.
-
-        Args:
-            output_prefix: Base path and filename prefix for output files
-        """
-        raise NotImplementedError("Subclasses must implement this method.")
+        return self._metrics

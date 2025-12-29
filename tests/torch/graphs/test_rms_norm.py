@@ -6,7 +6,7 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
-from infra.evaluators import ComparisonConfig, PccConfig
+from infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (

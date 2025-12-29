@@ -7,10 +7,11 @@ import pytest
 import torch
 import torch_xla.runtime as xr
 from infra import Framework, run_op_test
-from infra.evaluators import ComparisonConfig, TorchComparisonEvaluator
+from infra.comparators.torch_comparator import TorchComparator
 from torch_xla.distributed.spmd import Mesh
 from utils import Category
 
+from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelLoader as GemmaModelLoader,
