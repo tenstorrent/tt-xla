@@ -24,6 +24,7 @@ jobs:
       - name: Create and push tag if missing
         shell: bash
         run: |
+          sleep 600
           set -o pipefail
           tag="${{ inputs.release_tag }}"
           commit="${{ github.sha }}"
