@@ -63,8 +63,7 @@ jobs:
             --dir . \
             --name ${{ inputs.wheel_release_artifact_name }}
 
-          echo "Downloaded wheel"
-          ls -l wheel
+          ls -l
 
       - name: Build & push Docker image
         shell: bash
