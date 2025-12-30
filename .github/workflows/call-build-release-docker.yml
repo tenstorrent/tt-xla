@@ -43,6 +43,8 @@ jobs:
       - name: Download wheel
         shell: bash
         run: |
+          apt-get update && apt-get install -y -q gh
+
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_artifact_name }}"
           gh run download ${{ inputs.wheel_release_artifact_run_id }} \
             --repo ${{ github.repository }} \
@@ -56,7 +58,7 @@ jobs:
         shell: bash
         id: build-docker
         run: |
-          set pipefail
+          set -eo pipefail
 
           docker_tag="${{ github.sha }}"
           echo "Docker tag: $docker_tag"
