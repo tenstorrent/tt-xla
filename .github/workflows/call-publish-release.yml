@@ -16,6 +16,11 @@ on:
         type: string
         required: true
 
+permissions:
+  contents: write
+  actions: read
+  id-token: write
+
 jobs:
   publish-release:
     name: Publish release

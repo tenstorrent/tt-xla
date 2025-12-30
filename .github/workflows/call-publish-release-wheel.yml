@@ -42,8 +42,8 @@ jobs:
           tag="$VERSION"
 
           if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
-            nigthly_release_suffix="dev$(date +'%Y%m%d')"
-            tag="$VERSION.$nigthly_release_suffix"
+            nightly_release_suffix="dev$(date -u +'%Y%m%d%H%M%S')"
+            tag="$VERSION.$nightly_release_suffix"
           fi
 
           echo "tag=$tag" >> $GITHUB_OUTPUT

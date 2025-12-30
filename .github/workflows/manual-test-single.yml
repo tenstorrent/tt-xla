@@ -12,35 +12,34 @@ permissions:
   contents: write
   actions: read
   id-token: write
+  packages: write
+  checks: write
 
 jobs:
-  publish-release:
-    name: Publish release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
 
-      - name: Create and push tag if missing
-        shell: bash
-        run: |
-          set -o pipefail
-          tag="${{ inputs.release_tag }}"
-          commit="${{ github.sha }}"
+  build-ttxla:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla"
+    secrets: inherit
+    needs: build-image
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+  build-release-docker:
+    uses: ./.github/workflows/call-build-release-docker.yml
+    secrets: inherit
+    with:
+      wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
-          if git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
-            echo "Tag $tag already exists"
-          else
-            git tag -a "$tag" -m "Release $tag" "$commit"
-            git push origin "refs/tags/$tag"
-          fi
-
-      - name: Publish github release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.release_tag }}
-          generate_release_notes: true
-          draft: true
+  perf-benchmark:
+    needs: [ build-ttxla ]
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    secrets: inherit
+    with:
+        project: tt-xla
+        ref: main
+        docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
