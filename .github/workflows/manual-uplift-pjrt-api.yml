@@ -108,16 +108,22 @@ jobs:
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           base: main
-          commit-message: "Uplift PJRT C API header from ${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }} to ${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}"
-          title: "Uplift PJRT C API header from ${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }} to ${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}"
+          commit-message: "Uplift PJRT C API header from v${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }} to v${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}"
+          title: "Uplift PJRT C API header from v${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }} to v${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}"
           body: |
-            This PR uplifts the PJRT C API header file from the upstream [OpenXLA repository](https://github.com/openxla/xla).
+            ## Description
 
-            **Version change:** `v${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }}` -> `v${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}`
+            This PR uplifts the PJRT C API header from the upstream [OpenXLA repository](https://github.com/openxla/xla).
 
-            **Source file:** https://github.com/openxla/xla/blob/main/xla/pjrt/c/pjrt_c_api.h
+            - **Version change:** `v${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }}` -> `v${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}`
+            - **Source file:** https://github.com/openxla/xla/blob/main/xla/pjrt/c/pjrt_c_api.h
 
-            Please review the changes and ensure compatibility with the current implementation.
-          draft: true
+            ## Checklist
+
+            - [ ] Review the changes in `pjrt_c_api.h` and ensure backward compatibility with the tt-xla implementation.
+            - [ ] Review the changes in `stubs.inc` and discuss with the team whether a new feature should be flagged as useful for implementation.
+            - [ ] Manually run the `.github/workflows/schedule-nightly.yml` workflow to schedule an extended test set run.
+            - [x] Run PJRT unit tests (scheduled automatically upon PR creation).
+          draft: false
           delete-branch: true
           token: ${{ secrets.GH_TOKEN }}
