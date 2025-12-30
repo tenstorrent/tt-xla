@@ -11,10 +11,6 @@ on:
         description: 'Artifact name of the wheel'
         type: string
         required: true
-      is_nightly_release:
-        description: 'Is the docker a nigthly release'
-        type: boolean
-        required: true
     outputs:
       docker_image:
         description: 'Built and pushed docker image'
@@ -63,10 +59,9 @@ jobs:
           set pipefail
 
           docker_tag="${{ github.sha }}"
-          is_nigthly_release="${{ inputs.is_nightly_release }}"
           echo "Docker tag: $docker_tag"
 
-          .github/build-release-docker-image.sh $docker_tag $is_nigthly_release | tee docker.log
+          .github/build-release-docker-image.sh $docker_tag | tee docker.log
 
           docker_image=$(tail -n 1 docker.log)
           docker_image_base=$(tail -n 2 docker.log)
