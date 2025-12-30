@@ -1,0 +1,129 @@
+name: Uplift PJRT C API Header
+
+# This workflow uplifts the PJRT C API header from the upstream OpenXLA repo.
+# It compares the PJRT_API_MAJOR and PJRT_API_MINOR versions and creates a PR if
+# there's an uplift available.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  uplift-pjrt-api:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tt-xla
+        uses: actions/checkout@v4
+        with:
+            repository: 'tenstorrent/tt-xla'
+
+      - name: Clone OpenXLA repository
+        run: |
+          git clone --depth 1 https://github.com/openxla/xla.git ${{ runner.temp }}/xla
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Compare and uplift PJRT C API header
+        id: compare-versions
+        run: |
+          LOCAL_FILE="third_party/pjrt_c_api/xla/pjrt/c/pjrt_c_api.h"
+          LOCAL_MAJOR=$(grep -E "^#define PJRT_API_MAJOR" "$LOCAL_FILE" | awk '{print $3}')
+          LOCAL_MINOR=$(grep -E "^#define PJRT_API_MINOR" "$LOCAL_FILE" | awk '{print $3}')
+          echo "Local PJRT API version: $LOCAL_MAJOR.$LOCAL_MINOR"
+
+          UPSTREAM_FILE="${{ runner.temp }}/xla/xla/pjrt/c/pjrt_c_api.h"
+          UPSTREAM_MAJOR=$(grep -E "^#define PJRT_API_MAJOR" "$UPSTREAM_FILE" | awk '{print $3}')
+          UPSTREAM_MINOR=$(grep -E "^#define PJRT_API_MINOR" "$UPSTREAM_FILE" | awk '{print $3}')
+          echo "Upstream PJRT API version: $UPSTREAM_MAJOR.$UPSTREAM_MINOR"
+
+          echo "local_major=$LOCAL_MAJOR" >> "$GITHUB_OUTPUT"
+          echo "local_minor=$LOCAL_MINOR" >> "$GITHUB_OUTPUT"
+          echo "upstream_major=$UPSTREAM_MAJOR" >> "$GITHUB_OUTPUT"
+          echo "upstream_minor=$UPSTREAM_MINOR" >> "$GITHUB_OUTPUT"
+
+          # Compare versions
+          NEEDS_UPLIFT="false"
+          if [ "$UPSTREAM_MAJOR" -gt "$LOCAL_MAJOR" ]; then
+            NEEDS_UPLIFT="true"
+          elif [ "$UPSTREAM_MAJOR" -eq "$LOCAL_MAJOR" ] && [ "$UPSTREAM_MINOR" -gt "$LOCAL_MINOR" ]; then
+            NEEDS_UPLIFT="true"
+          fi
+
+          echo "needs_uplift=$NEEDS_UPLIFT" >> "$GITHUB_OUTPUT"
+
+          if [ "$NEEDS_UPLIFT" = "true" ]; then
+            echo "Uplift needed: v$LOCAL_MAJOR.$LOCAL_MINOR -> v$UPSTREAM_MAJOR.$UPSTREAM_MINOR"
+
+            OLD_API_FIELDS=$(grep -oP '_PJRT_API_STRUCT_FIELD\(\K[^)]+' "$LOCAL_FILE" | sort -u)
+            NEW_API_FIELDS=$(grep -oP '_PJRT_API_STRUCT_FIELD\(\K[^)]+' "$UPSTREAM_FILE" | sort -u)
+
+            # Update stubs.inc file with new API entries
+            STUBS_FILE="pjrt_implementation/src/stubs.inc"
+            NEW_STUBS=$(comm -13 <(echo "$OLD_API_FIELDS") <(echo "$NEW_API_FIELDS"))
+
+            # Append new stubs to stubs.inc if any were found
+            if [ -n "$NEW_STUBS" ]; then
+              echo "Adding new stubs to $STUBS_FILE:"
+              echo "$NEW_STUBS"
+
+              echo "$NEW_STUBS" | while read -r stub; do
+                if [ -n "$stub" ]; then
+                  echo "  _STUB($stub);" >> "$STUBS_FILE"
+                fi
+              done
+            fi
+
+            cp "$UPSTREAM_FILE" "$LOCAL_FILE"
+
+            # Prepend Tenstorrent license header to the file
+            printf '%s\n' \
+              "// SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC" \
+              "//" \
+              "// SPDX-License-Identifier: Apache-2.0" \
+              "//" \
+              "// This file incorporates work covered by the following copyright and permission" \
+              "// notice: SPDX-FileCopyrightText: Copyright 2022 The OpenXLA Authors" \
+              "// SPDX-License-Identifier: Apache-2.0" \
+              "" > temp_file
+            cat "$LOCAL_FILE" >> temp_file
+            mv temp_file "$LOCAL_FILE"
+
+            source venv/activate
+            echo "Executing pre-commit hooks..."
+            pre-commit run --files "$LOCAL_FILE" || true
+          fi
+
+      - name: Create PR
+        if: steps.compare-versions.outputs.needs_uplift == 'true'
+        uses: peter-evans/create-pull-request@v7
+        id: create-pr
+        with:
+          branch: pjrt-api-uplift
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          base: main
+          commit-message: "Uplift PJRT C API header from v${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }} to v${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}"
+          title: "Uplift PJRT C API header from v${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }} to v${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}"
+          body: |
+            ## Description
+
+            This PR uplifts the PJRT C API header from the upstream [OpenXLA repository](https://github.com/openxla/xla).
+
+            - **Version change:** `v${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }}` -> `v${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}`
+            - **Source file:** https://github.com/openxla/xla/blob/main/xla/pjrt/c/pjrt_c_api.h
+
+            ## Checklist
+
+            - [ ] Review the changes in `pjrt_c_api.h` and ensure backward compatibility with the tt-xla implementation.
+            - [ ] Review the changes in `stubs.inc` and discuss with the team whether a new feature should be flagged as useful for implementation.
+            - [ ] Manually run the `.github/workflows/schedule-nightly.yml` workflow to schedule an extended test set run.
+            - [x] Run PJRT unit tests (scheduled automatically upon PR creation).
+          draft: false
+          delete-branch: true
+          token: ${{ secrets.GH_TOKEN }}
