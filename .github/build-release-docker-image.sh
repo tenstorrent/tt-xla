@@ -7,7 +7,7 @@ set -e
 
 if [ $# -ne 1 ]; then
     echo "Error: Exactly 1 argument is required."
-    echo "Usage: $0 <docker-hash-tag>"
+    echo "Usage: $0 <docker-commit-tag>"
     exit 1
 fi
 
@@ -15,13 +15,10 @@ COMMIT_TAG=$1
 
 REPO=tenstorrent/tt-xla
 IMAGE_NAME=ghcr.io/$REPO/tt-xla-slim
-ON_MAIN=$(git branch --show-current | grep -q main && echo "true" || echo "false")
-LATEST_TAG="latest"
 
 build_and_push() {
   local image_name=$1
   local dockerfile=$2
-  local on_main=$3
 
   echo "Building image $image_name:$COMMIT_TAG"
   docker build \
