@@ -41,7 +41,7 @@ jobs:
     needs: [ build-ttxla, build-release-docker ]
     secrets: inherit
     with:
-        project: tt-xla
+        project-filter: tt-xla
         ref: main
         docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
         run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
