@@ -114,8 +114,8 @@ class JaxModelTester(ModelTester):
         if isinstance(self._model, nnx.Module):
             graphdef = nnx.split(self._model)[0]
 
-            def forward_pass_method(state, **inputs):
-                model_ = nnx.merge(graphdef, state)
+            def forward_pass_method(params, **inputs):
+                model_ = nnx.merge(graphdef, params)
                 return model_(**inputs)
 
         else:
@@ -198,8 +198,6 @@ class JaxModelTester(ModelTester):
             static_argnames.append("deterministic")
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
             static_argnames.append("mutable")
-        if isinstance(self._model, nnx.Module):
-            static_argnames.append("graphdef")
         return static_argnames
 
     # @override

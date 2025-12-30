@@ -29,7 +29,7 @@ class SimpleMlpTester(JaxModelTester):
         input_dim = 64
         act_shape = (batch_size, input_dim)
         act = jax.numpy.ones(act_shape)
-        return [act]
+        return {"x": act}
 
 
 # ----- Fixtures -----
