@@ -102,6 +102,7 @@ from cv2 import (
     IMREAD_IGNORE_ORIENTATION,
     IMREAD_UNCHANGED,
 )
+import supervision as sv
 
 supported_backends = ["cv2", "turbojpeg", "pillow", "tifffile"]
 imread_flags = {
@@ -155,7 +156,7 @@ class BaseDetector(BaseModel, metaclass=ABCMeta):
         self,
         inputs: torch.Tensor,
         data_samples: OptSampleList = None,
-        mode: str = "tensor",
+        mode: str = "predict",
     ) -> ForwardResults:
         if mode == "loss":
             return self.loss(inputs, data_samples)
@@ -341,10 +342,16 @@ class YOLOWorldDetector(YOLODetector):
             batch_inputs, batch_data_samples
         )
         self.bbox_head.num_classes = txt_feats[0].shape[0]
-        results_list = self.bbox_head.predict(
+        outs = self.bbox_head.predict(
             img_feats, txt_feats, txt_masks, batch_data_samples, rescale=rescale
         )
+        return outs
 
+    def post_process(self, outs, batch_data_samples: SampleList, rescale: bool = True):
+        batch_img_metas = [data_samples.metainfo for data_samples in batch_data_samples]
+        results_list = self.bbox_head.predict_by_feat(
+            *outs, batch_img_metas=batch_img_metas, rescale=rescale
+        )
         batch_data_samples = self.add_pred_to_datasample(
             batch_data_samples, results_list
         )
@@ -1531,7 +1538,6 @@ class HuggingCLIPLanguageBackbone(BaseModule):
         attention_mask = torch.tensor(text["attention_mask"], dtype=torch.long).to(
             self.model.device
         )
-
         text = {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
@@ -1543,7 +1549,6 @@ class HuggingCLIPLanguageBackbone(BaseModule):
         else:
             txt_outputs = self.model(**text)
             txt_feats = txt_outputs.text_embeds
-
         txt_feats = txt_outputs.text_embeds
         txt_feats = txt_feats / txt_feats.norm(p=2, dim=-1, keepdim=True)
         txt_feats = txt_feats.reshape(-1, num_per_batch[0], txt_feats.shape[-1])
@@ -2595,6 +2600,7 @@ class BaseDenseHead(BaseModule, metaclass=ABCMeta):
     def predict(
         self, x: Tuple[Tensor], batch_data_samples: SampleList, rescale: bool = False
     ) -> InstanceList:
+
         batch_img_metas = [data_samples.metainfo for data_samples in batch_data_samples]
 
         outs = self(x)
@@ -2888,7 +2894,6 @@ class YOLOv5Head(BaseDenseHead):
         self.prior_generator = TASK_UTILS.build(prior_generator)
         self.bbox_coder = TASK_UTILS.build(bbox_coder)
         self.num_base_priors = self.prior_generator.num_base_priors[0]
-
         self.featmap_sizes = [torch.empty(1)] * self.num_levels
 
         self.prior_match_thr = prior_match_thr
@@ -3719,12 +3724,8 @@ class YOLOWorldHead(YOLOv8Head):
         batch_data_samples: SampleList,
         rescale: bool = False,
     ) -> InstanceList:
-        batch_img_metas = [data_samples.metainfo for data_samples in batch_data_samples]
         outs = self(img_feats, txt_feats, txt_masks)
-        predictions = self.predict_by_feat(
-            *outs, batch_img_metas=batch_img_metas, rescale=rescale
-        )
-        return predictions
+        return outs
 
     def aug_test(
         self,
@@ -3879,10 +3880,8 @@ class YOLOWorldHead(YOLOv8Head):
         else:
             with_objectnesses = True
             assert len(cls_scores) == len(objectnesses)
-
         cfg = self.test_cfg if cfg is None else cfg
         cfg = copy.deepcopy(cfg)
-
         multi_label = cfg.multi_label
         multi_label &= self.num_classes > 1
         cfg.multi_label = multi_label
@@ -3893,7 +3892,9 @@ class YOLOWorldHead(YOLOv8Head):
             self.mlvl_priors = self.prior_generator.grid_priors(
                 featmap_sizes, dtype=cls_scores[0].dtype
             )
-            self.featmap_sizes = featmap_sizes
+            self.mlvl_priors = [
+                p.to(device=cls_scores[0].device) for p in self.mlvl_priors
+            ]
         flatten_priors = torch.cat(self.mlvl_priors)
         mlvl_strides = [
             flatten_priors.new_full(
@@ -5210,7 +5211,6 @@ class DistancePointBBoxCoder(MMDET_DistancePointBBoxCoder):
         assert pred_bboxes.size(-1) == 4
         if self.clip_border is False:
             max_shape = None
-
         pred_bboxes = pred_bboxes * stride[None, :, None]
 
         return distance2bbox(points, pred_bboxes, max_shape)
@@ -9972,3 +9972,15 @@ class PackDetInputs(BaseTransform):
         repr_str = self.__class__.__name__
         repr_str += f"(meta_keys={self.meta_keys})"
         return repr_str
+
+
+class LabelAnnotator(sv.LabelAnnotator):
+    @staticmethod
+    def resolve_text_background_xyxy(
+        center_coordinates,
+        text_wh,
+        position,
+    ):
+        center_x, center_y = center_coordinates
+        text_w, text_h = text_wh
+        return center_x, center_y, center_x + text_w, center_y + text_h

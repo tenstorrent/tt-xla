@@ -16,10 +16,7 @@ from ...config import (
     StrEnum,
 )
 from typing import Optional
-from .src.utils import init_detector, Config, get_test_pipeline_cfg, get_base_cfg
 from ...tools.utils import get_file
-from .src.model import MODELS, Compose
-import supervision as sv
 
 
 class ModelVariant(StrEnum):
@@ -95,21 +92,26 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_data_config(self):
+    def load_model(self, dtype_override=None):
+        from .src.utils import init_detector, Config, get_base_cfg
+        from .src.model import MODELS
+
+        checkpoint = str(get_file(f"test_files/pytorch/yoloworld/{self.variant}.pth"))
         base_cfg = get_base_cfg(variant=self.variant)
         self.config = Config(base_cfg)
-
-    def load_model(self, dtype_override=None):
-        self._load_data_config()
-        checkpoint = get_file(f"test_files/pytorch/yoloworld/{self.variant}.pth")
-        checkpoint = str(checkpoint)
         self.config.load_from = checkpoint
         self.model = init_detector(self.config, checkpoint)
         if dtype_override is not None:
             self.model = self.model.to(dtype_override)
+        self.texts = [[t.strip()] for t in self.texts.split(",")] + [[" "]]
+        self.model.reparameterize(self.texts)
         return self.model
 
     def load_inputs(self, dtype_override=None):
+
+        from .src.utils import get_test_pipeline_cfg
+        from .src.model import Compose
+
         self.image_file = get_file("https://ultralytics.com/images/bus.jpg")
         test_pipeline_cfg = get_test_pipeline_cfg(cfg=self.config)
         test_pipeline = Compose(test_pipeline_cfg)
@@ -117,18 +119,29 @@ class ModelLoader(ForgeModel):
         data_info = test_pipeline(data_info)
         if dtype_override is not None:
             data_info["inputs"] = data_info["inputs"].to(dtype_override)
-        data_batch = dict(
+        self.data_batch = dict(
             inputs=data_info["inputs"].unsqueeze(0),
             data_samples=[data_info["data_samples"]],
         )
-        return data_batch
+        self.data_batch = self.model.data_preprocessor(self.data_batch, False)
+        return self.data_batch
 
     def post_process(self, output, output_dir):
-        pred_instances = output.pred_instances
+
+        import supervision as sv
+        import cv2
+        import os
+        import os.path as osp
+        from .src.model import LabelAnnotator
+
+        output = self.model.post_process(output, self.data_batch["data_samples"])
+        pred_instances = output[0].pred_instances
         pred_instances = pred_instances[pred_instances.scores.float() > self.threshold]
         if len(pred_instances.scores) > self.topk:
             indices = pred_instances.scores.float().topk(self.topk)[1]
             pred_instances = pred_instances[indices]
+        pred_instances = pred_instances.numpy()
+        pred_instances["labels"] = pred_instances["labels"].astype(int)
         if "masks" in pred_instances:
             masks = pred_instances["masks"]
         else:
@@ -139,10 +152,18 @@ class ModelLoader(ForgeModel):
             confidence=pred_instances["scores"],
             mask=masks,
         )
+        labels = [
+            f"{self.texts[class_id][0]} {confidence:0.2f}"
+            for class_id, confidence in zip(detections.class_id, detections.confidence)
+        ]
         image = cv2.imread(self.image_file)
-        anno_image = image.copy()
+        LABEL_ANNOTATOR = LabelAnnotator(
+            text_padding=4, text_scale=0.5, text_thickness=1
+        )
         BOUNDING_BOX_ANNOTATOR = sv.BoundingBoxAnnotator(thickness=1)
         MASK_ANNOTATOR = sv.MaskAnnotator()
         image = BOUNDING_BOX_ANNOTATOR.annotate(image, detections)
         image = LABEL_ANNOTATOR.annotate(image, detections, labels=labels)
+        if not osp.exists(output_dir):
+            os.mkdir(output_dir)
         cv2.imwrite(osp.join(output_dir, osp.basename(self.image_file)), image)

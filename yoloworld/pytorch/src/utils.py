@@ -4698,10 +4698,13 @@ class BaseDataElement:
     def numpy(self) -> "BaseDataElement":
         new_data = self.new()
         for k, v in self.items():
-            if isinstance(v, (torch.Tensor, BaseDataElement)):
+            if isinstance(v, torch.Tensor):
+                if v.dtype not in (torch.float32, torch.float64):
+                    v = v.float()
                 v = v.detach().cpu().numpy()
-                data = {k: v}
-                new_data.set_data(data)
+                new_data.set_data({k: v})
+            elif isinstance(v, BaseDataElement):
+                new_data.set_data({k: v.numpy()})
         return new_data
 
     def to_tensor(self) -> "BaseDataElement":
@@ -6886,7 +6889,6 @@ class ImgDataPreprocessor(BaseDataPreprocessor):
             )
             if self._channel_conversion:
                 _batch_inputs = _batch_inputs[:, [2, 1, 0], ...]
-            _batch_inputs = _batch_inputs.float()
             if self._enable_normalize:
                 _batch_inputs = (_batch_inputs - self.mean) / self.std
             h, w = _batch_inputs.shape[2:]
@@ -7042,7 +7044,6 @@ class YOLOWDetDataPreprocessor(DetDataPreprocessor):
     def forward(self, data: dict, training: bool = False) -> dict:
         if not training:
             return super().forward(data, training)
-
         data = self.cast_data(data)
         inputs, data_samples = data["inputs"], data["data_samples"]
         assert isinstance(data["data_samples"], dict)
@@ -7606,6 +7607,13 @@ def get_s_coco_module_params(base_cfg):
                 loss_weight=base_cfg["loss_dfl_weight"],
             ),
         ),
+        test_cfg=dict(
+            multi_label=True,
+            nms_pre=30000,
+            score_thr=0.001,
+            nms=dict(type="nms", iou_threshold=0.7),
+            max_per_img=300,
+        ),
     )
 
     simple_recursive_merge(base_cfg, {"model": model})
@@ -7632,7 +7640,6 @@ def get_s_coco_module_params(base_cfg):
             ),
         ),
     ]
-
     return base_cfg
 
 
