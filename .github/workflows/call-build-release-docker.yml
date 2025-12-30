@@ -45,6 +45,8 @@ jobs:
 
       - name: Download wheel
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           sudo apt-get update
           sudo apt-get install -y -q curl gnupg
