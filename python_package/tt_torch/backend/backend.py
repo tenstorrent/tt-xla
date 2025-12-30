@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import sys
 from typing import Tuple
 
 import torch
@@ -198,4 +199,6 @@ def xla_backend(gm, example_inputs, options=None):
         if options
         else experimental_compile_default
     )
+    print(f"Experimental compile is {experimental_compile_enabled}")
+    sys.stdout.flush()
     return XLAExecutor(module, graph_signature, node_info, experimental_compile_enabled)
