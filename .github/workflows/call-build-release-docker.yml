@@ -27,6 +27,9 @@ jobs:
       docker-image: ${{ steps.build-docker.outputs.docker-image }}
       docker-image-base: ${{ steps.build-docker.outputs.docker-image-base }}
     steps:
+      - name: Fix workspace permissions issue
+        run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -43,7 +46,7 @@ jobs:
       - name: Download wheel
         shell: bash
         run: |
-          apt-get update && apt-get install -y -q gh
+          sudo apt-get update && sudo apt-get install -y -q gh
 
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_artifact_name }}"
           gh run download ${{ inputs.wheel_release_artifact_run_id }} \
