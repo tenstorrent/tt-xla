@@ -62,7 +62,7 @@ run-name: 'Test ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${
 
 permissions:
   contents: write
-  actions: read
+  actions: write
   id-token: write
   packages: write
   checks: write
