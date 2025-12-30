@@ -5,14 +5,13 @@
 
 set -e
 
-if [ $# -ne 2 ]; then
-    echo "Error: Exactly 2 arguments are required."
-    echo "Usage: $0 <docker-version-tag> <docker-hash-tag>"
+if [ $# -ne 1 ]; then
+    echo "Error: Exactly 1 argument is required."
+    echo "Usage: $0 <docker-hash-tag>"
     exit 1
 fi
 
 COMMIT_TAG=$1
-IS_NIGHTLY_RELEASE=$2
 
 REPO=tenstorrent/tt-xla
 IMAGE_NAME=ghcr.io/$REPO/tt-xla-slim
