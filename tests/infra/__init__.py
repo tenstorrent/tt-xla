@@ -4,8 +4,13 @@
 
 """Exposes only what is really needed to write tests, nothing else."""
 
+# isort: off
+# NOTE: Import order matters here - evaluators must come before connectors
+# to avoid circular import (connectors -> utilities -> runners -> connectors)
 from .evaluators import ComparisonConfig
 from .connectors import DeviceConnectorFactory, JaxDeviceConnector
+
+# isort: on
 from .testers import (
     JaxModelTester,
     RunMode,
