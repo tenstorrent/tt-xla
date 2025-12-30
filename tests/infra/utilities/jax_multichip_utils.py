@@ -62,7 +62,7 @@ def make_flax_linen_parameters_partition_specs_on_cpu(
             shard_map(
                 model.init,
                 cpu_mesh,
-                in_specs=(None, inputs_specs),
+                in_specs=(None, *inputs_specs),
                 out_specs=PartitionSpec(),
             ),
             jax.random.PRNGKey(21),
@@ -146,6 +146,6 @@ def initialize_flax_linen_parameters_on_cpu(
 ):
     """Initializes Flax linen model parameters on CPU."""
     init_fn = shard_map(
-        model.init, cpu_mesh, in_specs=(None, inputs_specs), out_specs=params_specs
+        model.init, cpu_mesh, in_specs=(None, *inputs_specs), out_specs=params_specs
     )
     return init_fn(jax.random.PRNGKey(rng_seed), cpu_inputs)
