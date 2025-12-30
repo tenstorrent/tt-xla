@@ -90,9 +90,10 @@ jobs:
 
   perf-benchmark:
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
-    needs: [ build-release-docker ]
+    needs: [ build-ttxla, build-release-docker ]
     secrets: inherit
     with:
         project: tt-xla
         ref: main
         docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
+        run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
