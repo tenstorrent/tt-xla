@@ -77,7 +77,7 @@ jobs:
           .github/build-release-docker-image.sh $docker_tag | tee docker.log
 
           docker_image=$(tail -n 1 docker.log)
-          docker_image_base=$(tail -n 2 docker.log)
+          docker_image_base=$(tail -n 2 docker.log | head -n 1)
           echo "Docker image built and pushed: $docker_image"
           echo "docker-image=$docker_image" >> "$GITHUB_OUTPUT"
           echo "docker-image-base=$docker_image_base" >> "$GITHUB_OUTPUT"
