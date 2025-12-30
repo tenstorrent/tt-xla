@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional, Sequence
 
+import jax
 from flax import nnx
 from infra.utilities import Framework, Model, ShardingMode
 from jax.sharding import Mesh, PartitionSpec
@@ -72,9 +73,19 @@ class JaxMultichipWorkload(Workload):
         assert self._sharding_mode is not None
         return self._sharding_mode
 
+    def set_model_mesh_recursive(self, device_mesh):
+      """Set mesh on config and all sub-configs"""
+      self.model.config.set_model_mesh(device_mesh)
+
+      # Check for text_config and vision_config sub-configs
+      if hasattr(self.model.config, 'text_config') and self.model.config.text_config:
+          self.model.config.text_config.set_model_mesh(device_mesh)
+      if hasattr(self.model.config, 'vision_config') and self.model.config.vision_config:
+          self.model.config.vision_config.set_model_mesh(device_mesh)
+
     def execute(self) -> Any:
         if isinstance(self.model, nnx.Module):
-            self.model.config.set_model_mesh(self._device_mesh)
+            self.set_model_mesh_recursive(self._device_mesh)
             with self.device_mesh:
                 return super().execute()
         else:

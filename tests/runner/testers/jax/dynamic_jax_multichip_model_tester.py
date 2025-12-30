@@ -156,7 +156,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         """
         assert isinstance(workload, JaxMultichipWorkload)
 
-        if not isinstance(workload.executable, nnx.Module):
+        if not isinstance(workload.model, nnx.Module):
             module_sharded_executable = shard_map(
                 workload.executable,
                 mesh=workload.device_mesh,
@@ -197,6 +197,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
             model=self._model,
             args=self._workload.args,
             kwargs=self._workload.kwargs,
+            static_argnames=self._workload.static_argnames,
             device_mesh=mesh,
             in_specs=in_specs,
             out_spec=out_spec,
@@ -213,7 +214,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         if isinstance(self._model, (linen.Module, nnx.Module)):
             return (
                 self._input_parameters_partition_specs,
-                self._input_activations_partition_specs,
+                *self._input_activations_partition_specs,
             )
 
         return ()
@@ -242,14 +243,10 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
     # @override
     def _cache_model_inputs(self) -> None:
-        """Caches model inputs."""
-        self._input_activations_partition_specs = (
-            self._get_input_activations_partition_spec()
-        )
+        """Caches model inputs."""    
         self._input_activations = self._get_input_activations()
-        self._input_parameters_partition_specs = (
-            self._get_input_parameters_partition_spec()
-        )
+        self._input_activations_partition_specs = self._get_input_activations_partition_spec()        
+        self._input_parameters_partition_specs = self._get_input_parameters_partition_spec()
         self._input_parameters = self._get_input_parameters()
 
     # Override abstract methods to use model_loader when available
@@ -333,7 +330,11 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        return {}
+        if isinstance(self._model, nnx.Module):
+            return {
+                "params": self._input_parameters,
+                **self._input_activations,
+            }
 
     # @override
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
