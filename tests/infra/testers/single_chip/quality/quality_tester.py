@@ -9,17 +9,11 @@ from typing import Any, Dict, List, Optional
 
 from infra.evaluators import EvaluatorFactory, QualityEvaluator, QualityResult
 from infra.evaluators.quality_config import QualityConfig
-from infra.runners import DeviceRunnerFactory
-from infra.utilities import Framework
 
 
 class QualityTester:
     """
     Abstract base class for quality metric-based testing.
-
-    Unlike OpTester/GraphTester which compare CPU vs TT device outputs using PCC,
-    QualityTester runs workloads on the target device and evaluates output quality
-    using application-specific metrics.
     """
 
     def __init__(
@@ -41,16 +35,7 @@ class QualityTester:
         self._quality_evaluator: Optional[QualityEvaluator] = None
         self._last_result: Optional[QualityResult] = None
 
-        # Create device runner for torch framework (quality tests use torch)
-        self._device_runner = DeviceRunnerFactory.create_runner(Framework.TORCH)
-
     def _initialize_quality_evaluator(self) -> None:
-        """
-        Initialize the QualityEvaluator with configured metrics.
-
-        Called lazily when metrics are first needed to allow subclasses
-        to set up metric_kwargs in their constructors.
-        """
         metric_names = self._get_metric_names()
         evaluator = EvaluatorFactory.create_evaluator(
             evaluation_type="quality",
@@ -58,7 +43,7 @@ class QualityTester:
             metric_names=metric_names,
             metric_kwargs=self._metric_kwargs,
         )
-        # Factory returns Evaluator base type, but we know it's QualityEvaluator
+
         assert isinstance(evaluator, QualityEvaluator)
         self._quality_evaluator = evaluator
 
@@ -66,9 +51,6 @@ class QualityTester:
     def _get_metric_names(self) -> List[str]:
         """
         Return list of metric names to evaluate.
-
-        Override in subclasses to specify which metrics to use.
-        E.g., ["clip"] or ["clip", "fid"]
         """
         raise NotImplementedError("Subclasses must implement _get_metric_names()")
 
@@ -77,16 +59,13 @@ class QualityTester:
         """
         Generate outputs to evaluate (e.g., images).
 
-        Returns framework-specific output tensor.
+        Returns application-specific outputs.
         """
         raise NotImplementedError("Subclasses must implement _generate_outputs()")
 
     def _get_prompts(self) -> Optional[List[str]]:
         """
         Return prompts if needed for metrics like CLIP.
-
-        Override in subclasses that use prompt-based metrics.
-        Returns None by default.
         """
         return None
 

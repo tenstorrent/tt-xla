@@ -7,8 +7,8 @@ from __future__ import annotations
 from typing import Callable, Sequence
 
 import jax
-from infra.connectors import JaxDeviceConnector
 from infra.evaluators import ComparisonConfig
+from infra.connectors import JaxDeviceConnector
 from infra.runners import JaxDeviceRunner
 from infra.utilities import (
     Framework,

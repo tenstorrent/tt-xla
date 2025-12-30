@@ -12,8 +12,8 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra.evaluators import TorchComparisonEvaluator
 from infra.evaluators.evaluation_config import AtolConfig, ComparisonConfig, PccConfig
+from infra.evaluators import TorchComparisonEvaluator
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 

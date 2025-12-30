@@ -12,16 +12,16 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_op_test
-from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.evaluators import TorchComparisonEvaluator
+from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.workloads import TorchWorkload
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.serialization import parse_compiled_artifacts_from_cache_to_disk
 from tt_torch.sharding import sharding_constraint_hook
 
 from tests.infra import RunMode, TorchModelTester
-from tests.infra.connectors.torch_device_connector import TorchDeviceConnector
 from tests.infra.evaluators.evaluation_config import AtolConfig, ComparisonConfig
+from tests.infra.connectors.torch_device_connector import TorchDeviceConnector
 from tests.infra.testers.single_chip.op.op_tester import OpTester
 from tests.infra.utilities import sanitize_test_name
 from tests.infra.utilities.filecheck_utils import (
