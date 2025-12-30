@@ -16,12 +16,6 @@ from .quality_config import QualityConfig
 class QualityEvaluator(Evaluator):
     """
     Evaluator that assesses output quality using application-specific metrics.
-
-    Unlike ComparisonEvaluator which compares device vs CPU outputs,
-    QualityEvaluator evaluates TT device output quality using metrics
-    like CLIP score, FID, etc. without requiring a CPU golden reference.
-
-    Metrics are selected by string name using the existing metric registry.
     """
 
     def __init__(
