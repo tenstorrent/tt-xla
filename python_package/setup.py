@@ -11,7 +11,7 @@ import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
 
-from setuptools import find_packages, setup
+from setuptools import Extension, find_packages, setup
 from setuptools.command.build_py import build_py
 from wheel.bdist_wheel import bdist_wheel
 
@@ -215,8 +215,8 @@ class BdistWheel(bdist_wheel):
         config.build_type = self.build_type
         config.enable_explorer = self.build_type == "explorer"
 
-        bdist_wheel.finalize_options(self)
         self.root_is_pure = False
+        bdist_wheel.finalize_options(self)
 
     def run(self):
         # Update the description with version info after options are finalized (e.g. self.build_type)
@@ -399,6 +399,12 @@ setup(
         # Entry point used by torch xla to register the plugin automatically.
         "torch_xla.plugins": ["tt = torch_plugin_tt:TTPlugin"],
     },
+    ext_modules=[
+        Extension(
+            name="pjrt_plugin_tt.native",
+            sources=[],
+        )
+    ],
     include_package_data=True,
     install_requires=config.requirements,
     license="Apache-2.0",

@@ -10,6 +10,7 @@ from typing import Any
 import torch
 import torch_xla.runtime as xr
 from infra.evaluators import ComparisonConfig
+from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
 
@@ -30,6 +31,7 @@ class DynamicTorchModelTester(TorchModelTester):
         *,
         loader,
         comparison_config: ComparisonConfig | None = None,
+        compiler_config: CompilerConfig = None,
         parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
     ) -> None:
         """Initialize DynamicTorchModelTester.
@@ -47,6 +49,7 @@ class DynamicTorchModelTester(TorchModelTester):
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
+            compiler_config=compiler_config,
             run_mode=run_mode,
             parallelism=self.parallelism,
         )

@@ -22,6 +22,9 @@ pytest.ini @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @n
 # Model tests configs
 /tests/runner/test_config/ @AleksKnezevic @nvukobratTT @ajakovljevicTT @jameszianxuTT @kmabeeTT @mrakitaTT @mstojkovicTT @ndrakulicTT @ppadjinTT @sdjukicTT @sgligorijevicTT @vkovinicTT @vzeljkovicTT @acicovicTT
 
+# Integration tests
+/tests/integrations/vllm_plugin/ @AleksKnezevic @kmabeeTT @mmanzoorTT @ljovanovicTT
+
 # Python package
 /python_package/ @mrakitaTT @pilkicTT @nvukobratTT @ajakovljevicTT @sgligorijevicTT @acicovicTT
 /python_package/tt_jax/ @mrakitaTT @ajakovljevicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @acicovicTT

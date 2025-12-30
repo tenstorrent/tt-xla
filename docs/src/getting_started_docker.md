@@ -78,18 +78,16 @@ export PYTHONPATH=/tt-forge:$PYTHONPATH
 git submodule update --init --recursive
 ```
 
-4. Navigate back out of the TT-Forge directory.
-
-5. Run a model. For this example, the **demo.py** for **opt_125m** is used. Similar to **gpt2**, this model predicts what the next word in a sentence is likely to be.  The **requirements.txt** file shows that you need to install **flax** and **transformers**:
+4. Run a model. For this example, the **demo.py** for **opt_125m** is used. Similar to **gpt2**, this model predicts what the next word in a sentence is likely to be.  The **requirements.txt** file shows that you need to install **flax** and **transformers**:
 
 ```bash
 pip install flax transformers
 ```
 
-7. After completing installation, run the following:
+5. After completing installation, run the following:
 
 ```bash
-python tt-forge/demos/tt-xla/opt_125m/demo.py
+python demos/tt-xla/nlp/pytorch/opt_demo.py
 ```
 
 If all goes well, you should get an example prompt saying 'The capital of France is.' The prediction for the next term is listed, along with the probability it will occur. This is followed by a table of other likely choices.

@@ -20,8 +20,8 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     def _match_data_types(tensors: PyTree) -> PyTree:
         return tree_map(
             lambda tensor: (
-                tensor.to(torch.float32)
-                if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float32
+                tensor.to(torch.float64)
+                if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float64
                 else tensor
             ),
             tensors,
@@ -55,20 +55,19 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
+            # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
+            # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
+            if TorchComparator._compare_allclose(
+                device_output, golden_output, pcc_config.allclose
+            ):
+                return 1.0
+
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
             denom = vx.norm() * vy.norm()
 
             return torch.tensor(float("nan")) if denom == 0 else (vx @ vy) / denom
 
-        # If tensors are really close, pcc will be nan. Handle that before calculating
-        # pcc by checking allclose first.
-        if TorchComparisonEvaluator._compare_allclose(
-            device_output, golden_output, pcc_config.allclose
-        ):
-            return 1.0  # Perfect correlation when values are essentially identical
-
-        # Calculate PCC for non-identical values
         leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
         pcc = min(flat_pccs)

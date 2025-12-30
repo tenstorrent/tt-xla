@@ -21,8 +21,8 @@ class JaxComparisonEvaluator(ComparisonEvaluator):
     def _match_data_types(tensors: PyTree) -> PyTree:
         return tree_map(
             lambda tensor: (
-                tensor.astype("float32")
-                if isinstance(tensor, jax.Array) and tensor.dtype.str != "float32"
+                tensor.astype("float64")
+                if isinstance(tensor, jax.Array) and tensor.dtype.str != "float64"
                 else tensor
             ),
             tensors,
@@ -56,20 +56,19 @@ class JaxComparisonEvaluator(ComparisonEvaluator):
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: jax.Array, y: jax.Array):
+            # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
+            # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
+            if JaxComparator._compare_allclose(
+                device_output, golden_output, pcc_config.allclose
+            ):
+                return 1.0
+
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - jnp.mean(x_flat), y_flat - jnp.mean(y_flat)
             denom = jnp.linalg.norm(vx) * jnp.linalg.norm(vy)
 
             return jnp.nan if denom == 0 else jnp.dot(vx, vy) / denom
 
-        # If tensors are really close, pcc will be nan. Handle that before calculating
-        # pcc by checking allclose first.
-        if JaxComparisonEvaluator._compare_allclose(
-            device_output, golden_output, pcc_config.allclose
-        ):
-            return 1.0  # Perfect correlation when values are essentially identical
-
-        # Calculate PCC for non-identical values
         leaf_pccs = jax.tree.map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = jax.tree_util.tree_flatten(leaf_pccs)
         pcc = min(flat_pccs)

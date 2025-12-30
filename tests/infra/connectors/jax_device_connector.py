@@ -20,6 +20,8 @@ class JaxDeviceConnector(DeviceConnector):
         jax.config.update("jax_num_cpu_devices", 8)
         # Update available platforms.
         jax.config.update("jax_platforms", self._supported_devices_str())
+        # Enable float64, we use it for CPU side comparisons. W/o this option JAX force downcasts to float32.
+        jax.config.update("jax_enable_x64", True)
 
     def _supported_devices_str(self) -> str:
         """Returns comma separated list of supported devices as a string."""

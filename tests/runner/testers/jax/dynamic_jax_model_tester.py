@@ -9,6 +9,7 @@ import inspect
 import jax
 from flax import linen
 from infra.evaluators import ComparisonConfig
+from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import JaxModelTester, RunMode
 from transformers import FlaxPreTrainedModel
 
@@ -28,6 +29,7 @@ class DynamicJaxModelTester(JaxModelTester):
         *,
         loader,
         comparison_config: ComparisonConfig | None = None,
+        compiler_config: CompilerConfig = None,
     ) -> None:
         """Initialize DynamicJaxModelTester.
 
@@ -41,6 +43,7 @@ class DynamicJaxModelTester(JaxModelTester):
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
+            compiler_config=compiler_config,
             run_mode=run_mode,
         )
 
