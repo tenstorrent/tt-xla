@@ -6,11 +6,12 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, Union
 
 import torch
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.evaluators.quality_config import QualityConfig
+from infra.evaluators.quality_evaluator import QualityEvaluator, QualityResult
 from infra.utilities import sanitize_test_name
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
 
@@ -40,7 +41,7 @@ class StableDiffusionTester(QualityTester):
         pipeline_cls: Type[Any],
         pipeline_config: Any,
         dataset: Any,
-        metric: str,
+        metric_names: Union[List[str], str],
         quality_config: Optional[QualityConfig] = None,
         warmup: bool = True,
         seed: int = 42,
@@ -52,7 +53,7 @@ class StableDiffusionTester(QualityTester):
             pipeline_cls: The pipeline class to instantiate (e.g., SDXLPipeline)
             pipeline_config: Configuration object for the pipeline (e.g., SDXLConfig)
             dataset: Dataset providing captions/prompts for generation
-            metric: Metric name string for evaluation ('clip', 'fid')
+            metric_names: Name or a list of names of metrics to evaluate on
             quality_config: Configuration for quality metrics
             warmup: Whether to run warmup inference (default: True)
             seed: Random seed for reproducibility (default: 42)
@@ -60,20 +61,39 @@ class StableDiffusionTester(QualityTester):
         self._pipeline_cls = pipeline_cls
         self._pipeline_config = pipeline_config
         self._dataset = dataset
-        self._metric_name = metric
+        self._captions = self._dataset.captions
+        self._metric_names = (
+            [metric_names] if isinstance(metric_names, str) else metric_names
+        )
         self._seed = seed
         self._warmup = warmup
 
         self._pipeline: Optional[Any] = None
         self._images: Optional[torch.Tensor] = None
-        self._captions: Optional[List[str]] = None
 
         metric_kwargs = self._build_metric_kwargs()
 
         super().__init__(
             quality_config=quality_config,
             metric_kwargs=metric_kwargs,
+            metric_names=self._metric_names,
         )
+
+    def test(self) -> QualityResult:
+        # lazy init
+        if self._quality_evaluator is None:
+            self._initialize_quality_evaluator()
+
+        outputs = self._generate_outputs()
+
+        # At this point, evaluator is guaranteed to be initialized
+        assert self._quality_evaluator is not None
+        self._last_result = self._quality_evaluator.evaluate(outputs, self._captions)
+
+        if self._quality_config.assert_on_failure and not self._last_result.passed:
+            QualityEvaluator._assert_on_results(self._last_result)
+
+        return self._last_result
 
     def _build_metric_kwargs(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -83,7 +103,7 @@ class StableDiffusionTester(QualityTester):
             Dictionary mapping metric names to their initialization kwargs.
         """
         kwargs: Dict[str, Dict[str, Any]] = {}
-        if self._metric_name.lower() == "fid":
+        if "fid" in self._metric_names:
             if hasattr(self._dataset, "statistics_mean") and hasattr(
                 self._dataset, "statistics_cov"
             ):
@@ -99,10 +119,6 @@ class StableDiffusionTester(QualityTester):
                 )
         return kwargs
 
-    def _get_metric_names(self) -> List[str]:
-        """Return the configured metric name."""
-        return [self._metric_name]
-
     def _generate_outputs(self) -> torch.Tensor:
         """
         Set up the pipeline and generate images.
@@ -110,12 +126,8 @@ class StableDiffusionTester(QualityTester):
         Returns:
             Tensor of generated images (N, C, H, W)
         """
-        # Set up pipeline
         self._pipeline = self._pipeline_cls(config=self._pipeline_config)
         self._pipeline.setup(warmup=self._warmup)
-
-        # Get captions from dataset
-        self._captions = self._dataset.captions
 
         # Generate images for each caption
         images = []
@@ -127,13 +139,8 @@ class StableDiffusionTester(QualityTester):
         self._images = torch.cat(images, dim=0)
         return self._images
 
-    def _get_prompts(self) -> Optional[List[str]]:
-        """Return captions for CLIP metric."""
-        return self._captions
-
     @property
     def images(self) -> Optional[torch.Tensor]:
-        """Returns the generated images after _generate_outputs() has been called."""
         return self._images
 
     def serialize_on_device(self, output_prefix: str) -> None:

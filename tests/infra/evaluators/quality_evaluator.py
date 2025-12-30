@@ -28,10 +28,10 @@ class QualityEvaluator(Evaluator):
         Initialize the quality evaluator.
 
         Args:
-            metric_names: List of metric names to compute (e.g., ["clip", "fid"])
+            metric_names: List of metric names to compute (["metric_name_1", "metric_name_2", ...])
             quality_config: Configuration with thresholds for each metric
             metric_kwargs: Optional dict mapping metric_name -> kwargs for metric creation
-                          e.g., {"fid": {"statistics_mean": ..., "statistics_cov": ...}}
+                          e.g., {"metric_name_1": {"param_1": value1, "param_2": value2}, "metric_name_2": {"param_1": ..., "param_2": ...}}
         """
         self._quality_config = quality_config
         self._metric_kwargs = metric_kwargs or {}

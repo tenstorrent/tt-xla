@@ -48,7 +48,7 @@ def test_clip_sdxl(request):
         pipeline_cls=SDXLPipeline,
         pipeline_config=pipeline_config,
         dataset=dataset,
-        metric="clip",
+        metric_names="clip",
         quality_config=quality_config,
         warmup=True,
         seed=42,

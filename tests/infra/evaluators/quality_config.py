@@ -18,12 +18,4 @@ class QualityConfig:
     # FID score threshold (lower is better)
     max_fid_threshold: float = float("inf")
 
-    # Generic threshold map for extensibility
-    # Allows adding new metrics without code changes
-    # Format: {"metric_name": {"threshold": value, "comparison": "gt" | "lt"}}
-    # "gt" means metric must be greater than threshold (higher is better)
-    # "lt" means metric must be less than threshold (lower is better)
-    custom_thresholds: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-
-    # Whether to assert on threshold failure (consistent with ComparisonConfig)
     assert_on_failure: bool = True
