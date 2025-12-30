@@ -30,14 +30,15 @@ jobs:
 
   build-release-docker:
     uses: ./.github/workflows/call-build-release-docker.yml
+    needs: [ build-ttxla ]
     secrets: inherit
     with:
       wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
   perf-benchmark:
-    needs: [ build-ttxla ]
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    needs: [ build-release-docker ]
     secrets: inherit
     with:
         project: tt-xla
