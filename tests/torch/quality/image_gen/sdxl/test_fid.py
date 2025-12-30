@@ -1,12 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import pytest
-import torch
-import torch_xla.core.xla_model as xm
-import torch_xla.runtime as xr
 
-from tests.infra import RunMode
+import pytest
+from infra.evaluators.quality_config import QualityConfig
+from infra.testers.single_chip.model.model_tester import RunMode
+from infra.testers.single_chip.quality.stable_diffusion_tester import (
+    StableDiffusionTester,
+)
+
 from tests.utils import Category
 
 from .data import CocoDataset
@@ -28,33 +30,32 @@ MODEL_INFO = {
 @pytest.mark.single_device
 @pytest.mark.nightly
 @pytest.mark.record_test_properties(
-    category=Category.QUALITY_TEST, run_mode=RunMode.INFERENCE
+    category=Category.QUALITY_TEST,
+    run_mode=RunMode.INFERENCE,
 )
-def test_fid_sdxl():
-    xr.set_device_type("TT")
-
-    pipeline = SDXLPipeline(
-        config=SDXLConfig(width=MODEL_INFO["width"], height=MODEL_INFO["height"])
-    )
-    pipeline.setup(warmup=True)
+def test_fid_sdxl(request):
     dataset = CocoDataset()
-    assert (
-        len(dataset.captions) == MODEL_INFO["num_samples"]
-    ), "Number of samples in the dataset does not match the pytest predefined number of samples. Consider updating the number of samples in the pytest properties."
+    assert len(dataset.captions) == MODEL_INFO["num_samples"], (
+        "Number of samples in the dataset does not match the pytest predefined "
+        "number of samples. Consider updating the number of samples in the pytest properties."
+    )
 
-    images = []
-    for caption in dataset.captions:
-        img = pipeline.generate(caption, seed=42)
-        images.append(img)
+    pipeline_config = SDXLConfig(
+        width=MODEL_INFO["width"],
+        height=MODEL_INFO["height"],
+    )
 
-    images = torch.cat(images, dim=0)
+    tester = StableDiffusionTester(
+        pipeline_cls=SDXLPipeline,
+        pipeline_config=pipeline_config,
+        dataset=dataset,
+        metric_names="fid",
+        quality_config=QualityConfig(),
+        warmup=True,
+        seed=42,
+    )
+    tester.test()
 
-    fid_metric = FIDMetric(dataset.statistics_mean, dataset.statistics_cov)
-
-    fid = fid_metric.compute(images)
-
-    assert fid < 325, "FID score regression detected"
-
-
-if __name__ == "__main__":
-    test_fid_sdxl()
+    # Serialize compilation artifacts if requested
+    if request.config.getoption("--serialize", default=False):
+        tester.serialize_compilation_artifacts(request.node.name)

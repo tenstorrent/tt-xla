@@ -16,6 +16,6 @@ class QualityConfig:
     min_clip_threshold: float = 25.0
 
     # FID score threshold (lower is better)
-    max_fid_threshold: float = float("inf")
+    max_fid_threshold: float = 350.0
 
     assert_on_failure: bool = True
