@@ -5,9 +5,10 @@ import os
 import sys
 from typing import Tuple
 
+# import torch_xla.core.dynamo_bridge as bridge
+import ourdynamobridge as bridge
 import torch
 import torch_xla
-import torch_xla.core.dynamo_bridge as bridge
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
@@ -193,7 +194,7 @@ def xla_backend(gm, example_inputs, options=None):
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
-    experimental_compile_default = True
+    experimental_compile_default = False
     experimental_compile_enabled = (
         options.get("tt_experimental_compile", experimental_compile_default)
         if options
