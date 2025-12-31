@@ -88,7 +88,7 @@ def llama(interactive: bool = False):
                 break
             user_prompt = [user_prompt]
         else:
-            batch_size: int = 32
+            batch_size: int = 1
             user_prompt = DEFAULT_PROMPTS[:batch_size]
 
         # Construct inputs, including static cache
@@ -97,7 +97,8 @@ def llama(interactive: bool = False):
         )
 
         # Limit maximum generation count to fit within preallocated static cache
-        max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
+        # max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
+        max_tokens_to_generate: int = 2
 
         # Transfer model and inputs to device
         model, input_args = transfer_to_device(model, input_args, device)
@@ -171,6 +172,7 @@ def setup_model_and_tokenizer(
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
+    model.config.num_hidden_layers = 1
     model = model.eval()
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
