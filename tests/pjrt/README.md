@@ -47,8 +47,6 @@ Use CTest (CMake's test driver) to run all tests:
 ctest --test-dir build/ -R PJRT -V
 ```
 
-TODO(acicovic): We should alias these commands somehow in venv.
-
 ## CI
 
-TODO(acicovic).
+PJRT unit tests are run as part of every PR's debug build workflow.
