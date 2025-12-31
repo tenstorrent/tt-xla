@@ -154,6 +154,8 @@ private:
   runFrontendSHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                           const std::optional<std::string> &export_path);
 
+  tt_pjrt_status runStablehloExportPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+
   // Collects the information about output types.
   static std::vector<PJRT_Buffer_Type>
   collectOutputTypes(const mlir::OwningOpRef<mlir::ModuleOp> &module);

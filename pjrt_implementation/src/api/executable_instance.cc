@@ -15,6 +15,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <stdlib.h>  
 
 // tt-xla includes
 #include "api/client_instance.h"
@@ -124,6 +125,8 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
   const char* convert_env = std::getenv("CONVERT_SHLO_TO_SHARDY");
   bool use_cursed_mlir = (convert_env != nullptr && std::string(convert_env) == "1");
 
+
+  // setenv("CONVERT_SHLO_TO_SHARDY", "blargh", /*overwrite=*/1);
   // Read MLIR code from file (cached after first read)
   static std::string literal_mlir_code;
   static bool file_read = false;

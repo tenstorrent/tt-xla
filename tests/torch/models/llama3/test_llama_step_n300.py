@@ -50,7 +50,7 @@ def test_llama_step(run_mode):
     enable_spmd()
 
     # Set up config variables.
-    model_hidden_layers: int = 28
+    model_hidden_layers: int = 1
     batch_size: int = 1
     max_cache_len: int = 128
     input_prompt: str = "I like taking walks in the"

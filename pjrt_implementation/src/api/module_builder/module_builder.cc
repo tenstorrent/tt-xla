@@ -69,10 +69,16 @@
 #include "api/compile_options.h"
 #include "api/executable_image.h"
 #include "api/memory_instance.h"
+#include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 #include "api/module_builder/frontend_passes/shlo_input_role_propagation.h"
 #include "api/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
+
+
+// Some hacky shit
+#include "stablehlo_export.h"
+
 
 namespace tt::pjrt::module_builder {
 
@@ -265,7 +271,31 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
+  // // Clone the module, clean it for XLA ingestion, and print it without
+  // // mutating the original module that will be used for TTIR conversion.
+  // std::string mlir_code_for_cleaning = getMlirCode(mlir_module);
+  // mlir::OwningOpRef<mlir::ModuleOp> cleaned_module =
+  //     mlir::parseSourceString<mlir::ModuleOp>(
+  //         llvm::StringRef(mlir_code_for_cleaning.data(),
+  //                         mlir_code_for_cleaning.size()),
+  //         mlir::ParserConfig{m_context.get(), /*verifyAfterParse=*/true});
+  // if (cleaned_module) {
+  //   if (tt_pjrt_status_is_ok(
+  //           frontend_passes::cleanForXlaIngestion(cleaned_module))) {
+  //     printModule(cleaned_module, compile_options.export_path,
+  //                 "shlo_compiler_cleaned_for_xla");
+  //   } else {
+  //     DLOG_F(WARNING, "Failed to clean module for XLA ingestion");
+  //   }
+  // } else {
+  //   DLOG_F(WARNING, "Failed to clone module for XLA ingestion cleaning");
+  // }
 
+  // DLOG_F(LOG_DEBUG, "[JAMES] Running Stablehlo Export Pipeline");
+  // status = runStablehloExportPipeline(mlir_module);
+  // if (!tt_pjrt_status_is_ok(status)) {
+  //   return {status, nullptr};
+  // }
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
@@ -682,6 +712,15 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     DLOG_F(ERROR, "Failed to run stablehlo pipeline");
     return tt_pjrt_status::kInternal;
   }
+
+  // // Remove @xla.sdy.FuncResultSharding and @xla.sdy.FuncArgSharding custom calls
+  // // by replacing their results with their operands, similar to how other
+  // // sharding custom calls are removed
+  // if (mlir::failed(mlir::tt::shardy_utils::removeFuncShardingCustomCalls(
+  //         mlir_module))) {
+  //   DLOG_F(ERROR, "Failed to remove FuncResultSharding/FuncArgSharding custom calls");
+  //   return tt_pjrt_status::kInternal;
+  // }
 
   printModule(mlir_module, export_path, "shlo_compiler");
 

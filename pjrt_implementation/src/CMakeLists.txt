@@ -38,15 +38,19 @@ target_link_libraries(TTPJRTTTDylib PUBLIC
     coverage_config
 )
 
-target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
+# Don't link _XLAC.so directly - it contains LLVM symbols that conflict with libTTMLIRCompiler.so
+# Instead, use dynamic loading (dlopen/dlsym) at runtime to avoid symbol conflicts
+# Allow undefined symbols - they will be resolved via dlopen/dlsym at runtime
+target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--allow-shlib-undefined")
 
 # Setting RPATH to a path involving $ORIGIN (resolved location of the pjrt_plugin_tt.so
 # file) sets its search paths in which it will search for libs it dynamically links.
+# Include venv site-packages path for _XLAC.so
 set_target_properties(TTPJRTTTDylib PROPERTIES
     PREFIX "" # Disable "lib" prefix.
     LIBRARY_OUTPUT_NAME pjrt_plugin_tt
-    BUILD_RPATH "$ORIGIN:$ORIGIN/lib"
-    INSTALL_RPATH "$ORIGIN:$ORIGIN/lib"
+    BUILD_RPATH "$ORIGIN:$ORIGIN/lib:$ORIGIN/../../venv/lib/python3.11/site-packages"
+    INSTALL_RPATH "$ORIGIN:$ORIGIN/lib:$ORIGIN/../../venv/lib/python3.11/site-packages"
 )
 
 install(TARGETS TTPJRTTTDylib DESTINATION ${CMAKE_INSTALL_PREFIX})

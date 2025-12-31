@@ -88,7 +88,7 @@ def llama(interactive: bool = False):
                 break
             user_prompt = [user_prompt]
         else:
-            batch_size: int = 32
+            batch_size: int = 1
             user_prompt = DEFAULT_PROMPTS[:batch_size]
 
         # Construct inputs, including static cache
@@ -171,6 +171,7 @@ def setup_model_and_tokenizer(
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
+    model.num_hidden_layers = 1
     model = model.eval()
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -365,6 +366,9 @@ def run_generate(
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
 
+            print("sharding of key cache post execute", torch_xla._XLAC._get_xla_sharding_spec(input_args["past_key_values"].key_cache), "device", input_args["past_key_values"].key_cache.device)
+            print("sharding of value cache post execute", torch_xla._XLAC._get_xla_sharding_spec(input_args["past_key_values"].value_cache), "device", input_args["past_key_values"].value_cache.device)
+            
             # Reapply shardings for static cache if SPMD is enabled
             # See https://github.com/tenstorrent/tt-xla/issues/1641
             if is_spmd:

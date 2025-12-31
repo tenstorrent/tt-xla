@@ -42,7 +42,6 @@ def main():
     x = torch.arange((64), dtype=torch.int).reshape((8,8)).to(device)
     xs.mark_sharding(x, mesh, (None, 'model'))
 
-    y = torch.arange((81), dtype=torch.int).reshape((9,9)).to(device)
     
     x+=1
     # z = x + y[:8,:8]
