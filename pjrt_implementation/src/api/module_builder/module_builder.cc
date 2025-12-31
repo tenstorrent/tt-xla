@@ -69,6 +69,7 @@
 #include "api/compile_options.h"
 #include "api/executable_image.h"
 #include "api/memory_instance.h"
+#include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 #include "api/module_builder/frontend_passes/shlo_input_role_propagation.h"
 #include "api/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
 #include "utils/data_type_utils.h"
@@ -265,7 +266,16 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-
+  // Sanitiation path for XLA ingestion operating on a clone of the base module
+  mlir::OwningOpRef<mlir::ModuleOp> sanitized_mlir_module = mlir_module->clone();
+  DLOG_F(LOG_DEBUG, "Cleaning for XLA ingestion");
+  status = frontend_passes::cleanForXlaIngestion(sanitized_mlir_module);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+  DLOG_F(LOG_DEBUG, "Done cleaning for XLA ingestion - resulting module:");
+  printModule(sanitized_mlir_module, compile_options.export_path, "shlo_compiler_cleaned");
+  // continue normal compilation
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
