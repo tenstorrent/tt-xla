@@ -23,20 +23,35 @@ test_config:
     assert_pcc: false  # 0.749 on BH / 0.76 on WH
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   vovnet/pytorch-vovnet27s-single_device-inference:
     status: EXPECTED_PASSING
 
   vovnet/pytorch-vovnet39_th-single_device-inference:
+=======
+  vovnet/image_classification/pytorch-vovnet27s-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vovnet/image_classification/pytorch-vovnet39_th-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: KNOWN_FAILURE_XFAIL
     reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
+<<<<<<< Updated upstream
   vovnet/pytorch-vovnet57_th-single_device-inference:
+=======
+  vovnet/image_classification/pytorch-vovnet57_th-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: KNOWN_FAILURE_XFAIL
     reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
+<<<<<<< Updated upstream
   hardnet/pytorch-single_device-inference:
+=======
+  hardnet/image_classification/pytorch-single_device-full-inference:
+>>>>>>> Stashed changes
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -44,11 +59,16 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   clip/pytorch-base_patch16-single_device-inference:
+=======
+  clip/image_text_similarity/pytorch-base_patch16-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 3802 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
     markers: ["extended"]
 
+<<<<<<< Updated upstream
   clip/pytorch-base_patch32-single_device-inference:
     status: KNOWN_FAILURE_XFAIL # Newly exposed in Sept 6 due to tt-mlir uplift.
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 7604 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
@@ -70,12 +90,36 @@ test_config:
     status: EXPECTED_PASSING
 
   bloom/pytorch-single_device-inference:
+=======
+  clip/image_text_similarity/pytorch-base_patch32-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL # Newly exposed in Sept 6 due to tt-mlir uplift.
+    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 7604 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
+
+  clip/image_text_similarity/pytorch-large_patch14-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 13185 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
+
+  clip/image_text_similarity/pytorch-large_patch14_336-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 18766 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
+
+  wide_resnet/image_classification/pytorch-wide_resnet50_2-single_device-full-inference:
+    required_pcc: 0.98
+    status: EXPECTED_PASSING
+
+  wide_resnet/image_classification/pytorch-wide_resnet101_2-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9892194867134094. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  bloom/causal_lm/pytorch-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
         assert_pcc: false
         reason: "PCC comparison failed. Calculated: pcc=0.9799284338951111. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1828"
 
+<<<<<<< Updated upstream
   xglm/pytorch-xglm-564M-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -88,6 +132,19 @@ test_config:
     status: EXPECTED_PASSING
 
   mamba/pytorch-mamba-790m-hf-single_device-inference:
+=======
+  xglm/causal_lm/pytorch-xglm-564M-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  xglm/causal_lm/pytorch-xglm-1.7B-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnet/image_classification/pytorch-resnet_50_hf-single_device-full-inference:
+    required_pcc: 0.98
+    status: EXPECTED_PASSING
+
+  mamba/causal_lm/pytorch-mamba-790m-hf-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
     markers: ["extended"]
@@ -106,11 +163,16 @@ test_config:
       n150:
         required_pcc: 0.98
 
+<<<<<<< Updated upstream
   yolov3/pytorch-base-single_device-inference:
+=======
+  yolov3/object_detection/pytorch-base-single_device-full-inference:
+>>>>>>> Stashed changes
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
     markers: ["extended"]
 
+<<<<<<< Updated upstream
   yolov4/pytorch-base-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
@@ -134,20 +196,57 @@ test_config:
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-inference:
+=======
+  yolov4/object_detection/pytorch-base-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  t5/causal_lm/pytorch-google/flan-t5-small-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  t5/causal_lm/pytorch-google/flan-t5-base-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  t5/causal_lm/pytorch-google/flan-t5-large-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  musicgen_small/tts/pytorch-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-1B-Base-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-3B-Base-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-7B-Base-single_device-full-inference:
+>>>>>>> Stashed changes
     supported_archs: ["p150"]
     required_pcc: 0.97 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/2433
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-inference:
+=======
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-10B-Base-single_device-full-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-full-inference:
+>>>>>>> Stashed changes
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
     assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
+<<<<<<< Updated upstream
 #  yolov5/pytorch-yolov5s-single_device-inference:
+=======
+#  yolov5/object_detection/pytorch-yolov5s-single_device-full-inference:
+>>>>>>> Stashed changes
 #    status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
 #    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
 
@@ -158,6 +257,7 @@ test_config:
   albert/masked_lm/pytorch-xlarge_v2-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   alexnet/pytorch-alexnet-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -165,6 +265,15 @@ test_config:
     status: EXPECTED_PASSING
 
   attention_denseunet/pytorch-base-single_device-inference:
+=======
+  alexnet/image_classification/pytorch-alexnet-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  alexnet/image_classification/pytorch-alexnetb-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  attention_denseunet/object_detection/pytorch-base-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "TT_FATAL: Output size cannot fit input with offset during TT compile/runtime – tracked in issue https://github.com/tenstorrent/tt-xla/issues/2293"
 
@@ -178,6 +287,7 @@ test_config:
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
+<<<<<<< Updated upstream
   autoencoder/pytorch-linear-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -186,6 +296,16 @@ test_config:
     reason: "MiniCPM model has a larger test execution time, hence skipping it for now."
 
   bart/pytorch-large-single_device-inference:
+=======
+  autoencoder/image_to_image/pytorch-linear-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  minicpm_o_2_6/image_to_text/pytorch-default-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "MiniCPM model has a larger test execution time, hence skipping it for now."
+
+  bart/text_classification/pytorch-large-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
 
   bert/question_answering/pytorch-phiyodr/bert-large-finetuned-squad2-single_device-inference:
@@ -194,6 +314,7 @@ test_config:
   bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   codegen/pytorch-Salesforce/codegen-350M-mono-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -224,6 +345,38 @@ test_config:
     status: EXPECTED_PASSING
 
   densenet/pytorch-densenet201-single_device-inference:
+=======
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-mono-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-multi-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-nl-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  deit/image_classification/pytorch-base_distilled-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  deit/image_classification/pytorch-small-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  deit/image_classification/pytorch-tiny-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  densenet/image_classification/pytorch-densenet121-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  densenet/image_classification/pytorch-densenet161-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.985  # 0.990 for BH, 0.989 for WH
+
+  densenet/image_classification/pytorch-densenet169-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9880856871604919. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  densenet/image_classification/pytorch-densenet201-single_device-full-inference:
+>>>>>>> Stashed changes
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9871042966842651. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -245,6 +398,7 @@ test_config:
   distilbert/token_classification/pytorch-Davlan/distilbert-base-multilingual-cased-ner-hrl-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   dla/pytorch-dla102-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -255,10 +409,23 @@ test_config:
     status: EXPECTED_PASSING
 
   dla/pytorch-dla169-single_device-inference:
+=======
+  dla/image_classification/pytorch-dla102-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  dla/image_classification/pytorch-dla102x2-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  dla/image_classification/pytorch-dla102x-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  dla/image_classification/pytorch-dla169-single_device-full-inference:
+>>>>>>> Stashed changes
     required_pcc: 0.98  # PCC comparison failed with pcc=0.9898209571838379 in n150 and pcc=0.9885705709457397 in p150.
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed - https://github.com/tenstorrent/tt-xla/issues/2010"
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   dla/pytorch-dla34-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -275,6 +442,24 @@ test_config:
     status: EXPECTED_PASSING
 
   dla/pytorch-dla60x-single_device-inference:
+=======
+  dla/image_classification/pytorch-dla34-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  dla/image_classification/pytorch-dla46_c-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  dla/image_classification/pytorch-dla46x_c-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  dla/image_classification/pytorch-dla60-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  dla/image_classification/pytorch-dla60x_c-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  dla/image_classification/pytorch-dla60x-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
 
   dpr/question_encoder/pytorch-facebook/dpr-question_encoder-single-nq-base-single_device-inference:
@@ -295,6 +480,7 @@ test_config:
   dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   efficientnet/pytorch-efficientnet_b0-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended"]
@@ -315,19 +501,46 @@ test_config:
     status: EXPECTED_PASSING
 
   efficientnet/pytorch-efficientnet_b6-single_device-inference:
+=======
+  efficientnet/image_classification/pytorch-efficientnet_b0-single_device-full-inference:
+    status: EXPECTED_PASSING
+    markers: ["extended"]
+
+  efficientnet/image_classification/pytorch-efficientnet_b1-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-efficientnet_b2-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-efficientnet_b3-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-efficientnet_b4-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-efficientnet_b5-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-efficientnet_b6-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Statically allocated circular buffers in program 162 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
+<<<<<<< Updated upstream
   efficientnet/pytorch-efficientnet_b7-single_device-inference:
+=======
+  efficientnet/image_classification/pytorch-efficientnet_b7-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Statically allocated circular buffers in program 260 clash with L1 buffers on core range [(x=0,y=0) - (x=12,y=9)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
+<<<<<<< Updated upstream
   ghostnet/pytorch-ghostnet_100-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -453,6 +666,133 @@ test_config:
     status: EXPECTED_PASSING
 
   squeezebert/pytorch-squeezebert-mnli-single_device-inference:
+=======
+  ghostnet/image_classification/pytorch-ghostnet_100-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  ghostnet/image_classification/pytorch-ghostnet_100.in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnet_w18-single_device-full-inference:
+    status: EXPECTED_PASSING
+    markers: ["extended"]
+
+  hrnet/keypoint_detection/pytorch-hrnet_w18.ms_aug_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v2_osmr-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnet_w30-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnet_w32-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnet_w40-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.987054169178009. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnet_w44-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnet_w48-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnet_w64-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.988092303276062. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  mamba/causal_lm/pytorch-mamba-1.4b-hf-single_device-full-inference:
+    assert_pcc: false # -0.0130 WH / -0.0888 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
+    status: EXPECTED_PASSING
+
+  mamba/causal_lm/pytorch-mamba-370m-hf-single_device-full-inference:
+    assert_pcc: false # -0.0327 WH / 0.3821 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
+    status: EXPECTED_PASSING
+
+  mgp_str_base/image_feature_extraction/pytorch-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224_miil-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  mlp_mixer/lucidrains/pytorch-mixer_b32_224-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  mlp_mixer/lucidrains/pytorch-mixer_l32_224-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  mlp_mixer/lucidrains/pytorch-mixer_s16_224-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  mlp_mixer/lucidrains/pytorch-mixer_s32_224-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224_miil_in21k-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING # https://github.com/tenstorrent/tt-xla/issues/2433
+
+  mobilenetv1/image_classification/pytorch-mobilenet_v1-single_device-full-inference:
+    status: EXPECTED_PASSING
+    markers: [push, nightly]
+
+  mobilenetv2/image_classification/pytorch-mobilenet_v2-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  nanogpt/causal_lm/pytorch-FinancialSupport/NanoGPT-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_040-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_064-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_080-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_120-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_160-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_320-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnext/image_classification/pytorch-resnext101_32x8d-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnext/image_classification/pytorch-resnext101_32x8d_wsl-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnext/image_classification/pytorch-resnext50_32x4d_osmr-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-mit_b0-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-mit_b1-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-mit_b2-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-mit_b3-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-mit_b4-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  segformer/semantic_segmentation/pytorch-mit_b5-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  squeezebert/text_classification/pytorch-squeezebert-mnli-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL  # Affected by change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
 
@@ -474,6 +814,7 @@ test_config:
   swin/image_classification/pytorch-swin_v2_b-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   unet/pytorch-carvana_unet-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -509,12 +850,50 @@ test_config:
     required_pcc: 0.975  # Decreased after https://github.com/tenstorrent/tt-forge-models/pull/87
 
   vit/pytorch-base-single_device-inference:
+=======
+  unet/semantic_segmentation/pytorch-carvana_unet-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  unet/semantic_segmentation/pytorch-carvana_unet_480x640-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 2537856 B L1_SMALL buffer across 72 banks, where each bank needs to store 35248 B, but bank size is only 65536 B"
+
+  vgg/image_classification/pytorch-torchvision_vgg11_bn-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-vgg11-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-torchvision_vgg13_bn-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-vgg13-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-torchvision_vgg16_bn-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9885805249214172. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-vgg16-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-vgg19_bn-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9898343086242676. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-vgg19-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.975  # Decreased after https://github.com/tenstorrent/tt-forge-models/pull/87
+
+  vit/image_classification/pytorch-base-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     filechecks:
       - concatenate_heads.ttnn.mlir
       - split_query_key_value_and_split_heads.ttnn.mlir
     markers: [push, nightly]
 
+<<<<<<< Updated upstream
   vit/pytorch-large-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -528,16 +907,39 @@ test_config:
     status: EXPECTED_PASSING
 
   xception/pytorch-xception71.tf_in1k-single_device-inference:
+=======
+  vit/image_classification/pytorch-large-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  xception/image_classification/pytorch-xception41-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  xception/image_classification/pytorch-xception65-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  xception/image_classification/pytorch-xception71-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  xception/image_classification/pytorch-xception71.tf_in1k-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
 
   roberta/masked_lm/pytorch-xlm_base-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   mamba/pytorch-mamba-2.8b-hf-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
   deit/pytorch-base-single_device-inference:
+=======
+  mamba/causal_lm/pytorch-mamba-2.8b-hf-single_device-full-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
+
+  deit/image_classification/pytorch-base-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9837640523910522. Required: pcc=0.985. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     arch_overrides:
@@ -547,6 +949,7 @@ test_config:
   mlp_mixer/lucidrains/pytorch-base-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   mistral/pytorch-ministral_3b_instruct-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -567,6 +970,28 @@ test_config:
     assert_pcc: false
 
   mlp_mixer/pytorch-mixer_b16_224.goog_in21k-single_device-inference:
+=======
+  mistral/pixtral/pytorch-ministral_3b_instruct-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224-single_device-full-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false
+
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224_in21k-single_device-full-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false
+
+  mlp_mixer/lucidrains/pytorch-mixer_l16_224-single_device-full-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false
+
+  mlp_mixer/lucidrains/pytorch-mixer_l16_224_in21k-single_device-full-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false
+
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224.goog_in21k-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     assert_pcc: false
 
@@ -599,7 +1024,11 @@ test_config:
   phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-inference:
+=======
+  roberta/text_classification/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
 
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-inference:
@@ -612,7 +1041,11 @@ test_config:
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
 #  yoloworld/pytorch-single_device-inference:
+=======
+#  yoloworld/object_detection/pytorch-single_device-full-inference:
+>>>>>>> Stashed changes
 #    status: EXPECTED_PASSING
 
   opt/qa/pytorch-facebook/opt-125m-single_device-inference:
@@ -640,6 +1073,7 @@ test_config:
   opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   perceiver/pytorch-deepmind/language-perceiver-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -651,6 +1085,19 @@ test_config:
     status: EXPECTED_PASSING
 
   deepcogito/pytorch-v1_preview_llama_3b-single_device-inference:
+=======
+  perceiver/masked_lm/pytorch-deepmind/language-perceiver-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  beit/image_classification/pytorch-base-single_device-full-inference:
+    status: EXPECTED_PASSING
+    markers: ["extended"]
+
+  beit/image_classification/pytorch-large-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  deepcogito/causal_lm/pytorch-v1_preview_llama_3b-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
 
   segformer/semantic_segmentation/pytorch-b0_finetuned_ade_512_512-single_device-inference:
@@ -688,7 +1135,11 @@ test_config:
   albert/sequence_classification/pytorch-imdb-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   fuyu/pytorch-adept/fuyu-8b-single_device-inference:
+=======
+  fuyu/question_answering/pytorch-adept/fuyu-8b-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
 
   phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-inference:
@@ -703,18 +1154,30 @@ test_config:
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   yolos/pytorch-single_device-inference:
+=======
+  yolos/object_detection/pytorch-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     assert_pcc: false  # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168 AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96. Later on Sept 2 started failing in WH too: AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2"
 
+<<<<<<< Updated upstream
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-inference:
+=======
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-conv-single_device-full-inference:
+>>>>>>> Stashed changes
     required_pcc: 0.98
     status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
     reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   t5/pytorch-t5-small-single_device-inference:
+=======
+  t5/causal_lm/pytorch-t5-small-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-large_v2-single_device-inference:
@@ -727,14 +1190,22 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
+<<<<<<< Updated upstream
   perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-single_device-inference:
+=======
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-fourier-single_device-full-inference:
+>>>>>>> Stashed changes
     required_pcc: 0.98
     assert_pcc: false  # FIXME - PCC drop to 0.96 on Aug6 due to tt-mlir/tt-xla uplift (passed locally before it)
     status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
     reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   # yolov8/pytorch-yolov8x-single_device-inference:
+=======
+  # yolov8/object_detection/pytorch-yolov8x-single_device-full-inference:
+>>>>>>> Stashed changes
   #   status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-base_v2-single_device-inference:
@@ -750,7 +1221,11 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99"
 
+<<<<<<< Updated upstream
   perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-inference:
+=======
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-learned-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
     status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
     reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
@@ -761,10 +1236,17 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9410670165223607. Required: pcc=0.99"
 
+<<<<<<< Updated upstream
   # yolov8/pytorch-yolov8n-single_device-inference:
   #   status: EXPECTED_PASSING
 
   stereo/pytorch-small-single_device-inference:
+=======
+  # yolov8/object_detection/pytorch-yolov8n-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  stereo/tts/pytorch-small-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-xlarge_v2-single_device-inference:
@@ -772,6 +1254,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.872334097539835. Required: pcc=0.99"
 
+<<<<<<< Updated upstream
   t5/pytorch-t5-base-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -779,10 +1262,20 @@ test_config:
     status: EXPECTED_PASSING
 
   stereo/pytorch-medium-single_device-inference:
+=======
+  t5/causal_lm/pytorch-t5-base-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  t5/causal_lm/pytorch-t5-large-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  stereo/tts/pytorch-medium-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3149577673900601. Required: pcc=0.99"
 
+<<<<<<< Updated upstream
   monodepth2/pytorch-mono_640x192-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -811,6 +1304,36 @@ test_config:
     status: EXPECTED_PASSING
 
   stereo/pytorch-large-single_device-inference:
+=======
+  monodepth2/depth_estimation/pytorch-mono_640x192-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  monodepth2/depth_estimation/pytorch-stereo_no_pt_640x192-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  monodepth2/depth_estimation/pytorch-stereo_640x192-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  monodepth2/depth_estimation/pytorch-stereo_1024x320-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  monodepth2/depth_estimation/pytorch-mono_no_pt_640x192-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  monodepth2/depth_estimation/pytorch-mono_1024x320-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  monodepth2/depth_estimation/pytorch-mono+stereo_no_pt_640x192-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  monodepth2/depth_estimation/pytorch-mono+stereo_640x192-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  monodepth2/depth_estimation/pytorch-mono+stereo_1024x320-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  stereo/tts/pytorch-large-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=-0.43084077321771863. Required: pcc=0.99"
@@ -821,6 +1344,7 @@ test_config:
   qwen_3/embedding/pytorch-embedding_4b-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   # yolov5/pytorch-yolov5n-single_device-inference:
   #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
   #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
@@ -834,6 +1358,21 @@ test_config:
   #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
 
   # yolov5/pytorch-yolov5x-single_device-inference:
+=======
+  # yolov5/object_detection/pytorch-yolov5n-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+
+  # yolov5/object_detection/pytorch-yolov5m-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+
+  # yolov5/object_detection/pytorch-yolov5l-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
+  #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
+
+  # yolov5/object_detection/pytorch-yolov5x-single_device-full-inference:
+>>>>>>> Stashed changes
   #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
   #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
 
@@ -843,16 +1382,28 @@ test_config:
   qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   qwen_2_5_vl/pytorch-72b_instruct-single_device-inference:
+=======
+  qwen_2_5_vl/conditional_generation/pytorch-72b_instruct-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   qwen_2_5_vl/pytorch-3b_instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
 
   qwen_2_5_vl/pytorch-7b_instruct-single_device-inference:
+=======
+  qwen_2_5_vl/conditional_generation/pytorch-3b_instruct-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+
+  qwen_2_5_vl/conditional_generation/pytorch-7b_instruct-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
 
@@ -874,7 +1425,11 @@ test_config:
   qwen_3/causal_lm/pytorch-1_7b-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   qwen_2_5_coder/pytorch-3b-single_device-inference:
+=======
+  qwen_2_5_coder/causal_lm/pytorch-3b-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: EXPECTED_PASSING
 
@@ -889,6 +1444,7 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   qwen_2_5_coder/pytorch-3b_instruct-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -898,6 +1454,17 @@ test_config:
     status: EXPECTED_PASSING
 
   retinanet/pytorch-retinanet_rn34fpn-single_device-inference:
+=======
+  qwen_2_5_coder/causal_lm/pytorch-3b_instruct-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+
+  qwen_2_5_coder/causal_lm/pytorch-1_5b-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+
+  retinanet/object_detection/pytorch-retinanet_rn34fpn-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: EXPECTED_PASSING
 
@@ -905,6 +1472,7 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   retinanet/pytorch-retinanet_rn18fpn-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -934,6 +1502,37 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5_coder/pytorch-0_5b-single_device-inference:
+=======
+  retinanet/object_detection/pytorch-retinanet_rn18fpn-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+
+  retinanet/object_detection/pytorch-retinanet_rn152fpn-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+
+  retinanet/object_detection/pytorch-retinanet_rn50fpn-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+
+  retinanet/object_detection/pytorch-retinanet_rn101fpn-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+
+  inception/image_classification/pytorch-inception_v4-single_device-full-inference:
+    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9682327508926392. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  inception/image_classification/pytorch-inception_v4.tf_in1k-single_device-full-inference:
+    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9682327508926392. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  qwen_2_5_coder/causal_lm/pytorch-1_5b_instruct-single_device-full-inference:
+    required_pcc: 0.98
+    status: EXPECTED_PASSING
+
+  qwen_2_5_coder/causal_lm/pytorch-0_5b-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -967,6 +1566,7 @@ test_config:
   llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   yolov6/pytorch-yolov6n-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -982,15 +1582,37 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7x-single_device-inference:
+=======
+  yolov6/object_detection/pytorch-yolov6n-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  yolov6/object_detection/pytorch-yolov6s-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890339970588684. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  yolov6/object_detection/pytorch-yolov6m-single_device-full-inference:
+    required_pcc: 0.98
+    status: EXPECTED_PASSING
+
+  yolov6/object_detection/pytorch-yolov6l-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  yolov7/object_detection/pytorch-yolov7x-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "Function path mismatch for /usr/local/lib/python3.11/dist-packages/torch/_tensor.py:39 between simple and ast modes - https://github.com/tenstorrent/tt-xla/issues/2525"
     bringup_status: FAILED_FE_COMPILATION
 
+<<<<<<< Updated upstream
   yolov7/pytorch-yolov7-single_device-inference:
+=======
+  yolov7/object_detection/pytorch-yolov7-single_device-full-inference:
+>>>>>>> Stashed changes
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9570515751838684. Required: pcc=0.99."
     assert_pcc: false
     bringup_status: INCORRECT_RESULT
 
+<<<<<<< Updated upstream
   yolov7/pytorch-yolov7-w6-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
@@ -1032,10 +1654,66 @@ test_config:
     status: EXPECTED_PASSING
 
   mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-inference:
+=======
+  yolov7/object_detection/pytorch-yolov7-w6-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+
+  yolov7/object_detection/pytorch-yolov7-e6-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+
+  yolov7/object_detection/pytorch-yolov7-d6-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+
+  yolov7/object_detection/pytorch-yolov7-e6e-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+
+  yolox/object_detection/pytorch-yolox_nano-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    bringup_status: FAILED_FE_COMPILATION
+
+  yolox/object_detection/pytorch-yolox_tiny-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    bringup_status: FAILED_FE_COMPILATION
+
+  yolox/object_detection/pytorch-yolox_s-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+
+  yolox/object_detection/pytorch-yolox_m-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+
+  yolox/object_detection/pytorch-yolox_l-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    bringup_status: FAILED_FE_COMPILATION
+
+  yolox/object_detection/pytorch-yolox_darknet-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    bringup_status: FAILED_FE_COMPILATION
+
+  yolox/object_detection/pytorch-yolox_x-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL  # Exposed by "Remove host-side consteval" change
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors - https://github.com/tenstorrent/tt-xla/issues/1243"
+    bringup_status: FAILED_FE_COMPILATION
+
+  mobilenetv2/image_classification/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  mobilenetv2/image_classification/pytorch-mobilenet_v2_torchvision-single_device-full-inference:
+>>>>>>> Stashed changes
     required_pcc: 0.98
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9898824691772461. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
 
+<<<<<<< Updated upstream
   mobilenetv2/pytorch-mobilenetv2_100-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -1051,6 +1729,23 @@ test_config:
     status: EXPECTED_PASSING
 
   resnet/pytorch-resnet18-single_device-inference:
+=======
+  mobilenetv2/image_classification/pytorch-mobilenetv2_100-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  mobilenetv3/image_classification/pytorch-mobilenet_v3_large-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9846240878105164. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  mobilenetv3/image_classification/pytorch-mobilenetv3_large_100-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnet/image_classification/pytorch-resnet101-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890337586402893. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  resnet/image_classification/pytorch-resnet18-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
 
   swin/image_classification/pytorch-microsoft/swin-tiny-patch4-window7-224-single_device-inference:
@@ -1062,6 +1757,7 @@ test_config:
   swin/masked_image_modeling/pytorch-microsoft/swinv2-tiny-patch4-window8-256-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   vit/pytorch-vit_b_16-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended"]
@@ -1073,19 +1769,41 @@ test_config:
     status: EXPECTED_PASSING
 
   vit/pytorch-vit_l_32-single_device-inference:
+=======
+  vit/image_classification/pytorch-vit_b_16-single_device-full-inference:
+    status: EXPECTED_PASSING
+    markers: ["extended"]
+
+  vit/image_classification/pytorch-vit_h_14-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vit/image_classification/pytorch-vit_l_16-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vit/image_classification/pytorch-vit_l_32-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9611120820045471. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
 
+<<<<<<< Updated upstream
   mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-inference:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9673609137535095. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
   mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-inference:
+=======
+  mobilenetv1/image_classification/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-full-inference:
+    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9673609137535095. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_0.35_96-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9587556719779968. Required: pcc=0.96 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
+<<<<<<< Updated upstream
   mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-inference:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9657779932022095. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
@@ -1111,10 +1829,38 @@ test_config:
     status: EXPECTED_PASSING
 
   resnet/pytorch-resnet50-single_device-inference:
+=======
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_0.75_160-single_device-full-inference:
+    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9657779932022095. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_1.0_224-single_device-full-inference:
+    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9717883467674255. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  mobilenetv3/image_classification/pytorch-mobilenet_v3_small-single_device-full-inference:
+    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9698505401611328. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  mobilenetv3/image_classification/pytorch-mobilenetv3_small_100-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9751501083374023. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  resnet/image_classification/pytorch-resnet152-single_device-full-inference:
+    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9712052941322327. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  resnet/image_classification/pytorch-resnet34-single_device-full-inference:
+    required_pcc: 0.98
+    status: EXPECTED_PASSING
+
+  resnet/image_classification/pytorch-resnet50-single_device-full-inference:
+>>>>>>> Stashed changes
     required_pcc: 0.98
     status: EXPECTED_PASSING
     markers: ["extended"]
 
+<<<<<<< Updated upstream
   vit/pytorch-vit_b_32-single_device-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
@@ -1165,11 +1911,64 @@ test_config:
     status: EXPECTED_PASSING
 
   regnet/pytorch-regnet_x_3_2gf-single_device-inference:
+=======
+  vit/image_classification/pytorch-vit_b_32-single_device-full-inference:
+    required_pcc: 0.98
+    status: EXPECTED_PASSING
+
+  resnext/image_classification/pytorch-resnext14_32x4d_osmr-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnext/image_classification/pytorch-resnext26_32x4d_osmr-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnext/image_classification/pytorch-resnext101_64x4d_osmr-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  inception/image_classification/pytorch-inceptionv4-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.97
+
+  regnet/image_classification/pytorch-regnet_y_400mf-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_800mf-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_1_6gf-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_3_2gf-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_8gf-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_16gf-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_y_32gf-single_device-full-inference:
+    required_pcc: 0.98 # PCC comparison failed. Calculated: pcc=0.9892786145210266. Required: pcc=0.99. Issue: https://github.com/tenstorrent/tt-mlir/issues/6217
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_x_400mf-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_x_800mf-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9883829355239868. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_x_1_6gf-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_x_3_2gf-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
         assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2368
 
+<<<<<<< Updated upstream
   regnet/pytorch-regnet_x_8gf-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -1188,10 +1987,31 @@ test_config:
     status: EXPECTED_PASSING
 
   stable_diffusion_unet/pytorch-base-single_device-inference:
+=======
+  regnet/image_classification/pytorch-regnet_x_8gf-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  regnet/image_classification/pytorch-regnet_x_16gf-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  regnet/image_classification/pytorch-regnet_x_32gf-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9864852428436279. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  fpn/image_classification/pytorch-resnet50_fpn_v2-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  ssd300_resnet50/object_detection/pytorch-base-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  stable_diffusion_unet/image_to_text/pytorch-base-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
 
+<<<<<<< Updated upstream
   unet_for_conditional_generation/pytorch-base-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -1219,6 +2039,35 @@ test_config:
     status: EXPECTED_PASSING
 
   resnext/pytorch-resnext50_32x4d-single_device-inference:
+=======
+  unet_for_conditional_generation/conditional_generation/pytorch-base-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  mlp_mixer/lucidrains/pytorch-mixer_github-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  rcnn/object_detection/pytorch-alexnet-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  dla/image_classification/pytorch-dla34.in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  googlenet/image_classification/pytorch-googlenet-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw-single_device-full-inference:
+    status: EXPECTED_PASSING
+    markers: ["extended"]
+
+  vovnet/image_classification/pytorch-ese_vovnet39b-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.98 # p150 : https://github.com/tenstorrent/tt-xla/issues/2201 n150 : https://github.com/tenstorrent/tt-xla/issues/2438
+
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnext/image_classification/pytorch-resnext50_32x4d-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
 
   deepseek/deepseek_coder/pytorch-1_3b_instruct-single_device-inference:
@@ -1233,6 +2082,7 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ttir.scatter does not work - https://github.com/tenstorrent/tt-xla/issues/2391"
 
+<<<<<<< Updated upstream
   gemma/pytorch-google/gemma-1.1-2b-it-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -1241,15 +2091,30 @@ test_config:
     reason: "patoolib.util.PatoolError: error extracting STORAGE/datasets/electricity/LD2011_2014.txt.zip - https://github.com/tenstorrent/tt-xla/issues/2185"
 
   nbeats/pytorch-seasonality_basis-single_device-inference:
+=======
+  gemma/causal_lm/pytorch-google/gemma-1.1-2b-it-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  nbeats/image_classification/pytorch-generic_basis-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "patoolib.util.PatoolError: error extracting STORAGE/datasets/electricity/LD2011_2014.txt.zip - https://github.com/tenstorrent/tt-xla/issues/2185"
+
+  nbeats/image_classification/pytorch-seasonality_basis-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Url for dataset is not reachable - https://github.com/tenstorrent/tt-xla/issues/2507"
 
+<<<<<<< Updated upstream
   nbeats/pytorch-trend_basis-single_device-inference:
+=======
+  nbeats/image_classification/pytorch-trend_basis-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Url for dataset is not reachable - https://github.com/tenstorrent/tt-xla/issues/2507"
 
+<<<<<<< Updated upstream
   gpt2/pytorch-gpt2-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]
@@ -1274,11 +2139,43 @@ test_config:
 
 
   unet/pytorch-unet_cityscapes-single_device-inference:
+=======
+  gpt2/causal_lm/pytorch-gpt2-single_device-full-inference:
+    status: EXPECTED_PASSING
+    markers: [push, nightly]
+
+  gpt2/causal_lm/pytorch-gpt2_sequence_classification-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  yolov9/object_detection/pytorch-t-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/object_detection/pytorch-s-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/object_detection/pytorch-m-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/object_detection/pytorch-c-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+  yolov9/object_detection/pytorch-e-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: param.is_leaf during model .to(device) - https://github.com/tenstorrent/tt-xla/issues/2288"
+
+
+  unet/semantic_segmentation/pytorch-unet_cityscapes-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
         assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2181
 
+<<<<<<< Updated upstream
   ghostnet/pytorch-ghostnetv2_100.in1k-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -1335,6 +2232,64 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-hf_vgg19-single_device-inference:
+=======
+  ghostnet/image_classification/pytorch-ghostnetv2_100.in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  wide_resnet/image_classification/pytorch-wide_resnet101_2.timm-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9892194867134094. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-timm_efficientnet_b0-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-timm_efficientnet_b4-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-bn_vgg19-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9889203310012817. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-timm_vgg19_bn-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9893799424171448. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-torchvision_vgg11-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-torchvision_vgg13-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-torchvision_vgg16-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-torchvision_vgg19-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-torchvision_vgg19_bn-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9898343086242676. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  vgg/image_classification/pytorch-hf_vgg19-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
@@ -1350,6 +2305,7 @@ test_config:
   segformer/semantic_segmentation/pytorch-b4_finetuned_ade_512_512-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -1389,20 +2345,70 @@ test_config:
     status: EXPECTED_PASSING
 
   vovnet/pytorch-vovnet39-single_device-inference:
+=======
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite0.in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite1.in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite2.in1k-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.987201988697052. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite3.in1k-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite4.in1k-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9885184168815613. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v2-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v1_osmr-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnetv2_w18_osmr-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnetv2_w30_osmr-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9887874722480774. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnetv2_w32_osmr-single_device-full-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.985
+
+  hrnet/keypoint_detection/pytorch-hrnetv2_w40_osmr-single_device-full-inference:
+    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9895844459533691. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  vovnet/image_classification/pytorch-vovnet39-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.964539647102356. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
+<<<<<<< Updated upstream
   vovnet/pytorch-vovnet57-single_device-inference:
+=======
+  vovnet/image_classification/pytorch-vovnet57-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9755112528800964. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
+<<<<<<< Updated upstream
   vovnet/pytorch-ese_vovnet99b-single_device-inference:
+=======
+  vovnet/image_classification/pytorch-ese_vovnet99b-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false  # Exposed by removal of consteval on host
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1242"
 
+<<<<<<< Updated upstream
   gemma/pytorch-google/gemma-2-2b-it-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended"]
@@ -1444,6 +2450,49 @@ test_config:
     status: EXPECTED_PASSING
 
   autoencoder/pytorch-conv-single_device-inference:
+=======
+  gemma/causal_lm/pytorch-google/gemma-2-2b-it-single_device-full-inference:
+    status: EXPECTED_PASSING
+    markers: ["extended"]
+
+  wide_resnet/image_classification/pytorch-wide_resnet50_2.timm-single_device-full-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2368
+
+  vgg/image_classification/pytorch-bn_vgg19b-single_device-full-inference:
+    required_pcc: 0.96
+    status: EXPECTED_PASSING
+
+  resnet/image_classification/pytorch-resnet50_timm-single_device-full-inference:
+    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9798884391784668. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  resnet/image_classification/pytorch-resnet_50_hf_high_res-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnet/image_classification/pytorch-resnet50_timm_high_res-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  resnet/image_classification/pytorch-resnet50_high_res-single_device-full-inference:
+    required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9867953658103943. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1916
+    status: EXPECTED_PASSING
+
+  hrnet/keypoint_detection/pytorch-hrnetv2_w44_osmr-single_device-full-inference:
+    required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9663628935813904. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
+  # yolov10/object_detection/pytorch-yolov10x-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov10/object_detection/pytorch-yolov10n-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  gemma/causal_lm/pytorch-google/gemma-2b-single_device-full-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+
+  autoencoder/image_to_image/pytorch-conv-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: EXPECTED_PASSING
 
@@ -1451,11 +2500,19 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   bi_lstm_crf/pytorch-default-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
 
   flux/pytorch-schnell-single_device-inference:
+=======
+  bi_lstm_crf/token_classification/pytorch-default-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
+
+  flux/image_to_text/pytorch-schnell-single_device-full-inference:
+>>>>>>> Stashed changes
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1466,7 +2523,11 @@ test_config:
         reason: "Too large for single chip" # (flux.1-schnell is 12B param model)
         bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   flux/pytorch-dev-single_device-inference:
+=======
+  flux/image_to_text/pytorch-dev-single_device-full-inference:
+>>>>>>> Stashed changes
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -1475,6 +2536,7 @@ test_config:
         reason: "Too large for single chip" # (flux.1-dev is 12B param model)
         bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   gliner/pytorch-urchade/gliner_multi-v2.1-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "TypeError: GLiNER.compile() got an unexpected keyword argument 'backend'"
@@ -1487,6 +2549,20 @@ test_config:
     status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   oft/pytorch-single_device-inference:
+=======
+  gliner/token_classification/pytorch-urchade/gliner_multi-v2.1-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: GLiNER.compile() got an unexpected keyword argument 'backend'"
+
+  gemma/causal_lm/pytorch-google/gemma-1.1-7b-it-single_device-full-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  stable_diffusion_xl/conditional_generation/pytorch-stable-diffusion-xl-base-1.0-single_device-full-inference:
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
+
+  oft/object_detection/pytorch-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
 
@@ -1551,7 +2627,11 @@ test_config:
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-inference:
     status: EXPECTED_PASSING
 
+<<<<<<< Updated upstream
   glpn_kitti/pytorch-single_device-inference:
+=======
+  glpn_kitti/depth_estimation/pytorch-single_device-full-inference:
+>>>>>>> Stashed changes
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -1560,12 +2640,20 @@ test_config:
         status: KNOWN_FAILURE_XFAIL
         reason: "RuntimeError: Out of Memory: Not enough space to allocate 49971200 B L1 buffer across 64 banks"
 
+<<<<<<< Updated upstream
   stable_diffusion_1_4/pytorch-base-single_device-inference:
+=======
+  stable_diffusion_1_4/image_to_text/pytorch-base-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "Hangs or takes forever to run - not known to be compile clean anyways."
     bringup_status: FAILED_FE_COMPILATION
 
+<<<<<<< Updated upstream
   boltz2/pytorch-boltz2-single_device-inference:
+=======
+  boltz2/atomic_ml/pytorch-boltz2-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "Hangs or takes forever to run"
     bringup_status: FAILED_RUNTIME
@@ -1591,11 +2679,19 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353"
 
+<<<<<<< Updated upstream
   vadv2/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
   huggyllama/pytorch-llama_7b-single_device-inference:
+=======
+  # vadv2/pytorch-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
+
+  huggyllama/causal_lm/pytorch-llama_7b-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -1721,7 +2817,11 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   mistral/pytorch-7b-single_device-inference:
+=======
+  mistral/pixtral/pytorch-7b-single_device-full-inference:
+>>>>>>> Stashed changes
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -1730,7 +2830,11 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   mistral/pytorch-7b_instruct_v03-single_device-inference:
+=======
+  mistral/pixtral/pytorch-7b_instruct_v03-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -1738,7 +2842,11 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   mistral/pytorch-ministral_8b_instruct-single_device-inference:
+=======
+  mistral/pixtral/pytorch-ministral_8b_instruct-single_device-full-inference:
+>>>>>>> Stashed changes
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -1830,12 +2938,20 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   qwen_2_5_coder/pytorch-32b_instruct-single_device-inference:
+=======
+  qwen_2_5_coder/causal_lm/pytorch-32b_instruct-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   qwen_2_5_coder/pytorch-7b-single_device-inference:
+=======
+  qwen_2_5_coder/causal_lm/pytorch-7b-single_device-full-inference:
+>>>>>>> Stashed changes
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1846,7 +2962,11 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   qwen_2_5_coder/pytorch-7b_instruct-single_device-inference:
+=======
+  qwen_2_5_coder/causal_lm/pytorch-7b_instruct-single_device-full-inference:
+>>>>>>> Stashed changes
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1898,7 +3018,11 @@ test_config:
     reason: "Too large for single chip - https://github.com/tenstorrent/tt-xla/issues/2208"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   llava/pytorch-1_5_7b-single_device-inference:
+=======
+  llava/conditional_generation/pytorch-1_5_7b-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "Running the test CRASHED with signal 9 - uses too much memory need higher memory host."
     bringup_status: FAILED_RUNTIME
@@ -1908,17 +3032,29 @@ test_config:
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   gemma/pytorch-google/gemma-2-9b-it-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
 
   gemma/pytorch-google/gemma-2-27b-it-single_device-inference:
+=======
+  gemma/causal_lm/pytorch-google/gemma-2-9b-it-single_device-full-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  gemma/causal_lm/pytorch-google/gemma-2-27b-it-single_device-full-inference:
+>>>>>>> Stashed changes
     supported_archs: ["p150"]
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   falcon/pytorch-tiiuae/falcon-7b-instruct-single_device-inference:
+=======
+  falcon/causal_lm/pytorch-tiiuae/falcon-7b-instruct-single_device-full-inference:
+>>>>>>> Stashed changes
     supported_archs: ["p150"]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -1927,40 +3063,69 @@ test_config:
       n150:
         status: EXCLUDE_MODEL # This model is run as tensor_parallel already.
 
+<<<<<<< Updated upstream
   d_fine/pytorch-nano-single_device-inference:
+=======
+  d_fine/object_detection/pytorch-nano-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "d_fine nano hangs forever, removing all of them."
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   d_fine/pytorch-small-single_device-inference:
+=======
+  d_fine/object_detection/pytorch-small-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "d_fine small hangs forever, removing all of them."
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   d_fine/pytorch-medium-single_device-inference:
+=======
+  d_fine/object_detection/pytorch-medium-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "d_fine medium hangs forever, removing all of them."
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   d_fine/pytorch-large-single_device-inference:
+=======
+  d_fine/object_detection/pytorch-large-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "d_fine large hangs forever, removing all of them."
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   d_fine/pytorch-xlarge-single_device-inference:
+=======
+  d_fine/object_detection/pytorch-xlarge-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "d_fine xlarge hangs forever, removing all of them."
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   hrnet/pytorch-hrnetv2_w48_osmr-single_device-inference:
     required_pcc: 0.985  # https://github.com/tenstorrent/tt-xla/issues/1491
     status: EXPECTED_PASSING
 
   centernet/pytorch-hourglass_coco-single_device-inference:
+=======
+  hrnet/keypoint_detection/pytorch-hrnetv2_w48_osmr-single_device-full-inference:
+    required_pcc: 0.985  # https://github.com/tenstorrent/tt-xla/issues/1491
+    status: EXPECTED_PASSING
+
+  centernet/object_detection/pytorch-hourglass_coco-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.04067724570631981. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505"
 
+<<<<<<< Updated upstream
   centernet/pytorch-resnet18_coco-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
@@ -2006,6 +3171,53 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   bevformer/pytorch-bevformerv2-r50-t1-base-single_device-inference:
+=======
+  centernet/object_detection/pytorch-resnet18_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
+
+  centernet/object_detection/pytorch-resnet101_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
+
+  centernet/object_detection/pytorch-dla1x_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507"
+
+  centernet/object_detection/pytorch-dla2x_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507"
+
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
+
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
+
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
+
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
+
+  bevformer/object_detection/pytorch-BEVFormer-tiny-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+
+  bevformer/object_detection/pytorch-BEVFormer-small-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+
+  bevformer/object_detection/pytorch-BEVFormer-base-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+
+  bevformer/object_detection/pytorch-bevformerv2-r50-t1-base-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
@@ -2014,7 +3226,11 @@ test_config:
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
+<<<<<<< Updated upstream
   bevformer/pytorch-bevformerv2-r50-t1-single_device-inference:
+=======
+  bevformer/object_detection/pytorch-bevformerv2-r50-t1-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
@@ -2023,7 +3239,11 @@ test_config:
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
+<<<<<<< Updated upstream
   bevformer/pytorch-bevformerv2-r50-t2-single_device-inference:
+=======
+  bevformer/object_detection/pytorch-bevformerv2-r50-t2-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
@@ -2032,7 +3252,11 @@ test_config:
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
+<<<<<<< Updated upstream
   bevformer/pytorch-bevformerv2-r50-t8-single_device-inference:
+=======
+  bevformer/object_detection/pytorch-bevformerv2-r50-t8-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
@@ -2041,16 +3265,25 @@ test_config:
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
+<<<<<<< Updated upstream
   ssr/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B, but bank size is only 1364704 B - https://github.com/tenstorrent/tt-xla/issues/1923"
 
   bge_m3/pytorch-base-single_device-inference:
+=======
+  ssr/object_detection/pytorch-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B, but bank size is only 1364704 B - https://github.com/tenstorrent/tt-xla/issues/1923"
+
+  bge_m3/embedding_generation/pytorch-base-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXCLUDE_MODEL  # This model has a hand written test, don't run via test_models.py
 
   bge_m3/encode/pytorch-base-single_device-inference:
     status: EXCLUDE_MODEL  # This model has a hand written test, don't run via test_models.py
 
+<<<<<<< Updated upstream
   whisper/pytorch-openai/whisper-tiny-single_device-inference:
     status: EXCLUDE_MODEL  # All whisper variants have a hand written test, don't run via test_models.py
 
@@ -2125,6 +3358,82 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
 
   sam/pytorch-facebook/sam-vit-base-single_device-inference:
+=======
+  whisper/audio_asr/pytorch-openai/whisper-tiny-single_device-full-inference:
+    status: EXCLUDE_MODEL  # All whisper variants have a hand written test, don't run via test_models.py
+
+  whisper/audio_asr/pytorch-openai/whisper-small-single_device-full-inference:
+    status: EXCLUDE_MODEL
+
+  whisper/audio_asr/pytorch-openai/whisper-base-single_device-full-inference:
+    status: EXCLUDE_MODEL
+
+  whisper/audio_asr/pytorch-openai/whisper-medium-single_device-full-inference:
+    status: EXCLUDE_MODEL
+
+  whisper/audio_asr/pytorch-openai/whisper-large-single_device-full-inference:
+    status: EXCLUDE_MODEL
+
+  whisper/audio_asr/pytorch-openai/whisper-large-v3-single_device-full-inference:
+    status: EXCLUDE_MODEL
+
+  whisper/audio_asr/pytorch-openai/whisper-large-v3-turbo-single_device-full-inference:
+    status: EXCLUDE_MODEL
+
+  # uniad/object_detection/pytorch-single_device-full-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B"
+
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_av2-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_bevformer-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_bevformer_t4-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+
+  maptr/realtime_map_construction/pytorch-tiny_r50_110e-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_t4-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+
+  maptr/realtime_map_construction/pytorch-nano_r18_110e-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_bevpool-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 95029248 B L1 buffer across 64 banks, where each bank needs to store 1484832 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1588"
+
+  maptr/realtime_map_construction/pytorch-tiny_fusion_24e-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: SparseSequential encountered by torch._dynamo"
+
+  hrnet/keypoint_detection/pytorch-hrnetv2_w64_osmr-single_device-full-inference:
+    required_pcc: 0.96
+    status: EXPECTED_PASSING
+
+  mobilenetv1/image_classification/pytorch-google/mobilenet_v1_0.75_192-single_device-full-inference:
+    required_pcc: 0.98
+    status: EXPECTED_PASSING
+
+  pointpillars/object_detection/pytorch-pointpillars-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
+
+  sam/semantic_segmentation/pytorch-facebook/sam-vit-base-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
@@ -2133,11 +3442,16 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.gather': ' - https://github.com/tenstorrent/tt-xla/issues/318"
 
+<<<<<<< Updated upstream
   mplug_owl2/pytorch-llama2_7b-single_device-inference:
+=======
+  mplug_owl2/causal_lm/pytorch-llama2_7b-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   openvla/pytorch-openvla_7b-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
@@ -2191,6 +3505,61 @@ test_config:
   #   status: EXPECTED_PASSING
 
   # yolov12/pytorch-yolo12x-single_device-inference:
+=======
+  openvla/action_prediction/pytorch-openvla_7b-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+
+  openvla/action_prediction/pytorch-openvla_v01_7b-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+
+  openvla/action_prediction/pytorch-openvla_7b_finetuned_libero_10-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+
+  openvla/action_prediction/pytorch-openvla_7b_finetuned_libero_goal-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+
+  openvla/action_prediction/pytorch-openvla_7b_finetuned_libero_object-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+
+  openvla/action_prediction/pytorch-openvla_7b_finetuned_libero_spatial-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+
+  transfuser/object_detection/pytorch-single_device-full-inference:
+    assert_pcc: false # PCC is -0.715
+    status: EXPECTED_PASSING
+
+  # yolov11/object_detection/pytorch-yolo11n-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov11/object_detection/pytorch-yolo11s-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov11/object_detection/pytorch-yolo11m-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov11/object_detection/pytorch-yolo11l-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov11/object_detection/pytorch-yolo11x-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov12/object_detection/pytorch-yolo12s-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov12/object_detection/pytorch-yolo12m-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov12/object_detection/pytorch-yolo12l-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  # yolov12/object_detection/pytorch-yolo12x-single_device-full-inference:
+>>>>>>> Stashed changes
   #   status: EXPECTED_PASSING
 
   vgg19_unet/pytorch-single_device-inference:
@@ -2201,10 +3570,17 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 61079552 B L1 buffer across 64 banks, where each bank needs to store 954368 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
+<<<<<<< Updated upstream
   unet/pytorch-smp_unet_resnet101-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
 
   sam/pytorch-facebook/sam-vit-large-single_device-inference:
+=======
+  unet/semantic_segmentation/pytorch-smp_unet_resnet101-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+
+  sam/semantic_segmentation/pytorch-facebook/sam-vit-large-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
 
@@ -2217,6 +3593,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
+<<<<<<< Updated upstream
   panoptic_segmentation/pytorch-resnet101_3x_coco-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
@@ -2230,16 +3607,39 @@ test_config:
     reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
 
   sam/pytorch-facebook/sam-vit-huge-single_device-inference:
+=======
+  panoptic_segmentation/panoptic_segmentation/panoptic_segmentation/pytorch-resnet101_3x_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
+
+  panoptic_segmentation/panoptic_segmentation/panoptic_segmentation/pytorch-resnet50_1x_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
+
+  panoptic_segmentation/panoptic_segmentation/panoptic_segmentation/pytorch-resnet50_3x_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
+
+  sam/semantic_segmentation/pytorch-facebook/sam-vit-huge-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
 
+<<<<<<< Updated upstream
   mobilenetv1/pytorch-google/mobilenet_v1_1.0_224-single_device-inference:
+=======
+  mobilenetv1/image_classification/pytorch-google/mobilenet_v1_1.0_224-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9816039800643921. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
 
+<<<<<<< Updated upstream
   regnet/pytorch-regnet_y_128gf-single_device-inference:
+=======
+  regnet/image_classification/pytorch-regnet_y_128gf-single_device-full-inference:
+>>>>>>> Stashed changes
     assert_pcc: false
     status: KNOWN_FAILURE_XFAIL
     reason: "Statically allocated circular buffers in program 2023 clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/1827"
@@ -2249,6 +3649,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9024592638015747. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
 
+<<<<<<< Updated upstream
   sentencizer/pytorch-xlm-roberta-base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
@@ -2271,6 +3672,30 @@ test_config:
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
 
   hippynn/pytorch-Hippynn-single_device-inference:
+=======
+  sentencizer/token_classification/pytorch-xlm-roberta-base-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
+
+  sentencizer/token_classification/pytorch-xlm-roberta-large-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
+
+  stable_diffusion/conditional_generation/pytorch-stable-diffusion-3.5-medium-single_device-full-inference:
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
+
+  stable_diffusion/conditional_generation/pytorch-stable-diffusion-3.5-large-single_device-full-inference:
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
+
+  stable_diffusion/conditional_generation/pytorch-stable-diffusion-3.5-large-turbo-single_device-full-inference:
+    status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
+
+  gliner/token_classification/pytorch-urchade/gliner_largev2-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
+
+  hippynn/atomic_ml/pytorch-Hippynn-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
 
@@ -2278,17 +3703,29 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
 
+<<<<<<< Updated upstream
   ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-inference:
+=======
+  ssdlite320_mobilenetv3/object_detection/pytorch-ssdlite320_mobilenet_v3_large-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Can't convert shape rank  - https://github.com/tenstorrent/tt-xla/issues/2456"
 
+<<<<<<< Updated upstream
   retinanet/pytorch-retinanet_resnet50_fpn_v2-single_device-inference:
+=======
+  retinanet/object_detection/pytorch-retinanet_resnet50_fpn_v2-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=6)] grow to 22732608 B which is beyond max L1 size of 1499136 B"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   ssd300_vgg16/pytorch-ssd300_vgg16-single_device-inference:
+=======
+  ssd300_vgg16/object_detection/pytorch-ssd300_vgg16-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/2456"
@@ -2305,6 +3742,7 @@ test_config:
       p150:
         required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
+<<<<<<< Updated upstream
   maskformer_swin_b/pytorch-swin_base_coco-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 61231104 B L1 buffer across 72 banks, where each bank needs to store 850432 B, but bank size is only 1331936 B"
@@ -2326,10 +3764,34 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
 
   yolop/pytorch-yolop-single_device-inference:
+=======
+  maskformer_swin_b/semantic_segmentation/pytorch-swin_base_coco-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 61231104 B L1 buffer across 72 banks, where each bank needs to store 850432 B, but bank size is only 1331936 B"
+
+  maskformer_swin_b/semantic_segmentation/pytorch-swin_base_ade-single_device-full-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2237
+
+  yolos_small/object_detection/pytorch-small-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+
+  yolos_small/object_detection/pytorch-small_dwr-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+
+  yolos_small/object_detection/pytorch-small_300-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+
+  yolop/object_detection/pytorch-yolop-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 12. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
 
+<<<<<<< Updated upstream
   owl_vit/pytorch-base_patch32-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
 
@@ -2375,6 +3837,53 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
 
   rt_detr/pytorch-rtdetr-r101vd-single_device-inference:
+=======
+  owl_vit/object_detection/pytorch-base_patch32-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+
+  # yolov12/object_detection/pytorch-yolo12n-single_device-full-inference:
+  #   status: EXPECTED_PASSING
+
+  ultra_fast_lane_detection/semantic_segmentation/pytorch-tusimple_resnet18-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  ultra_fast_lane_detection/semantic_segmentation/pytorch-culane_resnet18-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  faster_rcnn/object_detection/pytorch-resnet50_fpn-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Out of Memory: Not enough space to allocate 62521344 B L1 buffer across 72 banks, where each bank needs to store 868352 B, but bank size is only 1331936 B"
+
+  deformable_detr/object_detection/pytorch-deformable-detr-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
+
+  deformable_detr/object_detection/pytorch-deformable-detr-single-scale-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 445644800 B DRAM buffer across 12 banks, where each bank needs to store 37138432 B, but bank size is only 1073741792 B"
+
+  deformable_detr/object_detection/pytorch-deformable-detr-with-box-refine-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
+
+  deformable_detr/object_detection/pytorch-deformable-detr-with-box-refine-two-stage-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
+
+  rt_detr/object_detection/pytorch-rtdetr-r18vd-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 314572800 B DRAM buffer across 12 banks, where each bank needs to store 26214400 B, but bank size is only 1073741792 B"
+
+  rt_detr/object_detection/pytorch-rtdetr-r34vd-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
+
+  rt_detr/object_detection/pytorch-rtdetr-r50vd-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
+
+  rt_detr/object_detection/pytorch-rtdetr-r101vd-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
 
@@ -2385,6 +3894,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
+<<<<<<< Updated upstream
   arnold/pytorch-deathmatch_shotgun_rnn-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -2398,25 +3908,53 @@ test_config:
     status: EXPECTED_PASSING
 
   petr/pytorch-vovnet_gridmask_p4_800x320-single_device-inference:
+=======
+  arnold/atomic_ml/pytorch-deathmatch_shotgun_rnn-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  arnold/atomic_ml/pytorch-vizdoom_2017_track1_rnn-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  arnold/atomic_ml/pytorch-defend_the_center_ff-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  arnold/atomic_ml/pytorch-vizdoom_2017_track2_rnn-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  petr/multiview_3d_object_detection/pytorch-vovnet_gridmask_p4_800x320-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 57952512 B L1 buffer across 72 banks, where each bank needs to store 804896 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   petr/pytorch-vovnet_gridmask_p4_1600x640-single_device-inference:
+=======
+  petr/multiview_3d_object_detection/pytorch-vovnet_gridmask_p4_1600x640-single_device-full-inference:
+>>>>>>> Stashed changes
     status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   petr/pytorch-r50dcn_gridmask_c5-single_device-inference:
+=======
+  petr/multiview_3d_object_detection/pytorch-r50dcn_gridmask_c5-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   petr/pytorch-r50dcn_gridmask_p4-single_device-inference:
+=======
+  petr/multiview_3d_object_detection/pytorch-r50dcn_gridmask_p4-single_device-full-inference:
+>>>>>>> Stashed changes
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
 
+<<<<<<< Updated upstream
   efficientdet/pytorch-d0-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,64,8,8] vs. bf16[2]. Expected dimension 3 of shape bf16[1,64,8,8] (8) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
@@ -2464,6 +4002,55 @@ test_config:
     reason: "RuntimeError: torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_module L__self___maxpool1(*(FakeTensor(..., device='xla:0', size=(1, 96, 16, 128, 128), dtype=torch.bfloat16),), https://github.com/tenstorrent/tt-xla/issues/2567"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_10-single_device-inference:
+=======
+  efficientdet/object_detection/pytorch-d0-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,64,8,8] vs. bf16[2]. Expected dimension 3 of shape bf16[1,64,8,8] (8) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/object_detection/pytorch-d1-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,88,10,10] vs. bf16[2]. Expected dimension 3 of shape bf16[1,88,10,10] (10) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/object_detection/pytorch-d2-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,112,12,12] vs. bf16[2]. Expected dimension 3 of shape bf16[1,112,12,12] (12) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/object_detection/pytorch-d3-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,160,14,14] vs. bf16[2]. Expected dimension 3 of shape bf16[1,160,14,14] (14) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/object_detection/pytorch-d4-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,224,16,16] vs. bf16[2]. Expected dimension 3 of shape bf16[1,224,16,16] (16) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/object_detection/pytorch-d5-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,288,20,20] vs. bf16[2]. Expected dimension 3 of shape bf16[1,288,20,20] (20) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+
+  efficientdet/object_detection/pytorch-d6-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 52428800 B L1 buffer across 64 banks, where each bank needs to store 819200 B, but bank size is only 1331936 B"
+
+  efficientdet/object_detection/pytorch-d7-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 33030144 B L1 buffer across 56 banks, where each bank needs to store 589824 B, but bank size is only 1331936 B"
+
+  efficientdet/object_detection/pytorch-d7x-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 5760 B L1_SMALL buffer across 36 banks, where each bank needs to store 160 B, but bank size is only 65536 B"
+
+  unet/semantic_segmentation/pytorch-torchhub_brain_unet-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  ultra_fast_lane_detection/semantic_segmentation/pytorch-tusimple_resnet34-single_device-full-inference:
+    status: EXPECTED_PASSING
+
+  dense_unet_3d/object_detection/pytorch-base-single_device-full-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "RuntimeError: torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_module L__self___maxpool1(*(FakeTensor(..., device='xla:0', size=(1, 96, 16, 128, 128), dtype=torch.bfloat16),), https://github.com/tenstorrent/tt-xla/issues/2567"
+
+  openvla_oft/action_prediction/pytorch-openvla_oft_finetuned_libero_10-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -2471,35 +4058,55 @@ test_config:
         reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
 
 
+<<<<<<< Updated upstream
   openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial-single_device-inference:
+=======
+  openvla_oft/action_prediction/pytorch-openvla_oft_finetuned_libero_spatial-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
 
+<<<<<<< Updated upstream
   openvla_oft/pytorch-openvla_oft_finetuned_libero_goal-single_device-inference:
+=======
+  openvla_oft/action_prediction/pytorch-openvla_oft_finetuned_libero_goal-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
 
+<<<<<<< Updated upstream
   openvla_oft/pytorch-openvla_oft_finetuned_libero_object-single_device-inference:
+=======
+  openvla_oft/action_prediction/pytorch-openvla_oft_finetuned_libero_object-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
 
+<<<<<<< Updated upstream
   openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial_object_goal_10-single_device-inference:
+=======
+  openvla_oft/action_prediction/pytorch-openvla_oft_finetuned_libero_spatial_object_goal_10-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
 
+<<<<<<< Updated upstream
   mistral/pytorch-mistral_nemo_instruct_2407-single_device-inference:
+=======
+  mistral/pixtral/pytorch-mistral_nemo_instruct_2407-single_device-full-inference:
+>>>>>>> Stashed changes
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
