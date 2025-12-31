@@ -1226,7 +1226,7 @@ test_config:
 
   deepseek/deepseek_ocr/pytorch-deepseek_ocr-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
+    # reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
 
   deepseek/pytorch-single_device-inference:
     status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
@@ -2140,7 +2140,7 @@ test_config:
 
   openvla/pytorch-openvla_7b-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    # reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
 
   openvla/pytorch-openvla_v01_7b-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2423,7 +2423,7 @@ test_config:
 
   efficientdet/pytorch-d1-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,88,10,10] vs. bf16[2]. Expected dimension 3 of shape bf16[1,88,10,10] (10) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+    # reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,88,10,10] vs. bf16[2]. Expected dimension 3 of shape bf16[1,88,10,10] (10) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
 
   efficientdet/pytorch-d2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
