@@ -188,6 +188,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute");
   LOG_BRINGUP_STAGE("RUNTIME_EXECUTION_START");
 
+  tt::runtime::setMemoryLogLevel(tt::runtime::MemoryLogLevel::Program);
+
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
     LOG_F(ERROR, "Device count mismatch: %zu vs %zu", args->num_devices,
           m_executable_image->getNumDevicesToUtilize());

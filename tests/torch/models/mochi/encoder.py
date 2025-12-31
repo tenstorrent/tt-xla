@@ -8,8 +8,9 @@ import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from diffusers import AutoencoderKLMochi
 
-# Enable HLO debug output
+os.environ["TTXLA_LOGGER_LEVEL"] = "DEBUG"
 os.environ["XLA_HLO_DEBUG"] = "1"
+os.environ["TTMLIR_RUNTIME_LOGGER_LEVEL"] = "DEBUG"
 
 
 def run_vae_encoder():
@@ -43,7 +44,7 @@ def run_vae_encoder():
     # Video input: [B, 3, T, H, W]
     # Using small test size: 13 frames at 256x256
     # Should produce latent: [1, 12, 3, 32, 32]
-    sample_video = torch.randn(1, 3, 13, 256, 256, dtype=torch.bfloat16)
+    sample_video = torch.randn(1, 3, 12, 128, 128, dtype=torch.bfloat16)
     sample_video = sample_video.to(device)
 
     with torch.no_grad():

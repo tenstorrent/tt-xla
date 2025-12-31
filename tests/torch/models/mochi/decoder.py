@@ -8,8 +8,9 @@ import torch_xla
 import torch_xla.runtime as xr
 from diffusers import AutoencoderKLMochi
 
-os.environ["LOGGER_LEVEL"] = "DEBUG"
+os.environ["TTXLA_LOGGER_LEVEL"] = "DEBUG"
 os.environ["XLA_HLO_DEBUG"] = "1"
+os.environ["TTMLIR_RUNTIME_LOGGER_LEVEL"] = "DEBUG"
 
 
 def run_vae_decoder():
@@ -53,6 +54,7 @@ def run_vae_decoder():
 
     # Extract just the decoder
     model = vae.decoder
+
     model = model.eval().to(device)
     model = torch.compile(model, backend="tt")
 

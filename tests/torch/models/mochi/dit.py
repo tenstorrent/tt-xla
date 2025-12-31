@@ -8,8 +8,9 @@ import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from diffusers import MochiPipeline
 
-# Enable HLO debug output
+os.environ["TTXLA_LOGGER_LEVEL"] = "DEBUG"
 os.environ["XLA_HLO_DEBUG"] = "1"
+os.environ["TTMLIR_RUNTIME_LOGGER_LEVEL"] = "DEBUG"
 
 
 def run_transformer():
