@@ -125,6 +125,11 @@ public:
   // Returns the fingerprint for this executable.
   const std::string &getFingerprint() const { return m_fingerprint; }
 
+  // Returns sanitized MLIR code cleaned for XLA ingestion.
+  const std::string &getSanitizedMlirCode() const {
+    return m_sanitized_mlir_code;
+  }
+
   // Creates a LoadedExecutableInstance from this executable image.
   virtual std::unique_ptr<class LoadedExecutableInstance> toExecutableInstance(
       std::vector<class DeviceInstance *> &&addressable_devices,
@@ -150,6 +155,7 @@ protected:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
@@ -168,6 +174,9 @@ private:
 
   // TTNN MLIR code produced by the compiler, stored for debugging purposes.
   std::string m_ttnn_mlir;
+
+  // Sanitized MLIR code cleaned for XLA ingestion, stored for debugging purposes.
+  std::string m_sanitized_mlir_code;
 
   // A name that identifies the executable.
   std::string m_executable_name;
@@ -260,6 +269,7 @@ public:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> output_memory_kinds,
       std::vector<size_t> output_memory_kinds_sizes,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Returns flatbuffer binary produced by the compiler.
@@ -291,6 +301,7 @@ private:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
@@ -321,6 +332,7 @@ public:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> output_memory_kinds,
       std::vector<size_t> output_memory_kinds_sizes,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Creates a LoadedExecutableInstance from this executable image.
@@ -346,6 +358,7 @@ private:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
