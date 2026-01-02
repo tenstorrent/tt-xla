@@ -291,8 +291,9 @@ tt_pjrt_status cleanForXlaIngestion(
   llvm::raw_string_ostream os(outShardingTupleString);  
   llvm::interleave(outShardingResult, os, ",");
   outShardingTupleString += "}";
-
-  module->setAttr("mhlo.spmd_output_shardings", mlir::StringAttr::get(module.getContext(), outShardingTupleString));
+  
+  // this is singular! 
+  module->setAttr("mhlo.spmd_output_sharding", mlir::StringAttr::get(module.getContext(), outShardingTupleString));
   
   // Remove sdy.mesh operations
   std::vector<mlir::sdy::MeshOp> meshOpsToErase;

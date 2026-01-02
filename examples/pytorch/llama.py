@@ -341,9 +341,11 @@ def run_generate(
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             if step == 0:
-                print("RUNNING PREFILL")
+                print("RUNNING PREFILL", flush=True)
                 if is_interactive:
                     print(f"Result: {input_prompt[0]}", end="", flush=True)
+                else:
+                    print("RUNNING DECODE", flush=True)
 
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
@@ -382,6 +384,9 @@ def run_generate(
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
             else:
                 print("[james] NOT REAPPLYING SHARDINGS at step", step, flush=True)
+            print("Shard spec for static caches after execution", flush=True)
+            print("Shard spec for static cache key", torch_xla._XLAC._get_xla_sharding_spec(input_args["past_key_values"].key_cache[0]), flush=True)
+            print("Shard spec for static cache value", torch_xla._XLAC._get_xla_sharding_spec(input_args["past_key_values"].value_cache[0]), flush=True)
     print()
     if not is_interactive:
         for i in range(num_users):
