@@ -1987,11 +1987,11 @@ test_config:
 
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
+    # reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
 
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
+    # reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
 
   bevformer/pytorch-BEVFormer-tiny-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
