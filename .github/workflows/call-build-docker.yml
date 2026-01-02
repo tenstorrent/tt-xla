@@ -16,13 +16,22 @@ on:
         required: false
         type: string
         default: ${{ github.sha }}
+      dockbuild:
+        description: "Specify scope of docker image build (all, ci)"
+        type: string
+        required: false
+        default: "ci"
+
     outputs:
       docker-image:
         description: "Built docker image name"
         value: ${{ jobs.check-if-docker-exist.outputs.docker-image || jobs.build-image.outputs.docker-image }}
       docker-image-base:
-        description: "Docker image for running tests"
+        description: "Docker base image for running tests"
         value: ${{ jobs.check-if-docker-exist.outputs.docker-image-base || jobs.build-image.outputs.docker-image-base }}
+      docker-image-manylinux:
+        description: "Built manylinux docker image name"
+        value: ${{ jobs.check-if-docker-exist.outputs.docker-image-manylinux || jobs.build-image.outputs.docker-image-manylinux }}
 
 permissions:
   packages: write
@@ -35,6 +44,7 @@ jobs:
     outputs:
       docker-image: ${{ steps.check.outputs.docker-image }}
       docker-image-base: ${{ steps.check.outputs.docker-image-base }}
+      docker-image-manylinux: ${{ steps.check.outputs.docker-image-manylinux }}
       tt-mlir-sha: ${{ steps.check.outputs.tt-mlir-sha }}
     steps:
       - uses: actions/checkout@v4
@@ -54,13 +64,14 @@ jobs:
           echo "tt-mlir-sha=$tt_mlir_sha" >> $GITHUB_OUTPUT
           # Output the image name
           set +e  # Don't exit on command failure
-          .github/build-docker-images.sh $tt_mlir_sha --check-only | tee docker.log
+          .github/build-docker-images.sh $tt_mlir_sha "${{inputs.dockbuild}}" --check-only | tee docker.log
           EXIT_CODE=$?
           if [ $EXIT_CODE -eq 0 ]; then
             DOCKER_CI_IMAGE=$(tail -n 1 docker.log)
             echo "Docker image already exists: $DOCKER_CI_IMAGE"
             echo "docker-image=$DOCKER_CI_IMAGE" >> "$GITHUB_OUTPUT"
             echo "docker-image-base=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-/-base-/')" >> "$GITHUB_OUTPUT"
+            echo "docker-image-manylinux=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-ubuntu-22-04/-cibuildwheel-manylinux-2-34/')" >> "$GITHUB_OUTPUT"
           else
             echo "Docker image does not exist, proceeding to build"
           fi
@@ -72,6 +83,7 @@ jobs:
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
       docker-image-base: ${{ steps.build.outputs.docker-image-base }}
+      docker-image-manylinux: ${{ steps.build.outputs.docker-image-manylinux }}
     steps:
       - name: Fix workspace permissions issue
         run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
@@ -98,11 +110,12 @@ jobs:
         run: |
           # Output the image name
           set pipefail
-          .github/build-docker-images.sh "${{needs.check-if-docker-exist.outputs.tt-mlir-sha}}" | tee docker.log
+          .github/build-docker-images.sh "${{needs.check-if-docker-exist.outputs.tt-mlir-sha}}" "${{inputs.dockbuild}}" | tee docker.log
           DOCKER_CI_IMAGE=$(tail -n 1 docker.log)
           echo "DOCKER_CI_IMAGE $DOCKER_CI_IMAGE"
           echo "docker-image=$DOCKER_CI_IMAGE" >> "$GITHUB_OUTPUT"
           echo "docker-image-base=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-/-base-/')" >> "$GITHUB_OUTPUT"
+          echo "docker-image-manylinux=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-ubuntu-22-04/-cibuildwheel-manylinux-2-34/')" >> "$GITHUB_OUTPUT"
 
   set-latest-tag:
     needs: [check-if-docker-exist, build-image]

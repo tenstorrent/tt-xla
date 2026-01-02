@@ -8,7 +8,8 @@ set -e
 # Parse command line arguments
 CHECK_ONLY=false
 tt_mlir_sha=$1
-if [[ "$2" == "--check-only" ]]; then
+dockbuild="$2"
+if [[ "$3" == "--check-only" ]]; then
     CHECK_ONLY=true
 fi
 
@@ -31,7 +32,7 @@ else
 fi
 
 echo "Ensure tt-mlir docker images with tag: $MLIR_DOCKER_TAG exist"
-if ! ./.github/build-docker-images.sh ci --check-only; then
+if ! ./.github/build-docker-images.sh all --check-only; then
     if [ "$CHECK_ONLY" = false ]; then
         echo -e "\033[31mDocker image does not exist.\033[0m"
         echo -e "\033[31mYou should build tt-mlir docker image for sha $tt_mlir_sha first, and then rerun the tt-xla workflow.\033[0m"
@@ -50,6 +51,7 @@ REPO=tenstorrent/tt-xla
 BASE_IMAGE_NAME=ghcr.io/$REPO/tt-xla-base-ubuntu-22-04
 CI_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ci-ubuntu-22-04
 IRD_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ird-ubuntu-22-04
+CIBW_IMAGE_NAME=ghcr.io/$REPO/tt-xla-cibuildwheel-manylinux-2-34
 
 build_and_push() {
     local image_name=$1
@@ -89,9 +91,15 @@ build_and_push() {
 
 }
 
-build_and_push $BASE_IMAGE_NAME .github/Dockerfile.base
-build_and_push $CI_IMAGE_NAME .github/Dockerfile.ci ci
-build_and_push $IRD_IMAGE_NAME .github/Dockerfile.ci ird
+build_and_push $BASE_IMAGE_NAME .github/Dockerfile base
+build_and_push $CI_IMAGE_NAME .github/Dockerfile ci
+build_and_push $IRD_IMAGE_NAME .github/Dockerfile ird
+if [ "$dockbuild" == "all" ] || [ "$dockbuild" == "cibuildwheel" ]; then
+  echo "Building cibuildwheel image"
+  build_and_push $CIBW_IMAGE_NAME .github/Dockerfile cibw
+else
+  echo "Skipping cibuildwheel image build"
+fi
 
 echo "All images built and pushed successfully"
 echo "CI_IMAGE_NAME:"
