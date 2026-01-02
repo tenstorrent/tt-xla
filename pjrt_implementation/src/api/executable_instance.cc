@@ -124,6 +124,10 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
   const char* convert_env = std::getenv("CONVERT_SHLO_TO_SHARDY");
   bool use_cursed_mlir = (convert_env != nullptr && std::string(convert_env) == "1");
 
+  // Check if we should use sanitized MLIR code for XLA ingestion
+  const char* sanitized_env = std::getenv("USE_SANITIZED_EMITHLO_IR");
+  bool use_sanitized_emithlo_ir = (sanitized_env != nullptr && std::string(sanitized_env) == "1");
+
   // Read MLIR code from file (cached after first read)
   static std::string literal_mlir_code;
   static bool file_read = false;
@@ -132,7 +136,13 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
   // Determine which MLIR code to use
   const std::string *checkpointed_mlir_code_ptr = &original_mlir_code;
 
-  if (use_cursed_mlir) {
+  if (use_sanitized_emithlo_ir) {
+    // Use sanitized MLIR code cleaned for XLA ingestion
+    const std::string &sanitized_mlir_code =
+        executable_instance->getExecutableImage()->getSanitizedMlirCode();
+    checkpointed_mlir_code_ptr = &sanitized_mlir_code;
+    DLOG_F(LOG_DEBUG, "USE_SANITIZED_EMITHLO_IR=1, using sanitized MLIR code");
+  } else if (use_cursed_mlir) {
     // Only try to read file if we haven't read it yet
     if (!file_read) {
       const char* pjrt_dir = std::getenv("TTXLA_PJRT_DIR");

@@ -314,6 +314,7 @@ private:
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
       std::string &&checkpointed_mlir_code,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Builds module for TTNN Codegen C++ backend runtime.
@@ -332,6 +333,7 @@ private:
       const std::vector<PJRT_Buffer_Type> &output_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Invokes tt-alchemist to generate a ready-to-run solution (C++ or Python)
