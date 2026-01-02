@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "74a2616baba80272c77713c6934415fc6e30b8b2")
+    set(TT_MLIR_VERSION "e064b3ea6e1f09679932a92da03e88cd1ef30a1e")
 endif()
 
 set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
@@ -80,7 +80,6 @@ else()
         # Installing the python dependencies before the build
         PATCH_COMMAND mkdir -p ${TTMLIR_BUILD_DIR}
         COMMAND TTPJRT_SOURCE_DIR=${TTPJRT_SOURCE_DIR} bash ${TTPJRT_SOURCE_DIR}/venv/install_ttmlir_requirements.sh
-        COMMAND bash -c "cd <SOURCE_DIR> && if ! git apply ${TTPJRT_SOURCE_DIR}/identity_shard.diff 2>/dev/null; then if git apply --reverse --check ${TTPJRT_SOURCE_DIR}/identity_shard.diff >/dev/null 2>&1; then echo 'Patch already applied'; else echo 'Failed to apply patch' && exit 1; fi; fi"
 
         CMAKE_GENERATOR Ninja
         BINARY_DIR ${TTMLIR_BUILD_DIR}
