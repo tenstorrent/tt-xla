@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -7,12 +7,12 @@ from infra.runners import run_on_cpu
 from infra.utilities import Framework, PyTree
 from torch.utils._pytree import tree_flatten, tree_map
 
-from .comparator import Comparator
-from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
+from .comparison_evaluator import ComparisonEvaluator
+from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig
 
 
-class TorchComparator(Comparator):
-    """Comparator for Torch tensors/pytrees."""
+class TorchComparisonEvaluator(ComparisonEvaluator):
+    """ComparisonEvaluator for Torch tensors/pytrees."""
 
     # @override
     @staticmethod

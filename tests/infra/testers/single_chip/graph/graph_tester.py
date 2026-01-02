@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Callable, Optional, Sequence
 
 import torch
-from infra.comparators import ComparisonConfig
+from infra.evaluators import ComparisonConfig
 from infra.utilities import Framework, Mesh, Tensor
 from infra.workloads.torch_workload import TorchWorkload
 from infra.workloads.workload import Workload

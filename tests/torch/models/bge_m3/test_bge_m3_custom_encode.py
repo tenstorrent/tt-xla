@@ -16,7 +16,7 @@ import torch
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, Framework, RunMode
-from infra.comparators.torch_comparator import TorchComparator
+from infra.evaluators import TorchComparisonEvaluator
 from torch.utils._pytree import tree_map
 from utils import BringupStatus, Category, incorrect_result
 
@@ -174,7 +174,7 @@ def bge_m3_encode():
     tt_torch_output = tree_map(convert_to_torch, tt_output["pre_processed_outputs"])
     comparison_config = ComparisonConfig()
     comparison_config.pcc.required_pcc = 0.97  # TODO: Investigate low PCC on bh devices https://github.com/tenstorrent/tt-xla/issues/1461
-    comparator = TorchComparator(comparison_config)
+    comparator = TorchComparisonEvaluator(comparison_config)
     comparator.compare(tt_torch_output, golden_torch_output)
 
     # Return results for further analysis if needed.

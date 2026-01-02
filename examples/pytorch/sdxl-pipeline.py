@@ -58,8 +58,12 @@ class SDXLPipeline:
         self.height = config.height
         self.latents_width = config.latents_width
         self.latents_height = config.latents_height
+        self._setup_done = False
 
     def setup(self, warmup=False):
+        if self._setup_done:
+            return
+        self._setup_done = True
         self.load_models()
         self.load_scheduler()
         self.load_tokenizers()

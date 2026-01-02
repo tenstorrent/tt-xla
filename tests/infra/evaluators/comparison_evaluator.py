@@ -1,43 +1,39 @@
-# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
 import math
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from abc import abstractmethod
 from typing import Tuple
 
 from infra.utilities import PyTree, Tensor
 
-from .comparison_config import (
-    AllcloseConfig,
-    AtolConfig,
-    ComparisonConfig,
-    EqualConfig,
-    PccConfig,
-)
+from .evaluation_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
+from .evaluator import ComparisonResult, Evaluator
 
 
-@dataclass
-class ComparisonResult:
-    passed: bool | None
-    pcc: float | None
-    atol: float | None
-    allclose: bool | None
-    equal: bool | None
-    error_message: str | None = None
-
-
-class Comparator(ABC):
+class ComparisonEvaluator(Evaluator):
     """
-    Utility class providing comparison functionality.
-
-    Provides an abstract interface for framework specific subclasses to implement.
+    Evaluator that compares device output against CPU golden output.
     """
 
     def __init__(self, comparison_config: ComparisonConfig) -> None:
-        """Initialize the comparator with comparison configuration."""
+        """Initialize the comparison evaluator with comparison configuration."""
         self._comparison_config = comparison_config
+
+    def evaluate(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
+        """
+        Evaluate device output against golden output. This is just a wrapper for compare() to
+        keep the consistent interface.
+
+        Args:
+            device_out: Output from the TT device
+            golden_out: Golden/reference output (typically from CPU)
+
+        Returns:
+            ComparisonResult with computed metrics and pass/fail status
+        """
+        return self.compare(device_out, golden_out)
 
     def compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
         """
@@ -45,12 +41,11 @@ class Comparator(ABC):
         during creation.
 
         Returns ComparisonResult with computed metrics.
-        If config.assert_on_failure=True (default), also asserts on failure.
         """
         # Pack args in an iterable to simulate a pytree.
         device_output, golden_output = self._match_data_types((device_out, golden_out))
         _comparison_result = ComparisonResult(
-            passed=None,
+            passed=False,
             pcc=None,
             atol=None,
             allclose=None,
@@ -76,15 +71,16 @@ class Comparator(ABC):
 
         # Check if any comparison failed and optionally assert
         if self._comparison_config.assert_on_failure:
-            Comparator._assert_on_results(_comparison_result)
+            ComparisonEvaluator._assert_on_results(_comparison_result)
 
         return _comparison_result
 
     def _evaluate_results(
         self, comparison_result: ComparisonResult
-    ) -> tuple[bool, str | None]:
+    ) -> Tuple[bool, str | None]:
         """
-        Evaluate comparison results and return whether all enabled checks passed along with error message.
+        Evaluate comparison results and return whether all enabled checks passed
+        along with error message.
 
         Args:
             comparison_result: The ComparisonResult to evaluate
@@ -156,32 +152,6 @@ class Comparator(ABC):
             combined_error_message = "\n".join(error_messages)
 
         return passed, combined_error_message
-
-    @staticmethod
-    def _assert_on_results(
-        comparison_result: ComparisonResult | Tuple[ComparisonResult, ...],
-    ) -> None:
-        """
-        Assert based on comparison results if any checks failed.
-
-        Args:
-            comparison_result: Either a single ComparisonResult or a tuple of ComparisonResults to assert on.
-            There may be multiple results for each test, eg. forward and backward pass results for training.
-        """
-        # Handle both single ComparisonResult and tuple of ComparisonResults
-        if isinstance(comparison_result, ComparisonResult):
-            results = (comparison_result,)
-        else:
-            results = comparison_result
-
-        error_messages = []
-        for i, result in enumerate(results):
-            if not result.passed:
-                error_messages.append(
-                    f"Comparison result {i} failed: {result.error_message}"
-                )
-        if error_messages:
-            assert False, "\n".join(error_messages)
 
     @staticmethod
     @abstractmethod
