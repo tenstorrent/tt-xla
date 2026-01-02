@@ -246,11 +246,6 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
-  status = collectOutputShardings(mlir_module, output_shardings);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
-  }
 
   NumArgumentsResult num_arguments;
   status = collectNumArguments(mlir_module, num_arguments);
@@ -265,6 +260,13 @@ ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
+
+  std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
+  status = collectOutputShardings(mlir_module, output_shardings);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
 
   // Sanitiation path for XLA ingestion operating on a clone of the base module
   mlir::OwningOpRef<mlir::ModuleOp> sanitized_mlir_module = mlir_module->clone();
@@ -504,11 +506,26 @@ ModuleBuilder::collectOutputShardingsShardy(
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::sdy::TensorShardingAttr> shardy_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
-    for (unsigned int result_index = 0; result_index < func_op.getNumResults();
-         ++result_index) {
-      shardy_attributes.push_back(
-          func_op.getResultAttrOfType<mlir::sdy::TensorShardingAttr>(
-              result_index, mlir::sdy::kShardingAttr));
+    // for (unsigned int result_index = 0; result_index < func_op.getNumResults();
+    //      ++result_index) {
+    //   shardy_attributes.push_back(
+    //       func_op.getResultAttrOfType<mlir::sdy::TensorShardingAttr>(
+    //           result_index, mlir::sdy::kShardingAttr));
+    // }
+    std::vector<mlir::sdy::ManualComputationOp> manual_computation_ops;
+    func_op.walk([&](mlir::sdy::ManualComputationOp op) {
+      manual_computation_ops.push_back(op);
+    });
+    if (manual_computation_ops.size() != 1) {
+      DLOG_F(ERROR, "Expected exactly one manual computation op, found: %zu",
+             manual_computation_ops.size());
+      return std::nullopt;
+    }
+    mlir::sdy::ManualComputationOp manual_op = manual_computation_ops[0];
+    mlir::sdy::TensorShardingPerValueAttr out_shardings =
+        manual_op.getOutShardings();
+    for (size_t i = 0; i < out_shardings.size(); ++i) {
+      shardy_attributes.push_back(out_shardings.getSharding(i));
     }
   }
 
