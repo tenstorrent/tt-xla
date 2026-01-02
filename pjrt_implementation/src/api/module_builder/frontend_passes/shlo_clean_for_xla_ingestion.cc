@@ -259,6 +259,15 @@ void stripSdyManualComputation(mlir::sdy::ManualComputationOp manualComputationO
 tt_pjrt_status cleanForXlaIngestion(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   mlir::ModuleOp module = mlir_module.get();
+
+  std::vector<mlir::sdy::ManualComputationOp> manualComputationOps;
+  module.walk([&](mlir::sdy::ManualComputationOp op) { manualComputationOps.push_back(op); });
+  
+  // if there are no manual computation ops, there are no output shardings to inject so this 
+  // pass is a no-op
+  if(manualComputationOps.size() == 0 ) {
+    return tt_pjrt_status::kSuccess;
+  }
   module.walk([&](mlir::func::FuncOp funcOp) {
     internal::stripTTCoreDialectAttributes(funcOp);
   });
@@ -279,8 +288,7 @@ tt_pjrt_status cleanForXlaIngestion(
   });
 
   // Extract out sharding from manual computation ops
-  std::vector<mlir::sdy::ManualComputationOp> manualComputationOps;
-  module.walk([&](mlir::sdy::ManualComputationOp op) { manualComputationOps.push_back(op); });
+
   assert(manualComputationOps.size() == 1 && "Expected exactly one ManualComputationOp in module");
   auto manualComputationOp = manualComputationOps.front();
   auto outShardingResult = internal::extractSdyManualComputationOutSharding(manualComputationOp, meshNameToSizeMap);
