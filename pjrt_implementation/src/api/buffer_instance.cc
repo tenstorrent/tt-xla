@@ -393,7 +393,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
   // Start copying in a separate thread.
   m_copy_to_host_thread = std::make_unique<std::thread>(
-      [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
+      [=](void *host_buffer, tt::runtime::Tensor runtime_tensor,
          EventInstance *event, PJRT_Buffer_Type data_type,
          size_t host_buffer_size, std::optional<uint32_t> device_id,
          bool already_on_host, uint64_t buffer_uid) {
@@ -419,9 +419,10 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
           }
           DLOG_F(LOG_DEBUG,
                  "Returning tensor to host with host_runtime_tensors ct = %ld "
-                 "from device %d with buffer UID %zu",
+                 "from device %d with buffer UID %zu and shape %s",
                  host_runtime_tensors.size(),
-                 device_id.has_value() ? device_id.value() : 0, buffer_uid);
+                 device_id.has_value() ? device_id.value() : 0, buffer_uid,
+                 this->toShapeStr().c_str());
 
           // If device_id is not set, we are returning a replicated input
           // buffer instance to host (eg. cache position for update). This means

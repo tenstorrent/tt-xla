@@ -125,10 +125,17 @@ public:
   // Returns the fingerprint for this executable.
   const std::string &getFingerprint() const { return m_fingerprint; }
 
+  // Returns sanitized MLIR code cleaned for XLA ingestion.
+  const std::string &getSanitizedMlirCode() const {
+    return m_sanitized_mlir_code;
+  }
+
   // Creates a LoadedExecutableInstance from this executable image.
   virtual std::unique_ptr<class LoadedExecutableInstance> toExecutableInstance(
       std::vector<class DeviceInstance *> &&addressable_devices,
       ClientInstance *client_instance) = 0;
+  
+  std::string m_checkpointed_mlir_code;
 
 protected:
   // Constructs executable image instance from the information given by the
@@ -148,6 +155,7 @@ protected:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
@@ -166,6 +174,9 @@ private:
 
   // TTNN MLIR code produced by the compiler, stored for debugging purposes.
   std::string m_ttnn_mlir;
+
+  // Sanitized MLIR code cleaned for XLA ingestion, stored for debugging purposes.
+  std::string m_sanitized_mlir_code;
 
   // A name that identifies the executable.
   std::string m_executable_name;
@@ -244,9 +255,9 @@ public:
   // compiler.
   static std::shared_ptr<FlatbufferExecutableImage> createInstance(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
-      std::string &&ttnn_mlir_code, std::string &&executable_name,
-      size_t num_inputs, size_t num_outputs,
+      std::string &&original_mlir_code, std::string &&checkpointed_mlir_code,
+      std::string &&ttir_mlir_code, std::string &&ttnn_mlir_code,
+      std::string &&executable_name, size_t num_inputs, size_t num_outputs,
       std::vector<std::vector<std::uint32_t>> &&output_dimensions,
       std::vector<size_t> &&output_ranks,
       std::vector<std::int64_t> &&output_dimensions_flat, size_t num_partitions,
@@ -258,6 +269,7 @@ public:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> output_memory_kinds,
       std::vector<size_t> output_memory_kinds_sizes,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Returns flatbuffer binary produced by the compiler.
@@ -275,9 +287,9 @@ private:
   // compiler.
   FlatbufferExecutableImage(
       const tt::runtime::Binary &flatbuffer_binary,
-      std::string &&original_mlir_code, std::string &&ttir_mlir_code,
-      std::string &&ttnn_mlir_code, std::string &&executable_name,
-      size_t num_inputs, size_t num_outputs,
+      std::string &&original_mlir_code, std::string &&checkpointed_mlir_code,
+      std::string &&ttir_mlir_code, std::string &&ttnn_mlir_code,
+      std::string &&executable_name, size_t num_inputs, size_t num_outputs,
       std::vector<std::vector<std::uint32_t>> output_dimensions,
       std::vector<size_t> output_ranks,
       std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions,
@@ -289,6 +301,7 @@ private:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
@@ -319,6 +332,7 @@ public:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> output_memory_kinds,
       std::vector<size_t> output_memory_kinds_sizes,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Creates a LoadedExecutableInstance from this executable image.
@@ -344,6 +358,7 @@ private:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
+      std::string &&sanitized_mlir_code,
       CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.

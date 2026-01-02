@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "905b2950545d879e98b54f4f735502ce66a4aa35")
+    set(TT_MLIR_VERSION "e064b3ea6e1f09679932a92da03e88cd1ef30a1e")
 endif()
 
 set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
@@ -90,7 +90,7 @@ else()
         COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --component DistributedRuntime
 
         CMAKE_ARGS
-          -DCMAKE_BUILD_TYPE=${TTMLIR_BUILD_TYPE}
+          -DCMAKE_BUILD_TYPE=Debug
           -DCMAKE_C_COMPILER=clang-17
           -DCMAKE_CXX_COMPILER=clang++-17
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache

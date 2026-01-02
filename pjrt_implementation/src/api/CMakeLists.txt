@@ -26,6 +26,7 @@ add_library(TTPJRTApi
     "memory_instance.cc"
     "compile_options.cc"
     "compile_options_parser.cc"
+    "module_builder/frontend_passes/shlo_clean_for_xla_ingestion.cc"
     "module_builder/frontend_passes/shlo_input_role_propagation.cc"
     "module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.cc"
     "module_builder/module_builder.cc"

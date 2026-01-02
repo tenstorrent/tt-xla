@@ -17,6 +17,7 @@ from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
+import time
 
 DEFAULT_PROMPTS = [
     "I like taking walks in the",
@@ -88,7 +89,7 @@ def llama(interactive: bool = False):
                 break
             user_prompt = [user_prompt]
         else:
-            batch_size: int = 32
+            batch_size: int = 1
             user_prompt = DEFAULT_PROMPTS[:batch_size]
 
         # Construct inputs, including static cache
@@ -97,7 +98,8 @@ def llama(interactive: bool = False):
         )
 
         # Limit maximum generation count to fit within preallocated static cache
-        max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
+        # max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
+        max_tokens_to_generate: int = 10
 
         # Transfer model and inputs to device
         model, input_args = transfer_to_device(model, input_args, device)
@@ -171,6 +173,7 @@ def setup_model_and_tokenizer(
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
+    # model.config.num_hidden_layers = 1
     model = model.eval()
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -339,9 +342,11 @@ def run_generate(
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             if step == 0:
-                print("RUNNING PREFILL")
+                print("RUNNING PREFILL", flush=True)
                 if is_interactive:
                     print(f"Result: {input_prompt[0]}", end="", flush=True)
+                else:
+                    print("RUNNING DECODE", flush=True)
 
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
@@ -367,7 +372,9 @@ def run_generate(
 
             # Reapply shardings for static cache if SPMD is enabled
             # See https://github.com/tenstorrent/tt-xla/issues/1641
-            if is_spmd:
+            reapply_shardings = False
+            if is_spmd and reapply_shardings:
+                print("[james] REAPPLYING SHARDINGS at step", step, flush=True)
                 for i, (key, value) in enumerate(
                     zip(
                         input_args["past_key_values"].key_cache,
@@ -376,6 +383,12 @@ def run_generate(
                 ):
                     xs.mark_sharding(key, mesh, (None, "model", None, None))
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
+            else:
+                print("[james] NOT REAPPLYING SHARDINGS at step", step, flush=True)
+            print("Post execute step time for step", step, "is", time.time(), flush=True)
+            print("Shard spec for static caches after execution", flush=True)
+            print("Shard spec for static cache key", torch_xla._XLAC._get_xla_sharding_spec(input_args["past_key_values"].key_cache[0]), flush=True)
+            print("Shard spec for static cache value", torch_xla._XLAC._get_xla_sharding_spec(input_args["past_key_values"].value_cache[0]), flush=True)
     print()
     if not is_interactive:
         for i in range(num_users):
