@@ -22,7 +22,7 @@ void initializeLogging() {
 
   const char *loguru_verbosity = std::getenv("TTXLA_LOGGER_LEVEL");
   const char *deprecated_loguru_verbosity = std::getenv("LOGGER_LEVEL");
-  if (deprecated_loguru_verbosity) {
+  if (deprecated_loguru_verbosity && !loguru_verbosity) {
     DLOG_F(WARNING,
            "Environment variable LOGGER_LEVEL is deprecated. Please use "
            "TTXLA_LOGGER_LEVEL instead. Logging will be disabled.");
