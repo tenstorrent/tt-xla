@@ -202,7 +202,7 @@ def pytest_addoption(parser):
         "--log-pid",
         action="store_true",
         default=False,
-        help="Append process PID to log file names specified in TT_XLA_LOGGER_FILE, TT_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE environment variables if set, to facilitate multiprocess debug logging.",
+        help="Append process PID to log file names specified in TTXLA_LOGGER_FILE, TT_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE environment variables if set, to facilitate multiprocess debug logging.",
     )
     parser.addoption(
         "--disable-perf-measurement",
@@ -288,7 +288,7 @@ def newline_logger():
 @pytest.fixture(autouse=True)
 def setup_pid_logging(request):
     """
-    A pytest fixture that monkeypatches TT_XLA_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE, and TT_LOGGER_FILE environment
+    A pytest fixture that monkeypatches TTXLA_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE, and TT_LOGGER_FILE environment
     variables to include the process PID before the file extension when --log-pid
     is passed to pytest.
 
@@ -303,7 +303,7 @@ def setup_pid_logging(request):
         return
 
     # Store original values for restoration
-    original_tt_xla_logger_file = os.environ.get("TT_XLA_LOGGER_FILE")
+    original_TTXLA_LOGGER_FILE = os.environ.get("TTXLA_LOGGER_FILE")
     original_tt_logger_file = os.environ.get("TT_LOGGER_FILE")
     original_ttmlir_runtime_logger_file = os.environ.get("TTMLIR_RUNTIME_LOGGER_FILE")
 
@@ -325,9 +325,9 @@ def setup_pid_logging(request):
         return str(path.parent / new_name)
 
     # Modify environment variables if they exist
-    if original_tt_xla_logger_file:
-        os.environ["TT_XLA_LOGGER_FILE"] = add_pid_to_filename(
-            original_tt_xla_logger_file
+    if original_TTXLA_LOGGER_FILE:
+        os.environ["TTXLA_LOGGER_FILE"] = add_pid_to_filename(
+            original_TTXLA_LOGGER_FILE
         )
 
     if original_tt_logger_file:
@@ -342,8 +342,8 @@ def setup_pid_logging(request):
         yield
     finally:
         # Restore original values
-        if original_tt_xla_logger_file:
-            os.environ["TT_XLA_LOGGER_FILE"] = original_tt_xla_logger_file
+        if original_TTXLA_LOGGER_FILE:
+            os.environ["TTXLA_LOGGER_FILE"] = original_TTXLA_LOGGER_FILE
 
         if original_tt_logger_file:
             os.environ["TT_LOGGER_FILE"] = original_tt_logger_file

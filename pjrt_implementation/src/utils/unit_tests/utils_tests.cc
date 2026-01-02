@@ -49,9 +49,9 @@ protected:
 
 const char *PJRTUtilLoggingTests::TMP_LOG_FILE_NAME = "tmp_test.log";
 
-const char *PJRTUtilLoggingTests::ENV_VAR_LOG_FILE_PATH = "TT_XLA_LOGGER_FILE";
+const char *PJRTUtilLoggingTests::ENV_VAR_LOG_FILE_PATH = "TTXLA_LOGGER_FILE";
 
-const char *PJRTUtilLoggingTests::ENV_VAR_LOGGER_LEVEL = "LOGGER_LEVEL";
+const char *PJRTUtilLoggingTests::ENV_VAR_LOGGER_LEVEL = "TTXLA_LOGGER_LEVEL";
 
 const char *PJRTUtilLoggingTests::ENV_VAR_BRINGUP_LOGGING =
     "ENABLE_BRINGUP_STAGE_LOGGING";

@@ -120,7 +120,7 @@ Before compiling TT-XLA, the TT-MLIR toolchain needs to be built:
 - Follow the TT-MLIR [build instructions](https://docs.tenstorrent.com/tt-mlir/getting-started.html#setting-up-the-environment-manually) to set up the environment and build the toolchain.
 
 ### Building TT-XLA
-Before running these commands to build TT-XLA, please ensure that the environment variable `TTMLIR_TOOLCHAIN_DIR` is set to point to the TT-MLIR toolchain directory created above as part of the TT-MLIR environment setup (for example `export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/`). You can also set `export LOGGER_LEVEL=DEBUG` in order to enable debug logs, or `export LOGGER_LEVEL=VERBOSE` to enable even more verbose logs like printing intermediate IR in compiler passes. To build TT-XLA do the following:
+Before running these commands to build TT-XLA, please ensure that the environment variable `TTMLIR_TOOLCHAIN_DIR` is set to point to the TT-MLIR toolchain directory created above as part of the TT-MLIR environment setup (for example `export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/`). You can also set `export TTXLA_LOGGER_LEVEL=DEBUG` in order to enable debug logs, or `export TTXLA_LOGGER_LEVEL=VERBOSE` to enable even more verbose logs like printing intermediate IR in compiler passes. To build TT-XLA do the following:
 
 1. Make sure you are not in the TT-MLIR build directory, and you are in the location where you want TT-XLA to install.
 
