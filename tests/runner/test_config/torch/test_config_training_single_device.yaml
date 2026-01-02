@@ -8,7 +8,7 @@ test_config:
   mnist/image_classification/pytorch-cnn_nodropout-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [push, nightly, notimeout]
-  autoencoder/pytorch-linear-single_device-training:
+  autoencoder/image_to_image/pytorch-linear-single_device-training:
     status: EXPECTED_PASSING
     markers: [push, nightly]
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-training:
@@ -17,22 +17,22 @@ test_config:
   qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-t5-small-single_device-training:
+  t5/causal_lm/pytorch-t5-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-t5-base-single_device-training:
+  t5/causal_lm/pytorch-t5-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-t5-large-single_device-training:
+  t5/causal_lm/pytorch-t5-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-google/flan-t5-small-single_device-training:
+  t5/causal_lm/pytorch-google/flan-t5-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-google/flan-t5-base-single_device-training:
+  t5/causal_lm/pytorch-google/flan-t5-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-google/flan-t5-large-single_device-training:
+  t5/causal_lm/pytorch-google/flan-t5-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   qwen_2_5/causal_lm/pytorch-0_5b-single_device-training:
@@ -54,23 +54,23 @@ test_config:
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
-  qwen_2_5_coder/pytorch-0_5b-single_device-training:
+  qwen_2_5_coder/causal_lm/pytorch-0_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  clip/pytorch-base_patch32-single_device-training:
+  clip/image_text_similarity/pytorch-base_patch32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "error: failed to legalize operation 'stablehlo.scatter'"
-  falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-training:
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-1B-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
-  nbeats/pytorch-generic_basis-single_device-training:
+  nbeats/image_classification/pytorch-generic_basis-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  nbeats/pytorch-seasonality_basis-single_device-training:
+  nbeats/image_classification/pytorch-seasonality_basis-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  nbeats/pytorch-trend_basis-single_device-training:
+  nbeats/image_classification/pytorch-trend_basis-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   qwen_3/embedding/pytorch-embedding_0_6b-single_device-training:
@@ -82,7 +82,7 @@ test_config:
   phi1/token_classification/pytorch-microsoft/phi-1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  nanogpt/pytorch-FinancialSupport/NanoGPT-single_device-training:
+  nanogpt/causal_lm/pytorch-FinancialSupport/NanoGPT-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-single_device-training:
@@ -91,48 +91,48 @@ test_config:
   dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  musicgen_small/pytorch-single_device-training:
+  musicgen_small/tts/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  stereo/pytorch-small-single_device-training:
+  stereo/tts/pytorch-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  stereo/pytorch-medium-single_device-training:
+  stereo/tts/pytorch-medium-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  stereo/pytorch-large-single_device-training:
+  stereo/tts/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  oft/pytorch-single_device-training:
+  oft/object_detection/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=3)] grow to 1518400 B which is beyond max L1 size of 1499136 B"
-  mlp_mixer/pytorch-mixer_b32_224-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_b32_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_l32_224-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_l32_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_s32_224-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_s32_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  stable_diffusion_unet/pytorch-base-single_device-training:
+  stable_diffusion_unet/image_to_text/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
-  centernet/pytorch-resnet18_coco-single_device-training:
+  centernet/object_detection/pytorch-resnet18_coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
-  centernet/pytorch-resnet101_coco-single_device-training:
+  centernet/object_detection/pytorch-resnet101_coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
-  centernet/pytorch-dla1x_coco-single_device-training:
+  centernet/object_detection/pytorch-dla1x_coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
-  centernet/pytorch-dla2x_coco-single_device-training:
+  centernet/object_detection/pytorch-dla2x_coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
@@ -140,62 +140,63 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Only Tensors created explicitly by the user (graph leaves) support the deepcopy protocol at the moment."
-  monodle/pytorch-dla34-single_device-training:
+  monodle/object_detection/pytorch-dla34-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
-  uniad/pytorch-single_device-training:
+  uniad/object_detection/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "TypeError: list indices must be integers or slices, not tuple"
-  mobilenetv1/pytorch-google/mobilenet_v1_0.75_192-single_device-training:
+  mobilenetv1/image_classification/pytorch-google/mobilenet_v1_0.75_192-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
-  mobilenetv1/pytorch-google/mobilenet_v1_1.0_224-single_device-training:
+  mobilenetv1/image_classification/pytorch-google/mobilenet_v1_1.0_224-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
-  speecht5/pytorch-tts-single_device-training:
+  speecht5/tts/pytorch-tts-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: mat1 and mat2 must have the same dtype, but got Float and BFloat16"
-  rmbg/pytorch-2_0-single_device-training:
+  rmbg/semantic_segmentation/pytorch-2_0-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ImportError: kornia"
-  ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-training:
+  ssdlite320_mobilenetv3/object_detection/pytorch-ssdlite320_mobilenet_v3_large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: targets should not be none when in training mode"
-  resnext/pytorch-resnext101_64x4d-single_device-training:
+  resnext/image_classification/pytorch-resnext101_64x4d-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Cannot find callable resnext101_64x4d in hubconf"
-  ssd300_vgg16/pytorch-ssd300_vgg16-single_device-training:
+  ssd300_vgg16/object_detection/pytorch-ssd300_vgg16-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: targets should not be none when in training mode"
-  bi_lstm_crf/pytorch-default-single_device-training:
+  bi_lstm_crf/token_classification/pytorch-default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
-  ssd300_resnet50/pytorch-base-single_device-training:
+  ssd300_resnet50/object_detection/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AttributeError: 'NoneType' object has no attribute 'max'"
-  oft_stable_diffusion/pytorch-runwayml/stable-diffusion-v1-5-single_device-training:
+  oft_stable_diffusion/conditional_generation/pytorch-runwayml/stable-diffusion-v1-5-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AttributeError: 'NoneType' object has no attribute 'max'"
-  retinanet/pytorch-retinanet_resnet50_fpn_v2-single_device-training:
+  retinanet/object_detection/pytorch-retinanet_resnet50_fpn_v2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AttributeError: 'NoneType' object has no attribute 'max'"
-  gliner/pytorch-urchade/gliner_multi-v2.1-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+  # TODO: gliner has import errors in tt-forge-models, re-enable after fixing
+  # gliner/token_classification/pytorch-urchade/gliner_multi-v2.1-single_device-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "AttributeError: 'NoneType' object has no attribute 'max'"
   # yolov5/pytorch-yolov5n-single_device-training:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
@@ -216,19 +217,19 @@ test_config:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
-  whisper/pytorch-openai/whisper-large-v3-single_device-training:
+  whisper/audio_asr/pytorch-openai/whisper-large-v3-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Could not load libtorchcodec. Likely causes:"
-  yolox/pytorch-yolox_x-single_device-training:
+  yolox/object_detection/pytorch-yolox_x-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "EOFError: Ran out of input"
-  unet/pytorch-smp_unet_resnet101-single_device-training:
+  unet/semantic_segmentation/pytorch-smp_unet_resnet101-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ModuleNotFoundError: No module named 'segmentation_models_pytorch'"
-  mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-training:
+  mobilenetv2/image_classification/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: Expected more than 1 value per channel when training, got input size torch.Size([1, 256, 1, 1])"
@@ -236,51 +237,52 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
-  stable_diffusion_1_4/pytorch-base-single_device-training:
+  stable_diffusion_1_4/image_to_text/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
-  gliner/pytorch-urchade/gliner_largev2-single_device-training:
+  # TODO: gliner has import errors in tt-forge-models, re-enable after fixing
+  # gliner/token_classification/pytorch-urchade/gliner_largev2-single_device-training:
+  #   status: NOT_SUPPORTED_SKIP
+  #   bringup_status: FAILED_FE_COMPILATION
+  #   reason: "loader.load_model() does not return `nn.Module`"
+  yolox/object_detection/pytorch-yolox_nano-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+  yolox/object_detection/pytorch-yolox_tiny-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+  yolox/object_detection/pytorch-yolox_s-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+  yolox/object_detection/pytorch-yolox_m-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+  yolox/object_detection/pytorch-yolox_l-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+  yolox/object_detection/pytorch-yolox_darknet-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model expects targets to be passed while in training mode"
+  hippynn/atomic_ml/pytorch-Hippynn-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
-  yolox/pytorch-yolox_nano-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
-  yolox/pytorch-yolox_tiny-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
-  yolox/pytorch-yolox_s-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
-  yolox/pytorch-yolox_m-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
-  yolox/pytorch-yolox_l-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
-  yolox/pytorch-yolox_darknet-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
-  hippynn/pytorch-Hippynn-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "loader.load_model() does not return `nn.Module`"
-  yolov6/pytorch-yolov6n-single_device-training:
+  yolov6/object_detection/pytorch-yolov6n-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov6/pytorch-yolov6s-single_device-training:
+  yolov6/object_detection/pytorch-yolov6s-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov6/pytorch-yolov6m-single_device-training:
+  yolov6/object_detection/pytorch-yolov6m-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -288,11 +290,11 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  pointpillars/pytorch-pointpillars-single_device-training:
+  pointpillars/object_detection/pytorch-pointpillars-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2003264 B which is beyond max L1 size of 1499136 B"
-  fpn/pytorch-resnet50_fpn_v2-single_device-training:
+  fpn/image_classification/pytorch-resnet50_fpn_v2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -328,7 +330,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  bge_m3/pytorch-base-single_device-training:
+  bge_m3/embedding_generation/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -360,11 +362,11 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  mgp_str_base/pytorch-single_device-training:
+  mgp_str_base/image_feature_extraction/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolos/pytorch-single_device-training:
+  yolos/object_detection/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -384,43 +386,43 @@ test_config:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov9/pytorch-t-single_device-training:
+  yolov9/object_detection/pytorch-t-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov9/pytorch-s-single_device-training:
+  yolov9/object_detection/pytorch-s-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov9/pytorch-m-single_device-training:
+  yolov9/object_detection/pytorch-m-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov9/pytorch-c-single_device-training:
+  yolov9/object_detection/pytorch-c-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov9/pytorch-e-single_device-training:
+  yolov9/object_detection/pytorch-e-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  retinanet/pytorch-retinanet_rn18fpn-single_device-training:
+  retinanet/object_detection/pytorch-retinanet_rn18fpn-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  retinanet/pytorch-retinanet_rn34fpn-single_device-training:
+  retinanet/object_detection/pytorch-retinanet_rn34fpn-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  retinanet/pytorch-retinanet_rn50fpn-single_device-training:
+  retinanet/object_detection/pytorch-retinanet_rn50fpn-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  retinanet/pytorch-retinanet_rn101fpn-single_device-training:
+  retinanet/object_detection/pytorch-retinanet_rn101fpn-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  retinanet/pytorch-retinanet_rn152fpn-single_device-training:
+  retinanet/object_detection/pytorch-retinanet_rn152fpn-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -452,50 +454,50 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  centernet/pytorch-hourglass_coco-single_device-training:
+  centernet/object_detection/pytorch-hourglass_coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Buffer must be allocated on device"
-  yolov6/pytorch-yolov6l-single_device-training:
+  yolov6/object_detection/pytorch-yolov6l-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_r50_24e_bevformer-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_bevformer-single_device-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 20971520000 B DRAM buffer across 8 banks, where each bank needs to store 2621440000 B, but bank size is only 4278190016 B"
-  maptr/pytorch-tiny_r50_24e_bevformer_t4-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_bevformer_t4-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_r50_24e-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_r50_110e-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_110e-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_r50_24e_t4-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_t4-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-nano_r18_110e-single_device-training:
+  maptr/realtime_map_construction/pytorch-nano_r18_110e-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_r50_24e_bevpool-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_bevpool-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_fusion_24e-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_fusion_24e-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov3/pytorch-base-single_device-training:
+  yolov3/object_detection/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  transfuser/pytorch-single_device-training:
+  transfuser/object_detection/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "'func.call' op incorrect number of operands for callee"
@@ -507,23 +509,23 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-training:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2396480 B which is beyond max L1 size of 1499136 B (assert.hpp:103)"
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-training:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-single_device-training:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-single_device-training:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  detr3d/pytorch-single_device-training:
+  detr3d/object_detection/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1330944 B"
@@ -531,7 +533,7 @@ test_config:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov4/pytorch-base-single_device-training:
+  yolov4/object_detection/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=7,y=6) - (x=7,y=6)] grow to 2371840 B which is beyond max L1 size of 1499136 B (assert.hpp:103)"
@@ -543,85 +545,85 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  dla/pytorch-dla34-single_device-training:
+  dla/image_classification/pytorch-dla34-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla46_c-single_device-training:
+  dla/image_classification/pytorch-dla46_c-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla46x_c-single_device-training:
+  dla/image_classification/pytorch-dla46x_c-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla60-single_device-training:
+  dla/image_classification/pytorch-dla60-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla60x-single_device-training:
+  dla/image_classification/pytorch-dla60x-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla60x_c-single_device-training:
+  dla/image_classification/pytorch-dla60x_c-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla102-single_device-training:
+  dla/image_classification/pytorch-dla102-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla102x-single_device-training:
+  dla/image_classification/pytorch-dla102x-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla102x2-single_device-training:
+  dla/image_classification/pytorch-dla102x2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla169-single_device-training:
+  dla/image_classification/pytorch-dla169-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  densenet/pytorch-densenet121-single_device-training:
+  densenet/image_classification/pytorch-densenet121-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  densenet/pytorch-densenet161-single_device-training:
+  densenet/image_classification/pytorch-densenet161-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  densenet/pytorch-densenet169-single_device-training:
+  densenet/image_classification/pytorch-densenet169-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  densenet/pytorch-densenet201-single_device-training:
+  densenet/image_classification/pytorch-densenet201-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  codegen/pytorch-Salesforce/codegen-350M-mono-single_device-training:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-mono-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  codegen/pytorch-Salesforce/codegen-350M-multi-single_device-training:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-multi-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  codegen/pytorch-Salesforce/codegen-350M-nl-single_device-training:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-nl-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  squeezebert/pytorch-squeezebert-mnli-single_device-training:
+  squeezebert/text_classification/pytorch-squeezebert-mnli-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-base-single_device-training:
+  vit/image_classification/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-large-single_device-training:
+  vit/image_classification/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-vit_b_16-single_device-training:
+  vit/image_classification/pytorch-vit_b_16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-vit_b_32-single_device-training:
+  vit/image_classification/pytorch-vit_b_32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-vit_l_16-single_device-training:
+  vit/image_classification/pytorch-vit_l_16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-vit_l_32-single_device-training:
+  vit/image_classification/pytorch-vit_l_32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-vit_h_14-single_device-training:
+  vit/image_classification/pytorch-vit_h_14-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  maptr/pytorch-tiny_r50_24e_av2-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_av2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -660,52 +662,52 @@ test_config:
   swin/image_classification/pytorch-swin_v2_b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  deit/pytorch-base-single_device-training:
+  deit/image_classification/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  deit/pytorch-base_distilled-single_device-training:
+  deit/image_classification/pytorch-base_distilled-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  deit/pytorch-small-single_device-training:
+  deit/image_classification/pytorch-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  deit/pytorch-tiny-single_device-training:
+  deit/image_classification/pytorch-tiny-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  bart/pytorch-large-single_device-training:
+  bart/text_classification/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-training:
+  roberta/text_classification/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  sam/pytorch-facebook/sam-vit-base-single_device-training:
+  sam/semantic_segmentation/pytorch-facebook/sam-vit-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  sam/pytorch-facebook/sam-vit-large-single_device-training:
+  sam/semantic_segmentation/pytorch-facebook/sam-vit-large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  sam/pytorch-facebook/sam-vit-huge-single_device-training:
+  sam/semantic_segmentation/pytorch-facebook/sam-vit-huge-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  mamba/pytorch-mamba-370m-hf-single_device-training:
+  mamba/causal_lm/pytorch-mamba-370m-hf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mamba/pytorch-mamba-790m-hf-single_device-training:
+  mamba/causal_lm/pytorch-mamba-790m-hf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mamba/pytorch-mamba-1.4b-hf-single_device-training:
+  mamba/causal_lm/pytorch-mamba-1.4b-hf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   roberta/masked_lm/pytorch-xlm_base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  unet/pytorch-unet_cityscapes-single_device-training:
+  unet/semantic_segmentation/pytorch-unet_cityscapes-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   vilt/masked_lm/pytorch-mlm-single_device-training:
@@ -731,192 +733,192 @@ test_config:
   opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  gpt2/pytorch-gpt2_sequence_classification-single_device-training:
+  gpt2/causal_lm/pytorch-gpt2_sequence_classification-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnext/pytorch-resnext50_32x4d-single_device-training:
+  resnext/image_classification/pytorch-resnext50_32x4d-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnext/pytorch-resnext101_32x8d-single_device-training:
+  resnext/image_classification/pytorch-resnext101_32x8d-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnext/pytorch-resnext101_32x8d_wsl-single_device-training:
+  resnext/image_classification/pytorch-resnext101_32x8d_wsl-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnext/pytorch-resnext14_32x4d_osmr-single_device-training:
+  resnext/image_classification/pytorch-resnext14_32x4d_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnext/pytorch-resnext26_32x4d_osmr-single_device-training:
+  resnext/image_classification/pytorch-resnext26_32x4d_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnext/pytorch-resnext50_32x4d_osmr-single_device-training:
+  resnext/image_classification/pytorch-resnext50_32x4d_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnext/pytorch-resnext101_64x4d_osmr-single_device-training:
+  resnext/image_classification/pytorch-resnext101_64x4d_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  rcnn/pytorch-alexnet-single_device-training:
+  rcnn/object_detection/pytorch-alexnet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-vovnet27s-single_device-training:
+  vovnet/image_classification/pytorch-vovnet27s-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-vovnet39-single_device-training:
+  vovnet/image_classification/pytorch-vovnet39-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-vovnet57-single_device-training:
+  vovnet/image_classification/pytorch-vovnet57-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-vovnet39_th-single_device-training:
+  vovnet/image_classification/pytorch-vovnet39_th-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-vovnet57_th-single_device-training:
+  vovnet/image_classification/pytorch-vovnet57_th-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-ese_vovnet19b_dw-single_device-training:
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-ese_vovnet39b-single_device-training:
+  vovnet/image_classification/pytorch-ese_vovnet39b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-ese_vovnet99b-single_device-training:
+  vovnet/image_classification/pytorch-ese_vovnet99b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-training:
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  inception/pytorch-inception_v4-single_device-training:
+  inception/image_classification/pytorch-inception_v4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  inception/pytorch-inception_v4.tf_in1k-single_device-training:
+  inception/image_classification/pytorch-inception_v4.tf_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  inception/pytorch-inceptionv4-single_device-training:
+  inception/image_classification/pytorch-inceptionv4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla34.in1k-single_device-training:
+  dla/image_classification/pytorch-dla34.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  googlenet/pytorch-googlenet-single_device-training:
+  googlenet/image_classification/pytorch-googlenet-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
-  resnet/pytorch-resnet_50_hf-single_device-training:
+  resnet/image_classification/pytorch-resnet_50_hf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet_50_hf_high_res-single_device-training:
+  resnet/image_classification/pytorch-resnet_50_hf_high_res-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is only 1073741792 B"
-  resnet/pytorch-resnet50_timm-single_device-training:
+  resnet/image_classification/pytorch-resnet50_timm-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet50_timm_high_res-single_device-training:
+  resnet/image_classification/pytorch-resnet50_timm_high_res-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet18-single_device-training:
+  resnet/image_classification/pytorch-resnet18-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet34-single_device-training:
+  resnet/image_classification/pytorch-resnet34-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet50-single_device-training:
+  resnet/image_classification/pytorch-resnet50-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet50_high_res-single_device-training:
+  resnet/image_classification/pytorch-resnet50_high_res-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet101-single_device-training:
+  resnet/image_classification/pytorch-resnet101-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet152-single_device-training:
+  resnet/image_classification/pytorch-resnet152-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hardnet/pytorch-single_device-training:
+  hardnet/image_classification/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "RuntimeError: TT_FATAL conv2d"
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-training:
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-conv-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
-  wide_resnet/pytorch-wide_resnet50_2-single_device-training:
+  wide_resnet/image_classification/pytorch-wide_resnet50_2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  wide_resnet/pytorch-wide_resnet101_2-single_device-training:
+  wide_resnet/image_classification/pytorch-wide_resnet101_2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  wide_resnet/pytorch-wide_resnet50_2.timm-single_device-training:
+  wide_resnet/image_classification/pytorch-wide_resnet50_2.timm-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  wide_resnet/pytorch-wide_resnet101_2.timm-single_device-training:
+  wide_resnet/image_classification/pytorch-wide_resnet101_2.timm-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  alexnet/pytorch-alexnet-single_device-training:
+  alexnet/image_classification/pytorch-alexnet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  alexnet/pytorch-alexnetb-single_device-training:
+  alexnet/image_classification/pytorch-alexnetb-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  autoencoder/pytorch-conv-single_device-training:
+  autoencoder/image_to_image/pytorch-conv-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-vgg11-single_device-training:
+  vgg/image_classification/pytorch-vgg11-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-vgg13-single_device-training:
+  vgg/image_classification/pytorch-vgg13-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-vgg16-single_device-training:
+  vgg/image_classification/pytorch-vgg16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "RuntimeError: TT_FATAL conv2d"
-  vgg/pytorch-vgg19-single_device-training:
+  vgg/image_classification/pytorch-vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-bn_vgg19-single_device-training:
+  vgg/image_classification/pytorch-bn_vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-bn_vgg19b-single_device-training:
+  vgg/image_classification/pytorch-bn_vgg19b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-vgg19_bn-single_device-training:
+  vgg/image_classification/pytorch-vgg19_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-timm_vgg19_bn-single_device-training:
+  vgg/image_classification/pytorch-timm_vgg19_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg11-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg11-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg11_bn-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg11_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg13-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg13-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg13_bn-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg13_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg16-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg16_bn-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg16_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg19-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg19_bn-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg19_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-hf_vgg19-single_device-training:
+  vgg/image_classification/pytorch-hf_vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  unet/pytorch-torchhub_brain_unet-single_device-training:
+  unet/semantic_segmentation/pytorch-torchhub_brain_unet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  unet/pytorch-carvana_unet-single_device-training:
+  unet/semantic_segmentation/pytorch-carvana_unet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   distilbert/masked_lm/pytorch-distilbert-base-cased-single_device-training:
@@ -931,7 +933,7 @@ test_config:
   distilbert/token_classification/pytorch-Davlan/distilbert-base-multilingual-cased-ner-hrl-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg19_unet/pytorch-single_device-training:
+  vgg19_unet/semantic_segmentation/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 284 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)]"
@@ -1003,13 +1005,13 @@ test_config:
   albert/token_classification/pytorch-xxlarge_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  xglm/pytorch-xglm-564M-single_device-training:
+  xglm/causal_lm/pytorch-xglm-564M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  xglm/pytorch-xglm-1.7B-single_device-training:
+  xglm/causal_lm/pytorch-xglm-1.7B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  densenet/pytorch-densenet121_xray-single_device-training:
+  densenet/image_classification/pytorch-densenet121_xray-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source."
@@ -1022,38 +1024,38 @@ test_config:
   opt/causal_lm/pytorch-facebook/opt-1.3b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  beit/pytorch-base-single_device-training:
+  beit/image_classification/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  beit/pytorch-large-single_device-training:
+  beit/image_classification/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   phi1/causal_lm/pytorch-microsoft/phi-1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-training:
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-learned-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-single_device-training:
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-fourier-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  d_fine/pytorch-nano-single_device-training:
+  d_fine/object_detection/pytorch-nano-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  d_fine/pytorch-small-single_device-training:
+  d_fine/object_detection/pytorch-small-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  d_fine/pytorch-medium-single_device-training:
+  d_fine/object_detection/pytorch-medium-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  d_fine/pytorch-large-single_device-training:
+  d_fine/object_detection/pytorch-large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  d_fine/pytorch-xlarge-single_device-training:
+  d_fine/object_detection/pytorch-xlarge-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -1064,371 +1066,371 @@ test_config:
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_b16_224-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_b16_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_b16_224_in21k-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_b16_224_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_b16_224_miil-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_b16_224_miil-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_b16_224_miil_in21k-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_b16_224_miil_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_l16_224-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_l16_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_l16_224_in21k-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_l16_224_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_s16_224-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_s16_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_b16_224.goog_in21k-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_b16_224.goog_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_github-single_device-training:
+  mlp_mixer/image_classification/pytorch-mixer_github-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   mlp_mixer/lucidrains/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  perceiver/pytorch-deepmind/language-perceiver-single_device-training:
+  perceiver/masked_lm/pytorch-deepmind/language-perceiver-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  gpt2/pytorch-gpt2-single_device-training:
+  gpt2/causal_lm/pytorch-gpt2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   openpose/v2/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18_small-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18_small_v2-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w30-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w30-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w32-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w40-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w40-single_device-training:
     status: NOT_SUPPORTED_SKIP
     reason: "SEGFAULT"
-  hrnet/pytorch-hrnet_w44-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w44-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w48-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w48-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w64-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w64-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18.ms_aug_in1k-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18.ms_aug_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v1_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18_small_v2_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v2_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w18_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w18_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w30_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w30_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w32_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w32_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w40_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w40_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w44_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w44_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w48_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w48_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w64_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w64_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  glpn_kitti/pytorch-single_device-training:
+  glpn_kitti/depth_estimation/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   albert/masked_lm/pytorch-large_v1-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
-  segformer/pytorch-mit_b0-single_device-training:
+  segformer/image_classification/pytorch-mit_b0-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Not enough space to allocate 12435456 B L1 buffer across 3 banks, where each bank needs to store 4145152 B, but bank size is only 1331392 B"
-  segformer/pytorch-mit_b1-single_device-training:
+  segformer/image_classification/pytorch-mit_b1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  segformer/pytorch-mit_b2-single_device-training:
+  segformer/image_classification/pytorch-mit_b2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs (Runs for 3 hours)"
-  segformer/pytorch-mit_b3-single_device-training:
+  segformer/image_classification/pytorch-mit_b3-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
-  segformer/pytorch-mit_b4-single_device-training:
+  segformer/image_classification/pytorch-mit_b4-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
-  segformer/pytorch-mit_b5-single_device-training:
+  segformer/image_classification/pytorch-mit_b5-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
-  ghostnet/pytorch-ghostnet_100-single_device-training:
+  ghostnet/image_classification/pytorch-ghostnet_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  ghostnet/pytorch-ghostnet_100.in1k-single_device-training:
+  ghostnet/image_classification/pytorch-ghostnet_100.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  ghostnet/pytorch-ghostnetv2_100.in1k-single_device-training:
+  ghostnet/image_classification/pytorch-ghostnetv2_100.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-training:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite0.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-training:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite1.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-training:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite2.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-training:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite3.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-training:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite4.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-mono_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-stereo_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-stereo_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-mono+stereo_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono+stereo_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-mono_no_pt_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono_no_pt_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-stereo_no_pt_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-stereo_no_pt_640x192-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B"
-  monodepth2/pytorch-mono+stereo_no_pt_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono+stereo_no_pt_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-mono_1024x320-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono_1024x320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-stereo_1024x320-single_device-training:
+  monodepth2/depth_estimation/pytorch-stereo_1024x320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-mono+stereo_1024x320-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono+stereo_1024x320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b0-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b0-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b1-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b2-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b3-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b3-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b4-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b5-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b5-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b6-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b6-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b7-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b7-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-timm_efficientnet_b0-single_device-training:
+  efficientnet/image_classification/pytorch-timm_efficientnet_b0-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-timm_efficientnet_b4-single_device-training:
+  efficientnet/image_classification/pytorch-timm_efficientnet_b4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv1/pytorch-mobilenet_v1-single_device-training:
+  mobilenetv1/image_classification/pytorch-mobilenet_v1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-training:
+  mobilenetv1/image_classification/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  unet_for_conditional_generation/pytorch-base-single_device-training:
+  unet_for_conditional_generation/conditional_generation/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 125829120 B DRAM buffer across 12 banks, where each bank needs to store 10485760 B"
     markers: [large]
-  whisper/pytorch-openai/whisper-tiny-single_device-training:
+  whisper/audio_asr/pytorch-openai/whisper-tiny-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  whisper/pytorch-openai/whisper-base-single_device-training:
+  whisper/audio_asr/pytorch-openai/whisper-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  whisper/pytorch-openai/whisper-small-single_device-training:
+  whisper/audio_asr/pytorch-openai/whisper-small-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  whisper/pytorch-openai/whisper-medium-single_device-training:
+  whisper/audio_asr/pytorch-openai/whisper-medium-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  whisper/pytorch-openai/whisper-large-single_device-training:
+  whisper/audio_asr/pytorch-openai/whisper-large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  whisper/pytorch-openai/whisper-large-v3-turbo-single_device-training:
+  whisper/audio_asr/pytorch-openai/whisper-large-v3-turbo-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  mobilenetv3/pytorch-mobilenet_v3_large-single_device-training:
+  mobilenetv3/image_classification/pytorch-mobilenet_v3_large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv3/pytorch-mobilenet_v3_small-single_device-training:
+  mobilenetv3/image_classification/pytorch-mobilenet_v3_small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv3/pytorch-mobilenetv3_large_100-single_device-training:
+  mobilenetv3/image_classification/pytorch-mobilenetv3_large_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv3/pytorch-mobilenetv3_small_100-single_device-training:
+  mobilenetv3/image_classification/pytorch-mobilenetv3_small_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  xception/pytorch-xception41-single_device-training:
+  xception/image_classification/pytorch-xception41-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  xception/pytorch-xception65-single_device-training:
+  xception/image_classification/pytorch-xception65-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  xception/pytorch-xception71-single_device-training:
+  xception/image_classification/pytorch-xception71-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  xception/pytorch-xception71.tf_in1k-single_device-training:
+  xception/image_classification/pytorch-xception71.tf_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_040-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_040-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_064-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_064-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_080-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_080-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_120-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_120-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_160-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_160-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_320-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3712 input channels and 232 in the weight tensor."
-  regnet/pytorch-regnet_y_400mf-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_400mf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_800mf-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_800mf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_1_6gf-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_1_6gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_3_2gf-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_3_2gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_8gf-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_8gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_16gf-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_16gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_32gf-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_32gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_y_128gf-single_device-training:
+  regnet/image_classification/pytorch-regnet_y_128gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_x_400mf-single_device-training:
+  regnet/image_classification/pytorch-regnet_x_400mf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_x_800mf-single_device-training:
+  regnet/image_classification/pytorch-regnet_x_800mf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_x_1_6gf-single_device-training:
+  regnet/image_classification/pytorch-regnet_x_1_6gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_x_3_2gf-single_device-training:
+  regnet/image_classification/pytorch-regnet_x_3_2gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_x_8gf-single_device-training:
+  regnet/image_classification/pytorch-regnet_x_8gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_x_16gf-single_device-training:
+  regnet/image_classification/pytorch-regnet_x_16gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  regnet/pytorch-regnet_x_32gf-single_device-training:
+  regnet/image_classification/pytorch-regnet_x_32gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-mobilenet_v2-single_device-training:
+  mobilenetv2/image_classification/pytorch-mobilenet_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-training:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_0.35_96-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-training:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_0.75_160-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-single_device-training:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_1.0_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-mobilenetv2_100-single_device-training:
+  mobilenetv2/image_classification/pytorch-mobilenetv2_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-training:
+  mobilenetv2/image_classification/pytorch-mobilenet_v2_torchvision-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   qwen_3/causal_lm/pytorch-1_7b-single_device-training:
@@ -1438,24 +1440,24 @@ test_config:
   phi2/token_classification/pytorch-microsoft/phi-2-pytdml-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  gemma/pytorch-google/gemma-1.1-2b-it-single_device-training:
+  gemma/causal_lm/pytorch-google/gemma-1.1-2b-it-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
-  gemma/pytorch-google/gemma-2b-single_device-training:
+  gemma/causal_lm/pytorch-google/gemma-2b-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
-  gemma/pytorch-google/gemma-2-2b-it-single_device-training:
+  gemma/causal_lm/pytorch-google/gemma-2-2b-it-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
-  mamba/pytorch-mamba-2.8b-hf-single_device-training:
+  mamba/causal_lm/pytorch-mamba-2.8b-hf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  qwen_2_5_coder/pytorch-1_5b-single_device-training:
+  qwen_2_5_coder/causal_lm/pytorch-1_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  qwen_2_5_coder/pytorch-1_5b_instruct-single_device-training:
+  qwen_2_5_coder/causal_lm/pytorch-1_5b_instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
