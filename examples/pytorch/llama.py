@@ -369,8 +369,8 @@ def run_generate(
 
             # Reapply shardings for static cache if SPMD is enabled
             # See https://github.com/tenstorrent/tt-xla/issues/1641
-            
-            if is_spmd:
+            reapply_shardings = False
+            if is_spmd and reapply_shardings:
                 print("[james] REAPPLYING SHARDINGS at step", step, flush=True)
                 for i, (key, value) in enumerate(
                     zip(
@@ -380,7 +380,8 @@ def run_generate(
                 ):
                     xs.mark_sharding(key, mesh, (None, "model", None, None))
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
-                    pass
+            else:
+                print("[james] NOT REAPPLYING SHARDINGS at step", step, flush=True)
     print()
     if not is_interactive:
         for i in range(num_users):
