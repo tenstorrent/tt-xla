@@ -2284,9 +2284,10 @@ test_config:
     reason: "Can't convert shape rank  - https://github.com/tenstorrent/tt-xla/issues/2456"
 
   retinanet/pytorch-retinanet_resnet50_fpn_v2-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=6)] grow to 22732608 B which is beyond max L1 size of 1499136 B"
-    bringup_status: FAILED_RUNTIME
+    # status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
+    # reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=6)] grow to 22732608 B which is beyond max L1 size of 1499136 B"
+    # bringup_status: FAILED_RUNTIME
 
   ssd300_vgg16/pytorch-ssd300_vgg16-single_device-inference:
     status: NOT_SUPPORTED_SKIP
