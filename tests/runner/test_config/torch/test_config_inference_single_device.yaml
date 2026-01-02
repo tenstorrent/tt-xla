@@ -479,7 +479,7 @@ test_config:
 
   unet/pytorch-carvana_unet_480x640-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 2537856 B L1_SMALL buffer across 72 banks, where each bank needs to store 35248 B, but bank size is only 65536 B"
+    # reason: "Out of Memory: Not enough space to allocate 2537856 B L1_SMALL buffer across 72 banks, where each bank needs to store 35248 B, but bank size is only 65536 B"
 
   vgg/pytorch-torchvision_vgg11_bn-single_device-inference:
     status: EXPECTED_PASSING
