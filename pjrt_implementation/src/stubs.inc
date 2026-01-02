@@ -128,3 +128,17 @@
   _STUB(PJRT_AsyncHostToDeviceTransferManager_BufferSize);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_SetBufferError);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_AddMetadata);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferLiteral);
+  _STUB(PJRT_AsyncTrackingEvent_Destroy);
+  _STUB(PJRT_Buffer_CopyRawToHostFuture);
+  _STUB(PJRT_Buffer_DonateWithControlDependency);
+  _STUB(PJRT_Client_CreateAliasBuffer);
+  _STUB(PJRT_Client_CreateErrorBuffer);
+  _STUB(PJRT_Client_CreateUninitializedBuffer);
+  _STUB(PJRT_Client_FulfillAliasBuffer);
+  _STUB(PJRT_Client_UpdateGlobalProcessInfo);
+  _STUB(PJRT_Device_CreateAsyncTrackingEvent);
+  _STUB(PJRT_Device_PoisonExecution);
+  _STUB(PJRT_Executable_GetCompileOptions);
+  _STUB(PJRT_LoadedExecutable_GetDeviceAssignment);
+  _STUB(PJRT_TopologyDescription_Deserialize);
