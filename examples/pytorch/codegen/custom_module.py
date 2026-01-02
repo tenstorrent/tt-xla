@@ -35,9 +35,7 @@ class Model(nn.Module):
 
 # Any compile options you could specify when executing the model normally can also be used with codegen.
 extra_options = {
-    # "enable_optimizer": True,
-    # "enable_memory_layout_analysis": True,
-    # "enable_l1_interleaved": False,
+    # "optimization_level": 0,  # Levels 0, 1, and 2 are supported
 }
 
 model = Model()
