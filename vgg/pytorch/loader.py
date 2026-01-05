@@ -7,6 +7,12 @@ VGG model loader implementation
 
 import torch
 from typing import Optional
+from dataclasses import dataclass
+import timm
+from pytorchcv.model_provider import get_model as ptcv_get_model
+from vgg_pytorch import VGG as HFVGG
+from torchvision import models as tv_models
+
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -17,16 +23,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-
-from PIL import Image
-from ...tools.utils import get_file, print_compiled_model_results
-from torchvision import transforms
-from dataclasses import dataclass
-import timm
-from timm.data import resolve_data_config
-from timm.data.transforms_factory import create_transform
-from pytorchcv.model_provider import get_model as ptcv_get_model
-from torchvision import models as tv_models
+from ...tools.utils import VisionPreprocessor, VisionPostprocessor
 
 
 @dataclass
@@ -165,6 +162,9 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
+        self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -199,9 +199,6 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The VGG model instance.
         """
-
-        from vgg_pytorch import VGG as HFVGG
-
         # Get the pretrained model name from the instance's variant config
         cfg = self._variant_config
         model_name = cfg.pretrained_model_name
@@ -227,67 +224,172 @@ class ModelLoader(ForgeModel):
 
         model.eval()
 
+        # Store model for potential use in input preprocessing and postprocessing
+        self.model = model
+
+        # Update preprocessor with cached model (for TIMM models)
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
+        # Update postprocessor with model instance (for HuggingFace models)
+        if self._postprocessor is not None:
+            self._postprocessor.set_model_instance(model)
+
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
             model = model.to(dtype_override)
 
-        # Cache model for timm input config if needed
-        self._cached_model = model
-
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the VGG model with this instance's variant settings.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            dtype_override: Optional torch.dtype to override the inputs' default dtype.
-                           If not provided, inputs will use the default dtype (typically float32).
-            batch_size: Optional batch size to override the default batch size of 1.
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default COCO image).
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for VGG.
+            torch.Tensor: Preprocessed input tensor.
         """
-        image_file = get_file(
-            "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-        )
-        image = Image.open(image_file).convert("RGB")
+        if self._preprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
 
-        if self._variant_config.source == ModelSource.TIMM:
-            # Use cached model if available, otherwise load it
-            if hasattr(self, "_cached_model") and self._cached_model is not None:
-                model_for_config = self._cached_model
+            # Handle different sources
+            if source == ModelSource.TIMM:
+                preprocessor_source = ModelSource.TIMM
+                preprocessor_model_name = model_name
+            elif source == ModelSource.TORCHVISION:
+                preprocessor_source = ModelSource.TORCHVISION
+                preprocessor_model_name = model_name
+                # For torchvision, use the weights_class from config
+                weights_class = self._variant_config.weights_class
+
+                def weight_class_name_fn(name: str) -> str:
+                    return weights_class
+
+            elif source == ModelSource.TORCH_HUB:
+                # Torch Hub models use torchvision-style preprocessing
+                preprocessor_source = ModelSource.TORCHVISION
+                # For torch hub vgg19_bn, use VGG19_BN_Weights
+                preprocessor_model_name = "vgg19_bn"
+
+                def weight_class_name_fn(name: str) -> str:
+                    return "VGG19_BN_Weights"
+
+            elif source == ModelSource.HUGGING_FACE:
+                preprocessor_source = ModelSource.HUGGING_FACE
+                preprocessor_model_name = model_name
+            elif source == ModelSource.OSMR:
+                # OSMR models use standard ImageNet preprocessing
+                preprocessor_source = ModelSource.CUSTOM
+                from torchvision import transforms
+
+                def custom_preprocess_fn(img):
+                    preprocess = transforms.Compose(
+                        [
+                            transforms.Resize(256),
+                            transforms.CenterCrop(224),
+                            transforms.ToTensor(),
+                            transforms.Normalize(
+                                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                            ),
+                        ]
+                    )
+                    return preprocess(img)
+
             else:
-                model_for_config = self.load_model(dtype_override)
+                raise ValueError(f"Unsupported source for preprocessing: {source}")
 
-            data_config = resolve_data_config({}, model=model_for_config)
-            data_transforms = create_transform(**data_config)
-            inputs = data_transforms(image).unsqueeze(0)
-        else:
-            preprocess = transforms.Compose(
-                [
-                    transforms.Resize(256),
-                    transforms.CenterCrop(224),
-                    transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                    ),
-                ]
-            )
-            inputs = preprocess(image).unsqueeze(0)
+            # Create preprocessor
+            if source in [ModelSource.TORCHVISION, ModelSource.TORCH_HUB]:
+                self._preprocessor = VisionPreprocessor(
+                    model_source=preprocessor_source,
+                    model_name=preprocessor_model_name,
+                    weight_class_name_fn=weight_class_name_fn,
+                )
+            elif source == ModelSource.OSMR:
+                self._preprocessor = VisionPreprocessor(
+                    model_source=preprocessor_source,
+                    model_name=model_name,
+                    custom_preprocess_fn=custom_preprocess_fn,
+                )
+            else:
+                self._preprocessor = VisionPreprocessor(
+                    model_source=preprocessor_source,
+                    model_name=preprocessor_model_name,
+                )
 
-        # Replicate tensors for batch size
-        inputs = inputs.repeat_interleave(batch_size, dim=0)
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
 
-        # Only convert dtype if explicitly requested
-        if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
+        model_for_config = None
+        if self._variant_config.source == ModelSource.TIMM:
+            if hasattr(self, "model") and self.model is not None:
+                model_for_config = self.model
 
-        return inputs
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
+        )
 
-    def print_cls_results(self, compiled_model_out):
-        """Print classification results.
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs for the model.
 
         Args:
-            compiled_model_out: Output from the compiled model
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
+
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
         """
-        print_compiled_model_results(compiled_model_out)
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
+
+    def output_postprocess(self, output):
+        """Post-process model outputs.
+
+        Args:
+            output: Model output tensor.
+
+        Returns:
+            dict: Prediction dictionary with top predictions.
+        """
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+
+            # Map sources to postprocessor sources
+            if source == ModelSource.TIMM:
+                postprocessor_source = ModelSource.TIMM
+                postprocessor_model_name = model_name
+            elif source in [ModelSource.TORCHVISION, ModelSource.TORCH_HUB]:
+                # Both use ImageNet labels like torchvision
+                postprocessor_source = ModelSource.TORCHVISION
+                postprocessor_model_name = model_name
+            elif source == ModelSource.HUGGING_FACE:
+                postprocessor_source = ModelSource.HUGGING_FACE
+                postprocessor_model_name = model_name
+            elif source == ModelSource.OSMR:
+                # OSMR models use ImageNet labels like torchvision
+                postprocessor_source = ModelSource.TORCHVISION
+                postprocessor_model_name = (
+                    "vgg19_bn"  # Use a standard torchvision name for labels
+                )
+            else:
+                raise ValueError(f"Unsupported source for postprocessing: {source}")
+
+            self._postprocessor = VisionPostprocessor(
+                model_source=postprocessor_source,
+                model_name=postprocessor_model_name,
+                model_instance=self.model,
+            )
+
+        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
