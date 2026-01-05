@@ -27,26 +27,17 @@ from ...tools.utils import get_file, VisionPreprocessor
 @dataclass
 class UnetConfig(ModelConfig):
     source: ModelSource
-    # TorchHub-specific fields
     hub_repo: Optional[str] = None
     hub_model: Optional[str] = None
-    # SMP-specific fields
     smp_encoder_name: Optional[str] = None
 
 
 class ModelVariant(StrEnum):
     """Available UNet model variants."""
 
-    # OSMR (pytorchcv)
     OSMR_CITYSCAPES = "unet_cityscapes"
-
-    # Qubvel SMP (segmentation_models_pytorch)
     SMP_UNET_RESNET101 = "smp_unet_resnet101"
-
-    # TorchHub brain segmentation UNet
     TORCHHUB_BRAIN_UNET = "torchhub_brain_unet"
-
-    # Carvana UNet (in-repo fallback)
     CARVANA_UNET = "carvana_unet"
     CARVANA_UNET_480x640 = "carvana_unet_480x640"
 
@@ -112,7 +103,6 @@ class ModelLoader(ForgeModel):
             model = ptcv_get_model(cfg.pretrained_model_name, pretrained=False)
 
         elif source == ModelSource.TORCH_HUB and cfg.hub_repo is not None:
-            # TorchHub brain segmentation UNet
             model = torch.hub.load(
                 cfg.hub_repo,
                 cfg.hub_model,
@@ -124,7 +114,6 @@ class ModelLoader(ForgeModel):
             model.eval()
 
         elif source == ModelSource.TORCH_HUB and cfg.smp_encoder_name is not None:
-            # Qubvel SMP Unet
             import segmentation_models_pytorch as smp
 
             model = smp.Unet(
@@ -136,17 +125,14 @@ class ModelLoader(ForgeModel):
             model.eval()
 
         else:
-            # Fallback to a simple in-repo UNET (if needed)
             from .src.unet import UNET
 
             model = UNET(in_channels=3, out_channels=1)
 
         model.eval()
 
-        # Store model for potential use in input preprocessing
         self.model = model
 
-        # Update preprocessor with cached model (for TIMM models)
         if self._preprocessor is not None:
             self._preprocessor.set_cached_model(model)
 
@@ -161,24 +147,54 @@ class ModelLoader(ForgeModel):
         source = cfg.source
 
         if source == ModelSource.OSMR:
-            # Random input consistent with previous OSMR test
+
             def preprocess_fn(image: Image.Image) -> torch.Tensor:
                 return torch.randn(1, 3, 224, 224)
 
         elif source == ModelSource.TORCH_HUB and cfg.hub_repo is not None:
-            # TorchHub brain segmentation sample preprocessing
+
             def preprocess_fn(image: Image.Image) -> torch.Tensor:
-                m, s = np.mean(image, axis=(0, 1)), np.std(image, axis=(0, 1))
-                preprocess = transforms.Compose(
-                    [
-                        transforms.ToTensor(),
-                        transforms.Normalize(mean=m, std=s),
-                    ]
+                from skimage.transform import resize
+                from skimage.exposure import rescale_intensity
+
+                img_array = np.array(image).astype(np.float32)
+
+                if len(img_array.shape) == 2:
+                    img_array = np.stack([img_array, img_array, img_array], axis=-1)
+                elif len(img_array.shape) == 3 and img_array.shape[2] == 4:
+                    img_array = img_array[:, :, :3]
+
+                target_size = 256
+                if (
+                    img_array.shape[0] != target_size
+                    or img_array.shape[1] != target_size
+                ):
+                    img_array = resize(
+                        img_array,
+                        (target_size, target_size),
+                        anti_aliasing=True,
+                        preserve_range=True,
+                    )
+
+                for c in range(3):
+                    channel = img_array[:, :, c]
+                    p10 = np.percentile(channel, 10)
+                    p99 = np.percentile(channel, 99)
+                    channel = rescale_intensity(
+                        channel, in_range=(p10, p99), out_range=(0, 1)
+                    )
+                    m = np.mean(channel)
+                    s = np.std(channel)
+                    if s > 0:
+                        channel = (channel - m) / s
+                    img_array[:, :, c] = channel
+
+                img_tensor = torch.from_numpy(
+                    img_array.transpose(2, 0, 1).astype(np.float32)
                 )
-                return preprocess(image)
+                return img_tensor
 
         elif source == ModelSource.TORCH_HUB and cfg.smp_encoder_name is not None:
-            # SMP preprocessing using encoder params
             import segmentation_models_pytorch as smp
 
             params = smp.encoders.get_preprocessing_params(cfg.smp_encoder_name)
@@ -189,18 +205,14 @@ class ModelLoader(ForgeModel):
                 img = image.convert("RGB")
                 img_tensor = transforms.ToTensor()(img).unsqueeze(0)
 
-                # Ensure dimensions are divisible by 32 (UNet output stride requirement)
-                # Pad the image to the next multiple of 32
                 _, _, h, w = img_tensor.shape
                 output_stride = 32
                 new_h = ((h - 1) // output_stride + 1) * output_stride
                 new_w = ((w - 1) // output_stride + 1) * output_stride
 
-                # Pad if needed
                 if h != new_h or w != new_w:
                     pad_h = new_h - h
                     pad_w = new_w - w
-                    # Pad: (left, right, top, bottom)
                     img_tensor = torch.nn.functional.pad(
                         img_tensor, (0, pad_w, 0, pad_h), mode="constant", value=0
                     )
@@ -229,7 +241,6 @@ class ModelLoader(ForgeModel):
         elif source == ModelSource.TORCH_HUB and cfg.smp_encoder_name is not None:
             return "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
         else:
-            # For random input variants, return None to use random generation
             return None
 
     def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
@@ -247,10 +258,7 @@ class ModelLoader(ForgeModel):
             cfg = self._variant_config
             source = cfg.source
 
-            # Get default image URL for this variant
             default_image_url = self._get_default_image_for_variant()
-
-            # Create custom preprocessing function
             custom_preprocess_fn = self._create_custom_preprocess_fn()
 
             self._preprocessor = VisionPreprocessor(
@@ -263,10 +271,7 @@ class ModelLoader(ForgeModel):
             if hasattr(self, "model") and self.model is not None:
                 self._preprocessor.set_cached_model(self.model)
 
-        # For variants with None default_image_url (random input generation),
-        # provide a dummy PIL Image when image=None to avoid errors in preprocessor
         if image is None and self._get_default_image_for_variant() is None:
-            # Create a dummy image - the custom preprocessor will generate random tensors anyway
             image = Image.new("RGB", (224, 224), color=(128, 128, 128))
 
         return self._preprocessor.preprocess(
@@ -292,6 +297,22 @@ class ModelLoader(ForgeModel):
             batch_size=batch_size,
         )
 
+    def _extract_output_tensor(self, output) -> Optional[torch.Tensor]:
+        """Extract and normalize output to always be a torch.Tensor.
+
+        Args:
+            output: Model output (torch.Tensor, list/tuple of tensors, or other).
+
+        Returns:
+            torch.Tensor if output contains a valid tensor, None otherwise.
+        """
+        if isinstance(output, torch.Tensor):
+            return output
+        elif isinstance(output, (list, tuple)) and len(output) > 0:
+            if isinstance(output[0], torch.Tensor):
+                return output[0]
+        return None
+
     def output_postprocess(
         self,
         output=None,
@@ -300,34 +321,127 @@ class ModelLoader(ForgeModel):
         compiled_model=None,
         inputs=None,
         dtype_override=None,
+        threshold=0.5,
+        apply_lcc=True,
     ):
         """Post-process model outputs for segmentation tasks.
 
+        For brain segmentation UNet (TORCHHUB_BRAIN_UNET variant), applies:
+        1. Thresholding (default 0.5) to convert probabilities to binary mask
+        2. Largest connected component filtering (if medpy available and apply_lcc=True)
+
         Args:
-            output: Model output tensor (returns dict if provided).
+            output: Model output tensor (returns dict with processed mask if provided).
             co_out: Compiled model outputs (legacy, prints results).
             framework_model: Original framework model (legacy).
             compiled_model: Compiled model (legacy).
             inputs: Input images (legacy).
             dtype_override: Optional dtype override (legacy).
+            threshold: Threshold for binary mask conversion (default: 0.5).
+            apply_lcc: Whether to apply largest connected component filtering (default: True).
 
         Returns:
-            dict or None: For segmentation, returns dict with output shape info if output provided,
-                        else None (for backward compatibility).
+            dict or None: For brain segmentation, returns dict with:
+                        - "output": raw output tensor (torch.Tensor) - original model output
+                        - "output_numpy": raw output as numpy array
+                        - "output_shape": original output shape
+                        - "output_dtype": original output dtype
+                        - "mask": binary mask after thresholding and LCC (if applicable) - numpy array
+                        - "mask_shape": mask shape
+                        - "threshold": threshold value used
+                        - "lcc_applied": whether LCC was applied
+                        If output is None, returns None (for backward compatibility).
         """
+        cfg = self._variant_config
+        source = cfg.source
+
+        if (
+            output is not None
+            and source == ModelSource.TORCH_HUB
+            and cfg.hub_repo is not None
+        ):
+            # Extract output tensor, normalizing to always be a torch.Tensor
+            output_tensor = self._extract_output_tensor(output)
+            if output_tensor is None:
+                return None
+
+            output_np = output_tensor.detach().cpu().numpy()
+            binary_mask = (output_np > threshold).astype(np.float32)
+
+            lcc_actually_applied = False
+            if apply_lcc:
+                try:
+                    from medpy.filter.binary import largest_connected_component
+
+                    if len(binary_mask.shape) == 4:
+                        for b in range(binary_mask.shape[0]):
+                            for c in range(binary_mask.shape[1]):
+                                mask_2d = binary_mask[b, c]
+                                if np.any(mask_2d):
+                                    mask_2d_int = np.round(mask_2d).astype(int)
+                                    binary_mask[b, c] = largest_connected_component(
+                                        mask_2d_int
+                                    ).astype(np.float32)
+                                    lcc_actually_applied = True
+                    elif len(binary_mask.shape) == 3:
+                        if binary_mask.shape[0] == 1:
+                            mask_2d = binary_mask[0]
+                            if np.any(mask_2d):
+                                mask_2d_int = np.round(mask_2d).astype(int)
+                                binary_mask[0] = largest_connected_component(
+                                    mask_2d_int
+                                ).astype(np.float32)
+                                lcc_actually_applied = True
+                        elif binary_mask.shape[0] <= 3:
+                            for c in range(binary_mask.shape[0]):
+                                mask_2d = binary_mask[c]
+                                if np.any(mask_2d):
+                                    mask_2d_int = np.round(mask_2d).astype(int)
+                                    binary_mask[c] = largest_connected_component(
+                                        mask_2d_int
+                                    ).astype(np.float32)
+                                    lcc_actually_applied = True
+                        else:
+                            for b in range(binary_mask.shape[0]):
+                                mask_2d = binary_mask[b]
+                                if np.any(mask_2d):
+                                    mask_2d_int = np.round(mask_2d).astype(int)
+                                    binary_mask[b] = largest_connected_component(
+                                        mask_2d_int
+                                    ).astype(np.float32)
+                                    lcc_actually_applied = True
+                    elif len(binary_mask.shape) == 2:
+                        if np.any(binary_mask):
+                            mask_2d_int = np.round(binary_mask).astype(int)
+                            binary_mask = largest_connected_component(
+                                mask_2d_int
+                            ).astype(np.float32)
+                            lcc_actually_applied = True
+                except ImportError:
+                    pass
+
+            return {
+                "output": output_tensor,
+                "output_numpy": output_np,
+                "output_shape": list(output_tensor.shape),
+                "output_dtype": str(output_tensor.dtype),
+                "mask": binary_mask,
+                "mask_shape": list(binary_mask.shape),
+                "threshold": threshold,
+                "lcc_applied": lcc_actually_applied,
+            }
+
         if output is not None:
-            if isinstance(output, torch.Tensor):
-                return {
-                    "output_shape": list(output.shape),
-                    "output_dtype": str(output.dtype),
-                }
-            elif isinstance(output, (list, tuple)) and len(output) > 0:
-                # Handle tuple/list outputs (common in segmentation)
-                if isinstance(output[0], torch.Tensor):
-                    return {
-                        "output_shape": list(output[0].shape),
-                        "output_dtype": str(output[0].dtype),
-                    }
-            return {"output": str(type(output))}
+            # Extract output tensor, normalizing to always be a torch.Tensor
+            output_tensor = self._extract_output_tensor(output)
+            if output_tensor is None:
+                return None
+
+            return {
+                "output": output_tensor,
+                "output_numpy": output_tensor.detach().cpu().numpy(),
+                "output_shape": list(output_tensor.shape),
+                "output_dtype": str(output_tensor.dtype),
+            }
 
         return None
