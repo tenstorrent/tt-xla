@@ -129,6 +129,7 @@ test_config:
 
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   falcon/pytorch-tiiuae/Falcon3-3B-Base-single_device-inference:
     status: EXPECTED_PASSING
@@ -904,6 +905,7 @@ test_config:
   qwen_2_5/causal_lm/pytorch-1_5b_instruct-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
+    markers: [push]
 
   retinanet/pytorch-retinanet_rn18fpn-single_device-inference:
     assert_pcc: false
@@ -959,6 +961,7 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-inference:
     required_pcc: 0.97 # Previously 0.98, changed to 0.97 due to change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
@@ -1405,7 +1408,7 @@ test_config:
 
   gemma/pytorch-google/gemma-2-2b-it-single_device-inference:
     status: EXPECTED_PASSING
-    markers: ["extended"]
+    markers: ["extended", push]
 
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-inference:
     status: EXPECTED_PASSING
@@ -1538,6 +1541,7 @@ test_config:
 
   phi3/causal_lm/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [push]
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-inference:
     status: EXPECTED_PASSING
