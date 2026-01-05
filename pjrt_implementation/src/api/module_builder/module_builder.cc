@@ -227,9 +227,9 @@ ModuleBuilder::buildModule(
   std::string checkpointed_mlir_code;
   std::string sanitized_mlir_code;
 
-  DLOG_F(LOG_DEBUG,
-         "Extracting checkpointed MLIR code after VHLO Compiler pass");
-  checkpointed_mlir_code = getMlirCode(mlir_module);
+  // DLOG_F(LOG_DEBUG,
+  //        "Extracting checkpointed MLIR code after VHLO Compiler pass");
+  // checkpointed_mlir_code = getMlirCode(mlir_module);
 
   status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {

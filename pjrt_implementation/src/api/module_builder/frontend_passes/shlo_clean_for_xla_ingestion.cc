@@ -30,6 +30,26 @@ namespace tt::pjrt::module_builder::frontend_passes {
 
 namespace internal {
 
+// std::string
+// getMeshReshapeStringFromSdyAxesAndDimSharding(llvm::SmallDenseMap<llvm::StringRef,
+// int> &meshNameToSizeMap, llvm::SmallVector<uint64_t> &tensorAxisSizes){
+//   // This function returns the "iota tile" format for the mesh shape.
+//   // XLA docs on this "iota tile" format:
+//   https://github.com/jax-ml/jax/blob/84af8a8e74c05ce4196079e145d50f0c9504ff16/jax/_src/named_sharding.py#L415-L430
+
+//   // In particular, the replicated dimension is added as the last dimension
+
+//   std::string meshReshapeString;
+//   llvm::raw_string_ostream os(meshReshapeString);
+
+//   std::vector<uint64_t> iotaTileVec;
+
+//   // sort the mesh shape vector
+//   llvm::interleave(iotaTileVec, os, ",");
+//   meshReshapeString = "["+os.str()+"]";
+//   return meshReshapeString;
+// }
+
 // Strips all ttcore dialect attributes from a function's arguments and results.
 // This helper function filters out any attribute whose dialect namespace is
 // "ttcore", leaving only attributes that XLA can understand.
@@ -90,12 +110,27 @@ llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
     llvm::errs() << "Out sharding: " << sharding_str << "\n";
   }
 
+  // reshape dims for 1xN mesh is just <=[N]
+  // reshape dims for MxN mesh is <=[M,N], not <=[M*N]
+  // ref: https://github.com/pytorch/xla/issues/9348#issuecomment-3192952206
+  // uint64_t totalNumDevices =
+  // std::accumulate(meshNameToSizeMap.values().begin(),
+  //                                            meshNameToSizeMap.values().end(),
+  //                                            1LL,
+  //                                            std::multiplies<int64_t>());
+  // llvm::errs() << "Total number of devices: " << totalNumDevices << "\n";
+  // llvm::errs() << "Mesh name to size map: ";
+  // for (auto [name, size] : meshNameToSizeMap) {
+  //   llvm::errs() << name << "=" << size << ", ";
+  // }
+  // llvm::errs() << "\n";
+
   uint64_t totalNumDevices = std::accumulate(meshNameToSizeMap.values().begin(),
                                              meshNameToSizeMap.values().end(),
                                              1LL, std::multiplies<int64_t>());
 
   llvm::SmallVector<std::string> outShardingStrs;
-  // iterating over each output tensor sharding
+  // Iterate over each output tensor sharding.
   for (auto [outShardingIndex, outSharding] :
        llvm::enumerate(outShardingsArr)) {
     bool isOutputTensorReplicated = true;
@@ -103,14 +138,15 @@ llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
     std::string outShardingStr = "{devices=[";
     auto dimShardings = outSharding.getDimShardings();
 
-    // on each output tensor sharding, iterating over each dimension sharding
-    // (replicated or one-axis sharding)
+    // Iterate over each dimension sharding on each output tensor sharding
+    // (replicated or simple axis sharding, without subaxes which are currently
+    // not supported).
     for (auto [dimIndex, dimSharding] : llvm::enumerate(dimShardings)) {
       auto axisName = dimSharding.getAxes();
       llvm::errs() << "  Out sharding #" << outShardingIndex << ", dim #"
                    << dimIndex << ", axisName.size()=" << axisName.size()
                    << "\n";
-      // replicated case
+      // fully replicated case
       if (axisName.empty()) {
         tensorAxisSizes.push_back(1);
         continue;
@@ -124,14 +160,34 @@ llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
       tensorAxisSizes.push_back(axisSize);
     }
 
-    // construct result string
+    // The iota tile format requires replicated dimensions to be added as the
+    // last dimension Spec:
+    // https://github.com/jax-ml/jax/blob/84af8a8e74c05ce4196079e145d50f0c9504ff16/jax/_src/named_sharding.py#L415-L430
+    uint64_t totalTensorShardingAxisSizes =
+        std::accumulate(tensorAxisSizes.begin(), tensorAxisSizes.end(), 1LL,
+                        std::multiplies<int64_t>());
+    bool lastTileDimReplicate = false;
+    if (totalTensorShardingAxisSizes != totalNumDevices) {
+      lastTileDimReplicate = true;
+      assert(totalNumDevices % totalTensorShardingAxisSizes == 0 &&
+             "Total tensor sharding axis sizes must be a divisor of total "
+             "number of devices");
+      uint64_t replicatedDim = totalNumDevices / totalTensorShardingAxisSizes;
+      tensorAxisSizes.push_back(replicatedDim);
+    }
+
     std::string axisSizesString;
     llvm::raw_string_ostream os(axisSizesString);
     llvm::interleave(tensorAxisSizes, os, ",");
     outShardingStr += axisSizesString;
     outShardingStr += "]<=[";
     outShardingStr += std::to_string(totalNumDevices);
-    outShardingStr += "]}";
+    outShardingStr += "]";
+
+    if (lastTileDimReplicate) {
+      outShardingStr += " last_tile_dim_replicate";
+    }
+    outShardingStr += "}";
 
     if (isOutputTensorReplicated) {
       outShardingStr = "{replicated}";
@@ -310,6 +366,9 @@ tt_pjrt_status cleanForXlaIngestion(
       meshNameToSizeMap[axis.getName()] = axis.getSize();
     }
   });
+
+  llvm::errs() << "Module before extracting out sharding:\n";
+  module.print(llvm::errs());
 
   // Extract out sharding from manual computation ops
 
