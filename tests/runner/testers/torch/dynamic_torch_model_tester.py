@@ -14,6 +14,7 @@ from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
 
+from tests.runner.test_utils import RunPhase
 from tests.runner.utils import TorchDynamicLoader
 from third_party.tt_forge_models.config import Parallelism
 
@@ -33,7 +34,7 @@ class DynamicTorchModelTester(TorchModelTester):
         comparison_config: ComparisonConfig | None = None,
         compiler_config: CompilerConfig = None,
         parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
-        phase: str | None = None,
+        run_phase: RunPhase | None = None,
     ) -> None:
         """Initialize DynamicTorchModelTester.
 
@@ -47,8 +48,8 @@ class DynamicTorchModelTester(TorchModelTester):
         self.dynamic_loader = TorchDynamicLoader(loader)
         # Store parallelism for reporting/consumers
         self.parallelism = parallelism
-        # Store phase hint for input loading (e.g., "DECODE")
-        self.phase = phase
+        # Store phase hint for input loading
+        self.run_phase = run_phase
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
@@ -73,7 +74,7 @@ class DynamicTorchModelTester(TorchModelTester):
         Returns:
             Input tensors loaded from the loader
         """
-        inputs = self.dynamic_loader.load_inputs(phase=self.phase)
+        inputs = self.dynamic_loader.load_inputs(run_phase=self.run_phase)
 
         if self.parallelism == Parallelism.DATA_PARALLEL:
             num_devices = xr.global_runtime_device_count()

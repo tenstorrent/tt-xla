@@ -365,16 +365,33 @@ class TorchDynamicLoader(DynamicLoader):
             return self.loader.load_model(dtype_override=torch.bfloat16)
         return self.loader.load_model()
 
-    def load_inputs(self, phase: str | None = None) -> Any:
+    def load_inputs(self, run_phase=None) -> Any:
         """Load input activations from the loader with dtype override support for bfloat16.
 
         Returns:
             Input tensors that can be fed to the model, using bfloat16 if supported
         """
         sig = inspect.signature(self.loader.load_inputs)
+
         # Route based on explicit phase when provided
-        if phase == "DECODE" and hasattr(self.loader, "load_inputs_decode"):
+        # if phase == "DECODE" and hasattr(self.loader, "load_inputs_decode"):
+
+        def _is_decode(p):
+            try:
+                # Enum with .value
+                if getattr(p, "value", None) in ("decode", "llm_decode"):
+                    return True
+                # Enum string name
+                if str(p).endswith(".LLM_DECODE"):
+                    return True
+            except Exception:
+                pass
+            return p == "DECODE"
+
+        # Route based on explicit phase when provided (accepts enum or string)
+        if _is_decode(run_phase) and hasattr(self.loader, "load_inputs_decode"):
             decode_sig = inspect.signature(self.loader.load_inputs_decode)
+            print(f"KCM Going to use load_inputs_decode() for model")
             if "dtype_override" in decode_sig.parameters:
                 return self.loader.load_inputs_decode(dtype_override=torch.bfloat16)
             return self.loader.load_inputs_decode()

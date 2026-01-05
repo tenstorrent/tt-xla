@@ -19,6 +19,7 @@ from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
+    RunPhase,
     create_benchmark_result,
     fix_venv_isolation,
     record_model_test_properties,
@@ -40,48 +41,25 @@ MODELS_ROOT_TORCH, test_entries_torch = TorchDynamicLoader.setup_test_discovery(
 )
 MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJECT_ROOT)
 
-# Build decode-only entries (only for loaders that implement load_inputs_decode)
-decode_entries_torch = [
-    entry
-    for entry in test_entries_torch
-    if hasattr(entry.variant_info[1], "load_inputs_decode")
-]
-
-# Build combined params: (entry, phase, run_mode)
-combined_params_torch = []
-for _entry in test_entries_torch:
-    base_id = DynamicLoader.generate_test_id(_entry, MODELS_ROOT_TORCH)
-    combined_params_torch.append(
-        pytest.param(
-            (_entry, None, RunMode.INFERENCE),
-            id=f"{base_id}-inference",
-            marks=pytest.mark.inference,
-        )
-    )
-    combined_params_torch.append(
-        pytest.param(
-            (_entry, None, RunMode.TRAINING),
-            id=f"{base_id}-training",
-            marks=pytest.mark.training,
-        )
-    )
-for _entry in decode_entries_torch:
-    base_id = DynamicLoader.generate_test_id(_entry, MODELS_ROOT_TORCH)
-    combined_params_torch.append(
-        pytest.param(
-            (_entry, "DECODE", RunMode.INFERENCE),
-            id=f"{base_id}-inference-decode",
-            marks=pytest.mark.inference,
-        )
-    )
-
 
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
 @pytest.mark.parametrize(
+    "run_phase",
+    [RunPhase.DEFAULT, RunPhase.LLM_DECODE],
+    ids=lambda v: "decode" if v == RunPhase.LLM_DECODE else None,
+)
+@pytest.mark.parametrize(
+    "run_mode",
+    [
+        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
+    ],
+)
+@pytest.mark.parametrize(
     "op_by_op",
     [None],
-    ids=["full"],  # When op-by-op flow is required/supported, add here.
+    ids=["full"],
 )
 @pytest.mark.parametrize(
     "parallelism",
@@ -104,11 +82,14 @@ for _entry in decode_entries_torch:
     ],
 )
 @pytest.mark.parametrize(
-    "entry_phase_mode",
-    combined_params_torch,
+    "test_entry",
+    test_entries_torch,
+    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
 )
 def test_all_models_torch(
-    entry_phase_mode,
+    test_entry,
+    run_mode,
+    run_phase,
     op_by_op,
     parallelism,
     record_property,
@@ -117,7 +98,6 @@ def test_all_models_torch(
     capteesys,
     clear_torchxla_computation_cache,
 ):
-    test_entry, llm_phase, run_mode = entry_phase_mode
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     fix_venv_isolation()
 
@@ -131,9 +111,6 @@ def test_all_models_torch(
         loader = ModelLoader(variant=variant)
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
-
-        # Record phase for reporting
-        record_property("llm_phase", llm_phase or "DEFAULT")
 
         succeeded = False
         comparison_result = None
@@ -149,7 +126,7 @@ def test_all_models_torch(
                     loader=loader,
                     comparison_config=test_metadata.to_comparison_config(),
                     parallelism=parallelism,
-                    phase=("DECODE" if llm_phase == "DECODE" else None),
+                    run_phase=run_phase,
                 )
 
                 comparison_result = tester.test()
@@ -211,6 +188,7 @@ def test_all_models_torch(
                 model_info=model_info,
                 test_metadata=test_metadata,
                 run_mode=run_mode,
+                run_phase=run_phase,
                 parallelism=parallelism,
                 test_passed=succeeded,
                 comparison_result=comparison_result,
@@ -287,6 +265,7 @@ def test_all_models_jax(
 
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
+    run_phase = RunPhase.DEFAULT
 
     # Ensure per-model requirements are installed, and roll back after the test
     with RequirementsManager.for_loader(loader_path):
@@ -388,6 +367,7 @@ def test_all_models_jax(
                 model_info=model_info,
                 test_metadata=test_metadata,
                 run_mode=run_mode,
+                run_phase=run_phase,
                 test_passed=succeeded,
                 parallelism=parallelism,
                 comparison_result=comparison_result,
@@ -438,5 +418,6 @@ def test_placeholder_models(model_name, record_property, request):
         model_info=model_info,
         test_metadata=test_metadata,
         run_mode=RunMode.INFERENCE,
+        run_phase=RunPhase.DEFAULT,
         parallelism=Parallelism.SINGLE_DEVICE,
     )
