@@ -30,7 +30,6 @@ from .src.utils import (
     load_lane_detection_model,
     preprocess_image,
     postprocess_detections,
-    visualize_lanes,
 )
 
 from .src.utils import tusimple_row_anchor as TUSIMPLE_ROW_ANCHOR
@@ -160,17 +159,22 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="ultra-fast-lane-detection",
             variant=variant,
-            group=ModelGroup.RED
-            if variant == ModelVariant.TUSIMPLE_RESNET18
-            else ModelGroup.GENERALITY,
+            group=(
+                ModelGroup.RED
+                if variant == ModelVariant.TUSIMPLE_RESNET18
+                else ModelGroup.GENERALITY
+            ),
             source=ModelSource.GITHUB,
             task=ModelTask.CV_IMAGE_SEG,
             framework=Framework.TORCH,
         )
 
-    def load_model(self) -> torch.nn.Module:
-        """
-        Load the Ultra-Fast-Lane-Detection model.
+    def load_model(self, dtype_override=None) -> torch.nn.Module:
+        """Load the Ultra-Fast-Lane-Detection model.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
             torch.nn.Module: Loaded model
@@ -191,6 +195,10 @@ class ModelLoader(ForgeModel):
             )
             self.model.eval()
 
+            # Only convert dtype if explicitly requested
+            if dtype_override is not None:
+                self.model = self.model.to(dtype_override)
+
         return self.model
 
     def _get_sample_image_path(self) -> Optional[str]:
@@ -210,51 +218,108 @@ class ModelLoader(ForgeModel):
 
         return None
 
-    def load_inputs(self) -> torch.Tensor:
-        """
-        Load and preprocess the predefined sample image for the dataset.
-        Automatically selects the correct image based on variant:
-        - TuSimple variants → test_images/tu_simple_image.jpg
-        - CULane variants → test_images/culane_image.jpg
-
-        Returns:
-            torch.Tensor: Preprocessed image tensor [1, 3, 288, 800]
-        """
-        # Get sample image from test_images based on dataset (which is determined by variant)
-        dataset = self.config.dataset
-        sample_image_path = self._get_sample_image_path()
-
-        if sample_image_path and os.path.exists(sample_image_path):
-            print(
-                f"Using predefined sample image for {dataset} dataset: {sample_image_path}"
-            )
-            image = cv2.imread(sample_image_path)
-            input_tensor = preprocess_image(image, input_size=self.config.input_size)
-            return input_tensor
-        else:
-            expected_image = self.SAMPLE_IMAGE_PATHS.get(dataset)
-            raise FileNotFoundError(
-                f"Sample image not found for {dataset} dataset. "
-                f"Expected: {expected_image}"
-            )
-
-    def post_process(
-        self,
-        output: torch.Tensor,
-        original_image: Optional[np.ndarray] = None,
-    ) -> Dict[str, Any]:
-        """
-        Post-process model output to extract lane detections.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            output: Model output tensor [1, griding_num+1, cls_num_per_lane, num_lanes]
-            original_image: Original input image for visualization
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, numpy array (BGR), or None (uses default sample image).
 
         Returns:
-            Dictionary containing:
+            torch.Tensor: Preprocessed input tensor [batch_size, 3, H, W].
+        """
+        # If no image provided, use default sample image for the dataset
+        if image is None:
+            dataset = self.config.dataset
+            sample_image_path = self._get_sample_image_path()
+
+            if sample_image_path and os.path.exists(sample_image_path):
+                print(
+                    f"Using predefined sample image for {dataset} dataset: {sample_image_path}"
+                )
+                image = cv2.imread(sample_image_path)
+            else:
+                expected_image = self.SAMPLE_IMAGE_PATHS.get(dataset)
+                raise FileNotFoundError(
+                    f"Sample image not found for {dataset} dataset. "
+                    f"Expected: {expected_image}"
+                )
+
+        # Convert image to numpy array (BGR format) if needed
+        if isinstance(image, Image.Image):
+            # Convert PIL Image to numpy array (RGB -> BGR)
+            img_array = np.array(image)
+            if len(img_array.shape) == 3:
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+            image = img_array
+        elif isinstance(image, str):
+            # Assume it's a file path or URL
+            if image.startswith(("http://", "https://")):
+                # Download from URL
+                import urllib.request
+                import tempfile
+
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                    urllib.request.urlretrieve(image, tmp.name)
+                    image = cv2.imread(tmp.name)
+                    os.unlink(tmp.name)
+            else:
+                # Local file path
+                image = cv2.imread(image)
+                if image is None:
+                    raise ValueError(f"Could not load image from path: {image}")
+        elif isinstance(image, torch.Tensor):
+            # Convert tensor to numpy array
+            image = image.cpu().numpy()
+            if image.dtype != np.uint8:
+                image = (image * 255).astype(np.uint8)
+            # Assume RGB format, convert to BGR
+            if len(image.shape) == 3 and image.shape[2] == 3:
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+        # Preprocess the image
+        input_tensor = preprocess_image(image, input_size=self.config.input_size)
+
+        # Handle batch size
+        if batch_size > 1:
+            input_tensor = input_tensor.repeat(batch_size, 1, 1, 1)
+
+        # Apply dtype override if specified
+        if dtype_override is not None:
+            input_tensor = input_tensor.to(dtype_override)
+
+        return input_tensor
+
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs for the model.
+
+        Args:
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
+
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
+        """
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
+
+    def output_postprocess(self, output):
+        """Post-process model outputs to extract lane detections.
+
+        Args:
+            output: Model output tensor [batch, griding_num+1, cls_num_per_lane, num_lanes].
+
+        Returns:
+            dict: Dictionary containing:
                 - lanes: List of detected lanes, each as list of (x, y) points
                 - num_lanes: Number of detected lanes
-                - visualization: Annotated image (if original_image provided)
+                - dataset: Dataset name (Tusimple or CULane)
+                - backbone: Backbone architecture (e.g., "ResNet-18")
         """
         # Post-process using local utilities
         lanes, num_lanes = postprocess_detections(
@@ -272,14 +337,5 @@ class ModelLoader(ForgeModel):
             "dataset": self.config.dataset,
             "backbone": f"ResNet-{self.config.backbone}",
         }
-
-        if original_image is not None:
-            vis_image = visualize_lanes(
-                image=original_image,
-                lanes=lanes,
-                img_w=self.config.img_w,
-                img_h=self.config.img_h,
-            )
-            result["visualization"] = vis_image
 
         return result

@@ -4,9 +4,10 @@
 """
 BERT model loader implementation for sentence embedding generation.
 """
-
 import torch
 from transformers import BertModel, BertTokenizer
+from typing import Optional
+
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -41,42 +42,51 @@ class ModelLoader(ForgeModel):
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.EMRECAN_BERT_BASE_TURKISH_CASED_MEAN_NLI_STSB_TR
 
-    def __init__(self, variant=None):
+    def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
 
         Args:
-            variant: Optional string specifying which variant to use.
+            variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-
-        # Get the pretrained model name from the instance's variant config
-        pretrained_model_name = self._variant_config.pretrained_model_name
-        self.model_name = pretrained_model_name
-        self.sentence = "Bu örnek bir cümle"
-        self.max_length = 16
+        self.model = None
         self.tokenizer = None
 
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant_name is None:
-            variant_name = "base"
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
-            model="BERT-SentenceEmbeddingGeneration",
-            variant=variant_name,
+            model="bert_sentence_embedding",
+            variant=variant,
             group=ModelGroup.RED,
-            task=ModelTask.NLP_TEXT_CLS,
+            task=ModelTask.NLP_EMBED_GEN,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
+
+    def _load_tokenizer(self):
+        """Load tokenizer for the current variant.
+
+        Returns:
+            The loaded tokenizer instance
+        """
+        if self.tokenizer is None:
+            model_name = self._variant_config.pretrained_model_name
+            self.tokenizer = BertTokenizer.from_pretrained(model_name)
+
+        return self.tokenizer
 
     def load_model(self, dtype_override=None):
         """Load BERT model for sentence embedding generation from Hugging Face.
@@ -88,55 +98,101 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The BERT model instance.
         """
+        # Ensure tokenizer is initialized
+        if self.tokenizer is None:
+            self._load_tokenizer()
 
-        # Initialize tokenizer
-        self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
+        # Get the pretrained model name from the instance's variant config
+        model_name = self._variant_config.pretrained_model_name
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model = BertModel.from_pretrained(
-            self.model_name, use_cache=False, **model_kwargs
-        )
+        model = BertModel.from_pretrained(model_name, use_cache=False, **model_kwargs)
         model.eval()
+
+        # Store model for potential use in decode_output
+        self.model = model
+
         return model
 
-    def load_inputs(self, dtype_override=None):
-        """Prepare sample input for BERT sentence embedding generation.
+    def input_preprocess(self, dtype_override=None, sentence=None, max_length=None):
+        """Preprocess input sentence(s) and return model-ready input tensors.
 
         Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                            If not provided, the model will use its default dtype (typically float32).
+            dtype_override: Optional torch.dtype override (default: float32).
+            sentence: Optional sentence string or list of sentences. If None, uses a default sentence.
+            max_length: Optional maximum sequence length. If None, uses config value.
 
         Returns:
             dict: Input tensors that can be fed to the model.
         """
+        # Ensure tokenizer is initialized
         if self.tokenizer is None:
-            # Ensure tokenizer is initialized
-            self.load_model(dtype_override=dtype_override)
+            self._load_tokenizer()
+
+        # Use provided sentence or default
+        if sentence is None:
+            sentence = "Bu örnek bir cümle"
+
+        # Get max_length from parameter, config, or default
+        if max_length is None:
+            max_length = getattr(self._variant_config, "max_length", 128)
 
         # Data preprocessing
         inputs = self.tokenizer(
-            self.sentence,
+            sentence,
             padding="max_length",
             truncation=True,
-            max_length=self.max_length,
+            max_length=max_length,
             return_tensors="pt",
         )
 
         return inputs
 
-    def decode_output(self, co_out):
-        """Decode the model output for sentence embedding generation."""
-        import torch
+    def load_inputs(self, dtype_override=None, sentence=None):
+        """Load and return sample inputs for the model.
 
-        inputs = self.load_inputs()
+        Args:
+            dtype_override: Optional torch.dtype override.
+            sentence: Optional sentence string. If None, uses a default sentence.
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
+        return self.input_preprocess(
+            dtype_override=dtype_override,
+            sentence=sentence,
+        )
+
+    def output_postprocess(self, output, inputs=None):
+        """Post-process model outputs to generate sentence embeddings.
+
+        Args:
+            output: Model output tensor, tuple, or BaseModelOutput.
+            inputs: Optional input tensors. If None, will call load_inputs().
+
+        Returns:
+            torch.Tensor: Sentence embeddings computed using mean pooling.
+        """
+        if inputs is None:
+            inputs = self.load_inputs()
+
         attention_mask = inputs["attention_mask"]
 
+        # Extract token embeddings from outputs
+        if isinstance(output, tuple):
+            token_embeddings = output[0]  # Last hidden state
+        elif hasattr(output, "last_hidden_state"):
+            # Handle BaseModelOutput or similar
+            token_embeddings = output.last_hidden_state
+        else:
+            # Assume output is already the last hidden state tensor
+            token_embeddings = output
+
         # Mean pooling: mask out padding tokens and compute mean
-        token_embeddings = co_out[0]  # Last hidden state
         input_mask_expanded = (
             attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
         )
@@ -144,7 +200,19 @@ class ModelLoader(ForgeModel):
             token_embeddings * input_mask_expanded, 1
         ) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
-        print("Sentence embeddings:", sentence_embeddings)
+        return sentence_embeddings
+
+    def decode_output(self, outputs, inputs=None):
+        """Decode the model output for sentence embedding generation.
+
+        Args:
+            outputs: Model output tuple (last_hidden_state, ...) or BaseModelOutput.
+            inputs: Optional input tensors. If None, will call load_inputs().
+
+        Returns:
+            torch.Tensor: Sentence embeddings computed using mean pooling.
+        """
+        return self.output_postprocess(outputs, inputs=inputs)
 
     def unpack_forward_output(self, fwd_output):
         """Unpack forward pass output to extract a differentiable tensor.

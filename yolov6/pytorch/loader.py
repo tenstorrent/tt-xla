@@ -6,6 +6,10 @@ YOLOv6 model loader implementation
 """
 
 from typing import Optional
+import torch
+import cv2
+import numpy as np
+from PIL import Image
 
 from ...tools.utils import get_file
 from ...config import (
@@ -18,7 +22,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from .src.utils import check_img_size, process_image
+from .src.utils import check_img_size, letterbox
 from yolov6.core.inferer import Inferer
 from yolov6.utils.nms import non_max_suppression
 import yaml
@@ -63,6 +67,9 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
+        self.model = None
+        self.img_src = None
+        self.input_batch = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -114,49 +121,123 @@ class ModelLoader(ForgeModel):
 
         model = DetectBackend(weight_path)
         framework_model = model.model
+        framework_model.eval()
+
+        # Store model for potential use
+        self.model = framework_model
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
             framework_model = framework_model.to(dtype_override)
+            self.model = framework_model
 
         return framework_model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the YOLOv6 model with default settings.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            dtype_override: Optional torch.dtype to override the inputs' default dtype.
-                           If not provided, inputs will use the default dtype (typically float32).
-            batch_size: Optional batch size to override the default batch size of 1.
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, numpy array (BGR), or None (uses default COCO image).
 
         Returns:
-            torch.Tensor: Sample input tensor that can be fed to the model.
+            torch.Tensor: Preprocessed input tensor [batch_size, 3, H, W].
         """
-
         stride = 32
         input_size = 640
         img_size = check_img_size(input_size, s=stride)
-        img, img_src = process_image(img_size, stride, half=False)
+
+        # If no image provided, use default COCO image
+        if image is None:
+            cached_path = get_file(
+                "http://images.cocodataset.org/val2017/000000397133.jpg"
+            )
+            img_src = np.asarray(Image.open(cached_path).convert("RGB"))
+        else:
+            # Convert image to numpy array (RGB format) if needed
+            if isinstance(image, Image.Image):
+                img_src = np.asarray(image.convert("RGB"))
+            elif isinstance(image, str):
+                # Assume it's a file path or URL
+                if image.startswith(("http://", "https://")):
+                    cached_path = get_file(image)
+                    img_src = np.asarray(Image.open(cached_path).convert("RGB"))
+                else:
+                    # Local file path
+                    img_src = np.asarray(Image.open(image).convert("RGB"))
+            elif isinstance(image, torch.Tensor):
+                # Convert tensor to numpy array
+                img_src = image.cpu().numpy()
+                if img_src.dtype != np.uint8:
+                    img_src = (img_src * 255).astype(np.uint8)
+                # Assume CHW format, convert to HWC
+                if len(img_src.shape) == 3 and img_src.shape[0] == 3:
+                    img_src = img_src.transpose((1, 2, 0))
+                # Convert RGB to RGB (already RGB)
+                if len(img_src.shape) == 3 and img_src.shape[2] == 3:
+                    pass  # Already RGB
+            elif isinstance(image, np.ndarray):
+                img_src = image
+                if len(img_src.shape) == 3 and img_src.shape[2] == 3:
+                    # Assume BGR, convert to RGB
+                    img_src = cv2.cvtColor(img_src, cv2.COLOR_BGR2RGB)
+            else:
+                raise ValueError(f"Unsupported image type: {type(image)}")
+
+        # Store original image for postprocessing
         self.img_src = img_src
-        input_batch = img.unsqueeze(0)
+
+        # Process image using letterbox
+        image_processed = letterbox(img_src, img_size, stride=stride)[0]
+        # Convert HWC to CHW
+        image_processed = image_processed.transpose((2, 0, 1))
+        image_processed = torch.from_numpy(np.ascontiguousarray(image_processed))
+        image_processed = image_processed.float()  # uint8 to fp32
+        image_processed /= 255  # 0 - 255 to 0.0 - 1.0
+
+        # Add batch dimension
+        input_batch = image_processed.unsqueeze(0)
         self.input_batch = input_batch
-        # Replicate tensors for batch size
-        batch_tensor = input_batch.repeat_interleave(batch_size, dim=0)
 
-        # Only convert dtype if explicitly requested
+        # Handle batch size
+        if batch_size > 1:
+            input_batch = input_batch.repeat(batch_size, 1, 1, 1)
+
+        # Apply dtype override if specified
         if dtype_override is not None:
-            batch_tensor = batch_tensor.to(dtype_override)
+            input_batch = input_batch.to(dtype_override)
 
-        return batch_tensor
+        return input_batch
 
-    def post_process(self, output):
-        """Post-process the output of the YOLOv6 model.
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs for the model.
+
         Args:
-            output: The output of the YOLOv6 model.
-        Returns:
-            The decoded output.
-        """
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
 
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
+        """
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
+
+    def output_postprocess(self, output):
+        """Post-process model outputs.
+
+        Args:
+            output: Model output tensor.
+
+        Returns:
+            dict: Dictionary containing:
+                - detections: List of detection results per sample
+                - num_detections: Number of detections per sample
+        """
         det = non_max_suppression(output.detach().float())
 
         coco_yaml_path = get_file("test_files/pytorch/yolo/coco.yaml")
@@ -164,25 +245,37 @@ class ModelLoader(ForgeModel):
             coco_yaml = yaml.safe_load(f)
         class_names = coco_yaml["names"]
 
-        if len(det):
+        results = []
+        if len(det) and self.input_batch is not None and self.img_src is not None:
             for sample in range(self.input_batch.shape[0]):
-                print("Sample ID: ", sample)
                 det[sample][:, :4] = Inferer.rescale(
                     self.input_batch.shape[2:], det[sample][:, :4], self.img_src.shape
                 ).round()
 
+                sample_detections = []
                 for *xyxy, conf, cls in reversed(det[sample]):
-                    class_num = int(cls)  # Convert class index to integer
-                    conf_value = conf.item()  # Get the confidence value
-                    coordinates = [
-                        int(x.item()) for x in xyxy
-                    ]  # Convert tensor to list of integers
-
-                    # Get the class label
+                    class_num = int(cls)
+                    conf_value = conf.item()
+                    coordinates = [int(x.item()) for x in xyxy]
                     label = class_names[class_num]
 
-                    # Detections
-                    print(
-                        f"Coordinates: {coordinates}, Class: {label}, Confidence: {conf_value:.2f}"
+                    sample_detections.append(
+                        {
+                            "coordinates": coordinates,
+                            "class": label,
+                            "confidence": conf_value,
+                        }
                     )
-                print("\n")
+
+                results.append(
+                    {
+                        "sample_id": sample,
+                        "detections": sample_detections,
+                        "num_detections": len(sample_detections),
+                    }
+                )
+
+        return {
+            "detections": results,
+            "num_samples": len(results),
+        }
