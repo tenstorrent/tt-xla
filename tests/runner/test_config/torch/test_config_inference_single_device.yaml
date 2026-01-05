@@ -1255,7 +1255,6 @@ test_config:
 
   gpt2/pytorch-gpt2-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push, nightly]
 
   gpt2/pytorch-gpt2_sequence_classification-single_device-inference:
     status: EXPECTED_PASSING
