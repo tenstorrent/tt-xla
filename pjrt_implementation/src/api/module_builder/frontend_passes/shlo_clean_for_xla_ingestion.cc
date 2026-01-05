@@ -256,27 +256,32 @@ void stripSdyManualComputation(mlir::sdy::ManualComputationOp manualComputationO
 
 } // namespace internal
 
+
+// XLA parsing of the MLIR returned via PJRT_OptimizedProgram is not compatible with sdy dialect shardings and silently fails causing all outputs to be replicated.
+// This pass converts a sdy-annotated module into a gspmdv2-annotated module compatible with XLA ingestion.
+// It also strips all illegal attributes from ttcore, ttir and sdy dialects and location information for compatibility.
+// The sdy.manual_computation op is stripped by deleting its body and replacing its results with dummy outputs in the correct shape.
+// Output shardings are injected as a moduleOp attr, mhlo.spmd_output_shardings. This is required by XLA to correctly parse the output shardings of the module.
 tt_pjrt_status cleanForXlaIngestion(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
-  mlir::ModuleOp module = mlir_module.get();
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module_with_sdy_annotations) {
+  mlir::ModuleOp module = mlir_module_with_sdy_annotations.get();
 
   std::vector<mlir::sdy::ManualComputationOp> manualComputationOps;
   module.walk([&](mlir::sdy::ManualComputationOp op) { manualComputationOps.push_back(op); });
   
   // if there are no manual computation ops, there are no output shardings to inject so this 
-  // pass is a no-op
+  // pass is a no-op. We return kInvalidArgument to indicate that no output shardings are needed.
   if(manualComputationOps.size() == 0 ) {
-    return tt_pjrt_status::kSuccess;
+    return tt_pjrt_status::kInvalidArgument;
   }
   module.walk([&](mlir::func::FuncOp funcOp) {
     internal::stripTTCoreDialectAttributes(funcOp);
   });
 
   // Strip all location information (loc attributes) from the module
-  mlir::PassManager pm(mlir_module.get()->getName());
+  mlir::PassManager pm(mlir_module_with_sdy_annotations.get()->getName());
   pm.addPass(mlir::createStripDebugInfoPass());
-  if (mlir::failed(pm.run(mlir_module.get()))) {
-    // DLOG_F(ERROR, "Failed to strip debug info from module");
+  if (mlir::failed(pm.run(mlir_module_with_sdy_annotations.get()))) {
     return tt_pjrt_status::kInternal;
   }
   

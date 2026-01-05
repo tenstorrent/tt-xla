@@ -136,7 +136,7 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
   // Determine which MLIR code to use
   const std::string *checkpointed_mlir_code_ptr = &original_mlir_code;
 
-  if (use_sanitized_emithlo_ir) {
+  if (use_sanitized_emithlo_ir||true) {
     // Use sanitized MLIR code cleaned for XLA ingestion
     const std::string &sanitized_mlir_code =
         executable_instance->getExecutableImage()->getSanitizedMlirCode();
