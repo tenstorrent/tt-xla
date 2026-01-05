@@ -42,6 +42,59 @@ MODELS_ROOT_TORCH, test_entries_torch = TorchDynamicLoader.setup_test_discovery(
 MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJECT_ROOT)
 
 
+_TORCH_OP_BY_OP_PARAMS = [None]
+_TORCH_OP_BY_OP_IDS = ["full"]
+
+_TORCH_PARALLELISM_PARAMS = [
+    pytest.param(
+        Parallelism.SINGLE_DEVICE,
+        id="single_device",
+        marks=pytest.mark.single_device,
+    ),
+    pytest.param(
+        Parallelism.DATA_PARALLEL,
+        id="data_parallel",
+        marks=pytest.mark.data_parallel,
+    ),
+    pytest.param(
+        Parallelism.TENSOR_PARALLEL,
+        id="tensor_parallel",
+        marks=pytest.mark.tensor_parallel,
+    ),
+]
+
+
+def _torch_test_decorators(*, test_entries, run_modes, extra_marks=()):
+    """Apply the standard torch test parametrization stack.
+
+    The decorator application order is chosen to keep nodeid parameter ordering consistent
+    with the existing tests:
+      <test_entry>-<parallelism>-<op_by_op>-<run_mode>
+    """
+
+    def _decorator(func):
+        # Marks
+        func = pytest.mark.model_test(func)
+        func = pytest.mark.no_auto_properties(func)
+        for m in extra_marks:
+            func = m(func)
+
+        # Parametrization (apply inner-most first)
+        func = pytest.mark.parametrize(
+            "test_entry",
+            test_entries,
+            ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+        )(func)
+        func = pytest.mark.parametrize("parallelism", _TORCH_PARALLELISM_PARAMS)(func)
+        func = pytest.mark.parametrize(
+            "op_by_op", _TORCH_OP_BY_OP_PARAMS, ids=_TORCH_OP_BY_OP_IDS
+        )(func)
+        func = pytest.mark.parametrize("run_mode", run_modes)(func)
+        return func
+
+    return _decorator
+
+
 def _run_torch_model_test(
     *,
     test_entry,
@@ -168,44 +221,12 @@ def _run_torch_model_test(
             )
 
 
-@pytest.mark.model_test
-@pytest.mark.no_auto_properties
-@pytest.mark.parametrize(
-    "run_mode",
-    [
+@_torch_test_decorators(
+    test_entries=test_entries_torch,
+    run_modes=[
         pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
         pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
     ],
-)
-@pytest.mark.parametrize(
-    "op_by_op",
-    [None],
-    ids=["full"],
-)
-@pytest.mark.parametrize(
-    "parallelism",
-    [
-        pytest.param(
-            Parallelism.SINGLE_DEVICE,
-            id="single_device",
-            marks=pytest.mark.single_device,
-        ),
-        pytest.param(
-            Parallelism.DATA_PARALLEL,
-            id="data_parallel",
-            marks=pytest.mark.data_parallel,
-        ),
-        pytest.param(
-            Parallelism.TENSOR_PARALLEL,
-            id="tensor_parallel",
-            marks=pytest.mark.tensor_parallel,
-        ),
-    ],
-)
-@pytest.mark.parametrize(
-    "test_entry",
-    test_entries_torch,
-    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
 )
 def test_all_models_torch(
     test_entry,
@@ -239,49 +260,13 @@ llm_decode_test_entries_torch = [
     for entry in test_entries_torch
     if hasattr(entry.variant_info[1], "load_inputs_decode")
 ]
-llm_prefill_test_entries_torch = [
-    entry
-    for entry in test_entries_torch
-    if hasattr(entry.variant_info[1], "load_inputs_prefill")
-]
 
-
-@pytest.mark.model_test
-@pytest.mark.no_auto_properties
-@pytest.mark.llm_decode
-@pytest.mark.parametrize(
-    "run_mode",
-    [pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference)],
-)
-@pytest.mark.parametrize(
-    "op_by_op",
-    [None],
-    ids=["full"],
-)
-@pytest.mark.parametrize(
-    "parallelism",
-    [
-        pytest.param(
-            Parallelism.SINGLE_DEVICE,
-            id="single_device",
-            marks=pytest.mark.single_device,
-        ),
-        pytest.param(
-            Parallelism.DATA_PARALLEL,
-            id="data_parallel",
-            marks=pytest.mark.data_parallel,
-        ),
-        pytest.param(
-            Parallelism.TENSOR_PARALLEL,
-            id="tensor_parallel",
-            marks=pytest.mark.tensor_parallel,
-        ),
+@_torch_test_decorators(
+    test_entries=llm_decode_test_entries_torch,
+    run_modes=[
+        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference)
     ],
-)
-@pytest.mark.parametrize(
-    "test_entry",
-    llm_decode_test_entries_torch,
-    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+    extra_marks=(pytest.mark.llm_decode,),
 )
 def test_llms_decode_torch(
     test_entry,
@@ -308,41 +293,18 @@ def test_llms_decode_torch(
     )
 
 
-@pytest.mark.model_test
-@pytest.mark.no_auto_properties
-@pytest.mark.parametrize(
-    "run_mode",
-    [pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference)],
-)
-@pytest.mark.parametrize(
-    "op_by_op",
-    [None],
-    ids=["full"],
-)
-@pytest.mark.parametrize(
-    "parallelism",
-    [
-        pytest.param(
-            Parallelism.SINGLE_DEVICE,
-            id="single_device",
-            marks=pytest.mark.single_device,
-        ),
-        pytest.param(
-            Parallelism.DATA_PARALLEL,
-            id="data_parallel",
-            marks=pytest.mark.data_parallel,
-        ),
-        pytest.param(
-            Parallelism.TENSOR_PARALLEL,
-            id="tensor_parallel",
-            marks=pytest.mark.tensor_parallel,
-        ),
+llm_prefill_test_entries_torch = [
+    entry
+    for entry in test_entries_torch
+    if hasattr(entry.variant_info[1], "load_inputs_prefill")
+]
+
+@_torch_test_decorators(
+    test_entries=llm_prefill_test_entries_torch,
+    run_modes=[
+        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference)
     ],
-)
-@pytest.mark.parametrize(
-    "test_entry",
-    llm_prefill_test_entries_torch,
-    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+    extra_marks=(pytest.mark.llm_prefill,),
 )
 def test_llms_prefill_torch(
     test_entry,
