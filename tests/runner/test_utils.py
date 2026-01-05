@@ -30,6 +30,17 @@ from third_party.tt_forge_models.config import Parallelism
 BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
+class RunPhase(Enum):
+    DEFAULT = "default"
+    LLM_PREFILL = "llm_prefill"
+    LLM_DECODE = "llm_decode"
+
+    def __str__(self) -> str:
+        # Return empty string for DEFAULT so pytest ids (when falling back to str(value))
+        # don't append a visible suffix for DEFAULT phase.
+        return "" if self is RunPhase.DEFAULT else self.value
+
+
 def fix_venv_isolation():
     """
     Fix venv isolation issue: ensure venv packages take precedence over system packages.
@@ -364,6 +375,7 @@ def record_model_test_properties(
     test_metadata,
     run_mode: RunMode,
     parallelism: Parallelism,
+    run_phase: RunPhase = RunPhase.DEFAULT,
     test_passed: bool = False,
     comparison_result=None,
     comparison_config=None,
@@ -447,6 +459,7 @@ def record_model_test_properties(
         "model_name": str(model_info.name),
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
+        "run_phase": str(run_phase),
         "bringup_status": str(bringup_status),
         "model_test_status": str(test_metadata.status),
         "failing_reason": (
@@ -465,6 +478,12 @@ def record_model_test_properties(
         "parallelism": str(parallelism),
         "arch": arch,
     }
+
+    # Always attach run_phase (None when not provided)
+    # _phase_value = None
+    # if run_phase is not None:
+    #     _phase_value = getattr(run_phase, "value", str(run_phase))
+    # tags["run_phase"] = _phase_value
 
     # Add execution_pass if available
     execution_pass = getattr(test_metadata, "execution_pass", None)
