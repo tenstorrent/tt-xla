@@ -18,7 +18,8 @@ namespace tt::pjrt::module_builder::frontend_passes {
 // Strips ttcore dialect attributes from function arguments and results.
 // This is necessary before passing MLIR to XLA ingestion, as XLA does not
 // understand ttcore-specific attributes like argument_type and shard_status.
-tt_pjrt_status cleanForXlaIngestion(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+tt_pjrt_status
+cleanForXlaIngestion(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
 } // namespace tt::pjrt::module_builder::frontend_passes
 

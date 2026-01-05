@@ -394,9 +394,9 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // Start copying in a separate thread.
   m_copy_to_host_thread = std::make_unique<std::thread>(
       [=](void *host_buffer, tt::runtime::Tensor runtime_tensor,
-         EventInstance *event, PJRT_Buffer_Type data_type,
-         size_t host_buffer_size, std::optional<uint32_t> device_id,
-         bool already_on_host, uint64_t buffer_uid) {
+          EventInstance *event, PJRT_Buffer_Type data_type,
+          size_t host_buffer_size, std::optional<uint32_t> device_id,
+          bool already_on_host, uint64_t buffer_uid) {
         // Acquire static lock to serialize all copy-to-host operations across
         // all BufferInstances since any metal dispatch in this async thread
         // will cause ND segfaults as metal is not thread safe. This lock is

@@ -327,8 +327,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   DLOG_F(LOG_DEBUG, "MLIR code size: %zu bytes", mlir_code.size());
   if (loguru::g_stderr_verbosity >= LOG_DEBUG) {
     printf("=== MLIR Code (size=%zu) ===\n%.*s\n=== End MLIR Code ===\n",
-           mlir_code.size(),
-           static_cast<int>(mlir_code.size()),
+           mlir_code.size(), static_cast<int>(mlir_code.size()),
            mlir_code.data());
     fflush(stdout);
   }

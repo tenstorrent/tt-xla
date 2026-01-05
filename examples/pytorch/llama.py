@@ -4,6 +4,7 @@
 
 import argparse
 import os
+import time
 from typing import List
 
 import numpy as np
@@ -17,7 +18,6 @@ from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
-import time
 
 DEFAULT_PROMPTS = [
     "I like taking walks in the",
@@ -385,10 +385,24 @@ def run_generate(
                     xs.mark_sharding(value, mesh, (None, "model", None, None))
             else:
                 print("[james] NOT REAPPLYING SHARDINGS at step", step, flush=True)
-            print("Post execute step time for step", step, "is", time.time(), flush=True)
+            print(
+                "Post execute step time for step", step, "is", time.time(), flush=True
+            )
             print("Shard spec for static caches after execution", flush=True)
-            print("Shard spec for static cache key", torch_xla._XLAC._get_xla_sharding_spec(input_args["past_key_values"].key_cache[0]), flush=True)
-            print("Shard spec for static cache value", torch_xla._XLAC._get_xla_sharding_spec(input_args["past_key_values"].value_cache[0]), flush=True)
+            print(
+                "Shard spec for static cache key",
+                torch_xla._XLAC._get_xla_sharding_spec(
+                    input_args["past_key_values"].key_cache[0]
+                ),
+                flush=True,
+            )
+            print(
+                "Shard spec for static cache value",
+                torch_xla._XLAC._get_xla_sharding_spec(
+                    input_args["past_key_values"].value_cache[0]
+                ),
+                flush=True,
+            )
     print()
     if not is_interactive:
         for i in range(num_users):
