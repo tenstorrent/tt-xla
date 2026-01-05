@@ -7,9 +7,12 @@ RegNet model loader implementation
 
 from typing import Optional
 from dataclasses import dataclass
-from PIL import Image
-from torchvision import models, transforms
+from torchvision import models
 import torch
+
+from transformers import RegNetForImageClassification
+from ...tools.utils import VisionPreprocessor, VisionPostprocessor
+
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -20,8 +23,6 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from transformers import AutoFeatureExtractor, RegNetForImageClassification
-from ...tools.utils import get_file, print_compiled_model_results
 
 
 @dataclass
@@ -29,6 +30,9 @@ class RegNetConfig(ModelConfig):
     """Configuration specific to RegNet models"""
 
     source: ModelSource
+    high_res_size: tuple = (
+        None  # None means use default size, otherwise (width, height)
+    )
 
 
 class ModelVariant(StrEnum):
@@ -164,8 +168,9 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self.feature_extractor = None
         self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -224,8 +229,16 @@ class ModelLoader(ForgeModel):
 
         model.eval()
 
-        # Store model for potential use in post_processing
+        # Store model for potential use in input preprocessing and postprocessing
         self.model = model
+
+        # Update preprocessor with cached model (for TIMM models)
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
+        # Update postprocessor with model instance (for HuggingFace models)
+        if self._postprocessor is not None:
+            self._postprocessor.set_model_instance(model)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
@@ -233,71 +246,85 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the RegNet model with this instance's variant settings.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            dtype_override: Optional torch.dtype to override the inputs' default dtype.
-                           If not provided, inputs will use the default dtype (typically float32).
-            batch_size: Optional batch size to override the default batch size of 1.
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default COCO image).
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for RegNet.
+            torch.Tensor: Preprocessed input tensor.
         """
-        # Get the pretrained model name and source from the instance's variant config
-        model_name = self._variant_config.pretrained_model_name
-        source = self._variant_config.source
+        if self._preprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+            high_res_size = self._variant_config.high_res_size
 
-        # Get the Image
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_file).convert("RGB")
+            def weight_class_name_fn(name: str) -> str:
+                # Convert "regnet_y_400mf" -> "RegNet_Y_400MF_Weights"
+                weight_class_name = name.upper() + "_Weights"
+                return weight_class_name.replace("REGNET_", "RegNet_")
 
-        if source == ModelSource.HUGGING_FACE:
-            # Initialize feature extractor if not already done
-            if self.feature_extractor is None:
-                self.feature_extractor = AutoFeatureExtractor.from_pretrained(
-                    model_name
-                )
+            self._preprocessor = VisionPreprocessor(
+                model_source=source,
+                model_name=model_name,
+                high_res_size=high_res_size,
+                weight_class_name_fn=(
+                    weight_class_name_fn if source == ModelSource.TORCHVISION else None
+                ),
+            )
 
-            # Preprocess image using HuggingFace feature extractor
-            inputs = self.feature_extractor(
-                images=image, return_tensors="pt"
-            ).pixel_values
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
 
-        elif source == ModelSource.TORCHVISION:
-            # Get the weights class name for torchvision preprocessing
-            weight_class_name = model_name.upper() + "_Weights"
-            weight_class_name = weight_class_name.replace("REGNET_", "RegNet_")
+        model_for_config = None
+        if self._variant_config.source == ModelSource.TIMM:
+            if hasattr(self, "model") and self.model is not None:
+                model_for_config = self.model
 
-            # Get the weights and use their transforms
-            weights = getattr(models, weight_class_name).DEFAULT
-            preprocess = weights.transforms()
-            inputs = preprocess(image).unsqueeze(0)
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
+        )
 
-        # Replicate tensors for batch size
-        inputs = inputs.repeat_interleave(batch_size, dim=0)
-
-        # Only convert dtype if explicitly requested
-        if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
-
-        return inputs
-
-    def post_processing(self, co_out):
-        """Post-process the model outputs based on source.
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs for the model.
 
         Args:
-            co_out: Compiled model outputs
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
 
         Returns:
-            None: Prints the predicted class
+            torch.Tensor: Preprocessed input tensor.
         """
-        source = self._variant_config.source
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
 
-        if source == ModelSource.HUGGING_FACE:
-            logits = co_out[0]
-            predicted_label = logits.argmax(-1).item()
-            print("Predicted class:", self.model.config.id2label[predicted_label])
+    def output_postprocess(self, output):
+        """Post-process model outputs.
 
-        elif source == ModelSource.TORCHVISION:
-            print_compiled_model_results(co_out)
+        Args:
+            output: Model output tensor.
+
+        Returns:
+            dict: Prediction dictionary with top predictions.
+        """
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+
+            self._postprocessor = VisionPostprocessor(
+                model_source=source,
+                model_name=model_name,
+                model_instance=self.model,
+            )
+
+        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
