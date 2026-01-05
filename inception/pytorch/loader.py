@@ -7,6 +7,12 @@ Inception model loader implementation
 
 from typing import Optional
 from dataclasses import dataclass
+import timm
+from PIL import Image
+from torchvision import transforms
+
+from ...tools.utils import VisionPreprocessor, VisionPostprocessor, get_file
+
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -17,12 +23,6 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-import timm
-from timm.data import resolve_data_config
-from timm.data.transforms_factory import create_transform
-from PIL import Image
-from torchvision import transforms
-from ...tools.utils import get_file, print_compiled_model_results
 from pytorchcv.model_provider import get_model as ptcv_get_model
 
 
@@ -76,7 +76,9 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self._cached_model = None
+        self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -114,21 +116,35 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The Inception model instance.
         """
-        # Get the pretrained model name from the instance's variant config
+        # Get the pretrained model name and source from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
         source = self._variant_config.source
 
         if source == ModelSource.OSMR:
+            if not OSMR_AVAILABLE:
+                raise ImportError(
+                    "pytorchcv is required for OSMR models. Install it with: pip install pytorchcv"
+                )
             # Load model using pytorchcv (OSMR)
             model = ptcv_get_model(model_name, pretrained=True)
-        else:
+        elif source == ModelSource.TIMM:
             # Load model using timm
             model = timm.create_model(model_name, pretrained=True)
+        else:
+            raise ValueError(f"Unsupported Inception source: {source}")
 
         model.eval()
 
-        # Cache model for use in load_inputs (to avoid reloading)
-        self._cached_model = model
+        # Store model for potential use in input preprocessing and postprocessing
+        self.model = model
+
+        # Update preprocessor with cached model (for TIMM models)
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
+        # Update postprocessor with model instance (for HuggingFace models)
+        if self._postprocessor is not None:
+            self._postprocessor.set_model_instance(model)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
@@ -136,26 +152,39 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the Inception model with this instance's variant settings.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            dtype_override: Optional torch.dtype to override the inputs' default dtype.
-                           If not provided, inputs will use the default dtype (typically float32).
-            batch_size: Optional batch size to override the default batch size of 1.
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default COCO image).
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for Inception.
+            torch.Tensor: Preprocessed input tensor.
         """
-        # Get the Image
-        image_file = get_file(
-            "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-        )
-        image = Image.open(image_file).convert("RGB")
-
         source = self._variant_config.source
 
+        # Handle OSMR variant separately (requires custom preprocessing)
         if source == ModelSource.OSMR:
+            if image is None:
+                # Get the Image
+                image_file = get_file(
+                    "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
+                )
+                image = Image.open(image_file).convert("RGB")
+
+            # Convert to PIL if needed
+            if isinstance(image, str):
+                image_file = get_file(image)
+                image = Image.open(image_file).convert("RGB")
+            elif not isinstance(image, Image.Image):
+                # If it's a tensor or other type, we need to handle it
+                # For now, assume it's already processed or raise an error
+                raise ValueError(
+                    "OSMR variant requires PIL Image input. Please provide a PIL Image or URL."
+                )
+
             preprocess = transforms.Compose(
                 [
                     transforms.Resize(299),
@@ -167,24 +196,76 @@ class ModelLoader(ForgeModel):
                 ]
             )
             inputs = preprocess(image).unsqueeze(0)
-        else:
-            data_config = resolve_data_config({}, model=self._cached_model)
-            timm_transforms = create_transform(**data_config)
-            inputs = timm_transforms(image).unsqueeze(0)
 
-        # Replicate tensors for batch size
-        inputs = inputs.repeat_interleave(batch_size, dim=0)
+            # Replicate tensors for batch size
+            inputs = inputs.repeat_interleave(batch_size, dim=0)
 
-        # Only convert dtype if explicitly requested
-        if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
+            # Only convert dtype if explicitly requested
+            if dtype_override is not None:
+                inputs = inputs.to(dtype_override)
 
-        return inputs
+            return inputs
 
-    def print_cls_results(self, compiled_model_out):
-        """Print classification results.
+        # Standard TIMM preprocessing using VisionPreprocessor
+        if self._preprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+
+            self._preprocessor = VisionPreprocessor(
+                model_source=source,
+                model_name=model_name,
+                high_res_size=None,
+                weight_class_name_fn=None,
+            )
+
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
+
+        model_for_config = None
+        if self._variant_config.source == ModelSource.TIMM:
+            if hasattr(self, "model") and self.model is not None:
+                model_for_config = self.model
+
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
+        )
+
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs.
 
         Args:
-            compiled_model_out: Output from the compiled model
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
+
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
         """
-        print_compiled_model_results(compiled_model_out)
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
+
+    def output_postprocess(self, output):
+        """Post-process model outputs.
+
+        Args:
+            output: Model output tensor.
+
+        Returns:
+            dict: Prediction dictionary with top predictions.
+        """
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+
+            self._postprocessor = VisionPostprocessor(
+                model_source=source,
+                model_name=model_name,
+                model_instance=self.model,
+            )
+
+        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
