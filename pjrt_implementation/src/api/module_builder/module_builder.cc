@@ -255,17 +255,24 @@ ModuleBuilder::buildModule(
 
   std::vector<PJRT_Buffer_Type> output_types = collectOutputTypes(mlir_module);
 
+  std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
+  status = collectOutputShardings(mlir_module, output_shardings);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
   status =
       runCompilerStableHLOPipeline(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
-  std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
-  status = collectOutputShardings(mlir_module, output_shardings);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
-  }
+  // output shadings collected after shlo pipeline run
+  // std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
+  // status = collectOutputShardings(mlir_module, output_shardings);
+  // if (!tt_pjrt_status_is_ok(status)) {
+  //   return {status, nullptr};
+  // }
 
   // Sanitiation path for XLA ingestion operating on a clone of the base module
   mlir::OwningOpRef<mlir::ModuleOp> sanitized_mlir_module =
