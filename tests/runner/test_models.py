@@ -205,19 +205,37 @@ def test_all_models_torch(
             )
 
 
-# Decode-only LLM entry point (inference only, only for loaders that implement load_inputs_decode)
-decode_test_entries_torch = [
+# LLM phases entry point (inference only). We build phase-specific cases so models only
+# get tests for phases they explicitly support (no cartesian-product explosion).
+llm_decode_entries_torch = [
     entry
     for entry in test_entries_torch
     if hasattr(entry.variant_info[1], "load_inputs_decode")
 ]
+llm_prefill_entries_torch = [
+    entry
+    for entry in test_entries_torch
+    if hasattr(entry.variant_info[1], "load_inputs_prefill")
+]
+
+llm_cases_torch: list[tuple[RunPhase, object]] = (
+    [(RunPhase.LLM_DECODE, entry) for entry in llm_decode_entries_torch]
+    + [(RunPhase.LLM_PREFILL, entry) for entry in llm_prefill_entries_torch]
+)
+
+
+def _llm_case_id(case) -> str:
+    run_phase, test_entry = case
+    suffix = getattr(run_phase, "value", str(run_phase))
+    return f"{DynamicLoader.generate_test_id(test_entry, MODELS_ROOT_TORCH)}-{suffix}"
 
 
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
 @pytest.mark.parametrize(
-    "run_phase",
-    [pytest.param(RunPhase.LLM_DECODE, id="decode", marks=pytest.mark.llm_decode)],
+    "llm_case",
+    llm_cases_torch,
+    ids=_llm_case_id,
 )
 @pytest.mark.parametrize(
     "run_mode",
@@ -248,14 +266,8 @@ decode_test_entries_torch = [
         ),
     ],
 )
-@pytest.mark.parametrize(
-    "test_entry",
-    decode_test_entries_torch,
-    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
-)
 def test_llms_torch(
-    test_entry,
-    run_phase,
+    llm_case,
     run_mode,
     op_by_op,
     parallelism,
@@ -267,6 +279,7 @@ def test_llms_torch(
 ):
     fix_venv_isolation()
 
+    run_phase, test_entry = llm_case
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
 
@@ -566,3 +579,4 @@ def test_placeholder_models(model_name, record_property, request):
         run_phase=RunPhase.DEFAULT,
         parallelism=Parallelism.SINGLE_DEVICE,
     )
+
