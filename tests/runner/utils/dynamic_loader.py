@@ -379,6 +379,16 @@ class TorchDynamicLoader(DynamicLoader):
                 pass
             return p == "DECODE"
 
+        def _is_prefill(p):
+            try:
+                if getattr(p, "value", None) in ("prefill", "llm_prefill"):
+                    return True
+                if str(p).endswith(".LLM_PREFILL"):
+                    return True
+            except Exception:
+                pass
+            return p == "PREFILL"
+
         # Route based on explicit phase when provided (accepts enum or string)
         if _is_decode(run_phase) and hasattr(self.loader, "load_inputs_decode"):
             decode_sig = inspect.signature(self.loader.load_inputs_decode)
@@ -386,6 +396,12 @@ class TorchDynamicLoader(DynamicLoader):
             if "dtype_override" in decode_sig.parameters:
                 return self.loader.load_inputs_decode(dtype_override=torch.bfloat16)
             return self.loader.load_inputs_decode()
+        if _is_prefill(run_phase) and hasattr(self.loader, "load_inputs_prefill"):
+            prefill_sig = inspect.signature(self.loader.load_inputs_prefill)
+            print(f"KCM Going to use load_inputs_prefill() for model")
+            if "dtype_override" in prefill_sig.parameters:
+                return self.loader.load_inputs_prefill(dtype_override=torch.bfloat16)
+            return self.loader.load_inputs_prefill()
         # Default path
         if "dtype_override" in sig.parameters:
             return self.loader.load_inputs(dtype_override=torch.bfloat16)
