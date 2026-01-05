@@ -225,6 +225,7 @@ ModuleBuilder::buildModule(
   std::string original_mlir_code(mlir_code);
 
   std::string checkpointed_mlir_code;
+  std::string sanitized_mlir_code;
 
   DLOG_F(LOG_DEBUG, "Extracting checkpointed MLIR code after VHLO Compiler pass");
   checkpointed_mlir_code = getMlirCode(mlir_module);
@@ -272,16 +273,18 @@ ModuleBuilder::buildModule(
   mlir::OwningOpRef<mlir::ModuleOp> sanitized_mlir_module = mlir_module->clone();
   DLOG_F(LOG_DEBUG, "Cleaning for XLA ingestion");
   status = frontend_passes::cleanForXlaIngestion(sanitized_mlir_module);
-  if (!tt_pjrt_status_is_ok(status)) {
+  
+  if(tt_pjrt_status_is_ok(status)) {
+    sanitized_mlir_code = getMlirCode(sanitized_mlir_module);
+    printModule(sanitized_mlir_module, compile_options.export_path, "shlo_compiler_cleaned");
+  }
+  else if (status == tt_pjrt_status::kInvalidArgument) {
+    // No output shardings needed, so we set sanitized_mlir_module to the original module
+    sanitized_mlir_code = original_mlir_code;
+  }
+  else if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
-  DLOG_F(LOG_DEBUG, "Done cleaning for XLA ingestion - resulting module:");
-  printModule(sanitized_mlir_module, compile_options.export_path, "shlo_compiler_cleaned");
-  
-  // Extract sanitized MLIR code for XLA ingestion
-  std::string sanitized_mlir_code = getMlirCode(sanitized_mlir_module);
-  
-  // continue normal compilation
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
@@ -516,8 +519,19 @@ ModuleBuilder::collectOutputShardingsShardy(
     func_op.walk([&](mlir::sdy::ManualComputationOp op) {
       manual_computation_ops.push_back(op);
     });
+
+    // zero manual computation ops may exist if execution is entirely replicated
+    // In this case, we must insert as many nullptr into shardy_attributes as there are results in the funcOp
+    // so that createShardingsFromShardy will generate the correct number of default output shardings
+    if (manual_computation_ops.size() == 0) {
+      for (size_t i = 0; i < func_op.getNumResults(); ++i) {
+        shardy_attributes.push_back(nullptr);
+      }
+      continue;
+    }
+
     if (manual_computation_ops.size() != 1) {
-      DLOG_F(ERROR, "Expected exactly one manual computation op, found: %zu",
+      DLOG_F(ERROR, "Expected exactly zero or one manual computation op, found: %zu",
              manual_computation_ops.size());
       return std::nullopt;
     }
