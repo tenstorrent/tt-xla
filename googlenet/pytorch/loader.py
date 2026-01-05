@@ -5,10 +5,12 @@
 GoogleNet model loader implementation
 """
 
-import torch
 from typing import Optional
-from PIL import Image
-from torchvision import models, transforms
+from dataclasses import dataclass
+from torchvision import models
+import torch
+
+from ...tools.utils import VisionPreprocessor, VisionPostprocessor
 
 from ...config import (
     ModelConfig,
@@ -20,7 +22,13 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file, print_compiled_model_results
+
+
+@dataclass
+class GoogleNetConfig(ModelConfig):
+    """Configuration specific to GoogleNet models"""
+
+    source: ModelSource
 
 
 class ModelVariant(StrEnum):
@@ -34,8 +42,9 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.GOOGLENET: ModelConfig(
+        ModelVariant.GOOGLENET: GoogleNetConfig(
             pretrained_model_name="googlenet",
+            source=ModelSource.TORCHVISION,
         ),
     }
 
@@ -50,6 +59,9 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
+        self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -64,12 +76,16 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
+        # Get source from variant config
+        source = cls._VARIANTS[variant].source
+
         return ModelInfo(
             model="googlenet",
             variant=variant,
             group=ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_CLS,
-            source=ModelSource.TORCHVISION,
+            source=source,
             framework=Framework.TORCH,
         )
 
@@ -83,16 +99,34 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The GoogleNet model instance.
         """
-        # Get the pretrained model name from the instance's variant config
+        # Get the pretrained model name and source from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
+        source = self._variant_config.source
 
-        # Load GoogleNet model from torchvision
-        if model_name == "googlenet":
-            model = models.googlenet(pretrained=True)
+        if source == ModelSource.TORCHVISION:
+            # Load model from torchvision
+            # Get the weights class name (e.g., "googlenet" -> "GoogLeNet_Weights")
+            weight_class_name = "GoogLeNet_Weights"
+
+            # Get the weights class and model function
+            weights = getattr(models, weight_class_name).DEFAULT
+            model_func = getattr(models, model_name)
+            model = model_func(weights=weights)
         else:
-            raise ValueError(f"Unsupported GoogleNet variant: {model_name}")
+            raise ValueError(f"Unsupported GoogleNet source: {source}")
 
         model.eval()
+
+        # Store model for potential use in input preprocessing and postprocessing
+        self.model = model
+
+        # Update preprocessor with cached model (for TIMM models)
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
+        # Update postprocessor with model instance (for HuggingFace models)
+        if self._postprocessor is not None:
+            self._postprocessor.set_model_instance(model)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
@@ -100,50 +134,115 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the GoogleNet model with this instance's variant settings.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
-            batch_size: Optional batch size to override the default batch size of 1.
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default COCO image).
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for GoogleNet.
+            torch.Tensor: Preprocessed input tensor.
         """
-        # Get the Image
-        image_file = get_file(
-            "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-        )
-        image = Image.open(image_file).convert("RGB")
+        if self._preprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
 
-        # Preprocess image following GoogleNet requirements
-        preprocess = transforms.Compose(
-            [
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+            def weight_class_name_fn(name: str) -> str:
+                return "GoogLeNet_Weights"
+
+            self._preprocessor = VisionPreprocessor(
+                model_source=source,
+                model_name=model_name,
+                high_res_size=None,
+                weight_class_name_fn=(
+                    weight_class_name_fn if source == ModelSource.TORCHVISION else None
                 ),
-            ]
+            )
+
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
+
+        model_for_config = None
+        if self._variant_config.source == ModelSource.TIMM:
+            if hasattr(self, "model") and self.model is not None:
+                model_for_config = self.model
+
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
         )
 
-        inputs = preprocess(image).unsqueeze(0)
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs (backward compatibility wrapper for input_preprocess).
 
-        # Replicate tensors for batch size
-        inputs = inputs.repeat_interleave(batch_size, dim=0)
+        Args:
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
 
-        # Only convert dtype if explicitly requested
-        if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
+        """
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
 
-        return inputs
+    def output_postprocess(
+        self,
+        output=None,
+        co_out=None,
+        framework_model=None,
+        compiled_model=None,
+        inputs=None,
+        dtype_override=None,
+    ):
+        """Post-process model outputs.
+
+        Args:
+            output: Model output tensor (returns dict if provided).
+            co_out: Compiled model outputs (legacy, prints results).
+            framework_model: Original framework model (legacy).
+            compiled_model: Compiled model (legacy).
+            inputs: Input images (legacy).
+            dtype_override: Optional dtype override (legacy).
+
+        Returns:
+            dict or None: Prediction dict if output provided, else None (prints results).
+        """
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+
+            self._postprocessor = VisionPostprocessor(
+                model_source=source,
+                model_name=model_name,
+                model_instance=self.model,
+            )
+
+        # New usage: return dict from output tensor
+        if output is not None:
+            return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
+
+        # Legacy usage: print results (backward compatibility)
+        self._postprocessor.print_results(
+            co_out=co_out,
+            framework_model=framework_model,
+            compiled_model=compiled_model,
+            inputs=inputs,
+            dtype_override=dtype_override,
+        )
+        return None
 
     def print_cls_results(self, compiled_model_out):
-        """Print classification results.
+        """Print classification results (backward compatibility wrapper).
 
         Args:
             compiled_model_out: Output from the compiled model
         """
-        print_compiled_model_results(compiled_model_out)
+        self.output_postprocess(co_out=compiled_model_out)
