@@ -42,48 +42,11 @@ MODELS_ROOT_TORCH, test_entries_torch = TorchDynamicLoader.setup_test_discovery(
 MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJECT_ROOT)
 
 
-@pytest.mark.model_test
-@pytest.mark.no_auto_properties
-@pytest.mark.parametrize(
-    "run_mode",
-    [
-        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
-        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
-    ],
-)
-@pytest.mark.parametrize(
-    "op_by_op",
-    [None],
-    ids=["full"],
-)
-@pytest.mark.parametrize(
-    "parallelism",
-    [
-        pytest.param(
-            Parallelism.SINGLE_DEVICE,
-            id="single_device",
-            marks=pytest.mark.single_device,
-        ),
-        pytest.param(
-            Parallelism.DATA_PARALLEL,
-            id="data_parallel",
-            marks=pytest.mark.data_parallel,
-        ),
-        pytest.param(
-            Parallelism.TENSOR_PARALLEL,
-            id="tensor_parallel",
-            marks=pytest.mark.tensor_parallel,
-        ),
-    ],
-)
-@pytest.mark.parametrize(
-    "test_entry",
-    test_entries_torch,
-    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
-)
-def test_all_models_torch(
+def _run_torch_model_test(
+    *,
     test_entry,
     run_mode,
+    run_phase: RunPhase | None,
     op_by_op,
     parallelism,
     record_property,
@@ -120,7 +83,7 @@ def test_all_models_torch(
                     loader=loader,
                     comparison_config=test_metadata.to_comparison_config(),
                     parallelism=parallelism,
-                    run_phase=None,
+                    run_phase=run_phase,
                 )
 
                 comparison_result = tester.test()
@@ -182,7 +145,7 @@ def test_all_models_torch(
                 model_info=model_info,
                 test_metadata=test_metadata,
                 run_mode=run_mode,
-                run_phase=None,
+                run_phase=run_phase,
                 parallelism=parallelism,
                 test_passed=succeeded,
                 comparison_result=comparison_result,
@@ -205,31 +168,87 @@ def test_all_models_torch(
             )
 
 
-# LLM phases entry point (inference only).
-# Keep "normal" parameterization ordering so nodeids match the usual pattern:
-#   <model>-<parallelism>-<op_by_op>-<run_mode>-<run_phase>
-# Unsupported (phase, loader) combinations are deselected during collection in conftest.py.
-llm_test_entries_torch = [
+@pytest.mark.model_test
+@pytest.mark.no_auto_properties
+@pytest.mark.parametrize(
+    "run_mode",
+    [
+        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
+    ],
+)
+@pytest.mark.parametrize(
+    "op_by_op",
+    [None],
+    ids=["full"],
+)
+@pytest.mark.parametrize(
+    "parallelism",
+    [
+        pytest.param(
+            Parallelism.SINGLE_DEVICE,
+            id="single_device",
+            marks=pytest.mark.single_device,
+        ),
+        pytest.param(
+            Parallelism.DATA_PARALLEL,
+            id="data_parallel",
+            marks=pytest.mark.data_parallel,
+        ),
+        pytest.param(
+            Parallelism.TENSOR_PARALLEL,
+            id="tensor_parallel",
+            marks=pytest.mark.tensor_parallel,
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "test_entry",
+    test_entries_torch,
+    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+)
+def test_all_models_torch(
+    test_entry,
+    run_mode,
+    op_by_op,
+    parallelism,
+    record_property,
+    test_metadata,
+    request,
+    capteesys,
+    clear_torchxla_computation_cache,
+):
+    _run_torch_model_test(
+        test_entry=test_entry,
+        run_mode=run_mode,
+        run_phase=None,
+        op_by_op=op_by_op,
+        parallelism=parallelism,
+        record_property=record_property,
+        test_metadata=test_metadata,
+        request=request,
+        capteesys=capteesys,
+        clear_torchxla_computation_cache=clear_torchxla_computation_cache,
+    )
+
+
+# LLM phase entry points (inference only). We keep two separate tests so we only
+# collect supported combinations, without any collection-time deselection logic.
+llm_decode_test_entries_torch = [
     entry
     for entry in test_entries_torch
     if hasattr(entry.variant_info[1], "load_inputs_decode")
-    or hasattr(entry.variant_info[1], "load_inputs_prefill")
+]
+llm_prefill_test_entries_torch = [
+    entry
+    for entry in test_entries_torch
+    if hasattr(entry.variant_info[1], "load_inputs_prefill")
 ]
 
 
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
-@pytest.mark.parametrize(
-    "run_phase",
-    [
-        pytest.param(
-            RunPhase.LLM_DECODE,
-            id=RunPhase.LLM_DECODE.value,
-            marks=pytest.mark.llm_decode,
-        ),
-        pytest.param(RunPhase.LLM_PREFILL, id=RunPhase.LLM_PREFILL.value),
-    ],
-)
+@pytest.mark.llm_decode
 @pytest.mark.parametrize(
     "run_mode",
     [pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference)],
@@ -261,12 +280,11 @@ llm_test_entries_torch = [
 )
 @pytest.mark.parametrize(
     "test_entry",
-    llm_test_entries_torch,
+    llm_decode_test_entries_torch,
     ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
 )
-def test_llms_torch(
+def test_llms_decode_torch(
     test_entry,
-    run_phase,
     run_mode,
     op_by_op,
     parallelism,
@@ -276,95 +294,79 @@ def test_llms_torch(
     capteesys,
     clear_torchxla_computation_cache,
 ):
-    fix_venv_isolation()
+    _run_torch_model_test(
+        test_entry=test_entry,
+        run_mode=run_mode,
+        run_phase=RunPhase.LLM_DECODE,
+        op_by_op=op_by_op,
+        parallelism=parallelism,
+        record_property=record_property,
+        test_metadata=test_metadata,
+        request=request,
+        capteesys=capteesys,
+        clear_torchxla_computation_cache=clear_torchxla_computation_cache,
+    )
 
-    loader_path = test_entry.path
-    variant, ModelLoader = test_entry.variant_info
 
-    with RequirementsManager.for_loader(loader_path):
-        loader = ModelLoader(variant=variant)
-        model_info = ModelLoader.get_model_info(variant=variant)
-        print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
-
-        succeeded = False
-        comparison_result = None
-        tester = None
-        filecheck_results = None
-
-        try:
-            if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
-                tester = DynamicTorchModelTester(
-                    run_mode,
-                    loader=loader,
-                    comparison_config=test_metadata.to_comparison_config(),
-                    parallelism=parallelism,
-                    run_phase=run_phase,
-                )
-
-                comparison_result = tester.test()
-
-                pattern_files = (
-                    test_metadata.filechecks
-                    if hasattr(test_metadata, "filechecks")
-                    else None
-                )
-                if (
-                    request.config.getoption("--serialize", default=False)
-                    or pattern_files
-                ):
-                    tester.serialize_compilation_artifacts(request.node.name)
-
-                succeeded = all(result.passed for result in comparison_result)
-                if succeeded and pattern_files:
-                    filecheck_results = run_filecheck(
-                        test_node_name=request.node.name,
-                        irs_filepath="output_artifact",
-                        pattern_files=pattern_files,
-                    )
-
-                Comparator._assert_on_results(comparison_result)
-                validate_filecheck_results(filecheck_results)
-
-        except Exception as e:
-            out = capteesys.readouterr().out
-            err = capteesys.readouterr().err
-            update_test_metadata_for_exception(test_metadata, e, stdout=out, stderr=err)
-            raise
-        finally:
-            if comparison_result is not None and len(comparison_result) > 0:
-                if len(comparison_result) > 1:
-                    print(
-                        f"{len(comparison_result)} comparison results found for {request.node.nodeid}, only recording the first one."
-                    )
-                comparison_result = comparison_result[0]
-
-            comparison_config = tester._comparison_config if tester else None
-
-            record_model_test_properties(
-                record_property,
-                request,
-                model_info=model_info,
-                test_metadata=test_metadata,
-                run_mode=run_mode,
-                run_phase=run_phase,
-                parallelism=parallelism,
-                test_passed=succeeded,
-                comparison_result=comparison_result,
-                comparison_config=comparison_config,
-            )
-
-            measurements = getattr(tester, "_perf_measurements", None)
-            output_dir = request.config.getoption("--perf-report-dir")
-            create_benchmark_result(
-                full_model_name=model_info.name,
-                output_dir=output_dir,
-                perf_id=request.config.getoption("--perf-id"),
-                measurements=measurements,
-                model_type="generic",
-                training=False,
-                model_info=model_info.name,
-                device_name=socket.gethostname(),
-            )
+@pytest.mark.model_test
+@pytest.mark.no_auto_properties
+@pytest.mark.parametrize(
+    "run_mode",
+    [pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference)],
+)
+@pytest.mark.parametrize(
+    "op_by_op",
+    [None],
+    ids=["full"],
+)
+@pytest.mark.parametrize(
+    "parallelism",
+    [
+        pytest.param(
+            Parallelism.SINGLE_DEVICE,
+            id="single_device",
+            marks=pytest.mark.single_device,
+        ),
+        pytest.param(
+            Parallelism.DATA_PARALLEL,
+            id="data_parallel",
+            marks=pytest.mark.data_parallel,
+        ),
+        pytest.param(
+            Parallelism.TENSOR_PARALLEL,
+            id="tensor_parallel",
+            marks=pytest.mark.tensor_parallel,
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "test_entry",
+    llm_prefill_test_entries_torch,
+    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+)
+def test_llms_prefill_torch(
+    test_entry,
+    run_mode,
+    op_by_op,
+    parallelism,
+    record_property,
+    test_metadata,
+    request,
+    capteesys,
+    clear_torchxla_computation_cache,
+):
+    _run_torch_model_test(
+        test_entry=test_entry,
+        run_mode=run_mode,
+        run_phase=RunPhase.LLM_PREFILL,
+        op_by_op=op_by_op,
+        parallelism=parallelism,
+        record_property=record_property,
+        test_metadata=test_metadata,
+        request=request,
+        capteesys=capteesys,
+        clear_torchxla_computation_cache=clear_torchxla_computation_cache,
+    )
 
 
 @pytest.mark.model_test
@@ -577,4 +579,3 @@ def test_placeholder_models(model_name, record_property, request):
         run_phase=RunPhase.DEFAULT,
         parallelism=Parallelism.SINGLE_DEVICE,
     )
-
