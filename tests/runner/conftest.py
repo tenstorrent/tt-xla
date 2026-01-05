@@ -9,7 +9,7 @@ import pytest
 
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
-from tests.runner.test_utils import ModelTestConfig, ModelTestStatus, RunPhase
+from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
 # Global set to track collected test node IDs
 _collected_nodeids = set()
@@ -98,27 +98,6 @@ def pytest_collection_modifyitems(config, items):
     deselected = []
 
     for item in items:
-        # Deselect invalid LLM phase tests (keeps test_llms_torch nodeid ordering "normal"
-        # while still only collecting supported (phase, loader) combinations).
-        callspec = getattr(item, "callspec", None)
-        if callspec is not None and "test_llms_torch" in item.nodeid:
-            params = callspec.params
-            run_phase = params.get("run_phase")
-            test_entry = params.get("test_entry")
-            if test_entry is not None and run_phase in (
-                RunPhase.LLM_DECODE,
-                RunPhase.LLM_PREFILL,
-            ):
-                _, ModelLoader = test_entry.variant_info
-                needs_attr = (
-                    "load_inputs_decode"
-                    if run_phase == RunPhase.LLM_DECODE
-                    else "load_inputs_prefill"
-                )
-                if not hasattr(ModelLoader, needs_attr):
-                    deselected.append(item)
-                    continue
-
         nodeid = item.nodeid
         if "[" in nodeid:
             nodeid = nodeid[nodeid.index("[") + 1 : -1]
