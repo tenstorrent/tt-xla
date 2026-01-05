@@ -6,11 +6,10 @@ import difflib
 import os
 
 import pytest
-from infra import RunMode
 
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
-from tests.runner.test_utils import ModelTestConfig, ModelTestStatus, RunPhase
+from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
 # Global set to track collected test node IDs
 _collected_nodeids = set()
@@ -99,32 +98,6 @@ def pytest_collection_modifyitems(config, items):
     deselected = []
 
     for item in items:
-
-        callspec = getattr(item, "callspec", None)
-        if callspec is not None:
-            params = callspec.params
-
-            run_phase = params.get("run_phase")
-            run_mode = params.get("run_mode")
-            test_entry = params.get("test_entry")
-            # loader_has_decode = hasattr(test_entry.variant_info[1], "load_inputs_decode", False)
-
-            # Combined: drop decode tests when training OR when loader doesn't support decode
-            if run_phase == RunPhase.LLM_DECODE:
-                drop = False
-                if run_mode == RunMode.TRAINING:
-                    drop = True
-                elif test_entry is not None:
-                    _, ModelLoader = test_entry.variant_info
-                    if not hasattr(ModelLoader, "load_inputs_decode"):
-                        drop = True
-                if drop:
-                    deselected.append(item)
-                    continue
-
-        # Preserve existing test names: avoid mutating nodeids; use parametrize ids to control names instead.
-
-        # ---------------------------------------------------------------
 
         nodeid = item.nodeid
         if "[" in nodeid:
