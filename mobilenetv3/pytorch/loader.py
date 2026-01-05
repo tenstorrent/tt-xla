@@ -10,8 +10,6 @@ from dataclasses import dataclass
 from PIL import Image
 from torchvision import transforms
 import timm
-from timm.data import resolve_data_config
-from timm.data.transforms_factory import create_transform
 import torch
 
 from ...config import (
@@ -24,7 +22,10 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file, print_compiled_model_results
+from ...tools.utils import (
+    VisionPreprocessor,
+    VisionPostprocessor,
+)
 
 
 @dataclass
@@ -48,6 +49,22 @@ class ModelVariant(StrEnum):
 
 class ModelLoader(ForgeModel):
     """MobileNetV3 model loader implementation."""
+
+    # ImageNet preprocessing constants
+    # These values are standard ImageNet preprocessing parameters used by torchvision
+    # and are consistent across most ImageNet-trained models:
+    # - 256: Resize size (shortest side) - standard preprocessing step before center crop
+    # - 224: Final input size after center crop - standard input size for ImageNet models
+    IMAGENET_RESIZE_SIZE = 256
+    IMAGENET_INPUT_SIZE = 224
+
+    # ImageNet dataset normalization statistics
+    # These are the channel-wise mean and standard deviation values computed from
+    # the ImageNet training dataset. These statistics are used to normalize input
+    # images to match the distribution the models were trained on.
+    # Source: Standard ImageNet normalization values used by torchvision
+    IMAGENET_MEAN = [0.485, 0.456, 0.406]  # RGB channel means
+    IMAGENET_STD = [0.229, 0.224, 0.225]  # RGB channel standard deviations
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
@@ -82,7 +99,9 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self._cached_model = None
+        self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -135,8 +154,16 @@ class ModelLoader(ForgeModel):
 
         model.eval()
 
-        # Cache model for use in load_inputs (to avoid reloading)
-        self._cached_model = model
+        # Store model for potential use in input preprocessing and postprocessing
+        self.model = model
+
+        # Update preprocessor with cached model (for TIMM models)
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
+        # Update postprocessor with model instance (for HuggingFace models)
+        if self._postprocessor is not None:
+            self._postprocessor.set_model_instance(model)
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
@@ -144,65 +171,103 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Prepare sample input for MobileNetV3 model with this instance's variant settings.
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor.
 
         Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
-            batch_size: Optional batch size to override the default batch size of 1.
+            dtype_override: Optional torch.dtype override (default: float32).
+            batch_size: Batch size (ignored if image is a list).
+            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default COCO image).
 
         Returns:
-            torch.Tensor: Preprocessed input tensor suitable for MobileNetV3.
+            torch.Tensor: Preprocessed input tensor.
         """
-        source = self._variant_config.source
+        if self._preprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
 
-        # Get the Image
-        image_file = get_file(
-            "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-        )
-        image = Image.open(image_file).convert("RGB")
+            # For TORCH_HUB, use CUSTOM with standard ImageNet preprocessing
+            if source == ModelSource.TORCH_HUB:
 
-        if source == ModelSource.TIMM:
+                def custom_preprocess_fn(img: Image.Image) -> torch.Tensor:
+                    preprocess = transforms.Compose(
+                        [
+                            transforms.Resize(ModelLoader.IMAGENET_RESIZE_SIZE),
+                            transforms.CenterCrop(ModelLoader.IMAGENET_INPUT_SIZE),
+                            transforms.ToTensor(),
+                            transforms.Normalize(
+                                mean=ModelLoader.IMAGENET_MEAN,
+                                std=ModelLoader.IMAGENET_STD,
+                            ),
+                        ]
+                    )
+                    return preprocess(img)
 
-            # Use cached model if available, otherwise load it
-            if hasattr(self, "_cached_model") and self._cached_model is not None:
-                model_for_config = self._cached_model
+                self._preprocessor = VisionPreprocessor(
+                    model_source=ModelSource.CUSTOM,
+                    model_name=model_name,
+                    custom_preprocess_fn=custom_preprocess_fn,
+                )
             else:
-                model_for_config = self.load_model(dtype_override)
+                # TIMM source
+                self._preprocessor = VisionPreprocessor(
+                    model_source=source,
+                    model_name=model_name,
+                )
 
-            # Preprocess image using model's data config
-            data_config = resolve_data_config({}, model=model_for_config)
-            timm_transforms = create_transform(**data_config)
-            inputs = timm_transforms(image).unsqueeze(0)
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
 
-        else:
+        model_for_config = None
+        if self._variant_config.source == ModelSource.TIMM:
+            if hasattr(self, "model") and self.model is not None:
+                model_for_config = self.model
 
-            preprocess = transforms.Compose(
-                [
-                    transforms.Resize(256),
-                    transforms.CenterCrop(224),
-                    transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                    ),
-                ]
-            )
-            inputs = preprocess(image).unsqueeze(0)
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
+        )
 
-        # Replicate tensors for batch size
-        inputs = inputs.repeat_interleave(batch_size, dim=0)
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs for the model.
+        Args:
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
 
-        # Only convert dtype if explicitly requested
-        if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
+        """
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
 
-        return inputs
-
-    def print_cls_results(self, co_out):
-        """Print classification results.
+    def output_postprocess(self, output):
+        """Post-process model outputs.
 
         Args:
-            co_out: Output from the compiled model
+            output: Model output tensor.
+
+        Returns:
+            dict: Prediction dictionary with top-k results.
         """
-        print_compiled_model_results(co_out)
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+
+            # For TORCH_HUB, use TORCHVISION postprocessing (same ImageNet labels)
+            postprocess_source = (
+                ModelSource.TORCHVISION if source == ModelSource.TORCH_HUB else source
+            )
+
+            self._postprocessor = VisionPostprocessor(
+                model_source=postprocess_source,
+                model_name=model_name,
+                model_instance=self.model,
+            )
+
+        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
