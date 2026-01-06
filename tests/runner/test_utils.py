@@ -19,8 +19,8 @@ import numpy as np
 import pytest
 import torch
 import torch_xla
-import torch_xla.runtime as xr
 import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
 from infra.utilities.torch_multichip_utils import get_mesh
@@ -666,7 +666,7 @@ def get_xla_device_arch():
 
 def get_input_shape_info(inputs) -> tuple[int, int]:
     """Extract batch_size, sequence_length from input activations.
-    
+
     Returns:
         (batch_size, sequence_length)
         For image models: sequence_length will be -1 (not applicable)
@@ -675,28 +675,28 @@ def get_input_shape_info(inputs) -> tuple[int, int]:
     if inputs is None:
         print("No input activations found")
         return 1, -1
-    
+
     # Get the first tensor to extract shape
     tensor = None
     if isinstance(inputs, torch.Tensor):
         tensor = inputs
     elif isinstance(inputs, (list, tuple)) and len(inputs) > 0:
-        tensor = inputs[0] if hasattr(inputs[0], 'shape') else None
+        tensor = inputs[0] if hasattr(inputs[0], "shape") else None
     elif isinstance(inputs, dict) and len(inputs) > 0:
         tensor = next(iter(inputs.values()))
-    
-    if tensor is None or not hasattr(tensor, 'shape'):
+
+    if tensor is None or not hasattr(tensor, "shape"):
         return 1, -1
-    
+
     shape = tensor.shape
     batch_size = shape[0] if len(shape) > 0 else 1
-    
+
     # sequence_length is shape[1] for LLMs
     if len(shape) > 0 and len(shape) < 3:  # LLMs will have 2D or 3D tensors as inputs
         sequence_length = shape[1]
     else:
         sequence_length = -1  # Not applicable (e.g., image inputs)
-    
+
     return batch_size, sequence_length
 
 
@@ -781,7 +781,7 @@ def create_benchmark_result(
         "parallelism": parallelism,
         "run_mode": run_mode,
     }
-    
+
     device_info = {
         "device_name": device_name,
         "device_arch": device_arch,
