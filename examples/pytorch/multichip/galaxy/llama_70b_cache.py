@@ -202,20 +202,20 @@ def run_generate(
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
 
-            # Reapply shardings for static cache if SPMD is enabled
-            # See https://github.com/tenstorrent/tt-xla/issues/1641
-            for i, (key, value) in enumerate(
-                zip(
-                    input_args["past_key_values"].key_cache,
-                    input_args["past_key_values"].value_cache,
-                )
-            ):
-                if batch_size == 1:
-                    xs.mark_sharding(key, mesh, (None, "model", None, None))
-                    xs.mark_sharding(value, mesh, (None, "model", None, None))
-                else:
-                    xs.mark_sharding(key, mesh, ("batch", "model", None, None))
-                    xs.mark_sharding(value, mesh, ("batch", "model", None, None))
+            # # Reapply shardings for static cache if SPMD is enabled
+            # # See https://github.com/tenstorrent/tt-xla/issues/1641
+            # for i, (key, value) in enumerate(
+            #     zip(
+            #         input_args["past_key_values"].key_cache,
+            #         input_args["past_key_values"].value_cache,
+            #     )
+            # ):
+            #     if batch_size == 1:
+            #         xs.mark_sharding(key, mesh, (None, "model", None, None))
+            #         xs.mark_sharding(value, mesh, (None, "model", None, None))
+            #     else:
+            #         xs.mark_sharding(key, mesh, ("batch", "model", None, None))
+            #         xs.mark_sharding(value, mesh, ("batch", "model", None, None))
     print()
     for i in range(batch_size):
         print(f"Result for batch {i}: {input_prompts[i]}{''.join(output_tokens[i])}")

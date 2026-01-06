@@ -107,7 +107,7 @@ llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
     mlir::Attribute attr = outSharding;
     attr.print(os);
     os.flush();
-    llvm::errs() << "Out sharding: " << sharding_str << "\n";
+    // llvm::errs() << "Out sharding: " << sharding_str << "\n";
   }
 
   // reshape dims for 1xN mesh is just <=[N]
@@ -143,9 +143,9 @@ llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
     // not supported).
     for (auto [dimIndex, dimSharding] : llvm::enumerate(dimShardings)) {
       auto axisName = dimSharding.getAxes();
-      llvm::errs() << "  Out sharding #" << outShardingIndex << ", dim #"
-                   << dimIndex << ", axisName.size()=" << axisName.size()
-                   << "\n";
+      // llvm::errs() << "  Out sharding #" << outShardingIndex << ", dim #"
+      //              << dimIndex << ", axisName.size()=" << axisName.size()
+      //              << "\n";
       // fully replicated case
       if (axisName.empty()) {
         tensorAxisSizes.push_back(1);
@@ -194,8 +194,8 @@ llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
     }
 
     outShardingStrs.push_back(outShardingStr);
-    llvm::errs() << "Out sharding str for out sharding #" << outShardingIndex
-                 << " is: " << outShardingStr.c_str() << "\n";
+    // llvm::errs() << "Out sharding str for out sharding #" << outShardingIndex
+    //              << " is: " << outShardingStr.c_str() << "\n";
   }
   return outShardingStrs;
 }
@@ -367,8 +367,8 @@ tt_pjrt_status cleanForXlaIngestion(
     }
   });
 
-  llvm::errs() << "Module before extracting out sharding:\n";
-  module.print(llvm::errs());
+  // llvm::errs() << "Module before extracting out sharding:\n";
+  // module.print(llvm::errs());
 
   // Extract out sharding from manual computation ops
 
@@ -410,9 +410,10 @@ tt_pjrt_status cleanForXlaIngestion(
   // Alternative: Strip the manual_computation operation by inlining its body
   // internal::stripSdyManualComputation(manualComputationOp);
 
-  llvm::errs() << "Module after injecting out sharding result and simplifying "
-                  "main function:\n";
-  module.print(llvm::errs());
+  // llvm::errs() << "Module after injecting out sharding result and simplifying
+  // "
+  //                 "main function:\n";
+  // module.print(llvm::errs());
 
   return tt_pjrt_status::kSuccess;
 }
