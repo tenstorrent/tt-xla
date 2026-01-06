@@ -60,9 +60,7 @@ class XlaMergedColumnParallelLinear(nn.Module):
                 merged_column_parallel_weight[start_idx:end_idx], requires_grad=False
             )
             self.weights.append(weight)
-            logger.info(f"weight{i}: {self.layer_prefix}_weight_{i}")
             self.register_parameter(f"{self.layer_prefix}_weight_{i}", weight)
-            logger.info(f"weight_{i}: {weight}")
             start_idx = end_idx
 
         if merged_column_parallel_linear.bias is not None:
@@ -135,7 +133,6 @@ def shard_model(model: torch.nn.Module, mesh: "xs.Mesh") -> None:
         model: torch.nn.Module to process
         mesh: An XLA SPMD mesh object used for sharding
     """
-    logger.info("my sharding invoked")
 
     def _process_module(module, name=None, parent=None):
         for module_type, wrapping_func in MODULE_TYPE_TO_WRAPPING_FUNC.items():
