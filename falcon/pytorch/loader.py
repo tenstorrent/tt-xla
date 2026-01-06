@@ -18,6 +18,7 @@ from ...config import (
     ModelConfig,
 )
 from ...base import ForgeModel
+from ...tools.utils import get_static_cache_decode_inputs
 
 
 class ModelVariant(StrEnum):
@@ -97,6 +98,7 @@ class ModelLoader(ForgeModel):
         self.input_text_1 = "Write a function to calculate the factorial of a number"
         self.max_length = 512
         self.tokenizer = None
+        self.config = None
         self.input_text_2 = "Hello, my dog is cute"
 
     def load_model(self, dtype_override=None):
@@ -258,3 +260,23 @@ class ModelLoader(ForgeModel):
         )
 
         return self.config
+
+    def load_inputs_decode(self, dtype_override=None, batch_size=1):
+        """Load decode-step inputs (single token + static KV cache).
+        Attention mask is intentionally omitted for single-batch decode. Defaults to steady-state decode.
+        """
+        if self.tokenizer is None:
+            self.load_model()  # initializes tokenizer and may set config
+        if self.config is None:
+            self.load_config()
+
+        max_cache_len = getattr(self._variant_config, "max_length", None) or 128
+        self.seq_len = 1
+
+        return get_static_cache_decode_inputs(
+            tokenizer=self.tokenizer,
+            config=self.config,
+            batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            dtype=dtype_override,
+        )
