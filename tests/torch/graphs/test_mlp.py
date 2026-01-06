@@ -493,7 +493,7 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
     )
 
     if arch == "llmbox":
-        comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.27))
+        comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
