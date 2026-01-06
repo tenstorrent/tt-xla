@@ -157,7 +157,7 @@ class ModelLoader(ForgeModel):
                 input_prompt,
                 return_tensors="pt",
                 max_length=max_length,
-                padding="max_length",
+                padding=True,
                 truncation=True,
             )
         else:
@@ -178,16 +178,18 @@ class ModelLoader(ForgeModel):
                 padding=True,
                 truncation=True,
             )
-        for key in inputs:
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
-        if dtype_override is not None:
             for key in inputs:
-                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
-        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], max_new_tokens)
-        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], max_new_tokens)
-        self.seq_len = seq_len
-        inputs["input_ids"] = padded_input_ids
-        inputs["attention_mask"] = padded_attention_mask
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            if dtype_override is not None:
+                for key in inputs:
+                    inputs[key] = cast_input_to_type(inputs[key], dtype_override)
+            padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], max_new_tokens)
+            padded_attention_mask, _ = pad_inputs(
+                inputs["attention_mask"], max_new_tokens
+            )
+            self.seq_len = seq_len
+            inputs["input_ids"] = padded_input_ids
+            inputs["attention_mask"] = padded_attention_mask
         return inputs
 
     def get_mesh_config(self, num_devices: int):
