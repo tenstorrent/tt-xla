@@ -86,6 +86,7 @@ from .attention import (
 from .logger import tt_init_logger
 from .platform import TTConfig
 from .pooling_input_batch import CachedRequestState, InputBatch
+from .utils import shard_model
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -1311,6 +1312,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         model_config=self.vllm_config.model_config,
                         mesh=self.mesh,
                     ).eval()
+                    shard_model(model, self.mesh)
                 else:
                     model_loader = get_model_loader(self.load_config)
                     logger.info("Loading model from scratch...")
