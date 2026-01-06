@@ -468,7 +468,7 @@ def test_all_models_op_by_op(
         except (FileNotFoundError, IOError, OSError) as e:
             pytest.fail(
                 f"Op-by-op test failed because IR file couldn't be read.\n"
-                f"Test: {nodeid}\n"
+                f"Test: {pytest_node_id}\n"
                 f"File: {ir_file_path}"
             )
 
