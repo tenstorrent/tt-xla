@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 import pytest
@@ -8,7 +8,7 @@ import vllm
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
-def test_llama3_3b_generation():
+def test_qwen3_32b_generation():
     prompts = [
         "I like taking walks in the",
     ]
