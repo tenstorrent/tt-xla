@@ -60,7 +60,6 @@ class XlaMergedColumnParallelLinear(nn.Module):
                 merged_column_parallel_weight[start_idx:end_idx], requires_grad=False
             )
             self.weights.append(weight)
-            self.register_parameter(f"{self.layer_prefix}_weight_{i}", weight)
             start_idx = end_idx
 
         if merged_column_parallel_linear.bias is not None:
@@ -72,12 +71,10 @@ class XlaMergedColumnParallelLinear(nn.Module):
                     requires_grad=False,
                 )
                 self.biases.append(bias)
-                self.register_parameter(f"{self.layer_prefix}_bias_{i}", bias)
                 start_idx = end_idx
         else:
             for i in range(self.num_outputs):
                 self.biases.append(None)
-                self.register_parameter(f"{self.layer_prefix}_bias_{i}", None)
 
     def forward(self, input):
         projections = []
