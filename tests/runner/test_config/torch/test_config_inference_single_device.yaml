@@ -1226,7 +1226,7 @@ test_config:
 
   deepseek/deepseek_ocr/pytorch-deepseek_ocr-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
+    # reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
 
   deepseek/pytorch-single_device-inference:
     status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
