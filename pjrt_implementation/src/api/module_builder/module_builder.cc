@@ -269,7 +269,8 @@ ModuleBuilder::buildModule(
   // Shardy output shardings must be collected after the SHLO compiler pipeline
   // is run. If shardy is being used, overwrite the GSPMD shardings collected
   // earlier.
-  bool is_using_shardy_output_shardings = isUsingShardy(mlir_module);
+  bool is_using_shardy_output_shardings =
+      isUsingShardyManualComputation(mlir_module);
   DLOG_F(LOG_DEBUG,
          "SHLO compiler pipeline run completed - is using shardy output "
          "shardings: %d",
