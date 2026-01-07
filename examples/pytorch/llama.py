@@ -365,17 +365,6 @@ def run_generate(
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
 
-            # Reapply shardings for static cache if SPMD is enabled
-            # See https://github.com/tenstorrent/tt-xla/issues/1641
-            if is_spmd:
-                for i, (key, value) in enumerate(
-                    zip(
-                        input_args["past_key_values"].key_cache,
-                        input_args["past_key_values"].value_cache,
-                    )
-                ):
-                    xs.mark_sharding(key, mesh, (None, "model", None, None))
-                    xs.mark_sharding(value, mesh, (None, "model", None, None))
     print()
     if not is_interactive:
         for i in range(num_users):
