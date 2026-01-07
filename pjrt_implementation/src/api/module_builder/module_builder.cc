@@ -512,13 +512,6 @@ ModuleBuilder::collectOutputShardingsShardy(
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::sdy::TensorShardingAttr> shardy_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
-    // for (unsigned int result_index = 0; result_index <
-    // func_op.getNumResults();
-    //      ++result_index) {
-    //   shardy_attributes.push_back(
-    //       func_op.getResultAttrOfType<mlir::sdy::TensorShardingAttr>(
-    //           result_index, mlir::sdy::kShardingAttr));
-    // }
     std::vector<mlir::sdy::ManualComputationOp> manual_computation_ops;
     func_op.walk([&](mlir::sdy::ManualComputationOp op) {
       manual_computation_ops.push_back(op);

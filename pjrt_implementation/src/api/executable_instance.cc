@@ -110,7 +110,6 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
   ExecutableInstance *executable_instance =
       ExecutableInstance::unwrap(args->executable);
 
-  // return object
   PJRT_Program *program = args->program;
   program->format = module_builder::c_mlir_format_name.data();
   program->format_size = module_builder::c_mlir_format_name.size();
