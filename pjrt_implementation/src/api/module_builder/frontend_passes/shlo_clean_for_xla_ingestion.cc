@@ -5,6 +5,9 @@
 
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 
+// c++ standard library includes
+#include <optional>
+
 // llvm includes
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -25,6 +28,9 @@
 
 // stablehlo includes
 #include "stablehlo/dialect/StablehloOps.h"
+
+// tt-xla includes
+#include "utils/logging.h"
 
 namespace tt::pjrt::module_builder::frontend_passes {
 
@@ -77,10 +83,11 @@ void stripTTDialectAttributes(mlir::func::FuncOp funcOp) {
 // GSPMDV2 out sharding strings in output order
 // TODO: When HLOShardingV3 is uplifted, this transformation will need to change
 // to support the new sharding format.
-llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
+// Returns std::nullopt on error (e.g., invalid sharding configuration).
+std::optional<llvm::SmallVector<std::string>>
+extractSdyManualComputationOutSharding(
     mlir::sdy::ManualComputationOp manualComputationOp,
     llvm::SmallDenseMap<llvm::StringRef, int> &meshNameToSizeMap) {
-  auto *ctx = manualComputationOp.getOperation()->getContext();
   auto outShardingsArr = manualComputationOp.getOutShardings().getShardings();
 
   uint64_t totalNumDevices = std::accumulate(meshNameToSizeMap.values().begin(),
@@ -109,7 +116,11 @@ llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
       }
 
       // one-axis sharding case
-      assert(axisName.size() == 1 && "Expected single axis name");
+      if (axisName.size() != 1) {
+        DLOG_F(ERROR, "Expected single axis name, found %zu axes",
+               axisName.size());
+        return std::nullopt;
+      }
       isOutputTensorReplicated = false;
       auto axisNameStr = axisName[0].getName();
       uint64_t axisSize = meshNameToSizeMap.at(axisNameStr);
@@ -125,9 +136,14 @@ llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
     bool lastTileDimReplicate = false;
     if (totalTensorShardingAxisSizes != totalNumDevices) {
       lastTileDimReplicate = true;
-      assert(totalNumDevices % totalTensorShardingAxisSizes == 0 &&
-             "Total tensor sharding axis sizes must be a divisor of total "
-             "number of devices");
+      if (totalNumDevices % totalTensorShardingAxisSizes != 0) {
+        DLOG_F(ERROR,
+               "Total tensor sharding axis sizes (%llu) must be a divisor of "
+               "total number of devices (%llu)",
+               static_cast<unsigned long long>(totalTensorShardingAxisSizes),
+               static_cast<unsigned long long>(totalNumDevices));
+        return std::nullopt;
+      }
       uint64_t replicatedDim = totalNumDevices / totalTensorShardingAxisSizes;
       tensorAxisSizes.push_back(replicatedDim);
     }
@@ -203,16 +219,6 @@ void simplifyMainFuncOp(mlir::func::FuncOp funcOp) {
 
 } // namespace internal
 
-// XLA parsing of the MLIR returned via PJRT_OptimizedProgram is not compatible
-// with sdy dialect shardings and silently fails causing all outputs to be
-// replicated. This pass converts a sdy-annotated module into a
-// gspmdv2-annotated module compatible with XLA ingestion. It also strips all
-// illegal attributes from ttcore, ttir and sdy dialects and location
-// information for compatibility. The sdy.manual_computation op is stripped by
-// deleting its body and replacing its results with dummy outputs in the correct
-// shape and order. Output shardings are injected as a moduleOp attr,
-// mhlo.spmd_output_shardings. This is required by XLA to correctly parse the
-// output shardings of the module.
 tt_pjrt_status cleanForXlaIngestion(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module_with_sdy_annotations) {
   mlir::ModuleOp module = mlir_module_with_sdy_annotations.get();
@@ -222,13 +228,6 @@ tt_pjrt_status cleanForXlaIngestion(
     manualComputationOps.push_back(op);
   });
 
-  // if there are no manual computation ops, there are no output shardings to
-  // inject so this pass is a no-op. We return kInvalidArgument to indicate to
-  // the caller that no output shardings are needed and the caller should use
-  // the original_mlir_module.
-  if (manualComputationOps.size() == 0) {
-    return tt_pjrt_status::kInvalidArgument;
-  }
   module.walk([&](mlir::func::FuncOp funcOp) {
     internal::stripTTDialectAttributes(funcOp);
   });
@@ -259,11 +258,16 @@ tt_pjrt_status cleanForXlaIngestion(
   auto outShardingResult = internal::extractSdyManualComputationOutSharding(
       manualComputationOp, meshNameToSizeMap);
 
+  if (!outShardingResult.has_value()) {
+    DLOG_F(ERROR, "Failed to extract sharding from manual computation op");
+    return tt_pjrt_status::kInternal;
+  }
+
   // Inject out sharding result into module as a moduleOp attr,
   // mhlo.spmd_output_shardings format list into tuple type opSharding
   std::string outShardingTupleString = "{";
   llvm::raw_string_ostream os(outShardingTupleString);
-  llvm::interleave(outShardingResult, os, ",");
+  llvm::interleave(*outShardingResult, os, ",");
   outShardingTupleString += "}";
 
   module->setAttr(
@@ -272,10 +276,11 @@ tt_pjrt_status cleanForXlaIngestion(
 
   // Remove sdy.mesh operations
   std::vector<mlir::sdy::MeshOp> meshOpsToErase;
-  module.walk(
-      [&](mlir::sdy::MeshOp meshOp) { meshOpsToErase.push_back(meshOp); });
-  for (auto meshOp : meshOpsToErase) {
-    meshOp.erase();
+  module.walk([&](mlir::sdy::MeshOp meshOpToErase) {
+    meshOpsToErase.push_back(meshOpToErase);
+  });
+  for (auto meshOpToErase : meshOpsToErase) {
+    meshOpToErase.erase();
   }
 
   // Remove the sdy.manual_computation op by simplifying the main funcop

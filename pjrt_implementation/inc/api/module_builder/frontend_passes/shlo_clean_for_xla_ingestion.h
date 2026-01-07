@@ -15,9 +15,18 @@
 
 namespace tt::pjrt::module_builder::frontend_passes {
 
-// Strips ttcore dialect attributes from function arguments and results.
-// This is necessary before passing MLIR to XLA ingestion, as XLA does not
-// understand ttcore-specific attributes like argument_type and shard_status.
+// XLA parsing of the MLIR returned via PJRT_OptimizedProgram is incompatible
+// with sdy dialect shardings and silently fails causing all outputs to be
+// replicated. This pass converts a sdy-annotated module into a
+// gspmdv2-annotated module compatible with XLA ingestion:
+// 1. ttcore, ttir and sdy dialect attributes are stripped from function
+// arguments and results.
+// 2. Location information is stripped from the module.
+// 3. The sdy.manual_computation op is stripped by deleting its body and
+// replacing its results with dummy outputs in the correct shape and order.
+// 4. Output shardings are injected as a moduleOp attr,
+// mhlo.spmd_output_shardings. This is required by XLA to correctly parse the
+// output shardings of the module.
 tt_pjrt_status
 cleanForXlaIngestion(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 

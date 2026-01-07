@@ -224,7 +224,7 @@ ModuleBuilder::buildModule(
 
   std::string original_mlir_code(mlir_code);
 
-  std::string optimized_mlir_code;
+  std::string optimized_mlir_code(original_mlir_code);
 
   status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
@@ -251,12 +251,13 @@ ModuleBuilder::buildModule(
   std::vector<PJRT_Buffer_Type> output_types = collectOutputTypes(mlir_module);
 
   std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
-  bool is_using_shardy_output_shardings = isUsingShardy(mlir_module);
-  if (!is_using_shardy_output_shardings) {
-    status = collectOutputShardings(mlir_module, output_shardings);
-    if (!tt_pjrt_status_is_ok(status)) {
-      return {status, nullptr};
-    }
+
+  // GSPMD output shardings must be collected before the SHLO compiler pipeline
+  // is run. This will collect GSPMD shardings since shardy mesh op doesn't
+  // exist yet at this point.
+  status = collectOutputShardings(mlir_module, output_shardings);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
   }
 
   status =
@@ -265,29 +266,37 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
+  // Shardy output shardings must be collected after the SHLO compiler pipeline
+  // is run. If shardy is being used, overwrite the GSPMD shardings collected
+  // earlier.
+  bool is_using_shardy_output_shardings = isUsingShardy(mlir_module);
+  DLOG_F(LOG_DEBUG,
+         "SHLO compiler pipeline run completed - is using shardy output "
+         "shardings: %d",
+         is_using_shardy_output_shardings);
+
   if (is_using_shardy_output_shardings) {
+    // Clear the GSPMD shardings collected earlier before collecting shardy
+    // shardings
+    output_shardings.clear();
     status = collectOutputShardings(mlir_module, output_shardings);
     if (!tt_pjrt_status_is_ok(status)) {
       return {status, nullptr};
     }
-  }
 
-  // Sanitiation path for XLA ingestion operating on a clone of the base moduleq
-  mlir::OwningOpRef<mlir::ModuleOp> sanitized_mlir_module =
-      mlir_module->clone();
-  DLOG_F(LOG_DEBUG, "Cleaning for XLA ingestion");
-  status = frontend_passes::cleanForXlaIngestion(sanitized_mlir_module);
+    // Sanitiation path for XLA ingestion operating on a clone of the base
+    // module
+    mlir::OwningOpRef<mlir::ModuleOp> sanitized_mlir_module =
+        mlir_module->clone();
+    status = frontend_passes::cleanForXlaIngestion(sanitized_mlir_module);
 
-  if (tt_pjrt_status_is_ok(status)) {
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
+
     optimized_mlir_code = getMlirCode(sanitized_mlir_module);
     printModule(sanitized_mlir_module, compile_options.export_path,
                 "shlo_compiler_cleaned");
-  } else if (status == tt_pjrt_status::kInvalidArgument) {
-    // No output shardings needed, so we set sanitized_mlir_module to the
-    // original module
-    optimized_mlir_code = original_mlir_code;
-  } else if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
   }
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
