@@ -276,25 +276,30 @@ def dot(input: torch.Tensor, tensor: torch.Tensor):
     else:
         return NotImplemented
 
+
 def repeat_to_expand_decomp(self, repeats):
     # This is a specific decomposition to handle the case where we are repeating the leading dimension only.
     # i.e. (128, 2880) -> (4096, 2880) when repeats is (32, 1)
     # Instead of repeat, we can use unsqueeze + expand + flatten.
     # This prevents "stablehlo.concatenate" and uses "stablehlo.broadcast_in_dim" instead.
-    
+
     # Check if we are repeating the leading dimension only
-    if len(repeats) == self.dim() and repeats[0] > 1 and all(r == 1 for r in repeats[1:]):
-        
+    if (
+        len(repeats) == self.dim()
+        and repeats[0] > 1
+        and all(r == 1 for r in repeats[1:])
+    ):
+
         # Create the broadcast path:
         # (128, 2880) -> unsqueeze(0) -> (1, 128, 2880)
         # (1, 128, 2880) -> expand(32, 128, 2880) -> (32, 128, 2880)
         # (32, 128, 2880) -> flatten(0, 1) -> (4096, 2880)
-        
+
         expand_shape = [repeats[0]] + [-1] * self.dim()
-        
+
         return self.unsqueeze(0).expand(expand_shape).flatten(0, 1)
-    
-    # This decomposition is targeting gpt-oss's MOE implementation. 
+
+    # This decomposition is targeting gpt-oss's MOE implementation.
     # It might not be necessary for other models, so the decomposition is not generalistic.
     return NotImplemented
 
