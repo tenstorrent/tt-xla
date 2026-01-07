@@ -199,6 +199,7 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The VGG model instance.
         """
+
         # Get the pretrained model name from the instance's variant config
         cfg = self._variant_config
         model_name = cfg.pretrained_model_name
@@ -279,8 +280,24 @@ class ModelLoader(ForgeModel):
                     return "VGG19_BN_Weights"
 
             elif source == ModelSource.HUGGING_FACE:
-                preprocessor_source = ModelSource.HUGGING_FACE
-                preprocessor_model_name = model_name
+                # vgg_pytorch doesn't have a preprocessor on HuggingFace Hub
+                # Use custom preprocessing with standard ImageNet transforms
+                preprocessor_source = ModelSource.CUSTOM
+                from torchvision import transforms
+
+                def custom_preprocess_fn(img):
+                    preprocess = transforms.Compose(
+                        [
+                            transforms.Resize(256),
+                            transforms.CenterCrop(224),
+                            transforms.ToTensor(),
+                            transforms.Normalize(
+                                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                            ),
+                        ]
+                    )
+                    return preprocess(img)
+
             elif source == ModelSource.OSMR:
                 # OSMR models use standard ImageNet preprocessing
                 preprocessor_source = ModelSource.CUSTOM
@@ -309,7 +326,7 @@ class ModelLoader(ForgeModel):
                     model_name=preprocessor_model_name,
                     weight_class_name_fn=weight_class_name_fn,
                 )
-            elif source == ModelSource.OSMR:
+            elif source in [ModelSource.OSMR, ModelSource.HUGGING_FACE]:
                 self._preprocessor = VisionPreprocessor(
                     model_source=preprocessor_source,
                     model_name=model_name,
@@ -375,8 +392,11 @@ class ModelLoader(ForgeModel):
                 postprocessor_source = ModelSource.TORCHVISION
                 postprocessor_model_name = model_name
             elif source == ModelSource.HUGGING_FACE:
-                postprocessor_source = ModelSource.HUGGING_FACE
-                postprocessor_model_name = model_name
+                # vgg_pytorch models use ImageNet labels like torchvision
+                postprocessor_source = ModelSource.TORCHVISION
+                postprocessor_model_name = (
+                    "vgg19_bn"  # Use a standard torchvision name for labels
+                )
             elif source == ModelSource.OSMR:
                 # OSMR models use ImageNet labels like torchvision
                 postprocessor_source = ModelSource.TORCHVISION
