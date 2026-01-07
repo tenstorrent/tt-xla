@@ -224,7 +224,7 @@ ModuleBuilder::buildModule(
 
   std::string original_mlir_code(mlir_code);
 
-  std::string sanitized_mlir_code;
+  std::string optimized_mlir_code;
 
   status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
@@ -279,13 +279,13 @@ ModuleBuilder::buildModule(
   status = frontend_passes::cleanForXlaIngestion(sanitized_mlir_module);
 
   if (tt_pjrt_status_is_ok(status)) {
-    sanitized_mlir_code = getMlirCode(sanitized_mlir_module);
+    optimized_mlir_code = getMlirCode(sanitized_mlir_module);
     printModule(sanitized_mlir_module, compile_options.export_path,
                 "shlo_compiler_cleaned");
   } else if (status == tt_pjrt_status::kInvalidArgument) {
     // No output shardings needed, so we set sanitized_mlir_module to the
     // original module
-    sanitized_mlir_code = original_mlir_code;
+    optimized_mlir_code = original_mlir_code;
   } else if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -329,7 +329,7 @@ ModuleBuilder::buildModule(
         std::move(num_arguments), num_devices_result, mesh_shape,
         input_shardings, output_shardings, output_types,
         std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-        std::move(sanitized_mlir_code), std::move(compile_options));
+        std::move(optimized_mlir_code), std::move(compile_options));
   } else if (compile_options.backend == BackendRuntime::TTNNCodegenCpp ||
              compile_options.backend == BackendRuntime::TTNNCodegenPy) {
     return buildModuleForTTNNCodegen(
@@ -338,7 +338,7 @@ ModuleBuilder::buildModule(
         std::move(num_arguments), num_devices_result, mesh_shape,
         input_shardings, output_shardings, output_types,
         std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-        std::move(sanitized_mlir_code), std::move(compile_options));
+        std::move(optimized_mlir_code), std::move(compile_options));
   }
 
   DLOG_F(ERROR, "Unsupported backend option");
@@ -1163,7 +1163,7 @@ ModuleBuilder::buildModuleForTTNNRuntime(
     const std::vector<PJRT_Buffer_Type> &output_types,
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
-    std::string &&sanitized_mlir_code, CompileOptions &&compile_options) {
+    std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
   tt::runtime::Binary flatbuffer(nullptr);
   tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,
                                                  output_shardings, flatbuffer);
@@ -1188,7 +1188,7 @@ ModuleBuilder::buildModuleForTTNNRuntime(
       num_devices_result.num_partitions, num_devices_result.num_replicas,
       num_devices_result.num_devices_to_utilize, mesh_shape, input_shardings,
       output_shardings, output_types, std::move(output_memory_kinds),
-      std::move(output_memory_kinds_sizes), std::move(sanitized_mlir_code),
+      std::move(output_memory_kinds_sizes), std::move(optimized_mlir_code),
       std::move(compile_options));
   return {tt_pjrt_status::kSuccess, executable_image};
 }
@@ -1206,7 +1206,7 @@ ModuleBuilder::buildModuleForTTNNCodegen(
     const std::vector<PJRT_Buffer_Type> &output_types,
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
-    std::string &&sanitized_mlir_code, CompileOptions &&compile_options) {
+    std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
   tt_pjrt_status status = performCodegen(ttnn_mlir, compile_options);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
@@ -1221,7 +1221,7 @@ ModuleBuilder::buildModuleForTTNNCodegen(
       num_devices_result.num_partitions, num_devices_result.num_replicas,
       num_devices_result.num_devices_to_utilize, mesh_shape, input_shardings,
       output_shardings, output_types, std::move(output_memory_kinds),
-      std::move(output_memory_kinds_sizes), std::move(sanitized_mlir_code),
+      std::move(output_memory_kinds_sizes), std::move(optimized_mlir_code),
       std::move(compile_options));
   return {tt_pjrt_status::kSuccess, executable_image};
 }

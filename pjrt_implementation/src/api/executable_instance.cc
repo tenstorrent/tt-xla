@@ -12,8 +12,6 @@
 
 // c++ standard library includes
 #include <cstring>
-#include <fstream>
-#include <sstream>
 #include <string>
 
 // tt-xla includes
@@ -117,85 +115,14 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
   program->format = module_builder::c_mlir_format_name.data();
   program->format_size = module_builder::c_mlir_format_name.size();
 
-  const std::string &original_mlir_code =
-      executable_instance->getExecutableImage()->getOriginalMlirCode();
+  // Use optimized MLIR code cleaned for XLA ingestion
+  // If no shardy output shardings are specified, this is the same as the
+  // original MLIR code. Otherwise, it is the optimized MLIR code cleaned for
+  // XLA ingestion.
+  const std::string &optimized_mlir_code =
+      executable_instance->getExecutableImage()->getOptimizedMlirCode();
 
-  // Check if we should use cursed.mlir (only if CONVERT_SHLO_TO_SHARDY=1 and
-  // file exists)
-  const char *convert_env = std::getenv("CONVERT_SHLO_TO_SHARDY");
-  bool use_cursed_mlir =
-      (convert_env != nullptr && std::string(convert_env) == "1");
-
-  // Check if we should use sanitized MLIR code for XLA ingestion
-  const char *sanitized_env = std::getenv("USE_SANITIZED_EMITHLO_IR");
-  bool use_sanitized_emithlo_ir =
-      (sanitized_env != nullptr && std::string(sanitized_env) == "1");
-
-  // Read MLIR code from file (cached after first read)
-  static std::string literal_mlir_code;
-  static bool file_read = false;
-  static bool file_exists = false;
-
-  // Determine which MLIR code to use
-  const std::string *checkpointed_mlir_code_ptr = &original_mlir_code;
-
-  if (use_sanitized_emithlo_ir || true) {
-    // Use sanitized MLIR code cleaned for XLA ingestion
-    const std::string &sanitized_mlir_code =
-        executable_instance->getExecutableImage()->getSanitizedMlirCode();
-    checkpointed_mlir_code_ptr = &sanitized_mlir_code;
-    DLOG_F(LOG_DEBUG, "USE_SANITIZED_EMITHLO_IR=1, using sanitized MLIR code");
-  } else if (use_cursed_mlir) {
-    // Only try to read file if we haven't read it yet
-    if (!file_read) {
-      const char *pjrt_dir = std::getenv("TTXLA_PJRT_DIR");
-      std::string file_path;
-
-      if (pjrt_dir) {
-        file_path = std::string(pjrt_dir) + "/test_data/cursed.mlir";
-      } else {
-        // Default path relative to source tree
-        file_path = "pjrt_implementation/test_data/cursed.mlir";
-      }
-
-      // Check if file exists before trying to read it
-      std::ifstream file(file_path);
-      if (file.is_open()) {
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        literal_mlir_code = buffer.str();
-        file_exists = true;
-        file_read = true;
-        DLOG_F(LOG_DEBUG,
-               "Successfully read MLIR code from: %s (size=%zu bytes)",
-               file_path.c_str(), literal_mlir_code.size());
-      } else {
-        DLOG_F(
-            LOG_DEBUG,
-            "cursed.mlir file not found at path: %s, using original MLIR code",
-            file_path.c_str());
-        file_exists = false;
-        file_read = true;
-      }
-    }
-
-    // Use cursed.mlir only if file exists
-    if (file_exists) {
-      checkpointed_mlir_code_ptr = &literal_mlir_code;
-    }
-  } else {
-    DLOG_F(LOG_DEBUG,
-           "CONVERT_SHLO_TO_SHARDY not set to 1, using original MLIR code");
-  }
-
-  const std::string &checkpointed_mlir_code = *checkpointed_mlir_code_ptr;
-
-  DLOG_F(LOG_DEBUG, "Literal MLIR code (size=%zu):\n%.*s",
-         checkpointed_mlir_code.size(),
-         static_cast<int>(checkpointed_mlir_code.size()),
-         checkpointed_mlir_code.data());
-
-  size_t code_size = checkpointed_mlir_code.size();
+  size_t code_size = optimized_mlir_code.size();
 
   if (program->code == nullptr) {
     program->code_size = code_size;
@@ -209,7 +136,7 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
                   .release();
     }
 
-    std::memcpy(program->code, checkpointed_mlir_code.data(), code_size);
+    std::memcpy(program->code, optimized_mlir_code.data(), code_size);
   }
 
   return nullptr;

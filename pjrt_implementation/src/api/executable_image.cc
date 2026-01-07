@@ -42,7 +42,7 @@ FlatbufferExecutableImage::createInstance(
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
     std::vector<const char *> output_memory_kinds,
     std::vector<size_t> output_memory_kinds_sizes,
-    std::string &&sanitized_mlir_code, CompileOptions &&compile_options) {
+    std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
   struct make_shared_enabler : public FlatbufferExecutableImage {
     make_shared_enabler(
         const tt::runtime::Binary &flatbuffer_binary,
@@ -62,7 +62,7 @@ FlatbufferExecutableImage::createInstance(
         const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
         std::vector<const char *> &&output_memory_kinds,
         std::vector<size_t> &&output_memory_kinds_sizes,
-        std::string &&sanitized_mlir_code, CompileOptions &&compile_options)
+        std::string &&optimized_mlir_code, CompileOptions &&compile_options)
         : FlatbufferExecutableImage(
               flatbuffer_binary, std::move(original_mlir_code),
               std::move(ttir_mlir_code), std::move(ttnn_mlir_code),
@@ -73,7 +73,7 @@ FlatbufferExecutableImage::createInstance(
               output_sharding, expected_output_data_types,
               std::move(output_memory_kinds),
               std::move(output_memory_kinds_sizes),
-              std::move(sanitized_mlir_code), std::move(compile_options)) {}
+              std::move(optimized_mlir_code), std::move(compile_options)) {}
   };
 
   return std::make_shared<make_shared_enabler>(
@@ -85,7 +85,7 @@ FlatbufferExecutableImage::createInstance(
       num_devices_to_utilize, devices_mesh_shape, input_sharding,
       output_sharding, expected_output_data_types,
       std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-      std::move(sanitized_mlir_code), std::move(compile_options));
+      std::move(optimized_mlir_code), std::move(compile_options));
 }
 
 std::shared_ptr<SOExecutableImage> SOExecutableImage::createInstance(
@@ -102,7 +102,7 @@ std::shared_ptr<SOExecutableImage> SOExecutableImage::createInstance(
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
     std::vector<const char *> output_memory_kinds,
     std::vector<size_t> output_memory_kinds_sizes,
-    std::string &&sanitized_mlir_code, CompileOptions &&compile_options) {
+    std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
   struct make_shared_enabler : public SOExecutableImage {
     make_shared_enabler(
         std::string &&original_mlir_code, std::string &&ttir_mlir_code,
@@ -120,7 +120,7 @@ std::shared_ptr<SOExecutableImage> SOExecutableImage::createInstance(
         const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
         std::vector<const char *> &&output_memory_kinds,
         std::vector<size_t> &&output_memory_kinds_sizes,
-        std::string &&sanitized_mlir_code, CompileOptions &&compile_options)
+        std::string &&optimized_mlir_code, CompileOptions &&compile_options)
         : SOExecutableImage(
               std::move(original_mlir_code), std::move(ttir_mlir_code),
               std::move(ttnn_mlir_code), std::move(executable_name), num_inputs,
@@ -130,7 +130,7 @@ std::shared_ptr<SOExecutableImage> SOExecutableImage::createInstance(
               devices_mesh_shape, input_sharding, output_sharding,
               expected_output_data_types, std::move(output_memory_kinds),
               std::move(output_memory_kinds_sizes),
-              std::move(sanitized_mlir_code), std::move(compile_options)) {}
+              std::move(optimized_mlir_code), std::move(compile_options)) {}
   };
 
   return std::make_shared<make_shared_enabler>(
@@ -141,7 +141,7 @@ std::shared_ptr<SOExecutableImage> SOExecutableImage::createInstance(
       num_devices_to_utilize, devices_mesh_shape, input_sharding,
       output_sharding, expected_output_data_types,
       std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-      std::move(sanitized_mlir_code), std::move(compile_options));
+      std::move(optimized_mlir_code), std::move(compile_options));
 }
 
 ExecutableImage::ExecutableImage(
@@ -158,11 +158,11 @@ ExecutableImage::ExecutableImage(
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
-    std::string &&sanitized_mlir_code, CompileOptions &&compile_options)
+    std::string &&optimized_mlir_code, CompileOptions &&compile_options)
     : m_original_mlir_code(std::move(original_mlir_code)),
       m_ttir_mlir(std::move(ttir_mlir_code)),
       m_ttnn_mlir(std::move(ttnn_mlir_code)),
-      m_sanitized_mlir_code(std::move(sanitized_mlir_code)),
+      m_optimized_mlir_code(std::move(optimized_mlir_code)),
       m_executable_name(std::move(executable_name)), m_num_inputs(num_inputs),
       m_num_outputs(num_outputs),
       m_output_dimensions(std::move(output_dimensions)),
@@ -196,7 +196,7 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
-    std::string &&sanitized_mlir_code, CompileOptions &&compile_options)
+    std::string &&optimized_mlir_code, CompileOptions &&compile_options)
     : m_flatbuffer_binary(flatbuffer_binary),
       ExecutableImage(
           std::move(original_mlir_code), std::move(ttir_mlir_code),
@@ -206,7 +206,7 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
           num_devices_to_utilize, devices_mesh_shape, input_sharding,
           output_sharding, expected_output_data_types,
           std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-          std::move(sanitized_mlir_code), std::move(compile_options)) {
+          std::move(optimized_mlir_code), std::move(compile_options)) {
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
   assert(this->getNumInputs() ==
@@ -258,7 +258,7 @@ SOExecutableImage::SOExecutableImage(
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
-    std::string &&sanitized_mlir_code, CompileOptions &&compile_options)
+    std::string &&optimized_mlir_code, CompileOptions &&compile_options)
     : ExecutableImage(
           std::move(original_mlir_code), std::move(ttir_mlir_code),
           std::move(ttnn_mlir_code), std::move(executable_name), num_inputs,
@@ -267,7 +267,7 @@ SOExecutableImage::SOExecutableImage(
           num_devices_to_utilize, devices_mesh_shape, input_sharding,
           output_sharding, expected_output_data_types,
           std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-          std::move(sanitized_mlir_code), std::move(compile_options)) {
+          std::move(optimized_mlir_code), std::move(compile_options)) {
   m_fingerprint = generateFingerprint();
 }
 
