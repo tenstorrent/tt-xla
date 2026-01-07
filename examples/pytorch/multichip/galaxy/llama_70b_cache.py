@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import time
 
 import torch
 import torch_xla
@@ -175,7 +176,7 @@ def run_generate(
 ):
     batch_size = input_args["input_ids"].shape[0]
     output_tokens = [[] for _ in range(batch_size)]
-    print(f"Max tokens to generate: {max_tokens_to_generate}")
+    times = []
 
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
@@ -183,6 +184,7 @@ def run_generate(
                 print("RUNNING PREFILL")
 
             # Run forward pass
+            start_time = time.time()
             output: CausalLMOutputWithPast = compiled_model(**input_args)
             output_logiits = output.logits.to("cpu")
             next_token_id = output_logiits[:, -1].argmax(dim=-1)
@@ -216,10 +218,18 @@ def run_generate(
                 else:
                     xs.mark_sharding(key, mesh, ("batch", "model", None, None))
                     xs.mark_sharding(value, mesh, ("batch", "model", None, None))
+            end_time = time.time()
+            times.append(end_time - start_time)
     print()
     for i in range(batch_size):
         print(f"Result for batch {i}: {input_prompts[i]}{''.join(output_tokens[i])}")
         print()
+    print(f"Number of tokens generated: {max_tokens_to_generate}")
+    print(f"Total time: {sum(times):.2f}")
+    print(f"Time for prefill: {times[0]:.2f}")
+    print(f"Total time for decode: {sum(times[1:]):.2f}")
+    print(f"Times for decode: {[f'{t:.2f}' for t in times[1:]]}")
+    print(f"Average time for decode: {sum(times[1:]) / len(times[1:]):.2f}")
 
 
 def run_llama_70b():
