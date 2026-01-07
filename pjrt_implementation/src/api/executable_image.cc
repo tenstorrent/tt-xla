@@ -29,9 +29,9 @@ namespace tt::pjrt {
 std::shared_ptr<FlatbufferExecutableImage>
 FlatbufferExecutableImage::createInstance(
     const tt::runtime::Binary &flatbuffer_binary,
-    std::string &&original_mlir_code, std::string &&checkpointed_mlir_code,
-    std::string &&ttir_mlir_code, std::string &&ttnn_mlir_code,
-    std::string &&executable_name, size_t num_inputs, size_t num_outputs,
+    std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+    std::string &&ttnn_mlir_code, std::string &&executable_name,
+    size_t num_inputs, size_t num_outputs,
     std::vector<std::vector<std::uint32_t>> &&output_dimensions,
     std::vector<size_t> &&output_ranks,
     std::vector<std::int64_t> &&output_dimensions_flat, size_t num_partitions,
@@ -46,9 +46,9 @@ FlatbufferExecutableImage::createInstance(
   struct make_shared_enabler : public FlatbufferExecutableImage {
     make_shared_enabler(
         const tt::runtime::Binary &flatbuffer_binary,
-        std::string &&original_mlir_code, std::string &&checkpointed_mlir_code,
-        std::string &&ttir_mlir_code, std::string &&ttnn_mlir_code,
-        std::string &&executable_name, size_t num_inputs, size_t num_outputs,
+        std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+        std::string &&ttnn_mlir_code, std::string &&executable_name,
+        size_t num_inputs, size_t num_outputs,
         std::vector<std::vector<std::uint32_t>> &&output_dimensions,
         std::vector<size_t> &&output_ranks,
         std::vector<std::int64_t> &&output_dimensions_flat,
@@ -65,22 +65,22 @@ FlatbufferExecutableImage::createInstance(
         std::string &&sanitized_mlir_code, CompileOptions &&compile_options)
         : FlatbufferExecutableImage(
               flatbuffer_binary, std::move(original_mlir_code),
-              std::move(checkpointed_mlir_code), std::move(ttir_mlir_code),
-              std::move(ttnn_mlir_code), std::move(executable_name), num_inputs,
-              num_outputs, std::move(output_dimensions),
-              std::move(output_ranks), std::move(output_dimensions_flat),
-              num_partitions, num_replicas, num_devices_to_utilize,
-              devices_mesh_shape, input_sharding, output_sharding,
-              expected_output_data_types, std::move(output_memory_kinds),
+              std::move(ttir_mlir_code), std::move(ttnn_mlir_code),
+              std::move(executable_name), num_inputs, num_outputs,
+              std::move(output_dimensions), std::move(output_ranks),
+              std::move(output_dimensions_flat), num_partitions, num_replicas,
+              num_devices_to_utilize, devices_mesh_shape, input_sharding,
+              output_sharding, expected_output_data_types,
+              std::move(output_memory_kinds),
               std::move(output_memory_kinds_sizes),
               std::move(sanitized_mlir_code), std::move(compile_options)) {}
   };
 
   return std::make_shared<make_shared_enabler>(
       flatbuffer_binary, std::move(original_mlir_code),
-      std::move(checkpointed_mlir_code), std::move(ttir_mlir_code),
-      std::move(ttnn_mlir_code), std::move(executable_name), num_inputs,
-      num_outputs, std::move(output_dimensions), std::move(output_ranks),
+      std::move(ttir_mlir_code), std::move(ttnn_mlir_code),
+      std::move(executable_name), num_inputs, num_outputs,
+      std::move(output_dimensions), std::move(output_ranks),
       std::move(output_dimensions_flat), num_partitions, num_replicas,
       num_devices_to_utilize, devices_mesh_shape, input_sharding,
       output_sharding, expected_output_data_types,
@@ -183,9 +183,9 @@ ExecutableImage::ExecutableImage(
 
 FlatbufferExecutableImage::FlatbufferExecutableImage(
     const tt::runtime::Binary &flatbuffer_binary,
-    std::string &&original_mlir_code, std::string &&checkpointed_mlir_code,
-    std::string &&ttir_mlir_code, std::string &&ttnn_mlir_code,
-    std::string &&executable_name, size_t num_inputs, size_t num_outputs,
+    std::string &&original_mlir_code, std::string &&ttir_mlir_code,
+    std::string &&ttnn_mlir_code, std::string &&executable_name,
+    size_t num_inputs, size_t num_outputs,
     std::vector<std::vector<std::uint32_t>> output_dimensions,
     std::vector<size_t> output_ranks,
     std::vector<std::int64_t> output_dimensions_flat, size_t num_partitions,
@@ -207,8 +207,6 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
           output_sharding, expected_output_data_types,
           std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
           std::move(sanitized_mlir_code), std::move(compile_options)) {
-  m_checkpointed_mlir_code = std::move(checkpointed_mlir_code);
-
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
   assert(this->getNumInputs() ==

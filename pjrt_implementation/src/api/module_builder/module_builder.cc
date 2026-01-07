@@ -224,12 +224,7 @@ ModuleBuilder::buildModule(
 
   std::string original_mlir_code(mlir_code);
 
-  std::string checkpointed_mlir_code;
   std::string sanitized_mlir_code;
-
-  // DLOG_F(LOG_DEBUG,
-  //        "Extracting checkpointed MLIR code after VHLO Compiler pass");
-  // checkpointed_mlir_code = getMlirCode(mlir_module);
 
   status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
@@ -256,12 +251,6 @@ ModuleBuilder::buildModule(
   std::vector<PJRT_Buffer_Type> output_types = collectOutputTypes(mlir_module);
 
   std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
-
-  // TODO refactor: Shardy output shardings are collected after SHLO compiler
-  // pipeline run;
-  // TODO refactor: GSPMD output shardings are collected before SHLO compiler
-  // pipeline run; How to amalgamate cleanly
-
   bool is_using_shardy_output_shardings = isUsingShardy(mlir_module);
   if (!is_using_shardy_output_shardings) {
     status = collectOutputShardings(mlir_module, output_shardings);
@@ -282,14 +271,8 @@ ModuleBuilder::buildModule(
       return {status, nullptr};
     }
   }
-  // output shadings collected after shlo pipeline run
-  // std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
-  // status = collectOutputShardings(mlir_module, output_shardings);
-  // if (!tt_pjrt_status_is_ok(status)) {
-  //   return {status, nullptr};
-  // }
 
-  // Sanitiation path for XLA ingestion operating on a clone of the base module
+  // Sanitiation path for XLA ingestion operating on a clone of the base moduleq
   mlir::OwningOpRef<mlir::ModuleOp> sanitized_mlir_module =
       mlir_module->clone();
   DLOG_F(LOG_DEBUG, "Cleaning for XLA ingestion");
@@ -346,8 +329,7 @@ ModuleBuilder::buildModule(
         std::move(num_arguments), num_devices_result, mesh_shape,
         input_shardings, output_shardings, output_types,
         std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-        std::move(checkpointed_mlir_code), std::move(sanitized_mlir_code),
-        std::move(compile_options));
+        std::move(sanitized_mlir_code), std::move(compile_options));
   } else if (compile_options.backend == BackendRuntime::TTNNCodegenCpp ||
              compile_options.backend == BackendRuntime::TTNNCodegenPy) {
     return buildModuleForTTNNCodegen(
@@ -1181,8 +1163,7 @@ ModuleBuilder::buildModuleForTTNNRuntime(
     const std::vector<PJRT_Buffer_Type> &output_types,
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
-    std::string &&checkpointed_mlir_code, std::string &&sanitized_mlir_code,
-    CompileOptions &&compile_options) {
+    std::string &&sanitized_mlir_code, CompileOptions &&compile_options) {
   tt::runtime::Binary flatbuffer(nullptr);
   tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,
                                                  output_shardings, flatbuffer);
@@ -1198,8 +1179,7 @@ ModuleBuilder::buildModuleForTTNNRuntime(
   }
 
   auto executable_image = FlatbufferExecutableImage::createInstance(
-      flatbuffer, std::move(original_mlir_code),
-      std::move(checkpointed_mlir_code), std::move(ttir_mlir),
+      flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
       std::move(ttnn_mlir), std::move(executable_name),
       num_arguments.num_inputs, num_arguments.num_outputs,
       std::move(num_arguments.output_dimensions),

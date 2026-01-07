@@ -393,10 +393,10 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
   // Start copying in a separate thread.
   m_copy_to_host_thread = std::make_unique<std::thread>(
-      [=](void *host_buffer, tt::runtime::Tensor runtime_tensor,
-          EventInstance *event, PJRT_Buffer_Type data_type,
-          size_t host_buffer_size, std::optional<uint32_t> device_id,
-          bool already_on_host, uint64_t buffer_uid) {
+      [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
+         EventInstance *event, PJRT_Buffer_Type data_type,
+         size_t host_buffer_size, std::optional<uint32_t> device_id,
+         bool already_on_host, uint64_t buffer_uid) {
         // Acquire static lock to serialize all copy-to-host operations across
         // all BufferInstances since any metal dispatch in this async thread
         // will cause ND segfaults as metal is not thread safe. This lock is
@@ -419,10 +419,9 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
           }
           DLOG_F(LOG_DEBUG,
                  "Returning tensor to host with host_runtime_tensors ct = %ld "
-                 "from device %d with buffer UID %zu and shape %s",
+                 "from device %d with buffer UID %zu",
                  host_runtime_tensors.size(),
-                 device_id.has_value() ? device_id.value() : 0, buffer_uid,
-                 this->toShapeStr().c_str());
+                 device_id.has_value() ? device_id.value() : 0, buffer_uid);
 
           // If device_id is not set, we are returning a replicated input
           // buffer instance to host (eg. cache position for update). This means

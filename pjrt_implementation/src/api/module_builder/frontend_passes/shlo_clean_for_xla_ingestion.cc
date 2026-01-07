@@ -30,35 +30,14 @@ namespace tt::pjrt::module_builder::frontend_passes {
 
 namespace internal {
 
-// std::string
-// getMeshReshapeStringFromSdyAxesAndDimSharding(llvm::SmallDenseMap<llvm::StringRef,
-// int> &meshNameToSizeMap, llvm::SmallVector<uint64_t> &tensorAxisSizes){
-//   // This function returns the "iota tile" format for the mesh shape.
-//   // XLA docs on this "iota tile" format:
-//   https://github.com/jax-ml/jax/blob/84af8a8e74c05ce4196079e145d50f0c9504ff16/jax/_src/named_sharding.py#L415-L430
-
-//   // In particular, the replicated dimension is added as the last dimension
-
-//   std::string meshReshapeString;
-//   llvm::raw_string_ostream os(meshReshapeString);
-
-//   std::vector<uint64_t> iotaTileVec;
-
-//   // sort the mesh shape vector
-//   llvm::interleave(iotaTileVec, os, ",");
-//   meshReshapeString = "["+os.str()+"]";
-//   return meshReshapeString;
-// }
-
-// Strips all ttcore dialect attributes from a function's arguments and results.
-// This helper function filters out any attribute whose dialect namespace is
-// "ttcore", leaving only attributes that XLA can understand.
-void stripTTCoreDialectAttributes(mlir::func::FuncOp funcOp) {
+// Strips all ttcore and ttir dialect attributes from a function's arguments and
+// results. This helper function filters out any attribute whose dialect
+// namespace is "ttcore" or "ttir", leaving only attributes that XLA can ingest.
+void stripTTDialectAttributes(mlir::func::FuncOp funcOp) {
   auto *ctx = funcOp.getContext();
 
-  // Helper to filter a dictionary of attributes, removing any ttcore dialect
-  // attributes.
-  auto filterTTCore = [&](mlir::DictionaryAttr dict) -> mlir::DictionaryAttr {
+  auto filterTTDialect =
+      [&](mlir::DictionaryAttr dict) -> mlir::DictionaryAttr {
     if (!dict) {
       return nullptr;
     }
@@ -83,54 +62,34 @@ void stripTTCoreDialectAttributes(mlir::func::FuncOp funcOp) {
     return newList.getDictionary(ctx);
   };
 
-  // Clean function arguments by removing ttcore attributes
+  // Clean function arguments by removing ttcore and ttir attributes
   for (unsigned i = 0; i < funcOp.getNumArguments(); ++i) {
-    funcOp.setArgAttrs(i, filterTTCore(funcOp.getArgAttrDict(i)));
+    funcOp.setArgAttrs(i, filterTTDialect(funcOp.getArgAttrDict(i)));
   }
 
-  // Clean function results by removing ttcore attributes
+  // Clean function results by removing ttcore and ttir attributes
   for (unsigned i = 0; i < funcOp.getNumResults(); ++i) {
-    funcOp.setResultAttrs(i, filterTTCore(funcOp.getResultAttrDict(i)));
+    funcOp.setResultAttrs(i, filterTTDialect(funcOp.getResultAttrDict(i)));
   }
 }
 
+// Given shardy out shardings from a manual computation op, return a list of
+// GSPMDV2 out sharding strings in output order
+// TODO: When HLOShardingV3 is uplifted, this transformation will need to change
+// to support the new sharding format.
 llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
     mlir::sdy::ManualComputationOp manualComputationOp,
     llvm::SmallDenseMap<llvm::StringRef, int> &meshNameToSizeMap) {
-  // returns a list of out shardings
   auto *ctx = manualComputationOp.getOperation()->getContext();
   auto outShardingsArr = manualComputationOp.getOutShardings().getShardings();
-  for (auto outSharding : outShardingsArr) {
-    // Print each outSharding as a string
-    std::string sharding_str;
-    llvm::raw_string_ostream os(sharding_str);
-    mlir::Attribute attr = outSharding;
-    attr.print(os);
-    os.flush();
-    llvm::errs() << "Out sharding: " << sharding_str << "\n";
-  }
-
-  // reshape dims for 1xN mesh is just <=[N]
-  // reshape dims for MxN mesh is <=[M,N], not <=[M*N]
-  // ref: https://github.com/pytorch/xla/issues/9348#issuecomment-3192952206
-  // uint64_t totalNumDevices =
-  // std::accumulate(meshNameToSizeMap.values().begin(),
-  //                                            meshNameToSizeMap.values().end(),
-  //                                            1LL,
-  //                                            std::multiplies<int64_t>());
-  // llvm::errs() << "Total number of devices: " << totalNumDevices << "\n";
-  // llvm::errs() << "Mesh name to size map: ";
-  // for (auto [name, size] : meshNameToSizeMap) {
-  //   llvm::errs() << name << "=" << size << ", ";
-  // }
-  // llvm::errs() << "\n";
 
   uint64_t totalNumDevices = std::accumulate(meshNameToSizeMap.values().begin(),
                                              meshNameToSizeMap.values().end(),
                                              1LL, std::multiplies<int64_t>());
 
   llvm::SmallVector<std::string> outShardingStrs;
-  // Iterate over each output tensor sharding.
+  // Iterate over each output tensor sharding and construct the GSPMDV2 out
+  // sharding string for each output tensor
   for (auto [outShardingIndex, outSharding] :
        llvm::enumerate(outShardingsArr)) {
     bool isOutputTensorReplicated = true;
@@ -143,9 +102,6 @@ llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
     // not supported).
     for (auto [dimIndex, dimSharding] : llvm::enumerate(dimShardings)) {
       auto axisName = dimSharding.getAxes();
-      llvm::errs() << "  Out sharding #" << outShardingIndex << ", dim #"
-                   << dimIndex << ", axisName.size()=" << axisName.size()
-                   << "\n";
       // fully replicated case
       if (axisName.empty()) {
         tensorAxisSizes.push_back(1);
@@ -161,7 +117,7 @@ llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
     }
 
     // The iota tile format requires replicated dimensions to be added as the
-    // last dimension Spec:
+    // last dimension, along with the string " last_tile_dim_replicate" Spec:
     // https://github.com/jax-ml/jax/blob/84af8a8e74c05ce4196079e145d50f0c9504ff16/jax/_src/named_sharding.py#L415-L430
     uint64_t totalTensorShardingAxisSizes =
         std::accumulate(tensorAxisSizes.begin(), tensorAxisSizes.end(), 1LL,
@@ -194,14 +150,12 @@ llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
     }
 
     outShardingStrs.push_back(outShardingStr);
-    llvm::errs() << "Out sharding str for out sharding #" << outShardingIndex
-                 << " is: " << outShardingStr.c_str() << "\n";
   }
   return outShardingStrs;
 }
 
-// Drastically simplifies the main funcop by removing all body contents and
-// returning dummy outputs
+// Simplifies the main funcop by removing all body contents and
+// returning dummy outputs, to strip the illegal sdy.manual_computation op.
 void simplifyMainFuncOp(mlir::func::FuncOp funcOp) {
   if (!funcOp || funcOp.getBody().empty()) {
     return;
@@ -247,81 +201,6 @@ void simplifyMainFuncOp(mlir::func::FuncOp funcOp) {
   builder.create<mlir::func::ReturnOp>(funcOp.getLoc(), returnValues);
 }
 
-// Strips sdy.manual_computation operations by inlining their body into the
-// parent region and replacing the manual_computation results with the return
-// operands.
-void stripSdyManualComputation(
-    mlir::sdy::ManualComputationOp manualComputationOp) {
-  auto *op = manualComputationOp.getOperation();
-  auto &bodyRegion = manualComputationOp.getBody();
-
-  if (bodyRegion.empty()) {
-    op->erase();
-    return;
-  }
-
-  auto &bodyBlock = bodyRegion.front();
-
-  // Find the sdy.return operation
-  mlir::sdy::ReturnOp returnOp = nullptr;
-  for (auto &bodyOp : bodyBlock) {
-    if (auto ret = mlir::dyn_cast<mlir::sdy::ReturnOp>(bodyOp)) {
-      returnOp = ret;
-      break;
-    }
-  }
-
-  if (!returnOp) {
-    // No return found, just erase the op
-    op->erase();
-    return;
-  }
-
-  // Replace block arguments with the corresponding operands
-  // The manual_computation has inner operands that become block arguments
-  auto bodyArgs = bodyBlock.getArguments();
-  auto allOperands = op->getOperands();
-  // The inner operands start after the outer operands
-  // For now, we'll replace block args with the outer operands if they match in
-  // count Otherwise, we'll need to handle this more carefully
-  if (bodyArgs.size() <= allOperands.size()) {
-    // Use the last N operands as inner operands (this is a heuristic)
-    size_t innerStartIdx = allOperands.size() - bodyArgs.size();
-    for (size_t i = 0; i < bodyArgs.size(); ++i) {
-      bodyArgs[i].replaceAllUsesWith(allOperands[innerStartIdx + i]);
-    }
-  }
-
-  // Replace manual_computation results with return operands
-  auto returnOperands = returnOp.getOperands();
-  auto manualComputationResults = manualComputationOp.getResults();
-
-  if (returnOperands.size() != manualComputationResults.size()) {
-    // Mismatch in result counts, can't safely replace
-    op->erase();
-    return;
-  }
-
-  for (auto [result, operand] :
-       llvm::zip(manualComputationResults, returnOperands)) {
-    result.replaceAllUsesWith(operand);
-  }
-
-  // Move all operations from the body (except the return) before the
-  // manual_computation
-  auto *insertionPoint = op;
-  for (auto &bodyOp : llvm::make_early_inc_range(bodyBlock)) {
-    if (mlir::isa<mlir::sdy::ReturnOp>(bodyOp)) {
-      continue; // Skip the return op
-    }
-    bodyOp.moveBefore(insertionPoint);
-  }
-
-  // Erase the return op and the manual_computation op
-  returnOp.erase();
-  op->erase();
-}
-
 } // namespace internal
 
 // XLA parsing of the MLIR returned via PJRT_OptimizedProgram is not compatible
@@ -331,7 +210,7 @@ void stripSdyManualComputation(
 // illegal attributes from ttcore, ttir and sdy dialects and location
 // information for compatibility. The sdy.manual_computation op is stripped by
 // deleting its body and replacing its results with dummy outputs in the correct
-// shape. Output shardings are injected as a moduleOp attr,
+// shape and order. Output shardings are injected as a moduleOp attr,
 // mhlo.spmd_output_shardings. This is required by XLA to correctly parse the
 // output shardings of the module.
 tt_pjrt_status cleanForXlaIngestion(
@@ -344,13 +223,14 @@ tt_pjrt_status cleanForXlaIngestion(
   });
 
   // if there are no manual computation ops, there are no output shardings to
-  // inject so this pass is a no-op. We return kInvalidArgument to indicate that
-  // no output shardings are needed.
+  // inject so this pass is a no-op. We return kInvalidArgument to indicate to
+  // the caller that no output shardings are needed and the caller should use
+  // the original_mlir_module.
   if (manualComputationOps.size() == 0) {
     return tt_pjrt_status::kInvalidArgument;
   }
   module.walk([&](mlir::func::FuncOp funcOp) {
-    internal::stripTTCoreDialectAttributes(funcOp);
+    internal::stripTTDialectAttributes(funcOp);
   });
 
   // Strip all location information (loc attributes) from the module
@@ -360,18 +240,19 @@ tt_pjrt_status cleanForXlaIngestion(
     return tt_pjrt_status::kInternal;
   }
 
-  llvm::SmallDenseMap<llvm::StringRef, int> meshNameToSizeMap;
-  module.walk([&](mlir::sdy::MeshOp meshOp) {
-    for (auto axis : meshOp.getMesh().getAxes()) {
-      meshNameToSizeMap[axis.getName()] = axis.getSize();
-    }
-  });
+  // Extract mesh name to size map from sdy.mesh op, asserting that there is
+  // exactly one sdy.mesh op in the module.
+  llvm::SmallVector<mlir::sdy::MeshOp> meshOps;
+  module.walk([&](mlir::sdy::MeshOp op) { meshOps.push_back(op); });
+  assert(meshOps.size() == 1 && "Expected exactly one sdy.mesh op in module");
+  auto meshOp = meshOps.front();
 
-  llvm::errs() << "Module before extracting out sharding:\n";
-  module.print(llvm::errs());
+  llvm::SmallDenseMap<llvm::StringRef, int> meshNameToSizeMap;
+  for (auto axis : meshOp.getMesh().getAxes()) {
+    meshNameToSizeMap[axis.getName()] = axis.getSize();
+  }
 
   // Extract out sharding from manual computation ops
-
   assert(manualComputationOps.size() == 1 &&
          "Expected exactly one ManualComputationOp in module");
   auto manualComputationOp = manualComputationOps.front();
@@ -379,13 +260,12 @@ tt_pjrt_status cleanForXlaIngestion(
       manualComputationOp, meshNameToSizeMap);
 
   // Inject out sharding result into module as a moduleOp attr,
-  // mhlo.spmd_output_shardings format list into tuple type
+  // mhlo.spmd_output_shardings format list into tuple type opSharding
   std::string outShardingTupleString = "{";
   llvm::raw_string_ostream os(outShardingTupleString);
   llvm::interleave(outShardingResult, os, ",");
   outShardingTupleString += "}";
 
-  // this is singular!
   module->setAttr(
       "mhlo.spmd_output_sharding",
       mlir::StringAttr::get(module.getContext(), outShardingTupleString));
@@ -398,21 +278,12 @@ tt_pjrt_status cleanForXlaIngestion(
     meshOp.erase();
   }
 
-  // Simplify the main function by removing all body contents and returning
-  // dummy outputs This is an alternative to stripping the manual_computation
-  // operation
+  // Remove the sdy.manual_computation op by simplifying the main funcop
   module.walk([&](mlir::func::FuncOp funcOp) {
     if (funcOp.getSymName() == "main") {
       internal::simplifyMainFuncOp(funcOp);
     }
   });
-
-  // Alternative: Strip the manual_computation operation by inlining its body
-  // internal::stripSdyManualComputation(manualComputationOp);
-
-  llvm::errs() << "Module after injecting out sharding result and simplifying "
-                  "main function:\n";
-  module.print(llvm::errs());
 
   return tt_pjrt_status::kSuccess;
 }
