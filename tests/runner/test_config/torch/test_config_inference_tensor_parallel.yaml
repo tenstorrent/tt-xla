@@ -146,3 +146,8 @@ test_config:
     # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
+
+  gemma3/multimodal/pytorch-google/gemma-3-27b-it-single_device-full-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Shardy propagation only supports ranked tensors with a static shape."
