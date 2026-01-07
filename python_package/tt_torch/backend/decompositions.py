@@ -363,6 +363,7 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
         torch.ops.prims.squeeze.default: squeeze,
+        # This decomposition is targeting gpt-oss's MOE implementation:
         aten.repeat.default: repeat_to_expand_decomp,
     }
 
