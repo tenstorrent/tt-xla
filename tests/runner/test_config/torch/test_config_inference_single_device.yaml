@@ -742,14 +742,10 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-xxlarge_v2-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.958276593048647. Required: pcc=0.99"
 
   opt/causal_lm/pytorch-facebook/opt-1.3b-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-inference:
     assert_pcc: false  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
@@ -769,9 +765,7 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-xlarge_v2-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.872334097539835. Required: pcc=0.99"
 
   t5/pytorch-t5-base-single_device-inference:
     status: EXPECTED_PASSING
@@ -1442,7 +1436,6 @@ test_config:
   #   status: EXPECTED_PASSING
 
   gemma/pytorch-google/gemma-2b-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   autoencoder/pytorch-conv-single_device-inference:
