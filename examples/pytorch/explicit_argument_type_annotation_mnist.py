@@ -7,7 +7,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 import tt_torch
 
-from tests.torch.models.mnist.cnn.dropout.model_implementation import (
+from third_party.tt_forge_models.mnist.image_classification.pytorch.loader import (
     MNISTCNNDropoutModel,
 )
 
