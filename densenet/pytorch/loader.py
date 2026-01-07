@@ -174,7 +174,8 @@ class ModelLoader(ForgeModel):
             self._postprocessor.set_model_instance(model)
 
         # Only convert dtype if explicitly requested
-        if dtype_override is not None:
+        # Skip dtype conversion for X-ray models as they have operations that don't support bfloat16
+        if dtype_override is not None and source != ModelSource.TORCH_XRAY_VISION:
             model = model.to(dtype_override)
 
         return model
@@ -222,9 +223,9 @@ class ModelLoader(ForgeModel):
             # Replicate tensors for batch size
             inputs = inputs.repeat_interleave(batch_size, dim=0)
 
-            # Only convert dtype if explicitly requested
-            if dtype_override is not None:
-                inputs = inputs.to(dtype_override)
+            # Don't convert dtype for X-ray models as they don't support bfloat16
+            # The model itself is kept in float32, so inputs must also be float32
+            inputs = inputs.to(torch.float32)
 
             return inputs
 

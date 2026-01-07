@@ -121,10 +121,6 @@ class ModelLoader(ForgeModel):
         source = self._variant_config.source
 
         if source == ModelSource.OSMR:
-            if not OSMR_AVAILABLE:
-                raise ImportError(
-                    "pytorchcv is required for OSMR models. Install it with: pip install pytorchcv"
-                )
             # Load model using pytorchcv (OSMR)
             model = ptcv_get_model(model_name, pretrained=True)
         elif source == ModelSource.TIMM:

@@ -70,8 +70,7 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.RESNEXT101_64X4D: ResNeXtConfig(
             pretrained_model_name="resnext101_64x4d",
-            source=ModelSource.TORCH_HUB,
-            hub_source="pytorch/vision:v0.10.0",
+            source=ModelSource.OSMR,
         ),
         ModelVariant.RESNEXT101_32X8D_WSL: ResNeXtConfig(
             pretrained_model_name="resnext101_32x8d_wsl",
