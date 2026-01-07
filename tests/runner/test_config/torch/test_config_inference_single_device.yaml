@@ -706,8 +706,8 @@ test_config:
 
   yolos/pytorch-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false  # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168 AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96. Later on Sept 2 started failing in WH too: AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2"
+    # assert_pcc: false  # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168 AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96. Later on Sept 2 started failing in WH too: AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
+    # reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-inference:
     required_pcc: 0.98
@@ -2453,7 +2453,7 @@ test_config:
 
   efficientdet/pytorch-d7-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 33030144 B L1 buffer across 56 banks, where each bank needs to store 589824 B, but bank size is only 1331936 B"
+    # reason: "Out of Memory: Not enough space to allocate 33030144 B L1 buffer across 56 banks, where each bank needs to store 589824 B, but bank size is only 1331936 B"
 
   efficientdet/pytorch-d7x-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
