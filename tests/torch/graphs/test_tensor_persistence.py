@@ -657,7 +657,6 @@ def test_shared_input_across_mesh_reshape():
     compiled_model = torch.compile(Program2x4(), backend="tt")
     compiled_model = compiled_model.to(device)
     output = compiled_model(t1, t2)
-
     print(output)
 
     # run 1x8 program, inducing a lazy meshDevice reshape pre-execution
@@ -675,3 +674,65 @@ def test_shared_input_across_mesh_reshape():
     # t2 is expected to have valid cached tensor at this point but does not.
     output = compiled_model2(t2)
     print(output)
+
+
+@pytest.mark.nightly
+@pytest.mark.push
+@pytest.mark.llmbox
+def test_output_sharding_simple_propagation():
+    """
+    Test scenario: Run a simple program on a 2x4 mesh and check the output sharding.
+    We expect output sharding to be propagated from input sharding directly, and to
+    remain so after execution.
+    """
+
+    class SimpleAdd(torch.nn.Module):
+        def forward(self, x, y, z):
+            return x + 1, y + 1, z + 1
+
+    xr.set_device_type("TT")
+    setup_spmd()
+    device = torch_xla.device()
+    mesh = create_device_mesh(
+        (
+            2,
+            4,
+        )
+    )
+
+    x = torch.arange(64, dtype=torch.int32).reshape((8, 8)).to(device)
+    y = torch.arange(64, dtype=torch.int32).reshape((8, 8)).to(device)
+    z = torch.arange(64, dtype=torch.int32).reshape((8, 8)).to(device)
+
+    ## check cpu results
+    x_cpu = x.cpu()
+    y_cpu = y.cpu()
+    z_cpu = z.cpu()
+    expected_output_x = x_cpu + 1
+    expected_output_y = y_cpu + 1
+    expected_output_z = z_cpu + 1
+
+    xs.mark_sharding(x, mesh, (None, "batch"))
+    xs.mark_sharding(y, mesh, ("batch", "model"))
+    xs.mark_sharding(z, mesh, (None, None))
+
+    # Get input shard specs
+    input_x_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(x)
+    input_y_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(y)
+    input_z_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(z)
+
+    compiled_model = torch.compile(SimpleAdd(), backend="tt")
+    compiled_model = compiled_model.to(device)
+    output = compiled_model(x, y, z)
+
+    # check cpu result using comparator
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(output[0].cpu(), expected_output_x)
+    comparator.compare(output[1].cpu(), expected_output_y)
+    comparator.compare(output[2].cpu(), expected_output_z)
+
+    # Assert that input and output shard specs are the same
+    assert torch_xla._XLAC._get_xla_sharding_spec(output[0]) == input_x_shard_spec
+    assert torch_xla._XLAC._get_xla_sharding_spec(output[1]) == input_y_shard_spec
+    assert torch_xla._XLAC._get_xla_sharding_spec(output[2]) == input_z_shard_spec
