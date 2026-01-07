@@ -203,7 +203,7 @@ def _run_model_test_impl(
 
             # prints perf benchmark results to console
             # Dumps perf benchmark results to JSON report if --perf-report-dir is given
-            if framework == Framework.TORCH:
+            if framework == Framework.TORCH and run_mode == RunMode.INFERENCE:
                 measurements = getattr(tester, "_perf_measurements", None)
                 output_dir = request.config.getoption("--perf-report-dir")
                 device_arch = get_xla_device_arch()
@@ -215,8 +215,8 @@ def _run_model_test_impl(
                     else (1, -1)
                 )
                 if measurements and len(measurements) > 0:
-                    total_time = measurements[0]["total_time"]
-                    total_samples = measurements[0]["perf_iters"]
+                    total_time = measurements[0].get("total_time", -1)
+                    total_samples = measurements[0].get("total_time", -1)
 
                 create_benchmark_result(
                     full_model_name=model_info.name,
