@@ -402,7 +402,7 @@ class DeepseekV2MoE(nn.Module):
             gatherd_idxs = gatherd_idxs.argsort()
             sorted_tokens = gathered_tokens[gatherd_idxs]
             tokens_per_expert = tokens_per_expert_post_gather
-        tokens_per_expert = tokens_per_expert.cpu().numpy()
+        tokens_per_expert = tokens_per_expert.cpu().tolist()
 
         outputs = []
         start_idx = 0

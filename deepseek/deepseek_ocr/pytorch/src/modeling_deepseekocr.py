@@ -64,7 +64,7 @@ class DeepseekOCRModel(DeepseekV2Model):
         if (
             sam_model is not None
             and (input_ids.shape[1] != 1 or self.training)
-            and torch.sum(images[0][1]).item() != 0
+            and torch.sum(images[0][1], dim=(0, 1, 2, 3)).item() != 0
         ):
 
             idx = 0
