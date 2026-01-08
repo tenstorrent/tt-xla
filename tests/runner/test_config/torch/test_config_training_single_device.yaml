@@ -580,7 +580,9 @@ test_config:
   swin/image_classification/pytorch-swin_t-single_device-training:
     status: KNOWN_FAILURE_XFAIL
   swin/image_classification/pytorch-swin_s-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "OOM: each bank needs to store 2386944 B, but bank size is only 1330944 B"
   swin/image_classification/pytorch-swin_b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
   swin/image_classification/pytorch-swin_v2_t-single_device-training:

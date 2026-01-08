@@ -280,6 +280,14 @@ jobs:
         echo "$SCRIPT_OUTPUT"
 
         ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
+
+        # Override timeout for training tests with known_failure_xfail or not_supported_skip marks
+        MARKS="${{ matrix.build.test-mark }}"
+        if [[ "$MARKS" == *"and training and (known_failure_xfail or not_supported_skip)"* ]]; then
+          echo "Detected training tests with known_failure_xfail or not_supported_skip marks, setting timeout to 240 minutes"
+          ESTIMATED_DURATION=240
+        fi
+
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
