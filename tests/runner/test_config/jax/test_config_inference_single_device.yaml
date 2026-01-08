@@ -186,6 +186,7 @@ test_config:
 
   gpt_sw3/causal_lm/jax-1_3b_instruct-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [large]
 
   llama/causal_lm/jax-3b-v2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
