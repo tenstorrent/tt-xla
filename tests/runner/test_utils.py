@@ -13,13 +13,11 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, List
 
 import numpy as np
 import pytest
 import torch
-import torch_xla
-import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
@@ -667,59 +665,12 @@ def record_model_test_properties(
         pytest.xfail(reason)
 
 
-def get_xla_device_arch():
-    device = torch_xla.device()
-    device = xm.xla_device_kind(device)
-    arch_name = str(device).lower()
-
-    for item in ["wormhole", "blackhole"]:
-        if item in arch_name:
-            return item
-    return ""
-
-
-def get_input_shape_info(inputs) -> tuple[int, int]:
-    """Extract batch_size, sequence_length from input activations.
-
-    Returns:
-        (batch_size, sequence_length)
-        For image models: sequence_length will be -1 (not applicable)
-        For LLMs: sequence_length is shape[1]
-    """
-    if inputs is None:
-        print("No input activations found")
-        return 1, -1
-
-    # Get the first tensor to extract shape
-    tensor = None
-    if isinstance(inputs, torch.Tensor):
-        tensor = inputs
-    elif isinstance(inputs, (list, tuple)) and len(inputs) > 0:
-        tensor = inputs[0] if hasattr(inputs[0], "shape") else None
-    elif isinstance(inputs, dict) and len(inputs) > 0:
-        tensor = next(iter(inputs.values()))
-
-    if tensor is None or not hasattr(tensor, "shape"):
-        return 1, -1
-
-    shape = tensor.shape
-    batch_size = shape[0] if len(shape) > 0 else 1
-
-    # sequence_length is shape[1] for LLMs
-    if len(shape) > 0 and len(shape) < 3:  # LLMs will have 2D or 3D tensors as inputs
-        sequence_length = shape[1]
-    else:
-        sequence_length = -1  # Not applicable (e.g., image inputs)
-
-    return batch_size, sequence_length
-
-
 def create_measurement(
     step_name: str,
     measurement_name: str,
-    value: float = 0.0,
     step_warm_up_num_iterations: int = 1,
     iteration: int = 1,
+    value: float = 0.0,
     target: float = -1.0,
 ) -> dict[str, Any]:
     """Create a single perf measurement dictionary."""
@@ -741,18 +692,7 @@ def create_benchmark_result(
     model_type: str = "generic",
     training: bool = False,
     model_info: str = "",
-    model_group: str = "",
-    parallelism: str = "",
-    device_arch: str = "",
-    run_mode: str = "",
     device_name: str = "",
-    batch_size: int = 1,
-    input_size: tuple = (1, 1),
-    num_layers: int = -1,
-    total_time: float = -1,
-    total_samples: int = 0,
-    input_sequence_length: Optional[int] = -1,
-    data_format: str = "bfloat16",
 ) -> dict[str, Any]:
     """
     Create a benchmark result dictionary and write it to a JSON file.
@@ -766,14 +706,6 @@ def create_benchmark_result(
     # Extract e2e stats from the passed measurements list
     metric_list = []
 
-    # Create standard measurements
-    metric_list.append(
-        create_measurement("e2e_perf", "total_samples", total_samples),
-    )
-    metric_list.append(
-        create_measurement("e2e_perf", "total_time", total_time),
-    )
-
     if measurements and len(measurements) > 0:
         # extract e2e perf stats and create measurements using them
         perf_stats = measurements[0]
@@ -782,36 +714,36 @@ def create_benchmark_result(
         metric_list.append(
             create_measurement(
                 "e2e_perf",
-                "avg_time",
-                perf_stats["avg_time"],
+                "total_time",
                 warmup_iters,
                 perf_iters,
+                perf_stats["total_time"],
+            )
+        )
+        metric_list.append(
+            create_measurement(
+                "e2e_perf",
+                "avg_time",
+                warmup_iters,
+                perf_iters,
+                perf_stats["avg_time"],
             )
         )
 
     config = {
+        "model_size": "small",
         "model_info": model_info,
-        "model_group": model_group,
-        "parallelism": parallelism,
-        "run_mode": run_mode,
-    }
-
-    device_info = {
-        "device_name": device_name,
-        "device_arch": device_arch,
     }
 
     benchmark_results = {
         "model": full_model_name,
         "model_type": model_type,
-        "run_type": f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}",
+        "run_type": f"{'_'.join(full_model_name.split())}_{device_name}",
         "config": config,
         "measurements": metric_list,
-        "device_info": device_info,
-        "num_layers": num_layers,
-        "batch_size": batch_size,
-        "precision": data_format,
-        "input_sequence_length": input_sequence_length,
+        "device_info": {
+            "device_name": device_name,
+        },
         "training": training,
         "project": "tt-xla",
     }
