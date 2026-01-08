@@ -273,19 +273,18 @@ jobs:
         python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
         cat collected_tests.txt
 
-        SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
-          --collected-output collected_tests.txt \
-          --durations-file .test_durations \
-          --default-timeout 240)
-        echo "$SCRIPT_OUTPUT"
-
-        ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
-
         # Check if any collected tests have notimeout marker
         NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(cat collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
         if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
           echo "Found $NOTIMEOUT_COUNT tests with notimeout marker, using default timeout of 240 minutes"
           ESTIMATED_DURATION=240
+        else
+          SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
+            --collected-output collected_tests.txt \
+            --durations-file .test_durations \
+            --default-timeout 240)
+          echo "$SCRIPT_OUTPUT"
+          ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
         fi
 
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
