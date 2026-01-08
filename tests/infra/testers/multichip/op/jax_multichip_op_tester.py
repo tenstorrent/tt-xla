@@ -8,7 +8,7 @@ from typing import Callable, Sequence
 
 import jax
 from infra.connectors import JaxDeviceConnector
-from infra.evaluators import ComparisonConfig
+from infra.evaluators import ComparisonConfig, EvaluatorFactory
 from infra.runners import JaxDeviceRunner
 from infra.utilities import (
     Framework,
@@ -70,10 +70,18 @@ class JaxMultichipOpTester(BaseTester):
 
         super().__init__(comparison_config, Framework.JAX)
         self._initialize_meshes()
+        self._initialize_evaluator()
 
     def _initialize_meshes(self) -> None:
         self._device_mesh = self._get_tt_device_mesh()
         self._cpu_mesh = self._get_cpu_device_mesh()
+
+    def _initialize_evaluator(self) -> None:
+        self._evaluator = EvaluatorFactory.create_evaluator(
+            evaluation_type="comparison",
+            framework=self._framework,
+            comparison_config=self._comparison_config,
+        )
 
     def test_with_random_inputs(
         self,
