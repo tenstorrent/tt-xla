@@ -281,10 +281,10 @@ jobs:
 
         ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
 
-        # Override timeout for training tests with known_failure_xfail or not_supported_skip marks
-        MARKS="${{ matrix.build.test-mark }}"
-        if [[ "$MARKS" == *"and training and (known_failure_xfail or not_supported_skip)"* ]]; then
-          echo "Detected training tests with known_failure_xfail or not_supported_skip marks, setting timeout to 240 minutes"
+        # Check if any collected tests have in_progress marker
+        IN_PROGRESS_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m in_progress $(cat collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
+        if [[ "$IN_PROGRESS_COUNT" -gt 0 ]]; then
+          echo "Found $IN_PROGRESS_COUNT tests with in_progress marker, using default timeout of 240 minutes"
           ESTIMATED_DURATION=240
         fi
 
