@@ -177,7 +177,7 @@ test_config:
 
   mnist/image_classification/pytorch-cnn_nodropout-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push, nightly]
+    markers: [nightly]
 
   autoencoder/pytorch-linear-single_device-inference:
     status: EXPECTED_PASSING
@@ -1267,12 +1267,14 @@ test_config:
 
   yolov9/pytorch-t-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [push, nightly]
 
   yolov9/pytorch-s-single_device-inference:
     status: EXPECTED_PASSING
 
   yolov9/pytorch-m-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Trying to access XLA data for tensor with ID 2590 while an async operation is in flight: UNKNOWN_SCALAR[]') raised in repr() - https://github.com/tenstorrent/tt-xla/issues/2776"
 
   yolov9/pytorch-c-single_device-inference:
     status: EXPECTED_PASSING
