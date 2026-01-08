@@ -177,7 +177,7 @@ test_config:
 
   mnist/image_classification/pytorch-cnn_nodropout-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push, nightly]
+    markers: [nightly]
 
   autoencoder/pytorch-linear-single_device-inference:
     status: EXPECTED_PASSING
@@ -1267,6 +1267,7 @@ test_config:
 
   yolov9/pytorch-t-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [push, nightly]
 
   yolov9/pytorch-s-single_device-inference:
     status: EXPECTED_PASSING

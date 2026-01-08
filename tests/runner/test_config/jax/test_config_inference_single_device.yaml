@@ -111,8 +111,6 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "Severe PCC comparison failed: pcc=-1.0 < 0.99 required"
-    bringup_status: INCORRECT_RESULT
-    markers: [push, nightly]
 
   clip/image_classification/jax-base_patch32-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -174,7 +172,7 @@ test_config:
 
   gpt_neo/causal_lm/jax-_125m-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push, nightly]
+    markers: [nightly]
 
   gpt_neo/causal_lm/jax-_1_3b-single_device-inference:
     required_pcc: 0.988 # PCC dropped from <0.992 to <0.99 after tilize was *improved*
@@ -244,7 +242,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "PCC comparison failed. Calculated: pcc=-0.006557859480381012. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
     bringup_status: INCORRECT_RESULT
-    markers: [push, nightly]
+    markers: [nightly]
 
   mnist/image_classification/jax-mlp_custom-single_device-inference:
     status: EXPECTED_PASSING
@@ -252,11 +250,11 @@ test_config:
 
   mnist/image_classification/jax-cnn_batchnorm-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push, nightly]
+    markers: [nightly]
 
   mnist/image_classification/jax-cnn_dropout-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push, nightly]
+    markers: [nightly]
 
   mt5/nlp_summarization/jax-base-single_device-inference:
     assert_pcc: false
@@ -354,7 +352,7 @@ test_config:
 
   roformer/masked_lm/jax-chinese-base-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push, nightly]
+    markers: [nightly]
 
   roformer/masked_lm/jax-chinese-char-small-single_device-inference:
     status: EXPECTED_PASSING
@@ -373,11 +371,11 @@ test_config:
 
   t5/summarization/jax-large-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push, nightly]
+    markers: [nightly]
 
   t5/summarization/jax-small-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push, nightly]
+    markers: [nightly]
 
   vision_text_dual_encoder/mm_image_ttt/jax-base-single_device-inference:
     assert_pcc: false
@@ -387,6 +385,7 @@ test_config:
 
   vit/image_classification/jax-base_patch16_224-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [push, nightly]
 
   vit/image_classification/jax-base_patch16_384-single_device-inference:
     status: EXPECTED_PASSING
