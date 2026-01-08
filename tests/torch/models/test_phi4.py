@@ -30,7 +30,7 @@ def test_phi4_1layer(tp_bool):
     print(f"{'='*60}\n")
 
     # Create inputs
-    batch_size = 1
+    batch_size = 4
     seq_len = 128
     head_dim = model.config.hidden_size // model.config.num_attention_heads
     hidden_states = torch.randn(
@@ -46,7 +46,7 @@ def test_phi4_1layer(tp_bool):
     # Setup mesh for tensor parallel (only if running on llmbox)
     if tp_bool:
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
+        mesh_shape = (batch_size, num_devices // batch_size)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -106,7 +106,9 @@ def test_phi4_1layer(tp_bool):
 
 # Add to loader.py later if things work out maybe??
 def get_mesh_config(self, num_devices: int):
-    if self.config.num_attention_heads % num_devices == 0:
+    if num_devices == 8:
+        mesh_shape = (4, num_devices // 4)
+    elif num_devices == 2:
         mesh_shape = (1, num_devices)
     else:
         raise ValueError(
@@ -117,22 +119,16 @@ def get_mesh_config(self, num_devices: int):
 
 def load_shard_spec(self, model):
     shard_specs = {}
+    
     # for layer in model.model.layers:
-    # colwise_rep = shard first dimension = ("model", None)
-    layer = model
-    shard_specs[layer.self_attn.qkv_proj.weight] = ("model", "batch")
+    for layer in model.model.layers:   
+        shard_specs[layer.self_attn.qkv_proj.weight] = ("model", "batch")
 
-    # rowwise_rep = shard second dimension = (None, "model")
-    shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        # rowwise_rep = shard second dimension = (None, "model")
+        shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
 
-    # Phi-4 uses fused gate_up_proj (not separate gate/up)
-    # colwise_rep = ("model", None)
-    shard_specs[layer.mlp.gate_up_proj.weight] = ("model", "batch")
+        shard_specs[layer.mlp.gate_up_proj.weight] = ("model", "batch")
+        shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
-    # rowwise_rep = (None, "model")ss
-    shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
-
-    # Optional: shard the language model head if needed
-    # shard_specs[model.lm_head.weight] = ("model", "batch")
-    print(shard_specs)
+    shard_specs[model.lm_head.weight] = ("model", "batch")
     return shard_specs

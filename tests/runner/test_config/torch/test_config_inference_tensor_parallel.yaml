@@ -118,6 +118,10 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
+  phi4/causal_lm/pytorch-microsoft/phi-4-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
   qwen_2_5/causal_lm/pytorch-7b_instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     # bringup_status: INCORRECT_RESULT
