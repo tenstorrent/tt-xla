@@ -19,6 +19,7 @@ from infra.testers.single_chip.model import (
 )
 
 from tests.infra.comparators.comparator import Comparator, ComparisonResult
+from tests.infra.testers.compiler_config import CompilerConfig
 from tests.infra.utilities.filecheck_utils import *
 from tests.infra.utilities.types import Framework
 from tests.runner.requirements import RequirementsManager

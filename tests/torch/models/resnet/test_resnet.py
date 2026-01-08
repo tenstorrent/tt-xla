@@ -40,6 +40,8 @@ def create_inference_tester(format: str, optimization_level: int) -> ResnetTeste
     """Create inference tester with specified format and optimization level."""
     compiler_config = CompilerConfig(
         optimization_level=optimization_level,
+        math_fidelity="hifi4",
+        fp32_dest_acc_en=True,
     )
     return create_torch_inference_tester(
         ResnetTester, VARIANT_NAME, format, compiler_config=compiler_config
@@ -92,16 +94,16 @@ def training_tester() -> ResnetTester:
         pytest.param(
             "bfloat16",
             1,
-            marks=pytest.mark.xfail(
-                reason="PCC comparison < 0.99 (observed ~0.982-0.984)"
-            ),
+            # marks=pytest.mark.xfail(
+            #     reason="PCC comparison < 0.99 (observed ~0.982-0.984)"
+            # ),
         ),
         pytest.param(
             "bfloat16",
             0,
-            marks=pytest.mark.xfail(
-                reason="PCC comparison < 0.99 (observed ~0.982-0.984)"
-            ),
+            # marks=pytest.mark.xfail(
+            #     reason="PCC comparison < 0.99 (observed ~0.982-0.984)"
+            # ),
         ),
         pytest.param("float32", 1),
         pytest.param(
