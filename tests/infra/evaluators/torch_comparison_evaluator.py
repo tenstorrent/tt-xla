@@ -29,7 +29,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
 
     @staticmethod
     def _both_static_cache(x: object, y: object) -> bool:
-        is_sc = TorchComparator._is_static_cache
+        is_sc = TorchComparisonEvaluator._is_static_cache
         return is_sc(x) and is_sc(y)
 
     # @override
@@ -50,7 +50,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     @run_on_cpu(Framework.TORCH)
     def _compare_equal(device_output: PyTree, golden_output: PyTree) -> bool:
         def _equal_leaf(x, y):
-            if TorchComparator._both_static_cache(x, y):
+            if TorchComparisonEvaluator._both_static_cache(x, y):
                 return True
             return torch.equal(x, y)
 
@@ -65,7 +65,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
     ) -> float:
         def _atol_leaf(x, y):
-            if TorchComparator._both_static_cache(x, y):
+            if TorchComparisonEvaluator._both_static_cache(x, y):
                 return torch.tensor(0.0)
             return torch.max(torch.abs(x - y))
 
@@ -81,7 +81,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
-            if TorchComparator._both_static_cache(x, y):
+            if TorchComparisonEvaluator._both_static_cache(x, y):
                 return torch.tensor(1.0)
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
             # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
@@ -110,7 +110,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         allclose_config: AllcloseConfig,
     ) -> bool:
         def _allclose_leaf(x, y):
-            if TorchComparator._both_static_cache(x, y):
+            if TorchComparisonEvaluator._both_static_cache(x, y):
                 return True
             return torch.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
