@@ -20,7 +20,8 @@ on:
           - 'model-test-experimental.json'
           - 'model-test-training-xfail-weekly.json'
           - 'model-test-extended.json'
-          - 'basic-test.json:model-test-push.json:model-test-extended.json' # used for uplifts
+          - 'mlir-uplift-qualification.json'
+          - 'model-test-weekly.json'
           - 'vllm-model-tests.json'
           - 'Custom'
       test_suite_custom:
