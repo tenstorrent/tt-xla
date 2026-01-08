@@ -1273,7 +1273,8 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov9/pytorch-m-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Trying to access XLA data for tensor with ID 2590 while an async operation is in flight: UNKNOWN_SCALAR[]') raised in repr() - https://github.com/tenstorrent/tt-xla/issues/2776"
 
   yolov9/pytorch-c-single_device-inference:
     status: EXPECTED_PASSING
