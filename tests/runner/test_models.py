@@ -10,6 +10,7 @@ import warnings
 from typing import List, Optional
 
 import pytest
+import torch
 from infra import RunMode
 from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import (
@@ -30,6 +31,8 @@ from tests.runner.test_utils import (
     create_benchmark_result,
     find_dumped_ir_files,
     fix_venv_isolation,
+    get_input_shape_info,
+    get_xla_device_arch,
     record_model_test_properties,
     update_test_metadata_for_exception,
 )
@@ -39,7 +42,12 @@ from tests.runner.testers import (
     DynamicTorchModelTester,
 )
 from tests.utils import BringupStatus
-from third_party.tt_forge_models.config import ModelSource, Parallelism
+from third_party.tt_forge_models.config import (
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    Parallelism,
+)
 
 # Setup test discovery using TorchDynamicLoader and JaxDynamicLoader
 TEST_DIR = os.path.dirname(__file__)
@@ -204,9 +212,21 @@ def _run_model_test_impl(
 
             # prints perf benchmark results to console
             # Dumps perf benchmark results to JSON report if --perf-report-dir is given
-            if framework == Framework.TORCH:
+            if framework == Framework.TORCH and run_mode == RunMode.INFERENCE:
                 measurements = getattr(tester, "_perf_measurements", None)
                 output_dir = request.config.getoption("--perf-report-dir")
+                device_arch = get_xla_device_arch()
+                model_config = loader.load_config()
+                num_layers = getattr(model_config, "num_hidden_layers", -1)
+                batch_size, input_sequence_length = (
+                    get_input_shape_info(getattr(tester, "_input_activations", None))
+                    if tester
+                    else (1, -1)
+                )
+                if measurements and len(measurements) > 0:
+                    total_time = measurements[0].get("total_time", -1)
+                    total_samples = measurements[0].get("total_time", -1)
+
                 create_benchmark_result(
                     full_model_name=model_info.name,
                     output_dir=output_dir,
@@ -215,7 +235,18 @@ def _run_model_test_impl(
                     model_type="generic",
                     training=False,
                     model_info=model_info.name,
+                    model_group=str(model_info.group),
+                    parallelism=str(parallelism),
+                    device_arch=device_arch,
+                    run_mode=str(run_mode),
                     device_name=socket.gethostname(),
+                    batch_size=batch_size,
+                    input_size=(input_sequence_length,),
+                    num_layers=num_layers,
+                    total_time=total_time,
+                    total_samples=total_samples,
+                    input_sequence_length=input_sequence_length,
+                    data_format="bfloat16",
                 )
 
 
