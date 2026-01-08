@@ -17,7 +17,6 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from .src.model_utils import pre_processing, post_processing
 
 
 class ModelVariant(StrEnum):
@@ -69,35 +68,74 @@ class ModelLoader(ForgeModel):
         model_name = self._variant_config.pretrained_model_name
         model = GLiNER.from_pretrained(model_name)
         self.model = model
-        if self._variant == ModelVariant.GLINER_LARGEV2:
-            model = model.batch_predict_entities
-        return model
+        return self.model.eval()
 
     def load_inputs(self, batch_size=1):
         """Load and return sample inputs for the GLiNER model with default settings.
 
         Returns a tuple (texts, labels) suitable for GLiNER.batch_predict_entities.
         """
-        if self._variant == ModelVariant.GLINER_MULTI_V21:
-            text = """Cristiano Ronaldo dos Santos Aveiro was born 5 February 1985) is a Portuguese professional footballer."""
-            labels = ["person", "award", "date", "competitions", "teams"]
-            texts, raw_batch = pre_processing(self.model, [text], labels)
-            self.text = text
-            self.raw_batch = raw_batch
-            return texts
-        else:
-            text = (
-                "Cristiano Ronaldo dos Santos Aveiro (Portuguese pronunciation: [kɾiʃ'tjɐnu ʁɔ'naldu]; born 5 February 1985) "
-                "is a Portuguese professional footballer who plays as a forward for and captains both Saudi Pro League club Al Nassr "
-                "and the Portugal national team."
-            )
-            labels = ["person", "award", "date", "competitions", "teams"]
-            texts = [text] * batch_size
+        text = (
+            "Cristiano Ronaldo dos Santos Aveiro (Portuguese pronunciation: [kɾiʃ'tjɐnu ʁɔ'naldu]; born 5 February 1985) "
+            "is a Portuguese professional footballer who plays as a forward for and captains both Saudi Pro League club Al Nassr "
+            "and the Portugal national team."
+        )
+        self.text = text
+        labels = ["person", "award", "date", "competitions", "teams"]
+        entity_types = list(dict.fromkeys(labels))
 
-            return (texts, labels)
+        (
+            tokens,
+            all_start_token_idx_to_text_idx,
+            all_end_token_idx_to_text_idx,
+        ) = self.model.prepare_inputs(
+            texts=[text],
+        )
+        self.all_start_token_idx_to_text_idx = all_start_token_idx_to_text_idx
+        self.all_end_token_idx_to_text_idx = all_end_token_idx_to_text_idx
+
+        input_x = self.model.prepare_base_input(tokens)
+
+        collator = self.model.data_collator_class(
+            self.model.config,
+            data_processor=self.model.data_processor,
+            return_tokens=True,
+            return_entities=True,
+            return_id_to_classes=True,
+            prepare_labels=False,
+        )
+
+        batch = collator(input_x, entity_types=entity_types)
+        self.batch = batch
+        return batch
 
     def post_processing(self, co_out):
-        if self._variant == ModelVariant.GLINER_MULTI_V21:
-            entities = post_processing(self.model, co_out, [self.text], self.raw_batch)
-            for entity in entities:
-                print(entity["text"], "=>", entity["label"])
+        outputs = []
+        decoded12 = self.model.decoder.decode(
+            self.batch["tokens"],
+            self.batch["id_to_classes"],
+            co_out,
+            flat_ner=True,
+            threshold=0.5,
+            multi_label=False,
+        )
+        outputs.extend(decoded12)
+        all_entities = []
+        for i, output in enumerate(outputs):
+            start_token_idx_to_text_idx = self.all_start_token_idx_to_text_idx[i]
+            end_token_idx_to_text_idx = self.all_end_token_idx_to_text_idx[i]
+            entities = []
+            for start_token_idx, end_token_idx, ent_type, ent_score in output:
+                start_text_idx = start_token_idx_to_text_idx[start_token_idx]
+                end_text_idx = end_token_idx_to_text_idx[end_token_idx]
+                ent_details = {
+                    "start": start_token_idx_to_text_idx[start_token_idx],
+                    "end": end_token_idx_to_text_idx[end_token_idx],
+                    "text": self.text[i][start_text_idx:end_text_idx],
+                    "label": ent_type,
+                    "score": ent_score,
+                }
+                entities.append(ent_details)
+
+            all_entities.append(entities)
+        return all_entities
