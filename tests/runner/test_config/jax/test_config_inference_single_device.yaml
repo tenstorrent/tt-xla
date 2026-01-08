@@ -111,8 +111,6 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "Severe PCC comparison failed: pcc=-1.0 < 0.99 required"
-    bringup_status: INCORRECT_RESULT
-    markers: [push, nightly]
 
   clip/image_classification/jax-base_patch32-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -387,6 +385,7 @@ test_config:
 
   vit/image_classification/jax-base_patch16_224-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [push, nightly]
 
   vit/image_classification/jax-base_patch16_384-single_device-inference:
     status: EXPECTED_PASSING
