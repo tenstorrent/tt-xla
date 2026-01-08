@@ -120,6 +120,7 @@ test_config:
     # bringup_status: INCORRECT_RESULT
     # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
     status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
     reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
 
   qwen_2_5/causal_lm/pytorch-14b_instruct-tensor_parallel-inference:
@@ -146,3 +147,45 @@ test_config:
     # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
+
+  # Models that need work....
+
+  llama/causal_lm/pytorch-llama_3_1_405b-tensor_parallel-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Needs bringup on galaxy"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_70b-tensor_parallel-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Needs bringup on galaxy"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_1_70b_instruct-tensor_parallel-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Needs bringup on galaxy"
+    bringup_status: FAILED_RUNTIME
+
+  llama/causal_lm/pytorch-llama_3_3_70b_instruct-tensor_parallel-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Needs bringup on galaxy"
+    bringup_status: FAILED_RUNTIME
+
+  phi4/causal_lm/pytorch-microsoft/phi-4-tensor_parallel-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Needs bringup on n300-llmbox 14B param"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2/causal_lm/pytorch-qwq_32b-tensor_parallel-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Needs bringup on n300-llmbox"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/pytorch-72b_instruct-tensor_parallel-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Needs bringup on galaxy"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_3/causal_lm/pytorch-30b_a3b-tensor_parallel-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Needs bringup on n300-llmbox"
+    bringup_status: FAILED_RUNTIME
