@@ -21,6 +21,7 @@ on:
           - 'model-test-training-xfail-weekly.json'
           - 'model-test-extended.json'
           - 'mlir-uplift-qualification.json'
+          - 'model-test-passing-weekly.json'
           - 'model-test-weekly.json'
           - 'vllm-model-tests.json'
           - 'Custom'
