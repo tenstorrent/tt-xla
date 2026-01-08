@@ -24,7 +24,7 @@ def initialize():
         "tt",
         priority=500,
         library_path=str(library_path),
-        options=None,
+        options={"something": "value"},
     )
 
     setup_monkey_patches()

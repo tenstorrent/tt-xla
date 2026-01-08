@@ -551,6 +551,13 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
            args->create_options[i].name);
   }
 
+  const PJRT_NamedValue *create_options = args->create_options;
+  std::cerr << args->num_options << std::endl;
+  for (size_t i = 0; i < args->num_options; ++i) {
+    DLOG_F(WARNING, "AAAAA Unused PJRT Client create option: %s",
+           create_options[i].name);
+  }
+
   PJRT_Error *error = GlobalClientInstanceSingleton::initClient();
 
   if (error) {
