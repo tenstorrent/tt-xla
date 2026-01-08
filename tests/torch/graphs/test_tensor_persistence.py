@@ -24,8 +24,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra.comparators.comparison_config import ComparisonConfig, PccConfig
-from infra.comparators.torch_comparator import TorchComparator
+from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
 from torch_xla.distributed.spmd import Mesh
 
 """
@@ -106,7 +105,7 @@ def test_output_reused_in_two_serial_graphs():
 
     # Compare results using PCC
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
-    comparator = TorchComparator(comparison_config)
+    comparator = TorchComparisonEvaluator(comparison_config)
     comparator.compare(output_o.cpu(), expected_o)
     comparator.compare(output_p.cpu(), expected_p)
     comparator.compare(output_q.cpu(), expected_q)
@@ -159,7 +158,7 @@ def test_output_reused_in_three_serial_graphs():
 
     # Compare results using PCC
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
-    comparator = TorchComparator(comparison_config)
+    comparator = TorchComparisonEvaluator(comparison_config)
     comparator.compare(output_o.cpu(), expected_o)
     comparator.compare(output_p.cpu(), expected_p)
     comparator.compare(output_q.cpu(), expected_q)
@@ -219,7 +218,7 @@ def test_multiple_outputs_reused_independently():
 
     # Compare results using PCC
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
-    comparator = TorchComparator(comparison_config)
+    comparator = TorchComparisonEvaluator(comparison_config)
     comparator.compare(output_o1.cpu(), expected_o1)
     comparator.compare(output_o2.cpu(), expected_o2)
     comparator.compare(output_p.cpu(), expected_p)
@@ -279,7 +278,7 @@ def test_diamond_dependency_pattern():
 
     # Compare results using PCC
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
-    comparator = TorchComparator(comparison_config)
+    comparator = TorchComparisonEvaluator(comparison_config)
     comparator.compare(output_o.cpu(), expected_o)
     comparator.compare(output_p.cpu(), expected_p)
     comparator.compare(output_q.cpu(), expected_q)
@@ -335,7 +334,7 @@ def test_chain_with_multiple_reuses():
 
     # Compare results using PCC
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
-    comparator = TorchComparator(comparison_config)
+    comparator = TorchComparisonEvaluator(comparison_config)
     comparator.compare(output_o.cpu(), expected_o)
     comparator.compare(output_p.cpu(), expected_p)
     comparator.compare(output_q.cpu(), expected_q)
@@ -396,7 +395,7 @@ def test_output_reused_with_matrix_operations():
 
     # Compare results using PCC
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
-    comparator = TorchComparator(comparison_config)
+    comparator = TorchComparisonEvaluator(comparison_config)
     comparator.compare(output_o.cpu(), expected_o)
     comparator.compare(output_p.cpu(), expected_p)
     comparator.compare(output_q.cpu(), expected_q)
@@ -439,7 +438,7 @@ def test_input_moved_to_device_then_used_in_graph():
 
     # Compare using PCC
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
-    comparator = TorchComparator(comparison_config)
+    comparator = TorchComparisonEvaluator(comparison_config)
     comparator.compare(input_a_cpu_back, input_a_cpu)
 
     # Now use the input in a graph
@@ -498,7 +497,7 @@ def test_input_not_modified_reused_in_another_graph():
 
     # Compare results using PCC
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
-    comparator = TorchComparator(comparison_config)
+    comparator = TorchComparisonEvaluator(comparison_config)
     comparator.compare(output_g.cpu(), expected_g)
     comparator.compare(output_h.cpu(), expected_h)
 

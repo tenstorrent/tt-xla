@@ -57,7 +57,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
             # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
-            if TorchComparator._compare_allclose(
+            if TorchComparisonEvaluator._compare_allclose(
                 device_output, golden_output, pcc_config.allclose
             ):
                 return 1.0
