@@ -115,6 +115,7 @@ test_config:
     supported_archs: [n300]
     status: KNOWN_FAILURE_XFAIL  # Affected by change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
+    bringup_status: FAILED_FE_COMPILATION
 
   swin/image_classification/pytorch-swin_v2_t-data_parallel-inference:
     supported_archs: [n300]
