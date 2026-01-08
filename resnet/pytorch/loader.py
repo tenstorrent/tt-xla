@@ -270,11 +270,12 @@ class ModelLoader(ForgeModel):
         )
         return inputs if inputs.is_contiguous() else inputs.contiguous()
 
-    def output_postprocess(self, output):
+    def output_postprocess(self, output, top_k=1):
         """Post-process model outputs.
 
         Args:
             output: Model output tensor.
+            top_k: Number of top predictions to return (default: 1).
 
         Returns:
             dict: Prediction dict with top predictions.
@@ -289,4 +290,4 @@ class ModelLoader(ForgeModel):
                 model_instance=self.model,
             )
 
-        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
+        return self._postprocessor.postprocess(output, top_k=top_k, return_dict=True)

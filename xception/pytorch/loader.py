@@ -206,6 +206,7 @@ class ModelLoader(ForgeModel):
         compiled_model=None,
         inputs=None,
         dtype_override=None,
+        top_k=1,
     ):
         """Post-process model outputs.
 
@@ -216,6 +217,7 @@ class ModelLoader(ForgeModel):
             compiled_model: Compiled model (legacy).
             inputs: Input images (legacy).
             dtype_override: Optional dtype override (legacy).
+            top_k: Number of top predictions to return (default: 1).
 
         Returns:
             dict or None: Prediction dict if output provided, else None (prints results).
@@ -232,7 +234,9 @@ class ModelLoader(ForgeModel):
 
         # New usage: return dict from output tensor
         if output is not None:
-            return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
+            return self._postprocessor.postprocess(
+                output, top_k=top_k, return_dict=True
+            )
 
         # Legacy usage: print results (backward compatibility)
         self._postprocessor.print_results(
