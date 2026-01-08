@@ -15,20 +15,14 @@
 
 ## Build Tests
 
-Enabled by default during a full `tt-xla` build:
-
-```bash
-cmake -B build -G Ninja
-cmake --build build/
-```
-
-Build can be disabled during CMake configuration through the dedicated option:
+Tests are built by default during a full `tt-xla` build. This behavior can be
+disabled during CMake configuration through the dedicated option:
 
 ```bash
 cmake -B build -G Ninja -DTTXLA_ENABLE_PJRT_TESTS=OFF
 ```
 
-To build or clean the test-specific target, run:
+To build or clean only the test-specific target, run:
 
 ```bash
 # build
@@ -39,7 +33,7 @@ cd build
 ninja -t clean TTPJRTTests
 ```
 
-## Run Tests
+## Run and Debug Tests
 
 Use CTest (CMake's test driver) to run all tests:
 
@@ -47,8 +41,8 @@ Use CTest (CMake's test driver) to run all tests:
 ctest --test-dir build/ -R PJRT -V
 ```
 
-TODO(acicovic): We should alias these commands somehow in venv.
+To run within a debugger, follow the official instructions [here](https://docs.tenstorrent.com/tt-xla/getting_started_debugging.html#debugging-pjrt-unit-tests).
 
 ## CI
 
-TODO(acicovic).
+PJRT unit tests are run as part of every PR's [debug build workflow](/.github/workflows/call-build-debug.yml).
