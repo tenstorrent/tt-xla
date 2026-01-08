@@ -553,10 +553,6 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  regnet/pytorch-regnet_y_064-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
   regnet/pytorch-regnet_y_400mf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
