@@ -84,7 +84,7 @@ clang-format -i src/**/*.cpp
 - `TTXLA_ENV_ACTIVATED`: Must be set (checked by CMake)
 
 ### Optional Environment Variables
-- `LOGGER_LEVEL`: Set to `DEBUG` or `VERBOSE` for detailed logging
+- `TTXLA_LOGGER_LEVEL`: Set to `DEBUG` or `VERBOSE` for detailed logging
 - `TTMLIR_ENABLE_PERF_TRACE`: Enable performance tracing in tt-mlir
 
 ### Testing Device Connectivity

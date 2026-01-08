@@ -429,8 +429,8 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   maptr/pytorch-tiny_r50_24e_bevformer-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "'func.call' op incorrect number of operands for callee"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 20971520000 B DRAM buffer across 8 banks, where each bank needs to store 2621440000 B, but bank size is only 4278190016 B"
   maptr/pytorch-tiny_r50_24e_bevformer_t4-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION

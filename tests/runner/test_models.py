@@ -10,6 +10,7 @@ import warnings
 from typing import List, Optional
 
 import pytest
+import torch
 from infra import RunMode
 from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import (
@@ -26,9 +27,12 @@ from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
+    RunPhase,
     create_benchmark_result,
     find_dumped_ir_files,
     fix_venv_isolation,
+    get_input_shape_info,
+    get_xla_device_arch,
     record_model_test_properties,
     update_test_metadata_for_exception,
 )
@@ -38,7 +42,12 @@ from tests.runner.testers import (
     DynamicTorchModelTester,
 )
 from tests.utils import BringupStatus
-from third_party.tt_forge_models.config import ModelSource, Parallelism
+from third_party.tt_forge_models.config import (
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    Parallelism,
+)
 
 # Setup test discovery using TorchDynamicLoader and JaxDynamicLoader
 TEST_DIR = os.path.dirname(__file__)
@@ -59,6 +68,7 @@ def _run_model_test_impl(
     test_metadata: ModelTestConfig,
     request,
     captured_output_fixture,
+    run_phase: RunPhase = RunPhase.DEFAULT,
     compiler_config: CompilerConfig = None,
     **kwargs,  # Extra fixtures like clear_torchxla_computation_cache
 ) -> None:
@@ -102,6 +112,7 @@ def _run_model_test_impl(
                 if framework == Framework.TORCH:
                     tester = DynamicTorchModelTester(
                         run_mode,
+                        run_phase=run_phase,
                         loader=loader,
                         comparison_config=test_metadata.to_comparison_config(),
                         compiler_config=compiler_config,
@@ -187,6 +198,7 @@ def _run_model_test_impl(
                 model_info=model_info,
                 test_metadata=test_metadata,
                 run_mode=run_mode,
+                run_phase=run_phase,
                 parallelism=parallelism,
                 test_passed=succeeded,
                 comparison_results=list(comparison_result) if comparison_result else [],
@@ -195,9 +207,21 @@ def _run_model_test_impl(
 
             # prints perf benchmark results to console
             # Dumps perf benchmark results to JSON report if --perf-report-dir is given
-            if framework == Framework.TORCH:
+            if framework == Framework.TORCH and run_mode == RunMode.INFERENCE:
                 measurements = getattr(tester, "_perf_measurements", None)
                 output_dir = request.config.getoption("--perf-report-dir")
+                device_arch = get_xla_device_arch()
+                model_config = loader.load_config()
+                num_layers = getattr(model_config, "num_hidden_layers", -1)
+                batch_size, input_sequence_length = (
+                    get_input_shape_info(getattr(tester, "_input_activations", None))
+                    if tester
+                    else (1, -1)
+                )
+                if measurements and len(measurements) > 0:
+                    total_time = measurements[0].get("total_time", -1)
+                    total_samples = measurements[0].get("total_time", -1)
+
                 create_benchmark_result(
                     full_model_name=model_info.name,
                     output_dir=output_dir,
@@ -206,7 +230,18 @@ def _run_model_test_impl(
                     model_type="generic",
                     training=False,
                     model_info=model_info.name,
+                    model_group=str(model_info.group),
+                    parallelism=str(parallelism),
+                    device_arch=device_arch,
+                    run_mode=str(run_mode),
                     device_name=socket.gethostname(),
+                    batch_size=batch_size,
+                    input_size=(input_sequence_length,),
+                    num_layers=num_layers,
+                    total_time=total_time,
+                    total_samples=total_samples,
+                    input_sequence_length=input_sequence_length,
+                    data_format="bfloat16",
                 )
 
 
@@ -324,6 +359,68 @@ def test_all_models_jax(
     )
 
 
+# LLM Specific decode-only test for supported models, inference only for now. Seperate test to avoid impacting
+# original test names in test_all_models_torch and no need for collection-time deselection logic.
+
+
+@pytest.mark.model_test
+@pytest.mark.no_auto_properties
+@pytest.mark.llm_decode
+@pytest.mark.parametrize(
+    "run_mode",
+    [
+        pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+    ],
+)
+@pytest.mark.parametrize(
+    "parallelism",
+    [
+        pytest.param(
+            Parallelism.SINGLE_DEVICE,
+            id="single_device",
+            marks=pytest.mark.single_device,
+        ),
+        pytest.param(
+            Parallelism.TENSOR_PARALLEL,
+            id="tensor_parallel",
+            marks=pytest.mark.tensor_parallel,
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "test_entry",
+    [
+        entry
+        for entry in test_entries_torch
+        if hasattr(entry.variant_info[1], "load_inputs_decode")
+    ],
+    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+)
+def test_llms_decode_torch(
+    test_entry,
+    run_mode,
+    parallelism,
+    record_property,
+    test_metadata,
+    request,
+    captured_output_fixture,
+    clear_torchxla_computation_cache,
+):
+    """PyTorch model test - delegates to shared implementation."""
+    _run_model_test_impl(
+        test_entry=test_entry,
+        run_mode=run_mode,
+        run_phase=RunPhase.LLM_DECODE,
+        parallelism=parallelism,
+        framework=Framework.TORCH,
+        request=request,
+        record_property=record_property,
+        test_metadata=test_metadata,
+        captured_output_fixture=captured_output_fixture,
+        clear_torchxla_computation_cache=clear_torchxla_computation_cache,
+    )
+
+
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
 @pytest.mark.parametrize(
@@ -402,7 +499,7 @@ def test_all_models_op_by_op(
         except (FileNotFoundError, IOError, OSError) as e:
             pytest.fail(
                 f"Op-by-op test failed because IR file couldn't be read.\n"
-                f"Test: {nodeid}\n"
+                f"Test: {pytest_node_id}\n"
                 f"File: {ir_file_path}"
             )
 

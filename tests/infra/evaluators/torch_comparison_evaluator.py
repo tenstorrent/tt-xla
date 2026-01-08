@@ -14,6 +14,24 @@ from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig
 class TorchComparisonEvaluator(ComparisonEvaluator):
     """ComparisonEvaluator for Torch tensors/pytrees."""
 
+    # LLM decode tests may include transformers StaticCache objects in outputs (e.g., past_key_values).
+    # These are not torch.Tensors, so we detect them and treat matching StaticCache leaves as equal.
+    # TODO https://github.com/tenstorrent/tt-xla/issues/2743: Enable checking for allclose, pcc, atol, equal.
+    @staticmethod
+    def _is_static_cache(x: object) -> bool:
+        # Avoid importing transformers at module import time.
+        try:
+            from transformers.cache_utils import StaticCache  # type: ignore
+
+            return isinstance(x, StaticCache)
+        except Exception:
+            return False
+
+    @staticmethod
+    def _both_static_cache(x: object, y: object) -> bool:
+        is_sc = TorchComparator._is_static_cache
+        return is_sc(x) and is_sc(y)
+
     # @override
     @staticmethod
     @run_on_cpu(Framework.TORCH)
@@ -31,7 +49,12 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     @staticmethod
     @run_on_cpu(Framework.TORCH)
     def _compare_equal(device_output: PyTree, golden_output: PyTree) -> bool:
-        passed = tree_map(lambda x, y: torch.equal(x, y), device_output, golden_output)
+        def _equal_leaf(x, y):
+            if TorchComparator._both_static_cache(x, y):
+                return True
+            return torch.equal(x, y)
+
+        passed = tree_map(_equal_leaf, device_output, golden_output)
         flat_passed, _ = tree_flatten(passed)
         return all(flat_passed)
 
@@ -41,9 +64,12 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     def _compare_atol(
         device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
     ) -> float:
-        leaf_atols = tree_map(
-            lambda x, y: torch.max(torch.abs(x - y)), device_output, golden_output
-        )
+        def _atol_leaf(x, y):
+            if TorchComparator._both_static_cache(x, y):
+                return torch.tensor(0.0)
+            return torch.max(torch.abs(x - y))
+
+        leaf_atols = tree_map(_atol_leaf, device_output, golden_output)
         flat_atols, _ = tree_flatten(leaf_atols)
         atol = max(flat_atols)
         return float(atol)
@@ -55,6 +81,8 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
+            if TorchComparator._both_static_cache(x, y):
+                return torch.tensor(1.0)
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
             # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
             if TorchComparisonEvaluator._compare_allclose(
@@ -81,12 +109,13 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         golden_output: PyTree,
         allclose_config: AllcloseConfig,
     ) -> bool:
-        all_close = tree_map(
-            lambda x, y: torch.allclose(
+        def _allclose_leaf(x, y):
+            if TorchComparator._both_static_cache(x, y):
+                return True
+            return torch.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
-            ),
-            device_output,
-            golden_output,
-        )
+            )
+
+        all_close = tree_map(_allclose_leaf, device_output, golden_output)
         flat_close, _ = tree_flatten(all_close)
         return all(flat_close)
