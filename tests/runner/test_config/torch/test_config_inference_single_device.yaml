@@ -2322,7 +2322,7 @@ test_config:
 
   yolos_small/pytorch-small_dwr-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+    # reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
 
   yolos_small/pytorch-small_300-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
