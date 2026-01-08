@@ -31,6 +31,18 @@ from third_party.tt_forge_models.config import Parallelism
 BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
+# Optional hint that selects a non-default execution/input-loading phase.
+# Today this is only used to distinguish LLM prefill vs decode; in the future it may
+# be extended to other model families (e.g., vision) if they need phase-specific inputs.
+class RunPhase(Enum):
+    DEFAULT = "default"
+    LLM_PREFILL = "llm_prefill"
+    LLM_DECODE = "llm_decode"
+
+    def __str__(self) -> str:
+        return self.value
+
+
 def fix_venv_isolation():
     """
     Fix venv isolation issue: ensure venv packages take precedence over system packages.
@@ -496,6 +508,7 @@ def record_model_test_properties(
     test_metadata,
     run_mode: RunMode,
     parallelism: Parallelism,
+    run_phase: RunPhase = RunPhase.DEFAULT,
     test_passed: bool = False,
     comparison_results: list = None,
     comparison_config=None,
@@ -578,6 +591,7 @@ def record_model_test_properties(
         "model_name": str(model_info.name),
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
+        "run_phase": str(run_phase),
         "bringup_status": str(bringup_status),
         "model_test_status": str(test_metadata.status),
         "failing_reason": (
