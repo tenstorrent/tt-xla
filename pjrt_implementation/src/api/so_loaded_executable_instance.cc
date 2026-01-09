@@ -53,7 +53,7 @@ std::optional<std::string> PythonRunnerHandler::findPythonRunnerLibraryPath() {
   }
 
   std::string runner_lib_path =
-      std::string(mlir_home) + "/build/lib/libtt-alchemist-python-runner.so";
+      std::string(mlir_home) + "/install/lib/libtt-alchemist-python-runner.so";
 
   if (std::filesystem::exists(runner_lib_path)) {
     return runner_lib_path;
