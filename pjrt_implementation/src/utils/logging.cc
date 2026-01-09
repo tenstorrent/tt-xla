@@ -66,7 +66,7 @@ void logBringupStage(const char *stage_name) {
     return;
   if (std::ofstream f{"._bringup_stage.txt"}) {
     f << stage_name << '\n';
-  }
+ }
 }
 
 } // namespace tt::pjrt

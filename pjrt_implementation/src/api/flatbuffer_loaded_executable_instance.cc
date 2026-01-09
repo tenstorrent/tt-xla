@@ -335,6 +335,10 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     }
   }
 
+  DLOG_F(LOG_DEBUG, "[james] FlatbufferLoadedExecutableInstance::Execute - force materializing all buffers to host");
+
+  m_client_instance->materializeAllBuffersToHost();
+
   return tt_pjrt_status::kSuccess;
 }
 

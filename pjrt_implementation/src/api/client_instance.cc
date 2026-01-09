@@ -378,12 +378,19 @@ void ClientInstance::unregisterBuffer(BufferInstance *buffer) {
 void ClientInstance::materializeAllBuffersToHost() {
   std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
 
+  DLOG_F(LOG_DEBUG, "materializeAllBuffersToHost: total tracked buffers = %zu",
+         m_tracked_buffers.size());
+
   for (BufferInstance *buffer : m_tracked_buffers) {
     if (!buffer->getHostRuntimeTensor().has_value() &&
         buffer->getPreparedTensor().has_value()) {
       if (tt::runtime::isTensorAllocated(buffer->getPreparedTensor().value())) {
+        DLOG_F(LOG_DEBUG, "materializeAllBuffersToHost: calling toHost for buffer UID %lu",
+               buffer->getUID());
         std::vector<tt::runtime::Tensor> host_tensors = tt::runtime::toHost(
             buffer->getPreparedTensor().value(), /*untilize=*/true);
+        DLOG_F(LOG_DEBUG, "materializeAllBuffersToHost: toHost completed for buffer UID %lu",
+               buffer->getUID());
         if (!host_tensors.empty()) {
           buffer->setHostRuntimeTensor(host_tensors[0]);
         }
