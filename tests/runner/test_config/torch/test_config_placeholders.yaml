@@ -65,8 +65,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   Command A Reasoning:
     bringup_status: NOT_STARTED
-  SURYA OCR:
-    bringup_status: NOT_STARTED
   SAM_large_sa1b:
     bringup_status: NOT_STARTED
   Motif-Technologies/Motif-Image-6B-Preview:
