@@ -158,51 +158,6 @@ tt::runtime::Tensor FlatbufferLoadedExecutableInstance::convertTensorLayout(
                                tt::runtime::getTensorRetain(input_tensor));
 }
 
-void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
-    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
-    PJRT_Buffer **const *output_lists,
-    const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
-  size_t n_prog_output_tensors = output_tensors.size();
-
-  // Iterate over the available tensors and devices, filling in the PJRT Buffer
-  // outputs. The output BufferInstance is initialized with a device tensor
-  // which is lazily returned to host when CopyToHost is called.
-  for (size_t output_index = 0; output_index < n_prog_output_tensors;
-       output_index++) {
-    tt::runtime::Tensor outputDeviceTensor = output_tensors[output_index];
-
-    for (int device_index = 0; device_index < num_devices; ++device_index) {
-      std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
-
-      // For a given output_index, each device will get the same
-      // outputDeviceTensor This is trivially correct for replicated outputs.
-      // For sharded outputs, the outputDeviceTensor is a multi-device tensor
-      // and represents all shards. Therefore, the outputDevice tensor will
-      // still be the same for each device, and the BufferInstance will store
-      // which shard to retrieve via the device index, when requested in
-      // CopyToHost.
-      std::unique_ptr<BufferInstance> output_buffer =
-          BufferInstance::createOutputBufferInstance(
-              outputDeviceTensor, std::move(output_shape),
-              m_addressable_devices[device_index],
-              m_addressable_devices[device_index]->getDefaultMemory(),
-              expected_output_data_types[output_index], device_index,
-              m_client_instance);
-      DLOG_F(LOG_DEBUG,
-             "Filled output at output_index %zu device_index %d with shape %s "
-             "and UID %zu",
-             output_index, device_index, output_buffer->toShapeStr().c_str(),
-             output_buffer->getUID());
-
-      output_buffer->markAsDataReady();
-
-      // Releasing the ownership to the PJRT API caller since the caller is
-      // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
-      output_lists[device_index][output_index] = *output_buffer.release();
-    }
-  }
-}
-
 std::vector<std::uint32_t>
 FlatbufferLoadedExecutableInstance::getOutputShape(size_t output_index) {
   std::vector<std::uint32_t> outputShape =

@@ -6,9 +6,15 @@
 #include "api/so_loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <cassert>
+#include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <mutex>
 #include <numeric>
+
+// POSIX includes
+#include <dlfcn.h>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -26,6 +32,160 @@
 #include "utils/status.h"
 
 namespace tt::pjrt {
+
+// PythonRunnerHandler implementation
+
+PythonRunnerHandler::PythonRunnerHandler()
+    : m_initialized(false), m_handle(nullptr), m_create_runner(nullptr),
+      m_destroy_runner(nullptr), m_add_to_sys_path(nullptr),
+      m_load_module(nullptr), m_forward(nullptr) {}
+
+PythonRunnerHandler::~PythonRunnerHandler() {
+  if (m_handle != nullptr) {
+    dlclose(m_handle);
+  }
+}
+
+std::optional<std::string> PythonRunnerHandler::findPythonRunnerLibraryPath() {
+  const char *mlir_home = std::getenv("TT_MLIR_HOME");
+  if (mlir_home == nullptr) {
+    return std::nullopt;
+  }
+
+  std::string runner_lib_path =
+      std::string(mlir_home) + "/build/lib/libtt-alchemist-python-runner.so";
+
+  if (std::filesystem::exists(runner_lib_path)) {
+    return runner_lib_path;
+  }
+
+  return std::nullopt;
+}
+
+void PythonRunnerHandler::initialize() {
+  std::optional<std::string> maybe_so_path = findPythonRunnerLibraryPath();
+  if (!maybe_so_path.has_value()) {
+    DLOG_F(WARNING,
+           "tt-alchemist-python-runner library not found in TT_MLIR_HOME");
+    return;
+  }
+  std::string so_path = maybe_so_path.value();
+
+  dlerror(); // Clear any existing error
+  m_handle = dlopen(so_path.c_str(), RTLD_LAZY);
+  const char *dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlopen error while loading python-runner library: %s",
+           dlsym_error);
+    return;
+  }
+
+  // Load function pointers
+  m_create_runner = (void *(*)())dlsym(m_handle, "python_runner_create");
+  dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error for python_runner_create: %s", dlsym_error);
+    dlclose(m_handle);
+    m_handle = nullptr;
+    return;
+  }
+
+  m_destroy_runner = (void (*)(void *))dlsym(m_handle, "python_runner_destroy");
+  dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error for python_runner_destroy: %s", dlsym_error);
+    dlclose(m_handle);
+    m_handle = nullptr;
+    return;
+  }
+
+  m_add_to_sys_path = (void (*)(void *, const char *))dlsym(
+      m_handle, "python_runner_add_to_sys_path");
+  dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error for python_runner_add_to_sys_path: %s",
+           dlsym_error);
+    dlclose(m_handle);
+    m_handle = nullptr;
+    return;
+  }
+
+  m_load_module = (void (*)(void *, const char *, const char *))dlsym(
+      m_handle, "python_runner_load_module");
+  dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error for python_runner_load_module: %s",
+           dlsym_error);
+    dlclose(m_handle);
+    m_handle = nullptr;
+    return;
+  }
+
+  m_forward = (void (*)(void *, const tt::runtime::Tensor *, size_t,
+                        const tt::runtime::Device *, tt::runtime::Tensor **,
+                        size_t *))dlsym(m_handle, "python_runner_forward");
+  dlsym_error = dlerror();
+  if (dlsym_error) {
+    DLOG_F(WARNING, "dlsym error for python_runner_forward: %s", dlsym_error);
+    dlclose(m_handle);
+    m_handle = nullptr;
+    return;
+  }
+
+  m_initialized = true;
+}
+
+void *PythonRunnerHandler::createRunner() {
+  assert(m_initialized && "PythonRunnerHandler not initialized");
+  return m_create_runner();
+}
+
+void PythonRunnerHandler::destroyRunner(void *runner) {
+  assert(m_initialized && "PythonRunnerHandler not initialized");
+  m_destroy_runner(runner);
+}
+
+void PythonRunnerHandler::addToSysPath(void *runner, const char *path) {
+  assert(m_initialized && "PythonRunnerHandler not initialized");
+  m_add_to_sys_path(runner, path);
+}
+
+void PythonRunnerHandler::loadModule(void *runner, const char *module_name,
+                                     const char *function_name) {
+  assert(m_initialized && "PythonRunnerHandler not initialized");
+  m_load_module(runner, module_name, function_name);
+}
+
+std::vector<tt::runtime::Tensor>
+PythonRunnerHandler::forward(void *runner,
+                             const std::vector<tt::runtime::Tensor> &inputs,
+                             const tt::runtime::Device &device) {
+  assert(m_initialized && "PythonRunnerHandler not initialized");
+
+  tt::runtime::Tensor *output_array = nullptr;
+  size_t output_count = 0;
+
+  m_forward(runner, inputs.data(), inputs.size(), &device, &output_array,
+            &output_count);
+
+  std::vector<tt::runtime::Tensor> outputs;
+  if (output_array && output_count > 0) {
+    outputs.assign(output_array, output_array + output_count);
+    // Note: Assuming the C API allocates memory that we need to free
+    // If the API owns the memory, remove this free call
+    free(output_array);
+  }
+
+  return outputs;
+}
+
+// Global singleton instance
+static PythonRunnerHandler &getPythonRunnerHandler() {
+  static PythonRunnerHandler handler;
+  static std::once_flag init_flag;
+  std::call_once(init_flag, [&]() { handler.initialize(); });
+  return handler;
+}
 
 std::unique_ptr<SOLoadedExecutableInstance>
 SOLoadedExecutableInstance::createInstance(
@@ -120,9 +280,43 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
       options.backend == BackendRuntime::TTNNCodegenPy ? "Python" : "C++";
   std::cout << lang << " codegen successful. Check "
             << options.export_path.value() << " for the results." << std::endl;
-  // TODO: Implement SO execution. For now, we create default output buffers.
-  // https://github.com/tenstorrent/tt-xla/issues/2038
-  createDefaultOutputBuffers(args->output_lists, args->num_devices);
+
+  if (options.dry_run) {
+    // Dry run mode: skip execution and return zero-initialized output buffers
+    createDefaultOutputBuffers(args->output_lists, args->num_devices);
+  } else {
+    // Execute the generated code using PythonRunnerHandler
+    PythonRunnerHandler &handler = getPythonRunnerHandler();
+
+    if (!handler.isInitialized()) {
+      DLOG_F(ERROR, "PythonRunnerHandler not initialized - cannot execute SO");
+      return tt_pjrt_status::kInternal;
+    }
+
+    void *runner = handler.createRunner();
+    if (!runner) {
+      DLOG_F(ERROR, "Failed to create Python runner instance");
+      return tt_pjrt_status::kInternal;
+    }
+
+    handler.addToSysPath(runner, options.export_path.value().c_str());
+    handler.loadModule(runner, "main", "forward");
+    std::vector<tt::runtime::Tensor> output_tensors =
+        handler.forward(runner, input_tensors, *runtime_device);
+
+    handler.destroyRunner(runner);
+
+    if (output_tensors.size() != m_executable_image->getNumOutputs()) {
+      DLOG_F(ERROR,
+             "Runtime produced different number of output tensors (%zu) than "
+             "the compiler estimated number of outputs (%zu)",
+             output_tensors.size(), m_executable_image->getNumOutputs());
+      return tt_pjrt_status::kInternal;
+    }
+
+    fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
+                        m_executable_image->getOutputTypes());
+  }
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {

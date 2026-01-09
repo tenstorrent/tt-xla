@@ -63,6 +63,10 @@ CompileOptions CompileOptions::parse(
             "'TTNNFlatbuffer'");
   }
 
+  options.dry_run =
+      internal::parseBoolOption(compile_options, "dry_run")
+          .value_or(options.backend != BackendRuntime::TTNNFlatbuffer);
+
   return options;
 }
 

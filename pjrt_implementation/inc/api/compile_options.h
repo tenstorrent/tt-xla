@@ -97,6 +97,12 @@ struct CompileOptions {
   // Setting this will enable IR dumping.
   std::optional<std::string> export_path = std::nullopt;
 
+  // When true, execution will skip running the actual computation and return
+  // zero-initialized output buffers. This is useful for validating compilation
+  // without running inference. Default is true when using codegen backends,
+  // false for TTNNFlatbuffer.
+  bool dry_run = false;
+
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
 };

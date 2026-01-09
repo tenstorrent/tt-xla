@@ -62,16 +62,9 @@ private:
                       std::uint32_t program_index, size_t arg_index,
                       const tt::runtime::Device &runtime_device);
 
-  // Fills the output lists of the PJRT API with the outputs of tt runtime
-  // execution. Creates BufferInstances with device tensors instead of
-  // transferring them to host.
-  void fillPJRTOutputLists(
-      const std::vector<tt::runtime::Tensor> &output_tensors,
-      size_t num_devices, PJRT_Buffer **const *output_lists,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
-
   // Returns the shape of the output on the specified index.
-  std::vector<std::uint32_t> getOutputShape(size_t output_index);
+  // Overrides base implementation to apply sharding-specific adjustments.
+  std::vector<std::uint32_t> getOutputShape(size_t output_index) override;
 
   // Creates flatbuffer loaded executable instance from the executable image.
   FlatbufferLoadedExecutableInstance(

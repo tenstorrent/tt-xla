@@ -140,6 +140,18 @@ protected:
       const std::vector<BufferInstance *> &arg_buffers,
       const std::unordered_map<std::string, std::string> &strategy);
 
+  // Fills the output lists of the PJRT API with the outputs of tt runtime
+  // execution. Creates BufferInstances with device tensors instead of
+  // transferring them to host.
+  void fillPJRTOutputLists(
+      const std::vector<tt::runtime::Tensor> &output_tensors,
+      size_t num_devices, PJRT_Buffer **const *output_lists,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
+
+  // Returns the shape of the output on the specified index.
+  // Derived classes can override to apply sharding-specific adjustments.
+  virtual std::vector<std::uint32_t> getOutputShape(size_t output_index);
+
   // Executable image instance which is shared between executable and loaded
   // executable instances.
   std::shared_ptr<ExecutableImage> m_executable_image;
