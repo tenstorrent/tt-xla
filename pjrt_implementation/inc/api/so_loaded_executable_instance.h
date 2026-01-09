@@ -28,67 +28,7 @@
 #include "api/loaded_executable_instance.h"
 #include "utils/status.h"
 
-namespace tt::runtime {
-class Device;
-class Tensor;
-} // namespace tt::runtime
-
 namespace tt::pjrt {
-
-// Class to hold tt-alchemist-python-runner library handle and function
-// pointers.
-class PythonRunnerHandler {
-public:
-  // Default constructor leaves the library uninitialized.
-  PythonRunnerHandler();
-
-  // Destructor closes the handle to .so file.
-  ~PythonRunnerHandler();
-
-  // Initializes the python-runner library and function pointers. This function
-  // is fallible.
-  void initialize();
-
-  // Getter for initialization status.
-  bool isInitialized() const { return m_initialized; }
-
-  // Creates a new PythonModelRunner instance.
-  void *createRunner();
-
-  // Destroys a PythonModelRunner instance.
-  void destroyRunner(void *runner);
-
-  // Adds a path to Python sys.path.
-  void addToSysPath(void *runner, const char *path);
-
-  // Loads a Python module and function.
-  void loadModule(void *runner, const char *module_name,
-                  const char *function_name);
-
-  // Executes the forward function with given inputs.
-  std::vector<tt::runtime::Tensor>
-  forward(void *runner, const std::vector<tt::runtime::Tensor> &inputs,
-          const tt::runtime::Device &device);
-
-private:
-  // Finds python-runner library path using environment variables.
-  std::optional<std::string> findPythonRunnerLibraryPath();
-
-  // Initialization status.
-  bool m_initialized;
-
-  // The handle to the python-runner .so.
-  void *m_handle;
-
-  // Function pointers for PythonModelRunner operations.
-  void *(*m_create_runner)();
-  void (*m_destroy_runner)(void *);
-  void (*m_add_to_sys_path)(void *, const char *);
-  void (*m_load_module)(void *, const char *, const char *);
-  void (*m_forward)(void *, const tt::runtime::Tensor *, size_t,
-                    const tt::runtime::Device *, tt::runtime::Tensor **,
-                    size_t *);
-};
 
 // Derived class for SO-based loaded executables
 class SOLoadedExecutableInstance : public LoadedExecutableInstance {

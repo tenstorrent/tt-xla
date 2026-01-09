@@ -37,6 +37,7 @@ target_include_directories(TTPJRTApi PUBLIC
     ${Protobuf_INCLUDE_DIRS}
     ${TTMLIR_TOOLCHAIN_DIR}/src/shardy
     ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
+    ${TTMLIR_TOOLCHAIN_DIR}/install/include
 )
 
 target_link_libraries(TTPJRTApi
@@ -46,6 +47,7 @@ PRIVATE
     libprotobuf
     TTMLIRCompiler
     TTMLIRRuntime
+    tt-alchemist-python-runner
 PUBLIC
     TTPJRTUtils
 )
