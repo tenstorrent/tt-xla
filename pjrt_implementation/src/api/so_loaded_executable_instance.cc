@@ -126,7 +126,7 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     try {
       tt::alchemist::PythonModelRunner runner;
       runner.addToSysPath(options.export_path.value());
-      runner.loadModule("main", "forward");
+      runner.loadModule("main", "main");
       std::vector<tt::runtime::Tensor> output_tensors =
           runner.forward(input_tensors, *runtime_device);
 
