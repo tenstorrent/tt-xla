@@ -21,15 +21,15 @@ Requires:
 
 Usage Examples:
     # Run with a folder containing .mlir files, generate JSON report
-    pytest -svv tests/op_by_op_wip/test_op_by_op.py::test_op_by_op --folder=ir_files --json-report --json-report-file=report.json
+    pytest -svv tests/op_by_op/op_by_op_test.py::test_op_by_op --folder=ir_files --json-report --json-report-file=report.json
 
     # Filter ops using whitelist
-    pytest -svv tests/op_by_op_wip/test_op_by_op.py::test_op_by_op --folder=ir_files --whitelist="stablehlo.add,stablehlo.multiply" --json-report --json-report-file=report.json
+    pytest -svv tests/op_by_op/op_by_op_test.py::test_op_by_op --folder=ir_files --whitelist="stablehlo.add,stablehlo.multiply" --json-report --json-report-file=report.json
 
     # Match files based on prefix within model directories
     # Example: IRs were gathered using --dump-irs option in tests/runner/test_models.py (filepath: collected_irs/model_name/irs/shlo_compiler_*.mlir)
-    pytest -svv tests/op_by_op_wip/test_op_by_op.py::test_op_by_op --folder=collected_irs --ir-file-prefix="irs/shlo_compiler" --json-report --json-report-file=report.json
-
+    pytest -svv tests/op_by_op/op_by_op_test.py::test_op_by_op --folder=collected_irs --ir-file-prefix="irs/shlo_compiler" --json-report --json-report-file=report.json
+    
 Command Line Arguments:
     --folder: Path to folder containing .mlir files (required)
     --ir-file-prefix: Path pattern within each model directory for filtering files and extracting model names
