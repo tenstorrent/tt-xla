@@ -6,9 +6,12 @@
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 
 // c++ standard library includes
+#include <cassert>
+#include <cstdint>
 #include <optional>
 
 // llvm includes
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -21,6 +24,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Types.h"
+#include "mlir/Support/LLVM.h"
 #include "shardy/dialect/sdy/ir/dialect.h"
 
 #include "mlir/Pass/PassManager.h"
@@ -35,6 +39,13 @@
 namespace tt::pjrt::module_builder::frontend_passes {
 
 namespace internal {
+
+using ::mlir::sdy::AxisRefAttr;
+using ::mlir::sdy::DimensionShardingAttr;
+using ::mlir::sdy::MeshAttr;
+using ::mlir::sdy::MeshAxisAttr;
+using ::mlir::sdy::SubAxisInfoAttr;
+using ::mlir::sdy::TensorShardingAttr;
 
 // Strips all ttcore and ttir dialect attributes from a function's arguments and
 // results. This helper function filters out any attribute whose dialect
@@ -79,93 +90,224 @@ void stripTTDialectAttributes(mlir::func::FuncOp funcOp) {
   }
 }
 
+// Returns the AxisRefs in a sorted order based on the position of the axis in
+// the mesh. This is used to calculate the transposePerm. Algorithm adapted
+// from:
+// https://github.com/openxla/xla/blob/9ae3d6dab2c10c8195c8d9862f475904c7cdca91/xla/service/spmd/shardy/utils.cc#L304
+// Note: a lot of this logic deals with sub-axes, which isn't currently
+// supported by TT. Keeping it here for the future when we support sub-axes.
+mlir::SmallVector<AxisRefAttr>
+getOrderedAxisRefs(TensorShardingAttr sdySharding, MeshAttr mesh) {
+  // We use a map vector to maintain the order of mesh axes.
+  llvm::MapVector<mlir::StringRef, mlir::SmallVector<int64_t>>
+      axisNameToPreSizes;
+  axisNameToPreSizes.reserve(mesh.getAxes().size());
+  for (MeshAxisAttr meshAxis : mesh.getAxes()) {
+    mlir::SmallVector<int64_t> &preSizes =
+        axisNameToPreSizes[meshAxis.getName()];
+    preSizes.push_back(1);
+    preSizes.push_back(meshAxis.getSize());
+  }
+
+  auto consumeAxisRefList = [&](mlir::ArrayRef<AxisRefAttr> axisRefs) {
+    for (AxisRefAttr axisRef : axisRefs) {
+      // Add sub-axis pre-sizes to `axisNameToPreSizes`. We'll dedup later.
+      if (axisRef.getSubAxisInfo()) {
+        mlir::SmallVector<int64_t> &preSizes =
+            axisNameToPreSizes[axisRef.getName()];
+        preSizes.push_back(axisRef.getSubAxisInfo().getPreSize());
+        preSizes.push_back(axisRef.getSubAxisInfo().getNextPreSize());
+      }
+    }
+  };
+
+  for (DimensionShardingAttr dimSharding : sdySharding.getDimShardings()) {
+    consumeAxisRefList(dimSharding.getAxes());
+  }
+  consumeAxisRefList(sdySharding.getUnreducedAxes());
+
+  mlir::SmallVector<AxisRefAttr> axisRefs;
+  mlir::MLIRContext *ctx = mesh.getContext();
+  for (auto &[axisName, preSizes] : axisNameToPreSizes) {
+    if (preSizes.size() == 2) {
+      // Full axis
+      axisRefs.push_back(AxisRefAttr::get(ctx, axisName));
+      continue;
+    }
+    llvm::sort(preSizes);
+    preSizes.erase(std::unique(preSizes.begin(), preSizes.end()),
+                   preSizes.end());
+    for (int64_t i = 0; i < preSizes.size() - 1; ++i) {
+      int64_t preSize = preSizes[i];
+      int64_t size = preSizes[i + 1] / preSize;
+      axisRefs.push_back(AxisRefAttr::get(
+          ctx, axisName, SubAxisInfoAttr::get(ctx, preSize, size)));
+    }
+  }
+
+  return axisRefs;
+}
+
+// Modify the reshapeDims and transposePerm in place into a canonical form. This
+// is the form that Torch-XLA constructs when creating a HloShardingV2 spec for
+// input tensors, so we should match it for output tensors as well. Algorithm
+// adapted from:
+// https://github.com/openxla/xla/blob/9ae3d6dab2c10c8195c8d9862f475904c7cdca91/xla/hlo/ir/tile_assignment.cc#L58
+void canonicalizeIotaDims(mlir::SmallVector<int64_t> &reshapeDims,
+                          mlir::SmallVector<int64_t> &transposePerm) {
+  assert(reshapeDims.size() == transposePerm.size());
+  if (reshapeDims.size() < 1) {
+    return;
+  }
+  mlir::SmallVector<int64_t> old_to_new_dims(reshapeDims.size());
+  while (true) {
+    bool changed = false;
+    // Remove all dimensions of size 1
+    int new_ndims = 0;
+    for (int i = 0; i < reshapeDims.size(); ++i) {
+      if (reshapeDims[i] == 1) {
+        old_to_new_dims[i] = -1;
+      } else {
+        old_to_new_dims[i] = new_ndims++;
+      }
+    }
+    if (new_ndims != reshapeDims.size()) {
+      for (int i = 0, new_idx = 0; i < reshapeDims.size(); ++i) {
+        int new_dim = old_to_new_dims[i];
+        if (new_dim >= 0) {
+          reshapeDims[new_dim] = reshapeDims[i];
+        }
+
+        int new_perm_dim = old_to_new_dims[transposePerm[i]];
+        if (new_perm_dim >= 0) {
+          transposePerm[new_idx] = new_perm_dim;
+          ++new_idx;
+          assert(new_idx < new_ndims);
+        }
+      }
+      transposePerm.truncate(new_ndims);
+      reshapeDims.truncate(new_ndims);
+    }
+    // Merge subranges
+    for (int i = 1, base = 0, n = reshapeDims.size(); i < n; ++i) {
+      const int base_dim = transposePerm[base];
+      const int dim = transposePerm[i];
+      if (base_dim + (i - base) == dim) {
+        reshapeDims[base_dim] *= reshapeDims[dim];
+        reshapeDims[dim] = 1;
+        changed = true;
+      } else {
+        base = i;
+      }
+    }
+    if (!changed) {
+      break;
+    }
+  }
+}
+
+// Given a TensorShardingAttr, return the corresponding HloShardingV2 string
+// that describes it. This only handles cases the following cases:
+// - Fully replicated: eg. [{}, {}]
+// - Partially sharded: eg. [{}, {"batch"}]
+// - Fully sharded: eg. [{"batch"}, {"model"}]
+// And does not support sharding a dim over multiple axes: eg. [{}, {"batch",
+// "model"}]
+// TODO(hshahTT): Add support for sharding a dim over multiple axes.
+// Algorithm adapted from:
+// https://github.com/openxla/xla/blob/256b633e0adaee80588a8c3a5e4b2eaa005b5414/xla/service/spmd/shardy/stablehlo_round_trip/export_shardings.cc#L288
+std::string extractHloShardingString(TensorShardingAttr sdySharding,
+                                     MeshAttr mesh) {
+
+  if (sdySharding.isFullyReplicated()) {
+    return "{replicated}";
+  }
+
+  mlir::SmallVector<int64_t> tileAssignmentDims(sdySharding.getRank(), 1);
+  llvm::SmallDenseMap<mlir::sdy::AxisRefAttr, int64_t> axisRefToShardedPos;
+
+  int64_t shardedPos = 0;
+
+  // Iterate the dim shardings
+  for (auto [dimIndex, dimSharding] :
+       llvm::enumerate(sdySharding.getDimShardings())) {
+    for (AxisRefAttr axisRef : dimSharding.getAxes()) {
+      tileAssignmentDims[dimIndex] *= axisRef.getSize(mesh);
+      axisRefToShardedPos[axisRef] = shardedPos++;
+    }
+  }
+
+  mlir::SmallVector<AxisRefAttr> orderedAxisRefs =
+      getOrderedAxisRefs(sdySharding, mesh);
+  mlir::SmallVector<int64_t> reshapeDims(orderedAxisRefs.size());
+  mlir::SmallVector<int64_t> transposePerm(orderedAxisRefs.size());
+
+  int64_t totalReplicatedSize = 1;
+  int64_t replicatedPos = shardedPos;
+
+  for (auto [axisIndex, axisRef] : llvm::enumerate(orderedAxisRefs)) {
+    reshapeDims[axisIndex] = axisRef.getSize(mesh);
+    auto shardedPosIt = axisRefToShardedPos.find(axisRef);
+    if (shardedPosIt == axisRefToShardedPos.end()) {
+      // Axis is replicated
+      transposePerm[replicatedPos++] = axisIndex;
+      totalReplicatedSize *= axisRef.getSize(mesh);
+    } else {
+      // Axis is sharded
+      transposePerm[shardedPosIt->second] = axisIndex;
+    }
+  }
+
+  bool shouldAddLastTileDimReplicate = false;
+  if (totalReplicatedSize > 1) {
+    tileAssignmentDims.push_back(totalReplicatedSize);
+    shouldAddLastTileDimReplicate = true;
+  }
+
+  canonicalizeIotaDims(reshapeDims, transposePerm);
+
+  // Only add transposePerm if it is not the identity permutation, i.e.,
+  // if it's not [0, 1, 2, ...].
+  bool shouldAddTransposePerm = false;
+  for (size_t i = 0; i < transposePerm.size(); ++i) {
+    if (transposePerm[i] != i) {
+      shouldAddTransposePerm = true;
+      break;
+    }
+  }
+
+  std::string shardingString = "{devices=[";
+  llvm::raw_string_ostream os(shardingString);
+  llvm::interleave(tileAssignmentDims, os, ",");
+  shardingString += "]<=[";
+  llvm::interleave(reshapeDims, os, ",");
+  shardingString += "]";
+  if (shouldAddTransposePerm) {
+    shardingString += "T(";
+    llvm::interleave(transposePerm, os, ",");
+    shardingString += ")";
+  }
+  if (shouldAddLastTileDimReplicate) {
+    shardingString += " last_tile_dim_replicate";
+  }
+  shardingString += "}";
+  return shardingString;
+}
+
 // Given shardy out shardings from a manual computation op, return a list of
-// GSPMDV2 out sharding strings in output order
+// HloShardingV2 out sharding strings in output order
 // TODO: When HLOShardingV3 is uplifted, this transformation will need to change
 // to support the new sharding format.
-// Returns std::nullopt on error (e.g., invalid sharding configuration).
-std::optional<llvm::SmallVector<std::string>>
-extractSdyManualComputationOutSharding(
-    mlir::sdy::ManualComputationOp manualComputationOp,
-    llvm::SmallDenseMap<llvm::StringRef, int> &meshNameToSizeMap) {
+llvm::SmallVector<std::string> extractSdyManualComputationOutSharding(
+    mlir::sdy::ManualComputationOp manualComputationOp, MeshAttr mesh) {
   auto outShardingsArr = manualComputationOp.getOutShardings().getShardings();
 
-  uint64_t totalNumDevices = std::accumulate(meshNameToSizeMap.values().begin(),
-                                             meshNameToSizeMap.values().end(),
-                                             1LL, std::multiplies<int64_t>());
-
   llvm::SmallVector<std::string> outShardingStrs;
-  // Iterate over each output tensor sharding and construct the GSPMDV2 out
-  // sharding string for each output tensor
+  // Iterate over each output tensor sharding and construct the HloShardingV2
+  // out sharding string for each output tensor
   for (auto [outShardingIndex, outSharding] :
        llvm::enumerate(outShardingsArr)) {
-    bool isOutputTensorReplicated = true;
-    llvm::SmallVector<uint64_t> tensorAxisSizes;
-    std::string outShardingStr = "{devices=[";
-    auto dimShardings = outSharding.getDimShardings();
-
-    // Iterate over each dimension sharding on each output tensor sharding
-    // (replicated or simple axis sharding, without subaxes which are currently
-    // not supported).
-    for (auto [dimIndex, dimSharding] : llvm::enumerate(dimShardings)) {
-      auto axisName = dimSharding.getAxes();
-      // fully replicated case
-      if (axisName.empty()) {
-        tensorAxisSizes.push_back(1);
-        continue;
-      }
-
-      // one-axis sharding case
-      if (axisName.size() != 1) {
-        DLOG_F(ERROR, "Expected single axis name, found %zu axes",
-               axisName.size());
-        return std::nullopt;
-      }
-      isOutputTensorReplicated = false;
-      auto axisNameStr = axisName[0].getName();
-      uint64_t axisSize = meshNameToSizeMap.at(axisNameStr);
-      tensorAxisSizes.push_back(axisSize);
-    }
-
-    // The iota tile format requires replicated dimensions to be added as the
-    // last dimension, along with the string " last_tile_dim_replicate" Spec:
-    // https://github.com/jax-ml/jax/blob/84af8a8e74c05ce4196079e145d50f0c9504ff16/jax/_src/named_sharding.py#L415-L430
-    uint64_t totalTensorShardingAxisSizes =
-        std::accumulate(tensorAxisSizes.begin(), tensorAxisSizes.end(), 1LL,
-                        std::multiplies<int64_t>());
-    bool lastTileDimReplicate = false;
-    if (totalTensorShardingAxisSizes != totalNumDevices) {
-      lastTileDimReplicate = true;
-      if (totalNumDevices % totalTensorShardingAxisSizes != 0) {
-        DLOG_F(ERROR,
-               "Total tensor sharding axis sizes (%llu) must be a divisor of "
-               "total number of devices (%llu)",
-               static_cast<unsigned long long>(totalTensorShardingAxisSizes),
-               static_cast<unsigned long long>(totalNumDevices));
-        return std::nullopt;
-      }
-      uint64_t replicatedDim = totalNumDevices / totalTensorShardingAxisSizes;
-      tensorAxisSizes.push_back(replicatedDim);
-    }
-
-    std::string axisSizesString;
-    llvm::raw_string_ostream os(axisSizesString);
-    llvm::interleave(tensorAxisSizes, os, ",");
-    outShardingStr += axisSizesString;
-    outShardingStr += "]<=[";
-    outShardingStr += std::to_string(totalNumDevices);
-    outShardingStr += "]";
-
-    if (lastTileDimReplicate) {
-      outShardingStr += " last_tile_dim_replicate";
-    }
-    outShardingStr += "}";
-
-    if (isOutputTensorReplicated) {
-      outShardingStr = "{replicated}";
-    }
-
-    outShardingStrs.push_back(outShardingStr);
+    outShardingStrs.push_back(extractHloShardingString(outSharding, mesh));
   }
   return outShardingStrs;
 }
@@ -246,28 +388,18 @@ tt_pjrt_status cleanForXlaIngestion(
   assert(meshOps.size() == 1 && "Expected exactly one sdy.mesh op in module");
   auto meshOp = meshOps.front();
 
-  llvm::SmallDenseMap<llvm::StringRef, int> meshNameToSizeMap;
-  for (auto axis : meshOp.getMesh().getAxes()) {
-    meshNameToSizeMap[axis.getName()] = axis.getSize();
-  }
-
   // Extract out sharding from manual computation ops
   assert(manualComputationOps.size() == 1 &&
          "Expected exactly one ManualComputationOp in module");
   auto manualComputationOp = manualComputationOps.front();
   auto outShardingResult = internal::extractSdyManualComputationOutSharding(
-      manualComputationOp, meshNameToSizeMap);
-
-  if (!outShardingResult.has_value()) {
-    DLOG_F(ERROR, "Failed to extract sharding from manual computation op");
-    return tt_pjrt_status::kInternal;
-  }
+      manualComputationOp, meshOp.getMeshAttr());
 
   // Inject out sharding result into module as a moduleOp attr,
   // mhlo.spmd_output_shardings format list into tuple type opSharding
   std::string outShardingTupleString = "{";
   llvm::raw_string_ostream os(outShardingTupleString);
-  llvm::interleave(*outShardingResult, os, ",");
+  llvm::interleave(outShardingResult, os, ",");
   outShardingTupleString += "}";
 
   module->setAttr(
