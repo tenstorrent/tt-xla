@@ -8,10 +8,6 @@ VGG model loader implementation
 import torch
 from typing import Optional
 from dataclasses import dataclass
-import timm
-from pytorchcv.model_provider import get_model as ptcv_get_model
-from vgg_pytorch import VGG as HFVGG
-from torchvision import models as tv_models
 
 from ...config import (
     ModelConfig,
@@ -199,6 +195,11 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The VGG model instance.
         """
+
+        import timm
+        from pytorchcv.model_provider import get_model as ptcv_get_model
+        from vgg_pytorch import VGG as HFVGG
+        from torchvision import models as tv_models
 
         # Get the pretrained model name from the instance's variant config
         cfg = self._variant_config
