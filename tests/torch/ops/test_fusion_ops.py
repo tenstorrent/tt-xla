@@ -36,13 +36,8 @@ class LlamaRMSNorm(nn.Module):
     [(1, 32, 32), (1, 128, 768), (1, 1024, 768)],
 )
 @pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float32])
-def test_llama_rms_norm_fusion_e2e(batch_size, seq_len, hidden_size, dtype):
-    """
-    End-to-end test that verifies LlamaRMSNorm fusion through the TT backend.
+def test_llama_rms_norm_fusion(batch_size, seq_len, hidden_size, dtype):
 
-    After running this test, check output/irs/shlo_*.mlir for:
-        stablehlo.composite "tenstorrent.rms_norm"
-    """
     options = {
         "tt_enable_fusion_passes": True,
         "tt_enable_composite_ops": True,
