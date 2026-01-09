@@ -207,9 +207,7 @@ void simplifyMainFuncOp(mlir::func::FuncOp funcOp) {
           funcOp.getLoc(), denseAttr);
       returnValues.push_back(constantOp.getResult());
     } else {
-      // Non-tensor types - skip for now (shouldn't happen in StableHLO)
-      // If needed, handle appropriately
-      continue;
+      assert(false && "Found non-tensor type in return type of mainFuncOp");
     }
   }
 
