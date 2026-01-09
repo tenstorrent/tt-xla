@@ -236,7 +236,7 @@ def test_manual_assertion_after_assert_on_failure_false_still_fails(framework_se
     assert result.passed is False
 
     # But manually calling _assert_on_results should still raise
-    with pytest.raises(AssertionError, match="Comparison result 0 failed"):
+    with pytest.raises(AssertionError, match="Evaluation result 0 failed"):
         Evaluator._assert_on_results(result)
 
 
@@ -268,7 +268,7 @@ def test_manual_assertion_on_tuple_of_results(framework_setup):
     assert result_2.passed is False
 
     # Manually calling assert on tuple should raise because result_2 failed
-    with pytest.raises(AssertionError, match="Comparison result 1 failed"):
+    with pytest.raises(AssertionError, match="Evaluation result 1 failed"):
         Evaluator._assert_on_results((result_1, result_2))
 
 
