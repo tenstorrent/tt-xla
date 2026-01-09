@@ -5,7 +5,7 @@
 from torch.fx import GraphModule
 
 from . import providers
-from .base import apply_fusion_pattern, get_registered_providers
+from .utils import apply_fusion_pattern, get_registered_providers
 
 
 def run_fusion_passes(gm: GraphModule) -> GraphModule:

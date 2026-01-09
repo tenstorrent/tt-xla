@@ -2,7 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .base import (
+from .providers import RMSNormFusionProvider
+from .registry import run_fusion_passes
+from .utils import (
     DEFAULT_DTYPES,
     FusionPattern,
     apply_fusion_pattern,
@@ -10,8 +12,6 @@ from .base import (
     make_dtype_patterns,
     register_fusion_provider,
 )
-from .providers import RMSNormFusionProvider
-from .registry import run_fusion_passes
 
 __all__ = [
     # Core types

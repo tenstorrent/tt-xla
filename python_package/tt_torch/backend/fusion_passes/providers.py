@@ -14,7 +14,7 @@ from typing import Callable, List
 import torch
 from torch import Tensor
 
-from .base import FusionPattern, make_dtype_patterns, register_fusion_provider
+from .utils import FusionPattern, make_dtype_patterns, register_fusion_provider
 
 
 @register_fusion_provider
