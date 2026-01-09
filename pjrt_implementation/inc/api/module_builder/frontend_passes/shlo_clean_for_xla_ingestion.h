@@ -27,6 +27,8 @@ namespace tt::pjrt::module_builder::frontend_passes {
 // 4. Output shardings are injected as a moduleOp attr,
 // mhlo.spmd_output_shardings. This is required by XLA to correctly parse the
 // output shardings of the module.
+// For an example of this transformation, see
+// https://github.com/openxla/xla/issues/34830#issuecomment-3706288785
 tt_pjrt_status
 cleanForXlaIngestion(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 

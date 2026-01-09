@@ -639,19 +639,7 @@ def test_shared_input_across_mesh_reshape():
     t1 = torch.zeros(32, 32).to(device)
     t2 = torch.zeros(64, 64).to(device)
 
-    # shard one input to 2x4 graph to signal to compiler that the graph is non-replicated
-    # eg. to avoid this case if no inputs are sharded:
-    # SPMD-enabled mesh has trivial size [1, 1], reshaping to [1, 8]
-
-    # Currently this must be sharded on batch axis because the x+1 output of Program2x4
-    # will be sharded as {devices=[1,4,2]<=[8] last_tile_dim_replicate} if sharded on model axis.
-    # torch-xla's output collection will then instantiate a dummy graph to replicate the output
-    # but executes this graph on a 4x2 mesh (seemingly from the last 2 dims of the out_sharding [4,2])
-    # which is currently unsupported in tt-mlir as a mesh shape.
-
-    # See issue https://github.com/tenstorrent/tt-xla/issues/2748
-
-    xs.mark_sharding(t1, mesh, (None, "batch"))
+    xs.mark_sharding(t1, mesh, (None, "model"))
 
     print("Running 2x4", flush=True)
     compiled_model = torch.compile(Program2x4(), backend="tt")
