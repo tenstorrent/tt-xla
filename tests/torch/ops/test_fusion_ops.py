@@ -31,6 +31,8 @@ class LlamaRMSNorm(nn.Module):
         return self.weight * hidden_states.to(input_dtype)
 
 
+@pytest.mark.single_device
+@pytest.mark.push
 @pytest.mark.parametrize(
     "batch_size, seq_len, hidden_size",
     [(1, 32, 32), (1, 128, 768), (1, 1024, 768)],
