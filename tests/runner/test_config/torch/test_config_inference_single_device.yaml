@@ -619,8 +619,33 @@ test_config:
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-inference:
     status: EXPECTED_PASSING
 
-#  yoloworld/pytorch-single_device-inference:
-#    status: EXPECTED_PASSING
+  yoloworld/pytorch-small_640-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-small_1280-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-medium_640-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-medium_1280-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-large_640-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-large_1280-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-xlarge_640-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
 
   opt/qa/pytorch-facebook/opt-125m-single_device-inference:
     status: EXPECTED_PASSING
