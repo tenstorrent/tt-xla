@@ -1,0 +1,3 @@
+[
+  { "include": ["basic-test.json", "model-test-push.json", "model-test-extended.json"] }
+]
