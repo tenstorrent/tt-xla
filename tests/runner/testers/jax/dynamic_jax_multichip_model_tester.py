@@ -243,10 +243,14 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
     # @override
     def _cache_model_inputs(self) -> None:
-        """Caches model inputs."""    
+        """Caches model inputs."""
         self._input_activations = self._get_input_activations()
-        self._input_activations_partition_specs = self._get_input_activations_partition_spec()        
-        self._input_parameters_partition_specs = self._get_input_parameters_partition_spec()
+        self._input_activations_partition_specs = (
+            self._get_input_activations_partition_spec()
+        )
+        self._input_parameters_partition_specs = (
+            self._get_input_parameters_partition_spec()
+        )
         self._input_parameters = self._get_input_parameters()
 
     # Override abstract methods to use model_loader when available

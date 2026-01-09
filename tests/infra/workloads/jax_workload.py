@@ -74,14 +74,17 @@ class JaxMultichipWorkload(Workload):
         return self._sharding_mode
 
     def set_model_mesh_recursive(self, device_mesh):
-      """Set mesh on config and all sub-configs"""
-      self.model.config.set_model_mesh(device_mesh)
+        """Set mesh on config and all sub-configs"""
+        self.model.config.set_model_mesh(device_mesh)
 
-      # Check for text_config and vision_config sub-configs
-      if hasattr(self.model.config, 'text_config') and self.model.config.text_config:
-          self.model.config.text_config.set_model_mesh(device_mesh)
-      if hasattr(self.model.config, 'vision_config') and self.model.config.vision_config:
-          self.model.config.vision_config.set_model_mesh(device_mesh)
+        # Check for text_config and vision_config sub-configs
+        if hasattr(self.model.config, "text_config") and self.model.config.text_config:
+            self.model.config.text_config.set_model_mesh(device_mesh)
+        if (
+            hasattr(self.model.config, "vision_config")
+            and self.model.config.vision_config
+        ):
+            self.model.config.vision_config.set_model_mesh(device_mesh)
 
     def execute(self) -> Any:
         if isinstance(self.model, nnx.Module):
