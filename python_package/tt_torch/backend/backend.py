@@ -13,6 +13,7 @@ from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 
 from .decompositions import populate_decompositions
+from .fusion_passes import run_fusion_passes
 from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
 from .passes import (
     bypass_assert_tensor_metadata,
@@ -31,6 +32,14 @@ def torch_pass_pipeline(
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
+
+    # Run fusion passes to detect and fuse multi-op patterns
+    # This runs before composite_ops to allow fused patterns to be wrapped as composites
+    enable_fusion_passes = options is None or options.get(
+        "tt_enable_fusion_passes", True
+    )
+    if enable_fusion_passes:
+        gm = run_fusion_passes(gm)
 
     # This is a temporary option to disable / enable composite ops
     # that will be removed once composite ops are more stable.

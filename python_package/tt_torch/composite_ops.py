@@ -192,6 +192,7 @@ replacements = {
     # function replacements
     torch.nn.functional.gelu: composite_gelu,
     torch.rms_norm: composite_rms_norm,
+    torch.nn.functional.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
