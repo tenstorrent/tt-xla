@@ -184,30 +184,31 @@ class ModelLoader(ForgeModel):
         for layer in model.model.layers:
             # Self-attention weights
             # q_proj, k_proj, v_proj: column-wise sharding
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
             # o_proj: row-wise sharding
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+            shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+            shard_specs[layer.self_attn.sinks] = (None,)
 
             # MoE MLP components
             # Router is replicated across all devices
-            shard_specs[layer.mlp.router.weight] = ("batch", "batch")
+            shard_specs[layer.mlp.router.weight] = (None, None)
 
             # Expert weights - sharded across the expert dimension
             # These are 3D tensors with shape (num_experts, hidden_size, intermediate_size)
             shard_specs[layer.mlp.experts.gate_up_proj] = (
                 "model",
-                "batch",
-                "batch",
+                None,
+                None,
             )
-            shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", "batch")
+            shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
             shard_specs[layer.mlp.experts.down_proj] = (
                 "model",
-                "batch",
-                "batch",
+                None,
+                None,
             )
-            shard_specs[layer.mlp.experts.down_proj_bias] = ("model", "batch")
+            shard_specs[layer.mlp.experts.down_proj_bias] = ("model", None)
 
         return shard_specs
 
