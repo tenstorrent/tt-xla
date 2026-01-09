@@ -222,19 +222,20 @@ ModuleBuilder::buildModule(
 
   auto compile_options = CompileOptions::parse(compile_options_map);
 
-  // Construct full name: {model_name}_g{N}_{suffix}
-  // e.g., 1lyr_phi1_bs32_g0_a7f3
-  // Reset graph counter when model_name changes (new test run)
-  int graph_num;
-  {
-    std::lock_guard<std::mutex> lock(g_prefix_mutex);
-    if (compile_options.export_model_name != g_last_model_name) {
-      g_graph_counter.store(0);
-      g_last_model_name = compile_options.export_model_name;
-    }
-    graph_num = g_graph_counter.fetch_add(1);
-  }
+  // Construct full name: {model_name}_g{N}
+  // e.g., 1lyr_phi1_bs32_g0
+  // Only applies when user explicitly sets export_model_name.
+  // Reset graph counter when model_name changes (new test run).
   if (!compile_options.export_model_name.empty()) {
+    int graph_num;
+    {
+      std::lock_guard<std::mutex> lock(g_prefix_mutex);
+      if (compile_options.export_model_name != g_last_model_name) {
+        g_graph_counter.store(0);
+        g_last_model_name = compile_options.export_model_name;
+      }
+      graph_num = g_graph_counter.fetch_add(1);
+    }
     compile_options.export_model_name += "_g" + std::to_string(graph_num);
   }
 
