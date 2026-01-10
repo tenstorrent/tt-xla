@@ -678,6 +678,7 @@ def record_model_test_properties(
         pytest.xfail(reason)
 
 
+"""
 def get_xla_device_arch():
     device = torch_xla.device()
     device = xm.xla_device_kind(device)
@@ -686,6 +687,27 @@ def get_xla_device_arch():
     for item in ["wormhole", "blackhole"]:
         if item in arch_name:
             return item
+    return ""
+"""
+
+
+def get_xla_device_arch():
+    """
+    Get the XLA device architecture (wormhole, blackhole, etc.)
+
+    Handles both distributed/SPMD mode (NEED TO CHECK SINGLE DEVICE MODE)
+
+    Returns:
+        str: Architecture name ('wormhole' or 'blackhole'), or empty string if not found
+    """
+    var = "ARCH_NAME"
+    val = os.environ.get(var, "").lower()
+    for arch in ["wormhole", "blackhole"]:
+        if arch in val:
+            print(f"Found architecture from env var {var}: {arch}")
+            return arch
+
+    print("No architecture found")
     return ""
 
 

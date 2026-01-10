@@ -227,7 +227,7 @@ def _run_model_test_impl(
                 )
                 if measurements and len(measurements) > 0:
                     total_time = measurements[0].get("total_time", -1)
-                    total_samples = measurements[0].get("total_time", -1)
+                    total_samples = measurements[0].get("total_samples", -1)
 
                 create_benchmark_result(
                     full_model_name=model_info.name,
