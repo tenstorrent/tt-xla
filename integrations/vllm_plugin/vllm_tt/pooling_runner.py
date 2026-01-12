@@ -1339,10 +1339,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ).eval()
             replace_set_lora(model.eval())
 
-        # Sync all pending XLA execution during model initialization and weight
-        # loading.
-        xm.mark_step()
-        xm.wait_device_ops()
         if not hasattr(self, "model"):
             self.model = model
         self.model.compile(backend="tt", dynamic=False)
