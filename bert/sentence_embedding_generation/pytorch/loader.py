@@ -183,7 +183,7 @@ class ModelLoader(ForgeModel):
         attention_mask = inputs["attention_mask"]
 
         # Extract token embeddings from outputs
-        if isinstance(output, tuple):
+        if isinstance(output, (tuple, list)):
             token_embeddings = output[0]  # Last hidden state
         elif hasattr(output, "last_hidden_state"):
             # Handle BaseModelOutput or similar
