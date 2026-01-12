@@ -24,8 +24,11 @@ def codegen_py(
         "backend": "codegen_py",
         "export_path": export_path,
         "export_tensors": export_tensors,
+        "dry_run": False,
     }
-    jax.jit(func, compiler_options=real_compile_options)(*args, **kwargs)
+    print(
+        f"Debug: {jax.jit(func, compiler_options=real_compile_options)(*args, **kwargs)}"
+    )
     return None
 
 
