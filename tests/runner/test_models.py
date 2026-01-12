@@ -333,13 +333,22 @@ def test_all_models_jax(
     )
 
 
-# LLM Specific decode-only test for supported models, inference only for now. Seperate test to avoid impacting
+# LLM Specific tests for decode and prefill phases. Separate test to avoid impacting
 # original test names in test_all_models_torch and no need for collection-time deselection logic.
+
+# Build list of (test_entry, run_phase) pairs based on loader capabilities
+_llm_test_params = []
+for entry in test_entries_torch:
+    ModelLoader = entry.variant_info[1]
+    if hasattr(ModelLoader, "load_inputs_decode"):
+        _llm_test_params.append((entry, RunPhase.LLM_DECODE))
+    if hasattr(ModelLoader, "load_inputs_prefill"):
+        _llm_test_params.append((entry, RunPhase.LLM_PREFILL))
 
 
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
-@pytest.mark.llm_decode
+@pytest.mark.llm
 @pytest.mark.parametrize(
     "run_mode",
     [
@@ -362,16 +371,12 @@ def test_all_models_jax(
     ],
 )
 @pytest.mark.parametrize(
-    "test_entry",
-    [
-        entry
-        for entry in test_entries_torch
-        if hasattr(entry.variant_info[1], "load_inputs_decode")
-    ],
-    ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
+    "test_entry_and_phase",
+    _llm_test_params,
+    ids=lambda p: f"{DynamicLoader.generate_test_id(p[0], MODELS_ROOT_TORCH)}-{p[1].value}",
 )
-def test_llms_decode_torch(
-    test_entry,
+def test_llms_torch(
+    test_entry_and_phase,
     run_mode,
     parallelism,
     record_property,
@@ -380,11 +385,19 @@ def test_llms_decode_torch(
     captured_output_fixture,
     clear_torchxla_computation_cache,
 ):
-    """PyTorch model test - delegates to shared implementation."""
+    """PyTorch LLM model test (decode/prefill phases) - delegates to shared implementation."""
+    test_entry, run_phase = test_entry_and_phase
+
+    # Add phase-specific marker for filtering
+    if run_phase == RunPhase.LLM_DECODE:
+        request.node.add_marker(pytest.mark.llm_decode)
+    elif run_phase == RunPhase.LLM_PREFILL:
+        request.node.add_marker(pytest.mark.llm_prefill)
+
     _run_model_test_impl(
         test_entry=test_entry,
         run_mode=run_mode,
-        run_phase=RunPhase.LLM_DECODE,
+        run_phase=run_phase,
         parallelism=parallelism,
         framework=Framework.TORCH,
         request=request,
