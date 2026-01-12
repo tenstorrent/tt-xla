@@ -182,6 +182,10 @@ def _run_model_test_impl(
             raise
         finally:
             comparison_config = tester._comparison_config if tester else None
+            model_size = None
+            if framework == Framework.TORCH and tester is not None:
+                model_size = getattr(tester, "_model_size", None)
+
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
             record_model_test_properties(
@@ -195,6 +199,7 @@ def _run_model_test_impl(
                 test_passed=succeeded,
                 comparison_results=list(comparison_result) if comparison_result else [],
                 comparison_config=comparison_config,
+                model_size=model_size,
             )
 
             # prints perf benchmark results to console
