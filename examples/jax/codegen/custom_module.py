@@ -46,4 +46,6 @@ extra_options = {
     # "enable_l1_interleaved": False,
 }
 
-codegen_py(forward, state, x, export_path="model", compiler_options=extra_options)
+codegen_py(
+    forward, graphdef, state, x, export_path="model", compiler_options=extra_options
+)
