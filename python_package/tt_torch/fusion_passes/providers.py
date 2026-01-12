@@ -60,7 +60,7 @@ class FusionProvider(ABC):
         pass
 
     def get_patterns(self) -> List[FusionPattern]:
-        """Return list of FusionPatterns. Override to customize."""
+        """Return list of FusionPatterns. Override to customize (e.g. add match filters)."""
         return [FusionPattern(self.name, self.pattern, self.replacement)]
 
 
