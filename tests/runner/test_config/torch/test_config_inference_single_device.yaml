@@ -1302,7 +1302,7 @@ test_config:
 
   yolov9/pytorch-m-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Trying to access XLA data for tensor with ID 2590 while an async operation is in flight: UNKNOWN_SCALAR[]') raised in repr() - https://github.com/tenstorrent/tt-xla/issues/2776"
+    # reason: "Trying to access XLA data for tensor with ID 2590 while an async operation is in flight: UNKNOWN_SCALAR[]') raised in repr() - https://github.com/tenstorrent/tt-xla/issues/2776"
 
   yolov9/pytorch-c-single_device-inference:
     status: EXPECTED_PASSING
@@ -1353,7 +1353,7 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-timm_vgg19_bn-single_device-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9893799424171448. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    # required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9893799424171448. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg11-single_device-inference:
