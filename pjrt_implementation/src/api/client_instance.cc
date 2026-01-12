@@ -12,6 +12,7 @@
 
 // c++ standard library includes
 #include <cstddef>
+#include <cstdio>
 #include <filesystem>
 #include <optional>
 
@@ -733,6 +734,21 @@ PJRT_Error *onClientDefaultDeviceAssignment(
 PJRT_Error *
 onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
+
+  // Debug: Track buffer allocation per device
+  DeviceInstance *dbg_device = DeviceInstance::unwrap(args->device);
+  size_t dbg_num_elements = 1;
+  for (size_t i = 0; i < args->num_dims; ++i) {
+    dbg_num_elements *= args->dims[i];
+  }
+  size_t dbg_element_size = 2; // Assuming bfloat16
+  size_t dbg_buffer_size_bytes = dbg_num_elements * dbg_element_size;
+  fprintf(stderr,
+          "[HOST_ALLOC] BufferFromHostBuffer called for device_id=%d, "
+          "tensor_size=%.2f MB, num_dims=%zu\n",
+          dbg_device ? dbg_device->getGlobalDeviceId() : -1,
+          dbg_buffer_size_bytes / (1024.0 * 1024.0), args->num_dims);
+  fflush(stderr);
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
 
   if (args->device_layout &&

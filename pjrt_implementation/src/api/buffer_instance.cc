@@ -11,6 +11,8 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <atomic>
+#include <cstdio>
 #include <stdexcept>
 #include <thread>
 
@@ -71,6 +73,10 @@ std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
       device_tensor, device_id);
 }
 
+// Debug: Track total buffer allocations
+static std::atomic<size_t> s_total_buffer_count{0};
+static std::atomic<size_t> s_total_alloc_bytes{0};
+
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
                                const std::int64_t *dims, size_t num_dims,
                                DeviceInstance *device, MemoryInstance *memory,
@@ -83,6 +89,14 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
       m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {
   assert(m_client && "Client instance cannot be null");
   m_client->registerBuffer(this);
+
+  // Debug: Track buffer creation
+  size_t count = ++s_total_buffer_count;
+  fprintf(stderr,
+          "[HOST_ALLOC] InputBuffer created: uid=%zu, device_id=%d, "
+          "total_buffers_created=%zu\n",
+          m_uid, m_device ? m_device->getGlobalDeviceId() : -1, count);
+  fflush(stderr);
 }
 
 BufferInstance::BufferInstance(
@@ -231,6 +245,23 @@ void BufferInstance::copyFromHost(
       host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
+
+    // Debug: Track per-buffer host memory allocation
+    std::uint32_t dbg_volume = 1;
+    for (auto dim : shape) {
+      dbg_volume *= dim;
+    }
+    size_t dbg_alloc_bytes = dbg_volume * element_size;
+    size_t cumulative_bytes = s_total_alloc_bytes.fetch_add(dbg_alloc_bytes) + dbg_alloc_bytes;
+    fprintf(stderr,
+            "[HOST_ALLOC] Creating OWNED host tensor: buffer_uid=%zu, "
+            "alloc_size=%.2f MB, shape=[%s], device_id=%d, "
+            "cumulative_host_alloc=%.2f MB\n",
+            m_uid, dbg_alloc_bytes / (1024.0 * 1024.0),
+            tt::pjrt::utils::to_string(shape).c_str(),
+            m_device ? m_device->getGlobalDeviceId() : -1,
+            cumulative_bytes / (1024.0 * 1024.0));
+    fflush(stderr);
 
     m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
