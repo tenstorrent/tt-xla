@@ -124,11 +124,23 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   } else {
     // Execute the generated code using PythonModelRunner
     try {
+      DLOG_F(LOG_DEBUG, "Creating PythonModelRunner");
       tt::alchemist::PythonModelRunner runner;
+
+      DLOG_F(LOG_DEBUG, "Adding sys path: %s",
+             options.export_path.value().c_str());
       runner.addToSysPath(options.export_path.value());
-      runner.loadModule("main", "main");
+
+      DLOG_F(LOG_DEBUG, "Loading module main._main");
+      runner.loadModule("main", "_main");
+
+      DLOG_F(LOG_DEBUG, "Calling forward with %zu input tensors",
+             input_tensors.size());
       std::vector<tt::runtime::Tensor> output_tensors =
           runner.forward(input_tensors, *runtime_device);
+
+      DLOG_F(LOG_DEBUG, "Forward completed, got %zu output tensors",
+             output_tensors.size());
 
       if (output_tensors.size() != m_executable_image->getNumOutputs()) {
         DLOG_F(ERROR,
@@ -142,6 +154,10 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
                           m_executable_image->getOutputTypes());
     } catch (const std::exception &e) {
       DLOG_F(ERROR, "PythonModelRunner execution failed: %s", e.what());
+      return tt_pjrt_status::kInternal;
+    } catch (...) {
+      DLOG_F(ERROR,
+             "PythonModelRunner execution failed with unknown exception");
       return tt_pjrt_status::kInternal;
     }
   }
