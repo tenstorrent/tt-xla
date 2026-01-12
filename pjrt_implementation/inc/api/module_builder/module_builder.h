@@ -313,7 +313,7 @@ private:
       const std::vector<PJRT_Buffer_Type> &output_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
-      CompileOptions &&compile_options);
+      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
 
   // Builds module for TTNN Codegen C++ backend runtime.
   std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
@@ -331,7 +331,7 @@ private:
       const std::vector<PJRT_Buffer_Type> &output_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
-      CompileOptions &&compile_options);
+      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
 
   // Invokes tt-alchemist to generate a ready-to-run solution (C++ or Python)
   // independently of the frontend. In the future, this will also prepare
