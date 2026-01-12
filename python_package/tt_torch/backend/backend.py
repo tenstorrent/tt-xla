@@ -118,6 +118,7 @@ class XLAExecutor:
         total_args = tuple()
         encountered_user_input = False
         for spec in sig.input_specs:
+            # Kinds: CUSTOM_OBJ and TOKEN haven't been tested.
             if spec.kind == InputKind.CONSTANT_TENSOR:
                 total_args += (constants[spec.target],)
                 continue
