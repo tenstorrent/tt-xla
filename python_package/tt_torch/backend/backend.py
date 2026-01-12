@@ -128,7 +128,9 @@ class XLAExecutor:
                 not encountered_user_input
             ), "We expect user inputs to be last in the list of inputs."
             assert spec.target is not None
-            total_args += (state[spec.target],)
+            total_args += (
+                state[spec.target],
+            )  # Handles: USER_INPUT, PARAMETER, BUFFER
 
         return total_args
 
