@@ -97,6 +97,7 @@ class Framework(StrEnum):
     TORCH = "pytorch"
     NUMPY = "numpy"
     ONNX = "onnx"
+    PADDLE = "paddle"
 
 
 class Parallelism(StrEnum):
