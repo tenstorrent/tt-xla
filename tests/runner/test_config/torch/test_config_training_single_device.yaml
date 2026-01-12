@@ -53,7 +53,7 @@ test_config:
     markers: [notimeout]
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [notimeout]
+    markers: [large, notimeout]
   qwen_2_5_coder/pytorch-0_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
