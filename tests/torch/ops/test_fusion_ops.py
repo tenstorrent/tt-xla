@@ -33,7 +33,7 @@ def has_op_in_graph(gm, target):
 
 
 @register_backend(name="capture_graph")
-def test_fusion_passes(gm, example_inputs, options=None):
+def capture_graph_backend(gm, example_inputs, options=None):
 
     fused_op_fn = options.get("fused_op_fn")
 
