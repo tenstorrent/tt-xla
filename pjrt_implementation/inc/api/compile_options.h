@@ -89,7 +89,7 @@ struct CompileOptions {
 
   // Enables prettify pipelines and passes for TTNN IR. Makes code more
   // readable.
-  bool enable_prettify = false;
+  bool codegen_enable_prettify = false;
 
   // Output file path for TTNN performance metrics.
   // If empty, metrics will be saved to the "perf_metrics" directory with a
