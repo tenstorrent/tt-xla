@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Type
+from typing import Callable, List, Optional
 
 import torch
 from torch.fx import GraphModule
@@ -11,24 +11,6 @@ from torch.fx.subgraph_rewriter import replace_pattern_with_filters
 
 # Default dtypes for pattern generation
 DEFAULT_DTYPES = [torch.bfloat16, torch.float32]
-
-# Global registry populated by @register_fusion_provider decorator
-_REGISTERED_PROVIDERS: List[Type] = []
-
-
-def register_fusion_provider(cls: Type) -> Type:
-    """
-    Decorator to auto-register a fusion pattern provider.
-
-    The provider will be automatically discovered by run_fusion_passes().
-    """
-    _REGISTERED_PROVIDERS.append(cls)
-    return cls
-
-
-def get_registered_providers() -> List[Type]:
-    """Return all auto-registered fusion pattern providers."""
-    return _REGISTERED_PROVIDERS.copy()
 
 
 @dataclass

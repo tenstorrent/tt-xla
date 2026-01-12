@@ -13,7 +13,6 @@ from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 
 from .decompositions import populate_decompositions
-from .fusion_passes import run_fusion_passes
 from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
 from .passes import (
     bypass_assert_tensor_metadata,
@@ -21,6 +20,7 @@ from .passes import (
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
+    run_fusion_passes,
 )
 
 

@@ -6,19 +6,57 @@
 Central registry of all fusion pattern providers.
 
 All fusion provider classes are defined in this file.
-Use @register_fusion_provider decorator to auto-register each provider.
 """
 
-from typing import Callable, List
+from abc import ABC, abstractmethod
+from typing import Callable, List, Type
 
 import torch
 from torch import Tensor
 
-from .utils import FusionPattern, make_dtype_patterns, register_fusion_provider
+from .utils import FusionPattern, make_dtype_patterns
 
 
-@register_fusion_provider
-class RMSNormFusionProvider:
+class FusionProvider(ABC):
+    """Base class for all fusion pattern providers.
+
+    Subclasses are automatically registered via __init_subclass__.
+    """
+
+    _registered_providers: List[Type["FusionProvider"]] = []
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        FusionProvider._registered_providers.append(cls)
+
+    @classmethod
+    def get_registered_providers(cls) -> List[Type["FusionProvider"]]:
+        """Return all registered provider classes."""
+        return cls._registered_providers.copy()
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Human-readable name for this provider."""
+        pass
+
+    @abstractmethod
+    def get_patterns(self) -> List[FusionPattern]:
+        """Return list of fusion patterns provided by this class."""
+        pass
+
+    @abstractmethod
+    def _make_pattern(self, dtype: torch.dtype) -> Callable:
+        """Create a pattern function."""
+        pass
+
+    @abstractmethod
+    def _replacement_fn(self, *args, **kwargs) -> Tensor:
+        """Create a replacement function for the pattern."""
+        pass
+
+
+class RMSNormFusionProvider(FusionProvider):
     """
     Provides fusion patterns for RMS Normalization operations.
 
@@ -41,7 +79,7 @@ class RMSNormFusionProvider:
         return make_dtype_patterns(
             name_prefix="rms_norm",
             pattern_fn=self._make_pattern,
-            replacement_fn=self._rms_norm_replacement,
+            replacement_fn=self._replacement_fn,
         )
 
     @staticmethod
@@ -72,18 +110,10 @@ class RMSNormFusionProvider:
         return pattern
 
     @staticmethod
-    def _rms_norm_replacement(
-        hidden_states: Tensor, weight: Tensor, eps: float
-    ) -> Tensor:
+    def _replacement_fn(hidden_states: Tensor, weight: Tensor, eps: float) -> Tensor:
         """
         Replacement function for RMS norm pattern.
         """
         return torch.nn.functional.rms_norm(
             hidden_states, normalized_shape=weight.shape, weight=weight, eps=eps
         )
-
-
-# Add new fusion providers below:
-# @register_fusion_provider
-# class GeluFusionProvider:
-#     ...
