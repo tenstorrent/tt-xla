@@ -17,6 +17,16 @@ class JaxComparator(Comparator):
 
     # @override
     @staticmethod
+    def _is_single_element(tensor: PyTree) -> bool:
+        """Returns True if the tensor has only a single element."""
+        if isinstance(tensor, jax.Array):
+            return tensor.size == 1
+        # For pytrees, check if all leaves are single-element
+        leaves, _ = jax.tree_util.tree_flatten(tensor)
+        return all(leaf.size == 1 for leaf in leaves if isinstance(leaf, jax.Array))
+
+    # @override
+    @staticmethod
     @run_on_cpu(Framework.JAX)
     def _match_data_types(tensors: PyTree) -> PyTree:
         return tree_map(
@@ -58,9 +68,11 @@ class JaxComparator(Comparator):
         def compute_pcc(x: jax.Array, y: jax.Array):
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
             # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
-            if JaxComparator._compare_allclose(
-                device_output, golden_output, pcc_config.allclose
-            ):
+            if JaxComparator._compare_allclose(x, y, pcc_config.allclose):
+                return 1.0
+
+            # PCC is undefined for single-element tensors (no variance), skip and let allclose handle it
+            if JaxComparator._is_single_element(x):
                 return 1.0
 
             x_flat, y_flat = x.flatten(), y.flatten()
