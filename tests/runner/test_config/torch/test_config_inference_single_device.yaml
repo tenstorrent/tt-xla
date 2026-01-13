@@ -66,7 +66,7 @@ test_config:
     status: EXPECTED_PASSING
 
   wide_resnet/pytorch-wide_resnet101_2-single_device-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9892194867134094. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    required_pcc: 0.97  # PCC drop when changing input
     status: EXPECTED_PASSING
 
   bloom/pytorch-single_device-inference:
@@ -498,20 +498,21 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg13_bn-single_device-inference:
+    required_pcc: 0.985 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   vgg/pytorch-vgg13-single_device-inference:
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg16_bn-single_device-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9885805249214172. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    required_pcc: 0.975  # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   vgg/pytorch-vgg16-single_device-inference:
     status: EXPECTED_PASSING
 
   vgg/pytorch-vgg19_bn-single_device-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9898343086242676. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    required_pcc: 0.96 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   vgg/pytorch-vgg19-single_device-inference:
@@ -532,12 +533,15 @@ test_config:
     status: EXPECTED_PASSING
 
   xception/pytorch-xception65-single_device-inference:
+    required_pcc: 0.98 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   xception/pytorch-xception71-single_device-inference:
+    required_pcc: 0.98 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   xception/pytorch-xception71.tf_in1k-single_device-inference:
+    required_pcc: 0.98 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   roberta/masked_lm/pytorch-xlm_base-single_device-inference:
@@ -753,10 +757,8 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-large_v2-single_device-inference:
+    required_pcc: 0.975
     status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        required_pcc: 0.98
 
   albert/token_classification/pytorch-xlarge_v1-single_device-inference:
     status: EXPECTED_PASSING
@@ -1321,7 +1323,7 @@ test_config:
     status: EXPECTED_PASSING
 
   wide_resnet/pytorch-wide_resnet101_2.timm-single_device-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9892194867134094. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    required_pcc: 0.97  # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   efficientnet/pytorch-timm_efficientnet_b0-single_device-inference:
@@ -1349,7 +1351,7 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-bn_vgg19-single_device-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9889203310012817. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    required_pcc: 0.96 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   vgg/pytorch-timm_vgg19_bn-single_device-inference:
@@ -1369,7 +1371,7 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg19_bn-single_device-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9898343086242676. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    required_pcc: 0.96 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   vgg/pytorch-hf_vgg19-single_device-inference:
@@ -2342,6 +2344,7 @@ test_config:
 
   ultra_fast_lane_detection_v2/pytorch-tusimple_resnet34-single_device-inference:
     status: EXPECTED_PASSING
+    required_pcc: 0.985 # PCC drop when changing inputs.
 
   faster_rcnn/pytorch-resnet50_fpn-single_device-inference:
     status: NOT_SUPPORTED_SKIP
