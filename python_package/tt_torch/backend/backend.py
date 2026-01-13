@@ -119,19 +119,29 @@ class XLAExecutor:
         encountered_user_input = False
         for spec in sig.input_specs:
             # Kinds: CUSTOM_OBJ and TOKEN haven't been tested.
-            if spec.kind == InputKind.CONSTANT_TENSOR:
-                total_args += (constants[spec.target],)
-                continue
+            # USER_INPUT will not exist in state_dict, it is passed in from the outside.
             if spec.kind == InputKind.USER_INPUT:
                 encountered_user_input = True
                 continue
+
             assert (
                 not encountered_user_input
             ), "We expect user inputs to be last in the list of inputs."
-            assert spec.target is not None
-            total_args += (
-                state[spec.target],
-            )  # Handles: USER_INPUT, PARAMETER, BUFFER
+
+            assert spec.target is not None, f"Spec target is None for spec {spec}"
+            if spec.kind == InputKind.CONSTANT_TENSOR:
+                arg = constants[spec.target]
+            else:
+                arg = state[spec.target]  # Handles: PARAMETER, BUFFER
+            if arg.device.type == "cpu":
+                if spec.kind != InputKind.CONSTANT_TENSOR:
+                    print(
+                        f"A non constant tensor is being moved to XLA: {spec.target}.\n You might not have intended that."
+                    )
+                arg = arg.to(
+                    torch.device("xla")
+                )  # Maybe it makes sense to modify the ep to avoid multiple moves of constants?
+            total_args += (arg,)
 
         return total_args
 
