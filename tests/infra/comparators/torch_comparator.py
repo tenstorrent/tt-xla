@@ -14,6 +14,17 @@ from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, Pcc
 class TorchComparator(Comparator):
     """Comparator for Torch tensors/pytrees."""
 
+    # @override
+    def _is_single_element(self, tensor: PyTree) -> bool:
+        """Returns True if the tensor has only a single element."""
+        if isinstance(tensor, torch.Tensor):
+            return tensor.numel() == 1
+        # For pytrees, check if all leaves are single-element
+        leaves, _ = tree_flatten(tensor)
+        return all(
+            leaf.numel() == 1 for leaf in leaves if isinstance(leaf, torch.Tensor)
+        )
+
     # LLM decode tests may include transformers StaticCache objects in outputs (e.g., past_key_values).
     # These are not torch.Tensors, so we detect them and treat matching StaticCache leaves as equal.
     # TODO https://github.com/tenstorrent/tt-xla/issues/2743: Enable checking for allclose, pcc, atol, equal.
@@ -75,20 +86,21 @@ class TorchComparator(Comparator):
         return float(atol)
 
     # @override
-    @staticmethod
     @run_on_cpu(Framework.TORCH)
     def _compare_pcc(
-        device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
+        self, device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
             if TorchComparator._both_static_cache(x, y):
                 return torch.tensor(1.0)
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
             # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
-            if TorchComparator._compare_allclose(
-                device_output, golden_output, pcc_config.allclose
-            ):
+            if TorchComparator._compare_allclose(x, y, pcc_config.allclose):
                 return 1.0
+
+            # PCC is undefined for single-element tensors (no variance), but we want to fail if we came to this.
+            if self._is_single_element(x):
+                return 0.0
 
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
