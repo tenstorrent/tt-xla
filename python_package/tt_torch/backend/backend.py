@@ -136,7 +136,8 @@ class XLAExecutor:
             if arg.device.type != "xla":
                 if spec.kind != InputKind.CONSTANT_TENSOR:
                     print(
-                        f"Found an argument on non-XLA device which was not a lifted constant: {spec.target}.\n You might not have intended to pass a non XLA argument to TT compile. Force moving the argument to XLA."
+                        f"Found an argument on non-XLA device which was not a lifted constant: {spec.target}.\n"
+                        "Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA."
                     )
                 arg = arg.to(
                     torch.device("xla")
