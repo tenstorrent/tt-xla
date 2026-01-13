@@ -5,7 +5,13 @@
 Mistral model loader implementation for causal language modeling
 """
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    AutoConfig,
+    Mistral3ForConditionalGeneration,
+    MistralForCausalLM,
+)
 from typing import Optional
 
 from ...base import ForgeModel
@@ -32,6 +38,8 @@ class ModelVariant(StrEnum):
     MISTRAL_NEMO_INSTRUCT_2407 = "mistral_nemo_instruct_2407"
     DEVSTRAL_SMALL_2505 = "devstral_small_2505"
     MAGISTRAL_SMALL_2506 = "magistral_small_2506"
+    MISTRAL_SMALL_3_1_24B_INSTRUCT_2503 = "mistral_small_3.1_24b_instruct_2503"  # Untested in Transformers; for full testing, please refer to VLLM.
+    MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +50,12 @@ class ModelLoader(ForgeModel):
     _TEKKEN_TOKENIZER_VARIANTS = {
         ModelVariant.DEVSTRAL_SMALL_2505,
         ModelVariant.MAGISTRAL_SMALL_2506,
+    }
+    _USE_MistralForCausalLM = {
+        ModelVariant.MISTRAL_SMALL_3_1_24B_INSTRUCT_2503,
+    }
+    _USE_Mistral3ForConditionalGeneration_VARIANTS = {
+        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506,
     }
 
     # Dictionary of available model variants
@@ -72,6 +86,12 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MAGISTRAL_SMALL_2506: ModelConfig(
             pretrained_model_name="mistralai/Magistral-Small-2506",
+        ),
+        ModelVariant.MISTRAL_SMALL_3_1_24B_INSTRUCT_2503: ModelConfig(
+            pretrained_model_name="mistralai/Mistral-Small-3.1-24B-Instruct-2503",
+        ),
+        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506: ModelConfig(
+            pretrained_model_name="mistralai/Mistral-Small-3.2-24B-Instruct-2506",
         ),
     }
 
@@ -141,6 +161,14 @@ class ModelLoader(ForgeModel):
             self.tokenizer = MistralTokenizer.from_file(tokenizer_json)
             return self.tokenizer
 
+        if self._variant in self._USE_Mistral3ForConditionalGeneration_VARIANTS:
+            from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+
+            self.tokenizer = MistralTokenizer.from_hf_hub(
+                self._variant_config.pretrained_model_name
+            )
+            return self.tokenizer
+
         tokenizer_kwargs = {
             "padding_side": "left",
         }
@@ -174,9 +202,23 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
 
         # Load pre-trained model from HuggingFace
-        model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        ).eval()
+        if self._variant in self._USE_Mistral3ForConditionalGeneration_VARIANTS:
+            print(
+                "using the mistral3forconditionalgeneration model",
+                pretrained_model_name,
+            )
+            model = Mistral3ForConditionalGeneration.from_pretrained(
+                pretrained_model_name, **model_kwargs
+            ).eval()
+        elif self._variant in self._USE_MistralForCausalLM:
+            # Load pre-trained model from HuggingFace using MistralForCausalLM
+            model = MistralForCausalLM.from_pretrained(
+                pretrained_model_name, **model_kwargs
+            ).eval()
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name, **model_kwargs
+            ).eval()
 
         self.config = model.config
 
@@ -217,6 +259,40 @@ class ModelLoader(ForgeModel):
             attention_mask = torch.ones_like(input_ids, dtype=torch.long)
             inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
 
+        elif self._variant in self._USE_Mistral3ForConditionalGeneration_VARIANTS:
+            from mistral_common.protocol.instruct.request import ChatCompletionRequest
+
+            image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
+
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "What action do you think I should take in this situation? List all the possible actions and explain why you think they are good or bad.",
+                        },
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                    ],
+                },
+            ]
+
+            tokenized = self.tokenizer.encode_chat_completion(
+                ChatCompletionRequest(messages=messages)
+            )
+
+            input_ids = torch.tensor([tokenized.tokens])
+            attention_mask = torch.ones_like(input_ids)
+            pixel_values = torch.tensor(
+                tokenized.images[0], dtype=torch.bfloat16
+            ).unsqueeze(0)
+            image_sizes = torch.tensor([pixel_values.shape[-2:]])
+            inputs = {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "pixel_values": pixel_values,
+                "image_sizes": image_sizes,
+            }
         else:
             inputs = self.tokenizer.encode_plus(test_input, return_tensors="pt")
 
@@ -250,9 +326,14 @@ class ModelLoader(ForgeModel):
         if self._variant not in [
             ModelVariant.MINISTRAL_3B,
         ]:
-            assert (
-                self.config.num_attention_heads % mesh_shape[1] == 0
-            ), "Attention heads must be divisible by the model axis size"
+            if self._variant in self._USE_Mistral3ForConditionalGeneration_VARIANTS:
+                assert (
+                    self.config.text_config.num_attention_heads % mesh_shape[1] == 0
+                ), "Attention heads must be divisible by the model axis size"
+            else:
+                assert (
+                    self.config.num_attention_heads % mesh_shape[1] == 0
+                ), "Attention heads must be divisible by the model axis size"
         return mesh_shape, ("batch", "model")
 
     def load_shard_spec(self, model):
@@ -260,17 +341,42 @@ class ModelLoader(ForgeModel):
             ModelVariant.MINISTRAL_3B,
         ]:
             return None
-
         shard_specs = {}
-        for layer in model.model.layers:
-            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+        if self._variant in self._USE_Mistral3ForConditionalGeneration_VARIANTS:
+            for layer in model.model.vision_tower.transformer.layers:
+                # Feed-forward (PixtralMLP)
+                shard_specs[layer.feed_forward.up_proj.weight] = ("model", "batch")
+                shard_specs[layer.feed_forward.gate_proj.weight] = ("model", "batch")
+                shard_specs[layer.feed_forward.down_proj.weight] = ("batch", "model")
 
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+                # Attention (PixtralAttention)
+                shard_specs[layer.attention.q_proj.weight] = ("model", "batch")
+                shard_specs[layer.attention.k_proj.weight] = ("model", "batch")
+                shard_specs[layer.attention.v_proj.weight] = ("model", "batch")
+                shard_specs[layer.attention.o_proj.weight] = ("batch", "model")
+
+            for layer in model.model.language_model.layers:
+                # MLP
+                shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+                # Self-attention
+                shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+
+        else:
+            for layer in model.model.layers:
+                shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+                shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
         return shard_specs
 
     def load_config(self):
