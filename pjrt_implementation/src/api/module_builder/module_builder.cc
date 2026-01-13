@@ -12,7 +12,9 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <numeric>
+#include <unordered_map>
 
 // POSIX includes
 #include <dlfcn.h>
@@ -86,6 +88,13 @@ static std::string getCurrentTimeStamp() {
                 .count();
   return std::to_string(ms);
 }
+
+// Global counter for unique graph IDs
+static std::atomic<int> graph_counter{0};
+
+// Map from module name to graph ID (for correlating TTIR and TTNN dumps)
+static std::unordered_map<std::string, int> module_to_graph_id;
+static std::mutex module_graph_id_mutex;
 
 // TTAlchemistHandler implementation
 
@@ -772,6 +781,30 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
   ttir_mlir = getMlirCode(mlir_module);
 
   printModule(mlir_module, export_path, "ttir");
+  // TEMPORARY: Always dump TTIR IR to file for debugging
+  {
+    int graph_id = graph_counter.fetch_add(1);
+
+    // Store graph_id by module name for later TTNN lookup
+    std::string module_name = mlir_module->getName()
+                                  ? mlir_module->getName()->str()
+                                  : ("graph_" + std::to_string(graph_id));
+    {
+      std::lock_guard<std::mutex> lock(module_graph_id_mutex);
+      module_to_graph_id[module_name] = graph_id;
+    }
+
+    std::cout << "Try dump TTIR IR (Graph " << graph_id
+              << ", Module: " << module_name << ")." << std::endl;
+    std::string dump_path =
+        "/tmp/ttir_dump_graph_" + std::to_string(graph_id) + ".mlir";
+    std::ofstream dump_file(dump_path);
+    if (dump_file.is_open()) {
+      dump_file << ttir_mlir;
+      dump_file.close();
+      std::cout << "Dumped TTIR IR to: " << dump_path << std::endl;
+    }
+  }
 
   return tt_pjrt_status::kSuccess;
 }
@@ -967,6 +1000,37 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   ttnn_mlir = getMlirCode(mlir_module);
 
   printModule(mlir_module, compile_options.export_path, "ttnn");
+
+  // TEMPORARY: Always dump TTNN IR to file for debugging
+  {
+    // Look up the graph_id by module name
+    std::string module_name =
+        mlir_module->getName() ? mlir_module->getName()->str() : "unknown";
+
+    int graph_id = -1;
+    {
+      std::lock_guard<std::mutex> lock(module_graph_id_mutex);
+      auto it = module_to_graph_id.find(module_name);
+      if (it != module_to_graph_id.end()) {
+        graph_id = it->second;
+      }
+    }
+
+    std::cout << "Try dump TTNN IR (Graph " << graph_id
+              << ", Module: " << module_name
+              << ", opt_level=" << compile_options.optimization_level << ")."
+              << std::endl;
+    std::string dump_path = "/tmp/ttnn_dump_graph_" + std::to_string(graph_id) +
+                            "_opt_" +
+                            std::to_string(compile_options.optimization_level) +
+                            "_refix_transposed.mlir";
+    std::ofstream dump_file(dump_path);
+    if (dump_file.is_open()) {
+      dump_file << ttnn_mlir;
+      dump_file.close();
+      std::cout << "Dumped TTNN IR to: " << dump_path << std::endl;
+    }
+  }
 
   return tt_pjrt_status::kSuccess;
 }
