@@ -693,48 +693,64 @@ def get_xla_device_arch():
     return ""
 
 
-def get_input_shape_info(inputs) -> tuple[int, int]:
-    """Extract batch_size, sequence_length from input activations.
+def get_input_shape_info(inputs) -> tuple[int, int, tuple]:
+    """Extract batch_size, sequence_length, and input_size from input activations.
 
     Returns:
-        (batch_size, sequence_length)
-        For image models: sequence_length will be -1 (not applicable)
-        For LLMs: sequence_length is shape[1]
+        (batch_size, sequence_length, input_size)
+        For LLMs: input_size is (sequence_length,)
+        For image models: input_size is shape[1:] (e.g., (3, 224, 224))
+                         sequence_length will be -1 (not applicable)
     """
     if inputs is None:
-        print("No input activations found")
-        return 1, -1
+        return 1, -1, (-1,)
 
     # Get the first tensor to extract shape
     tensor = None
     if isinstance(inputs, torch.Tensor):
         tensor = inputs
-    elif isinstance(inputs, (list, tuple)) and len(inputs) > 0:
-        tensor = inputs[0] if hasattr(inputs[0], "shape") else None
-    elif isinstance(inputs, dict) and len(inputs) > 0:
-        tensor = next(iter(inputs.values()))
+    elif isinstance(inputs, collections.abc.Mapping):
+        if len(inputs) > 0:
+            # Get first value from the mapping (usually 'input_ids' for LLMs)
+            tensor = next(iter(inputs.values()))
+    elif isinstance(inputs, collections.abc.Sequence) and not isinstance(inputs, str):
+        if len(inputs) > 0:
+            tensor = inputs[0]
 
-    if tensor is None or not hasattr(tensor, "shape"):
-        return 1, -1
+    # Validate we got a tensor with a shape
+    if (
+        tensor is None
+        or not isinstance(tensor, torch.Tensor)
+        or not hasattr(tensor, "shape")
+    ):
+        return 1, -1, (-1,)
 
     shape = tensor.shape
     batch_size = shape[0] if len(shape) > 0 else 1
 
-    # sequence_length is shape[1] for LLMs
-    if len(shape) > 0 and len(shape) < 3:  # LLMs will have 2D or 3D tensors as inputs
-        sequence_length = shape[1]
+    if len(shape) >= 2:
+        if len(shape) >= 4:
+            # Image case [batch, channels, height, width]
+            sequence_length = -1  # Not applicable for images
+            input_size = tuple(shape[1:])  # (channels, height, width)
+        else:
+            # 2D or 3D: LLM case [batch, seq_len] or [batch, seq_len, hidden_dim]
+            sequence_length = shape[1]
+            input_size = (sequence_length,)
     else:
-        sequence_length = -1  # Not applicable (e.g., image inputs)
+        # other formats
+        sequence_length = -1
+        input_size = (-1,)
 
-    return batch_size, sequence_length
+    return batch_size, sequence_length, input_size
 
 
 def create_measurement(
     step_name: str,
     measurement_name: str,
-    value: float = 0.0,
-    step_warm_up_num_iterations: int = 1,
-    iteration: int = 1,
+    value: float = -1.0,
+    step_warm_up_num_iterations: int = -1,
+    iteration: int = -1,
     target: float = -1.0,
 ) -> dict[str, Any]:
     """Create a single perf measurement dictionary."""
@@ -756,6 +772,7 @@ def create_benchmark_result(
     model_type: str = "generic",
     training: bool = False,
     model_info: str = "",
+    model_rawname: str = "",
     model_group: str = "",
     parallelism: str = "",
     device_arch: str = "",
@@ -763,7 +780,7 @@ def create_benchmark_result(
     device_name: str = "",
     batch_size: int = 1,
     input_size: tuple = (1, 1),
-    num_layers: int = -1,
+    num_layers: int = 0,
     total_time: float = -1,
     total_samples: int = 0,
     input_sequence_length: Optional[int] = -1,
@@ -778,10 +795,10 @@ def create_benchmark_result(
         report_perf_<model_name>_<perf_id>.json
     """
 
-    # Extract e2e stats from the passed measurements list
     metric_list = []
 
-    # Create standard measurements
+    # Extract e2e stats from the passed measurements list
+    # First add standard measurements
     metric_list.append(
         create_measurement("e2e_perf", "total_samples", total_samples),
     )
@@ -789,20 +806,29 @@ def create_benchmark_result(
         create_measurement("e2e_perf", "total_time", total_time),
     )
 
+    # extract e2e perf stats and add measurements
     if measurements and len(measurements) > 0:
-        # extract e2e perf stats and create measurements using them
         perf_stats = measurements[0]
-        warmup_iters = perf_stats["warmup_iters"]
-        perf_iters = perf_stats["perf_iters"]
+        warmup_iters_count = perf_stats["warmup_iters_count"]
+        perf_iters_count = perf_stats["perf_iters_count"]
         metric_list.append(
             create_measurement(
                 "e2e_perf",
                 "avg_time",
                 perf_stats["avg_time"],
-                warmup_iters,
-                perf_iters,
+                warmup_iters_count,
             )
         )
+        for iteration, perf_time in enumerate(perf_stats["perf_times"], start=1):
+            metric_list.append(
+                create_measurement(
+                    "e2e_perf",
+                    f"perf_time_{iteration}",
+                    perf_time,
+                    warmup_iters_count,
+                    iteration,
+                )
+            )
 
     config = {
         "model_info": model_info,
@@ -833,7 +859,7 @@ def create_benchmark_result(
 
     # Add metadata required for collect_data parser
     benchmark_results["project"] = "tt-xla"
-    benchmark_results["model_rawname"] = full_model_name
+    benchmark_results["model_rawname"] = model_rawname
 
     # print benchmark results to console if there are measurements
     if len(benchmark_results["measurements"]) > 0:
