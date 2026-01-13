@@ -10,6 +10,8 @@ import vllm
 
 @pytest.mark.push
 @pytest.mark.single_device
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
