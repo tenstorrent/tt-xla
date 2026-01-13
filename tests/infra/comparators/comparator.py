@@ -210,10 +210,9 @@ class Comparator(ABC):
         """
         raise NotImplementedError("Subclasses must implement this method")
 
-    @staticmethod
     @abstractmethod
     def _compare_pcc(
-        device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
+        self, device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         """
         Compares PCC metric between device and golden output.
@@ -234,8 +233,7 @@ class Comparator(ABC):
         """
         raise NotImplementedError("Subclasses must implement this method")
 
-    @staticmethod
     @abstractmethod
-    def _is_single_element(tensor: Tensor) -> bool:
+    def _is_single_element(self, tensor: Tensor) -> bool:
         """Returns True if the tensor has only a single element."""
         raise NotImplementedError("Subclasses must implement this method")

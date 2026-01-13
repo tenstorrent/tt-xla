@@ -15,8 +15,7 @@ class TorchComparator(Comparator):
     """Comparator for Torch tensors/pytrees."""
 
     # @override
-    @staticmethod
-    def _is_single_element(tensor: PyTree) -> bool:
+    def _is_single_element(self, tensor: PyTree) -> bool:
         """Returns True if the tensor has only a single element."""
         if isinstance(tensor, torch.Tensor):
             return tensor.numel() == 1
@@ -87,10 +86,9 @@ class TorchComparator(Comparator):
         return float(atol)
 
     # @override
-    @staticmethod
     @run_on_cpu(Framework.TORCH)
     def _compare_pcc(
-        device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
+        self, device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
             if TorchComparator._both_static_cache(x, y):
@@ -100,9 +98,9 @@ class TorchComparator(Comparator):
             if TorchComparator._compare_allclose(x, y, pcc_config.allclose):
                 return 1.0
 
-            # PCC is undefined for single-element tensors (no variance), skip and let allclose handle it
-            if TorchComparator._is_single_element(x):
-                return 1.0
+            # PCC is undefined for single-element tensors (no variance), but we want to fail if we came to this.
+            if self._is_single_element(x):
+                return 0.0
 
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
