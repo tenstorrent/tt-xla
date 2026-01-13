@@ -474,7 +474,8 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
-def test_gpt_oss_mlp(variant, variant_config, arch):
+@pytest.mark.parametrize("mesh_shape", [(1, 8), (2, 4)])
+def test_gpt_oss_mlp(variant, variant_config, arch, mesh_shape):
     xr.set_device_type("TT")
 
     loader = GPTOSSModelLoader(variant=variant, num_layers=1)
@@ -485,6 +486,7 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
     batch_size = inputs["input_ids"].shape[0]  # 1
     seq_len = inputs["input_ids"].shape[1]  # 128 with padding
 
+    # Get MLP module
     mlp = model.model.layers[0].mlp
 
     hidden_states = torch.randn(
@@ -494,22 +496,22 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
     if arch == "llmbox":
         comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
+        # mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(mlp, args, kwargs):
             shard_specs = {}
 
-            # Router weights (not sharded).
-            shard_specs[mlp.router.weight] = (None, None)
+            # Router weights (not sharded)
+            shard_specs[mlp.router.weight] = (None, "batch")
             shard_specs[mlp.router.bias] = (None,)
 
-            # Shard experts across devices.
-            shard_specs[mlp.experts.gate_up_proj] = ("model", None, None)
+            # Shard experts across devices: 32 / 8 -> 4 experts per device
+            shard_specs[mlp.experts.gate_up_proj] = ("model", "batch", None)
             shard_specs[mlp.experts.gate_up_proj_bias] = ("model", None)
-            shard_specs[mlp.experts.down_proj] = ("model", None, None)
-            shard_specs[mlp.experts.down_proj_bias] = ("model", None)
+            shard_specs[mlp.experts.down_proj] = ("model", None, "batch")
+            shard_specs[mlp.experts.down_proj_bias] = ("model", "batch")
 
             return shard_specs
 
