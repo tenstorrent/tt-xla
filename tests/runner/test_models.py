@@ -216,8 +216,6 @@ def _run_model_test_impl(
             # Dumps perf benchmark results to JSON report if --perf-report-dir is given
             if framework == Framework.TORCH and run_mode == RunMode.INFERENCE:
                 measurements = getattr(tester, "_perf_measurements", None)
-                output_dir = request.config.getoption("--perf-report-dir")
-                device_arch = get_xla_device_arch()
                 model_config = loader.load_config()
                 num_layers = getattr(model_config, "num_hidden_layers", -1)
                 batch_size, input_sequence_length = (
@@ -225,13 +223,14 @@ def _run_model_test_impl(
                     if tester
                     else (1, -1)
                 )
+                total_time = -1
+                total_samples = -1
                 if measurements and len(measurements) > 0:
                     total_time = measurements[0].get("total_time", -1)
-                    total_samples = measurements[0].get("total_samples", -1)
-
+                    total_samples = measurements[0].get("perf_iters", -1)
                 create_benchmark_result(
                     full_model_name=model_info.name,
-                    output_dir=output_dir,
+                    output_dir=request.config.getoption("--perf-report-dir"),
                     perf_id=request.config.getoption("--perf-id"),
                     measurements=measurements,
                     model_type="generic",
@@ -239,7 +238,7 @@ def _run_model_test_impl(
                     model_info=model_info.name,
                     model_group=str(model_info.group),
                     parallelism=str(parallelism),
-                    device_arch=device_arch,
+                    device_arch=get_xla_device_arch(),
                     run_mode=str(run_mode),
                     device_name=socket.gethostname(),
                     batch_size=batch_size,
