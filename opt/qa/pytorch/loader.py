@@ -159,7 +159,7 @@ class ModelLoader(ForgeModel):
             self.sample_question,
             self.sample_context,
             max_length=self._variant_config.max_length,
-            padding="max_length",
+            padding=True,
             truncation=True,
             return_tensors="pt",
         )

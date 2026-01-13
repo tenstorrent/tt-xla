@@ -82,6 +82,30 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
+
+        Returns:
+            The loaded tokenizer instance
+        """
+        # Initialize tokenizer with dtype override if specified
+        tokenizer_kwargs = {}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        # Load the tokenizer
+        self.tokenizer = GPT2Tokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+        )
+
+        # Set pad token to eos token for GPT-Neo
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        return self.tokenizer
+
     def load_model(self, dtype_override=None):
         """Load and return the GPT-Neo model instance for this instance's variant.
 
@@ -95,16 +119,17 @@ class ModelLoader(ForgeModel):
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        self.tokenizer = GPT2Tokenizer.from_pretrained(pretrained_model_name)
+        # Ensure tokenizer is loaded
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        # Set pad token to eos token for GPT-Neo
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-
+        # Load the model with dtype override if specified
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
         model = GPTNeoForCausalLM.from_pretrained(pretrained_model_name, **model_kwargs)
+        model.eval()
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
@@ -125,8 +150,9 @@ class ModelLoader(ForgeModel):
             "researchers was the fact that the unicorns spoke perfect English."
         )
 
+        # Ensure tokenizer is initialized
         if self.tokenizer is None:
-            model = self.load_model(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         # Get max_length from the variant config
         max_length = self._variant_config.max_length
@@ -135,7 +161,7 @@ class ModelLoader(ForgeModel):
             prompt,
             return_tensors="pt",
             max_length=max_length,
-            padding="max_length",
+            padding=True,
             truncation=True,
         )
         generation_config = GenerationConfig(
