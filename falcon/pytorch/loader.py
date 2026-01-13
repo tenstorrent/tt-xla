@@ -95,7 +95,7 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.input_text_1 = "Write a function to calculate the factorial of a number"
+        self.input_text_1 = "In a shocking discovery, scientists stumbled upon a herd of unicorns living in a remote, unexplored valley in the Andes Mountains. To their astonishment, these unicorns could speak perfect English. Describe the scientists’ reactions, the unicorns’ personalities, and the conversations that unfold between them. Include vivid details of the valley, the unicorns’ appearance, and any surprising or magical behaviors they display."
         self.max_length = 512
         self.tokenizer = None
         self.config = None
@@ -143,7 +143,7 @@ class ModelLoader(ForgeModel):
         if self._variant == ModelVariant.FALCON_7B_INSTRUCT:
             inputs = self.tokenizer(self.input_text_2, return_tensors="pt")
         else:
-            inputs = self.tokenizer.encode(
+            inputs = self.tokenizer(
                 self.input_text_1,
                 add_special_tokens=True,
                 return_tensors="pt",
