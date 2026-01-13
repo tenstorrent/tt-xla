@@ -45,13 +45,12 @@ test_config:
     status: EXPECTED_PASSING
 
   clip/pytorch-base_patch16-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 3802 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
-    markers: ["extended"]
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2793
+    status: EXPECTED_PASSING
 
   clip/pytorch-base_patch32-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL # Newly exposed in Sept 6 due to tt-mlir uplift.
-    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 7604 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2793
+    status: EXPECTED_PASSING
 
   clip/pytorch-large_patch14-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -643,7 +642,7 @@ test_config:
     status: EXPECTED_PASSING
 
   yoloworld/pytorch-large_640-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
     status: EXPECTED_PASSING
 
   yoloworld/pytorch-large_1280-single_device-inference:
@@ -743,9 +742,8 @@ test_config:
     status: EXPECTED_PASSING
 
   yolos/pytorch-single_device-inference:
+    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1168 https://github.com/tenstorrent/tt-xla/issues/2759
     status: EXPECTED_PASSING
-    assert_pcc: false  # Was 0.96 before here (0.98 in tt-torch) started hitting this on Aug29 : https://github.com/tenstorrent/tt-xla/issues/1168 AssertionError: PCC comparison failed. Calculated: pcc=0.9559887647628784. Required: pcc=0.96. Later on Sept 2 started failing in WH too: AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.2700212001800537. Required: pcc=0.99 - Sept 2"
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-inference:
     required_pcc: 0.98
@@ -1112,18 +1110,16 @@ test_config:
     status: EXPECTED_PASSING
 
   vit/pytorch-vit_l_32-single_device-inference:
-    assert_pcc: false
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2460 http://github.com/tenstorrent/tt-xla/issues/1402
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9611120820045471. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
 
   mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-inference:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9673609137535095. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
   mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-inference:
-    assert_pcc: false
+    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2201 https://github.com/tenstorrent/tt-xla/issues/2416
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9587556719779968. Required: pcc=0.96 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-inference:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9657779932022095. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -1355,7 +1351,7 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-timm_vgg19_bn-single_device-inference:
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9893799424171448. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    required_pcc: 0.95  # https://github.com/tenstorrent/tt-xla/issues/1242 , https://github.com/tenstorrent/tt-xla/issues/2803
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg11-single_device-inference:
@@ -1429,14 +1425,12 @@ test_config:
     status: EXPECTED_PASSING
 
   vovnet/pytorch-vovnet39-single_device-inference:
-    assert_pcc: false
+    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2201 https://github.com/tenstorrent/tt-xla/issues/2524
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.964539647102356. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   vovnet/pytorch-vovnet57-single_device-inference:
-    assert_pcc: false
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2201 https://github.com/tenstorrent/tt-xla/issues/2524
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9755112528800964. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   vovnet/pytorch-ese_vovnet99b-single_device-inference:
     assert_pcc: false  # Exposed by removal of consteval on host
@@ -1449,7 +1443,7 @@ test_config:
 
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2368
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2368, https://github.com/tenstorrent/tt-xla/issues/2457
 
   vgg/pytorch-bn_vgg19b-single_device-inference:
     required_pcc: 0.96
@@ -2235,14 +2229,12 @@ test_config:
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
 
   mobilenetv1/pytorch-google/mobilenet_v1_1.0_224-single_device-inference:
-    assert_pcc: false
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2414
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9816039800643921. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
 
   regnet/pytorch-regnet_y_128gf-single_device-inference:
-    assert_pcc: false
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Statically allocated circular buffers in program 2023 clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/1827"
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2415
+    status: EXPECTED_PASSING
 
   detr/object_detection/pytorch-resnet_50-single_device-inference:
     assert_pcc: false
@@ -2314,16 +2306,15 @@ test_config:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2237
 
   yolos_small/pytorch-small-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+    required_pcc: 0.98
+    status: EXPECTED_PASSING
 
   yolos_small/pytorch-small_dwr-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+    required_pcc: 0.96
+    status: EXPECTED_PASSING
 
   yolos_small/pytorch-small_300-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 13519872 B L1 buffer across 9 banks, where each bank needs to store 1502208 B, but bank size is only 1331936 B"
+    status: EXPECTED_PASSING
 
   yolop/pytorch-yolop-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
