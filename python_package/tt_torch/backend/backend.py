@@ -133,10 +133,10 @@ class XLAExecutor:
                 arg = constants[spec.target]
             else:
                 arg = state[spec.target]  # Handles: PARAMETER, BUFFER
-            if arg.device.type == "cpu":
+            if arg.device.type != "xla":
                 if spec.kind != InputKind.CONSTANT_TENSOR:
                     print(
-                        f"A non constant tensor is being moved to XLA: {spec.target}.\n You might not have intended that."
+                        f"Found an argument on non-XLA device which was not a lifted constant: {spec.target}.\n You might not have intended to pass a non XLA argument to TT compile. Force moving the argument to XLA."
                     )
                 arg = arg.to(
                     torch.device("xla")
