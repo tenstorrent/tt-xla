@@ -8,13 +8,14 @@ import vllm
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
-def test_qwen3_32b_generation():
+@pytest.mark.parametrize("model_name", ["Qwen/Qwen3-32B", "Qwen/Qwen2.5-32B"])
+def test_qwen3_32b_generation(model_name: str):
     prompts = [
         "I like taking walks in the",
     ]
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
     llm_args = {
-        "model": "Qwen/Qwen3-32B",
+        "model": model_name,
         "max_num_batched_tokens": 32,
         "max_num_seqs": 1,
         "max_model_len": 32,
