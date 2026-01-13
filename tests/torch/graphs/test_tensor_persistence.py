@@ -636,11 +636,8 @@ def test_shared_input_across_mesh_reshape():
         )
     )
     t1 = torch.zeros(32, 32).to(device)
-    t2 = torch.zeros(32, 32).to(device)
+    t2 = torch.zeros(64, 64).to(device)
 
-    # shard one input to 2x4 graph to signal to compiler that the graph is non-replicated
-    # eg. to avoid this case if no inputs are sharded:
-    # SPMD-enabled mesh has trivial size [1, 1], reshaping to [1, 8]
     xs.mark_sharding(t1, mesh, (None, "model"))
 
     print("Running 2x4", flush=True)
@@ -664,3 +661,101 @@ def test_shared_input_across_mesh_reshape():
     # t2 is expected to have valid cached tensor at this point but does not.
     output = compiled_model2(t2)
     print(output)
+
+
+@pytest.mark.nightly
+@pytest.mark.push
+@pytest.mark.llmbox
+def test_output_sharding_simple_propagation():
+    """
+    Test scenario: Run a simple program on a 2x4 mesh and check the output sharding.
+    We expect output sharding to be propagated from input sharding directly, and to
+    remain so after execution.
+    """
+
+    class SimpleAdd(torch.nn.Module):
+        def forward(self, a, b, c, d, e, f, g):
+            return a + 1, b + 1, c + 1, d + 1, e + 1, f + 1, g + 1
+
+    xr.set_device_type("TT")
+    setup_spmd()
+    device = torch_xla.device()
+    mesh = create_device_mesh(
+        (
+            2,
+            4,
+        )
+    )
+
+    a = torch.arange(64, dtype=torch.int32).reshape((8, 8)).to(device)
+    b = torch.arange(64, dtype=torch.int32).reshape((8, 8)).to(device)
+    c = torch.arange(64, dtype=torch.int32).reshape((8, 8)).to(device)
+    d = torch.arange(64, dtype=torch.int32).reshape((8, 8)).to(device)
+    e = torch.arange(64, dtype=torch.int32).reshape((8, 8)).to(device)
+    f = torch.arange(64, dtype=torch.int32).reshape((8, 8)).to(device)
+    g = torch.arange(64, dtype=torch.int32).reshape((8, 8)).to(device)
+
+    ## check cpu results
+    a_cpu = a.cpu()
+    b_cpu = b.cpu()
+    c_cpu = c.cpu()
+    d_cpu = d.cpu()
+    e_cpu = e.cpu()
+    f_cpu = f.cpu()
+    g_cpu = g.cpu()
+    expected_output_a = a_cpu + 1
+    expected_output_b = b_cpu + 1
+    expected_output_c = c_cpu + 1
+    expected_output_d = d_cpu + 1
+    expected_output_e = e_cpu + 1
+    expected_output_f = f_cpu + 1
+    expected_output_g = g_cpu + 1
+
+    xs.mark_sharding(a, mesh, (None, "batch"))
+    xs.mark_sharding(b, mesh, (None, "model"))
+    xs.mark_sharding(c, mesh, ("batch", None))
+    xs.mark_sharding(d, mesh, ("model", None))
+    xs.mark_sharding(e, mesh, ("batch", "model"))
+    xs.mark_sharding(f, mesh, ("model", "batch"))
+    xs.mark_sharding(g, mesh, (None, None))
+
+    # Get input shard specs
+    input_a_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(a)
+    input_b_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(b)
+    input_c_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(c)
+    input_d_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(d)
+    input_e_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(e)
+    input_f_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(f)
+    input_g_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(g)
+
+    compiled_model = torch.compile(SimpleAdd(), backend="tt")
+    compiled_model = compiled_model.to(device)
+    output = compiled_model(a, b, c, d, e, f, g)
+
+    # check cpu result using comparator
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(output[0].cpu(), expected_output_a)
+    comparator.compare(output[1].cpu(), expected_output_b)
+    comparator.compare(output[2].cpu(), expected_output_c)
+    comparator.compare(output[3].cpu(), expected_output_d)
+    comparator.compare(output[4].cpu(), expected_output_e)
+    comparator.compare(output[5].cpu(), expected_output_f)
+    comparator.compare(output[6].cpu(), expected_output_g)
+
+    # Assert that input and output shard specs are the same
+    output_a_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(output[0])
+    output_b_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(output[1])
+    output_c_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(output[2])
+    output_d_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(output[3])
+    output_e_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(output[4])
+    output_f_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(output[5])
+    output_g_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(output[6])
+
+    assert input_a_shard_spec == output_a_shard_spec
+    assert input_b_shard_spec == output_b_shard_spec
+    assert input_c_shard_spec == output_c_shard_spec
+    assert input_d_shard_spec == output_d_shard_spec
+    assert input_e_shard_spec == output_e_shard_spec
+    assert input_f_shard_spec == output_f_shard_spec
+    assert input_g_shard_spec == output_g_shard_spec

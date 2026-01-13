@@ -1,0 +1,3 @@
+[
+  { "include": ["model-test-passing-weekly.json", "model-test-xfail-weekly.json", "model-test-training-xfail-weekly.json"] }
+]

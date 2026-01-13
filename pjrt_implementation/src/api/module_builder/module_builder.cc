@@ -16,6 +16,7 @@
 
 // POSIX includes
 #include <dlfcn.h>
+#include <vector>
 
 // llvm includes
 #include "llvm/Support/Casting.h"
@@ -68,6 +69,7 @@
 #include "api/compile_options.h"
 #include "api/executable_image.h"
 #include "api/memory_instance.h"
+#include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 #include "api/module_builder/frontend_passes/shlo_input_role_propagation.h"
 #include "api/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
 #include "utils/data_type_utils.h"
@@ -222,6 +224,8 @@ ModuleBuilder::buildModule(
 
   std::string original_mlir_code(mlir_code);
 
+  std::string optimized_mlir_code(original_mlir_code);
+
   status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
@@ -238,12 +242,6 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
-  status = collectOutputShardings(mlir_module, output_shardings);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
-  }
-
   NumArgumentsResult num_arguments;
   status = collectNumArguments(mlir_module, num_arguments);
   if (!tt_pjrt_status_is_ok(status)) {
@@ -252,10 +250,54 @@ ModuleBuilder::buildModule(
 
   std::vector<PJRT_Buffer_Type> output_types = collectOutputTypes(mlir_module);
 
+  std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
+
+  // GSPMD output shardings must be collected before the SHLO compiler pipeline
+  // is run. This will collect GSPMD shardings since shardy mesh op doesn't
+  // exist yet at this point.
+  status = collectOutputShardings(mlir_module, output_shardings);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
   status =
       runCompilerStableHLOPipeline(mlir_module, compile_options.export_path);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
+  }
+
+  // Shardy output shardings must be collected after the SHLO compiler pipeline
+  // is run. If shardy is being used, overwrite the GSPMD shardings collected
+  // earlier.
+  bool is_using_shardy_output_shardings =
+      isUsingShardyManualComputation(mlir_module);
+  DLOG_F(LOG_DEBUG,
+         "SHLO compiler pipeline run completed - is using shardy output "
+         "shardings: %d",
+         is_using_shardy_output_shardings);
+
+  if (is_using_shardy_output_shardings) {
+    // Clear the GSPMD shardings collected earlier before collecting shardy
+    // shardings
+    output_shardings.clear();
+    status = collectOutputShardings(mlir_module, output_shardings);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
+
+    // Sanitiation path for XLA ingestion operating on a clone of the base
+    // module
+    mlir::OwningOpRef<mlir::ModuleOp> sanitized_mlir_module =
+        mlir_module->clone();
+    status = frontend_passes::cleanForXlaIngestion(sanitized_mlir_module);
+
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
+
+    optimized_mlir_code = getMlirCode(sanitized_mlir_module);
+    printModule(sanitized_mlir_module, compile_options.export_path,
+                "shlo_compiler_cleaned");
   }
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
@@ -297,7 +339,7 @@ ModuleBuilder::buildModule(
         std::move(num_arguments), num_devices_result, mesh_shape,
         input_shardings, output_shardings, output_types,
         std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-        std::move(compile_options));
+        std::move(optimized_mlir_code), std::move(compile_options));
   } else if (compile_options.backend == BackendRuntime::TTNNCodegenCpp ||
              compile_options.backend == BackendRuntime::TTNNCodegenPy) {
     return buildModuleForTTNNCodegen(
@@ -306,7 +348,7 @@ ModuleBuilder::buildModule(
         std::move(num_arguments), num_devices_result, mesh_shape,
         input_shardings, output_shardings, output_types,
         std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-        std::move(compile_options));
+        std::move(optimized_mlir_code), std::move(compile_options));
   }
 
   DLOG_F(ERROR, "Unsupported backend option");
@@ -480,11 +522,33 @@ ModuleBuilder::collectOutputShardingsShardy(
   std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
   std::vector<mlir::sdy::TensorShardingAttr> shardy_attributes;
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
-    for (unsigned int result_index = 0; result_index < func_op.getNumResults();
-         ++result_index) {
-      shardy_attributes.push_back(
-          func_op.getResultAttrOfType<mlir::sdy::TensorShardingAttr>(
-              result_index, mlir::sdy::kShardingAttr));
+    std::vector<mlir::sdy::ManualComputationOp> manual_computation_ops;
+    func_op.walk([&](mlir::sdy::ManualComputationOp op) {
+      manual_computation_ops.push_back(op);
+    });
+
+    // zero manual computation ops may exist if execution is entirely replicated
+    // In this case, we must insert as many nullptr into shardy_attributes as
+    // there are results in the funcOp so that createShardingsFromShardy will
+    // generate the correct number of default output shardings
+    if (manual_computation_ops.size() == 0) {
+      for (size_t i = 0; i < func_op.getNumResults(); ++i) {
+        shardy_attributes.push_back(nullptr);
+      }
+      continue;
+    }
+
+    if (manual_computation_ops.size() != 1) {
+      DLOG_F(ERROR,
+             "Expected exactly zero or one manual computation op, found: %zu",
+             manual_computation_ops.size());
+      return std::nullopt;
+    }
+    mlir::sdy::ManualComputationOp manual_op = manual_computation_ops[0];
+    mlir::sdy::TensorShardingPerValueAttr out_shardings =
+        manual_op.getOutShardings();
+    for (size_t i = 0; i < out_shardings.size(); ++i) {
+      shardy_attributes.push_back(out_shardings.getSharding(i));
     }
   }
 
@@ -1102,7 +1166,7 @@ ModuleBuilder::buildModuleForTTNNRuntime(
     const std::vector<PJRT_Buffer_Type> &output_types,
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
-    CompileOptions &&compile_options) {
+    std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
   tt::runtime::Binary flatbuffer(nullptr);
   tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,
                                                  output_shardings, flatbuffer);
@@ -1127,7 +1191,8 @@ ModuleBuilder::buildModuleForTTNNRuntime(
       num_devices_result.num_partitions, num_devices_result.num_replicas,
       num_devices_result.num_devices_to_utilize, mesh_shape, input_shardings,
       output_shardings, output_types, std::move(output_memory_kinds),
-      std::move(output_memory_kinds_sizes), std::move(compile_options));
+      std::move(output_memory_kinds_sizes), std::move(optimized_mlir_code),
+      std::move(compile_options));
   return {tt_pjrt_status::kSuccess, executable_image};
 }
 
@@ -1144,7 +1209,7 @@ ModuleBuilder::buildModuleForTTNNCodegen(
     const std::vector<PJRT_Buffer_Type> &output_types,
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
-    CompileOptions &&compile_options) {
+    std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
   tt_pjrt_status status = performCodegen(ttnn_mlir, compile_options);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
@@ -1159,7 +1224,8 @@ ModuleBuilder::buildModuleForTTNNCodegen(
       num_devices_result.num_partitions, num_devices_result.num_replicas,
       num_devices_result.num_devices_to_utilize, mesh_shape, input_shardings,
       output_shardings, output_types, std::move(output_memory_kinds),
-      std::move(output_memory_kinds_sizes), std::move(compile_options));
+      std::move(output_memory_kinds_sizes), std::move(optimized_mlir_code),
+      std::move(compile_options));
   return {tt_pjrt_status::kSuccess, executable_image};
 }
 

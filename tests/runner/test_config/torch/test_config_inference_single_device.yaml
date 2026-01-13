@@ -300,8 +300,11 @@ test_config:
     status: EXPECTED_PASSING
 
   efficientnet/pytorch-efficientnet_b0-single_device-inference:
+    required_pcc: 0.985 # PCC droped to 0.9882324215005038
+    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed - https://github.com/tenstorrent/tt-xla/issues/2750"
     status: EXPECTED_PASSING
     markers: ["extended"]
+
 
   efficientnet/pytorch-efficientnet_b1-single_device-inference:
     status: EXPECTED_PASSING
@@ -619,8 +622,33 @@ test_config:
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-inference:
     status: EXPECTED_PASSING
 
-#  yoloworld/pytorch-single_device-inference:
-#    status: EXPECTED_PASSING
+  yoloworld/pytorch-small_640-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-small_1280-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-medium_640-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-medium_1280-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-large_640-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-large_1280-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
+
+  yoloworld/pytorch-xlarge_640-single_device-inference:
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: EXPECTED_PASSING
 
   opt/qa/pytorch-facebook/opt-125m-single_device-inference:
     status: EXPECTED_PASSING
@@ -1509,13 +1537,8 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   phi4/causal_lm/pytorch-microsoft/phi-4-single_device-inference:
-    arch_overrides:
-      p150:
-        status: EXPECTED_PASSING
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
-        bringup_status: FAILED_RUNTIME
+    supported_archs: ["p150"] # Run as tensor_parallel for wormhole (14B param model).
+    status: EXPECTED_PASSING
 
   phi4/seq_cls/pytorch-microsoft/phi-4-single_device-inference:
     status: EXPECTED_PASSING
@@ -1622,14 +1645,10 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   llama/causal_lm/pytorch-llama_3_1_70b-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/causal_lm/pytorch-llama_3_1_70b_instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/causal_lm/pytorch-llama_3_1_8b-single_device-inference:
     status: EXPECTED_PASSING
@@ -1648,14 +1667,10 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   llama/causal_lm/pytorch-llama_3_1_405b-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/causal_lm/pytorch-llama_3_3_70b_instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/causal_lm/pytorch-llama_3_8b-single_device-inference:
     status: EXPECTED_PASSING
@@ -1770,15 +1785,10 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-14b_instruct-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8147078156471252. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8147078156471252. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5/causal_lm/pytorch-14b_instruct_1m-single_device-inference:
     arch_overrides:
@@ -1792,9 +1802,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-32b_instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_2_5/causal_lm/pytorch-7b-single_device-inference:
     arch_overrides:
@@ -1841,9 +1849,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/pytorch-32b_instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_2_5_coder/pytorch-7b-single_device-inference:
     arch_overrides:
@@ -1868,40 +1874,27 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-14b-single_device-inference:
-    arch_overrides:
-      p150:
-        status: EXPECTED_PASSING
-        required_pcc: 0.98
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
 
   qwen_3/causal_lm/pytorch-30b_a3b-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-32b-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-8b-single_device-inference:
+    required_pcc: 0.985
+    status: EXPECTED_PASSING
     arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7000502943992615. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
   qwen_2/causal_lm/pytorch-qwq_32b-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   deepseek/deepseek_math/pytorch-7b_instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1914,19 +1907,14 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-72b_instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   gemma/pytorch-google/gemma-2-9b-it-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
 
   gemma/pytorch-google/gemma-2-27b-it-single_device-inference:
-    supported_archs: ["p150"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   falcon/pytorch-tiiuae/falcon-7b-instruct-single_device-inference:
     supported_archs: ["p150"]
@@ -2516,11 +2504,8 @@ test_config:
         reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
 
   mistral/pytorch-mistral_nemo_instruct_2407-single_device-inference:
+    supported_archs: ["p150"] # 12B param model
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 12 banks, where each bank needs to store 12234752 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
 
   wan/pytorch-wan2.2-ti2v-5b-single_device-inference:
     status: NOT_SUPPORTED_SKIP

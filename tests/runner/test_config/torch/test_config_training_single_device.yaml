@@ -4,87 +4,118 @@
 test_config:
   mnist/image_classification/pytorch-cnn_dropout-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [push, nightly]
+    markers: [push, nightly, notimeout]
   mnist/image_classification/pytorch-cnn_nodropout-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [push, nightly]
+    markers: [push, nightly, notimeout]
   autoencoder/pytorch-linear-single_device-training:
     status: EXPECTED_PASSING
     markers: [push, nightly]
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   t5/pytorch-t5-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   t5/pytorch-t5-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   t5/pytorch-t5-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   t5/pytorch-google/flan-t5-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   t5/pytorch-google/flan-t5-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   t5/pytorch-google/flan-t5-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   qwen_2_5/causal_lm/pytorch-0_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   qwen_2_5/causal_lm/pytorch-1_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   qwen_2_5/causal_lm/pytorch-1_5b_instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Node arity mismatch; expected 339, but got 338"
   llama/causal_lm/pytorch-llama_3_2_1b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [large, notimeout]
   qwen_2_5_coder/pytorch-0_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   clip/pytorch-base_patch32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
     reason: "error: failed to legalize operation 'stablehlo.scatter'"
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [large]
+    markers: [large, notimeout]
   nbeats/pytorch-generic_basis-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   nbeats/pytorch-seasonality_basis-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   nbeats/pytorch-trend_basis-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   qwen_3/embedding/pytorch-embedding_0_6b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   phi1_5/token_classification/pytorch-microsoft/phi-1_5-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   phi1/token_classification/pytorch-microsoft/phi-1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   nanogpt/pytorch-FinancialSupport/NanoGPT-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   musicgen_small/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   stereo/pytorch-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   stereo/pytorch-medium-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   stereo/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   oft/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=3)] grow to 1518400 B which is beyond max L1 size of 1499136 B"
   mlp_mixer/pytorch-mixer_b32_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/pytorch-mixer_l32_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/pytorch-mixer_s32_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   stable_diffusion_unet/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -403,6 +434,7 @@ test_config:
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
     reason: "error: 'ttnn.pad' op Output tensor shape (32,768) must match the inferred shape: (47,768)"
   dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-single-nq-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
@@ -465,6 +497,7 @@ test_config:
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   transfuser/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
     reason: "'func.call' op incorrect number of operands for callee"
   # yoloworld/pytorch-single_device-training:
   #   status: NOT_SUPPORTED_SKIP
@@ -492,6 +525,7 @@ test_config:
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   detr3d/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
     reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1330944 B"
   # yolov8/pytorch-yolov8n-single_device-training:
   #   status: NOT_SUPPORTED_SKIP
@@ -511,98 +545,142 @@ test_config:
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   dla/pytorch-dla34-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dla/pytorch-dla46_c-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dla/pytorch-dla46x_c-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dla/pytorch-dla60-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dla/pytorch-dla60x-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dla/pytorch-dla60x_c-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dla/pytorch-dla102-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dla/pytorch-dla102x-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dla/pytorch-dla102x2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dla/pytorch-dla169-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   densenet/pytorch-densenet121-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   densenet/pytorch-densenet161-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   densenet/pytorch-densenet169-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   densenet/pytorch-densenet201-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   codegen/pytorch-Salesforce/codegen-350M-mono-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   codegen/pytorch-Salesforce/codegen-350M-multi-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   codegen/pytorch-Salesforce/codegen-350M-nl-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   squeezebert/pytorch-squeezebert-mnli-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vit/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vit/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vit/pytorch-vit_b_16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vit/pytorch-vit_b_32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vit/pytorch-vit_l_16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vit/pytorch-vit_l_32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vit/pytorch-vit_h_14-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   maptr/pytorch-tiny_r50_24e_av2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   phi2/sequence_classification/pytorch-microsoft/phi-2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   phi2/sequence_classification/pytorch-microsoft/phi-2-pytdml-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   albert/sequence_classification/pytorch-imdb-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   swin/image_classification/pytorch-swin_t-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   swin/image_classification/pytorch-swin_s-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXCLUDE_MODEL # Model too large for single device training
   swin/image_classification/pytorch-swin_b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   swin/image_classification/pytorch-swin_v2_t-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   swin/image_classification/pytorch-swin_v2_s-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   swin/image_classification/pytorch-swin_v2_b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   deit/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   deit/pytorch-base_distilled-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   deit/pytorch-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   deit/pytorch-tiny-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   bart/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   sam/pytorch-facebook/sam-vit-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -617,14 +695,19 @@ test_config:
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   mamba/pytorch-mamba-370m-hf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mamba/pytorch-mamba-790m-hf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mamba/pytorch-mamba-1.4b-hf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   roberta/masked_lm/pytorch-xlm_base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   unet/pytorch-unet_cityscapes-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vilt/masked_lm/pytorch-mlm-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -635,86 +718,123 @@ test_config:
     reason: "Fatal Python error: Floating point exception"
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   llama/sequence_classification/pytorch-llama_3_2_1b_instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   opt/sequence_classification/pytorch-facebook/opt-125m-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   opt/sequence_classification/pytorch-facebook/opt-350m-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   gpt2/pytorch-gpt2_sequence_classification-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnext/pytorch-resnext50_32x4d-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnext/pytorch-resnext101_32x8d-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnext/pytorch-resnext101_32x8d_wsl-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnext/pytorch-resnext14_32x4d_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnext/pytorch-resnext26_32x4d_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnext/pytorch-resnext50_32x4d_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnext/pytorch-resnext101_64x4d_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   rcnn/pytorch-alexnet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vovnet/pytorch-vovnet27s-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vovnet/pytorch-vovnet39-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vovnet/pytorch-vovnet57-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vovnet/pytorch-vovnet39_th-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vovnet/pytorch-vovnet57_th-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vovnet/pytorch-ese_vovnet19b_dw-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vovnet/pytorch-ese_vovnet39b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vovnet/pytorch-ese_vovnet99b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   inception/pytorch-inception_v4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   inception/pytorch-inception_v4.tf_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   inception/pytorch-inceptionv4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   dla/pytorch-dla34.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   googlenet/pytorch-googlenet-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
   resnet/pytorch-resnet_50_hf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnet/pytorch-resnet_50_hf_high_res-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is only 1073741792 B"
   resnet/pytorch-resnet50_timm-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnet/pytorch-resnet50_timm_high_res-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnet/pytorch-resnet18-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnet/pytorch-resnet34-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnet/pytorch-resnet50-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnet/pytorch-resnet50_high_res-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnet/pytorch-resnet101-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   resnet/pytorch-resnet152-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hardnet/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
     reason: "RuntimeError: TT_FATAL conv2d"
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-training:
     status: NOT_SUPPORTED_SKIP
@@ -722,83 +842,116 @@ test_config:
     reason: "RuntimeError: Test Hangs"
   wide_resnet/pytorch-wide_resnet50_2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   wide_resnet/pytorch-wide_resnet101_2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   wide_resnet/pytorch-wide_resnet101_2.timm-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   alexnet/pytorch-alexnet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   alexnet/pytorch-alexnetb-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   autoencoder/pytorch-conv-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-vgg11-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-vgg13-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-vgg16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
     reason: "RuntimeError: TT_FATAL conv2d"
   vgg/pytorch-vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-bn_vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-bn_vgg19b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-vgg19_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-timm_vgg19_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-torchvision_vgg11-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-torchvision_vgg11_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-torchvision_vgg13-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-torchvision_vgg13_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-torchvision_vgg16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-torchvision_vgg16_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-torchvision_vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-torchvision_vgg19_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg/pytorch-hf_vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   unet/pytorch-torchhub_brain_unet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   unet/pytorch-carvana_unet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   distilbert/masked_lm/pytorch-distilbert-base-cased-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   distilbert/masked_lm/pytorch-distilbert-base-uncased-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   distilbert/masked_lm/pytorch-distilbert-base-multilingual-cased-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   distilbert/token_classification/pytorch-Davlan/distilbert-base-multilingual-cased-ner-hrl-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   vgg19_unet/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 284 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)]"
   qwen_3/causal_lm/pytorch-0_6b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   phi1_5/causal_lm/pytorch-microsoft/phi-1_5-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 284 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)]"
   gpt_neo/causal_lm/pytorch-gpt_neo_125M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 284 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)]"
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   albert/masked_lm/pytorch-base_v1-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -813,6 +966,7 @@ test_config:
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
   albert/masked_lm/pytorch-base_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   albert/masked_lm/pytorch-large_v2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -827,45 +981,62 @@ test_config:
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
   albert/token_classification/pytorch-base_v1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   albert/token_classification/pytorch-large_v1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   albert/token_classification/pytorch-xlarge_v1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   albert/token_classification/pytorch-xxlarge_v1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   albert/token_classification/pytorch-base_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   albert/token_classification/pytorch-large_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   albert/token_classification/pytorch-xlarge_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   albert/token_classification/pytorch-xxlarge_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   xglm/pytorch-xglm-564M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   xglm/pytorch-xglm-1.7B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   densenet/pytorch-densenet121_xray-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source."
   opt/causal_lm/pytorch-facebook/opt-125m-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   opt/causal_lm/pytorch-facebook/opt-350m-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   opt/causal_lm/pytorch-facebook/opt-1.3b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   beit/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   beit/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   phi1/causal_lm/pytorch-microsoft/phi-1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [large]
+    markers: [large, notimeout]
   perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   d_fine/pytorch-nano-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -892,73 +1063,106 @@ test_config:
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'cls.predictions.bias'}"
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/pytorch-mixer_b16_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/pytorch-mixer_b16_224_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/pytorch-mixer_b16_224_miil-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/pytorch-mixer_b16_224_miil_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/pytorch-mixer_l16_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/pytorch-mixer_l16_224_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/pytorch-mixer_s16_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/pytorch-mixer_b16_224.goog_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/pytorch-mixer_github-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mlp_mixer/lucidrains/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   perceiver/pytorch-deepmind/language-perceiver-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   gpt2/pytorch-gpt2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   openpose/v2/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnet_w18_small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnet_w18_small_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnet_w18-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnet_w30-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnet_w32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnet_w40-single_device-training:
     status: NOT_SUPPORTED_SKIP
     reason: "SEGFAULT"
   hrnet/pytorch-hrnet_w44-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnet_w48-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnet_w64-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnet_w18.ms_aug_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnet_w18_small_v2_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnetv2_w18_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnetv2_w30_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnetv2_w32_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnetv2_w40_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnetv2_w44_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnetv2_w48_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   hrnet/pytorch-hrnetv2_w64_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   glpn_kitti/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   albert/masked_lm/pytorch-large_v1-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -969,6 +1173,7 @@ test_config:
     reason: "Not enough space to allocate 12435456 B L1 buffer across 3 banks, where each bank needs to store 4145152 B, but bank size is only 1331392 B"
   segformer/pytorch-mit_b1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   segformer/pytorch-mit_b2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -987,76 +1192,110 @@ test_config:
     reason: "RuntimeError: Test Hangs"
   ghostnet/pytorch-ghostnet_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   ghostnet/pytorch-ghostnet_100.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   ghostnet/pytorch-ghostnetv2_100.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   monodepth2/pytorch-mono_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   monodepth2/pytorch-stereo_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   monodepth2/pytorch-mono+stereo_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   monodepth2/pytorch-mono_no_pt_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   monodepth2/pytorch-stereo_no_pt_640x192-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B"
   monodepth2/pytorch-mono+stereo_no_pt_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   monodepth2/pytorch-mono_1024x320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   monodepth2/pytorch-stereo_1024x320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   monodepth2/pytorch-mono+stereo_1024x320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-efficientnet_b0-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-efficientnet_b1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-efficientnet_b2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-efficientnet_b3-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-efficientnet_b4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-efficientnet_b5-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-efficientnet_b6-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-efficientnet_b7-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-timm_efficientnet_b0-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-timm_efficientnet_b4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mobilenetv1/pytorch-mobilenet_v1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   unet_for_conditional_generation/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -1088,81 +1327,117 @@ test_config:
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
   mobilenetv3/pytorch-mobilenet_v3_large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mobilenetv3/pytorch-mobilenet_v3_small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mobilenetv3/pytorch-mobilenetv3_large_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mobilenetv3/pytorch-mobilenetv3_small_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   xception/pytorch-xception41-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   xception/pytorch-xception65-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   xception/pytorch-xception71-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   xception/pytorch-xception71.tf_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_040-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_064-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_080-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_120-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_160-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
     reason: "error: 'ttir.conv_transpose2d' op Number of input channels from input tensor must match the first dimension of the weight tensor. Got 3712 input channels and 232 in the weight tensor."
   regnet/pytorch-regnet_y_400mf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_800mf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_1_6gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_3_2gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_8gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_16gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_32gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_y_128gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_x_400mf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_x_800mf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_x_1_6gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_x_3_2gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_x_8gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_x_16gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   regnet/pytorch-regnet_x_32gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mobilenetv2/pytorch-mobilenet_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mobilenetv2/pytorch-mobilenetv2_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   qwen_3/causal_lm/pytorch-1_7b-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
   phi2/token_classification/pytorch-microsoft/phi-2-pytdml-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   gemma/pytorch-google/gemma-1.1-2b-it-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -1177,7 +1452,10 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
   mamba/pytorch-mamba-2.8b-hf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   qwen_2_5_coder/pytorch-1_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
   qwen_2_5_coder/pytorch-1_5b_instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]

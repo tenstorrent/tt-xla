@@ -123,6 +123,9 @@ def test_llama_step(run_mode):
     xs.mark_sharding(input_args["input_ids"], mesh, (None, None))
     xs.mark_sharding(input_args["cache_position"], mesh, (None,))
 
+    # Capture KV cache shard specs before execution
+    kv_cache_key_shard_specs = []
+    kv_cache_value_shard_specs = []
     for i, (key, value) in enumerate(
         zip(
             input_args["past_key_values"].key_cache,
@@ -131,6 +134,8 @@ def test_llama_step(run_mode):
     ):
         xs.mark_sharding(key, mesh, (None, "model", None, None))
         xs.mark_sharding(value, mesh, (None, "model", None, None))
+        kv_cache_key_shard_specs.append(torch_xla._XLAC._get_xla_sharding_spec(key))
+        kv_cache_value_shard_specs.append(torch_xla._XLAC._get_xla_sharding_spec(value))
 
     # Shard model internals
     for layer in model.model.layers:
@@ -166,15 +171,28 @@ def test_llama_step(run_mode):
         host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
         input_args["cache_position"] = host_cache_pos.to(device)
 
-        # Reapply shardings for static cache (i/o inplace mutated tensors since they lose sharding annotations).
-        for i, (key, value) in enumerate(
-            zip(
-                input_args["past_key_values"].key_cache,
-                input_args["past_key_values"].value_cache,
-            )
-        ):
-            xs.mark_sharding(key, mesh, (None, "model", None, None))
-            xs.mark_sharding(value, mesh, (None, "model", None, None))
+    # Assert that KV cache shard specs are preserved after execution
+    for i, (key, value) in enumerate(
+        zip(
+            input_args["past_key_values"].key_cache,
+            input_args["past_key_values"].value_cache,
+        )
+    ):
+        assert (
+            torch_xla._XLAC._get_xla_sharding_spec(key) == kv_cache_key_shard_specs[i]
+        ), (
+            f"Key cache at layer {i} lost its sharding after execution. "
+            f"Expected: {kv_cache_key_shard_specs[i]}, "
+            f"Got: {torch_xla._XLAC._get_xla_sharding_spec(key)}"
+        )
+        assert (
+            torch_xla._XLAC._get_xla_sharding_spec(value)
+            == kv_cache_value_shard_specs[i]
+        ), (
+            f"Value cache at layer {i} lost its sharding after execution. "
+            f"Expected: {kv_cache_value_shard_specs[i]}, "
+            f"Got: {torch_xla._XLAC._get_xla_sharding_spec(value)}"
+        )
 
     # Compare outputs for validation
     comparator = TorchComparisonEvaluator(

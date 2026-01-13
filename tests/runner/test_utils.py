@@ -511,6 +511,7 @@ def record_model_test_properties(
     test_passed: bool = False,
     comparison_results: list = None,
     comparison_config=None,
+    model_size: int = None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -609,6 +610,10 @@ def record_model_test_properties(
         "parallelism": str(parallelism),
         "arch": arch,
     }
+
+    # Add model size (in billions of parameters) to tags if available
+    if model_size is not None:
+        tags["model_size_billions"] = model_size / 1e9
 
     # Add execution_pass if available
     execution_pass = getattr(test_metadata, "execution_pass", None)

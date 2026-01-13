@@ -26,7 +26,6 @@ def test_opt_generation():
     llm = vllm.LLM(**llm_args)
 
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
-    # output = llm.embed(prompts)
     print(f"prompt: {prompts[0]}, output: {output_text}")
 
 
