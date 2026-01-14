@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import torch_xla.distributed.spmd as xs
 from torch.nn.parameter import Parameter
 from vllm.model_executor.layers.linear import MergedColumnParallelLinear
+from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 
 from .logger import tt_init_logger
 
@@ -111,8 +112,20 @@ def partition_merged_column_parallel_linear(
     return xla_layer
 
 
+def partition_parallel_lm_head(
+    layer: torch.nn.Module, mesh: xs.Mesh
+) -> torch.nn.Module:
+    assert isinstance(layer, ParallelLMHead)
+    logger.info("Applied parallel sharding to %s", layer)
+    xs.mark_sharding(layer.weight, mesh, (None, "x"))
+    return layer
+
+
 MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
-    [("MergedColumnParallelLinear", partition_merged_column_parallel_linear)]
+    [
+        ("MergedColumnParallelLinear", partition_merged_column_parallel_linear),
+        ("ParallelLMHead", partition_parallel_lm_head),
+    ]
 )
 
 
