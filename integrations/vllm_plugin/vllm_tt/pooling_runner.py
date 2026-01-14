@@ -1296,8 +1296,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         req_ids = cast(list[str], self.input_batch.req_ids[: self.input_batch.num_reqs])
 
-        # TODO(gengelage): continue updating the file starting here
-
         # Wrap into ModelRunnerOutput
         model_runner_output = ModelRunnerOutput(
             req_ids=req_ids,
@@ -1374,13 +1372,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     f"See the detailed error: {e}"
                 ) from e
         if self.lora_config is not None:
-            model = self.load_lora_model(
-                model,
-                self.model_config,
-                self.scheduler_config,
-                self.lora_config,
-                self.device,
-            ).eval()
+            model = self.load_lora_model(model, self.vllm_config, self.device).eval()
             replace_set_lora(model.eval())
 
         if not hasattr(self, "model"):
@@ -1638,7 +1630,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
-        return self.model.compute_logits(sample_hidden_states, None)
+        return self.model.compute_logits(sample_hidden_states)
 
     # TODO: Under SPMD mode, sample_from_logits has correctness issue.
     #       Re-enable the torch.compile once the issue is fixed in torchxla.
@@ -1730,28 +1722,24 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.grammar_bitmask_cpu.zero_()
         self.require_structured_out_cpu.zero_()
 
-        # We receive the structured output bitmask from the scheduler, but the
-        # indices of the requests in the batch may not match the indices of
-        # the bitmask since the scheduler doesn't know how the tpu runner is
-        # ordering the requests in the batch. We need to match the order of
-        # bitmask with the order of requests
-        struct_out_indices: list[int] = []
-        mask_indices: list[int] = []
-        for req_id in self.input_batch.req_ids:
-            mask_index = scheduler_output.structured_output_request_ids.get(req_id)
-            if mask_index is None:
+        sorted_struct_requests = sorted(
+            scheduler_output.structured_output_request_ids.items(),
+            key=lambda item: item[1],
+        )
+        cumulative_mask_idx = 0
+        for req_id, _ in sorted_struct_requests:
+            if req_id not in self.input_batch.req_id_to_index:
                 continue
             batch_index = self.input_batch.req_id_to_index[req_id]
-            struct_out_indices.append(batch_index)
-            mask_indices.append(mask_index)
-        self.grammar_bitmask_cpu[struct_out_indices] = torch.from_numpy(
-            grammar_bitmask[mask_indices]
-        )
-        # It's not guaranteed that all requests in this batch require
-        # structured output, so create a bool tensor to represent
-        # the requests that need structured output.
-        struct_out_indices = torch.tensor(struct_out_indices, dtype=torch.long)
-        self.require_structured_out_cpu[struct_out_indices] = True
+            self.grammar_bitmask_cpu[batch_index] = torch.from_numpy(
+                grammar_bitmask[cumulative_mask_idx]
+            )
+            # It's not guaranteed that all requests in this batch require
+            # structured output, so create a bool tensor to represent
+            # the requests that need structured output.
+            self.require_structured_out_cpu[batch_index] = True
+            cumulative_mask_idx += 1
+
         return (
             self.require_structured_out_cpu[:num_reqs].to(logits.device),
             self.grammar_bitmask_cpu[:num_reqs].to(logits.device),
@@ -1768,7 +1756,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         dummy_decoder_data = self.mm_registry.get_decoder_dummy_data(
             model_config=self.model_config,
-            seq_len=self.max_num_tokens,
+            seq_len=self.max_model_len,
             mm_counts={modality: 1},
             cache=self.mm_budget.cache,
         )
@@ -1778,12 +1766,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         dummy_mm_item = dummy_mm_data[modality][0]
         dummy_mm_items = [dummy_mm_item] * max_items_per_batch
 
+        model = cast(SupportsMultiModal, self.model)
         return next(
             grouped_mm_kwargs
             for _, _, grouped_mm_kwargs in group_mm_kwargs_by_modality(
                 dummy_mm_items,
                 device=self.device,
                 pin_memory=self.pin_memory,
+                merge_by_field_config=model.merge_by_field_config,
             )
         )
 
