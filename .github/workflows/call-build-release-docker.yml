@@ -69,7 +69,9 @@ jobs:
 
           ls -l
 
-          echo "Renaming the wheel"
+      - name: Rename wheel
+        shell: bash
+        run: |
           tag="${{ inputs.wheel_version_override }}"
 
           .github/scripts/modify_wheel_version.sh *.whl $tag

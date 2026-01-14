@@ -35,6 +35,7 @@ jobs:
     with:
       wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_version_override: dev22220114
 
   perf-benchmark:
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
@@ -43,4 +44,4 @@ jobs:
     with:
         ref: main
         docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
-        run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+        project-filter: tt-xla
