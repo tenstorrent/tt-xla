@@ -38,10 +38,10 @@ jobs:
       wheel_version_override: ${{ inputs.release_tag }}
 
   perf-benchmark:
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/extract-mlir-version-differently
     needs: [ build-ttxla, build-release-docker ]
     secrets: inherit
     with:
-        ref: main
+        ref: vvukoman/extract-mlir-version-differently
         docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
         project: tt-xla
