@@ -151,6 +151,7 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
+        self.tokenizer.padding_side = "right"
         if self._variant == ModelVariant.GEMMA_2B:
             input_prompt = prompt or self.sample_text
             inputs = self.tokenizer(
@@ -183,13 +184,6 @@ class ModelLoader(ForgeModel):
             if dtype_override is not None:
                 for key in inputs:
                     inputs[key] = cast_input_to_type(inputs[key], dtype_override)
-            padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], max_new_tokens)
-            padded_attention_mask, _ = pad_inputs(
-                inputs["attention_mask"], max_new_tokens
-            )
-            self.seq_len = seq_len
-            inputs["input_ids"] = padded_input_ids
-            inputs["attention_mask"] = padded_attention_mask
         return inputs
 
     def get_mesh_config(self, num_devices: int):

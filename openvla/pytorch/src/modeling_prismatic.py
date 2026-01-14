@@ -474,6 +474,8 @@ class PrismaticForConditionalGeneration(PrismaticPreTrainedModel):
 class OpenVLAForActionPrediction(PrismaticForConditionalGeneration):
     config_class: PretrainedConfig = OpenVLAConfig
 
+    _supports_sdpa: bool = True
+
     def __init__(self, config: OpenVLAConfig) -> None:
         super().__init__(config)
         self.norm_stats = config.norm_stats
@@ -482,3 +484,9 @@ class OpenVLAForActionPrediction(PrismaticForConditionalGeneration):
         self.vocab_size = (
             self.config.text_config.vocab_size - self.config.pad_to_multiple_of
         )
+
+    @property
+    def _supports_sdpa(self) -> bool:
+        if hasattr(self, "language_model"):
+            return self.language_model._supports_sdpa
+        return True  # Default value during initialization

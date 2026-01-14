@@ -209,7 +209,7 @@ class ModelLoader(ForgeModel):
         inputs_embeds = generate_fuyu_embedding(
             self.model,
             model_inputs["input_ids"],
-            model_inputs["image_patches"][0],
+            model_inputs["image_patches"],
             model_inputs["image_patches_indices"],
         )
         inputs_embeds = inputs_embeds.clone().detach()

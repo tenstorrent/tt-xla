@@ -133,6 +133,7 @@ def calculate_age(birth_year):
             self._load_tokenizer(dtype_override=dtype_override)
 
         input_prompt = prompt or self.sample_text
+        self.tokenizer.padding_side = "right"
         inputs = self.tokenizer(
             input_prompt,
             return_tensors="pt",
@@ -147,11 +148,5 @@ def calculate_age(birth_year):
         if dtype_override is not None:
             for key in inputs:
                 inputs[key] = cast_input_to_type(inputs[key], dtype_override)
-
-        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], max_new_tokens)
-        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], max_new_tokens)
-        self.seq_len = seq_len
-        inputs["input_ids"] = padded_input_ids
-        inputs["attention_mask"] = padded_attention_mask
 
         return inputs
