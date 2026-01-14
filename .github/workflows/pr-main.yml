@@ -82,7 +82,7 @@ jobs:
       alchemist_artifact_name: ${{ needs.build-ttxla-release.outputs.alchemist_artifact_name }}
 
   perf-benchmark:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
     needs: [ inspect-changes, build-image, build-ttxla-release ]
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
@@ -132,12 +132,14 @@ jobs:
       - build-ttxla-explorer
       - build-ttxla-debug
       - test
+      - perf-benchmark
       - test_forge_models_push
+      - test_models_on_uplift
       - build-docs
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, test, test_forge_models_push, build-docs
+        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, test, test_forge_models_push, build-docs, perf-benchmark, test_models_on_uplift
         jobs: ${{ toJSON(needs) }}
