@@ -1,0 +1,6 @@
+ip0.pt filter=lfs diff=lfs merge=lfs -text
+ip1.pt filter=lfs diff=lfs merge=lfs -text
+ip2.pt filter=lfs diff=lfs merge=lfs -text
+ip3.pt filter=lfs diff=lfs merge=lfs -text
+ip4.pt filter=lfs diff=lfs merge=lfs -text
+ip5.pt filter=lfs diff=lfs merge=lfs -text

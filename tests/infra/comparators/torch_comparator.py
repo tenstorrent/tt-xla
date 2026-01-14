@@ -5,6 +5,7 @@
 import torch
 from infra.runners import run_on_cpu
 from infra.utilities import Framework, PyTree
+from loguru import logger
 from torch.utils._pytree import tree_flatten, tree_map
 
 from .comparator import Comparator
@@ -98,6 +99,7 @@ class TorchComparator(Comparator):
 
         leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
+        logger.info("flat_pccs={}", flat_pccs)
         pcc = min(flat_pccs)
         return float(pcc)
 

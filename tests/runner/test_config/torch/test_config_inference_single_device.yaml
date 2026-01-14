@@ -1437,9 +1437,9 @@ test_config:
     reason: "PCC comparison failed. Calculated: pcc=0.9755112528800964. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
   vovnet/pytorch-ese_vovnet99b-single_device-inference:
-    assert_pcc: false  # Exposed by removal of consteval on host
+    # assert_pcc: false  # Exposed by removal of consteval on host
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1242"
+    # reason: "PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1242"
 
   gemma/pytorch-google/gemma-2-2b-it-single_device-inference:
     status: EXPECTED_PASSING
@@ -2243,9 +2243,9 @@ test_config:
     reason: "Statically allocated circular buffers in program 2023 clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/1827"
 
   detr/object_detection/pytorch-resnet_50-single_device-inference:
-    assert_pcc: false
+    # assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9024592638015747. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
+    # reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9024592638015747. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
 
   sentencizer/pytorch-xlm-roberta-base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
