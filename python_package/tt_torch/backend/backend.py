@@ -112,19 +112,37 @@ class XLAExecutor:
 
         # Export keeps a state dict for lifted params/buffers.
         state = ep.state_dict
+        constants = ep.constants
 
         # Map from placeholder name -> tensor.
         total_args = tuple()
         encountered_user_input = False
         for spec in sig.input_specs:
+            # Kinds: CUSTOM_OBJ and TOKEN haven't been tested.
+            # USER_INPUT will not exist in state_dict, it is passed in from the outside.
             if spec.kind == InputKind.USER_INPUT:
                 encountered_user_input = True
                 continue
+
             assert (
                 not encountered_user_input
             ), "We expect user inputs to be last in the list of inputs."
-            assert spec.target is not None
-            total_args += (state[spec.target],)
+
+            assert spec.target is not None, f"Spec target is None for spec {spec}"
+            if spec.kind == InputKind.CONSTANT_TENSOR:
+                arg = constants[spec.target]
+            else:
+                arg = state[spec.target]  # Handles: PARAMETER, BUFFER
+            if arg.device.type != "xla":
+                if spec.kind != InputKind.CONSTANT_TENSOR:
+                    print(
+                        f"Found an argument on non-XLA device which was not a lifted constant: {spec.target}.\n"
+                        "Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA."
+                    )
+                arg = arg.to(
+                    torch.device("xla")
+                )  # Maybe it makes sense to modify the ep to avoid multiple moves of constants?
+            total_args += (arg,)
 
         return total_args
 
