@@ -264,6 +264,14 @@ def test_all_models_torch(
     clear_torchxla_computation_cache,
 ):
     """PyTorch model test - delegates to shared implementation."""
+
+    # Workaround to set these CompilerConfig fields to the tt-mlir defaults prior to Jan16.
+    # since few models are failing with lower PCC with Hifi4/fp32_dest_acc_en=True defaults.
+    compiler_config = CompilerConfig(
+        math_fidelity="undefined",
+        fp32_dest_acc_en=False,
+    )
+
     _run_model_test_impl(
         test_entry=test_entry,
         run_mode=run_mode,
@@ -273,6 +281,7 @@ def test_all_models_torch(
         record_property=record_property,
         test_metadata=test_metadata,
         captured_output_fixture=captured_output_fixture,
+        compiler_config=compiler_config,
         clear_torchxla_computation_cache=clear_torchxla_computation_cache,
     )
 
