@@ -88,6 +88,11 @@ def _run_model_test_impl(
         if request.config.getoption("--dump-irs", default=False):
             ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
 
+        # Create CompilerConfig with bfp8 weights enabled by default
+        compiler_config = CompilerConfig(
+            experimental_enable_weight_bfp8_conversion=True
+        )
+
         if compiler_config is None and ir_dump_path:
             compiler_config = CompilerConfig(export_path=ir_dump_path)
 
@@ -264,6 +269,7 @@ def test_all_models_torch(
     clear_torchxla_computation_cache,
 ):
     """PyTorch model test - delegates to shared implementation."""
+
     _run_model_test_impl(
         test_entry=test_entry,
         run_mode=run_mode,
