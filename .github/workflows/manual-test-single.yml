@@ -44,4 +44,4 @@ jobs:
     with:
         ref: main
         docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
-        project-filter: tt-xla
+        project: tt-xla
