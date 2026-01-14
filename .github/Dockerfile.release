@@ -42,7 +42,7 @@ RUN apt-get update && \
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/
 
-COPY ${WHEEL_FILES_PATH}/*.whl /tmp/
-RUN pip install --no-cache-dir /tmp/*.whl && rm -rf /tmp/*.whl
+COPY pjrt_plugin_tt*.whl /tmp/
+RUN pip install --no-cache-dir /tmp/pjrt_plugin_tt*.whl && rm -rf /tmp/*.whl
 
 CMD ["/bin/bash"]

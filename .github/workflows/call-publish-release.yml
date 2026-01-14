@@ -53,31 +53,31 @@ jobs:
           generate_release_notes: true
           draft: true
 
-      # - name: Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # - name: Log in to GitHub Container Registry
-      #   uses: docker/login-action@v3
-      #   with:
-      #     registry: ghcr.io
-      #     username: ${{ github.repository_owner }}
-      #     password: ${{ github.token }}
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
 
-      # - name: Push release docker tag
-      #   shell: bash
-      #   run: |
-      #     docker_image_base=${{ inputs.docker_image_base }}
-      #     commit_tag="${{ github.sha }}"
-      #     version_tag="${{ inputs.release_tag }}"
-      #     latest_tag="latest"
+      - name: Push release docker tag
+        shell: bash
+        run: |
+          docker_image_base=${{ inputs.docker_image_base }}
+          commit_tag="${{ github.sha }}"
+          version_tag="${{ inputs.release_tag }}"
+          latest_tag="latest"
 
-      #     if [[ "$is_nightly_release" == "true" ]]; then
-      #       latest_tag="nightly-latest"
-      #     fi
+          if [[ "$is_nightly_release" == "true" ]]; then
+            latest_tag="nightly-latest"
+          fi
 
-      #     # do we always tag with latest when releasing?
-      #     printf "\nPushing latest tag for $docker_image_base"
-      #     docker buildx imagetools create $docker_image_base:$commit_tag --tag $docker_image_base:$latest_tag --tag $docker_image_base:$version_tag
+          # todo(vvukoman): do we always tag with latest when releasing?
+          printf "\nPushing latest tag for $docker_image_base"
+          docker buildx imagetools create $docker_image_base:$commit_tag --tag $docker_image_base:$latest_tag --tag $docker_image_base:$version_tag
 
         # todo(make body ready)
       # - name: Publish github release
