@@ -1493,24 +1493,14 @@ test_config:
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
 
   flux/pytorch-schnell-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9095736145973206. Required: pcc=0.99"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip" # (flux.1-schnell is 12B param model)
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9095736145973206. Required: pcc=0.99"
 
   flux/pytorch-dev-single_device-inference:
-    arch_overrides:
-      p150:
-        status: EXPECTED_PASSING
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip" # (flux.1-dev is 12B param model)
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    status: EXPECTED_PASSING
 
   gliner/pytorch-urchade/gliner_multi-v2.1-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -1528,33 +1518,21 @@ test_config:
     reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
 
   mistral/pixtral/pytorch-single_device-inference:
+    markers: [try_bfp8]
     assert_pcc: false
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip" # (mistral-community/pixtral-12b is 12B param model)
-        bringup_status: FAILED_RUNTIME
 
   phi4/causal_lm/pytorch-microsoft/phi-4-single_device-inference:
-    supported_archs: ["p150"] # Run as tensor_parallel for wormhole (14B param model).
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   phi4/seq_cls/pytorch-microsoft/phi-4-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
-        bringup_status: FAILED_RUNTIME
 
   phi4/token_cls/pytorch-microsoft/phi-4-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip" # (microsoft/phi-4 is 14B param model)
-        bringup_status: FAILED_RUNTIME
 
   phi3/phi_3_5_vision/pytorch-instruct-single_device-inference:
     arch_overrides:
@@ -1604,12 +1582,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_3/embedding/pytorch-embedding_8b-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-inference:
     status: EXPECTED_PASSING
@@ -1629,20 +1603,12 @@ test_config:
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
   huggyllama/pytorch-llama_7b-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   llama/causal_lm/pytorch-huggyllama_7b-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   llama/causal_lm/pytorch-llama_3_1_70b-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -1651,20 +1617,12 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/causal_lm/pytorch-llama_3_1_8b-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   llama/causal_lm/pytorch-llama_3_1_8b_instruct-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   llama/causal_lm/pytorch-llama_3_1_405b-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -1673,28 +1631,16 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/causal_lm/pytorch-llama_3_8b-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   llama/causal_lm/pytorch-llama_3_8b_instruct-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   llama/sequence_classification/pytorch-huggyllama_7b-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   llama/sequence_classification/pytorch-llama_3_1_70b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1707,20 +1653,12 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   llama/sequence_classification/pytorch-llama_3_1_8b-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   llama/sequence_classification/pytorch-llama_3_1_8b_instruct-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   llama/sequence_classification/pytorch-llama_3_3_70b_instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1728,153 +1666,91 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   llama/sequence_classification/pytorch-llama_3_8b-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1472"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1472"
 
   llama/sequence_classification/pytorch-llama_3_8b_instruct-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   mistral/pytorch-7b-single_device-inference:
-    arch_overrides:
-      p150:
-        status: EXPECTED_PASSING
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    status: EXPECTED_PASSING
 
   mistral/pytorch-7b_instruct_v03-single_device-inference:
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   mistral/pytorch-ministral_8b_instruct-single_device-inference:
-    arch_overrides:
-      p150:
-        status: EXPECTED_PASSING
-
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-14b-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5/causal_lm/pytorch-14b_instruct-single_device-inference:
-    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    markers: [try_bfp8]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8147078156471252. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5/causal_lm/pytorch-14b_instruct_1m-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7706121206283569. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7706121206283569. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+
 
   qwen_2_5/causal_lm/pytorch-32b_instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_2_5/causal_lm/pytorch-7b-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5/causal_lm/pytorch-7b_instruct-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7253174185752869. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7253174185752869. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+
 
   qwen_2_5/causal_lm/pytorch-7b_instruct_1m-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8598132729530334. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8598132729530334. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5/causal_lm/pytorch-math_7b-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5_coder/pytorch-32b_instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_2_5_coder/pytorch-7b-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5_coder/pytorch-7b_instruct-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.964358925819397. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+    markers: [try_bfp8]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.964358925819397. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_3/causal_lm/pytorch-14b-single_device-inference:
-    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
@@ -1885,13 +1761,9 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-8b-single_device-inference:
+    markers: [try_bfp8]
     required_pcc: 0.985
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
 
   qwen_2/causal_lm/pytorch-qwq_32b-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -2504,7 +2376,7 @@ test_config:
         reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
 
   mistral/pytorch-mistral_nemo_instruct_2407-single_device-inference:
-    supported_archs: ["p150"] # 12B param model
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   wan/pytorch-wan2.2-ti2v-5b-single_device-inference:
