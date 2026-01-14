@@ -74,7 +74,7 @@ jobs:
         run: |
           tag="${{ inputs.wheel_version_override }}"
 
-          .github/scripts/modify_wheel_version.sh *.whl $tag
+          .github/scripts/modify_wheel_version.sh pjrt_plugin_tt*.whl $tag
 
       - name: Build & push Docker image
         shell: bash
