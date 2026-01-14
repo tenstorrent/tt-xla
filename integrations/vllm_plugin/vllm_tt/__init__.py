@@ -4,6 +4,11 @@
 
 import os
 
+from vllm.attention.backends.registry import AttentionBackendEnum, register_backend
+
+# Register TT attention backend at module import time
+register_backend(AttentionBackendEnum.CUSTOM, "vllm_tt.attention.TTAttentionBackend")
+
 
 def register():
     # Setting worker multiprocessing method to spawn to avoid hangs in consecutive vllm pytest runs
