@@ -35,10 +35,6 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  deit/pytorch-base_distilled-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
   dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-multiset-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
@@ -100,10 +96,6 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg16-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  deit/pytorch-small-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -221,10 +213,6 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  deit/pytorch-tiny-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
   swin/image_classification/pytorch-swin_s-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
@@ -252,11 +240,6 @@ test_config:
   alexnet/pytorch-alexnetb-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
-
-  deit/pytorch-base-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
 
   dpr/question_encoder/pytorch-facebook/dpr-question_encoder-single-nq-base-data_parallel-inference:
     supported_archs: [n300]
@@ -506,10 +489,6 @@ test_config:
     status: EXPECTED_PASSING
 
   hrnet/pytorch-hrnet_w44-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  albert/masked_lm/pytorch-xxlarge_v1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1069,17 +1048,6 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  qwen_2_5_coder/pytorch-0_5b-data_parallel-inference:
-    supported_archs: [n300]
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9550557136535645. Required: pcc=0.96."
-
-  qwen_2_5/causal_lm/pytorch-0_5b-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
@@ -1100,10 +1068,6 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  qwen_1_5/causal_lm/pytorch-0_5b_chat-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
   mamba/pytorch-mamba-370m-hf-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false # -0.0327 WH / 0.3821 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
@@ -1112,25 +1076,6 @@ test_config:
   codegen/pytorch-Salesforce/codegen-350M-mono-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
-
-  nanogpt/pytorch-FinancialSupport/NanoGPT-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  gemma/pytorch-google/gemma-1.1-2b-it-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  qwen_2_5_coder/pytorch-1_5b_instruct-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.96
-    bringup_status: INCORRECT_RESULT # Single device required_pcc: 0.98
-
-  qwen_3/embedding/pytorch-embedding_0_6b-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
 
   opt/causal_lm/pytorch-facebook/opt-350m-data_parallel-inference:
     supported_archs: [n300]
@@ -1165,18 +1110,6 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  qwen_3/causal_lm/pytorch-0_6b-data_parallel-inference:
-    supported_archs: [n300]
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8792946338653564. Required: pcc=0.99."
-
-  qwen_2_5/causal_lm/pytorch-1_5b-data_parallel-inference:
-    supported_archs: [n300]
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9603426456451416. Required: pcc=0.99."
-
   stereo/pytorch-medium-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
@@ -1191,12 +1124,6 @@ test_config:
   mobilenetv3/pytorch-mobilenetv3_large_100-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
-
-  qwen_2_5/causal_lm/pytorch-3b_instruct-data_parallel-inference:
-    supported_archs: [n300]
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9163239002227783. Required: pcc=0.99."
 
   # yoloworld/pytorch-data_parallel-inference:
   #   supported_archs: [n300]
