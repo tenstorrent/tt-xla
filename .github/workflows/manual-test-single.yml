@@ -99,6 +99,14 @@ jobs:
         project: tt-xla
         sh-runner: true
 
+  demo-test:
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/extract-mlir-version-differently
+    needs: [ build-ttxla, build-release-docker ]
+    secrets: inherit
+    with:
+        docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
+        project-filter: tt-xla
+
   # publish-release:
   #   uses: ./.github/workflows/call-publish-release.yml
   #   if: false
