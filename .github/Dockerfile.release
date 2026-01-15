@@ -20,7 +20,8 @@ RUN apt-get update && \
     ca-certificates \
     sudo \
     ssh \
-    python3-pip
+    python3-pip \
+    unzip
 
 # Install python 3.11 and set is as the default
 RUN add-apt-repository ppa:deadsnakes/ppa && \
@@ -42,6 +43,7 @@ RUN apt-get update && \
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/
 
+# install tt-xla wheel
 COPY pjrt_plugin_tt*.whl /tmp/
 RUN pip install --no-cache-dir /tmp/pjrt_plugin_tt*.whl && rm -rf /tmp/*.whl
 
