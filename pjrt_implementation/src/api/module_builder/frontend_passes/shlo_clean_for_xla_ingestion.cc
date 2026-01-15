@@ -155,12 +155,32 @@ getOrderedAxisRefs(TensorShardingAttr sdySharding, MeshAttr mesh) {
 // https://github.com/openxla/xla/blob/9ae3d6dab2c10c8195c8d9862f475904c7cdca91/xla/hlo/ir/tile_assignment.cc#L58
 void canonicalizeIotaDims(mlir::SmallVector<int64_t> &reshapeDims,
                           mlir::SmallVector<int64_t> &transposePerm) {
+  auto printVec = [](const mlir::SmallVector<int64_t> &vec,
+                     const char *name) {
+    std::string s = name;
+    s += "=[";
+    for (size_t i = 0; i < vec.size(); ++i) {
+      if (i > 0)
+        s += ",";
+      s += std::to_string(vec[i]);
+    }
+    s += "]";
+    DLOG_F(INFO, "%s", s.c_str());
+  };
+
+  DLOG_F(INFO, "canonicalizeIotaDims: ENTER");
+  printVec(reshapeDims, "  input reshapeDims");
+  printVec(transposePerm, "  input transposePerm");
+
   assert(reshapeDims.size() == transposePerm.size());
   if (reshapeDims.size() < 1) {
+    DLOG_F(INFO, "canonicalizeIotaDims: EXIT (empty input)");
     return;
   }
   mlir::SmallVector<int64_t> old_to_new_dims(reshapeDims.size());
+  int iteration = 0;
   while (true) {
+    DLOG_F(INFO, "  iteration %d", iteration++);
     bool changed = false;
     // Remove all dimensions of size 1
     int new_ndims = 0;
@@ -171,6 +191,8 @@ void canonicalizeIotaDims(mlir::SmallVector<int64_t> &reshapeDims,
         old_to_new_dims[i] = new_ndims++;
       }
     }
+    DLOG_F(INFO, "    after size-1 removal: new_ndims=%d, reshapeDims.size()=%zu",
+           new_ndims, reshapeDims.size());
     if (new_ndims != reshapeDims.size()) {
       for (int i = 0, new_idx = 0; i < reshapeDims.size(); ++i) {
         int new_dim = old_to_new_dims[i];
@@ -187,12 +209,25 @@ void canonicalizeIotaDims(mlir::SmallVector<int64_t> &reshapeDims,
       }
       transposePerm.truncate(new_ndims);
       reshapeDims.truncate(new_ndims);
+      printVec(reshapeDims, "    reshapeDims after truncate");
+      printVec(transposePerm, "    transposePerm after truncate");
     }
     // Merge subranges
+    DLOG_F(INFO, "    merging subranges...");
     for (int i = 1, base = 0, n = reshapeDims.size(); i < n; ++i) {
       const int base_dim = transposePerm[base];
       const int dim = transposePerm[i];
+      DLOG_F(INFO,
+             "      i=%d base=%d base_dim=%d dim=%d condition=(base_dim + "
+             "(i-base) == dim) => (%d + %d == %d) => %s",
+             i, base, base_dim, dim, base_dim, (i - base), dim,
+             (base_dim + (i - base) == dim) ? "true" : "false");
       if (base_dim + (i - base) == dim) {
+        DLOG_F(INFO,
+               "      merging: reshapeDims[%d] *= reshapeDims[%d] => %ld * "
+               "%ld = %ld",
+               base_dim, dim, reshapeDims[base_dim], reshapeDims[dim],
+               reshapeDims[base_dim] * reshapeDims[dim]);
         reshapeDims[base_dim] *= reshapeDims[dim];
         reshapeDims[dim] = 1;
         changed = true;
@@ -200,10 +235,16 @@ void canonicalizeIotaDims(mlir::SmallVector<int64_t> &reshapeDims,
         base = i;
       }
     }
+    printVec(reshapeDims, "    reshapeDims after merge");
+    printVec(transposePerm, "    transposePerm after merge");
     if (!changed) {
+      DLOG_F(INFO, "    no changes, exiting loop");
       break;
     }
   }
+  DLOG_F(INFO, "canonicalizeIotaDims: EXIT");
+  printVec(reshapeDims, "  output reshapeDims");
+  printVec(transposePerm, "  output transposePerm");
 }
 
 // Given a TensorShardingAttr, return the corresponding HloShardingV2 string
