@@ -94,22 +94,22 @@ jobs:
     needs: [ build-release-docker ]
     secrets: inherit
     with:
-        ref: vvukoman/extract-mlir-version-differently
-        docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
-        project: tt-xla
-        sh-runner: true
+      ref: vvukoman/extract-mlir-version-differently
+      docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
+      project: tt-xla
+      sh-runner: true
 
   demo-test:
     uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@vvukoman/extract-mlir-version-differently
     needs: [ build-release-docker ]
     secrets: inherit
     with:
-        docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
-        project-filter: tt-xla
+      docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
+      project-filter: tt-xla
+      ref: vvukoman/extract-mlir-version-differentl
 
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
-    if: false
     secrets: inherit
     needs: [ build-release-docker, perf-benchmark, demo-test ]
     with:
