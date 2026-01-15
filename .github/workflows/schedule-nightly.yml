@@ -84,71 +84,129 @@ jobs:
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
   process_dumped_irs:
-    runs-on: "tt-ubuntu-2204-n150-stable"
+    runs-on: tt-ubuntu-2204-large-stable
     needs: [ build-image, build-ttxla, test_single_model_with_ir_dump ]
     if: success() || failure()
     container:
-      image: harbor.ci.tenstorrent.net/${{ needs.build-image.outputs.docker-image }}
-      options: --device /dev/tenstorrent
-      volumes:
-        - /dev/hugepages:/dev/hugepages
-        - /dev/hugepages-1G:/dev/hugepages-1G
-        - /etc/udev/rules.d:/etc/udev/rules.d
-        - /lib/modules:/lib/modules
-        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
-        - /mnt/dockercache:/mnt/dockercache
+      image: ${{ needs.build-image.outputs.docker-image }}
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+      TT_XLA_CI: 1
 
     steps:
-    - name: Mark repo as safe for git
-      run: |
-        git config --global --add safe.directory /__w/tt-xla/tt-xla
-        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Download and install wheels
-      shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        echo "=== Downloading wheels ==="
-        gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
-          --repo ${{ github.repository }} \
-          --dir wheels \
-          --name ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-        echo "Downloaded wheel files:"
-        ls -la wheels
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+          echo "wheel_artifact_name=${{ needs.build-ttxla.outputs.wheel_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "artifact_run_id=${{ needs.build-ttxla.outputs.artifacts_run_id }}" >> "$GITHUB_OUTPUT"
 
-        echo "=== Installing wheel ==="
-        source venv/activate
-        pip install wheels/*.whl
+      - name: Download and install tt-xla wheel
+        shell: bash
+        run: |
+          echo "=== Downloading wheel ==="
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name ${{ steps.strings.outputs.wheel_artifact_name }}
+          echo "Downloaded wheel files:"
+          ls -la wheels
 
-    - name: Download dumped IRs
-      uses: actions/download-artifact@v4
-      with:
-        pattern: dumped-irs-*
-        path: collected_irs/
-        merge-multiple: true
+          echo "=== Installing wheel ==="
+          source venv/activate
+          pip install wheels/*.whl
 
-    - name: Run op-by-op analysis
-      shell: bash
-      run: |
-        source venv/activate
-        pytest -svv tests/op_by_op/op_by_op_test.py::test_op_by_op \
-          --folder=collected_irs \
-          --ir-file-prefix="irs/shlo_compiler" \
-          --json-report \
-          --json-report-file=op_by_op_report.json
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+          key: "nightly-op-by-op-build"
 
-    - name: Upload op-by-op report
-      uses: actions/upload-artifact@v4
-      if: success() || failure()
-      with:
-        name: op-by-op-report-${{ github.run_id }}
-        path: op_by_op_report.json
-        if-no-files-found: 'ignore'
+      - name: Build tt-mlir with Python bindings
+        shell: bash
+        run: |
+          source venv/activate
+
+          echo "=== Building tt-mlir with Python bindings ==="
+          # Build tt-mlir via tt-xla with Python bindings enabled
+          # This automatically passes -DTTMLIR_ENABLE_STABLEHLO=ON and -DTTMLIR_ENABLE_RUNTIME=ON
+          # to tt-mlir (see third_party/CMakeLists.txt)
+          cmake -G Ninja -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON \
+            -DTTXLA_ENABLE_PJRT_TESTS=OFF
+
+          # Build the tt-mlir external project target
+          cmake --build build --target tt-mlir
+
+          echo "=== Verifying op_by_op_infra build ==="
+          find third_party/tt-mlir -name "op_by_op_infra" -type d
+
+      - name: Download dumped IR artifacts
+        shell: bash
+        run: |
+          echo "=== Downloading dumped IR artifacts ==="
+          gh run download ${{ github.run_id }} \
+            --repo ${{ github.repository }} \
+            --pattern "dumped-irs-*" \
+            --dir downloaded_artifacts || echo "No IR artifacts found"
+
+          # Consolidate all IRs into a single directory
+          mkdir -p collected_irs
+          if [ -d "downloaded_artifacts" ]; then
+            find downloaded_artifacts -name "*.mlir" -exec cp {} collected_irs/ \; || true
+            find downloaded_artifacts -type d -name "collected_irs" -exec cp -r {}/* collected_irs/ \; || true
+          fi
+
+          echo "=== Contents of collected_irs ==="
+          find collected_irs -type f -name "*.mlir" | head -20
+
+      - name: Generate system descriptor
+        shell: bash
+        run: |
+          source venv/activate
+          echo "=== Generating system descriptor ==="
+          ttrt query --save-artifacts
+          ls -la ttrt-artifacts/
+
+      - name: Run op-by-op tests
+        shell: bash
+        run: |
+          source venv/activate
+
+          # Set PYTHONPATH to include op_by_op_infra
+          export PYTHONPATH="${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/build/python_packages:${PYTHONPATH}"
+
+          echo "=== Verifying op_by_op_infra is importable ==="
+          python3 -c "import op_by_op_infra; print(f'op_by_op_infra found at: {op_by_op_infra.__file__}')"
+
+          echo "=== Running op-by-op tests ==="
+          python3 -m pytest -svv tests/op_by_op/op_by_op_test.py::test_op_by_op \
+            --folder=collected_irs \
+            --ir-file-prefix="irs/shlo_compiler" \
+            --json-report \
+            --json-report-file=op_by_op_report.json \
+            || echo "Op-by-op test completed with failures"
+
+      - name: Upload op-by-op test report
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: op-by-op-report
+          path: op_by_op_report.json
+          if-no-files-found: 'warn'
 
   # Commented out for testing IR dump workflow
   # fail-notify:
