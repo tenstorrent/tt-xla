@@ -24,7 +24,9 @@ class SDXLConfig:
     available_devices = ["cpu", "cuda"]
     available_dims = [512, 1024]
 
-    def __init__(self, width=1024, height=1024, device="cpu", vae_on_tt=False, clip_on_tt=False):
+    def __init__(
+        self, width=1024, height=1024, device="cpu", vae_on_tt=False, clip_on_tt=False
+    ):
         assert width == height, "Currently we only support square images"
         assert (
             width in SDXLConfig.available_dims
@@ -233,13 +235,14 @@ class SDXLPipeline:
                         pooled_uncond_text_embeds = uncond_output.text_embeds  # (B, D)
                         if self.clip_on_tt:
                             pooled_cond_text_embeds = cpu_cast(pooled_cond_text_embeds)
-                            pooled_uncond_text_embeds = cpu_cast(pooled_uncond_text_embeds)
+                            pooled_uncond_text_embeds = cpu_cast(
+                                pooled_uncond_text_embeds
+                            )
                         pooled_text_embeds = torch.cat(
                             [pooled_uncond_text_embeds, pooled_cond_text_embeds], dim=0
                         )  # (2B, D)
-                        
 
-                    if self.clip_on_tt: 
+                    if self.clip_on_tt:
                         cond_hidden_state = cpu_cast(cond_hidden_state)
                         uncond_hidden_state = cpu_cast(uncond_hidden_state)
 
@@ -273,7 +276,6 @@ class SDXLPipeline:
             )
 
             time_ids = time_ids.repeat(2, 1)  # (2B, 6)
-
 
             start_time = time.time()
             for i, timestep in enumerate(self.scheduler.timesteps):
@@ -325,7 +327,9 @@ class SDXLPipeline:
             latents = latents.to(dtype=torch.float32)
             if self.vae_on_tt:
                 latents = latents.to(device=xm.xla_device())
-            images = self.vae.decode(latents).sample  # (B, 4, Latent_Height, Latent_Width) -> (B, 3, Image_Height, Image_Width)
+            images = self.vae.decode(
+                latents
+            ).sample  # (B, 4, Latent_Height, Latent_Width) -> (B, 3, Image_Height, Image_Width)
             if self.vae_on_tt:
                 images = cpu_cast(images)
             end_time = time.time()
@@ -358,8 +362,12 @@ if __name__ == "__main__":
     parser.add_argument("--do_cfg", type=bool, default=True)
     parser.add_argument("--cfg_scale", type=float, default=7.5)
     parser.add_argument("--num_inference_steps", type=int, default=50)
-    parser.add_argument("--vae_on_tt", action="store_true", help="Run VAE on TT device if set")
-    parser.add_argument("--clip_on_tt", action="store_true", help="Run CLIP on TT device if set")
+    parser.add_argument(
+        "--vae_on_tt", action="store_true", help="Run VAE on TT device if set"
+    )
+    parser.add_argument(
+        "--clip_on_tt", action="store_true", help="Run CLIP on TT device if set"
+    )
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--output_path", type=str, default="output.png")
     args = parser.parse_args()
@@ -372,7 +380,13 @@ if __name__ == "__main__":
         {"optimization_level": args.optimization_level}
     )
     # only 512x512 is supported for now
-    config = SDXLConfig(width=512, height=512, device="cpu", vae_on_tt=args.vae_on_tt, clip_on_tt=args.clip_on_tt)
+    config = SDXLConfig(
+        width=512,
+        height=512,
+        device="cpu",
+        vae_on_tt=args.vae_on_tt,
+        clip_on_tt=args.clip_on_tt,
+    )
     pipeline = SDXLPipeline(config=config)
     pipeline.setup(warmup=True)
 
