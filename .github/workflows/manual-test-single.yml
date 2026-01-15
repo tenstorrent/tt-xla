@@ -45,3 +45,4 @@ jobs:
         ref: vvukoman/extract-mlir-version-differently
         docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
         project: tt-xla
+        sh-runner: true
