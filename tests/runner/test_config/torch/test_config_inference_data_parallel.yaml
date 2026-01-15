@@ -35,6 +35,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
+  deit/pytorch-base_distilled-data_parallel-inference:
+    supported_archs: [n300]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: Can't instantiate abstract class ModelLoader with abstract method load_inputs"
+
   dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-multiset-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
@@ -98,6 +103,11 @@ test_config:
   vgg/pytorch-torchvision_vgg16-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
+
+  deit/pytorch-small-data_parallel-inference:
+    supported_archs: [n300]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: Can't instantiate abstract class ModelLoader with abstract method load_inputs"
 
   autoencoder/pytorch-linear-data_parallel-inference:
     supported_archs: [n300]
@@ -213,6 +223,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
+  deit/pytorch-tiny-data_parallel-inference:
+    supported_archs: [n300]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: Can't instantiate abstract class ModelLoader with abstract method load_inputs"
+
   swin/image_classification/pytorch-swin_s-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
@@ -240,6 +255,12 @@ test_config:
   alexnet/pytorch-alexnetb-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
+
+  deit/pytorch-base-data_parallel-inference:
+    supported_archs: [n300]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TypeError: Can't instantiate abstract class ModelLoader with abstract method load_inputs"
+    required_pcc: 0.98
 
   dpr/question_encoder/pytorch-facebook/dpr-question_encoder-single-nq-base-data_parallel-inference:
     supported_archs: [n300]
