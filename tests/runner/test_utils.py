@@ -21,7 +21,6 @@ import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
-import ttnn
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
 from infra.utilities.torch_multichip_utils import get_mesh
@@ -685,7 +684,7 @@ def get_xla_device_arch():
     for arch in ["wormhole", "blackhole"]:
         if arch in arch_name:
             return arch'''
-
+    import ttnn
     arch = ttnn.get_arch_name()
     print(f"ARCH_NAME: {arch}")
     return arch
