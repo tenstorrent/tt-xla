@@ -98,6 +98,13 @@ static tt_pjrt_status launchDistributedRuntime() {
     return tt_pjrt_status::kInternal;
   }
 
+  std::vector<std::string> hosts_list_vec;
+  std::string host;
+  std::istringstream tokenStream(hosts_list);
+  while (std::getline(tokenStream, host, ',')) {
+      hosts_list_vec.push_back(host);
+  }
+
   tt::runtime::setMetalHome(metal_home);
 
   std::string rank_binding_path = getRankBindingPath(metal_home);
@@ -118,7 +125,7 @@ static tt_pjrt_status launchDistributedRuntime() {
           .withAllowRunAsRoot(true)
           .withMcaOptions({{"btl", "self,tcp"}, {"btl_tcp_if_include", "enp10s0f1np1"}})
           .withControllerHostname(controller_host_name)
-          .withHosts(hosts_list);
+          .withHosts(hosts_list_vec);
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
   tt::runtime::launchDistributedRuntime(distributed_options);
