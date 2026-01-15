@@ -64,9 +64,12 @@ class ComparisonEvaluator(Evaluator):
             device_output, golden_output, self._comparison_config.allclose
         )
 
+        # Check if output is single-element (PCC undefined, force atol check)
+        is_single_element = self._is_single_element(device_output)
+
         # Evaluate the overall pass/fail status and capture any error message
         _comparison_result.passed, _comparison_result.error_message = (
-            self._evaluate_results(_comparison_result)
+            self._evaluate_results(_comparison_result, is_single_element)
         )
 
         # Check if any comparison failed and optionally assert
@@ -76,7 +79,7 @@ class ComparisonEvaluator(Evaluator):
         return _comparison_result
 
     def _evaluate_results(
-        self, comparison_result: ComparisonResult
+        self, comparison_result: ComparisonResult, is_single_element: bool = False
     ) -> Tuple[bool, str | None]:
         """
         Evaluate comparison results and return whether all enabled checks passed
@@ -84,6 +87,7 @@ class ComparisonEvaluator(Evaluator):
 
         Args:
             comparison_result: The ComparisonResult to evaluate
+            is_single_element: If True, force atol check (PCC is undefined for single-element tensors)
 
         Returns (passed, error_message) where:
         - passed: True if all enabled comparisons passed their thresholds, False otherwise
@@ -135,14 +139,14 @@ class ComparisonEvaluator(Evaluator):
                     f"Calculated: pcc={comparison_result.pcc}. Required: pcc={required_pcc}."
                 )
 
-        if (
-            self._comparison_config.allclose.enabled
-            and comparison_result.allclose is False
-        ):
+        # Force allclose check for single-element tensors (PCC is undefined for them)
+        allclose_enabled = self._comparison_config.allclose.enabled or is_single_element
+        if allclose_enabled and comparison_result.allclose is False:
             passed = False
             allclose_config = self._comparison_config.allclose
             error_messages.append(
                 f"Allclose comparison failed. "
+                f"Calculated: atol={comparison_result.atol}. "
                 f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
             )
 
@@ -176,10 +180,9 @@ class ComparisonEvaluator(Evaluator):
         """
         raise NotImplementedError("Subclasses must implement this method")
 
-    @staticmethod
     @abstractmethod
     def _compare_pcc(
-        device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
+        self, device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         """
         Compares PCC metric between device and golden output.
@@ -198,4 +201,9 @@ class ComparisonEvaluator(Evaluator):
         Compares if device and golden output are element-wise equal within a tolerance.
         Returns True if all elements are close, False otherwise.
         """
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @abstractmethod
+    def _is_single_element(self, tensor: Tensor) -> bool:
+        """Returns True if the tensor has only a single element."""
         raise NotImplementedError("Subclasses must implement this method")

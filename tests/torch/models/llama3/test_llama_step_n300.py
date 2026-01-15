@@ -53,7 +53,8 @@ def test_llama_step(run_mode):
     model_hidden_layers: int = 28
     batch_size: int = 1
     max_cache_len: int = 128
-    input_prompt: str = "I like taking walks in the"
+    # Changed prompt due to issue https://github.com/tenstorrent/tt-xla/issues/2823
+    input_prompt: str = "Hey how are you doing today?"
     model_name: str = "meta-llama/Llama-3.2-3B"
 
     # Connect the device and create mesh.
@@ -112,8 +113,9 @@ def test_llama_step(run_mode):
         print("Cpu tok: ", cpu_tok)
 
     # Move model and inputs to device.
-    static_cache.key_cache = [k.to(device) for k in static_cache.key_cache]
-    static_cache.value_cache = [v.to(device) for v in static_cache.value_cache]
+    for layer in static_cache.layers:
+        layer.keys = layer.keys.to(device)
+        layer.values = layer.values.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
 
@@ -123,19 +125,17 @@ def test_llama_step(run_mode):
     xs.mark_sharding(input_args["input_ids"], mesh, (None, None))
     xs.mark_sharding(input_args["cache_position"], mesh, (None,))
 
-    # Capture KV cache shard specs before execution
     kv_cache_key_shard_specs = []
     kv_cache_value_shard_specs = []
-    for i, (key, value) in enumerate(
-        zip(
-            input_args["past_key_values"].key_cache,
-            input_args["past_key_values"].value_cache,
+    for layer in input_args["past_key_values"].layers:
+        xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+        xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+        kv_cache_key_shard_specs.append(
+            torch_xla._XLAC._get_xla_sharding_spec(layer.keys)
         )
-    ):
-        xs.mark_sharding(key, mesh, (None, "model", None, None))
-        xs.mark_sharding(value, mesh, (None, "model", None, None))
-        kv_cache_key_shard_specs.append(torch_xla._XLAC._get_xla_sharding_spec(key))
-        kv_cache_value_shard_specs.append(torch_xla._XLAC._get_xla_sharding_spec(value))
+        kv_cache_value_shard_specs.append(
+            torch_xla._XLAC._get_xla_sharding_spec(layer.values)
+        )
 
     # Shard model internals
     for layer in model.model.layers:
@@ -172,26 +172,22 @@ def test_llama_step(run_mode):
         input_args["cache_position"] = host_cache_pos.to(device)
 
     # Assert that KV cache shard specs are preserved after execution
-    for i, (key, value) in enumerate(
-        zip(
-            input_args["past_key_values"].key_cache,
-            input_args["past_key_values"].value_cache,
-        )
-    ):
+    for i, layer in enumerate(input_args["past_key_values"].layers):
         assert (
-            torch_xla._XLAC._get_xla_sharding_spec(key) == kv_cache_key_shard_specs[i]
+            torch_xla._XLAC._get_xla_sharding_spec(layer.keys)
+            == kv_cache_key_shard_specs[i]
         ), (
             f"Key cache at layer {i} lost its sharding after execution. "
             f"Expected: {kv_cache_key_shard_specs[i]}, "
-            f"Got: {torch_xla._XLAC._get_xla_sharding_spec(key)}"
+            f"Got: {torch_xla._XLAC._get_xla_sharding_spec(layer.keys)}"
         )
         assert (
-            torch_xla._XLAC._get_xla_sharding_spec(value)
+            torch_xla._XLAC._get_xla_sharding_spec(layer.values)
             == kv_cache_value_shard_specs[i]
         ), (
             f"Value cache at layer {i} lost its sharding after execution. "
             f"Expected: {kv_cache_value_shard_specs[i]}, "
-            f"Got: {torch_xla._XLAC._get_xla_sharding_spec(value)}"
+            f"Got: {torch_xla._XLAC._get_xla_sharding_spec(layer.values)}"
         )
 
     # Compare outputs for validation

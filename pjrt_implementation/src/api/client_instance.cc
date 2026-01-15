@@ -423,6 +423,12 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
          utils::to_string(parent_mesh_shape).c_str(),
          utils::to_string(target_mesh_shape).c_str());
 
+  // Materialize all buffers to host and clear prepared tensors before closing
+  // the mesh. This ensures buffers don't hold references to deallocated tensors
+  // after mesh close, which could cause assertion failures in
+  // prepareInputTensor when buffers are reused as inputs to subsequent graphs.
+  materializeAllBuffersToHost();
+
   // NOTE: Due to some issues hit when testing, instead of using the reshape
   // mesh API, we are closing and re-opening the device with the wanted mesh
   // shape. This should be revisited in the future (#1436).
@@ -440,12 +446,6 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
 }
 
 void ClientInstance::closeMeshDevice() {
-  // Materialize all buffers to host and clear prepared tensors before closing
-  // the mesh. This ensures buffers don't hold references to deallocated tensors
-  // after mesh close, which could cause assertion failures in
-  // prepareInputTensor when buffers are reused as inputs to subsequent graphs.
-  materializeAllBuffersToHost();
-
   closeOptimizerSubmesh();
   closeParentMesh();
 }
