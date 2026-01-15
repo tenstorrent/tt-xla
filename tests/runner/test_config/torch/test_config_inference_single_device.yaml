@@ -134,17 +134,14 @@ test_config:
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-inference:
-    markers: [try_bfp8]
     required_pcc: 0.96 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/2433
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-inference:
-    markers: [try_bfp8]
     # TODO - Open issue, for some reason BFP8 causes this model to hang on n150 + p150 on CI and locally
     # https://github.com/tenstorrent/tt-xla/actions/runs/21018366572/job/60428401625
     status: NOT_SUPPORTED_SKIP
@@ -1520,7 +1517,6 @@ test_config:
     reason: "TypeError: GLiNER.compile() got an unexpected keyword argument 'backend'"
 
   gemma/pytorch-google/gemma-1.1-7b-it-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-inference:
@@ -1596,7 +1592,6 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_3/embedding/pytorch-embedding_8b-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   gpt_neo/sequence_classification/pytorch-gpt_neo_125M-single_device-inference:
@@ -1617,19 +1612,17 @@ test_config:
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
   huggyllama/pytorch-llama_7b-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        markers: [try_bfp8, large]
+        markers: [large]
 
   llama/causal_lm/pytorch-huggyllama_7b-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
     assert_pcc: false # Calculated: pcc=0.9130426049232483. Change to torch==2.9.0
     arch_overrides:
       n150:
-        markers: [try_bfp8, large]
+        markers: [large]
 
   llama/causal_lm/pytorch-llama_3_1_70b-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -1638,11 +1631,9 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/causal_lm/pytorch-llama_3_1_8b-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-llama_3_1_8b_instruct-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-llama_3_1_405b-single_device-inference:
@@ -1652,20 +1643,17 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/causal_lm/pytorch-llama_3_8b-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-llama_3_8b_instruct-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   llama/sequence_classification/pytorch-huggyllama_7b-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
     assert_pcc: false # Calculated: pcc=0.9396957755088806. Change to torch==2.9.0
     arch_overrides:
       n150:
-        markers: [try_bfp8, large]
+        markers: [large]
 
   llama/sequence_classification/pytorch-llama_3_1_70b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1678,11 +1666,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   llama/sequence_classification/pytorch-llama_3_1_8b-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   llama/sequence_classification/pytorch-llama_3_1_8b_instruct-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   llama/sequence_classification/pytorch-llama_3_3_70b_instruct-single_device-inference:
@@ -1691,25 +1677,20 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   llama/sequence_classification/pytorch-llama_3_8b-single_device-inference:
-    markers: [try_bfp8]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1472"
 
   llama/sequence_classification/pytorch-llama_3_8b_instruct-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   mistral/pytorch-7b-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   mistral/pytorch-7b_instruct_v03-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   mistral/pytorch-ministral_8b_instruct-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-14b-single_device-inference:
@@ -1734,26 +1715,22 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_2_5/causal_lm/pytorch-7b-single_device-inference:
-    markers: [try_bfp8]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5/causal_lm/pytorch-7b_instruct-single_device-inference:
-    markers: [try_bfp8]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7253174185752869. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
 
   qwen_2_5/causal_lm/pytorch-7b_instruct_1m-single_device-inference:
-    markers: [try_bfp8]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8598132729530334. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5/causal_lm/pytorch-math_7b-single_device-inference:
-    markers: [try_bfp8]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
@@ -1762,13 +1739,11 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_2_5_coder/pytorch-7b-single_device-inference:
-    markers: [try_bfp8]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5_coder/pytorch-7b_instruct-single_device-inference:
-    markers: [try_bfp8]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.964358925819397. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
@@ -1785,7 +1760,6 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-8b-single_device-inference:
-    markers: [try_bfp8]
     required_pcc: 0.985
     status: EXPECTED_PASSING
 
@@ -1806,14 +1780,12 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   gemma/pytorch-google/gemma-2-9b-it-single_device-inference:
-    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   gemma/pytorch-google/gemma-2-27b-it-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   falcon/pytorch-tiiuae/falcon-7b-instruct-single_device-inference:
-    markers: [try_bfp8]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475"
