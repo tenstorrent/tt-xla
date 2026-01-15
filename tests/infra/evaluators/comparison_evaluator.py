@@ -23,24 +23,15 @@ class ComparisonEvaluator(Evaluator):
 
     def evaluate(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
         """
-        Evaluate device output against golden output. This is just a wrapper for compare() to
-        keep the consistent interface.
+        Compares device output with golden output based on ComparisonConfig provided
+        during creation.
 
         Args:
             device_out: Output from the TT device
             golden_out: Golden/reference output (typically from CPU)
 
         Returns:
-            ComparisonResult with computed metrics and pass/fail status
-        """
-        return self.compare(device_out, golden_out)
-
-    def compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
-        """
-        Compares device output with golden output based on ComparisonConfig provided
-        during creation.
-
-        Returns ComparisonResult with computed metrics.
+            ComparisonResult with computed metrics and pass/fail status.
         """
         # Pack args in an iterable to simulate a pytree.
         device_output, golden_output = self._match_data_types((device_out, golden_out))

@@ -198,4 +198,4 @@ def test_llama_step(run_mode):
         )
     )
 
-    comparator.compare(generated_output_logits, cpu_output_logits)
+    comparator.evaluate(generated_output_logits, cpu_output_logits)

@@ -125,7 +125,7 @@ def bge_m3_encode():
     comparison_config = ComparisonConfig()
     comparison_config.pcc.required_pcc = 0.92  # TODO: Investigate low PCC on bh devices https://github.com/tenstorrent/tt-xla/issues/1461
     comparator = TorchComparisonEvaluator(comparison_config)
-    comparator.compare(tt_torch_output, golden_torch_output)
+    comparator.evaluate(tt_torch_output, golden_torch_output)
 
     # Return results for further analysis if needed.
     return {

@@ -213,7 +213,7 @@ class ModelTester(BaseTester, ABC):
 
     def _compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
         """Compares device with golden output and returns the result."""
-        return self._evaluator.compare(device_out, golden_out)
+        return self._evaluator.evaluate(device_out, golden_out)
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         """

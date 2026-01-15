@@ -62,7 +62,7 @@ def test_simple_mm_eager(bias):
             atol=AtolConfig(required_atol=0.02),
         )
     )
-    comparator.compare(output, golden)
+    comparator.evaluate(output, golden)
 
 
 @pytest.mark.push
@@ -111,7 +111,7 @@ def test_conv2d_eager(
             atol=AtolConfig(enabled=False, required_atol=0.02),
         )
     )
-    comparator.compare(output, golden)
+    comparator.evaluate(output, golden)
 
 
 eltwise_unary_ops = [
@@ -234,7 +234,7 @@ def test_eltwise_unary_eager(op):
             atol=AtolConfig(enabled=False, required_atol=0.01),
         )
     )
-    comparator.compare(output, golden)
+    comparator.evaluate(output, golden)
 
 
 eltwise_binary_ops = [
@@ -333,7 +333,7 @@ def test_eltwise_binary_eager(op):
             atol=AtolConfig(enabled=False, required_atol=0.02),
         )
     )
-    comparator.compare(output, golden)
+    comparator.evaluate(output, golden)
 
 
 @pytest.mark.single_device
@@ -370,7 +370,7 @@ def test_fully_replicated_graph(spmd_mode):
         )
     )
 
-    comparator.compare(output, golden)
+    comparator.evaluate(output, golden)
 
 
 @pytest.mark.nightly

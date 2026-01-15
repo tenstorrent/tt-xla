@@ -80,4 +80,4 @@ def test_mnist_inference_data_parallel(batch_size: int, input_size: int):
             pcc=PccConfig(required_pcc=0.99),
         )
     )
-    comparator.compare(tt_output.cpu(), cpu_output)
+    comparator.evaluate(tt_output.cpu(), cpu_output)

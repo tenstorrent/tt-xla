@@ -96,7 +96,7 @@ def test_linear_torch_override():
     output = F.linear(input_tensor, weight, bias)
 
     comparator = TorchComparisonEvaluator(ComparisonConfig())
-    comparator.compare(output, golden)
+    comparator.evaluate(output, golden)
 
 
 @pytest.mark.nightly

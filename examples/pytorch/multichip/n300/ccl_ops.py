@@ -73,7 +73,7 @@ def test_all_reduce(shard_dim):
             pcc=PccConfig(required_pcc=0.99),
         )
     )
-    comparator.compare(y, expected)
+    comparator.evaluate(y, expected)
 
 
 @pytest.mark.parametrize("shard_dim", [0, 1])
@@ -116,5 +116,5 @@ def test_all_gather(shard_dim):
         )
     )
     for i in range(1, len(chunks)):
-        comparator.compare(chunks[i], chunks[0])
-    comparator.compare(chunks[0], golden)
+        comparator.evaluate(chunks[i], chunks[0])
+    comparator.evaluate(chunks[0], golden)

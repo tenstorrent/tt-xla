@@ -72,7 +72,7 @@ class OpTester(BaseTester):
             compile_torch_workload_for_tt_device(tt_workload, self._torch_options)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
-        self._evaluator.compare(tt_res, cpu_res)
+        self._evaluator.evaluate(tt_res, cpu_res)
 
     def test_with_random_inputs(
         self,
