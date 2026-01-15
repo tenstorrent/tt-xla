@@ -335,7 +335,6 @@ def test_llama_layer(variant, variant_config, arch):
     print(f"Layer param size: {param_size / 1e9}B")
     batch_size = 32
 
-    breakpoint()
     seq_len = 1
     num_heads = config.num_attention_heads
     num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
@@ -407,7 +406,7 @@ def test_llama_layer(variant, variant_config, arch):
 
     run_graph_test(
         layer,
-        [hidden_states, attention_mask, None, past_key_states, None, True, None, position_embeddings],
+        [hidden_states, attention_mask, None, past_key_states, True, None, position_embeddings],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
