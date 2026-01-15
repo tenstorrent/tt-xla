@@ -302,8 +302,8 @@ ModuleBuilder::buildModule(
          "shardings: %d",
          is_using_shardy_output_shardings);
 
-  DLOG_F(LOG_DEBUG, "[James] Skipping sanitation for xla ingestion");
-  if (is_using_shardy_output_shardings && false) {
+  // DLOG_F(LOG_DEBUG, "[James] Skipping sanitation for xla ingestion");
+  if (is_using_shardy_output_shardings ) {
     // Clear the GSPMD shardings collected earlier before collecting shardy
     // shardings
     output_shardings.clear();
