@@ -897,11 +897,11 @@ test_config:
 
   qwen_2_5_vl/pytorch-3b_instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+    # reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
 
   qwen_2_5_vl/pytorch-7b_instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+    # reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-inference:
     status: EXPECTED_PASSING
@@ -1632,7 +1632,7 @@ test_config:
 
   detr3d/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353"
+    # reason: "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353"
 
   vadv2/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2441,7 +2441,7 @@ test_config:
 
   efficientdet/pytorch-d1-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,88,10,10] vs. bf16[2]. Expected dimension 3 of shape bf16[1,88,10,10] (10) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+    # reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,88,10,10] vs. bf16[2]. Expected dimension 3 of shape bf16[1,88,10,10] (10) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
 
   efficientdet/pytorch-d2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
