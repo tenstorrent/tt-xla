@@ -21,6 +21,7 @@ import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
+import ttnn
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
 from infra.utilities.torch_multichip_utils import get_mesh
@@ -679,12 +680,15 @@ def get_xla_device_arch():
     Returns:
         str: Architecture name ('wormhole' or 'blackhole'), or empty string if not found
     """
-    var = "ARCH_NAME"
+    '''var = "ARCH_NAME"
     arch_name = os.environ.get(var, "").lower()
     for arch in ["wormhole", "blackhole"]:
         if arch in arch_name:
-            return arch
-    return ""
+            return arch'''
+
+    arch = ttnn.get_arch_name()
+    print(f"ARCH_NAME: {arch}")
+    return arch
 
 
 def get_input_shape_info(inputs) -> tuple[int, int, tuple]:
