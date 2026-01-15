@@ -91,6 +91,13 @@ static tt_pjrt_status launchDistributedRuntime() {
     DLOG_F(ERROR, "TT_CONTROLLER_HOST_NAME environment variable is not set");
     return tt_pjrt_status::kInternal;
   }
+
+  const char* hosts_list = std::getenv("TT_HOSTS_LIST");
+  if (!hosts_list) {
+    DLOG_F(ERROR, "TT_HOSTS_LIST environment variable is not set");
+    return tt_pjrt_status::kInternal;
+  }
+
   tt::runtime::setMetalHome(metal_home);
 
   std::string rank_binding_path = getRankBindingPath(metal_home);
@@ -110,7 +117,8 @@ static tt_pjrt_status launchDistributedRuntime() {
       tt::runtime::MultiProcessArgs::create(rank_binding_path)
           .withAllowRunAsRoot(true)
           .withMcaOptions({{"btl", "self,tcp"}, {"btl_tcp_if_include", "enp10s0f1np1"}})
-          .withControllerHostname(controller_host_name);
+          .withControllerHostname(controller_host_name)
+          .withHosts(hosts_list);
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
   tt::runtime::launchDistributedRuntime(distributed_options);
