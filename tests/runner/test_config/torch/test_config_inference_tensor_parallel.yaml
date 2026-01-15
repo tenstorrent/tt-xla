@@ -145,6 +145,10 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
 
+  qwen_2_5_vl/pytorch-3b_instruct-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+  
   # Models that need work....
 
   llama/causal_lm/pytorch-llama_3_1_405b-tensor_parallel-inference:
