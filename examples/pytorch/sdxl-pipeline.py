@@ -24,7 +24,9 @@ class SDXLConfig:
     available_devices = ["cpu", "cuda"]
     available_dims = [512, 1024]
 
-    def __init__(self, width=1024, height=1024, device="cpu"):
+    def __init__(
+        self, width=1024, height=1024, device="cpu", vae_on_tt=False, clip_on_tt=False
+    ):
         assert width == height, "Currently we only support square images"
         assert (
             width in SDXLConfig.available_dims
@@ -42,6 +44,8 @@ class SDXLConfig:
             device in SDXLConfig.available_devices
         ), f"Invalid device: {device}. Available devices: {SDXLConfig.available_devices}"
         self.device = device
+        self.vae_on_tt = vae_on_tt
+        self.clip_on_tt = clip_on_tt
 
 
 class SDXLPipeline:
@@ -58,12 +62,10 @@ class SDXLPipeline:
         self.height = config.height
         self.latents_width = config.latents_width
         self.latents_height = config.latents_height
-        self._setup_done = False
+        self.vae_on_tt = config.vae_on_tt
+        self.clip_on_tt = config.clip_on_tt
 
     def setup(self, warmup=False):
-        if self._setup_done:
-            return
-        self._setup_done = True
         self.load_models()
         self.load_scheduler()
         self.load_tokenizers()
@@ -88,6 +90,9 @@ class SDXLPipeline:
             device_map=self.device,
             trust_remote_code=True,
         )
+        if self.vae_on_tt:
+            self.vae.compile(backend="tt")
+            self.vae = self.vae.to(xm.xla_device())
 
         self.unet = UNet2DConditionModel.from_pretrained(
             self.model_id,
@@ -117,6 +122,12 @@ class SDXLPipeline:
             device_map=self.device,
             trust_remote_code=True,
         )
+
+        if self.clip_on_tt:
+            self.text_encoder.compile(backend="tt")
+            self.text_encoder = self.text_encoder.to(xm.xla_device())
+            self.text_encoder_2.compile(backend="tt")
+            self.text_encoder_2 = self.text_encoder_2.to(xm.xla_device())
 
     def load_scheduler(self):
         self.scheduler = EulerDiscreteScheduler.from_pretrained(
@@ -161,6 +172,13 @@ class SDXLPipeline:
 
         batch_size = 1 if isinstance(prompt, str) else len(prompt)
 
+        tt_cast = lambda x: (
+            x.to(dtype=torch.bfloat16).to(device=xm.xla_device())
+            if x.device == torch.device("cpu")
+            else x.to(dtype=torch.bfloat16)
+        )
+        cpu_cast = lambda x: x.to("cpu").to(dtype=torch.float16)
+
         with torch.no_grad():
             generator = torch.Generator(device="cpu")
             if seed is not None:
@@ -194,6 +212,10 @@ class SDXLPipeline:
                         device=self.device
                     )
 
+                    if self.clip_on_tt:
+                        cond_tokens = cond_tokens.to(device=xm.xla_device())
+                        uncond_tokens = uncond_tokens.to(device=xm.xla_device())
+
                     cond_output = curr_text_encoder(
                         cond_tokens, output_hidden_states=True
                     )
@@ -211,9 +233,18 @@ class SDXLPipeline:
                     if curr_text_encoder == self.text_encoder_2:
                         pooled_cond_text_embeds = cond_output.text_embeds  # (B, D)
                         pooled_uncond_text_embeds = uncond_output.text_embeds  # (B, D)
+                        if self.clip_on_tt:
+                            pooled_cond_text_embeds = cpu_cast(pooled_cond_text_embeds)
+                            pooled_uncond_text_embeds = cpu_cast(
+                                pooled_uncond_text_embeds
+                            )
                         pooled_text_embeds = torch.cat(
                             [pooled_uncond_text_embeds, pooled_cond_text_embeds], dim=0
                         )  # (2B, D)
+
+                    if self.clip_on_tt:
+                        cond_hidden_state = cpu_cast(cond_hidden_state)
+                        uncond_hidden_state = cpu_cast(uncond_hidden_state)
 
                     curr_hidden_state = torch.cat(
                         [uncond_hidden_state, cond_hidden_state], dim=0
@@ -245,13 +276,6 @@ class SDXLPipeline:
             )
 
             time_ids = time_ids.repeat(2, 1)  # (2B, 6)
-
-            tt_cast = lambda x: (
-                x.to(dtype=torch.bfloat16).to(device=xm.xla_device())
-                if x.device == torch.device("cpu")
-                else x.to(dtype=torch.bfloat16)
-            )
-            cpu_cast = lambda x: x.to("cpu").to(dtype=torch.float16)
 
             start_time = time.time()
             for i, timestep in enumerate(self.scheduler.timesteps):
@@ -301,9 +325,13 @@ class SDXLPipeline:
             print(f"Decoding from latent space")
             latents = latents / self.vae.config.scaling_factor
             latents = latents.to(dtype=torch.float32)
+            if self.vae_on_tt:
+                latents = latents.to(device=xm.xla_device())
             images = self.vae.decode(
                 latents
             ).sample  # (B, 4, Latent_Height, Latent_Width) -> (B, 3, Image_Height, Image_Width)
+            if self.vae_on_tt:
+                images = cpu_cast(images)
             end_time = time.time()
             print(f"VAE decode time taken: {end_time - start_time} seconds")
             return images
@@ -334,17 +362,31 @@ if __name__ == "__main__":
     parser.add_argument("--do_cfg", type=bool, default=True)
     parser.add_argument("--cfg_scale", type=float, default=7.5)
     parser.add_argument("--num_inference_steps", type=int, default=50)
+    parser.add_argument(
+        "--vae_on_tt", action="store_true", help="Run VAE on TT device if set"
+    )
+    parser.add_argument(
+        "--clip_on_tt", action="store_true", help="Run CLIP on TT device if set"
+    )
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--output_path", type=str, default="output.png")
     args = parser.parse_args()
 
     xr.set_device_type("TT")
 
+    assert args.vae_on_tt == False, "VAE on TT is not supported for now"
+
     torch_xla.set_custom_compile_options(
         {"optimization_level": args.optimization_level}
     )
     # only 512x512 is supported for now
-    config = SDXLConfig(width=512, height=512, device="cpu")
+    config = SDXLConfig(
+        width=512,
+        height=512,
+        device="cpu",
+        vae_on_tt=args.vae_on_tt,
+        clip_on_tt=args.clip_on_tt,
+    )
     pipeline = SDXLPipeline(config=config)
     pipeline.setup(warmup=True)
 
