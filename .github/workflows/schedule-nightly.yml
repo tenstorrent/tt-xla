@@ -171,11 +171,16 @@ jobs:
             --pattern "dumped-irs-*" \
             --dir downloaded_artifacts || echo "No IR artifacts found"
 
-          # Consolidate all IRs into a single directory
+          # Consolidate all IRs into a single directory while preserving structure
           mkdir -p collected_irs
           if [ -d "downloaded_artifacts" ]; then
-            find downloaded_artifacts -name "*.mlir" -exec cp {} collected_irs/ \; || true
-            find downloaded_artifacts -type d -name "collected_irs" -exec cp -r {}/* collected_irs/ \; || true
+            # Find all collected_irs directories and merge their contents
+            for artifact_dir in downloaded_artifacts/dumped-irs-*/; do
+              if [ -d "${artifact_dir}collected_irs" ]; then
+                echo "Copying from ${artifact_dir}collected_irs"
+                cp -r "${artifact_dir}collected_irs"/* collected_irs/ 2>/dev/null || true
+              fi
+            done
           fi
 
           echo "=== Contents of collected_irs ==="
