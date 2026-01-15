@@ -98,3 +98,13 @@ jobs:
         docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
         project: tt-xla
         sh-runner: true
+
+  # publish-release:
+  #   uses: ./.github/workflows/call-publish-release.yml
+  #   if: false
+  #   secrets: inherit
+  #   needs: [ publish-release-wheel, build-release-docker, release-tests ]
+  #   with:
+  #     release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}
+  #     docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}
+  #     is_nightly_release: true
