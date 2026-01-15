@@ -1615,11 +1615,17 @@ test_config:
   huggyllama/pytorch-llama_7b-single_device-inference:
     markers: [try_bfp8]
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        markers: [try_bfp8, large]
 
   llama/causal_lm/pytorch-huggyllama_7b-single_device-inference:
     markers: [try_bfp8]
     status: EXPECTED_PASSING
     assert_pcc: false # Calculated: pcc=0.9130426049232483. Change to torch==2.9.0
+    arch_overrides:
+      n150:
+        markers: [try_bfp8, large]
 
   llama/causal_lm/pytorch-llama_3_1_70b-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -1653,6 +1659,9 @@ test_config:
     markers: [try_bfp8]
     status: EXPECTED_PASSING
     assert_pcc: false # Calculated: pcc=0.9396957755088806. Change to torch==2.9.0
+    arch_overrides:
+      n150:
+        markers: [try_bfp8, large]
 
   llama/sequence_classification/pytorch-llama_3_1_70b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
