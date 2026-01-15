@@ -10,7 +10,7 @@ from vllm.logger import init_logger
 def tt_init_logger(name: str):
     # Read log level from environment; default to "WARN" if not set.
     # Convert to uppercase for consistency.
-    raw_level = os.getenv("LOGGER_LEVEL", "WARN").upper()
+    raw_level = os.getenv("TTXLA_LOGGER_LEVEL", "WARN").upper()
 
     # vLLM does not support "VERBOSE" level so treating it as "DEBUG" level.
     logger_level = {"VERBOSE": "DEBUG"}.get(raw_level, raw_level)

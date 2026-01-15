@@ -269,6 +269,53 @@ def matmul(
         return NotImplemented
 
 
+def dot(input: torch.Tensor, tensor: torch.Tensor):
+    # Decompose dot product into matmul for 1D tensors.
+    if len(input.shape) == 1 and len(tensor.shape) == 1:
+        return torch.matmul(input, tensor)
+    else:
+        return NotImplemented
+
+
+def repeat(self, repeats):
+    # This is a specific decomposition to handle the case where we are repeating the leading dimension only.
+    # i.e. (128, 2880) -> (4096, 2880) when repeats is (32, 1)
+    # Instead of repeat, we can use unsqueeze + expand + flatten.
+    # This prevents "stablehlo.concatenate" and uses "stablehlo.broadcast_in_dim" instead.
+
+    # Check if we are repeating the leading dimension only
+    if (
+        len(repeats) == self.dim()
+        and repeats[0] > 1
+        and all(r == 1 for r in repeats[1:])
+    ):
+
+        # Create the broadcast path:
+        # (128, 2880) -> unsqueeze(0) -> (1, 128, 2880)
+        # (1, 128, 2880) -> expand(32, 128, 2880) -> (32, 128, 2880)
+        # (32, 128, 2880) -> flatten(0, 1) -> (4096, 2880)
+
+        expand_shape = [repeats[0]] + [-1] * self.dim()
+
+        return self.unsqueeze(0).expand(expand_shape).flatten(0, 1)
+
+    # This decomposition is targeting gpt-oss's MOE implementation.
+    # It might not be necessary for other models, so the decomposition is not generalistic.
+    return NotImplemented
+
+
+def boolean_bitwise_and(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+    if input.dtype == torch.bool and other.dtype == torch.bool:
+        return torch.logical_and(input, other)
+    return NotImplemented
+
+
+def boolean_bitwise_or(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+    if input.dtype == torch.bool and other.dtype == torch.bool:
+        return torch.logical_or(input, other)
+    return NotImplemented
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
@@ -300,6 +347,7 @@ def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
         aten.matmul.default: matmul,
+        aten.dot.default: dot,
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls against constant tensors.
         # They are necessary as the default aten decompositions
@@ -327,15 +375,24 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
         torch.ops.prims.squeeze.default: squeeze,
+        aten.repeat.default: repeat,
+        torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
+        torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
     }
 
 
 def populate_decompositions() -> DecompositionTable:
     decompositions = torch._decomp.core_aten_decompositions()
+
     # Pytorch folds batch dimensions of bmms https://github.com/pytorch/pytorch/blob/a5436a5e8e4ee42d1debf52c2786c7ae0043a434/aten/src/ATen/native/LinearAlgebra.cpp#L1999.
     # This breaks how shard specs prapagate through them, and introduces an all_gather in head parallel attention layers.
-    # We add a custom decoposition of mm -> einsum. For this reason, remove einsum decomposition.
+    # We add a custom decomposition of mm -> einsum. For this reason, remove einsum decomposition.
     decompositions.pop(torch.ops.aten.einsum.default)
+
+    # Dot product gets lowered to stablehlo.multiply, returning eltwise product
+    # of two tensors: https://github.com/tenstorrent/tt-xla/issues/2672
+    # A custom decomposition dot->matmul is added later (ref dot fn).
+    decompositions.pop(torch.ops.aten.dot.default)
 
     decompositions.update(get_decompositions(_get_default_decomposition_ops()))
     decompositions.update(_get_custom_decompositions())

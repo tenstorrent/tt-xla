@@ -60,6 +60,9 @@ class TorchModelTester(ModelTester):
     _get_forward_method_args(self) -> Sequence[Any] # Optional, has default behaviour.
     _get_forward_method_kwargs(self) -> Mapping[str, Any] # Optional, has default behaviour.
     ```
+
+    Attributes:
+        _model_size: Stores the model size in number of parameters
     """
 
     def __init__(
@@ -73,6 +76,7 @@ class TorchModelTester(ModelTester):
 
         self._input_activations: Dict | Sequence[Any] = None
         self._parallelism = parallelism
+        self._model_size = None
 
         super().__init__(
             comparison_config,
@@ -92,6 +96,7 @@ class TorchModelTester(ModelTester):
     def _configure_model(self) -> None:
         self._device_runner.set_training_mode(self._run_mode == RunMode.TRAINING)
         super()._configure_model()
+        self._calculate_model_size()
 
     # @override
     def _configure_model_for_inference(self) -> None:
@@ -102,6 +107,15 @@ class TorchModelTester(ModelTester):
     def _configure_model_for_training(self) -> None:
         assert isinstance(self._model, torch.nn.Module)
         self._model.train()
+
+    def _calculate_model_size(self) -> None:
+        """Calculate and store the total number of parameters in the model."""
+        if isinstance(self._model, torch.nn.Module):
+            self._model_size = sum(p.numel() for p in self._model.parameters())
+            logger.debug(f"Model size: {self._model_size / 1e9}B")
+        else:
+            logger.debug("Model is not a torch.nn.Module, skipping size calculation")
+            self._model_size = None
 
     # @override
     def _cache_model_inputs(self) -> None:
@@ -239,7 +253,7 @@ class TorchModelTester(ModelTester):
         tt_res = self._unpack_forward_output(tt_res)
 
         # Force graph break so we can differentiate between forward and backward
-        torch_xla.sync(wait=True)
+        torch_xla.sync()
 
         # Run backward on TT
         tt_backward_workload = Workload(
@@ -255,7 +269,7 @@ class TorchModelTester(ModelTester):
         torch_xla._XLAC._xla_sync_multi(
             wanted_grads,
             list(set([p.device.type for p in wanted_grads])),
-            wait=True,
+            wait=False,
         )
         tt_grads, tt_none_grads = self._extract_grads(self._model)
 

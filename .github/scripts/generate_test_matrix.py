@@ -69,7 +69,16 @@ def read_preset_test_entries(file_path: str):
     if not isinstance(matrix, list):
         raise ValueError("Expected JSON file to contain an array at the root level")
 
-    return [entry for entry in matrix if "_metadata" not in entry]
+    result = []
+    for entry in matrix:
+        if list(entry.keys()) == ["include"]:
+            for included_file in entry["include"]:
+                included_path = str(Path(file_path).parent / included_file)
+                result.extend(read_preset_test_entries(included_path))
+        else:
+            result.append(entry)
+
+    return result
 
 
 def map_shared_runners_field(entry):

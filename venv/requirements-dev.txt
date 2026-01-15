@@ -23,6 +23,7 @@ psutil
 pybind11
 pytest
 pytest-forked
+pytest-json-report
 pytest-split
 pytorchcv
 rjieba
@@ -32,9 +33,9 @@ soundfile
 tabulate
 timm
 # torchvision 0.23.0 causes torch v2.8.0 to be installed, which isn't supported by our torch_xla whl
-torchvision==0.22.1
+torchvision==0.24.0
 torchxrayvision
-transformers>=4.50.0,<4.53.0
+transformers==4.57.1
 
 # vgg model
 vgg_pytorch

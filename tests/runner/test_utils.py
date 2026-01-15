@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
+import glob
 import importlib.util
 import inspect
 import json
@@ -12,7 +13,7 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, List
 
 import numpy as np
 import pytest
@@ -28,6 +29,18 @@ from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
 BRINGUP_STAGE_FILE = "._bringup_stage.txt"
+
+
+# Optional hint that selects a non-default execution/input-loading phase.
+# Today this is only used to distinguish LLM prefill vs decode; in the future it may
+# be extended to other model families (e.g., vision) if they need phase-specific inputs.
+class RunPhase(Enum):
+    DEFAULT = "default"
+    LLM_PREFILL = "llm_prefill"
+    LLM_DECODE = "llm_decode"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 def fix_venv_isolation():
@@ -59,6 +72,26 @@ def fix_venv_isolation():
     # Re-add at the end as fallback
     if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
         sys.path.append("/usr/local/lib/python3.11/dist-packages")
+
+
+def find_dumped_ir_files(artifacts_dir: str) -> List[str]:
+    """
+    Find dumped SHLO IR files in a given directory.
+
+    This function searches for StableHLO compiler IR files that were dumped
+    during model test execution with the --dump-irs flag.
+
+    Args:
+        artifacts_dir: Directory where collected IRs are stored.
+    """
+
+    pattern = os.path.join(artifacts_dir, "irs", "shlo_compiler*.mlir")
+
+    matches = glob.glob(pattern)
+    if not matches:
+        raise FileNotFoundError(f"No file matching {pattern} with dumped IR found")
+
+    return matches
 
 
 class ModelTestStatus(Enum):
@@ -321,6 +354,96 @@ def _derive_guidance_from_status(test_metadata_status, bringup_status) -> list[s
     return guidance
 
 
+def _get_first_failing_or_last_result(comparison_results: list):
+    """
+    Get the first failing result, or last result if all passed.
+
+    Args:
+        comparison_results: List of ComparisonResult objects
+
+    Returns:
+        The selected ComparisonResult, or None if list is empty/None
+    """
+    if not comparison_results:
+        return None
+
+    for result in comparison_results:
+        if result is not None and not result.passed:
+            return result
+
+    return comparison_results[-1]
+
+
+def _get_comparison_metrics(
+    comparison_results: list,
+) -> tuple[float | None, float | None, bool | None, str | None]:
+    """
+    Get comparison metrics from a list of comparison results.
+
+    Uses the first failed result, or the last result if all passed.
+
+    Args:
+        comparison_results: List of ComparisonResult objects
+
+    Returns:
+        Tuple of (pcc, atol, comparison_passed, comparison_error_message)
+    """
+    result = _get_first_failing_or_last_result(comparison_results)
+    if result is None:
+        return None, None, None, None
+
+    return (
+        result.pcc,
+        result.atol,
+        result.passed,
+        result.error_message,
+    )
+
+
+def _process_comparison_results(
+    comparison_results: list,
+    comparison_config,
+) -> tuple[BringupStatus, str]:
+    """
+    Process a list of comparison results and determine overall status.
+
+    Args:
+        comparison_results: List of ComparisonResult objects to process
+        comparison_config: The comparison configuration used
+
+    Returns:
+        Tuple of (bringup_status, reason_string)
+        - bringup_status: BringupStatus based on comparison outcomes
+        - reason_string: Combined reason string for all failures
+    """
+    if not comparison_results or comparison_config is None:
+        return None, ""
+
+    reason_parts = []
+    required_pcc = comparison_config.pcc.required_pcc
+    pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"
+
+    for i, result in enumerate(comparison_results, start=1):
+        if result is None:
+            continue
+
+        pcc = result.pcc
+        if pcc is None:
+            continue
+
+        if np.isnan(pcc) or pcc < required_pcc:
+            reason_parts.append(
+                f"[{i}/{len(comparison_results)}]: PCC check {pcc_check_str}. "
+                f"Calculated: pcc={pcc}. Required: pcc={required_pcc}."
+            )
+
+    if not reason_parts:
+        return BringupStatus.PASSED, ""
+
+    combined_reason = "Test marked w/ INCORRECT_RESULT. " + " | ".join(reason_parts)
+    return BringupStatus.INCORRECT_RESULT, combined_reason
+
+
 def _derive_guidance_from_pcc(comparison_result, comparison_config) -> list[str]:
     """
     Derive guidance tags from PCC metrics and thresholds.
@@ -385,9 +508,11 @@ def record_model_test_properties(
     test_metadata,
     run_mode: RunMode,
     parallelism: Parallelism,
+    run_phase: RunPhase = RunPhase.DEFAULT,
     test_passed: bool = False,
-    comparison_result=None,
+    comparison_results: list = None,
     comparison_config=None,
+    model_size: int = None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -424,14 +549,13 @@ def record_model_test_properties(
         bringup_status = config_bringup_status
         reason = getattr(test_metadata, "reason", "")
 
-    elif comparison_result is not None:
-        pcc = comparison_result.pcc
-        required_pcc = comparison_config.pcc.required_pcc
-        if np.isnan(pcc) or pcc < required_pcc:
-            bringup_status = BringupStatus.INCORRECT_RESULT
-            required_pcc = comparison_config.pcc.required_pcc
-            pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"
-            reason = f"Test marked w/ INCORRECT_RESULT. PCC check {pcc_check_str}. Calculated: pcc={pcc}. Required: pcc={required_pcc}."
+    elif comparison_results is not None and len(comparison_results) > 0:
+        processed_status, processed_reason = _process_comparison_results(
+            comparison_results, comparison_config
+        )
+        if processed_status == BringupStatus.INCORRECT_RESULT:
+            bringup_status = processed_status
+            reason = processed_reason
             if not comparison_config.pcc.enabled:
                 failing_reason = FailingReasons.find_by_description(
                     "Test marked w/ INCORRECT_RESULT. PCC check disabled."
@@ -452,7 +576,7 @@ def record_model_test_properties(
         static_reason = getattr(test_metadata, "reason", None)
         runtime_reason = getattr(test_metadata, "runtime_reason", None)
 
-        if comparison_result is None:
+        if comparison_results is None or len(comparison_results) == 0:
             bringup_status = parse_last_bringup_stage()
             if bringup_status is None:
                 bringup_status = BringupStatus.UNKNOWN
@@ -468,6 +592,7 @@ def record_model_test_properties(
         "model_name": str(model_info.name),
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
+        "run_phase": str(run_phase),
         "bringup_status": str(bringup_status),
         "model_test_status": str(test_metadata.status),
         "failing_reason": (
@@ -487,19 +612,26 @@ def record_model_test_properties(
         "arch": arch,
     }
 
+    # Add model size (in billions of parameters) to tags if available
+    if model_size is not None:
+        tags["model_size_billions"] = model_size / 1e9
+
     # Add execution_pass if available
     execution_pass = getattr(test_metadata, "execution_pass", None)
     if execution_pass is not None:
         tags["execution_pass"] = str(execution_pass)
 
     # Add comparison result metrics if available
-    if comparison_result is not None:
+    if comparison_results is not None and len(comparison_results) > 0:
+        pcc, atol, comparison_passed, comparison_error_message = (
+            _get_comparison_metrics(comparison_results)
+        )
         tags.update(
             {
-                "pcc": comparison_result.pcc,
-                "atol": comparison_result.atol,
-                "comparison_passed": comparison_result.passed,
-                "comparison_error_message": comparison_result.error_message,
+                "pcc": pcc,
+                "atol": atol,
+                "comparison_passed": comparison_passed,
+                "comparison_error_message": comparison_error_message,
             }
         )
     if comparison_config is not None:
@@ -513,7 +645,8 @@ def record_model_test_properties(
         )
 
     # Derive guidance tags based on PCC metrics and thresholds (always include; may be empty).
-    guidance_pcc = _derive_guidance_from_pcc(comparison_result, comparison_config)
+    representative_result = _get_first_failing_or_last_result(comparison_results)
+    guidance_pcc = _derive_guidance_from_pcc(representative_result, comparison_config)
     # Derive guidance tags based on test status and bringup status.
     guidance_status = _derive_guidance_from_status(test_metadata.status, bringup_status)
     # Combine all guidance tags.

@@ -15,6 +15,7 @@
 #include "gtest/gtest.h"
 
 // PJRT implementation headers
+#include "api/client_instance.h"
 #include "api/device_instance.h"
 #include "api/memory_instance.h"
 
