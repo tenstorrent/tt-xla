@@ -7,6 +7,8 @@ import torch
 from infra import Framework, run_op_test_with_random_inputs
 from utils import Category
 
+from tests.infra.testers.compiler_config import CompilerConfig
+
 
 @pytest.mark.push
 @pytest.mark.nightly
@@ -40,9 +42,12 @@ def test_conv2d(
         def forward(self, x):
             return self.conv(x)
 
+    # unset math_fidelity to use default ttnn behaviour.
+    compiler_config = CompilerConfig(math_fidelity="undefined")
     run_op_test_with_random_inputs(
         Conv(),
         [(1, in_channels, 224, 224)],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=compiler_config,
     )

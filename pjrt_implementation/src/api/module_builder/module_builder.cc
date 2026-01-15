@@ -890,6 +890,38 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
   options.experimentalBfp8Weights =
       compile_options.experimental_enable_weight_bfp8_conversion;
+
+  // Set compute kernel config options if provided
+  if (compile_options.math_fidelity.has_value()) {
+    std::string math_fidelity_str = compile_options.math_fidelity.value();
+    if (math_fidelity_str == "lofi") {
+      options.computeCfgMathFidelity =
+          mlir::tt::ttnn::OptionalMathFidelity::LoFi;
+    } else if (math_fidelity_str == "hifi2") {
+      options.computeCfgMathFidelity =
+          mlir::tt::ttnn::OptionalMathFidelity::HiFi2;
+    } else if (math_fidelity_str == "hifi3") {
+      options.computeCfgMathFidelity =
+          mlir::tt::ttnn::OptionalMathFidelity::HiFi3;
+    } else if (math_fidelity_str == "hifi4") {
+      options.computeCfgMathFidelity =
+          mlir::tt::ttnn::OptionalMathFidelity::HiFi4;
+    } else if (math_fidelity_str == "undefined") {
+      options.computeCfgMathFidelity =
+          mlir::tt::ttnn::OptionalMathFidelity::Undefined;
+    } else {
+      LOG_F(ERROR,
+            "Invalid math_fidelity value: %s. "
+            "Valid values are: lofi, hifi2, hifi3, hifi4, and undefined.",
+            math_fidelity_str.c_str());
+      return tt_pjrt_status::kInvalidArgument;
+    }
+  }
+
+  if (compile_options.fp32_dest_acc_en.has_value()) {
+    options.computeCfgFp32DestAccEn = compile_options.fp32_dest_acc_en.value();
+  }
+
   options.enableFusingConv2dWithMultiplyPattern =
       compile_options.experimental_enable_fusing_conv2d_with_multiply_pattern;
   options.enablePermuteMatmulFusion =
