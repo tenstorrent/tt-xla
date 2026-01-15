@@ -134,17 +134,17 @@ test_config:
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-inference:
-    supported_archs: ["p150"]
+    markers: [try_bfp8]
     required_pcc: 0.96 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/2433
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-inference:
-    supported_archs: ["p150"]
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-inference:
-    supported_archs: ["p150"]
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
     assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
@@ -1516,7 +1516,7 @@ test_config:
     reason: "TypeError: GLiNER.compile() got an unexpected keyword argument 'backend'"
 
   gemma/pytorch-google/gemma-1.1-7b-it-single_device-inference:
-    supported_archs: ["p150"]
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-inference:
@@ -1802,20 +1802,17 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   gemma/pytorch-google/gemma-2-9b-it-single_device-inference:
-    supported_archs: ["p150"]
+    markers: [try_bfp8]
     status: EXPECTED_PASSING
 
   gemma/pytorch-google/gemma-2-27b-it-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   falcon/pytorch-tiiuae/falcon-7b-instruct-single_device-inference:
-    supported_archs: ["p150"]
+    markers: [try_bfp8]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475"
-    arch_overrides:
-      n150:
-        status: EXCLUDE_MODEL # This model is run as tensor_parallel already.
 
   d_fine/pytorch-nano-single_device-inference:
     status: NOT_SUPPORTED_SKIP
