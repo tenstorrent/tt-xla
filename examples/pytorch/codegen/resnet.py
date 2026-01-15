@@ -30,7 +30,7 @@ extra_options = {
     "optimization_level": 2,
     # Experimental feature tries to pack generated code as it was originally written,
     # making it more readable.
-    "codegen_enable_prettify": False,  # experimental feature
+    "codegen_try_recover_structure": False,  # experimental feature
 }
 
 activation_tensor = torch.randn(1, 3, 224, 224)

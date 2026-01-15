@@ -194,9 +194,9 @@ def _extract_source_and_module_hierarchy_info(
     # ====
     # Case 1:
     # node.meta["stack_trace"].strip().split("\n")
-    # 0 = 'File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/prettify_example.py", line 47, in forward'
+    # 0 = 'File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/recover_structure.py", line 47, in forward'
     # 1 = '    x = self.m1(x)'
-    # 2 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/prettify_example.py", line 28, in forward'
+    # 2 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/recover_structure.py", line 28, in forward'
     # 3 = '    return x * self.w'
     # 4 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/python_package/tt_torch/torch_overrides.py", line 22, in __torch_function__'
     # 5 = '    return func(*args, **(kwargs or {}))'
