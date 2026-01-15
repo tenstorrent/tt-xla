@@ -43,7 +43,8 @@ def test_multihost_models(model_variant):
     distributed_env["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
     distributed_env["TT_DISTRIBUTED_WORKER_PATH"] = get_distributed_worker_path()
     distributed_env["TT_RUNTIME_ENABLE_DISTRIBUTED"] = "1"
-    distributed_env["TT_DISTRIBUTED_RANK_BINDING"] = "2x4_multiprocess"
+    # distributed_env["TT_DISTRIBUTED_RANK_BINDING"] = "2x4_multiprocess"
+    distributed_env["TT_DISTRIBUTED_RANK_BINDING"] = "2x4_double_bhqbae"
 
     result = subprocess.run(
         [
