@@ -12,7 +12,9 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
+from tt_torch.sharding import sharding_constraint_hook
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
+from tests.infra.testers.compiler_config import CompilerConfig
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 from transformers.cache_utils import StaticCache
@@ -22,6 +24,7 @@ from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
     LlamaAttention,
     eager_attention_forward,
+    LlamaDecoderLayer,
 )
 from transformers.models.mistral.modeling_mistral import MistralAttention
 from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
@@ -229,8 +232,7 @@ def test_llama_attention_decode(variant, variant_config, arch):
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
     attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
-
-    batch_size = 1
+    batch_size = 32
 
     seq_len = 1
     num_heads = config.num_attention_heads
@@ -240,7 +242,7 @@ def test_llama_attention_decode(variant, variant_config, arch):
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
-        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
+        if False and num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
             mesh_shape = (1, num_devices)
             mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -253,20 +255,25 @@ def test_llama_attention_decode(variant, variant_config, arch):
                 return shard_specs
 
         else:
-            batch_size = 2
+            # batch_size = 2
             mesh_shape = (2, num_devices // 2)
             mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+            # hook = sharding_constraint_hook(attention.o_proj, mesh, (None, None, None))
+            # attention.o_proj.register_forward_hook(hook)
 
             def get_shard_spec(attention, args, kwargs):
                 shard_specs = {}
-                shard_specs[args[0]] = ("batch", None, None)  # hidden_states
-                shard_specs[args[1][0]] = ("batch", None, None)  # cos
-                shard_specs[args[1][1]] = ("batch", None, None)  # sin
-                shard_specs[args[2]] = ("batch", None, None, None)  # mask
-                shard_specs[attention.q_proj.weight] = ("model", None)
-                shard_specs[attention.k_proj.weight] = ("model", None)
-                shard_specs[attention.v_proj.weight] = ("model", None)
-                shard_specs[attention.o_proj.weight] = (None, "model")
+                shard_specs[args[0]] = (None, None, "batch")  # hidden_states
+                shard_specs[args[1][0]] = (None, None, None)  # cos
+                shard_specs[args[1][1]] = (None, None, None)  # sin
+                shard_specs[args[2]] = (None, None, None, None)  # mask
+                shard_specs[args[3].key_cache[0]] = (None, "model", None, None)
+                shard_specs[args[3].value_cache[0]] = (None, "model", None, None)
+
+                shard_specs[attention.q_proj.weight] = ("model", "batch")
+                shard_specs[attention.k_proj.weight] = ("model", "batch")
+                shard_specs[attention.v_proj.weight] = ("model", "batch")
+                shard_specs[attention.o_proj.weight] = ("batch", "model")
                 return shard_specs
 
     else:
@@ -280,7 +287,8 @@ def test_llama_attention_decode(variant, variant_config, arch):
     position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
-    max_cache_len = 16
+    max_cache_len = 128
+    config.num_hidden_layers = 1
     static_cache: StaticCache = StaticCache(
         config=config,
         max_batch_size=batch_size,
@@ -296,6 +304,112 @@ def test_llama_attention_decode(variant, variant_config, arch):
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
+    )
+
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("llama").items(),
+    ids=[str(k) for k in get_available_variants("llama").keys()],
+)
+def test_llama_layer(variant, variant_config, arch):
+    if "70b" in str(variant) and not arch == "llmbox":
+        pytest.skip("70B models don't fit on a single device")
+
+    xr.set_device_type("TT")
+
+    compiler_config = CompilerConfig(
+        optimization_level=1,
+        enable_trace=False,
+        experimental_enable_weight_bfp8_conversion=True,
+        experimental_enable_permute_matmul_fusion=False,
+    )
+
+    loader = LlamaModelLoader(variant=variant)
+    config = loader.load_config()
+    layer = LlamaDecoderLayer(config, layer_idx=0).to(torch.bfloat16)
+    param_size = sum(p.numel() for p in layer.parameters())
+    print(f"Layer param size: {param_size / 1e9}B")
+    batch_size = 32
+
+    breakpoint()
+    seq_len = 1
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+
+    two_d = False
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+
+        if  not two_d:
+            mesh_shape = (1, num_devices)
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+                shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+                shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+                shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+                shard_specs[layer.mlp.gate_proj.weight] = ("model", None)
+                shard_specs[layer.mlp.up_proj.weight] = ("model", None)
+                shard_specs[layer.mlp.down_proj.weight] = (None, "model")
+                return shard_specs
+
+        else:
+            mesh_shape = (2, num_devices // 2)
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(layer, args, kwargs):
+                shard_specs = {}
+                shard_specs[args[0]] = (None, None, "batch")  # hidden_states
+                shard_specs[args[1]] = (None, None, None, None)  # mask
+                # args[2] = None
+                shard_specs[args[3].key_cache[0]] = (None, "model", None, None)
+                shard_specs[args[3].value_cache[0]] = (None, "model", None, None)
+                # shard_specs[args[1][0]] = (None, None, None)  # cos
+                # shard_specs[args[1][1]] = (None, None, None)  # sin
+
+                shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+                shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+                return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+    cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    max_cache_len = 128
+    config.num_hidden_layers = 1
+    static_cache: StaticCache = StaticCache(
+        config=config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+    past_key_states = static_cache
+
+    run_graph_test(
+        layer,
+        [hidden_states, attention_mask, None, past_key_states, None, True, None, position_embeddings],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        compiler_config=compiler_config,
     )
 
 
