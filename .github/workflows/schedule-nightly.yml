@@ -163,26 +163,15 @@ jobs:
           find third_party/tt-mlir -name "op_by_op_infra" -type d
 
       - name: Download dumped IR artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dumped-irs-*
+          path: collected_irs/
+          merge-multiple: true
+
+      - name: Verify downloaded IRs
         shell: bash
         run: |
-          echo "=== Downloading dumped IR artifacts ==="
-          gh run download ${{ github.run_id }} \
-            --repo ${{ github.repository }} \
-            --pattern "dumped-irs-*" \
-            --dir downloaded_artifacts || echo "No IR artifacts found"
-
-          # Consolidate all IRs into a single directory while preserving structure
-          mkdir -p collected_irs
-          if [ -d "downloaded_artifacts" ]; then
-            # Find all collected_irs directories and merge their contents
-            for artifact_dir in downloaded_artifacts/dumped-irs-*/; do
-              if [ -d "${artifact_dir}collected_irs" ]; then
-                echo "Copying from ${artifact_dir}collected_irs"
-                cp -r "${artifact_dir}collected_irs"/* collected_irs/ 2>/dev/null || true
-              fi
-            done
-          fi
-
           echo "=== Contents of collected_irs ==="
           find collected_irs -type f -name "*.mlir" | head -20
 
