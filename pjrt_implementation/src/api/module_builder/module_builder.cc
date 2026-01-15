@@ -1262,14 +1262,14 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
   // Alchemist specific options are passed here.
   // Other options are ingested during TTIR->TTNN conversion.
   std::string should_load = compile_options.export_tensors ? "true" : "false";
-  std::string codegen_enable_prettify =
-      compile_options.codegen_enable_prettify ? "true" : "false";
+  std::string try_recover_structure =
+      compile_options.codegen_try_recover_structure ? "true" : "false";
   std::string pipeline_options = "load-input-tensors-from-disk=" + should_load +
                                  " "
                                  "tensor-load-directory='./tensors'" +
                                  " "
-                                 "codegen-enable-prettify=" +
-                                 codegen_enable_prettify;
+                                 "try-recover-structure=" +
+                                 try_recover_structure;
   bool result;
 
   if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {

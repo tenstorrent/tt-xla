@@ -56,9 +56,10 @@ class CompilerConfig:
     # Enables IR dumping to a specified path.
     export_path: str = ""
 
-    # Enables prettify pipelines and passes for TTNN IR. Makes code more
-    # readable.
-    codegen_enable_prettify: bool = False
+    # Enables "try to recover structure" option for TTNN IR. Tries to match the
+    # structure of the original graph. This generates a more readable solution,
+    # useful when generating code.
+    codegen_try_recover_structure: bool = False
 
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
@@ -90,8 +91,8 @@ class CompilerConfig:
         if self.export_path != "":
             options["export_path"] = self.export_path
 
-        if self.codegen_enable_prettify:
-            options["codegen_enable_prettify"] = "true"
+        if self.codegen_try_recover_structure:
+            options["codegen_try_recover_structure"] = "true"
 
         return options
 

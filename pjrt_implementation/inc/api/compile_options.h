@@ -87,9 +87,10 @@ struct CompileOptions {
   // Enable collection of TTNN performance metrics during execution.
   bool ttnn_perf_metrics_enabled = false;
 
-  // Enables prettify pipelines and passes for TTNN IR. Makes code more
-  // readable.
-  bool codegen_enable_prettify = false;
+  // Enables "try to recover structure" option for TTNN IR. Tries to match the
+  // structure of the original graph. This generates a more readable solution,
+  // useful when generating code.
+  bool codegen_try_recover_structure = false;
 
   // Output file path for TTNN performance metrics.
   // If empty, metrics will be saved to the "perf_metrics" directory with a

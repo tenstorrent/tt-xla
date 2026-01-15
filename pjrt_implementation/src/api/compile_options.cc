@@ -47,9 +47,10 @@ CompileOptions CompileOptions::parse(
       internal::parseBoolOption(compile_options,
                                 "experimental_enable_permute_matmul_fusion")
           .value_or(options.experimental_enable_permute_matmul_fusion);
-  options.codegen_enable_prettify =
-      internal::parseBoolOption(compile_options, "codegen_enable_prettify")
-          .value_or(options.codegen_enable_prettify);
+  options.codegen_try_recover_structure =
+      internal::parseBoolOption(compile_options,
+                                "codegen_try_recover_structure")
+          .value_or(options.codegen_try_recover_structure);
   options.ttnn_perf_metrics_enabled =
       internal::parseBoolOption(compile_options, "ttnn_perf_metrics_enabled")
           .value_or(false);
