@@ -37,6 +37,11 @@ test_config:
     reason: "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494"
     bringup_status: FAILED_RUNTIME
 
+  gpt_oss/pytorch-gpt_oss_20b-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
   falcon/pytorch-tiiuae/falcon-7b-instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
