@@ -100,7 +100,7 @@ jobs:
         sh-runner: true
 
   demo-test:
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/extract-mlir-version-differently
+    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@vvukoman/extract-mlir-version-differently
     needs: [ build-release-docker ]
     secrets: inherit
     with:
