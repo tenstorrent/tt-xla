@@ -734,7 +734,7 @@ def test_output_sharding_simple_propagation():
 
     # check cpu result using comparator
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
-    comparator = TorchComparator(comparison_config)
+    comparator = TorchComparisonEvaluator(comparison_config)
     comparator.evaluate(output[0].cpu(), expected_output_a)
     comparator.evaluate(output[1].cpu(), expected_output_b)
     comparator.evaluate(output[2].cpu(), expected_output_c)
