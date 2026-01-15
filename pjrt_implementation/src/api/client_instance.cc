@@ -109,6 +109,7 @@ static tt_pjrt_status launchDistributedRuntime() {
   distributed_options.multiProcessArgs =
       tt::runtime::MultiProcessArgs::create(rank_binding_path)
           .withAllowRunAsRoot(true)
+          .withMcaOptions({{"btl", "self,tcp"}, {"btl_tcp_if_include", "enp10s0f1np1"}});
           .withControllerHostname(controller_host_name);
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
