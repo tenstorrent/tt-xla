@@ -763,3 +763,52 @@ def test_output_sharding_simple_propagation():
     assert input_e_shard_spec == output_e_shard_spec
     assert input_f_shard_spec == output_f_shard_spec
     assert input_g_shard_spec == output_g_shard_spec
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+def test_simple_sharded_addition():
+    """
+    Test scenario: Create two tensors on a 1x8 mesh, shard them along the
+    "8" dimension (model axis), and add them together.
+
+    This verifies basic sharded tensor addition with proper output sharding
+    propagation.
+    """
+
+    class ShardedAdd(torch.nn.Module):
+        def forward(self, a, b):
+            return a + b
+
+    xr.set_device_type("TT")
+    setup_spmd()
+    device = torch_xla.device()
+    mesh = create_device_mesh((1, 8))
+
+    # Create 1024x4096 tensors - the 4096 dimension will be sharded across 8 devices
+    a = torch.randn(1024, 4096, dtype=torch.float32).to(device)
+    b = torch.randn(1024, 4096, dtype=torch.float32).to(device)
+
+    # Get CPU copies for golden result
+    a_cpu = a.cpu()
+    b_cpu = b.cpu()
+    expected_output = a_cpu + b_cpu
+
+    # Shard along the second dimension (4096) which maps to "model" axis (8 devices)
+    xs.mark_sharding(a, mesh, (None, "model"))
+    xs.mark_sharding(b, mesh, (None, "model"))
+
+    # Get input shard specs
+    input_a_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(a)
+    input_b_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(b)
+
+    compiled_model = torch.compile(ShardedAdd(), backend="tt")
+    compiled_model = compiled_model.to(device)
+    output = compiled_model(a, b)
+
+    # Verify correctness using comparator
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparator(comparison_config)
+    comparator.compare(output.cpu(), expected_output)
+
+    print(output)
