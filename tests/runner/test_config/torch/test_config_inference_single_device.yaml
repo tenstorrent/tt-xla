@@ -145,7 +145,11 @@ test_config:
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-inference:
     markers: [try_bfp8]
-    status: EXPECTED_PASSING
+    # TODO - Open issue, for some reason BFP8 causes this model to hang on n150 + p150 on CI and locally
+    # https://github.com/tenstorrent/tt-xla/actions/runs/21018366572/job/60428401625
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Hangs forever on CI and locally"
     assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
 #  yolov5/pytorch-yolov5s-single_device-inference:
