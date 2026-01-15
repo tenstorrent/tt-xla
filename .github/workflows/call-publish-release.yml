@@ -69,8 +69,8 @@ jobs:
           docker_image_base=${{ inputs.docker_image_base }}
           commit_tag="${{ github.sha }}"
           version_tag="${{ inputs.release_tag }}"
-          latest_tag="latest"
 
+          latest_tag="latest"
           if [[ "$is_nightly_release" == "true" ]]; then
             latest_tag="nightly-latest"
           fi
