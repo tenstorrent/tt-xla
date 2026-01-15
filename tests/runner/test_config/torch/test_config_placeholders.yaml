@@ -35,8 +35,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   mistralai/Mixtral-8x7B-Instruct-v0.1:
     bringup_status: NOT_STARTED
-  openai/gpt-oss-20b:
-    bringup_status: NOT_STARTED
   openai/gpt-oss-120b:
     bringup_status: NOT_STARTED
   Hiperglobal Shallow uNet:
