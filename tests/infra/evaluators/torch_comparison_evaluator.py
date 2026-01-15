@@ -73,7 +73,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     @run_on_cpu(Framework.TORCH)
     def _compare_equal(device_output: PyTree, golden_output: PyTree) -> bool:
         def _equal_leaf(x, y):
-            if TorchComparisonEvaluator._both_static_cache(x, y) or (x is None and y is None):
+            if TorchComparisonEvaluator._both_static_cache(x, y) or (
+                x is None and y is None
+            ):
                 return True
             return torch.equal(x, y)
 
@@ -88,7 +90,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
     ) -> float:
         def _atol_leaf(x, y):
-            if TorchComparisonEvaluator._both_static_cache(x, y) or (x is None and y is None):
+            if TorchComparisonEvaluator._both_static_cache(x, y) or (
+                x is None and y is None
+            ):
                 return torch.tensor(0.0)
             return torch.max(torch.abs(x - y))
 
@@ -138,7 +142,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         allclose_config: AllcloseConfig,
     ) -> bool:
         def _allclose_leaf(x, y):
-            if TorchComparisonEvaluator._both_static_cache(x, y) or (x is None and y is None):
+            if TorchComparisonEvaluator._both_static_cache(x, y) or (
+                x is None and y is None
+            ):
                 return True
             return torch.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
