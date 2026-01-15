@@ -27,7 +27,6 @@ class FusionProvider(ABC):
     2. Implement the `name` property
     3. Implement the `pattern` static method (the pattern to match)
     4. Implement the `replacement` static method (the replacement function)
-    5. Optionally override `get_patterns()` to customize pattern generation
     """
 
     _registered_providers: List[Type["FusionProvider"]] = []
@@ -60,7 +59,7 @@ class FusionProvider(ABC):
         pass
 
     def get_patterns(self) -> List[FusionPattern]:
-        """Return list of FusionPatterns. Override to customize (e.g. add match filters)."""
+        """Return list of FusionPatterns."""
         return [FusionPattern(self.name, self.pattern, self.replacement)]
 
 

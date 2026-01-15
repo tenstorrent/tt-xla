@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import dataclass, field
-from typing import Callable, List
+from dataclasses import dataclass
+from typing import Callable
 
 from torch.fx import GraphModule
-from torch.fx.subgraph_rewriter import replace_pattern_with_filters
+from torch.fx.subgraph_rewriter import replace_pattern
 
 
 @dataclass
@@ -18,13 +18,11 @@ class FusionPattern:
         name: Unique identifier for the pattern
         pattern: Function defining the subgraph pattern to match
         replacement: Function defining the replacement subgraph
-        match_filters: List of filter functions to validate matches
     """
 
     name: str
     pattern: Callable
     replacement: Callable
-    match_filters: List[Callable] = field(default_factory=list)
 
 
 def apply_fusion_pattern(gm: GraphModule, fusion_pattern: FusionPattern) -> int:
@@ -38,10 +36,9 @@ def apply_fusion_pattern(gm: GraphModule, fusion_pattern: FusionPattern) -> int:
     Returns:
         Number of replacements made
     """
-    replaced = replace_pattern_with_filters(
+    replaced = replace_pattern(
         gm,
         fusion_pattern.pattern,
         fusion_pattern.replacement,
-        match_filters=fusion_pattern.match_filters,
     )
     return len(replaced)
