@@ -229,6 +229,13 @@ def test_llama_attention_decode(variant, variant_config, arch):
         pytest.skip("70B models don't fit on a single device")
 
     xr.set_device_type("TT")
+    
+    compiler_config = CompilerConfig(
+        optimization_level=1,
+        enable_trace=False,
+        experimental_enable_weight_bfp8_conversion=True,
+        experimental_enable_permute_matmul_fusion=False,
+    )
 
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
@@ -269,8 +276,8 @@ def test_llama_attention_decode(variant, variant_config, arch):
                 shard_specs[args[1][0]] = (None, None, None)  # cos
                 shard_specs[args[1][1]] = (None, None, None)  # sin
                 shard_specs[args[2]] = (None, None, None, None)  # mask
-                shard_specs[args[3].key_cache[0]] = (None, "model", None, None)
-                shard_specs[args[3].value_cache[0]] = (None, "model", None, None)
+                shard_specs[args[3][0][0]] = (None, "model", None, None)
+                shard_specs[args[3][0][1]] = (None, "model", None, None)
 
                 shard_specs[attention.q_proj.weight] = ("model", "batch")
                 shard_specs[attention.k_proj.weight] = ("model", "batch")
@@ -306,6 +313,7 @@ def test_llama_attention_decode(variant, variant_config, arch):
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
+        compiler_config=compiler_config,
     )
 
 @pytest.mark.nightly
@@ -330,6 +338,7 @@ def test_llama_layer(variant, variant_config, arch):
 
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     layer = LlamaDecoderLayer(config, layer_idx=0).to(torch.bfloat16)
     param_size = sum(p.numel() for p in layer.parameters())
     print(f"Layer param size: {param_size / 1e9}B")
@@ -344,7 +353,7 @@ def test_llama_layer(variant, variant_config, arch):
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
-        if  not two_d:
+        if not two_d:
             mesh_shape = (1, num_devices)
             mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -404,9 +413,16 @@ def test_llama_layer(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
+    inputs = {
+        "hidden_states": hidden_states,
+        "attention_mask": attention_mask,
+        "past_key_values": past_key_states,
+        "position_embeddings": position_embeddings,
+        "use_cache": True,
+    }
     run_graph_test(
         layer,
-        [hidden_states, attention_mask, None, past_key_states, True, None, position_embeddings],
+        inputs,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,

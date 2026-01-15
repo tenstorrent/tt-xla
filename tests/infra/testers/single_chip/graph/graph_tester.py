@@ -54,13 +54,18 @@ def run_graph_test(
     Tests `graph` with `inputs` by running it on TT device and CPU and comparing the
     results based on `comparison_config`.
     """
+    if isinstance(inputs, dict):
+        kwargs = inputs
+        inputs = []
+    else:
+        kwargs = {}
     tester = GraphTester(comparison_config, framework, torch_options=torch_options, compiler_config=compiler_config)
     if framework == Framework.TORCH:
         workload = TorchWorkload(
-            model=graph, args=inputs, mesh=mesh, shard_spec_fn=shard_spec_fn
+            model=graph, args=inputs, kwargs=kwargs, mesh=mesh, shard_spec_fn=shard_spec_fn
         )
     else:
-        workload = Workload(framework=framework, executable=graph, args=inputs)
+        workload = Workload(framework=framework, executable=graph, args=inputs, kwargs=kwargs)
     tester.test(workload)
 
 
