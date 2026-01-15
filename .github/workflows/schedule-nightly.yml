@@ -84,11 +84,19 @@ jobs:
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
   process_dumped_irs:
-    runs-on: tt-ubuntu-2204-large-stable
+    runs-on: tt-ubuntu-2204-n150-stable
     needs: [ build-image, build-ttxla, test_single_model_with_ir_dump ]
     if: success() || failure()
     container:
       image: ${{ needs.build-image.outputs.docker-image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
 
     env:
       GH_TOKEN: ${{ github.token }}
