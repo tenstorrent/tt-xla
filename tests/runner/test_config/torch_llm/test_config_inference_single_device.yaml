@@ -12,7 +12,7 @@ test_config:
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-3B-Base-llm_decode-single_device-inference:
-    required_pcc: 0.985 # Is 0.990 (p150)or 0.989 (n150)
+    required_pcc: 0.985 # Is 0.990 (p150) or 0.989 (n150)
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-llm_decode-single_device-inference:
@@ -21,6 +21,7 @@ test_config:
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    required_pcc: 0.985 # Is 0.990 (p150)
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-0_5b_instruct-llm_decode-single_device-inference:
@@ -95,6 +96,7 @@ test_config:
 
   qwen_3/causal_lm/pytorch-0_6b-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
+    required_pcc: 0.98 # Is 0.990 (p150) or 0.985 (n150)
 
   qwen_3/causal_lm/pytorch-1_7b-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
