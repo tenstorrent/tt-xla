@@ -174,7 +174,9 @@ jobs:
         shell: bash
         run: |
           echo "=== Contents of collected_irs ==="
+          set +o pipefail
           find collected_irs -type f -name "*.mlir" | head -20
+          set -o pipefail
 
       - name: Generate system descriptor
         shell: bash
