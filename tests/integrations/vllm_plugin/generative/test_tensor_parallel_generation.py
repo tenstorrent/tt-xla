@@ -8,7 +8,9 @@ import vllm
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
-@pytest.mark.parametrize("model_name", ["Qwen/Qwen3-32B", "Qwen/Qwen2.5-32B"])
+@pytest.mark.parametrize(
+    "model_name", ["Qwen/Qwen3-32B", "Qwen/Qwen2.5-32B", "meta-llama/Llama-3.2-3B"]
+)
 def test_qwen3_32b_generation(model_name: str):
     prompts = [
         "I like taking walks in the",
