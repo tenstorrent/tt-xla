@@ -67,10 +67,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 #     && cd /tmp \
 #     && rm -rf llvm-project-17.0.6.src*
 
-ENV CC=clang
-ENV CXX=clang++
-ENV CMAKE_C_COMPILER=clang
-ENV CMAKE_CXX_COMPILER=clang++
+# ENV CC=clang
+# ENV CXX=clang++
+# ENV CMAKE_C_COMPILER=clang
+# ENV CMAKE_CXX_COMPILER=clang++
 
 # Install ccache for build caching and set up compiler wrappers
 # RUN dnf install --refresh -y ccache \
