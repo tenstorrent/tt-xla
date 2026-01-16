@@ -46,13 +46,6 @@ jobs:
             git push origin "refs/tags/$tag"
           fi
 
-      - name: Publish github release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.release_tag }}
-          generate_release_notes: true
-          draft: true
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -79,9 +72,10 @@ jobs:
           printf "\nPushing latest tag for $docker_image_base"
           docker buildx imagetools create $docker_image_base:$commit_tag --tag $docker_image_base:$latest_tag --tag $docker_image_base:$version_tag
 
-        # todo(make body ready)
-      # - name: Publish github release
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: ${{ inputs.release_tag }}
-      #     generate_release_notes: true
+        # todo(vvukoman): think about body structure, what is relevant to show?
+      - name: Publish github release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          generate_release_notes: true
+          draft: true

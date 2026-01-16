@@ -13,6 +13,7 @@ fi
 
 COMMIT_TAG=$1
 
+# todo(vvukoman): change REPO to "tenstorrent" when done to avoid end-user changes
 REPO=tenstorrent/tt-xla
 IMAGE_NAME=ghcr.io/$REPO/tt-xla-slim
 
