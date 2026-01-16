@@ -20,6 +20,7 @@ permissions:
   contents: write
   actions: read
   id-token: write
+  packages: write
 
 jobs:
   publish-release:
