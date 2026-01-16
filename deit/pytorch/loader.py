@@ -182,6 +182,22 @@ class ModelLoader(ForgeModel):
             model_for_config=model_for_config,
         )
 
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs for the model.
+        Args:
+            dtype_override: Optional torch.dtype override.
+            batch_size: Batch size (default: 1).
+            image: Optional input image.
+
+        Returns:
+            torch.Tensor: Preprocessed input tensor.
+        """
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
+
     def output_postprocess(
         self,
         output=None,
