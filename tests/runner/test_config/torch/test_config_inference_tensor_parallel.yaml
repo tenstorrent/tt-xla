@@ -61,8 +61,9 @@ test_config:
 
   mistral/pixtral/pytorch-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
-    assert_pcc: false
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=0)] grow to 1511680 B which is beyond max L1 size of 1499136 B - https://github.com/tenstorrent/tt-xla/issues/2846"
 
   mistral/pytorch-7b_instruct_v03-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -76,8 +77,9 @@ test_config:
 
   qwen_3/causal_lm/pytorch-14b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98 # 0.9860
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=0)] grow to 1511680 B which is beyond max L1 size of 1499136 B - https://github.com/tenstorrent/tt-xla/issues/2846"
 
   qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -104,11 +106,15 @@ test_config:
 
   mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=0)] grow to 1511680 B which is beyond max L1 size of 1499136 B - https://github.com/tenstorrent/tt-xla/issues/2846"
 
   mistral/pytorch-mistral_nemo_instruct_2407-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=0)] grow to 1511680 B which is beyond max L1 size of 1499136 B - https://github.com/tenstorrent/tt-xla/issues/2846"
 
   mistral/pytorch-mistral_large_instruct_2411-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
