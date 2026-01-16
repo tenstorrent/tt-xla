@@ -12,7 +12,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <mutex>
 #include <numeric>
 
 // POSIX includes
@@ -88,12 +87,6 @@ static std::string getCurrentTimeStamp() {
                 .count();
   return std::to_string(ms);
 }
-
-// Global counter to track graph number within a run.
-// Resets when export_model_name changes (new test run).
-static std::atomic<int> g_graph_counter{0};
-static std::string g_last_model_name;
-static std::mutex g_prefix_mutex;
 
 // TTAlchemistHandler implementation
 
@@ -227,15 +220,11 @@ ModuleBuilder::buildModule(
   // Only applies when user explicitly sets export_model_name.
   // Reset graph counter when model_name changes (new test run).
   if (!compile_options.export_model_name.empty()) {
-    int graph_num;
-    {
-      std::lock_guard<std::mutex> lock(g_prefix_mutex);
-      if (compile_options.export_model_name != g_last_model_name) {
-        g_graph_counter.store(0);
-        g_last_model_name = compile_options.export_model_name;
-      }
-      graph_num = g_graph_counter.fetch_add(1);
+    if (compile_options.export_model_name != m_last_model_name) {
+      m_graph_counter = 0;
+      m_last_model_name = compile_options.export_model_name;
     }
+    int graph_num = m_graph_counter++;
     compile_options.export_model_name += "_g" + std::to_string(graph_num);
   }
 
@@ -288,7 +277,8 @@ ModuleBuilder::buildModule(
   }
 
   status =
-      runCompilerStableHLOPipeline(mlir_module, compile_options.export_path);
+      runCompilerStableHLOPipeline(mlir_module, compile_options.export_path,
+                                   compile_options.export_model_name);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
