@@ -117,7 +117,7 @@ def partition_parallel_lm_head(
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
     logger.info("Applied parallel sharding to %s", layer)
-    xs.mark_sharding(layer.weight, mesh, (None, "x"))
+    xs.mark_sharding(layer.weight, mesh, ("x", None))
     return layer
 
 

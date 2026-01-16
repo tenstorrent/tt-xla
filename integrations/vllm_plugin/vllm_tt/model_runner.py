@@ -1119,7 +1119,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
             tpu_sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
-                self.input_batch, padded_num_reqs, self.device
+                self.input_batch,
+                padded_num_reqs,
+                "cpu" if self.use_spmd else self.device,
             )
             if scheduler_output.grammar_bitmask is not None:
                 (
@@ -1130,6 +1132,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logits = self.structured_decode(
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
+            if self.use_spmd:
+                logits = logits.to("cpu")
             selected_token_ids = self.sample_from_logits_func(
                 logits, tpu_sampling_metadata
             )
@@ -1589,7 +1593,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
                     self.input_batch,
                     num_reqs,
-                    self.device,
+                    "cpu" if self.use_spmd else self.device,
                     generate_params_if_all_greedy,
                 )
                 sampling_metadata.all_greedy = all_greedy
