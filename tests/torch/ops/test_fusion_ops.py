@@ -7,7 +7,7 @@ import torch
 from infra.utilities.types import Framework
 from torch._dynamo import register_backend
 from transformers.models.llama.modeling_llama import LlamaRMSNorm
-from tt_torch.backend.passes import run_fusion_passes
+from tt_torch.backend.passes import run_fusion_pass
 
 from tests.infra.comparators.comparison_config import ComparisonConfig
 from tests.infra.testers.single_chip.graph.graph_tester import run_graph_test
@@ -41,7 +41,7 @@ def capture_graph_backend(gm, example_inputs, options=None):
         gm, fused_op_fn
     ), f"{fused_op_fn} should not be in graph before fusion"
 
-    gm = run_fusion_passes(gm)
+    gm = run_fusion_pass(gm)
 
     assert has_op_in_graph(
         gm, fused_op_fn

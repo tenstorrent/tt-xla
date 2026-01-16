@@ -1,15 +1,55 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import List
+
 import torch
 from torch.export.graph_signature import InputKind, OutputKind
 from tt_torch import composite_ops
-from tt_torch.fusion_passes import FusionProvider, apply_fusion_pattern
+from tt_torch.fusion_passes import (
+    CompositeWrapProvider,
+    FusionProvider,
+    PatternProvider,
+)
 
 
-def run_fusion_passes(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+def run_pattern_replacement_pass(
+    gm: torch.fx.GraphModule, providers: List[PatternProvider]
+) -> torch.fx.GraphModule:
+    """
+    Run all registered pattern replacement passes on a GraphModule.
+
+    Pattern replacement passes replace matched patterns with different operations
+
+    Args:
+        gm: The GraphModule to transform
+        providers: List of pattern replacement providers to run
+
+    Returns:
+        The transformed GraphModule
+    """
+    total_replacements = 0
+
+    for provider_cls in providers:
+        provider = provider_cls()
+        num_replaced = provider.replace_pattern(gm)
+        if num_replaced > 0:
+            print(f"[Pattern Replacement] {provider.name}: {num_replaced} match(es)")
+            total_replacements += num_replaced
+
+    if total_replacements > 0:
+        gm.graph.lint()
+        gm.recompile()
+
+    return gm
+
+
+def run_fusion_pass(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
     """
     Run all registered fusion passes on a GraphModule.
+
+    Fusion passes replace matched patterns with different operations
+    (e.g., decomposed RMS norm -> torch.nn.functional.rms_norm).
 
     Args:
         gm: The GraphModule to transform
@@ -17,22 +57,25 @@ def run_fusion_passes(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
     Returns:
         The transformed GraphModule
     """
-    total_replacements = 0
-    providers = FusionProvider.get_registered_providers()
+    return run_pattern_replacement_pass(gm, FusionProvider.get_registered_providers())
 
-    for provider_cls in providers:
-        provider = provider_cls()
-        for fusion_pattern in provider.get_patterns():
-            num_replaced = apply_fusion_pattern(gm, fusion_pattern)
-            if num_replaced > 0:
-                print(f"[Fusion] {fusion_pattern.name}: {num_replaced} match(es)")
-                total_replacements += num_replaced
 
-    if total_replacements > 0:
-        gm.graph.lint()
-        gm.recompile()
+def run_composite_wrap_pass(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Run all registered composite wrap passes on a GraphModule.
 
-    return gm
+    Composite wrap passes wrap matched patterns into StableHLO composites
+    without changing the underlying operations.
+
+    Args:
+        gm: The GraphModule to transform
+
+    Returns:
+        The transformed GraphModule
+    """
+    return run_pattern_replacement_pass(
+        gm, CompositeWrapProvider.get_registered_providers()
+    )
 
 
 def handle_composite_ops(gm: torch.fx.GraphModule) -> None:

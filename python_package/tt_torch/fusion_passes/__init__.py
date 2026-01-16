@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .providers import FusionProvider
-from .utils import apply_fusion_pattern
+from .providers import CompositeWrapProvider, FusionProvider, PatternProvider
+from .utils import create_composite_wrap_replacement
 
 __all__ = [
+    "PatternProvider",
     "FusionProvider",
-    "apply_fusion_pattern",
+    "CompositeWrapProvider",
+    "create_composite_wrap_replacement",
 ]

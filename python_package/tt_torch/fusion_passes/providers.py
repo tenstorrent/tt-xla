@@ -3,42 +3,58 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Central registry of all fusion pattern providers.
+Central registry of all pattern providers.
 
-All fusion provider classes are defined in this file.
+All pattern provider classes are defined in this file, including:
+- FusionProvider: For replacing patterns with different operations
+- CompositeWrapProvider: For wrapping patterns in StableHLO composites
 """
 
+import inspect
 from abc import ABC, abstractmethod
-from typing import List, Type
+from typing import Callable, List, Type
 
 import torch
 from torch import Tensor
+from torch.fx import GraphModule
+from torch.fx.subgraph_rewriter import replace_pattern
 
-from .utils import FusionPattern
+from .utils import create_composite_wrap_replacement
+
+# ============================= Pattern Providers =============================
 
 
-class FusionProvider(ABC):
-    """Base class for all fusion pattern providers.
+class PatternProvider(ABC):
+    """Base class for all pattern-based graph transformations.
 
     Subclasses are automatically registered via __init_subclass__.
+    Each subclass must implement:
+    - name: Human-readable identifier
+    - pattern(): The pattern to match
+    - get_replacement(): Returns the replacement function (polymorphic)
 
-    To create a new fusion provider:
-    1. Inherit from FusionProvider
-    2. Implement the `name` property
-    3. Implement the `pattern` static method (the pattern to match)
-    4. Implement the `replacement` static method (the replacement function)
+    To create a new pattern provider:
+    1. Inherit from FusionProvider or CompositeWrapProvider
+    2. Implement the required abstract methods
     """
 
-    _registered_providers: List[Type["FusionProvider"]] = []
+    _registered_providers: List[Type["PatternProvider"]] = []
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        FusionProvider._registered_providers.append(cls)
+        if not inspect.isabstract(cls):
+            PatternProvider._registered_providers.append(cls)
 
     @classmethod
-    def get_registered_providers(cls) -> List[Type["FusionProvider"]]:
-        """Return all registered provider classes."""
-        return cls._registered_providers.copy()
+    def get_registered_providers(cls) -> List[Type["PatternProvider"]]:
+        """Return all registered providers that are subclasses of the calling class.
+
+        Examples:
+            PatternProvider.get_registered_providers() -> all providers
+            FusionProvider.get_registered_providers() -> only FusionProvider subclasses
+            CompositeWrapProvider.get_registered_providers() -> only CompositeWrapProvider subclasses
+        """
+        return [p for p in PatternProvider._registered_providers if issubclass(p, cls)]
 
     @property
     @abstractmethod
@@ -52,30 +68,80 @@ class FusionProvider(ABC):
         """The pattern to match in the graph."""
         pass
 
+    @abstractmethod
+    def get_replacement(self) -> Callable:
+        """Return the replacement function. The replacement function is used to replace the matched pattern with."""
+        pass
+
+    def replace_pattern(self, gm: GraphModule) -> int:
+        """Apply this pattern to the GraphModule.
+
+        Returns the number of replacements made.
+        """
+        replaced = replace_pattern(gm, self.pattern, self.get_replacement())
+        return len(replaced)
+
+
+class FusionProvider(PatternProvider):
+    """Provider for replacing patterns with different operations.
+
+    Subclasses must implement replacement() which defines
+    what to replace the matched pattern with.
+
+    To create a new fusion provider:
+    1. Inherit from FusionProvider
+    2. Implement the `name` property
+    3. Implement the `pattern` static method (the pattern to match)
+    4. Implement the `replacement` static method (the replacement function)
+    """
+
     @staticmethod
     @abstractmethod
     def replacement(*args, **kwargs) -> Tensor:
-        """The replacement function."""
+        """The replacement function (different from pattern)."""
         pass
 
-    def get_patterns(self) -> List[FusionPattern]:
-        """Return list of FusionPatterns."""
-        return [FusionPattern(self.name, self.pattern, self.replacement)]
+    def get_replacement(self) -> Callable:
+        """Returns the user-defined replacement function."""
+        return self.replacement
+
+
+class CompositeWrapProvider(PatternProvider):
+    """Provider for wrapping patterns in StableHLO composites.
+
+    Unlike FusionProvider, only pattern() is required.
+    The replacement is auto-generated to wrap pattern into a StableHLO composite.
+
+    To create a new composite wrap provider:
+    1. Inherit from CompositeWrapProvider
+    2. Implement the `name` property
+    3. Implement the `composite_name` property (e.g., 'tenstorrent.op, must match the name in tt-mlir')
+    4. Implement the `pattern` static method (the pattern to match)
+    """
+
+    @property
+    @abstractmethod
+    def composite_name(self) -> str:
+        """StableHLO composite name (e.g., 'tenstorrent.rope')."""
+        pass
+
+    @property
+    def composite_attr(self) -> dict | None:
+        """Optional attributes for the composite."""
+        return None
+
+    def get_replacement(self) -> Callable:
+        """Auto-generates replacement that wraps pattern in composite."""
+        return create_composite_wrap_replacement(
+            self.pattern, self.composite_name, self.composite_attr
+        )
+
+
+# ============================= Fusion Providers =============================
 
 
 class RMSNormFusionProvider(FusionProvider):
-    """
-    Provides fusion patterns for RMS Normalization operations.
-
-    Matches patterns like LlamaRMSNorm:
-        input_dtype = hidden_states.dtype
-        hidden_states = hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + epsilon)
-        return weight * hidden_states.to(input_dtype)
-
-    And replaces with torch.nn.functional.rms_norm
-    """
+    """Provider for replacing RMS norm pattern with torch.nn.functional.rms_norm."""
 
     @property
     def name(self) -> str:
