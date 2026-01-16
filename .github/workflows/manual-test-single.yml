@@ -54,7 +54,7 @@ jobs:
     with:
       docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
       project-filter: tt-xla
-      ref: vvukoman/extract-mlir-version-differentl
+      ref: vvukoman/extract-mlir-version-differently
 
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
