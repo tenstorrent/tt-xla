@@ -40,7 +40,7 @@ jobs:
         env:
           CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
-          CIBW_BEFORE_ALL: "find / -name clang"
+          CIBW_BEFORE_ALL: "find / -name clang || true"
         run: python -m cibuildwheel --output-dir "${{ steps.strings.outputs.wheel-output-dir }}" --config-file "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml" ${{ steps.strings.outputs.work-dir }}/python_package
 
       # - name: Build ttxla  Wheel (manylinux)
