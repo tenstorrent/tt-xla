@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 from loguru import logger
 
+from tests.infra.utilities.types import Framework
+
 
 @dataclass
 class ModelTestEntry:
@@ -21,6 +23,7 @@ class ModelTestEntry:
 
     path: str
     variant_info: tuple
+    framework: Framework
 
 
 class DynamicLoader:
@@ -299,7 +302,11 @@ class DynamicLoader:
                         continue
 
                 test_entries.append(
-                    ModelTestEntry(path=loader_path, variant_info=variant_info)
+                    ModelTestEntry(
+                        path=loader_path,
+                        variant_info=variant_info,
+                        framework=cls.framework,
+                    )
                 )
 
         return test_entries
@@ -345,6 +352,8 @@ class TorchDynamicLoader(DynamicLoader):
     particularly for discovering PyTorch model loader files.
     """
 
+    framework = Framework.TORCH
+
     def load_model(self) -> Any:
         """Load model from the loader with dtype override support for bfloat16.
 
@@ -356,13 +365,28 @@ class TorchDynamicLoader(DynamicLoader):
             return self.loader.load_model(dtype_override=torch.bfloat16)
         return self.loader.load_model()
 
-    def load_inputs(self) -> Any:
+    def load_inputs(self, run_phase=None) -> Any:
         """Load input activations from the loader with dtype override support for bfloat16.
 
         Returns:
             Input tensors that can be fed to the model, using bfloat16 if supported
         """
         sig = inspect.signature(self.loader.load_inputs)
+
+        # Local import to avoid infra<->runner circular import during collection
+        from tests.runner.test_utils import RunPhase
+
+        if run_phase == RunPhase.LLM_DECODE:
+            assert hasattr(
+                self.loader, "load_inputs_decode"
+            ), f"{type(self.loader).__name__} missing load_inputs_decode for run_phase={run_phase}"
+
+            decode_sig = inspect.signature(self.loader.load_inputs_decode)
+            if "dtype_override" in decode_sig.parameters:
+                return self.loader.load_inputs_decode(dtype_override=torch.bfloat16)
+            return self.loader.load_inputs_decode()
+
+        # Default path
         if "dtype_override" in sig.parameters:
             return self.loader.load_inputs(dtype_override=torch.bfloat16)
         return self.loader.load_inputs()
@@ -443,6 +467,8 @@ class JaxDynamicLoader(DynamicLoader):
     This class provides JAX-specific test discovery functionality,
     particularly for discovering JAX model loader files.
     """
+
+    framework = Framework.JAX
 
     @classmethod
     def discover_loader_paths(cls, models_root: str) -> Dict:

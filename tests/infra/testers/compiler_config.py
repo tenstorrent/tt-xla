@@ -53,6 +53,14 @@ class CompilerConfig:
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
+    # Enables IR dumping to a specified path.
+    export_path: str = ""
+
+    # Enables "try to recover structure" option for TTNN IR. Tries to match the
+    # structure of the original graph. This generates a more readable solution,
+    # useful when generating code.
+    codegen_try_recover_structure: bool = False
+
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
@@ -79,6 +87,12 @@ class CompilerConfig:
 
         if self.enable_trace:
             options["enable_trace"] = "true"
+
+        if self.export_path != "":
+            options["export_path"] = self.export_path
+
+        if self.codegen_try_recover_structure:
+            options["codegen_try_recover_structure"] = "true"
 
         return options
 

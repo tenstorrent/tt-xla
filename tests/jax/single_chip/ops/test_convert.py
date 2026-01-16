@@ -70,6 +70,14 @@ def conditionally_skip(from_dtype: DTypeLike, to_dtype: DTypeLike):
             )
         )
 
+    # bfloat16 to uint32 failes because of a tt-metal uplift in tt-mlir - https://github.com/tenstorrent/tt-xla/issues/2791
+    if from_dtype == jnp.uint32 and to_dtype == jnp.bfloat16:
+        pytest.xfail(
+            failed_runtime(
+                "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.20069686620474544. Required: pcc=0.99."
+            )
+        )
+
     # ---------- Cannot get the device from a tensor with host storage ----------
 
     if from_dtype == jnp.uint64 and to_dtype in [

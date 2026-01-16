@@ -87,7 +87,7 @@ private:
   DeviceInstance(int global_device_id, bool is_addressable, int local_device_id,
                  tt::target::Arch arch)
       : m_description(global_device_id, arch), m_is_addressable(is_addressable),
-        m_local_device_id(local_device_id) {}
+        m_local_device_id(local_device_id), m_default_memory(nullptr) {}
 
   // Device description.
   DeviceDescription m_description;

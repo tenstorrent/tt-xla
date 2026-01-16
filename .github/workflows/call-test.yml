@@ -205,7 +205,7 @@ jobs:
         # NOTE: Forked not used for multichip machines until https://github.com/tenstorrent/tt-xla/issues/1824
         # is fixed. This is accomplished by specifically excluding run_forge_models_multichip from the list here.
         PYTEST_FORKED=""
-        for n in run_torch run_large_jax_models run_forge_models run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
+        for n in run_torch run_large_jax_models run_forge_models run_forge_models_llm run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
             PYTEST_FORKED="--forked"; break
           fi
@@ -263,6 +263,7 @@ jobs:
         source venv/activate
         python -m pytest -vv ./tests/runner/test_models.py::test_all_models_torch --validate-test-config
         python -m pytest -vv ./tests/runner/test_models.py::test_all_models_jax --validate-test-config
+        python -m pytest -vv ./tests/runner/test_models.py::test_llms_torch --validate-test-config
 
     - name: Collect Tests
       id: collect-tests
@@ -273,13 +274,20 @@ jobs:
         python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
         cat collected_tests.txt
 
-        SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
-          --collected-output collected_tests.txt \
-          --durations-file .test_durations \
-          --default-timeout 240)
-        echo "$SCRIPT_OUTPUT"
+        # Check if any collected tests have notimeout marker
+        NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
+        if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
+          echo "Found $NOTIMEOUT_COUNT tests with notimeout marker, using default timeout of 240 minutes"
+          ESTIMATED_DURATION=240
+        else
+          SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
+            --collected-output collected_tests.txt \
+            --durations-file .test_durations \
+            --default-timeout 240)
+          echo "$SCRIPT_OUTPUT"
+          ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
+        fi
 
-        ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 

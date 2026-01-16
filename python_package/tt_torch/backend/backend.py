@@ -5,6 +5,7 @@ import os
 from typing import Tuple
 
 import torch
+import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
 from torch._dynamo import register_backend
@@ -19,6 +20,7 @@ from .passes import (
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
+    run_fusion_passes,
 )
 
 
@@ -31,6 +33,14 @@ def torch_pass_pipeline(
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
 
+    # Run fusion passes to detect and fuse multi-op patterns
+    # This runs before composite_ops to allow fused patterns to be wrapped as composites
+    enable_fusion_passes = options is None or options.get(
+        "tt_enable_fusion_passes", True
+    )
+    if enable_fusion_passes:
+        gm = run_fusion_passes(gm)
+
     # This is a temporary option to disable / enable composite ops
     # that will be removed once composite ops are more stable.
     # default to True if options are not given or if tt_enable_composite_ops is not present
@@ -42,13 +52,12 @@ def torch_pass_pipeline(
 
     decompositions = populate_decompositions()
 
-    # We use `export_for_training` here as we plan to use this flow to compile training graphs.
-    # In addition to that, the functionality in `export_for_training` will become the default
-    # functionality in torch.export in a future PyTorch release:
-    # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
-    program = torch.export.export_for_training(
-        gm, tuple(example_inputs), strict=False
-    ).run_decompositions(decompositions)
+    program = torch.export.export(
+        gm,
+        tuple(example_inputs),
+        strict=False,
+    )
+    program = program.run_decompositions(decompositions)
 
     compiled_graph = program.module()
     compiled_graph = insert_argument_type_markers(
@@ -110,21 +119,39 @@ class XLAExecutor:
     def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
         sig = ep.graph_signature
 
-        # Export keeps a state dict for lifted params/buffers.
+        # Export keeps a state dict for lifted params/buffers and a const dict for lifted constants.
         state = ep.state_dict
+        constants = ep.constants
 
         # Map from placeholder name -> tensor.
         total_args = tuple()
         encountered_user_input = False
         for spec in sig.input_specs:
+            # Kinds: CUSTOM_OBJ and TOKEN haven't been tested.
+            # USER_INPUT will not exist in state_dict, it is passed in from the outside.
             if spec.kind == InputKind.USER_INPUT:
                 encountered_user_input = True
                 continue
+
             assert (
                 not encountered_user_input
             ), "We expect user inputs to be last in the list of inputs."
-            assert spec.target is not None
-            total_args += (state[spec.target],)
+
+            assert spec.target is not None, f"Spec target is None for spec {spec}"
+            if spec.kind == InputKind.CONSTANT_TENSOR:
+                arg = constants[spec.target]
+            else:
+                arg = state[spec.target]  # Handles: PARAMETER, BUFFER
+            if arg.device.type != "xla":
+                if spec.kind != InputKind.CONSTANT_TENSOR:
+                    print(
+                        f"Found an argument on non-XLA device which was not a lifted constant: {spec.target}.\n"
+                        "Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA."
+                    )
+                arg = arg.to(
+                    torch.device("xla")
+                )  # Maybe it makes sense to modify the ep to avoid multiple moves of constants?
+            total_args += (arg,)
 
         return total_args
 
@@ -132,9 +159,7 @@ class XLAExecutor:
         if self.compiled_graph is None:
             # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
-            program = torch.export.export_for_training(
-                self.module, tuple(args), strict=False
-            )
+            program = torch.export.export(self.module, tuple(args), strict=False)
 
             # Collect the params and constants from the exported program.
             self.params_and_consts = self._build_params_and_consts(program)

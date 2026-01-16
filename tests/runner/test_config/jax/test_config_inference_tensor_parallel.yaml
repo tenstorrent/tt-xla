@@ -8,32 +8,32 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
-  alexnet/image_classification/jax-custom_1x2-tensor_parallel-full-inference:
+  alexnet/image_classification/jax-custom_1x2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  alexnet/image_classification/jax-custom_1x4-tensor_parallel-full-inference:
+  alexnet/image_classification/jax-custom_1x4-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Hangs in runtime - https://github.com/tenstorrent/tt-xla/issues/2440"
 
-  alexnet/image_classification/jax-custom_1x8-tensor_parallel-full-inference:
+  alexnet/image_classification/jax-custom_1x8-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Hangs in runtime - https://github.com/tenstorrent/tt-xla/issues/2440"
 
-  mnist/image_classification/jax-mlp_custom_1x2-tensor_parallel-full-inference:
+  mnist/image_classification/jax-mlp_custom_1x2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  mnist/image_classification/jax-mlp_custom_1x4-tensor_parallel-full-inference:
+  mnist/image_classification/jax-mlp_custom_1x4-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
 
-  mnist/image_classification/jax-mlp_custom_1x8-tensor_parallel-full-inference:
+  mnist/image_classification/jax-mlp_custom_1x8-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
