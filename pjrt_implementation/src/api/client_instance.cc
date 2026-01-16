@@ -385,6 +385,11 @@ void ClientInstance::materializeAllBuffersToHost() {
         std::vector<tt::runtime::Tensor> host_tensors = tt::runtime::toHost(
             buffer->getPreparedTensor().value(), /*untilize=*/true);
         if (!host_tensors.empty()) {
+          // uint32_t shard_index = buffer->getDeviceId().value_or(0);
+          // if (shard_index >= host_tensors.size()) {
+          //   shard_index = 0;
+          // }
+          // buffer->setHostRuntimeTensor(host_tensors[shard_index]);
           buffer->setHostRuntimeTensor(host_tensors[0]);
         }
       }
