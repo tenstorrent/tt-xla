@@ -38,8 +38,8 @@ class OpTester(BaseTester):
             compiler_config = CompilerConfig()
         self._compiler_config = compiler_config
         self._torch_options = torch_options if torch_options is not None else {}
-        self._disable_perf_measurement = (
-            os.environ.get("DISABLE_PERF_MEASUREMENT", "0") == "1"
+        self._enable_perf_measurement = (
+            os.environ.get("ENABLE_OP_TEST_PERF_MEASUREMENT", "0") == "1"
         )
         self._perf_measurements: list[dict[str, float]] = []
         super().__init__(comparison_config, framework)
@@ -58,7 +58,7 @@ class OpTester(BaseTester):
 
         self._comparator.compare(tt_res, cpu_res)
 
-        if not self._disable_perf_measurement:
+        if self._enable_perf_measurement:
             self._test_e2e_perf(tt_workload)
 
     def _test_e2e_perf(self, workload: Workload) -> None:
