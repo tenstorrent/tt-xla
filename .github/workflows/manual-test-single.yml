@@ -110,8 +110,8 @@ jobs:
 
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
-    secrets: inherit
     needs: [ build-release-docker ]
+    secrets: inherit
     with:
       release_tag: ${{ inputs.release_tag }}
       docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}
