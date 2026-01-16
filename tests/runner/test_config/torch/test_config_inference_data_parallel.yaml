@@ -66,9 +66,7 @@ test_config:
 
   albert/token_classification/pytorch-xlarge_v1-data_parallel-inference:
     supported_archs: [n300]
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9775277376174927. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1844"
 
   mnist/image_classification/pytorch-cnn_dropout-data_parallel-inference:
     supported_archs: [n300]
@@ -281,7 +279,6 @@ test_config:
   albert/masked_lm/pytorch-xxlarge_v2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
-    required_pcc: 0.98
 
   vgg/pytorch-vgg16-data_parallel-inference:
     supported_archs: [n300]
