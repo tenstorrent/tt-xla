@@ -4,7 +4,9 @@
 
 from __future__ import annotations
 
+import os
 import re
+import time
 from typing import Callable, Optional, Sequence
 
 import jax
@@ -36,6 +38,10 @@ class OpTester(BaseTester):
             compiler_config = CompilerConfig()
         self._compiler_config = compiler_config
         self._torch_options = torch_options if torch_options is not None else {}
+        self._enable_perf_measurement = (
+            os.environ.get("ENABLE_OP_TEST_PERF_MEASUREMENT", "0") == "1"
+        )
+        self._perf_measurements: list[dict[str, float]] = []
         super().__init__(comparison_config, framework)
 
     def test(self, workload: Workload) -> None:
@@ -51,6 +57,43 @@ class OpTester(BaseTester):
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
         self._comparator.compare(tt_res, cpu_res)
+
+        if self._enable_perf_measurement:
+            self._test_e2e_perf(tt_workload)
+
+    def _test_e2e_perf(self, workload: Workload) -> None:
+        warmup_iters_count = 3
+        perf_iters_count = 2
+
+        # warmup runs
+        for _ in range(warmup_iters_count):
+            _ = self._device_runner.run_on_tt_device(workload)
+
+        # e2e perf
+        perf_times = []
+        for _ in range(perf_iters_count):
+            iter_start = time.perf_counter_ns()
+            tt_res = self._device_runner.run_on_tt_device(workload)
+            iter_end = time.perf_counter_ns()
+            perf_times.append(iter_end - iter_start)
+
+        tt_total_time = sum(perf_times)
+        avg_time = tt_total_time / perf_iters_count
+        self.print_e2e_perf_stats(perf_times, avg_time, tt_total_time)
+
+    @staticmethod
+    def print_e2e_perf_stats(
+        perf_times: list[float], avg_time: float, total_time: float
+    ) -> None:
+        print("====================================================================")
+        print(f"| BENCHMARK:  ")
+        print("--------------------------------------------------------------------")
+        total_iter = len(perf_times)
+        for i, perf_time in enumerate(perf_times, 1):
+            print(f"| Iteration {i}/{total_iter}: {perf_time / 1e6:.04} ms")
+        print(f"| e2e_perf-avg_time: {avg_time / 1e6:.04} ms")
+        print(f"| e2e_perf-total_time: {total_time / 1e6:.04} ms")
+        print("====================================================================")
 
     def _compile_for_tt_device(self, workload: Workload) -> None:
         """
