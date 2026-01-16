@@ -54,6 +54,12 @@ else()
     if(CMAKE_CXX_COMPILER MATCHES "clang\\+\\+-17")
         set(CMAKE_CXX_COMPILER "/usr/bin/clang++-17" CACHE STRING "" FORCE)
     endif()
+    if(CMAKE_C_COMPILER MATCHES "clang")
+        set(CMAKE_C_COMPILER "/usr/bin/clang" CACHE STRING "" FORCE)
+    endif()
+    if(CMAKE_CXX_COMPILER MATCHES "clang\\+\\+")
+        set(CMAKE_CXX_COMPILER "/usr/bin/clang++" CACHE STRING "" FORCE)
+    endif()
 
     FetchContent_MakeAvailable(protobuf)
 
