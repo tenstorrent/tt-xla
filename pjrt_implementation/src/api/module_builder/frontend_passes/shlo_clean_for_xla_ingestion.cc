@@ -182,7 +182,7 @@ void canonicalizeIotaDims(mlir::SmallVector<int64_t> &reshapeDims,
         if (new_perm_dim >= 0) {
           transposePerm[new_idx] = new_perm_dim;
           ++new_idx;
-          assert(new_idx < new_ndims);
+          assert(new_idx <= new_ndims);
         }
       }
       transposePerm.truncate(new_ndims);
