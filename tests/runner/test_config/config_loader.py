@@ -233,7 +233,7 @@ def load_framework_test_configs(framework: Framework) -> Dict[str, Any]:
 def load_all_test_configs() -> Dict[str, Any]:
     """Load and merge YAML-based test configurations for model bring-up and CI.
 
-    This function loads configs from both torch/ and jax/ subdirectories.
+    This function loads configs from torch/, jax/, and torch_llm/ subdirectories.
 
     Returns:
     dict: {
@@ -241,15 +241,22 @@ def load_all_test_configs() -> Dict[str, Any]:
         "test_config": <merged dict of all test configs>
     }
     """
-    # Load configs from both frameworks
+    # Load configs from all frameworks
     torch_configs = load_framework_test_configs(Framework.TORCH)
     jax_configs = load_framework_test_configs(Framework.JAX)
+    torch_llm_configs = load_framework_test_configs(Framework.TORCH_LLM)
 
     # Merge everything together
     merged_placeholders = (
-        torch_configs["PLACEHOLDER_MODELS"] | jax_configs["PLACEHOLDER_MODELS"]
+        torch_configs["PLACEHOLDER_MODELS"]
+        | jax_configs["PLACEHOLDER_MODELS"]
+        | torch_llm_configs["PLACEHOLDER_MODELS"]
     )
-    merged_test_config = torch_configs["test_config"] | jax_configs["test_config"]
+    merged_test_config = (
+        torch_configs["test_config"]
+        | jax_configs["test_config"]
+        | torch_llm_configs["test_config"]
+    )
 
     return {
         "PLACEHOLDER_MODELS": merged_placeholders,

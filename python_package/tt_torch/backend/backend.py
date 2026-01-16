@@ -20,6 +20,7 @@ from .passes import (
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
+    run_fusion_passes,
 )
 
 
@@ -31,6 +32,14 @@ def torch_pass_pipeline(
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
+
+    # Run fusion passes to detect and fuse multi-op patterns
+    # This runs before composite_ops to allow fused patterns to be wrapped as composites
+    enable_fusion_passes = options is None or options.get(
+        "tt_enable_fusion_passes", True
+    )
+    if enable_fusion_passes:
+        gm = run_fusion_passes(gm)
 
     # This is a temporary option to disable / enable composite ops
     # that will be removed once composite ops are more stable.

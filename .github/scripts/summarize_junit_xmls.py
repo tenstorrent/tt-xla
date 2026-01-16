@@ -231,6 +231,7 @@ def iter_test_records(tree: ET.ElementTree) -> Iterator[Dict]:
         record: Dict = dict(tags)
         record["group"] = group_val
         record["time"] = tc.get("time")
+        record["classname"] = tc.get("classname") or ""
 
         # Derive model_type from model_info.task
         model_info = record.get("model_info") or {}
@@ -376,10 +377,10 @@ def collect_rows_from_files(
         score = get_suite_timestamp(tree) or 0.0
 
         for rec in iter_test_records(tree):
-            test_name = to_str(rec.get("specific_test_case", ""))
+            classname = to_str(rec.get("classname", ""))
 
             # We only care about model tests via test_models.py for now.
-            if not test_name.startswith("test_all_models"):
+            if classname != "tests.runner.test_models":
                 continue
 
             # Apply optional CLI filters
@@ -402,6 +403,7 @@ def collect_rows_from_files(
             ]
 
             if dedupe_enabled:
+                test_name = to_str(rec.get("specific_test_case", ""))
                 arch_val = to_str(rec.get("arch", ""))
                 key = (test_name, arch_val)
                 prev_score = score_by_key.get(key)
