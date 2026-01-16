@@ -65,13 +65,14 @@ jobs:
           version_tag="${{ inputs.release_tag }}"
 
           latest_tag="latest"
-          if [[ "$is_nightly_release" == "true" ]]; then
+          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
             latest_tag="nightly-latest"
           fi
 
-          # todo(vvukoman): do we always tag with latest when releasing?
-          printf "\nPushing latest tag for $docker_image_base"
-          docker buildx imagetools create $docker_image_base:$commit_tag --tag $docker_image_base:$latest_tag --tag $docker_image_base:$version_tag
+          echo "Pushing tags for $docker_image_base"
+          skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
+          skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$version_tag"
+
 
         # todo(vvukoman): think about body structure, what is relevant to show?
       - name: Publish github release
