@@ -62,8 +62,6 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, **kwargs):
         """Return sample inputs for the SSR model with default settings."""
-        torch.manual_seed(42)
-        np.random.seed(42)
 
         img_norm_cfg = {
             "mean": np.array([123.675, 116.28, 103.53], dtype=np.float32),

@@ -445,38 +445,76 @@ class VAD(MVXTwoStageDetector):
     def assign_pred_to_gt_vip3d(
         self, bbox_result, gt_bbox, gt_label, match_dis_thresh=2.0
     ):
-        """Assign pred boxs to gt boxs according to object center preds in lcf.
-        Args:
-            bbox_result (dict): Predictions.
-                'boxes_3d': (LiDARInstance3DBoxes)
-                'scores_3d': (Tensor), [num_pred_bbox]
-                'labels_3d': (Tensor), [num_pred_bbox]
-                'trajs_3d': (Tensor), [fut_ts*2]
-            gt_bboxs (LiDARInstance3DBoxes): GT Bboxs.
-            gt_label (Tensor): GT labels for gt_bbox, [num_gt_bbox].
-            match_dis_thresh (float): dis thresh for determine a positive sample for a gt bbox.
-
-        Returns:
-            matched_bbox_result (np.array): assigned pred index for each gt box [num_gt_bbox].
         """
-        dynamic_list = [0, 1, 3, 4, 6, 7, 8]
-        matched_bbox_result = torch.ones((len(gt_bbox))) * -1  # -1: not assigned
+        Torch-only assignment (Dynamo-safe).
+        Greedy matching based on center distance.
+        """
+
+        device = gt_label.device
+        dtype = bbox_result["boxes_3d"].center.dtype
+
+        dynamic_list = torch.tensor(
+            [0, 1, 3, 4, 6, 7, 8],
+            device=device,
+        )
+
+        num_gt = gt_bbox.center.size(0)
+        num_pred = bbox_result["boxes_3d"].center.size(0)
+
+        matched_bbox_result = torch.full(
+            (num_gt,),
+            -1,
+            dtype=torch.long,
+            device=device,
+        )
+
+        if num_gt == 0 or num_pred == 0:
+            return matched_bbox_result
+
         gt_centers = gt_bbox.center[:, :2]
         pred_centers = bbox_result["boxes_3d"].center[:, :2]
+
         dist = torch.linalg.norm(
-            pred_centers[:, None, :] - gt_centers[None, :, :], dim=-1
+            pred_centers[:, None, :] - gt_centers[None, :, :],
+            dim=-1,
+        )  # [P, G]
+
+        pred_not_dyn = ~torch.isin(
+            bbox_result["labels_3d"],
+            dynamic_list,
         )
-        pred_not_dyn = [label not in dynamic_list for label in bbox_result["labels_3d"]]
-        gt_not_dyn = [label not in dynamic_list for label in gt_label]
-        dist[pred_not_dyn] = 1e6
-        dist[:, gt_not_dyn] = 1e6
-        dist[dist > match_dis_thresh] = 1e6
+        gt_not_dyn = ~torch.isin(
+            gt_label,
+            dynamic_list,
+        )
 
-        r_list, c_list = linear_sum_assignment(dist)
+        INF = torch.tensor(1e6, device=device, dtype=dist.dtype)
 
-        for i in range(len(r_list)):
-            if dist[r_list[i], c_list[i]] <= match_dis_thresh:
-                matched_bbox_result[c_list[i]] = r_list[i]
+        dist = torch.where(pred_not_dyn[:, None], INF, dist)
+        dist = torch.where(gt_not_dyn[None, :], INF, dist)
+        dist = torch.where(dist > match_dis_thresh, INF, dist)
+
+        assigned_pred = torch.zeros(num_pred, dtype=torch.bool, device=device)
+        assigned_gt = torch.zeros(num_gt, dtype=torch.bool, device=device)
+
+        max_iters = min(num_pred, num_gt)
+
+        for _ in range(max_iters):
+            min_val = dist.min()
+            if min_val >= INF:
+                break
+
+            idx = torch.argmin(dist)
+            pred_idx = idx // num_gt
+            gt_idx = idx % num_gt
+
+            matched_bbox_result[gt_idx] = pred_idx
+
+            assigned_pred[pred_idx] = True
+            assigned_gt[gt_idx] = True
+
+            dist[pred_idx, :] = INF
+            dist[:, gt_idx] = INF
 
         return matched_bbox_result
 

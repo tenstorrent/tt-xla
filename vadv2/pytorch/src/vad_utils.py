@@ -270,70 +270,97 @@ class PlanningMetric:
         return bev_resolution, bev_start_position, bev_dimension
 
     def get_label(self, gt_agent_boxes, gt_agent_feats):
-        segmentation_np, pedestrian_np = self.get_birds_eye_view_label(
+        """
+        Fully Torch-based version of get_label.
+        Returns:
+            segmentation: torch.Tensor (1, T, H, W), dtype=torch.long
+            pedestrian: torch.Tensor (1, T, H, W), dtype=torch.long
+        """
+        # Get BEV labels in Torch
+        segmentation, pedestrian = self.get_birds_eye_view_label(
             gt_agent_boxes, gt_agent_feats
         )
-        segmentation = torch.from_numpy(segmentation_np).long().unsqueeze(0)
-        pedestrian = torch.from_numpy(pedestrian_np).long().unsqueeze(0)
+
+        # Convert to long and add batch dimension
+        segmentation = segmentation.long().unsqueeze(0)
+        pedestrian = pedestrian.long().unsqueeze(0)
 
         return segmentation, pedestrian
 
     def get_birds_eye_view_label(self, gt_agent_boxes, gt_agent_feats):
         """
-        gt_agent_boxes (LiDARInstance3DBoxes): list of GT Bboxs.
-            dim 9 = (x,y,z)+(w,l,h)+yaw+(vx,vy)
-        gt_agent_feats: (B, A, 34)
-            dim 34 = fut_traj(6*2) + fut_mask(6) + goal(1) + lcf_feat(9) + fut_yaw(6)
-            lcf_feat (x, y, yaw, vx, vy, width, length, height, type)
-        ego_lcf_feats: (B, 9)
-            dim 8 = (vx, vy, ax, ay, w, length, width, vel, steer)
+        Torch-converted version (NumPy removed except OpenCV boundary).
         """
+
+        device = gt_agent_feats.device
+        dtype = gt_agent_feats.dtype
+
         T = 6
-        segmentation = np.zeros(
-            (int(T), int(self.bev_dimension[0]), int(self.bev_dimension[1]))
-        )
-        pedestrian = np.zeros(
-            (int(T), int(self.bev_dimension[0]), int(self.bev_dimension[1]))
-        )
-        agent_num = gt_agent_feats.shape[1]
+        H, W = int(self.bev_dimension[0]), int(self.bev_dimension[1])
 
-        gt_agent_boxes = gt_agent_boxes.tensor.numpy()  # (N, 9)
-        gt_agent_feats = gt_agent_feats.numpy()
+        segmentation = torch.zeros((T, H, W), device=device, dtype=torch.float32)
+        pedestrian = torch.zeros((T, H, W), device=device, dtype=torch.float32)
 
-        gt_agent_fut_trajs = gt_agent_feats[..., : T * 2].reshape(-1, 6, 2)
-        gt_agent_fut_mask = gt_agent_feats[..., T * 2 : T * 3].reshape(-1, 6)
-        # gt_agent_lcf_feat = gt_agent_feats[..., T*3+1:T*3+10].reshape(-1, 9)
+        agent_num = gt_agent_feats.size(1)
+
+        # Convert inputs to torch
+        gt_agent_boxes = gt_agent_boxes.tensor.to(device=device, dtype=dtype)
+
+        gt_agent_fut_trajs = gt_agent_feats[..., : T * 2].reshape(-1, T, 2)
+        gt_agent_fut_mask = gt_agent_feats[..., T * 2 : T * 3].reshape(-1, T)
         gt_agent_fut_yaw = gt_agent_feats[..., T * 3 + 10 : T * 4 + 10].reshape(
-            -1, 6, 1
+            -1, T, 1
         )
-        gt_agent_fut_trajs = np.cumsum(gt_agent_fut_trajs, axis=1)
-        gt_agent_fut_yaw = np.cumsum(gt_agent_fut_yaw, axis=1)
 
-        gt_agent_boxes[:, 6:7] = -1 * (
-            gt_agent_boxes[:, 6:7] + np.pi / 2
-        )  # NOTE: convert yaw to lidar frame
-        gt_agent_fut_trajs = gt_agent_fut_trajs + gt_agent_boxes[:, np.newaxis, 0:2]
-        gt_agent_fut_yaw = gt_agent_fut_yaw + gt_agent_boxes[:, np.newaxis, 6:7]
+        gt_agent_fut_trajs = torch.cumsum(gt_agent_fut_trajs, dim=1)
+        gt_agent_fut_yaw = torch.cumsum(gt_agent_fut_yaw, dim=1)
+
+        gt_agent_boxes[:, 6:7] = -1.0 * (gt_agent_boxes[:, 6:7] + torch.pi / 2)
+
+        gt_agent_fut_trajs = gt_agent_fut_trajs + gt_agent_boxes[:, None, 0:2]
+        gt_agent_fut_yaw = gt_agent_fut_yaw + gt_agent_boxes[:, None, 6:7]
+
+        category_index = gt_agent_feats[0, :, 27].long()
+
+        vehicle_set = torch.tensor(self.category_index["vehicle"], device=device)
+        human_set = torch.tensor(self.category_index["human"], device=device)
 
         for t in range(T):
-            for i in range(agent_num):
-                if gt_agent_fut_mask[i][t] == 1:
-                    # Filter out all non vehicle instances
-                    category_index = int(gt_agent_feats[0, i][27])
-                    agent_length, agent_width = (
-                        gt_agent_boxes[i][4],
-                        gt_agent_boxes[i][3],
+            valid_mask = gt_agent_fut_mask[:, t] == 1
+
+            for i in torch.nonzero(valid_mask, as_tuple=False).flatten():
+                agent_length = gt_agent_boxes[i, 4]
+                agent_width = gt_agent_boxes[i, 3]
+
+                x_a = gt_agent_fut_trajs[i, t, 0]
+                y_a = gt_agent_fut_trajs[i, t, 1]
+                yaw_a = gt_agent_fut_yaw[i, t, 0]
+
+                param = [
+                    float(x_a),
+                    float(y_a),
+                    float(yaw_a),
+                    float(agent_length),
+                    float(agent_width),
+                ]
+
+                poly_region = self._get_poly_region_in_image(param)
+
+                poly_np = poly_region.astype("int32")
+
+                if torch.isin(category_index[i], vehicle_set):
+                    cv2.fillPoly(
+                        segmentation[t].cpu().numpy(),
+                        [poly_np],
+                        1.0,
                     )
-                    x_a = gt_agent_fut_trajs[i, t, 0]
-                    y_a = gt_agent_fut_trajs[i, t, 1]
-                    yaw_a = gt_agent_fut_yaw[i, t, 0]
-                    param = [x_a, y_a, yaw_a, agent_length, agent_width]
-                    if category_index in self.category_index["vehicle"]:
-                        poly_region = self._get_poly_region_in_image(param)
-                        cv2.fillPoly(segmentation[t], [poly_region], 1.0)
-                    if category_index in self.category_index["human"]:
-                        poly_region = self._get_poly_region_in_image(param)
-                        cv2.fillPoly(pedestrian[t], [poly_region], 1.0)
+
+                if torch.isin(category_index[i], human_set):
+                    cv2.fillPoly(
+                        pedestrian[t].cpu().numpy(),
+                        [poly_np],
+                        1.0,
+                    )
 
         return segmentation, pedestrian
 
@@ -370,57 +397,82 @@ class PlanningMetric:
 
     def evaluate_single_coll(self, traj, segmentation, input_gt):
         """
-        traj: torch.Tensor (n_future, 2)
-            自车lidar系为轨迹参考系
-                ^ y
-                |
-                |
-                0------->
-                        x
-        segmentation: torch.Tensor (n_future, 200, 200)
+        Vectorized, TorchDynamo-safe collision evaluation.
+
+        Args:
+            traj: torch.Tensor (n_future, 2)
+                Vehicle trajectory in lidar frame.
+            segmentation: torch.Tensor (n_future, H_seg, W_seg)
+                Occupancy grid / segmentation map (bool)
+            input_gt: ignored, for API compatibility
+
+        Returns:
+            collision: torch.BoolTensor (n_future,)
         """
-        pts = np.array(
+        device = traj.device
+        n_future = traj.shape[0]
+
+        if isinstance(self.bx, np.ndarray):
+            self.bx = torch.from_numpy(self.bx).float()
+        if isinstance(self.dx, np.ndarray):
+            self.dx = torch.from_numpy(self.dx).float()
+        if isinstance(self.bev_dimension, np.ndarray):
+            self.bev_dimension = torch.from_numpy(self.bev_dimension).long()
+
+        bx = self.bx.to(device=device, dtype=traj.dtype)
+        dx = self.dx.to(device=device, dtype=traj.dtype)
+        bev_dim = self.bev_dimension.to(device=device).long()
+
+        pts = torch.tensor(
             [
                 [-self.H / 2.0 + 0.5, self.W / 2.0],
                 [self.H / 2.0 + 0.5, self.W / 2.0],
                 [self.H / 2.0 + 0.5, -self.W / 2.0],
                 [-self.H / 2.0 + 0.5, -self.W / 2.0],
-            ]
+            ],
+            device=device,
+            dtype=traj.dtype,
         )
-        pts = (pts - self.bx.numpy()) / (self.dx.numpy())
-        pts[:, [0, 1]] = pts[:, [1, 0]]
-        rr, cc = polygon(pts[:, 1], pts[:, 0])
-        rc = np.concatenate([rr[:, None], cc[:, None]], axis=-1)
 
-        n_future, _ = traj.shape
-        trajs = traj.view(n_future, 1, 2)
-        # 轨迹坐标系转换为:
-        #  ^ x
-        #  |
-        #  |
-        #  0-------> y
-        trajs_ = copy.deepcopy(trajs)
-        trajs_[:, :, [0, 1]] = trajs_[:, :, [1, 0]]  # can also change original tensor
-        trajs_ = trajs_ / self.dx
-        trajs_ = trajs_.numpy() + rc  # (n_future, 32, 2)
+        pts = (pts - bx) / dx
+        pts = pts[:, [1, 0]]
 
-        r = (self.bev_dimension[0] - trajs_[:, :, 0]).astype(np.int32)
-        r = np.clip(r, 0, self.bev_dimension[0] - 1)
+        x_min = torch.floor(pts[:, 0].min()).long()
+        x_max = torch.ceil(pts[:, 0].max()).long()
+        y_min = torch.floor(pts[:, 1].min()).long()
+        y_max = torch.ceil(pts[:, 1].max()).long()
 
-        c = trajs_[:, :, 1].astype(np.int32)
-        c = np.clip(c, 0, self.bev_dimension[1] - 1)
+        rr, cc = torch.meshgrid(
+            torch.arange(y_min, y_max + 1, device=device),
+            torch.arange(x_min, x_max + 1, device=device),
+            indexing="ij",
+        )
+        rc = torch.stack([rr.flatten(), cc.flatten()], dim=0)
+        n_points = rr.numel()
 
-        collision = np.full(n_future, False)
-        for t in range(n_future):
-            rr = r[t]
-            cc = c[t]
-            I = np.logical_and(
-                np.logical_and(rr >= 0, rr < self.bev_dimension[0]),
-                np.logical_and(cc >= 0, cc < self.bev_dimension[1]),
-            )
-            collision[t] = np.any(segmentation[t, rr[I], cc[I]].numpy())
+        trajs = traj.view(n_future, 1, 2).clone()
+        trajs = trajs[:, :, [1, 0]] / dx
+        trajs = trajs + rc.T.unsqueeze(0)
 
-        return torch.from_numpy(collision)
+        r = torch.clamp((bev_dim[0] - trajs[:, :, 0]).long(), 0, bev_dim[0] - 1)
+        c = torch.clamp(trajs[:, :, 1].long(), 0, bev_dim[1] - 1)
+
+        batch_flat = (
+            torch.arange(n_future, device=device)
+            .unsqueeze(1)
+            .expand(-1, n_points)
+            .flatten()
+            .long()
+        )
+        r_flat = r.flatten().long()
+        c_flat = c.flatten().long()
+
+        seg_vals_flat = segmentation[batch_flat, r_flat, c_flat]
+        seg_vals = seg_vals_flat.view(n_future, n_points)
+
+        collision = seg_vals.any(dim=1)
+
+        return collision
 
     def evaluate_coll(self, trajs, gt_trajs, segmentation):
         """
