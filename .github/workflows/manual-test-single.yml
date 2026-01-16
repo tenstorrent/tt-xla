@@ -37,15 +37,15 @@ jobs:
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
       wheel_version_override: ${{ inputs.release_tag }}
 
-  perf-benchmark:
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/extract-mlir-version-differently
-    needs: [ build-release-docker ]
-    secrets: inherit
-    with:
-      ref: vvukoman/extract-mlir-version-differently
-      docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
-      project: tt-xla
-      sh-runner: true
+  # perf-benchmark:
+  #   uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/extract-mlir-version-differently
+  #   needs: [ build-release-docker ]
+  #   secrets: inherit
+  #   with:
+  #     ref: vvukoman/extract-mlir-version-differently
+  #     docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
+  #     project: tt-xla
+  #     sh-runner: true
 
   demo-test:
     uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@vvukoman/extract-mlir-version-differently
@@ -56,11 +56,11 @@ jobs:
       project-filter: tt-xla
       ref: vvukoman/extract-mlir-version-differently
 
-  publish-release:
-    uses: ./.github/workflows/call-publish-release.yml
-    secrets: inherit
-    needs: [ build-release-docker, perf-benchmark, demo-test ]
-    with:
-      release_tag: ${{ inputs.release_tag }}
-      docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}
-      is_nightly_release: true
+  # publish-release:
+  #   uses: ./.github/workflows/call-publish-release.yml
+  #   secrets: inherit
+  #   needs: [ build-release-docker, demo-test ]
+  #   with:
+  #     release_tag: ${{ inputs.release_tag }}
+  #     docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}
+  #     is_nightly_release: true
