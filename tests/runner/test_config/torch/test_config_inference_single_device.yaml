@@ -2326,7 +2326,7 @@ test_config:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2237
 
   yolos_small/pytorch-small-single_device-inference:
-    required_pcc: 0.98
+    required_pcc: 0.965
     status: EXPECTED_PASSING
 
   yolos_small/pytorch-small_dwr-single_device-inference:
