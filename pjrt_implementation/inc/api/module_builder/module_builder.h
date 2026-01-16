@@ -351,6 +351,11 @@ private:
 
   // tt-alchemist library handler.
   TTAlchemistHandler m_tt_alchemist_handler;
+
+  // Graph counter to track graph number within a run.
+  // Resets when export_model_name changes (new test run).
+  int m_graph_counter = 0;
+  std::string m_last_model_name;
 };
 
 } // namespace tt::pjrt::module_builder
