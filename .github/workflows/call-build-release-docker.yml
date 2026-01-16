@@ -14,7 +14,7 @@ on:
       wheel_version_override:
         description: 'Wheel version override value'
         type: string
-        required: true
+        required: false
     outputs:
       docker_image:
         description: 'Built and pushed docker image'
@@ -76,6 +76,7 @@ jobs:
 
       - name: Rename wheel
         shell: bash
+        if: ${{ inputs.wheel_version_override != ''}}
         run: |
           tag="${{ inputs.wheel_version_override }}"
 
