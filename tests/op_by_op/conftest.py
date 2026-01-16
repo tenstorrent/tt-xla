@@ -37,5 +37,5 @@ def pytest_addoption(parser):
         "--ir-file-prefix",
         action="store",
         default="",
-        help="IR file prefix within model directories (e.g., 'irs/shlo_compiler')",
+        help="Filter files by subpath pattern and extract model names (e.g., 'irs/shlo_compiler' finds model_name/irs/shlo_compiler_*.mlir)",
     )
