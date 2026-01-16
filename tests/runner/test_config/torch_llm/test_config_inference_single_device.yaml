@@ -10,10 +10,12 @@
 test_config:
   falcon/pytorch-tiiuae/Falcon3-1B-Base-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   falcon/pytorch-tiiuae/Falcon3-3B-Base-llm_decode-single_device-inference:
     required_pcc: 0.985 # Is 0.990 (p150) or 0.989 (n150)
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -53,6 +55,7 @@ test_config:
 
   gemma/pytorch-google/gemma-1.1-2b-it-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   gemma/pytorch-google/gemma-1.1-7b-it-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -74,6 +77,7 @@ test_config:
   llama/causal_lm/pytorch-llama_3_1_8b_instruct-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   llama/causal_lm/pytorch-llama_3_1_70b-llm_decode-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.

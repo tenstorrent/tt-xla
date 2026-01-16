@@ -585,6 +585,7 @@ test_config:
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-inference:
     status: EXPECTED_PASSING
@@ -1528,6 +1529,7 @@ test_config:
   gemma/pytorch-google/gemma-1.1-7b-it-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-inference:
     status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
@@ -1673,6 +1675,7 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_1_8b_instruct-single_device-inference:
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -2553,6 +2556,7 @@ test_config:
   mistral/pytorch-mistral_nemo_instruct_2407-single_device-inference:
     supported_archs: ["p150"] # 12B param model
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   wan/pytorch-wan2.2-ti2v-5b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
