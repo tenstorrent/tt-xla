@@ -39,6 +39,7 @@ ShardSpec = Dict[Tensor, Tuple[str, ...]]
 class Framework(Enum):
     JAX = "jax"
     TORCH = "torch"
+    TORCH_LLM = "torch_llm"
 
     def __str__(self) -> str:
         return self.value
