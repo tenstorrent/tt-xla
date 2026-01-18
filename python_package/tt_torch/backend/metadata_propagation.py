@@ -184,13 +184,65 @@ def _extract_source_and_module_hierarchy_info(
     # Process in reverse to get deepest (innermost) call first
     lines = node.meta["stack_trace"].strip().split("\n")
 
-    # Find the first (deepest) valid stack trace line
+    # Search the stack trace to find the reference to line-of-code where the op is called.
+    # Unfortunately, this is not straightforward to do, as stack trace can be "muddled" by other things, like torch overrides, etc.
+    #
+    # Initially, the logic was to take the last line of the stack trace that started with "File ", which worked for some cases, but not all.
+    #
+    # Since it is not obvious how to extract a valid trace, we will keep a record of types of stack traces encountered so far, and write our heuristic so that it works for all of them.
+    #
+    # ====
+    #
+    # Case 1:
+    # node.meta["stack_trace"].strip().split("\n")
+    # 0 = 'File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/recover_structure.py", line 47, in forward'
+    # 1 = '    x = self.m1(x)'
+    # 2 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/recover_structure.py", line 28, in forward'
+    # 3 = '    return x * self.w'
+    # 4 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/python_package/tt_torch/torch_overrides.py", line 22, in __torch_function__'
+    # 5 = '    return func(*args, **(kwargs or {}))'
+    #
+    # In the above case, the valid trace is the last line that starts with "File " but isn't in the torch_overrides.py file.
+    #
+    # ====
+    #
+    # Case 2:
+    # node.meta["stack_trace"].strip().split("\n")
+    # 0 = 'File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/custom_module.py", line 33, in forward'
+    # 1 = '    return torch.sum(x**2)'
+    # 2 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/python_package/tt_torch/torch_overrides.py", line 22, in __torch_function__'
+    # 3 = '    return func(*args, **(kwargs or {}))'
+    # 4 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/venv/lib/python3.11/site-packages/torch/_tensor.py", line 39, in wrapped'
+    # 5 = '    return f(*args, **kwargs)'
+    #
+    # In the above case, the valid trace is the last line that starts with "File " but isn't in the torch_overrides.py file.
+    #
+    # ====
+    #
+    # Case 3:
+    # 0 = 'File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/custom_module.py", line 33, in forward'
+    # 1 = '    return torch.sum(x**2)'
+    # 2 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/python_package/tt_torch/torch_overrides.py", line 22, in __torch_function__'
+    # 3 = '    return func(*args, **(kwargs or {}))'
+    # 4 = '  File "/usr/local/lib/python3.11/dist-packages/torch/_tensor.py", line 39, in wrapped'
+    # 5 = '    return f(*args, **kwargs)'
+    #
+    # ====
+    #
+    # Files to skip when searching for the source location.
+    # These are internal files that appear in stack traces but don't represent user code.
+    skip_patterns = [
+        "python_package/tt_torch/torch_overrides.py",  # Case 1: our custom torch overrides (e.g., tt-xla/python_package/tt_torch/torch_overrides.py)
+        "site-packages/torch/",  # Case 2: Internal torch files (e.g., venv/.../torch/_tensor.py)
+        "dist-packages/torch/",  # Case 3: Internal torch files (e.g., /usr/local/lib/.../torch/_tensor.py)
+    ]
     line = next(
         (
             line
             for line in reversed(lines)
             if (stripped := line.strip()).startswith('File "')
             and len(stripped.split(",")) >= 3
+            and not any(skip_pattern in stripped for skip_pattern in skip_patterns)
         ),
         None,
     )
