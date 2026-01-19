@@ -102,7 +102,7 @@ class TTPlatform(Platform):
             logger.info("Cannot use %s backend on TT devices.", selected_backend)
 
         logger.info("Using TT Attention layer.")
-        return AttentionBackendEnum.CUSTOM.get_path()
+        return "vllm_tt.attention.TTAttentionBackend"
 
     @classmethod
     def set_device(cls, device: torch.device) -> None:
@@ -160,13 +160,13 @@ class TTPlatform(Platform):
             cache_config.block_size = cast(BlockSize, 32)
         compilation_config = vllm_config.compilation_config
 
-        # TT only supports DYNAMO_ONCE compilation level
-        if compilation_config.level != CompilationLevel.DYNAMO_ONCE:
+        # TT only supports DYNAMO_TRACE_ONCE compilation level
+        if compilation_config.level != CompilationMode.DYNAMO_TRACE_ONCE:
             logger.info(
-                "[TT] Forcing DYNAMO_ONCE compilation level, and "
+                "[TT] Forcing DYNAMO_TRACE_ONCE compilation level, and "
                 "disabling cudagraph."
             )
-            compilation_config.level = CompilationLevel.DYNAMO_ONCE
+            compilation_config.level = CompilationMode.DYNAMO_TRACE_ONCE
 
         if (
             compilation_config.cudagraph_mode is None

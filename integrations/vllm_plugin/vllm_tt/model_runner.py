@@ -307,7 +307,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             pin_memory=self.pin_memory,
             vocab_size=self.model_config.get_vocab_size(),
             block_sizes=[self.block_size],
-            kernel_block_sizes=[self.cache_config.block_size],
+            kernel_block_sizes=[self.block_size],
         )
 
         # Cached torch/numpy tensor

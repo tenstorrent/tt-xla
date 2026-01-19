@@ -404,7 +404,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             pin_memory=self.pin_memory,
             vocab_size=self.model_config.get_vocab_size(),
             block_sizes=block_sizes,
-            kernel_block_sizes=[self.cache_config.block_size],
+            kernel_block_sizes=block_sizes,
             logitsprocs=build_logitsprocs(
                 self.vllm_config,
                 "cpu",
