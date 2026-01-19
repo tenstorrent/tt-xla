@@ -7,12 +7,12 @@ test_config:
   falcon/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    markers: [tp_2x4_mesh]
+    markers: [tp_2x4_mesh, testing]
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    markers: [tp_2x4_mesh]
+    markers: [tp_2x4_mesh, testing]
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -74,6 +74,7 @@ test_config:
   qwen_3/causal_lm/pytorch-14b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [testing]
 
   qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -83,6 +84,7 @@ test_config:
   qwen_3/causal_lm/pytorch-32b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [testing]
 
   qwen_3/causal_lm/pytorch-8b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -129,14 +131,17 @@ test_config:
   qwen_2_5/causal_lm/pytorch-14b_instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [testing]
 
   qwen_2_5/causal_lm/pytorch-32b_instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [testing]
 
   qwen_2_5_coder/pytorch-32b_instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [testing]
 
   qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]

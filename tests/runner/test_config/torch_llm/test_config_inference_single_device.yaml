@@ -96,6 +96,7 @@ test_config:
 
   qwen_3/causal_lm/pytorch-0_6b-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [testing]
 
   qwen_3/causal_lm/pytorch-1_7b-llm_decode-single_device-inference:
     status: EXPECTED_PASSING

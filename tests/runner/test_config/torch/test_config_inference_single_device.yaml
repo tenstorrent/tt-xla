@@ -136,10 +136,12 @@ test_config:
   falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    markers: ["testing"]
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    markers: ["testing"]
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-inference:
     supported_archs: ["p150"]
@@ -1009,6 +1011,7 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-inference:
     status: EXPECTED_PASSING
+    markers: ["testing"]
 
   llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-inference:
     status: EXPECTED_PASSING
@@ -1492,6 +1495,7 @@ test_config:
 
   phi3/phi_3_5/pytorch-mini_instruct-single_device-inference:
     status: EXPECTED_PASSING
+    markers: ["testing"]
 
   bi_lstm_crf/pytorch-default-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -1799,6 +1803,7 @@ test_config:
   qwen_2_5/causal_lm/pytorch-14b_instruct-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
+    markers: ["testing"]
 
   qwen_2_5/causal_lm/pytorch-14b_instruct_1m-single_device-inference:
     arch_overrides:
@@ -1896,6 +1901,7 @@ test_config:
 
   qwen_3/causal_lm/pytorch-8b-single_device-inference:
     status: EXPECTED_PASSING
+    markers: ["testing"]
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -2312,6 +2318,7 @@ test_config:
 
   maskformer_swin_b/pytorch-swin_base_coco-single_device-inference:
     status: EXPECTED_PASSING
+    markers: ["testing"]
 
   maskformer_swin_b/pytorch-swin_base_ade-single_device-inference:
     status: EXPECTED_PASSING
