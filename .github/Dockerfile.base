@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
     ffmpeg
 
 # Install uv tool for managing Python packages
-RUN curl -LsSf https://astral.sh/uv/install.sh
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
 # Install requirements.txt as global Python 3.11 packages
 COPY python_package/requirements.txt /tmp/requirements.txt
