@@ -134,7 +134,7 @@ if [ -n "$REQUIRED_TORCH_XLA" ]; then
     fi
 
     if [ $NEEDS_REINSTALL -eq 1 ]; then
-        if ! pip install --force-reinstall "$REQUIRED_URL"; then
+        if ! uv pip install --force-reinstall "$REQUIRED_URL"; then
             echo "Failed to install torch-xla, marking as untestable"
             exit 125
         fi

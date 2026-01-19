@@ -78,7 +78,7 @@ endif()
 add_custom_target(install-dylib-editable ALL
     COMMAND ln -sf $<TARGET_FILE:TTPJRTTTDylib> ${CMAKE_SOURCE_DIR}/python_package/pjrt_plugin_tt/pjrt_plugin_tt.so
     COMMENT "Installing pjrt_plugin_tt.so to python_package/pjrt_plugin_tt"
-    COMMAND pip install -e ${CMAKE_SOURCE_DIR}/python_package --no-deps --no-build-isolation
+    COMMAND uv pip install -e ${CMAKE_SOURCE_DIR}/python_package --no-deps --no-build-isolation
     COMMENT "Running editable installation..."
     USES_TERMINAL
 )

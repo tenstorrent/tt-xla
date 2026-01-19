@@ -154,7 +154,7 @@ jobs:
 
         echo "=== Installing wheel ==="
         source venv/activate
-        pip install wheels/*.whl
+        uv pip install wheels/*.whl
 
     - name: Check for re-run attempt
       id: check-rerun-attempt
