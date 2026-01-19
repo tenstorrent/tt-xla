@@ -156,7 +156,7 @@ class JaxDeviceRunner(DeviceRunner):
             # work only for Flax linen parameters, revisit for other APIs.
             return jax.tree.map(
                 lambda spec, param: jax.device_put(
-                    param, NamedSharding(device_mesh, spec)
+                    param, NamedSharding(device_mesh, PartitionSpec() if param.ndim == 0 else spec)
                 ),
                 partition_spec,
                 arg,

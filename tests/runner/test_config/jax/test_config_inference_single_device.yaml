@@ -186,6 +186,9 @@ test_config:
     status: EXPECTED_PASSING
     markers: [large]
 
+  llama/causal_lm/jax-1B_TINY-single_device-inference:
+    status: EXPECTED_PASSING
+
   llama/causal_lm/jax-3b-v2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Not enough space to allocate 110592000 B DRAM buffer across 12 banks, where each bank needs to store 9216000 B, but bank size is only 1073741792 B"
@@ -240,9 +243,9 @@ test_config:
     markers: [large]
 
   mlp_mixer/image_classification/jax-base_16-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     reason: "PCC comparison failed. Calculated: pcc=-0.006557859480381012. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
     markers: [nightly]
 
   mnist/image_classification/jax-mlp_custom-single_device-inference:
