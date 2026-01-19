@@ -150,7 +150,7 @@ class JaxModelTester(ModelTester):
         Returns keyword arguments for model's forward pass.
 
         By default returns input parameters and activations for the HF
-        FlaxPreTrainedModel, and empty dict for other type of models.
+        FlaxPreTrainedModel and general nnx.Module, leaving empty dict for other type of models.
         """
         kwargs = {}
         if isinstance(self._model, (FlaxPreTrainedModel, nnx.Module)):

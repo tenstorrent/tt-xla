@@ -339,6 +339,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
                 "params": self._input_parameters,
                 **self._input_activations,
             }
+        return {}
 
     # @override
     def _get_static_argnames(self) -> Optional[Sequence[str]]:
