@@ -585,8 +585,9 @@ test_config:
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
+    # PCC Drop with new tt-mlir defaults for math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
     compiler_config:
-      math_fidelity: "ttnn_default"
+      math_fidelity: ttnn_default
       fp32_dest_acc_en: false
 
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-inference:
@@ -1533,8 +1534,9 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
+      # PCC Drop with new tt-mlir defaults for math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
         compiler_config:
-          math_fidelity: "ttnn_default"
+          math_fidelity: ttnn_default
           fp32_dest_acc_en: false
 
   stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-inference:
@@ -1687,8 +1689,9 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
       p150:
+        # PCC Drop with new tt-mlir defaults for math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
         compiler_config:
-          math_fidelity: "ttnn_default"
+          math_fidelity: ttnn_default
           fp32_dest_acc_en: false
 
   llama/causal_lm/pytorch-llama_3_1_405b-single_device-inference:
@@ -2567,8 +2570,9 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
+        # PCC Drop with new tt-mlir defaults for math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
         compiler_config:
-          math_fidelity: "ttnn_default"
+          math_fidelity: ttnn_default
           fp32_dest_acc_en: false
 
   wan/pytorch-wan2.2-ti2v-5b-single_device-inference:

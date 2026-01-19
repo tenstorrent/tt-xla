@@ -20,6 +20,7 @@ import pytest
 import torch
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
+from infra.testers.compiler_config import CompilerConfig
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
 from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
@@ -209,17 +210,14 @@ class ModelTestConfig:
         if self.compiler_config_data is None:
             return None
 
-        # Import CompilerConfig locally to avoid circular imports
-        from infra.testers.compiler_config import CompilerConfig
+        # Whitelist of valid compiler config attributes
+        valid_attributes = ["math_fidelity", "fp32_dest_acc_en"]
 
         # Build CompilerConfig with fields from YAML
         config_dict = {}
-        if "math_fidelity" in self.compiler_config_data:
-            config_dict["math_fidelity"] = self.compiler_config_data["math_fidelity"]
-        if "fp32_dest_acc_en" in self.compiler_config_data:
-            config_dict["fp32_dest_acc_en"] = self.compiler_config_data[
-                "fp32_dest_acc_en"
-            ]
+        for attr in valid_attributes:
+            if attr in self.compiler_config_data:
+                config_dict[attr] = self.compiler_config_data[attr]
 
         return CompilerConfig(**config_dict) if config_dict else None
 

@@ -72,6 +72,10 @@ def _run_model_test_impl(
     # Fix venv isolation issue: ensure venv packages take precedence over system packages
     fix_venv_isolation()
 
+    # Get compiler config from test metadata if not explicitly provided (supports arch_overrides)
+    if compiler_config is None:
+        compiler_config = test_metadata.to_compiler_config()
+
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
 
@@ -83,13 +87,13 @@ def _run_model_test_impl(
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
-        ir_dump_path = ""
         # Dump all collected IRs if --dump-irs option is enabled
         if request.config.getoption("--dump-irs", default=False):
             ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
-
-        if compiler_config is None and ir_dump_path:
-            compiler_config = CompilerConfig(export_path=ir_dump_path)
+            if compiler_config is None:
+                compiler_config = CompilerConfig(export_path=ir_dump_path)
+            else:
+                compiler_config.export_path = ir_dump_path
 
         succeeded = False
         comparison_result = None
@@ -264,10 +268,6 @@ def test_all_models_torch(
     clear_torchxla_computation_cache,
 ):
     """PyTorch model test - delegates to shared implementation."""
-
-    # Get compiler config from test metadata (supports arch_overrides)
-    compiler_config = test_metadata.to_compiler_config()
-
     _run_model_test_impl(
         test_entry=test_entry,
         run_mode=run_mode,
@@ -277,7 +277,6 @@ def test_all_models_torch(
         record_property=record_property,
         test_metadata=test_metadata,
         captured_output_fixture=captured_output_fixture,
-        compiler_config=compiler_config,
         clear_torchxla_computation_cache=clear_torchxla_computation_cache,
     )
 
