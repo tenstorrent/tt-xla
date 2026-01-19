@@ -12,6 +12,10 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
+
+import os
+from tt_torch import parse_compiled_artifacts_from_cache_to_disk
+
 from tt_torch.sharding import sharding_constraint_hook
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -323,11 +327,16 @@ def test_llama_attention_decode(variant, variant_config, arch):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_layer(variant, variant_config, arch):
+@pytest.mark.parametrize("shard", ["1d", "2x4", "4x2"])
+def test_llama_layer(variant, variant_config, arch, shard):
     if "70b" in str(variant) and not arch == "llmbox":
         pytest.skip("70B models don't fit on a single device")
 
     xr.set_device_type("TT")
+    cache_dir = f"{os.getcwd()}/cachedir"
+
+    xr.initialize_cache(cache_dir)
+
 
     compiler_config = CompilerConfig(
         optimization_level=1,
@@ -335,7 +344,9 @@ def test_llama_layer(variant, variant_config, arch):
         experimental_enable_weight_bfp8_conversion=True,
         experimental_enable_permute_matmul_fusion=False,
     )
-
+    options = {
+        "tt_enable_fusion_passes": False,
+    }
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
     config._attn_implementation = "sdpa"
@@ -348,40 +359,30 @@ def test_llama_layer(variant, variant_config, arch):
     num_heads = config.num_attention_heads
     num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
 
-    two_d = False
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
-        if not two_d:
-            mesh_shape = (1, num_devices)
-            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-            def get_shard_spec(attention, args, kwargs):
-                shard_specs = {}
-                shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
-                shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
-                shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
-                shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
-                shard_specs[layer.mlp.gate_proj.weight] = ("model", None)
-                shard_specs[layer.mlp.up_proj.weight] = ("model", None)
-                shard_specs[layer.mlp.down_proj.weight] = (None, "model")
-                return shard_specs
-
-        else:
+        if shard == "2x4" or shard == "4x2":
             mesh_shape = (2, num_devices // 2)
-            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+            if shard == "2x4":
+                mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+            elif shard == "4x2":
+                mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
+            else:
+                raise ValueError(f"Invalid shard: {shard}")
 
             def get_shard_spec(layer, args, kwargs):
                 shard_specs = {}
-                shard_specs[args[0]] = (None, None, "batch")  # hidden_states
-                shard_specs[args[1]] = (None, None, None, None)  # mask
-                # args[2] = None
-                shard_specs[args[3].key_cache[0]] = (None, "model", None, None)
-                shard_specs[args[3].value_cache[0]] = (None, "model", None, None)
+                
+                shard_specs[kwargs["hidden_states"]] = (None, None, "batch")
+                shard_specs[kwargs["past_key_values"][0][0]] = (None, "model", None, None)
+                shard_specs[kwargs["past_key_values"][0][1]] = (None, "model", None, None)
                 # shard_specs[args[1][0]] = (None, None, None)  # cos
                 # shard_specs[args[1][1]] = (None, None, None)  # sin
 
+                shard_specs[layer.input_layernorm.weight] = ("batch", )
+                shard_specs[layer.post_attention_layernorm.weight] = ("batch", )
                 shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
                 shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
                 shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
@@ -389,6 +390,22 @@ def test_llama_layer(variant, variant_config, arch):
                 shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
                 shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
                 shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+                return shard_specs
+        else:
+            mesh_shape = (1, num_devices)
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+            def get_shard_spec(attention, args, kwargs):
+                shard_specs = {}
+                shard_specs[kwargs["past_key_values"][0][0]] = (None, "model", None, None)
+                shard_specs[kwargs["past_key_values"][0][1]] = (None, "model", None, None)
+                shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+                shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+                shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+                shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+                shard_specs[layer.mlp.gate_proj.weight] = ("model", None)
+                shard_specs[layer.mlp.up_proj.weight] = ("model", None)
+                shard_specs[layer.mlp.down_proj.weight] = (None, "model")
                 return shard_specs
 
     else:
@@ -427,7 +444,10 @@ def test_llama_layer(variant, variant_config, arch):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
         compiler_config=compiler_config,
+        torch_options=options,
     )
+    output_dir = f"output_8b/layer_single_device"
+    parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_dir)
 
 
 @pytest.mark.nightly
