@@ -327,7 +327,7 @@ def test_llama_attention_decode(variant, variant_config, arch):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-@pytest.mark.parametrize("shard", ["1d", "2x4", "4x2"])
+@pytest.mark.parametrize("shard", ["1d", "2x4", "4x2", "8x4", "4x8"])
 def test_llama_layer(variant, variant_config, arch, shard):
     if "70b" in str(variant) and not arch == "llmbox":
         pytest.skip("70B models don't fit on a single device")
@@ -363,11 +363,18 @@ def test_llama_layer(variant, variant_config, arch, shard):
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
-        if shard == "2x4" or shard == "4x2":
-            mesh_shape = (2, num_devices // 2)
-            if shard == "2x4":
+        if shard == "2x4" or shard == "4x2" or shard == "8x4" or shard == "4x8":
+            if shard == "2x4" or shard == "4x2":
+                mesh_shape = (2, num_devices // 2)
+                assert num_devices == 8
+            elif shard == "8x4" or shard == "4x8":
+                mesh_shape = (8, 4)
+                assert num_devices == 32
+            else:
+                raise ValueError(f"Invalid shard: {shard}")
+            if shard == "2x4" or shard == "4x8":
                 mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-            elif shard == "4x2":
+            elif shard == "4x2" or shard == "8x4":
                 mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
             else:
                 raise ValueError(f"Invalid shard: {shard}")
