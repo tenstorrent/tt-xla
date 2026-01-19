@@ -154,6 +154,9 @@ class ModelTestConfig:
             self._resolve("filechecks", default=[])
         )
 
+        # Compiler configuration overrides (supports arch_overrides)
+        self.compiler_config_data = self._resolve("compiler_config", default=None)
+
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
         if self.arch in overrides and key in overrides[self.arch]:
@@ -200,6 +203,25 @@ class ModelTestConfig:
 
         config.assert_on_failure = False
         return config
+
+    def to_compiler_config(self):
+        """Build a CompilerConfig from YAML configuration data."""
+        if self.compiler_config_data is None:
+            return None
+
+        # Import CompilerConfig locally to avoid circular imports
+        from infra.testers.compiler_config import CompilerConfig
+
+        # Build CompilerConfig with fields from YAML
+        config_dict = {}
+        if "math_fidelity" in self.compiler_config_data:
+            config_dict["math_fidelity"] = self.compiler_config_data["math_fidelity"]
+        if "fp32_dest_acc_en" in self.compiler_config_data:
+            config_dict["fp32_dest_acc_en"] = self.compiler_config_data[
+                "fp32_dest_acc_en"
+            ]
+
+        return CompilerConfig(**config_dict) if config_dict else None
 
     def _normalize_markers(self, markers_value):
         if markers_value is None:
