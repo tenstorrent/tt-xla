@@ -45,7 +45,6 @@ def test_embed_bge(model_name: str, baseline_path):
     ]
     llm_args = {
         "model": model_name,
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": 64,
         "disable_sliding_window": True,

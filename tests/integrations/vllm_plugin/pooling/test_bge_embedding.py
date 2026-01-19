@@ -65,7 +65,6 @@ def test_embed_bge(model_name: str, baseline_path):
     ]
     llm_args = {
         "model": model_name,
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": 512,
         "disable_sliding_window": True,
@@ -119,7 +118,6 @@ def test_embed_bge_m3_perf():
 
     llm_args = {
         "model": "BAAI/bge-m3",
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": max_seq_len,
         "disable_sliding_window": True,

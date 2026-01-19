@@ -61,7 +61,6 @@ def test_embed_qwen3(model_name: str, baseline_path: str, min_context_len: int):
     ]
     llm_args = {
         "model": model_name,
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": 64,
         "disable_sliding_window": True,
@@ -103,7 +102,6 @@ def test_embed_qwen3_perf():
         i *= 2
     llm_args = {
         "model": "Qwen/Qwen3-Embedding-4B",
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": max_seq_len,
         "disable_sliding_window": True,
@@ -145,7 +143,6 @@ def test_embed_qwen3_reduced_dims():
     ]
     llm_args = {
         "model": "Qwen/Qwen3-Embedding-4B",
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": 64,
         "disable_sliding_window": True,
@@ -175,7 +172,6 @@ def test_embed_qwen3_8K():
 
     llm_args = {
         "model": "Qwen/Qwen3-Embedding-4B",
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": seq_len,
         "disable_sliding_window": True,
@@ -204,7 +200,6 @@ def test_embed_qwen3_16K():
 
     llm_args = {
         "model": "Qwen/Qwen3-Embedding-4B",
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": seq_len,
         "disable_sliding_window": True,
