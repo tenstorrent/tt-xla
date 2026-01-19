@@ -586,6 +586,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
     # PCC Drop with new tt-mlir defaults for math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+    markers: [testing]
     compiler_config:
       math_fidelity: ttnn_default
       fp32_dest_acc_en: false
@@ -1535,6 +1536,7 @@ test_config:
     arch_overrides:
       p150:
       # PCC Drop with new tt-mlir defaults for math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+        markers: [testing]
         compiler_config:
           math_fidelity: ttnn_default
           fp32_dest_acc_en: false
@@ -1690,6 +1692,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
       p150:
         # PCC Drop with new tt-mlir defaults for math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+        markers: [testing]
         compiler_config:
           math_fidelity: ttnn_default
           fp32_dest_acc_en: false
@@ -2571,6 +2574,7 @@ test_config:
     arch_overrides:
       p150:
         # PCC Drop with new tt-mlir defaults for math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+        markers: [testing]
         compiler_config:
           math_fidelity: ttnn_default
           fp32_dest_acc_en: false
