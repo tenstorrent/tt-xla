@@ -587,6 +587,9 @@ test_config:
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
+    compiler_config:
+      math_fidelity: "undefined"
+      fp32_dest_acc_en: false
 
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-inference:
     status: EXPECTED_PASSING
@@ -1528,6 +1531,11 @@ test_config:
   gemma/pytorch-google/gemma-1.1-7b-it-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        compiler_config:
+          math_fidelity: "undefined"
+          fp32_dest_acc_en: false
 
   stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-inference:
     status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
@@ -1678,6 +1686,10 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
+      p150:
+        compiler_config:
+          math_fidelity: "undefined"
+          fp32_dest_acc_en: false
 
   llama/causal_lm/pytorch-llama_3_1_405b-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -2525,6 +2537,11 @@ test_config:
   mistral/pytorch-mistral_nemo_instruct_2407-single_device-inference:
     supported_archs: ["p150"] # 12B param model
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        compiler_config:
+          math_fidelity: "undefined"
+          fp32_dest_acc_en: false
 
   wan/pytorch-wan2.2-ti2v-5b-single_device-inference:
     status: NOT_SUPPORTED_SKIP

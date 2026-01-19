@@ -265,12 +265,8 @@ def test_all_models_torch(
 ):
     """PyTorch model test - delegates to shared implementation."""
 
-    # Workaround to set these CompilerConfig fields to the tt-mlir defaults prior to Jan16.
-    # since few models are failing with lower PCC with Hifi4/fp32_dest_acc_en=True defaults.
-    compiler_config = CompilerConfig(
-        math_fidelity="undefined",
-        fp32_dest_acc_en=False,
-    )
+    # Get compiler config from test metadata (supports arch_overrides)
+    compiler_config = test_metadata.to_compiler_config()
 
     _run_model_test_impl(
         test_entry=test_entry,

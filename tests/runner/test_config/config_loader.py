@@ -98,6 +98,8 @@ _ALLOWED_FIELDS = {
     "execution_pass",
     # FileCheck patterns list
     "filechecks",
+    # Compiler configuration overrides
+    "compiler_config",
 }
 
 
