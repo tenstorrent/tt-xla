@@ -51,7 +51,6 @@ test_config:
   llama/causal_lm/pytorch-llama_3_1_8b_instruct-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
 
   llama/causal_lm/pytorch-llama_3_1_70b-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -80,7 +79,6 @@ test_config:
   qwen_3/causal_lm/pytorch-8b-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
-    required_pcc: 0.98 # Is 0.986
 
   qwen_3/causal_lm/pytorch-14b-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
