@@ -902,6 +902,10 @@ test_config:
   qwen_2_5_vl/pytorch-7b_instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-inference:
     status: EXPECTED_PASSING
@@ -2155,26 +2159,50 @@ test_config:
   openvla/pytorch-openvla_7b-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla/pytorch-openvla_v01_7b-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla/pytorch-openvla_7b_finetuned_libero_10-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla/pytorch-openvla_7b_finetuned_libero_goal-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla/pytorch-openvla_7b_finetuned_libero_object-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla/pytorch-openvla_7b_finetuned_libero_spatial-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   transfuser/pytorch-single_device-inference:
     assert_pcc: false # PCC is -0.715
@@ -2395,10 +2423,18 @@ test_config:
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision_instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor while an async operation is in flight: UNKNOWN_SCALAR[]')"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   arnold/pytorch-deathmatch_shotgun_rnn-single_device-inference:
     status: EXPECTED_PASSING
@@ -2495,32 +2531,32 @@ test_config:
     required_pcc: 0.98
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_goal-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_object-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial_object_goal_10-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.97
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   mistral/pytorch-mistral_nemo_instruct_2407-single_device-inference:
     supported_archs: ["p150"] # 12B param model
