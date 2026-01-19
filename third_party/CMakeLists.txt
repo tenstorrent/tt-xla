@@ -62,7 +62,6 @@ else()
         set(CMAKE_CXX_COMPILER "/usr/bin/clang++-20" CACHE STRING "" FORCE)
         message(STATUS "Overriding CMAKE_CXX_COMPILER with ${CMAKE_CXX_COMPILER}")
     endif()
-    endif()
 
     FetchContent_MakeAvailable(protobuf)
 
