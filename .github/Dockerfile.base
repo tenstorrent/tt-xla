@@ -28,8 +28,8 @@ COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
 # Now do the actual installation
 RUN ln -sf /usr/bin/FileCheck-17 /usr/bin/FileCheck
 
-RUN uv pip install --python 3.11 --system --no-cache -r /tmp/requirements.txt && \
-    uv pip install --python 3.11 --system --no-cache -r /tmp/requirements-dev.txt && \
+RUN uv pip install --python 3.11 --system --no-cache --extra-index-url https://download.pytorch.org/whl/cpu -r /tmp/requirements.txt && \
+    uv pip install --python 3.11 --system --no-cache --extra-index-url https://download.pytorch.org/whl/cpu -r /tmp/requirements-dev.txt && \
     rm /tmp/requirements.txt /tmp/requirements-dev.txt
 
 RUN uv pip list --python 3.11 --system --verbose
