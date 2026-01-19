@@ -1,9 +1,9 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Op-by-op test that processes StableHLO IR files from a folder.
+Op-by-op test that processes IR files from a folder.
 
 This test allows the user to:
 1. Process all .mlir files from a specified folder
@@ -42,7 +42,7 @@ Command Line Arguments:
     --blacklist: Comma-separated list of ops to skip (ignored if whitelist is set)
 
 Note:
-    - Each file should contain a MLIR module in StableHLO dialect
+    - Each file should contain a MLIR module in StableHLO/TTIR/TTNN dialect
 """
 
 from pathlib import Path
