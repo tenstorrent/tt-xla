@@ -22,7 +22,7 @@ from vllm.attention.backends.abstract import (
 )
 from vllm.attention.backends.utils import CommonAttentionState
 from vllm.config import VllmConfig
-from vllm.utils import cdiv, next_power_of_2
+from vllm.utils.math_utils import cdiv, next_power_of_2
 
 from .logger import tt_init_logger
 
@@ -50,19 +50,11 @@ torch._dynamo.config.reorderable_logging_functions.add(print)
 class TTAttentionBackend(AttentionBackend):
     @staticmethod
     def get_name() -> str:
-        return "TT_VLLM_V1"
+        return "TT"
 
     @staticmethod
     def get_impl_cls() -> type["TTAttentionBackendImpl"]:
         return TTAttentionBackendImpl
-
-    @staticmethod
-    def get_metadata_cls() -> type["TTMetadata"]:
-        return TTMetadata
-
-    @staticmethod
-    def get_state_cls() -> type["CommonAttentionState"]:
-        return CommonAttentionState
 
     @staticmethod
     def get_kv_cache_shape(
@@ -70,6 +62,7 @@ class TTAttentionBackend(AttentionBackend):
         block_size: int,
         num_kv_heads: int,
         head_size: int,
+        cache_dtype_str: str = "auto",
     ) -> tuple[int, ...]:
         return (2, num_blocks, num_kv_heads, block_size, head_size)
 
@@ -211,6 +204,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         attn_metadata: TTMetadata,
         output: Optional[torch.Tensor] = None,
         output_scale: Optional[torch.Tensor] = None,
+        output_block_scale: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Forward pass with TT attention.
 
