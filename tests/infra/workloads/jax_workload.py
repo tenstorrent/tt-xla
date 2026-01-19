@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional, Sequence
+
 from flax import nnx
 from infra.utilities import Framework, Model, ShardingMode
 from jax.sharding import Mesh, PartitionSpec
