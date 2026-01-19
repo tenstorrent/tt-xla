@@ -10,8 +10,8 @@ from typing import Optional
 from ...base import ForgeModel
 from ...config import ModelGroup, ModelTask, ModelSource, Framework, StrEnum, ModelInfo
 from ...tools.utils import get_file
-from .src.vad import VAD
-from .src.dataset import LiDARInstance3DBoxes
+from third_party.tt_forge_models.vadv2.pytorch.src.vad import VAD
+from third_party.tt_forge_models.vadv2.pytorch.src.dataset import LiDARInstance3DBoxes
 
 
 class ModelVariant(StrEnum):

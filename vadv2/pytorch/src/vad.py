@@ -5,10 +5,10 @@ import torch
 import torch.nn as nn
 import numpy as np
 from PIL import Image
-from .vad_head import VADHead
+from third_party.tt_forge_models.vadv2.pytorch.src.vad_head import VADHead
 import copy
 from scipy.optimize import linear_sum_assignment
-from .vad_utils import *
+from third_party.tt_forge_models.vadv2.pytorch.src.vad_utils import *
 
 ego_width, ego_length = 1.85, 4.084
 

@@ -111,11 +111,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="swin",
             variant=variant,
-            group=(
-                ModelGroup.RED
-                if variant == ModelVariant.SWIN_S
-                else ModelGroup.GENERALITY
-            ),
+            group=ModelGroup.RED
+            if variant == ModelVariant.SWIN_S
+            else ModelGroup.GENERALITY,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,

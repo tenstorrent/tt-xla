@@ -45,7 +45,6 @@ def torch_statedict_to_pytree(
     patterns: Key renamings to apply to flattened(dot separated) keys.
     banned_subkeys: Keys to exclude from the result.
     """
-
     # Note that is_banned_key and rewrite_key capture arguments from the outer scope
     def is_banned_key(key: str) -> bool:
         return any(banned_subkey in key for banned_subkey in banned_subkeys)
