@@ -493,7 +493,9 @@ def clear_torchxla_computation_cache():
         torch_xla.sync(wait=True)
     except Exception as e:
         logger.warning(f"Failed to sync TorchXLA computation cache: {e}")
-        logger.warning("This is expected if the test throws an exception, https://github.com/tenstorrent/tt-xla/issues/2814")
+        logger.warning(
+            "This is expected if the test throws an exception, https://github.com/tenstorrent/tt-xla/issues/2814"
+        )
 
     xr.clear_computation_cache()
 
