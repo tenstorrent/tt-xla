@@ -18,6 +18,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
+from tt_torch.sharding import sharding_constraint_tensor
 from vllm.attention import Attention
 from vllm.attention.backends.abstract import AttentionType
 from vllm.attention.layers.chunked_local_attention import ChunkedLocalAttention
@@ -31,6 +32,7 @@ from vllm.config import (
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
 from vllm.forward_context import get_forward_context, set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
+from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
 from vllm.model_executor.model_loader.tpu import TPUModelLoader
@@ -1121,7 +1123,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             tpu_sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 padded_num_reqs,
-                "cpu" if self.use_spmd else self.device,
+                self.device,
             )
             if scheduler_output.grammar_bitmask is not None:
                 (
@@ -1132,8 +1134,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logits = self.structured_decode(
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
-            if self.use_spmd:
-                logits = logits.to("cpu")
+
+            if (
+                self.use_spmd
+                and self.model.lm_head is not None
+                and isinstance(self.model.lm_head, ParallelLMHead)
+            ):
+                # Apply sharding constraint to logits for SPMD case.
+                # This will replicate the logits.
+                logits = sharding_constraint_tensor(
+                    logits, self.mesh, (None, None, None)
+                )
+
             selected_token_ids = self.sample_from_logits_func(
                 logits, tpu_sampling_metadata
             )
@@ -1593,7 +1605,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
                     self.input_batch,
                     num_reqs,
-                    "cpu" if self.use_spmd else self.device,
+                    self.device,
                     generate_params_if_all_greedy,
                 )
                 sampling_metadata.all_greedy = all_greedy
