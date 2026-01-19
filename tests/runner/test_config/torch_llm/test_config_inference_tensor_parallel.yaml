@@ -36,6 +36,7 @@ test_config:
   gemma/pytorch-google/gemma-1.1-7b-it-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   gemma/pytorch-google/gemma-2-9b-it-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
