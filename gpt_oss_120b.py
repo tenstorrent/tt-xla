@@ -23,7 +23,6 @@ def test_gpt_oss_120b_single_layer():
 
     config = AutoConfig.from_pretrained("openai/gpt-oss-120b", trust_remote_code=True)
     config.quantization_config["quant_method"] = "none"
-    config.num_hidden_layers = 1
     config.use_cache = False
     model = AutoModelForCausalLM.from_pretrained(
         "openai/gpt-oss-120b",
@@ -154,7 +153,7 @@ def create_device_mesh() -> Mesh:
     """
     num_devices = xr.global_runtime_device_count()
     # mesh_shape = (1, num_devices)
-    mesh_shape = (2, 4)
+    mesh_shape = (8, 4)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
     print(f"Created device mesh: {mesh_shape} with {num_devices} devices")
