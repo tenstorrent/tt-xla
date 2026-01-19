@@ -296,4 +296,27 @@ tt_pjrt_status CompileOptionsParser::extractCustomProtobufFields(
   return tt_pjrt_status::kSuccess;
 }
 
+tt_pjrt_status CompileOptionsParser::parseMathFidelity(
+    const std::string &math_fidelity_str,
+    mlir::tt::ttnn::OptionalMathFidelity &out_math_fidelity) {
+  if (math_fidelity_str == "lofi") {
+    out_math_fidelity = mlir::tt::ttnn::OptionalMathFidelity::LoFi;
+  } else if (math_fidelity_str == "hifi2") {
+    out_math_fidelity = mlir::tt::ttnn::OptionalMathFidelity::HiFi2;
+  } else if (math_fidelity_str == "hifi3") {
+    out_math_fidelity = mlir::tt::ttnn::OptionalMathFidelity::HiFi3;
+  } else if (math_fidelity_str == "hifi4") {
+    out_math_fidelity = mlir::tt::ttnn::OptionalMathFidelity::HiFi4;
+  } else if (math_fidelity_str == "ttnn_default") {
+    out_math_fidelity = mlir::tt::ttnn::OptionalMathFidelity::Undefined;
+  } else {
+    LOG_F(ERROR,
+          "Invalid math_fidelity value: %s. "
+          "Valid values are: lofi, hifi2, hifi3, hifi4, and ttnn_default.",
+          math_fidelity_str.c_str());
+    return tt_pjrt_status::kInvalidArgument;
+  }
+  return tt_pjrt_status::kSuccess;
+}
+
 } // namespace tt::pjrt
