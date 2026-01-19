@@ -39,13 +39,19 @@ class CompilerConfig:
     # Enables experimental BFP8 weight conversion in MLIR optimizer passes.
     experimental_enable_weight_bfp8_conversion: bool = False
 
-    # Override math fidelity for all ttnn operations exposing compute kernel config.
-    # Valid values: "lofi", "hifi2", "hifi3", "hifi4", or None to not set.
+    # Override math fidelity for all ttnn operations exposing compute kernel
+    # config. Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".
+    # "ttnn_default" - means that we don't override math_fidelity in comiler,
+    # and let ttnn choose math_fidelity for each operation based on its own logic.
+    # If math_fidelity not set (None), the default behavior from MLIR is used. Currently,
+    # MLIR default is HiFi4 for all operations.
     math_fidelity: Optional[str] = None
 
     # Override fp32 destination accumulation for all ttnn operations exposing
     # compute kernel config. If None, the default behavior from MLIR is used.
+    # Currently, MLIR default is true for all operations.
     fp32_dest_acc_en: Optional[bool] = None
+
     # Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
     # TODO(sdjordjevicTT): This is a temporary option and will be removed once the underlying
     # issue https://github.com/tenstorrent/tt-mlir/issues/4628 is fixed.

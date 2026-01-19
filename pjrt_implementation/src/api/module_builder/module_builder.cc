@@ -67,6 +67,7 @@
 // tt-xla includes
 #include "api/client_instance.h"
 #include "api/compile_options.h"
+#include "api/compile_options_parser.h"
 #include "api/executable_image.h"
 #include "api/memory_instance.h"
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
@@ -893,29 +894,13 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   // Set compute kernel config options if provided
   if (compile_options.math_fidelity.has_value()) {
-    std::string math_fidelity_str = compile_options.math_fidelity.value();
-    if (math_fidelity_str == "lofi") {
-      options.computeCfgMathFidelity =
-          mlir::tt::ttnn::OptionalMathFidelity::LoFi;
-    } else if (math_fidelity_str == "hifi2") {
-      options.computeCfgMathFidelity =
-          mlir::tt::ttnn::OptionalMathFidelity::HiFi2;
-    } else if (math_fidelity_str == "hifi3") {
-      options.computeCfgMathFidelity =
-          mlir::tt::ttnn::OptionalMathFidelity::HiFi3;
-    } else if (math_fidelity_str == "hifi4") {
-      options.computeCfgMathFidelity =
-          mlir::tt::ttnn::OptionalMathFidelity::HiFi4;
-    } else if (math_fidelity_str == "undefined") {
-      options.computeCfgMathFidelity =
-          mlir::tt::ttnn::OptionalMathFidelity::Undefined;
-    } else {
-      LOG_F(ERROR,
-            "Invalid math_fidelity value: %s. "
-            "Valid values are: lofi, hifi2, hifi3, hifi4, and undefined.",
-            math_fidelity_str.c_str());
-      return tt_pjrt_status::kInvalidArgument;
+    mlir::tt::ttnn::OptionalMathFidelity math_fidelity;
+    tt_pjrt_status status = CompileOptionsParser::parseMathFidelity(
+        compile_options.math_fidelity.value(), math_fidelity);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return status;
     }
+    options.computeCfgMathFidelity = math_fidelity;
   }
 
   if (compile_options.fp32_dest_acc_en.has_value()) {

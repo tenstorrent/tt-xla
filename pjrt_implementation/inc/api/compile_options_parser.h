@@ -16,6 +16,9 @@
 // third-party includes
 #include <google/protobuf/unknown_field_set.h>
 
+// tt-mlir includes
+#include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
+
 // tt-xla includes
 #include "utils/status.h"
 
@@ -73,6 +76,14 @@ public:
   static void extractDeviceIdsFromDeviceAssignment(
       const google::protobuf::UnknownFieldSet &device_assign_fields,
       std::set<int64_t> &out_device_ids);
+
+  // Parse math_fidelity string and convert to OptionalMathFidelity enum.
+  // Returns kSuccess and sets out_math_fidelity if parsing succeeds.
+  // Returns kInvalidArgument if the string is not a valid math_fidelity value.
+  // Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default"
+  static tt_pjrt_status
+  parseMathFidelity(const std::string &math_fidelity_str,
+                    mlir::tt::ttnn::OptionalMathFidelity &out_math_fidelity);
 };
 
 } // namespace tt::pjrt
