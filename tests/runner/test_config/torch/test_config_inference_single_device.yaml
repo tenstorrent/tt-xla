@@ -135,13 +135,11 @@ test_config:
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-inference:
     supported_archs: ["p150"]
-    required_pcc: 0.96 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/2433
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
-    required_pcc: 0.98
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-inference:
     supported_archs: ["p150"]
@@ -1010,7 +1008,6 @@ test_config:
     markers: [push]
 
   qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-inference:
-    required_pcc: 0.97 # Previously 0.98, changed to 0.97 due to change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-inference:
@@ -1494,7 +1491,6 @@ test_config:
     status: EXPECTED_PASSING
 
   phi3/phi_3_5/pytorch-mini_instruct-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   bi_lstm_crf/pytorch-default-single_device-inference:
@@ -1802,9 +1798,7 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-14b_instruct-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8147078156471252. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5/causal_lm/pytorch-14b_instruct_1m-single_device-inference:
     arch_overrides:
@@ -1901,7 +1895,6 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-8b-single_device-inference:
-    required_pcc: 0.985
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -2318,8 +2311,7 @@ test_config:
         required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-swin_base_coco-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 61231104 B L1 buffer across 72 banks, where each bank needs to store 850432 B, but bank size is only 1331936 B"
+    status: EXPECTED_PASSING
 
   maskformer_swin_b/pytorch-swin_base_ade-single_device-inference:
     status: EXPECTED_PASSING

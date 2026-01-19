@@ -96,7 +96,6 @@ test_config:
 
   qwen_3/causal_lm/pytorch-0_6b-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.98 # Is 0.990 (p150) or 0.985 (n150)
 
   qwen_3/causal_lm/pytorch-1_7b-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
