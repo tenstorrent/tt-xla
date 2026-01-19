@@ -10,7 +10,6 @@ import torch
 from vllm.attention.backends.registry import AttentionBackendEnum
 from vllm.inputs import ProcessorInputs, PromptType
 from vllm.platforms.interface import Platform, PlatformEnum
-from vllm.sampling_params import SamplingParams
 
 if TYPE_CHECKING:
     from typing import TypeAlias
