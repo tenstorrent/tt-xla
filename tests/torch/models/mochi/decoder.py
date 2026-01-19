@@ -34,14 +34,14 @@ def run_vae_decoder():
         "genmo/mochi-1-preview", subfolder="vae", torch_dtype=torch.bfloat16
     )
 
-    enable_tiling = False
-
+    enable_tiling = True
+    print(f"Enabling tiling: {enable_tiling}")
     if enable_tiling:
         vae.enable_tiling(
-            tile_sample_min_height=120,  # Split 480 into 4 tiles
-            tile_sample_min_width=212,  # Split 848 into 4 tiles
-            tile_sample_stride_height=100,  # 20 pixel overlap
-            tile_sample_stride_width=180,  # 32 pixel overlap
+            tile_sample_min_height=128,  # 128 pixels output = 16 latent
+            tile_sample_min_width=128,   # 128 pixels output = 16 latent
+            tile_sample_stride_height=128,  # no overlap
+            tile_sample_stride_width=128,   # no overlap
         )
 
     # VAE decoder: [B, 12, t, h, w] → [B, 3, T, H, W]
@@ -49,11 +49,17 @@ def run_vae_decoder():
     # Ecoder has 6x temporal compression and 8x8 spatial compression
     # So for the video [1, 3, 24, 480, 848] we get
     # Latent: [1, 12, 4, 60, 106] (24/6≈4, 480/8=60, 848/8=106)
-    latent = torch.randn(1, 12, 4, 60, 106, dtype=torch.bfloat16)
+    latent = torch.randn(1, 12, 2, 16, 32, dtype=torch.bfloat16)
     latent = latent.to(device)
 
-    # Extract just the decoder
-    model = vae.decoder
+    if enable_tiling:
+        # Mochi VAE drops last temporal frames by default
+        # but for the sake of 6x temporal expansion calculation, 
+        # we will use all temporal frames
+        vae.drop_last_temporal_frames = False  
+        model = vae
+    else:
+        model = vae.decoder
 
     model = model.eval().to(device)
     model = torch.compile(model, backend="tt")
@@ -82,10 +88,11 @@ def run_vae_decoder():
         latent_normalized = latent / vae_std.view(1, 12, 1, 1, 1)
 
         # run just decoder forward pass
-        output = model(latent_normalized)
-
-        # run full pipeline forward pass including tiling as memory optimization
-        # output = vae.decode(latent_normalized)
+        if enable_tiling:
+            print("Running with tiling")
+            output = vae.decode(latent_normalized).sample
+        else:
+            output = model(latent_normalized)
 
     print(f"Expected shape: [1, 3, 24, 480, 848]")
     torch_xla.sync()
