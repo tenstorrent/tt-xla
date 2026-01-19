@@ -219,10 +219,10 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
 
   mistral/causal_lm/jax-v0_1-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't load the model for 'mistralai/Mistral-7B-v0.1'."
+    status: NOT_SUPPORTED_SKIP
+    reason: "OOM on host"
     markers: [large]
-    bringup_status: FAILED_FE_COMPILATION
+    bringup_status: FAILED_RUNTIME
 
   mistral/causal_lm/jax-v0_1_tiny-single_device-inference:
     status: EXPECTED_PASSING

@@ -2970,7 +2970,7 @@
     "tests/runner/test_models.py::test_all_models_torch[albert/masked_lm/pytorch-base_v2-single_device-inference]": 67.475,
     "tests/runner/test_models.py::test_all_models_torch[phi1_5/token_classification/pytorch-microsoft/phi-1_5-single_device-inference]": 79.562,
     "tests/runner/test_models.py::test_all_models_torch[xglm/pytorch-xglm-1.7B-single_device-inference]": 136.649,
-    "tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-inference]": 347.227,
+    "tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-inference]": 10800,
     "tests/runner/test_models.py::test_all_models_torch[qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-inference]": 3.241,
     "tests/runner/test_models.py::test_all_models_torch[dla/pytorch-dla169-single_device-inference]": 86.003,
     "tests/jax/multi_chip/llmbox/8_devices/graphs/tensor_parallel/test_dot_psum.py::test_dot_psum[ShardingMode.INPUTS_AND_MODULE-batch_shape0-W1_shape0-B1_shape0-mesh_shape0-axis_names0-True]": 23.511,
