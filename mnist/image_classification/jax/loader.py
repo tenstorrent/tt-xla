@@ -345,12 +345,12 @@ class ModelLoader(ForgeModel):
             axis_name: Name of the sharding axis.
 
         Returns:
-            PartitionSpec for input activations (replicated for MNIST MLP)
+            Tuple with PartitionSpec for input activations (replicated for MNIST MLP)
         """
         from jax.sharding import PartitionSpec
 
         # No data parallelism utilized in MNIST MLP model - inputs are replicated
-        return PartitionSpec()
+        return (PartitionSpec(),)
 
     def get_forward_method_name(self):
         """Get the name of the forward method for the model.

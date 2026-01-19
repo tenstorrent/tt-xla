@@ -309,11 +309,11 @@ class ModelLoader(ForgeModel):
             axis_name: Name of the sharding axis.
 
         Returns:
-            PartitionSpec for input activations (sharded on batch dimension)
+            Tuple with PartitionSpec for input activations (sharded on batch dimension)
         """
         from jax.sharding import PartitionSpec
 
-        return PartitionSpec(axis_name)
+        return (PartitionSpec(axis_name),)
 
     def get_input_parameters(self):
         """Get input parameters for the model.
