@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 import torch
 import torch.nn as nn
-from third_party.tt_forge_models.vadv2.pytorch.src.transformer import *
-from third_party.tt_forge_models.vadv2.pytorch.src.bbox import (
+from .transformer import *
+from .bbox import (
     CustomNMSFreeCoder,
     MapNMSFreeCoder,
 )
 import copy
-from third_party.tt_forge_models.vadv2.pytorch.src.vad_utils import *
+from .vad_utils import *
 
 
 class VADHead(nn.Module):

@@ -4,7 +4,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from third_party.tt_forge_models.vadv2.pytorch.src.vad_utils import (
+from .vad_utils import (
     multi_scale_deformable_attn_pytorch,
 )
 
