@@ -3122,18 +3122,6 @@ class Eagle2_5_VLForConditionalGeneration(Eagle2_5_VLPreTrainedModel, Generation
 
         input_ids = input_ids.reshape(B * N)
         selected = input_ids == self.image_token_index
-        try:
-            input_embeds[selected] = input_embeds[selected] * 0.0 + vit_embeds.reshape(
-                -1, C
-            )
-        except Exception as e:
-            vit_embeds = vit_embeds.reshape(-1, C)
-            print(
-                f"warning: {e}, input_embeds[selected].shape={input_embeds[selected].shape}, "
-                f"vit_embeds.shape={vit_embeds.shape}"
-            )
-            n_token = selected.sum()
-            input_embeds[selected] = input_embeds[selected] * 0.0 + vit_embeds[:n_token]
 
         input_embeds = input_embeds.reshape(B, N, C)
 
@@ -3303,7 +3291,6 @@ class SinusoidalPositionalEncoding(nn.Module):
         # timesteps: shape (B, T)
         # We'll compute sin/cos frequencies across dim T
         timesteps = timesteps.float()  # ensure float
-
         B, T = timesteps.shape
 
         half_dim = self.embedding_dim // 2
@@ -3311,6 +3298,7 @@ class SinusoidalPositionalEncoding(nn.Module):
         exponent = -torch.arange(half_dim, dtype=torch.float) * (
             torch.log(torch.tensor(10000.0)) / half_dim
         )
+        exponent = exponent.to(device=timesteps.device)
         # Expand timesteps to (B, T, 1) then multiply
         freqs = timesteps.unsqueeze(-1) * exponent.exp()  # (B, T, half_dim)
 
@@ -3802,8 +3790,8 @@ class MultiEmbodimentActionEncoder(nn.Module):
         # 4) Concat along last dim => (B, T, 2w), then W2 => (B, T, w), swish
         x = torch.cat([a_emb, tau_emb], dim=-1)
         x = swish(self.W2(x, cat_ids))
-
         # 5) Finally W3 => (B, T, w)
+
         x = self.W3(x, cat_ids)
         return x
 
@@ -4078,7 +4066,7 @@ class FlowmatchingActionHead(nn.Module):
     ) -> BatchFeature:
 
         backbone_output = self.process_backbone_output(backbone_output)
-
+        backbone_device = backbone_output["backbone_features"].device
         # Get vision and language embeddings.
         vl_embs = backbone_output.backbone_features
         embodiment_id = action_input.embodiment_id
@@ -4092,7 +4080,7 @@ class FlowmatchingActionHead(nn.Module):
             size=(batch_size, self.config.action_horizon, self.config.action_dim),
             dtype=vl_embs.dtype,
         )
-
+        actions = actions.to(device=backbone_device)
         num_steps = self.num_inference_timesteps
         dt = 1.0 / num_steps
 
@@ -4103,12 +4091,14 @@ class FlowmatchingActionHead(nn.Module):
 
             # Embed noised action trajectory.
             timesteps_tensor = torch.full(size=(batch_size,), fill_value=t_discretized)
+            timesteps_tensor = timesteps_tensor.to(device=backbone_device)
             action_features = self.action_encoder(
                 actions, timesteps_tensor, embodiment_id
             )
             # Maybe add position embedding.
             if self.config.add_pos_embed:
                 pos_ids = torch.arange(action_features.shape[1], dtype=torch.long)
+                pos_ids = pos_ids.to(device=backbone_device)
                 pos_embs = self.position_embedding(pos_ids).unsqueeze(0)
                 action_features = action_features + pos_embs
 
@@ -4117,8 +4107,8 @@ class FlowmatchingActionHead(nn.Module):
                 vl_embs.shape[0], -1, -1
             )
             sa_embs = torch.cat((state_features, future_tokens, action_features), dim=1)
-
             # Run model forward.
+
             model_output = self.model(
                 hidden_states=sa_embs,
                 encoder_hidden_states=vl_embs,

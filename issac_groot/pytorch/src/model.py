@@ -900,22 +900,6 @@ class Eagle2_5_VLImageProcessorFast(BaseImageProcessorFast):
     # ) -> BatchFeature:
     #     return super().preprocess(images, **kwargs)
 
-    def _prepare_images_structure(
-        self,
-        images: ImageInput,
-    ) -> ImageInput:
-        """
-        Prepare the images structure for processing.
-
-        Args:
-            images (`ImageInput`):
-                The input images to process.
-
-        Returns:
-            `ImageInput`: The images with a valid nesting.
-        """
-        return make_flat_list_of_images(images)
-
     def _prepare_videos_structure(self, videos: VideoInput) -> VideoInput:
         return self._prepare_images_structure(videos)
 
@@ -1140,6 +1124,7 @@ class Eagle2_5_VLImageProcessorFast(BaseImageProcessorFast):
         image_mean: Optional[Union[float, List[float]]],
         image_std: Optional[Union[float, List[float]]],
         do_pad: bool,
+        disable_grouping: Optional[bool],
         return_tensors: Optional[Union[str, TensorType]],
     ) -> BatchFeature:
         processed_images = []
@@ -1173,7 +1158,7 @@ class Eagle2_5_VLImageProcessorFast(BaseImageProcessorFast):
             # Group images by size for batched processing
             processed_image_patches_grouped = {}
             grouped_image_patches, grouped_image_patches_index = group_images_by_shape(
-                image_patches
+                image_patches, disable_grouping=disable_grouping
             )
 
             for shape, stacked_image_patches in grouped_image_patches.items():
@@ -1224,6 +1209,7 @@ class Eagle2_5_VLImageProcessorFast(BaseImageProcessorFast):
         self,
         images: ImageInput,
         videos: VideoInput = None,
+        expected_ndims: int = 3,
         **kwargs: Unpack[Eagle2_5_VLFastImageProcessorKwargs],
     ) -> BatchFeature:
         validate_kwargs(
@@ -1241,36 +1227,30 @@ class Eagle2_5_VLImageProcessorFast(BaseImageProcessorFast):
         kwargs.pop("device")
         # Prepare input images
         if images is not None:
-            images = self._prepare_input_images(
+            images = self._prepare_image_like_inputs(
                 images=images,
                 do_convert_rgb=do_convert_rgb,
                 input_data_format=input_data_format,
+                expected_ndims=3,
             )
 
         if videos is not None:
-            videos = self._prepare_input_images(
+            videos = self._prepare_image_like_inputs(
                 images=videos,
                 do_convert_rgb=do_convert_rgb,
                 input_data_format=input_data_format,
+                expected_ndims=3,
             )
 
         # Update kwargs that need further processing before being validated
         kwargs = self._further_process_kwargs(**kwargs)
-
         # Validate kwargs
         self._validate_preprocess_kwargs(**kwargs)
 
-        # torch resize uses interpolation instead of resample
-        resample = kwargs.pop("resample")
-        kwargs["interpolation"] = (
-            pil_torch_interpolation_mapping[resample]
-            if isinstance(resample, (PILImageResampling, int))
-            else resample
-        )
-
         # Pop kwargs that are not needed in _preprocess
-        kwargs.pop("default_to_square")
-        kwargs.pop("data_format")
+        pad_size = kwargs.pop("pad_size")
+        data_format = kwargs.pop("data_format")
+
         if images is not None:
             return self._preprocess(images, **kwargs)
         elif videos is not None:

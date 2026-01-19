@@ -19,8 +19,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from .src.model import Gr00tPolicyModule
-from .src.utils import LeRobotSingleDataset, load_data_config
 
 
 class ModelVariant(StrEnum):
@@ -91,6 +89,8 @@ class ModelLoader(ForgeModel):
 
     def _load_data_config(self):
         """Load data configuration."""
+        from .src.utils import load_data_config
+
         if self._modality_config is None:
             data_config_obj = load_data_config(self.data_config)
             self._modality_config = data_config_obj.modality_config()
@@ -106,6 +106,8 @@ class ModelLoader(ForgeModel):
         Returns:
             Gr00tPolicyModule instance (nn.Module)
         """
+        from .src.model import Gr00tPolicyModule
+
         self._load_data_config()
 
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -143,6 +145,8 @@ class ModelLoader(ForgeModel):
         Returns:
             Dictionary containing preprocessed observation tensors ready for model inference
         """
+        from .src.utils import LeRobotSingleDataset
+
         # Ensure model is loaded
         if not hasattr(self, "_model") or self._model is None:
             raise RuntimeError(
