@@ -21,6 +21,7 @@ from .passes import (
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
+    replace_cpu_device_with_xla,
     run_fusion_passes,
 )
 
@@ -45,6 +46,7 @@ def torch_pass_pipeline(
     # This is a temporary option to disable / enable composite ops
     # that will be removed once composite ops are more stable.
     # default to True if options are not given or if tt_enable_composite_ops is not present
+
     enable_composite_ops = options is None or options.get(
         "tt_enable_composite_ops", True
     )
@@ -161,6 +163,9 @@ class XLAExecutor:
             # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
             program = torch.export.export(self.module, tuple(args), strict=False)
+
+            # Note(sgligorijevic): Has to be ran here and not in the pipeline because otherwise the export above blows up. This is hacky.
+            program = replace_cpu_device_with_xla(program)
 
             # Collect the params and constants from the exported program.
             self.params_and_consts = self._build_params_and_consts(program)
