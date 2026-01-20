@@ -18,6 +18,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
+from tt_torch.sharding import sharding_constraint_tensor
 from vllm.attention import Attention
 from vllm.attention.backends.abstract import AttentionType
 from vllm.attention.layers.chunked_local_attention import ChunkedLocalAttention
@@ -31,6 +32,7 @@ from vllm.config import (
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
 from vllm.forward_context import get_forward_context, set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
+from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
 from vllm.model_executor.model_loader.tpu import TPUModelLoader
@@ -1119,7 +1121,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
             tpu_sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
-                self.input_batch, padded_num_reqs, self.device
+                self.input_batch,
+                padded_num_reqs,
+                self.device,
             )
             if scheduler_output.grammar_bitmask is not None:
                 (
@@ -1130,6 +1134,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logits = self.structured_decode(
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
+
+            if (
+                self.use_spmd
+                and self.model.lm_head is not None
+                and isinstance(self.model.lm_head, ParallelLMHead)
+            ):
+                # Apply sharding constraint to logits for SPMD case.
+                # This will replicate the logits.
+                logits = sharding_constraint_tensor(
+                    logits, self.mesh, (None, None, None)
+                )
+
             selected_token_ids = self.sample_from_logits_func(
                 logits, tpu_sampling_metadata
             )

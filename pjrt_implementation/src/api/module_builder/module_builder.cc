@@ -67,6 +67,7 @@
 // tt-xla includes
 #include "api/client_instance.h"
 #include "api/compile_options.h"
+#include "api/compile_options_parser.h"
 #include "api/executable_image.h"
 #include "api/memory_instance.h"
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
@@ -890,6 +891,22 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
   options.experimentalBfp8Weights =
       compile_options.experimental_enable_weight_bfp8_conversion;
+
+  // Set compute kernel config options if provided
+  if (compile_options.math_fidelity.has_value()) {
+    mlir::tt::ttnn::OptionalMathFidelity math_fidelity;
+    tt_pjrt_status status = CompileOptionsParser::parseMathFidelity(
+        compile_options.math_fidelity.value(), math_fidelity);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return status;
+    }
+    options.computeCfgMathFidelity = math_fidelity;
+  }
+
+  if (compile_options.fp32_dest_acc_en.has_value()) {
+    options.computeCfgFp32DestAccEn = compile_options.fp32_dest_acc_en.value();
+  }
+
   options.enableFusingConv2dWithMultiplyPattern =
       compile_options.experimental_enable_fusing_conv2d_with_multiply_pattern;
   options.enablePermuteMatmulFusion =

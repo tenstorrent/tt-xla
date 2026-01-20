@@ -134,6 +134,9 @@ class ModelTestConfig:
         self.bringup_status = self._resolve("bringup_status", default=None)
 
         self.failing_reason = self._resolve("failing_reason", default=None)
+        self.failing_reason_summary = self._resolve(
+            "failing_reason_summary", default=None
+        )
 
         # Optional list of pytest markers to apply (e.g. ["push", "nightly"]) - normalized to list[str]
         self.markers = self._normalize_markers(self._resolve("markers", default=[]))
@@ -251,7 +254,7 @@ def update_test_metadata_for_exception(
         message = repr(exc)
 
     # Find failing reason by raised exception
-    failing_reason = FailingReasonsFinder.find_reason_by_exception(
+    exception_reason = FailingReasonsFinder.find_reason_by_exception(
         exc, stdout=stdout, stderr=stderr
     )
 
@@ -279,7 +282,8 @@ def update_test_metadata_for_exception(
     runtime_reason = detailed_error if detailed_error else message
 
     setattr(test_metadata, "runtime_reason", runtime_reason)
-    setattr(test_metadata, "failing_reason", failing_reason)
+    setattr(test_metadata, "failing_reason", exception_reason.failing_reasons)
+    setattr(test_metadata, "failing_reason_summary", exception_reason.summary)
 
 
 # This is needed for combination of pytest-forked and using ruamel.yaml
@@ -530,6 +534,7 @@ def record_model_test_properties(
     reason = ""
     arch = getattr(test_metadata, "arch", None)
     failing_reason = getattr(test_metadata, "failing_reason", None)
+    failing_reason_summary = getattr(test_metadata, "failing_reason_summary", None)
     config_bringup_status = getattr(test_metadata, "bringup_status", None)
 
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
@@ -600,12 +605,14 @@ def record_model_test_properties(
                 "name": failing_reason.name,
                 "description": failing_reason.value.description,
                 "component": failing_reason.value.component_checker_description,
+                "summary": failing_reason_summary,
             }
             if failing_reason
             else {
                 "name": None,
                 "description": None,
                 "component": None,
+                "summary": None,
             }
         ),
         "parallelism": str(parallelism),

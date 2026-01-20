@@ -195,12 +195,7 @@ def bge_m3_encode():
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.941021203994751. Required: pcc=0.97"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_bge_m3_custom_encode():
     """Run BGE-M3 encode on TT device and validate PCC outputs are finite and bounded."""

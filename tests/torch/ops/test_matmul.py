@@ -45,3 +45,29 @@ def test_matmul_rhs_as_param(
         framework=Framework.TORCH,
         compiler_config=compiler_config,
     )
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.OP_TEST)
+@pytest.mark.parametrize("math_fidelity", ["hifi2", "hifi4", "ttnn_default"])
+@pytest.mark.parametrize("fp32_dest_acc_en", [True, False])
+def test_matmul_mf_fp32_acc(math_fidelity, fp32_dest_acc_en):
+    dtype = torch.bfloat16
+    inner_dim = 64
+    rhs_outer_dim = 64
+    lhs_outer_dim = 64
+
+    matmul = Matmul(inner_dim, rhs_outer_dim, dtype=dtype)
+    compiler_config = CompilerConfig(
+        math_fidelity=math_fidelity, fp32_dest_acc_en=fp32_dest_acc_en
+    )
+
+    run_op_test_with_random_inputs(
+        matmul,
+        [(lhs_outer_dim, inner_dim)],
+        dtype=dtype,
+        framework=Framework.TORCH,
+        compiler_config=compiler_config,
+    )
