@@ -358,6 +358,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", type=str, default="a photo of a cat")
     parser.add_argument("--negative_prompt", type=str, default="")
+    parser.add_argument("--resolution", type=int, default=512, choices=[512, 1024])
     parser.add_argument("--optimization_level", type=int, default=1)
     parser.add_argument("--do_cfg", type=bool, default=True)
     parser.add_argument("--cfg_scale", type=float, default=7.5)
@@ -379,10 +380,12 @@ if __name__ == "__main__":
     torch_xla.set_custom_compile_options(
         {"optimization_level": args.optimization_level}
     )
-    # only 512x512 is supported for now
+    if args.resolution == 1024:
+        print("Note: 1024x1024 resolution currently only works on p100 and p150 TT devices.")
+
     config = SDXLConfig(
-        width=512,
-        height=512,
+        width=args.resolution,
+        height=args.resolution,
         device="cpu",
         vae_on_tt=args.vae_on_tt,
         clip_on_tt=args.clip_on_tt,
