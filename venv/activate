@@ -8,17 +8,18 @@ if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
   export TTMLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
 fi
 export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRARY_PATH
+export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
 
 export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
 METAL_PATH_IN_SOURCE="${TT_MLIR_HOME}/third_party/tt-metal/src/tt-metal"
-export PYTHONPATH="$(pwd):$(pwd)/integrations/vllm_plugin:${TT_MLIR_HOME}/build/python_packages:${METAL_PATH_IN_SOURCE}/ttnn:${METAL_PATH_IN_SOURCE}/tools"
+export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/integrations/vllm_plugin:${TT_MLIR_HOME}/build/python_packages:${METAL_PATH_IN_SOURCE}/ttnn:${METAL_PATH_IN_SOURCE}/tools"
 
 export TTMLIR_VENV_DIR="$(pwd)/venv"
 if [ -d $TTMLIR_VENV_DIR/bin ]; then
   [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
 else
   echo "Creating virtual environment in $TTMLIR_VENV_DIR"
-  python3.11 -m venv $TTMLIR_VENV_DIR --system-site-packages
+  python3.11 -m venv $TTMLIR_VENV_DIR
   source $TTMLIR_VENV_DIR/bin/activate
   uv pip install --upgrade pip
   # Requirements for third party projects are installed during their build in `CMakeLists.txt`
