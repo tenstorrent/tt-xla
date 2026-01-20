@@ -220,6 +220,10 @@ def _run_model_test_impl(
                     if tester
                     else (1, -1)
                 )
+                if not request.config.getoption("--disable-perf-measurement"):
+                    device_arch = get_xla_device_arch()
+                else:
+                    device_arch = ""
                 create_benchmark_result(
                     full_model_name=model_info.name,
                     output_dir=request.config.getoption("--perf-report-dir"),
@@ -231,7 +235,7 @@ def _run_model_test_impl(
                     model_rawname=f"{model_info.model}_{model_info.variant}",
                     model_group=str(model_info.group),
                     parallelism=str(parallelism),
-                    device_arch=get_xla_device_arch(),
+                    device_arch=device_arch,
                     run_mode=str(run_mode),
                     device_name=socket.gethostname(),
                     batch_size=batch_size,
