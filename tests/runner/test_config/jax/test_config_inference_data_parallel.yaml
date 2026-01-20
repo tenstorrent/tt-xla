@@ -7,7 +7,7 @@ test_config:
   falcon/jax-tiiuae/Falcon3-1B-Base-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
-    
+  
   gpt2/causal_lm/jax-base-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
@@ -29,3 +29,32 @@ test_config:
   llama/causal_lm/jax-1B_TINY-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
+  
+  phi1/causal_lm/jax-microsoft/phi-1-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  phi1_5/causal_lm/jax-microsoft/phi-1_5-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+  
+  phi2/causal_lm/jax-microsoft/phi-2-data_parallel-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+  
+  phi2/causal_lm/jax-microsoft/phi-2-pytdml-data_parallel-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+  
+  phi3/causal_lm/jax-microsoft/Phi-3-mini-128k-instruct-data_parallel-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
+  
+  phi3/causal_lm/jax-microsoft/Phi-3-mini-4k-instruct-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: NOT_SUPPORTED_SKIP
+    reason: "OOM DRAM"
+    bringup_status: FAILED_RUNTIME

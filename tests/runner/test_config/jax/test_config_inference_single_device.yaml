@@ -312,6 +312,33 @@ test_config:
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
+  phi1/causal_lm/jax-microsoft/phi-1-single_device-inference:
+    status: EXPECTED_PASSING
+  
+  phi1_5/causal_lm/jax-microsoft/phi-1_5-single_device-inference:
+    status: EXPECTED_PASSING
+  
+  phi2/causal_lm/jax-microsoft/phi-2-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
+  phi2/causal_lm/jax-microsoft/phi-2-pytdml-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+  
+  phi3/causal_lm/jax-microsoft/Phi-3-mini-128k-instruct-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
+  
+  phi3/causal_lm/jax-microsoft/Phi-3-mini-4k-instruct-single_device-inference:
+    supported_archs: ["n300-llmbox"]
+    status: NOT_SUPPORTED_SKIP
+    reason: "OOM DRAM"
+    bringup_status: FAILED_RUNTIME
+
   regnet/image_classification/jax-y-040-single_device-inference:
     status: EXPECTED_PASSING
 
