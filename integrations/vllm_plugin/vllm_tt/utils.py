@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_xla.distributed.spmd as xs
 from torch.nn.parameter import Parameter
+from tt_torch.sharding import sharding_constraint_hook
 from vllm.model_executor.layers.linear import MergedColumnParallelLinear
 from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
@@ -130,6 +131,9 @@ def partition_vocab_parallel_embedding(
     assert isinstance(layer, VocabParallelEmbedding)
     logger.info("Applied parallel sharding to %s", layer)
     xs.mark_sharding(layer.weight, mesh, (None, "x"))
+    # Apply sharding constraint to the output of the layer.
+    hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
+    layer.register_forward_hook(hook_forward)
     return layer
 
 

@@ -1343,6 +1343,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.model = model
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = TPUSampler()
+        logger.info(f"Compiled model: \n{self.model}")
 
     def reload_weights(self) -> None:
         assert (
