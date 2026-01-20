@@ -18,13 +18,13 @@ if [ -d $TTMLIR_VENV_DIR/bin ]; then
   [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
 else
   echo "Creating virtual environment in $TTMLIR_VENV_DIR"
-  python3.11 -m venv $TTMLIR_VENV_DIR
+  python3.11 -m venv $TTMLIR_VENV_DIR --system-site-packages
   source $TTMLIR_VENV_DIR/bin/activate
   uv pip install --upgrade pip
   # Requirements for third party projects are installed during their build in `CMakeLists.txt`
-  uv pip install -r python_package/requirements.txt
+  uv pip install --extra-index-url https://download.pytorch.org/whl/cpu -r python_package/requirements.txt
   # Install dev/test requirements
-  uv pip install -r venv/requirements-dev.txt
+  uv pip install --extra-index-url https://download.pytorch.org/whl/cpu -r venv/requirements-dev.txt
 fi
 
 export VLLM_TARGET_DEVICE="empty"
