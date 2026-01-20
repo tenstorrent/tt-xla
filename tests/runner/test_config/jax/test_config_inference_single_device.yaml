@@ -151,6 +151,9 @@ test_config:
   electra/causal_lm/jax-small-discriminator-single_device-inference:
     status: EXPECTED_PASSING
 
+  falcon/jax-tiiuae/Falcon3-1B-Base-single_device-inference:
+    status: EXPECTED_PASSING
+  
   gpt2/causal_lm/jax-base-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]

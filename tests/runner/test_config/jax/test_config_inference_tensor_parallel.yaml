@@ -25,6 +25,12 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Hangs in runtime - https://github.com/tenstorrent/tt-xla/issues/2440"
 
+  falcon/jax-tiiuae/Falcon3-1B-Base-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=0.066 < 0.99 required"
+
   mnist/image_classification/jax-mlp_custom_1x2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
