@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 test_config:
-  vit/pytorch-base-data_parallel-inference:
+  vit/image_classification/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -11,15 +11,15 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_s32_224-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_s32_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  t5/pytorch-t5-small-data_parallel-inference:
+  t5/causal_lm/pytorch-t5-small-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b0-data_parallel-inference:
+  segformer/image_classification/pytorch-mit_b0-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -35,7 +35,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  deit/pytorch-base_distilled-data_parallel-inference:
+  deit/image_classification/pytorch-base_distilled-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -47,15 +47,15 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_b32_224-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_b32_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b4-data_parallel-inference:
+  segformer/image_classification/pytorch-mit_b4-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  beit/pytorch-large-data_parallel-inference:
+  beit/image_classification/pytorch-large-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -77,7 +77,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vit/pytorch-large-data_parallel-inference:
+  vit/image_classification/pytorch-large-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -85,7 +85,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b1-data_parallel-inference:
+  segformer/image_classification/pytorch-mit_b1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -95,23 +95,23 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
-  yolov6/pytorch-yolov6l-data_parallel-inference:
+  yolov6/object_detection/pytorch-yolov6l-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg16-data_parallel-inference:
+  vgg/image_classification/pytorch-torchvision_vgg16-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  deit/pytorch-small-data_parallel-inference:
+  deit/image_classification/pytorch-small-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  autoencoder/pytorch-linear-data_parallel-inference:
+  autoencoder/image_to_image/pytorch-linear-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  squeezebert/pytorch-squeezebert-mnli-data_parallel-inference:
+  squeezebert/text_classification/pytorch-squeezebert-mnli-data_parallel-inference:
     supported_archs: [n300]
     status: KNOWN_FAILURE_XFAIL  # Affected by change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
@@ -121,11 +121,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b3-data_parallel-inference:
+  segformer/image_classification/pytorch-mit_b3-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  beit/pytorch-base-data_parallel-inference:
+  beit/image_classification/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -139,15 +139,15 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  vgg/pytorch-torchvision_vgg19-data_parallel-inference:
+  vgg/image_classification/pytorch-torchvision_vgg19-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  fuyu/pytorch-adept/fuyu-8b-data_parallel-inference:
+  fuyu/question_answering/pytorch-adept/fuyu-8b-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  gpt2/pytorch-gpt2-data_parallel-inference:
+  gpt2/causal_lm/pytorch-gpt2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -155,11 +155,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_github-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_github-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b5-data_parallel-inference:
+  segformer/image_classification/pytorch-mit_b5-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -167,11 +167,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-vgg11-data_parallel-inference:
+  vgg/image_classification/pytorch-vgg11-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-hf_vgg19-data_parallel-inference:
+  vgg/image_classification/pytorch-hf_vgg19-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -193,7 +193,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9593995213508606. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
-  vgg/pytorch-vgg13-data_parallel-inference:
+  vgg/image_classification/pytorch-vgg13-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -205,11 +205,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_b16_224_miil-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_b16_224_miil-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b2-data_parallel-inference:
+  segformer/image_classification/pytorch-mit_b2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -221,7 +221,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  deit/pytorch-tiny-data_parallel-inference:
+  deit/image_classification/pytorch-tiny-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -229,11 +229,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_s16_224-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_s16_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  perceiver/pytorch-deepmind/language-perceiver-data_parallel-inference:
+  perceiver/masked_lm/pytorch-deepmind/language-perceiver-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -241,7 +241,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg13-data_parallel-inference:
+  vgg/image_classification/pytorch-torchvision_vgg13-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -249,11 +249,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  alexnet/pytorch-alexnetb-data_parallel-inference:
+  alexnet/image_classification/pytorch-alexnetb-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  deit/pytorch-base-data_parallel-inference:
+  deit/image_classification/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -270,7 +270,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mgp_str_base/pytorch-data_parallel-inference:
+  mgp_str_base/image_feature_extraction/pytorch-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -279,11 +279,11 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  vgg/pytorch-vgg16-data_parallel-inference:
+  vgg/image_classification/pytorch-vgg16-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg11-data_parallel-inference:
+  vgg/image_classification/pytorch-torchvision_vgg11-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -295,11 +295,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  rcnn/pytorch-alexnet-data_parallel-inference:
+  rcnn/object_detection/pytorch-alexnet-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_l32_224-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_l32_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -307,7 +307,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-vgg19-data_parallel-inference:
+  vgg/image_classification/pytorch-vgg19-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.975  # Decreased after https://github.com/tenstorrent/tt-forge-models/pull/87
@@ -316,99 +316,99 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  alexnet/pytorch-alexnet-data_parallel-inference:
+  alexnet/image_classification/pytorch-alexnet-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  xception/pytorch-xception65-data_parallel-inference:
+  xception/image_classification/pytorch-xception65-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  dla/pytorch-dla60-data_parallel-inference:
+  dla/image_classification/pytorch-dla60-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla102x-data_parallel-inference:
+  dla/image_classification/pytorch-dla102x-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_040-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_040-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_320-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_320-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_16gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_16gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_1.0_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  t5/pytorch-google/flan-t5-large-data_parallel-inference:
+  t5/causal_lm/pytorch-google/flan-t5-large-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov4/pytorch-base-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  xception/pytorch-xception71-data_parallel-inference:
+  yolov4/object_detection/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  fpn/pytorch-resnet50_fpn_v2-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  dla/pytorch-dla60x-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  dla/pytorch-dla102x2-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  xception/pytorch-xception71.tf_in1k-data_parallel-inference:
+  xception/image_classification/pytorch-xception71-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  dla/pytorch-dla60x_c-data_parallel-inference:
+  fpn/image_classification/pytorch-resnet50_fpn_v2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv1/pytorch-mobilenet_v1-data_parallel-inference:
+  dla/image_classification/pytorch-dla60x-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla34-data_parallel-inference:
+  dla/image_classification/pytorch-dla102x2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-data_parallel-inference:
+  xception/image_classification/pytorch-xception71.tf_in1k-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  dla/image_classification/pytorch-dla60x_c-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mobilenetv1/image_classification/pytorch-mobilenet_v1-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  dla/image_classification/pytorch-dla34-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  mobilenetv1/image_classification/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  wide_resnet/pytorch-wide_resnet101_2.timm-data_parallel-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet101_2.timm-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9714103734933311. Required: pcc=0.98."
 
-  dla/pytorch-dla34.in1k-data_parallel-inference:
+  dla/image_classification/pytorch-dla34.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  unet/pytorch-carvana_unet-data_parallel-inference:
+  unet/semantic_segmentation/pytorch-carvana_unet-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -416,50 +416,50 @@ test_config:
   #   supported_archs: [n300]
   #   status: EXPECTED_PASSING
 
-  roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-data_parallel-inference:
+  roberta/text_classification/pytorch-cardiffnlp/twitter-roberta-base-sentiment-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  wide_resnet/pytorch-wide_resnet50_2-data_parallel-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet50_2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  regnet/pytorch-regnet_y_160-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_160-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_800mf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_800mf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_400mf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_400mf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  inception/pytorch-inception_v4-data_parallel-inference:
+  inception/image_classification/pytorch-inception_v4-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  ssd300_resnet50/pytorch-base-data_parallel-inference:
+  ssd300_resnet50/object_detection/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hardnet/pytorch-data_parallel-inference:
+  hardnet/image_classification/pytorch-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  dla/pytorch-dla46_c-data_parallel-inference:
+  dla/image_classification/pytorch-dla46_c-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  unet/pytorch-torchhub_brain_unet-data_parallel-inference:
+  unet/semantic_segmentation/pytorch-torchhub_brain_unet-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -468,109 +468,109 @@ test_config:
   #   status: EXPECTED_PASSING
   #   required_pcc: 0.98
 
-  wide_resnet/pytorch-wide_resnet50_2.timm-data_parallel-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet50_2.timm-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     assert_pcc: false
     reason: "PCC comparison failed.  Calculated: pcc=0.97700434923172. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/2368"
 
-  xception/pytorch-xception41-data_parallel-inference:
+  xception/image_classification/pytorch-xception41-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla46x_c-data_parallel-inference:
+  dla/image_classification/pytorch-dla46x_c-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla102-data_parallel-inference:
+  dla/image_classification/pytorch-dla102-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla169-data_parallel-inference:
+  dla/image_classification/pytorch-dla169-data_parallel-inference:
     supported_archs: [n300]
     required_pcc: 0.98  # PCC comparison failed with pcc=0.9898209571838379 in n150 and pcc=0.9885705709457397 in p150.
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed - https://github.com/tenstorrent/tt-xla/issues/2010"
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_3_2gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_3_2gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_8gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_8gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  hrnet/pytorch-hrnet_w18_small-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w44-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w44-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6n-data_parallel-inference:
+  yolov6/object_detection/pytorch-yolov6n-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-timm_vgg19_bn-data_parallel-inference:
+  vgg/image_classification/pytorch-timm_vgg19_bn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.956895405489452. Required: pcc=0.98."
 
-  vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-data_parallel-inference:
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw.ra_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  ghostnet/pytorch-ghostnet_100-data_parallel-inference:
+  ghostnet/image_classification/pytorch-ghostnet_100-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-data_parallel-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite0.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  monodepth2/pytorch-mono_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv3/pytorch-mobilenet_v3_small-data_parallel-inference:
+  mobilenetv3/image_classification/pytorch-mobilenet_v3_small-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  resnet/pytorch-resnet50-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet50-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet/pytorch-efficientnet_b6-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b6-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  wide_resnet/pytorch-wide_resnet101_2-data_parallel-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet101_2-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9714103734933311. Required: pcc=0.98."
 
-  regnet/pytorch-regnet_y_400mf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_400mf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_0.35_96-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9587556719779968. Required: pcc=0.96 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
-  t5/pytorch-google/flan-t5-base-data_parallel-inference:
+  t5/causal_lm/pytorch-google/flan-t5-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w48-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w48-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -578,78 +578,78 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6s-data_parallel-inference:
+  yolov6/object_detection/pytorch-yolov6s-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  vgg/pytorch-torchvision_vgg11_bn-data_parallel-inference:
+  vgg/image_classification/pytorch-torchvision_vgg11_bn-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vovnet/pytorch-ese_vovnet39b-data_parallel-inference:
+  vovnet/image_classification/pytorch-ese_vovnet39b-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9872968792915344. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
-  ghostnet/pytorch-ghostnet_100.in1k-data_parallel-inference:
+  ghostnet/image_classification/pytorch-ghostnet_100.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-data_parallel-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite1.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  monodepth2/pytorch-mono_no_pt_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono_no_pt_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnet/pytorch-resnet50_timm-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet50_timm-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  efficientnet/pytorch-efficientnet_b0-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b0-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet/pytorch-efficientnet_b7-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b7-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext50_32x4d-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext50_32x4d-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_l16_224_in21k-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_l16_224_in21k-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9550153017044067. Required: pcc=0.99."
 
-  retinanet/pytorch-retinanet_rn50fpn-data_parallel-inference:
+  retinanet/object_detection/pytorch-retinanet_rn50fpn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.956940770149231. Required: pcc=0.99."
 
-  vovnet/pytorch-vovnet57_th-data_parallel-inference:
+  vovnet/image_classification/pytorch-vovnet57_th-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: KNOWN_FAILURE_XFAIL
     reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
-  yolos/pytorch-data_parallel-inference:
+  yolos/object_detection/pytorch-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.968181848526001. Required: pcc=0.99."
 
-  vovnet/pytorch-ese_vovnet99b-data_parallel-inference:
+  vovnet/image_classification/pytorch-ese_vovnet99b-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     assert_pcc: false
@@ -661,25 +661,25 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8890893459320068. Required: pcc=0.99."
 
-  regnet/pytorch-regnet_y_080-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_080-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_8gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_8gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.96
-
-  inception/pytorch-inception_v4.tf_in1k-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_0.75_160-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  t5/pytorch-google/flan-t5-small-data_parallel-inference:
+  inception/image_classification/pytorch-inception_v4.tf_in1k-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96
+
+  t5/causal_lm/pytorch-google/flan-t5-small-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -687,51 +687,51 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18_small_v2-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w64-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  vgg/pytorch-torchvision_vgg13_bn-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w64-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-data_parallel-inference:
+  vgg/image_classification/pytorch-torchvision_vgg13_bn-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  monodepth2/pytorch-stereo_1024x320-data_parallel-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite2.in1k-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  monodepth2/depth_estimation/pytorch-stereo_1024x320-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv3/pytorch-mobilenetv3_small_100-data_parallel-inference:
+  mobilenetv3/image_classification/pytorch-mobilenetv3_small_100-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  resnet/pytorch-resnet_50_hf-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet_50_hf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
     bringup_status: INCORRECT_RESULT # Single device required_pcc: 0.98
 
-  efficientnet/pytorch-efficientnet_b1-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-data_parallel-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  retinanet/pytorch-retinanet_rn101fpn-data_parallel-inference:
+  retinanet/object_detection/pytorch-retinanet_rn101fpn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -743,20 +743,20 @@ test_config:
     status: EXPECTED_PASSING
     reason: "Calculated: pcc=0.9272822141647339. Required: pcc=0.99."
 
-  regnet/pytorch-regnet_y_120-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_120-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_1_6gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_1_6gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  mobilenetv2/pytorch-mobilenet_v2-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-mobilenet_v2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  t5/pytorch-t5-base-data_parallel-inference:
+  t5/causal_lm/pytorch-t5-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -764,7 +764,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg16_bn-data_parallel-inference:
+  vgg/image_classification/pytorch-torchvision_vgg16_bn-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.979
@@ -773,69 +773,69 @@ test_config:
   #   supported_archs: [n300]
   #   status: EXPECTED_PASSING
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-data_parallel-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite3.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  monodepth2/pytorch-stereo_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-stereo_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  monodepth2/pytorch-mono+stereo_1024x320-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono+stereo_1024x320-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnet/pytorch-resnet101-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet101-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet/pytorch-efficientnet_b2-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-data_parallel-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext101_32x8d-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext101_32x8d-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_b16_224-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_b16_224-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  retinanet/pytorch-retinanet_rn152fpn-data_parallel-inference:
+  retinanet/object_detection/pytorch-retinanet_rn152fpn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9571177363395691. Required: pcc=0.99."
 
-  autoencoder/pytorch-conv-data_parallel-inference:
+  autoencoder/image_to_image/pytorch-conv-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.5767203569412231. Required: pcc=0.99."
 
-  regnet/pytorch-regnet_y_16gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_16gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_32gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_32gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  mobilenetv2/pytorch-mobilenet_v2_torchvision-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-mobilenet_v2_torchvision-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
     bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9898824691772461. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
 
-  t5/pytorch-t5-large-data_parallel-inference:
+  t5/causal_lm/pytorch-t5-large-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -843,15 +843,15 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w30-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w30-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  googlenet/pytorch-googlenet-data_parallel-inference:
+  googlenet/image_classification/pytorch-googlenet-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg19_bn-data_parallel-inference:
+  vgg/image_classification/pytorch-torchvision_vgg19_bn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -861,55 +861,55 @@ test_config:
   #   supported_archs: [n300]
   #   status: EXPECTED_PASSING
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-data_parallel-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite4.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  monodepth2/pytorch-mono+stereo_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono+stereo_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  monodepth2/pytorch-stereo_no_pt_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-stereo_no_pt_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnet/pytorch-resnet152-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet152-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  efficientnet/pytorch-efficientnet_b3-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b3-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-data_parallel-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext101_32x8d_wsl-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext101_32x8d_wsl-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_b16_224_in21k-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_b16_224_in21k-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  retinanet/pytorch-retinanet_rn18fpn-data_parallel-inference:
+  retinanet/object_detection/pytorch-retinanet_rn18fpn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9567028880119324. Required: pcc=0.99."
 
-  vovnet/pytorch-vovnet39_th-data_parallel-inference:
+  vovnet/image_classification/pytorch-vovnet39_th-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: KNOWN_FAILURE_XFAIL
     reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
-  centernet/pytorch-hourglass_coco-data_parallel-inference:
+  centernet/object_detection/pytorch-hourglass_coco-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -921,22 +921,22 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9093026518821716. Required: pcc=0.99."
 
-  retinanet/pytorch-retinanet_rn34fpn-data_parallel-inference:
+  retinanet/object_detection/pytorch-retinanet_rn34fpn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9525967836380005. Required: pcc=0.99."
 
-  regnet/pytorch-regnet_y_1_6gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_1_6gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_3_2gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_3_2gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  mobilenetv2/pytorch-mobilenetv2_100-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-mobilenetv2_100-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -944,43 +944,43 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w32-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w32-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-bn_vgg19-data_parallel-inference:
+  vgg/image_classification/pytorch-bn_vgg19-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9689233920026501. Required: pcc=0.98."
 
-  vgg/pytorch-vgg19_bn-data_parallel-inference:
+  vgg/image_classification/pytorch-vgg19_bn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9619955010531175. Required: pcc=0.98."
 
-  monodepth2/pytorch-mono+stereo_no_pt_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono+stereo_no_pt_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnet/pytorch-resnet18-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet18-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-efficientnet_b4-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b4-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-data_parallel-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov3/pytorch-base-data_parallel-inference:
+  yolov3/object_detection/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
@@ -989,20 +989,20 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-efficientnet_b5-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b5-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18.ms_aug_in1k-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18.ms_aug_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w40-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w40-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  mlp_mixer/pytorch-mixer_b16_224_miil_in21k-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_b16_224_miil_in21k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2433
@@ -1011,39 +1011,39 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  monodepth2/pytorch-mono_1024x320-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono_1024x320-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6m-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
-
-  mobilenetv3/pytorch-mobilenet_v3_large-data_parallel-inference:
+  yolov6/object_detection/pytorch-yolov6m-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  resnet/pytorch-resnet34-data_parallel-inference:
+  mobilenetv3/image_classification/pytorch-mobilenet_v3_large-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  regnet/pytorch-regnet_y_32gf-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
-  regnet/pytorch-regnet_x_800mf-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet34-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  vovnet/pytorch-ese_vovnet19b_dw-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_32gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-timm_efficientnet_b0-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_800mf-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw-data_parallel-inference:
+    supported_archs: [n300]
+    status: EXPECTED_PASSING
+
+  efficientnet/image_classification/pytorch-timm_efficientnet_b0-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -1052,7 +1052,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vgg/pytorch-bn_vgg19b-data_parallel-inference:
+  vgg/image_classification/pytorch-bn_vgg19b-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
@@ -1061,7 +1061,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  codegen/pytorch-Salesforce/codegen-350M-multi-data_parallel-inference:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-multi-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1069,7 +1069,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  codegen/pytorch-Salesforce/codegen-350M-nl-data_parallel-inference:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-nl-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1085,12 +1085,12 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mamba/pytorch-mamba-370m-hf-data_parallel-inference:
+  mamba/causal_lm/pytorch-mamba-370m-hf-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false # -0.0327 WH / 0.3821 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
     status: EXPECTED_PASSING
 
-  codegen/pytorch-Salesforce/codegen-350M-mono-data_parallel-inference:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-mono-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1106,7 +1106,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_l16_224-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_l16_224-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -1118,27 +1118,27 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC decreased with inputs changes to 0.946 in BH / 0.887 in WH"
 
-  mlp_mixer/pytorch-mixer_b16_224.goog_in21k-data_parallel-inference:
+  mlp_mixer/image_classification/pytorch-mixer_b16_224.goog_in21k-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  vit/pytorch-vit_b_16-data_parallel-inference:
+  vit/image_classification/pytorch-vit_b_16-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  stereo/pytorch-medium-data_parallel-inference:
+  stereo/tts/pytorch-medium-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3149577673900601. Required: pcc=0.99"
 
-  mamba/pytorch-mamba-790m-hf-data_parallel-inference:
+  mamba/causal_lm/pytorch-mamba-790m-hf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
-  mobilenetv3/pytorch-mobilenetv3_large_100-data_parallel-inference:
+  mobilenetv3/image_classification/pytorch-mobilenetv3_large_100-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1146,99 +1146,99 @@ test_config:
   #   supported_archs: [n300]
   #   status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnetv2_w44_osmr-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w44_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  resnext/pytorch-resnext26_32x4d_osmr-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext26_32x4d_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18_small_v1_osmr-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v1_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnetv2_w48_osmr-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w48_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.985
 
-  ghostnet/pytorch-ghostnetv2_100.in1k-data_parallel-inference:
+  ghostnet/image_classification/pytorch-ghostnetv2_100.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext50_32x4d_osmr-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext50_32x4d_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  inception/pytorch-inceptionv4-data_parallel-inference:
+  inception/image_classification/pytorch-inceptionv4-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  hrnet/pytorch-hrnetv2_w18_osmr-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w18_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18_small_v2_osmr-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v2_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vovnet/pytorch-vovnet27s-data_parallel-inference:
+  vovnet/image_classification/pytorch-vovnet27s-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnetv2_w30_osmr-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w30_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  vovnet/pytorch-vovnet39-data_parallel-inference:
+  vovnet/image_classification/pytorch-vovnet39-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.964539647102356. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
-  hrnet/pytorch-hrnetv2_w32_osmr-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w32_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.985
 
-  resnext/pytorch-resnext101_64x4d_osmr-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext101_64x4d_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnetv2_w40_osmr-data_parallel-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w40_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  vovnet/pytorch-vovnet57-data_parallel-inference:
+  vovnet/image_classification/pytorch-vovnet57-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: KNOWN_FAILURE_XFAIL
     reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
-  resnext/pytorch-resnext14_32x4d_osmr-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext14_32x4d_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  densenet/pytorch-densenet121-data_parallel-inference:
+  densenet/image_classification/pytorch-densenet121-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  densenet/pytorch-densenet161-data_parallel-inference:
+  densenet/image_classification/pytorch-densenet161-data_parallel-inference:
     supported_archs: [n300]
     required_pcc: 0.98 # PCC comparison failed. Calculated: pcc=0.9897865056991577. Required: pcc=0.99.
     status: EXPECTED_PASSING
 
-  densenet/pytorch-densenet169-data_parallel-inference:
+  densenet/image_classification/pytorch-densenet169-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  densenet/pytorch-densenet201-data_parallel-inference:
+  densenet/image_classification/pytorch-densenet201-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
