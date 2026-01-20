@@ -121,3 +121,9 @@ test_config:
 
   qwen_3/causal_lm/pytorch-30b_a3b-llm_decode-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  llama/causal_lm/pytorch-llama_3_2_3b-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-TinyLlama_v1.1-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
