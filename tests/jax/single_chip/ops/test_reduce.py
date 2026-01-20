@@ -63,12 +63,6 @@ def test_reduce_max(x_shape: tuple, comparison_config: ComparisonConfig):
     shlo_op_name="stablehlo.reduce{AND}",
 )
 @pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}")
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "i1 (boolean) output type mismatch on TTNN backend"
-        "https://github.com/tenstorrent/tt-xla/issues/668"
-    )
-)
 def test_reduce_and(x_shape: tuple, comparison_config: ComparisonConfig):
     def reduce_and(x: jax.Array) -> jax.Array:
         x_bool = x > 0.5
@@ -87,12 +81,6 @@ def test_reduce_and(x_shape: tuple, comparison_config: ComparisonConfig):
     shlo_op_name="stablehlo.reduce{OR}",
 )
 @pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}")
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "i1 (boolean) output type mismatch on TTNN backend"
-        "https://github.com/tenstorrent/tt-xla/issues/668"
-    )
-)
 def test_reduce_or(x_shape: tuple, comparison_config: ComparisonConfig):
     def reduce_or(x: jax.Array) -> jax.Array:
         x_bool = x > 0.5
@@ -111,12 +99,6 @@ def test_reduce_or(x_shape: tuple, comparison_config: ComparisonConfig):
     shlo_op_name="stablehlo.reduce{MULTIPLY}",
 )
 @pytest.mark.parametrize("x_shape", [(32, 32), (64, 64)], ids=lambda val: f"{val}")
-@pytest.mark.xfail(
-    reason=failed_runtime(
-        "'ttnn.prod' op TTNN only supports Reduce(prod) along all dimensions for bfloat16 datatype"
-        "https://github.com/tenstorrent/tt-xla/issues/669"
-    )
-)
 def test_reduce_multiply(x_shape: tuple, comparison_config: ComparisonConfig):
     def reduce_multiply(x: jax.Array) -> jax.Array:
         return jnp.prod(x, axis=None)

@@ -353,9 +353,6 @@ def test_log():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.xfail(
-    reason="PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99. https://github.com/tenstorrent/tt-xla/issues/2466"
-)
 def test_log10():
     class Log10(torch.nn.Module):
         def forward(self, x):
@@ -380,9 +377,6 @@ def test_log1p():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.xfail(
-    reason="PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99. https://github.com/tenstorrent/tt-xla/issues/2466"
-)
 def test_log2():
     class Log2(torch.nn.Module):
         def forward(self, x):
