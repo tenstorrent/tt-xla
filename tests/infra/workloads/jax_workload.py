@@ -72,8 +72,12 @@ class JaxMultichipWorkload(Workload):
         assert self._sharding_mode is not None
         return self._sharding_mode
 
-    def set_model_mesh_recursive(self, device_mesh):
-        """Set mesh on config and all sub-configs"""
+    def set_nnx_model_mesh_recursive(self, device_mesh):
+        """Set mesh on EasyDL model config and recursively on sub-configs.
+        
+        EasyDL models can have nested config objects (text_config, vision_config)
+        that also need mesh assignment for proper distributed execution.
+        """
         self.model.config.set_model_mesh(device_mesh)
 
         # Check for text_config and vision_config sub-configs
@@ -87,7 +91,7 @@ class JaxMultichipWorkload(Workload):
 
     def execute(self) -> Any:
         if isinstance(self.model, nnx.Module):
-            self.set_model_mesh_recursive(self._device_mesh)
+            self.set_nnx_model_mesh_recursive(self._device_mesh)
             with self.device_mesh:
                 return super().execute()
         else:
