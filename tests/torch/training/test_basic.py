@@ -1,10 +1,14 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import pytest
 import torch_xla
 import torch_xla.runtime as xr
+
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelLoader as Qwen3ModelLoader,
-    ModelVariant,
 )
+from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import ModelVariant
 
 
 @pytest.mark.push
@@ -35,7 +39,9 @@ def test_qwen3_backward():
 
     model.compile(backend="tt")
 
-    outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=input_ids)
+    outputs = model(
+        input_ids=input_ids, attention_mask=attention_mask, labels=input_ids
+    )
     loss = outputs.loss
 
     if loss.numel() > 1:
@@ -46,4 +52,3 @@ def test_qwen3_backward():
     loss_value = loss.item()
     print(f"Loss value: {loss_value}")
     assert loss_value > 0
-    
