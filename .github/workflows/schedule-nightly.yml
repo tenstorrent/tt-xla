@@ -91,7 +91,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        job_index: [0, 1]
+        job_index: [0, 1, 2, 3, 4]
 
     name: "process_dumped_irs (job ${{ matrix.job_index }})"
 
@@ -188,7 +188,7 @@ jobs:
       - name: Split IRs for parallel processing
         shell: bash
         run: |
-          echo "=== Splitting IRs for job ${{ matrix.job_index }} of 2 ==="
+          echo "=== Splitting IRs for job ${{ matrix.job_index }} of 5 ==="
 
           # Get all model directories (first-level subdirectories)
           cd collected_irs
@@ -199,9 +199,9 @@ jobs:
           echo "Model directories: ${model_dirs[@]}"
 
           # Calculate which models this job should process
-          # Split into 2 groups: job 0 gets first half, job 1 gets second half
+          # Split into 5 groups
           job_index=${{ matrix.job_index }}
-          total_jobs=2
+          total_jobs=5
           models_per_job=$(( (total_models + total_jobs - 1) / total_jobs ))
           start_idx=$((job_index * models_per_job))
           end_idx=$(((job_index + 1) * models_per_job))
