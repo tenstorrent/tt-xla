@@ -417,8 +417,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Cached torch/numpy tensor
         # The pytorch tensor and numpy array share the same buffer.
         # Sometimes the numpy op is faster so we create both.
+        # Keep a 2D CPU buffer [batch_size, max_num_tokens] for the pooling runner.
+        # `_prepare_inputs` uses batched indexing even when batch_size == 1.
         self.input_ids_cpu = torch.zeros(
-            self.max_num_tokens, dtype=torch.int32, device="cpu"
+            (self.batch_size, self.max_num_tokens), dtype=torch.int32, device="cpu"
         )
 
         self.positions_cpu = torch.zeros(
@@ -543,6 +545,29 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 case_str, self.num_xla_graphs, curr_cached_graph
             )
         )
+
+    def reset_mm_cache(self) -> None:
+        """Clear multimodal encoder cache/budget (mirrors upstream TPUModelRunner)."""
+        if self.mm_budget:
+            self.mm_budget.reset_cache()
+
+    def reset_dynamo_cache(self):
+        """Clear Dynamo cache for compiled models (mirrors upstream TPUModelRunner)."""
+        # NOTE: We check `is_multimodal_model` instead of `supports_mm_inputs`
+        # since the compiled model object of the language backbone of a
+        # multimodal model needs to be extracted via `get_language_model`.
+        if getattr(self.model_config, "is_multimodal_model", False):
+            compiled_model = self.model.get_language_model().model
+        else:
+            compiled_model = self.model.model
+        if isinstance(compiled_model, TorchCompileWithNoGuardsWrapper):
+            logger.info("Clear dynamo cache and cached dynamo bytecode.")
+            torch._dynamo.eval_frame.remove_from_cache(
+                compiled_model.original_code_object()
+            )
+            # Reset the wrapper to re-initialize.
+            compiled_model.compiled = False
+            TorchCompileWithNoGuardsWrapper.__init__(compiled_model)
 
     def _update_states(self, scheduler_output: "SchedulerOutput") -> bool:
         """Update the cached states and the persistent batch with the scheduler
@@ -1272,22 +1297,52 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if hasattr(self.model, "pooler") and callable(
                 getattr(self.model, "pooler")
             ):
-                pooling_metadata = self.input_batch.pooling_metadata
-                pooler_batch = self.model.pooler(hidden_states_list, pooling_metadata)
+                # Build pooling cursor (mirrors upstream GPUModelRunner._pool).
+                # Pooler implementations expect pooling_metadata.pooling_cursor to be set.
+                pooling_metadata = self.input_batch.pooling_metadata[
+                    start_index:end_index
+                ]
+                seq_lens_cpu = self.seq_lens_cpu[start_index:end_index]
+                pooling_metadata.build_pooling_cursor(
+                    num_scheduled_tokens_per_req.tolist(),
+                    seq_lens_cpu,
+                    device=hidden_states.device,
+                )
+
+                # Pooler expects a single [sum(tokens_i), hidden] tensor.
+                if self.batch_size > 1:
+                    # hidden_states: [batch, padded_tokens, hidden]
+                    pieces = [
+                        hidden_states[i, : int(num_scheduled_tokens_per_req[i]), :]
+                        for i in range(len(num_scheduled_tokens_per_req))
+                    ]
+                    hidden_states_for_pooler = (
+                        torch.cat(pieces, dim=0) if pieces else hidden_states[:0, :]
+                    )
+                else:
+                    chunk_num_tokens = int(sum(num_scheduled_tokens_per_req))
+                    hidden_states_for_pooler = hidden_states[0, :chunk_num_tokens, :]
+
+                # Upstream GPUModelRunner uses:
+                #   model = cast(VllmModelForPooling, self.model)
+                # This is a typing-only hint (no runtime behavior). We don't
+                # require it here because we already guard on `hasattr(model, "pooler")`.
+                pooler_batch = self.model.pooler(
+                    hidden_states=hidden_states_for_pooler,
+                    pooling_metadata=pooling_metadata,
+                )
             else:
                 # fallback: use the last token’s hidden state
                 pooler_batch = hidden_states[:, -1, :]
 
             pooler_output: list[Optional[torch.Tensor]] = []
-            seq_lens = self.seq_lens_cpu[: self.input_batch.num_reqs]
             for raw_output, seq_len, prompt_len in zip(
-                pooler_batch, seq_lens, pooling_metadata.prompt_lens
+                pooler_batch, seq_lens_cpu, pooling_metadata.prompt_lens
             ):
                 if seq_len == prompt_len:
-                    if raw_output.data.cpu() is not None:
-                        pooler_output.append(raw_output.data.cpu())
-                    else:
-                        pooler_output.append(raw_output.data.to("cpu"))
+                    pooler_output.append(
+                        raw_output.to("cpu") if raw_output is not None else None
+                    )
                 else:
                     pooler_output.append(None)
 
@@ -1305,7 +1360,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             prompt_logprobs_dict={},  # empty
             pooler_output=pooler_output,
             kv_connector_output=None,
-            spec_token_ids=None,
         )
 
         # Check there are no new graphs compiled - all the graphs should be
@@ -1710,6 +1764,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     def get_input_embeddings(self, *args, **kwargs):
         return self.model.get_input_embeddings(*args, **kwargs)
+
+    # Keep API parity with upstream TPUModelRunner / TTModelRunner naming.
+    def embed_multimodal(self, *args, **kwargs):
+        return self.get_multimodal_embeddings(*args, **kwargs)
+
+    def embed_input_ids(self, *args, **kwargs):
+        return self.get_input_embeddings(*args, **kwargs)
 
     def prepare_structured_decoding_input(
         self, logits: torch.Tensor, scheduler_output: "SchedulerOutput"
