@@ -88,6 +88,13 @@ jobs:
     runs-on: tt-ubuntu-2204-n150-stable
     needs: [ build-image, build-ttxla, test_forge_models_passing ]
     if: success() || failure()
+    strategy:
+      fail-fast: false
+      matrix:
+        job_index: [0, 1]
+
+    name: "process_dumped_irs (job ${{ matrix.job_index }})"
+
     container:
       image: ${{ needs.build-image.outputs.docker-image }}
       options: --device /dev/tenstorrent
@@ -178,6 +185,52 @@ jobs:
           find collected_irs -type f -name "*.mlir" | head -20
           set -o pipefail
 
+      - name: Split IRs for parallel processing
+        shell: bash
+        run: |
+          echo "=== Splitting IRs for job ${{ matrix.job_index }} of 2 ==="
+
+          # Get all model directories (first-level subdirectories)
+          cd collected_irs
+          model_dirs=($(ls -d */ 2>/dev/null | sed 's:/$::' | sort))
+          total_models=${#model_dirs[@]}
+
+          echo "Total models found: $total_models"
+          echo "Model directories: ${model_dirs[@]}"
+
+          # Calculate which models this job should process
+          # Split into 2 groups: job 0 gets first half, job 1 gets second half
+          job_index=${{ matrix.job_index }}
+          total_jobs=2
+          models_per_job=$(( (total_models + total_jobs - 1) / total_jobs ))
+          start_idx=$((job_index * models_per_job))
+          end_idx=$(((job_index + 1) * models_per_job))
+
+          if [ $end_idx -gt $total_models ]; then
+            end_idx=$total_models
+          fi
+
+          echo "This job will process models from index $start_idx to $((end_idx - 1))"
+
+          # Create a new directory with only this job's models
+          cd ..
+          mkdir -p collected_irs_job_$job_index
+
+          for i in $(seq $start_idx $((end_idx - 1))); do
+            if [ $i -lt $total_models ]; then
+              model="${model_dirs[$i]}"
+              echo "Including model: $model"
+              mv "collected_irs/$model" "collected_irs_job_$job_index/"
+            fi
+          done
+
+          # Replace collected_irs with the filtered version
+          rm -rf collected_irs
+          mv collected_irs_job_$job_index collected_irs
+
+          echo "=== Final IRs for this job ==="
+          ls -la collected_irs/
+
       - name: Generate system descriptor
         shell: bash
         run: |
@@ -213,7 +266,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
-          name: op-by-op-report
+          name: op-by-op-report-${{ matrix.job_index }}
           path: op_by_op_report.json
           if-no-files-found: 'warn'
 
