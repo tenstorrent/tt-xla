@@ -228,3 +228,22 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
         gm = bypass_dtype_promotion_and_redundant_cast(gm, example_inputs)
 
     return gm
+
+
+def replace_cpu_device_with_xla(gm):
+    """
+    Replaces cpu device with xla device.
+    """
+    for node in gm.graph.nodes:
+        if "device" in node.kwargs and node.kwargs["device"] == torch.device("cpu"):
+            kwarg_dict = node.kwargs.copy()
+            kwarg_dict["device"] = torch.device("xla")
+            node.kwargs = kwarg_dict
+        if (
+            node.op == "call_function"
+            and node.target == torch.ops.aten.full_like.default
+        ):
+            kwarg_dict = node.kwargs.copy()
+            kwarg_dict["device"] = torch.device("xla")
+            node.kwargs = kwarg_dict
+    return gm
