@@ -653,13 +653,5 @@ def captured_output_fixture(request):
     When running with --forked: Uses pytest's capfd which handles forked processes correctly.
     When running in distributed mode: Uses capfd (TeeCapture doesn't work in subprocesses).
     """
-    if _should_use_capfd(request):
-        # Use capfd - handles forked/subprocess environments correctly
-        capfd = request.getfixturevalue("capfd")
-        yield capfd
-    else:
-        # Use TeeCapture for real-time output
-        tee = TeeCapture()
-        tee.start()
-        yield tee
-        tee.stop()
+    # Use capfd - handles forked/subprocess environments correctly
+    capfd = request.getfixturevalue("capfd")

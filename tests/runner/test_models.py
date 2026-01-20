@@ -174,11 +174,6 @@ def _run_model_test_impl(
                 validate_filecheck_results(filecheck_results)
 
         except Exception as e:
-            captured = captured_output_fixture.readouterr()
-            # Record runtime failure info so it can be reflected in report properties
-            update_test_metadata_for_exception(
-                test_metadata, e, stdout=captured.out, stderr=captured.err
-            )
             raise
         finally:
             comparison_config = tester._comparison_config if tester else None

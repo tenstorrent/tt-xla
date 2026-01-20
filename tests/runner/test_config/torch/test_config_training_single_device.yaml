@@ -732,7 +732,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   gpt2/pytorch-gpt2_sequence_classification-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
   resnext/pytorch-resnext50_32x4d-single_device-training:
     status: KNOWN_FAILURE_XFAIL
