@@ -490,7 +490,8 @@ def clear_torchxla_computation_cache():
     """
     yield
     try:
-        torch_xla.sync(wait=True)
+        device = torch_xla.device()
+        torch_xla._XLAC._xla_wait_device_ops([str(device)])
     except Exception as e:
         logger.warning(f"Failed to sync TorchXLA computation cache: {e}")
         logger.warning(
