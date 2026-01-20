@@ -686,18 +686,20 @@ def get_xla_device_arch():
     Returns:
         str: Architecture name ('wormhole' or 'blackhole'), or empty string if not found
     """
-    # Try using direct python bindings first (bypass torch_xla device lookup)
-    from pjrt_plugin_tt import native
+    try:
+        from pjrt_plugin_tt import tt_mlir_bindings
 
-    arch_name = native.get_arch().lower()
-    print(f"Arch name: {arch_name}")
+        arch_name = tt_mlir_bindings.get_arch().lower()
+        print(f"Arch name: {arch_name}")
+    except ImportError as e:
+        raise RuntimeError(f"Could not import pjrt_plugin_tt.tt_mlir_bindings: {e}")
 
     for arch in ["wormhole", "blackhole"]:
         if arch in arch_name:
             print(f"Found {arch} device")
             return arch
 
-    print(f"Failed to get PJRT device arch")
+    raise RuntimeError(f"Unknown or unsupported PJRT device arch: '{arch_name}'")
     return ""
 
 

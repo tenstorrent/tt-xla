@@ -412,15 +412,14 @@ setup(
     },
     ext_modules=[
         Extension(
-            name="pjrt_plugin_tt.native",
-            # CHANGE: Use relative path "../"
+            name="pjrt_plugin_tt.tt_mlir_bindings",
             sources=["../pjrt_implementation/src/python_bindings.cc"],
             include_dirs=[
                 os.path.join(REPO_DIR, "third_party/tt-mlir/install/include"),
                 "/usr/local/lib/python3.11/dist-packages/pybind11/include",
                 os.path.join(
                     REPO_DIR,
-                    "third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/.cpmcache/flatbuffers/2c4062bffa52fa4157b1b4deeae73395df475fda/include",
+                    "third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build_OFF/include",
                 ),
             ],
             extra_objects=[

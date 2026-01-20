@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tt/runtime/runtime.h"
-#include "ttmlir/Target/Common/types_generated.h" // Needed for EnumNameArch
+#include "tt/runtime/types.h"
 #include <pybind11/pybind11.h>
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(native, m) {
+PYBIND11_MODULE(tt_mlir_bindings, m) {
   m.doc() = "TT-XLA Native Python Bindings";
 
   m.def(
