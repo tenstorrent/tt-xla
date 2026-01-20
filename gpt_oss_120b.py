@@ -13,7 +13,7 @@ from torch_xla.distributed.spmd import Mesh
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 
-def test_gpt_oss_120b_single_layer():
+def test_gpt_oss_120b():
 
     setup_spmd()
 
@@ -66,6 +66,17 @@ def test_gpt_oss_120b_single_layer():
     output_logits = output.logits.cpu()
     print(f"Output logits shape: {output_logits.shape}")
     print(f"Output logits: {output_logits}")
+
+    next_token_logits = output_logits[:, -1, :]
+    next_token_id = next_token_logits.argmax(dim=-1)
+    decoded_text = tokenizer.decode(next_token_id[0].item(), skip_special_tokens=True)
+
+    predicted_ids = output_logits.argmax(dim=-1)
+    full_text = tokenizer.decode(predicted_ids[0], skip_special_tokens=True)
+
+    print(f"Decoded text: {decoded_text}")
+    print(f"Full text: {full_text}")
+
     print("GPT-OSS tensor parallel test completed successfully.")
 
 
@@ -163,4 +174,4 @@ def create_device_mesh() -> Mesh:
 if __name__ == "__main__":
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
-    test_gpt_oss_120b_single_layer()
+    test_gpt_oss_120b()

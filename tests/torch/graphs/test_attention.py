@@ -2289,7 +2289,7 @@ def test_eager_batched_attention():
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
 @parametrize_arch(["single_device", "llmbox"])
-@pytest.mark.parametrize("mesh_shape", [(1, 8), (2, 4)])
+@pytest.mark.parametrize("mesh_shape", [(1, 8), (2, 4), (8, 4)])
 def test_gpt_oss_attention(variant, variant_config, arch, mesh_shape):
     xr.set_device_type("TT")
 
@@ -2339,11 +2339,6 @@ def test_gpt_oss_attention(variant, variant_config, arch, mesh_shape):
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
-        # if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
-        #     mesh_shape = (1, num_devices)
-        # else:
-        #     batch_size = 2
-        #     mesh_shape = (2, num_devices // 2)
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(sdpa, args, kwargs):
@@ -2351,9 +2346,13 @@ def test_gpt_oss_attention(variant, variant_config, arch, mesh_shape):
             attention = args[0]
             shard_specs = {}
             shard_specs[attention.q_proj.weight] = ("model", "batch")
+            shard_specs[attention.q_proj.bias] = ("model",)
             shard_specs[attention.k_proj.weight] = ("model", "batch")
+            shard_specs[attention.k_proj.bias] = ("model",)
             shard_specs[attention.v_proj.weight] = ("model", "batch")
+            shard_specs[attention.v_proj.bias] = ("model",)
             shard_specs[attention.o_proj.weight] = ("batch", "model")
+            shard_specs[attention.o_proj.bias] = ("batch",)
             # Sharding sinks causes an error when running llmbox and single_device back-to-back.
             # shard_specs[attention.sinks] = ("model",)
             return shard_specs
