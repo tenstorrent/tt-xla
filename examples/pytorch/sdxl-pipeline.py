@@ -381,7 +381,9 @@ if __name__ == "__main__":
         {"optimization_level": args.optimization_level}
     )
     if args.resolution == 1024:
-        print("Note: 1024x1024 resolution currently only works on p100 and p150 TT devices.")
+        print(
+            "Note: 1024x1024 resolution currently only works on p100 and p150 TT devices."
+        )
 
     config = SDXLConfig(
         width=args.resolution,
