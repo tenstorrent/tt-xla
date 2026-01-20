@@ -316,6 +316,32 @@ def boolean_bitwise_or(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor
     return NotImplemented
 
 
+def copy_default(
+    dst: torch.Tensor, src: torch.Tensor, non_blocking: bool = False
+) -> torch.Tensor:
+    """
+    Decomposition for aten.copy.default that correctly handles the broadcast semantics.
+
+    The copy operation copies values from src into dst and returns a tensor with dst's shape.
+    When src is a scalar (0-d tensor) and dst has a larger shape, src should be broadcast.
+
+    This decomposition is needed because functional tensors + XLA can have incorrect behavior
+    with the native copy.default, returning the source shape instead of the destination shape.
+
+    The decomposition uses _to_copy for device/dtype conversion (traces correctly) and
+    expand for broadcasting.
+    """
+    # Use _to_copy for device and dtype conversion - this traces correctly during decomposition
+    # Unlike .to(), _to_copy is a proper aten op that will be in the graph
+
+    src_converted = torch.ops.aten._to_copy.default(
+        src, dtype=dst.dtype, device=dst.device
+    )
+    # Expand to dst's shape (handles scalar -> tensor broadcast)
+    # Then clone to ensure contiguous memory
+    return src_converted.expand(dst.shape).clone()
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
@@ -345,6 +371,7 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
+        aten.copy.default: copy_default,
         aten.matmul.default: matmul,
         aten.dot.default: dot,
         # Interpolation decompositions here perform interpolation

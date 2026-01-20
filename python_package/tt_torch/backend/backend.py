@@ -6,12 +6,15 @@ from typing import Tuple
 
 import torch
 import torch.export
+import torch.fx
 import torch_xla
-import torch_xla.core.dynamo_bridge as bridge
+
+# import torch_xla.core.dynamo_bridge as bridge
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 
+from . import ourdynamobridge as bridge
 from .decompositions import populate_decompositions
 from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
 from .passes import (
@@ -20,6 +23,7 @@ from .passes import (
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
+    replace_cpu_device_with_xla,
     run_fusion_passes,
 )
 
@@ -44,12 +48,19 @@ def torch_pass_pipeline(
     # This is a temporary option to disable / enable composite ops
     # that will be removed once composite ops are more stable.
     # default to True if options are not given or if tt_enable_composite_ops is not present
+
+    file = open("gm_a_initial.txt", "w")
+    file.write(str(gm))
+    file.close()
     enable_composite_ops = options is None or options.get(
         "tt_enable_composite_ops", True
     )
     if enable_composite_ops:
         handle_composite_ops(gm)
 
+    file = open("gm_b_exported.txt", "w")
+    file.write(str(gm))
+    file.close()
     decompositions = populate_decompositions()
 
     program = torch.export.export(
@@ -59,16 +70,27 @@ def torch_pass_pipeline(
     )
     program = program.run_decompositions(decompositions)
 
+    file = open("gm_c_decomposed.txt", "w")
+    file.write(str(program))
+    file.close()
     compiled_graph = program.module()
     compiled_graph = insert_argument_type_markers(
         compiled_graph, program.graph_signature
     )
+    file = open("gm_d_inserted_argument_type_markers.txt", "w")
+    file.write(str(compiled_graph))
+    file.close()
     compiled_graph = bypass_dtype_promotion_and_redundant_cast(
         compiled_graph, example_inputs
     )
+    file = open("gm_e_bypassed_redundant_getitem.txt", "w")
+    file.write(str(compiled_graph))
+    file.close()
     compiled_graph = bypass_redundant_getitem(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
-
+    file = open("gm_f_bypassed_assert_tensor_metadata.txt", "w")
+    file.write(str(compiled_graph))
+    file.close()
     # Recompile the GraphModule to ensure the modifications made by the above
     # passes are reflected during execution.
     compiled_graph.recompile()
@@ -160,6 +182,14 @@ class XLAExecutor:
             # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
             program = torch.export.export(self.module, tuple(args), strict=False)
+
+            # Apply decompositions after re-export. The re-export can introduce new ops
+            # (like copy.default from slice_scatter decomposition) that need to be
+            # decomposed to work correctly with functional tensors + XLA.
+            decompositions = populate_decompositions()
+            program = program.run_decompositions(decompositions)
+
+            program = replace_cpu_device_with_xla(program)
 
             # Collect the params and constants from the exported program.
             self.params_and_consts = self._build_params_and_consts(program)
