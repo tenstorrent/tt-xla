@@ -117,11 +117,16 @@ class JaxDeviceRunner(DeviceRunner):
 
         kwargs_on_device = {}
         for key, arg in multichip_workload.kwargs.items():
-            device_arg = self._put_sharded_arg_on_multichip_device(
-                arg,
-                multichip_workload.device_mesh,
-                multichip_workload.in_specs[spec_index],
-            )
+            # Only put non-static arguments on device with sharding.
+            # Static args are compile-time constants and shouldn't be sharded.
+            if key not in multichip_workload.static_argnames:
+                device_arg = self._put_sharded_arg_on_multichip_device(
+                    arg,
+                    multichip_workload.device_mesh,
+                    multichip_workload.in_specs[spec_index],
+                )
+            else:
+                device_arg = arg
             # Increment the spec index if the argument was put on device.
             if device_arg is not arg:
                 spec_index += 1

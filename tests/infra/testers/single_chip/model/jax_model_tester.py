@@ -114,9 +114,9 @@ class JaxModelTester(ModelTester):
         if isinstance(self._model, nnx.Module):
             graphdef = nnx.split(self._model)[0]
 
-            def forward_pass_method(state, inputs):
-                model_ = nnx.merge(graphdef, state)
-                return model_(inputs)
+            def forward_pass_method(params, **inputs):
+                model_ = nnx.merge(graphdef, params)
+                return model_(**inputs)
 
         else:
             forward_method_name = self._get_forward_method_name()
@@ -141,9 +141,8 @@ class JaxModelTester(ModelTester):
         By default returns input parameters and activations for the Flax linen models,
         and empty list for other type of models.
         """
-        if isinstance(self._model, (linen.Module, nnx.Module)):
+        if isinstance(self._model, linen.Module):
             return [self._input_parameters, self._input_activations]
-
         return []
 
     def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
@@ -151,10 +150,10 @@ class JaxModelTester(ModelTester):
         Returns keyword arguments for model's forward pass.
 
         By default returns input parameters and activations for the HF
-        FlaxPreTrainedModel, and empty dict for other type of models.
+        FlaxPreTrainedModel and general nnx.Module, leaving empty dict for other type of models.
         """
         kwargs = {}
-        if isinstance(self._model, FlaxPreTrainedModel):
+        if isinstance(self._model, (FlaxPreTrainedModel, nnx.Module)):
             kwargs = {
                 "params": self._input_parameters,
                 **self._input_activations,
@@ -174,8 +173,6 @@ class JaxModelTester(ModelTester):
                     )
             except:
                 pass
-        elif isinstance(self._model, nnx.Module):
-            pass
         else:
             kwargs = {"train": False if self._run_mode == RunMode.INFERENCE else True}
         if self._run_mode == RunMode.TRAINING and self._has_batch_norm:
