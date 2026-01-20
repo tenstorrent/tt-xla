@@ -245,6 +245,7 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
 tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
     const std::vector<BufferInstance *> &arg_buffers,
     const std::unordered_map<std::string, std::string> &strategy) {
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::getTensorFromStrategy, strategy: %s", strategy.at("strategy").c_str());
   if (strategy.at("strategy") == "identity") {
     std::optional<tt::runtime::Tensor> host_runtime_tensor =
         arg_buffers.front()->getHostRuntimeTensor();

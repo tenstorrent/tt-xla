@@ -60,6 +60,7 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   // NOTE: In case of sharded tensor we have multiple buffer instances on the
   // PJRT side, but on our side (tt-mlir runtime) we prepare a single
   // multi-device tensor.
+  DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::prepareInputTensor, arg_index: %zu | num_devices: %zu", arg_index, num_devices);
   assert(!arg_buffers.empty());
   std::optional<tt::runtime::Tensor> prepared_tensor =
       arg_buffers[0]->getPreparedTensor();
@@ -271,6 +272,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
            m_executable_image->getNumInputs());
     return tt_pjrt_status::kInternal;
   }
+  DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Creating mesh device");
 
   std::optional<tt::runtime::Device> runtime_device =
       getOrCreateMeshDevice(args->argument_lists, args->num_args,
@@ -286,6 +288,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
 
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
+  DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute::Getting input runtime tensors");
   tt_pjrt_status status = getInputRuntimeTensors(
       args->argument_lists, args->num_args, args->num_devices, *runtime_device,
       program_index, input_tensors);
@@ -296,7 +299,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   if (m_executable_image->getCompileOptions().export_tensors) {
     dumpInputs(input_tensors);
   }
-
+  DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute::Submitting execution");
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
@@ -304,13 +307,19 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
                                   executable_image->getFlatbufferBinary(),
                                   program_index, input_tensors);
 
+  DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute::tt runtime submit executed successfully");
+
   if (!r) {
+    DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute::tt runtime submit failed");
     m_client_instance->closeMeshDevice();
     return tt_pjrt_status::kInternal;
   }
+  DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute::tt runtime submit succeeded");
 
   std::vector<tt::runtime::Tensor> &output_tensors = *r;
 
+  DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute::Output tensors count: %zu", output_tensors.size());
+  
   if (output_tensors.size() != m_executable_image->getNumOutputs()) {
     DLOG_F(ERROR,
            "Runtime produced different number of output tensors (%zu) than the "
