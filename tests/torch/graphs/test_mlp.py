@@ -474,7 +474,7 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
-@pytest.mark.parametrize("mesh_shape", [(1, 8), (2, 4)])
+@pytest.mark.parametrize("mesh_shape", [(1, 8), (2, 4), (8, 4)])
 def test_gpt_oss_mlp(variant, variant_config, arch, mesh_shape):
     xr.set_device_type("TT")
 
@@ -496,7 +496,6 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mesh_shape):
     if arch == "llmbox":
         comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
         num_devices = xr.global_runtime_device_count()
-        # mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
