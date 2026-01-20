@@ -18,7 +18,6 @@ from pathlib import Path
 import psutil
 import pytest
 import torch
-import torch_xla
 import torch_xla.runtime as xr
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
@@ -489,14 +488,6 @@ def clear_torchxla_computation_cache():
     This helps avoid consteval-associated DRAM leaks as described in https://github.com/tenstorrent/tt-xla/issues/1940
     """
     yield
-    try:
-        torch_xla.sync(wait=True)
-    except Exception as e:
-        logger.warning(f"Failed to sync TorchXLA computation cache: {e}")
-        logger.warning(
-            "This is expected if the test throws an exception, https://github.com/tenstorrent/tt-xla/issues/2814"
-        )
-
     xr.clear_computation_cache()
 
 
