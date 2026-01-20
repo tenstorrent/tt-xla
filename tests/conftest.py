@@ -490,6 +490,12 @@ def clear_torchxla_computation_cache():
     """
     yield
     try:
+        device = torch_xla.device()
+        torch_xla._XLAC._clear_pending_irs(str(device))
+    except Exception as e:
+        logger.warning(f"Failed to clear pending IRs: {e}")
+
+    try:
         torch_xla.sync(wait=True)
     except Exception as e:
         logger.warning(f"Failed to sync TorchXLA computation cache: {e}")
