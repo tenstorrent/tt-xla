@@ -253,7 +253,7 @@ class TorchModelTester(ModelTester):
         tt_res = self._unpack_forward_output(tt_res)
 
         # Force graph break so we can differentiate between forward and backward
-        torch_xla.sync()
+        torch_xla.sync(wait=True)
 
         # Run backward on TT
         tt_backward_workload = Workload(
@@ -269,7 +269,7 @@ class TorchModelTester(ModelTester):
         torch_xla._XLAC._xla_sync_multi(
             wanted_grads,
             list(set([p.device.type for p in wanted_grads])),
-            wait=False,
+            wait=True,
         )
         tt_grads, tt_none_grads = self._extract_grads(self._model)
 
