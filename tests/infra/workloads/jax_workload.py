@@ -74,7 +74,7 @@ class JaxMultichipWorkload(Workload):
 
     def set_nnx_model_mesh_recursive(self, device_mesh):
         """Set mesh on EasyDL model config and recursively on sub-configs.
-        
+
         EasyDL models can have nested config objects (text_config, vision_config)
         that also need mesh assignment for proper distributed execution.
         """
