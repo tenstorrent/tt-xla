@@ -7,7 +7,10 @@ import os
 from vllm.attention.backends.registry import AttentionBackendEnum, register_backend
 
 # Register TT attention backend at module import time
-register_backend(AttentionBackendEnum.CUSTOM, "vllm_tt.attention.TTAttentionBackend")
+register_backend(
+    backend=AttentionBackendEnum.CUSTOM,
+    class_path="vllm_tt.attention.TTAttentionBackend",
+)
 
 
 def register():
