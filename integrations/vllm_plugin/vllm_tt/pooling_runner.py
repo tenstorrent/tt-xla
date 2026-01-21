@@ -86,7 +86,7 @@ from .attention import (
 from .logger import tt_init_logger
 from .platform import TTConfig
 from .pooling_input_batch import CachedRequestState, InputBatch
-from .utils import shard_model
+from .vllm_utils import shard_model
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
