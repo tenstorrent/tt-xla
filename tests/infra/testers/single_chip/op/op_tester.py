@@ -69,7 +69,7 @@ class OpTester(BaseTester):
         self._compile_for_tt_device(tt_workload)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
-        self._comparator.compare(tt_res, cpu_res)
+        self._evaluator.evaluate(tt_res, cpu_res)
 
         if self._enable_perf_measurement:
             self._test_e2e_perf(tt_workload)
@@ -112,13 +112,9 @@ class OpTester(BaseTester):
         """
         Compiles executable carried in `workload` based on framework.
         """
-
-        def compile_jax_workload(workload: Workload) -> None:
-            compiler_options = self._compiler_config.to_jax_compiler_options()
-            workload.compiled_executable = jax.jit(
-                workload.executable,
-                static_argnames=workload.static_argnames,
-                compiler_options=compiler_options,
+        if self._framework == Framework.JAX:
+            compile_jax_workload_for_tt_device(
+                workload, self._compiler_config.to_jax_compiler_options()
             )
         else:
             # Must set torch compiler options before compiling for TT device
@@ -126,10 +122,7 @@ class OpTester(BaseTester):
                 torch_xla.set_custom_compile_options(
                     self._compiler_config.to_torch_compile_options()
                 )
-            compile_torch_workload_for_tt_device(tt_workload, self._torch_options)
-        tt_res = self._device_runner.run_on_tt_device(tt_workload)
-
-        self._evaluator.evaluate(tt_res, cpu_res)
+            compile_torch_workload_for_tt_device(workload, self._torch_options)
 
     def test_with_random_inputs(
         self,
