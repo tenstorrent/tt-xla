@@ -49,18 +49,18 @@ def torch_pass_pipeline(
     # that will be removed once composite ops are more stable.
     # default to True if options are not given or if tt_enable_composite_ops is not present
 
-    file = open("gm_a_initial.txt", "w")
-    file.write(str(gm))
-    file.close()
+    # file = open("gm_a_initial.txt", "w")
+    # file.write(str(gm))
+    # file.close()
     enable_composite_ops = options is None or options.get(
         "tt_enable_composite_ops", True
     )
     if enable_composite_ops:
         handle_composite_ops(gm)
 
-    file = open("gm_b_exported.txt", "w")
-    file.write(str(gm))
-    file.close()
+    # file = open("gm_b_exported.txt", "w")
+    # file.write(str(gm))
+    # file.close()
     decompositions = populate_decompositions()
 
     program = torch.export.export(
@@ -70,27 +70,27 @@ def torch_pass_pipeline(
     )
     program = program.run_decompositions(decompositions)
 
-    file = open("gm_c_decomposed.txt", "w")
-    file.write(str(program))
-    file.close()
+    # file = open("gm_c_decomposed.txt", "w")
+    # file.write(str(program))
+    # file.close()
     compiled_graph = program.module()
     compiled_graph = insert_argument_type_markers(
         compiled_graph, program.graph_signature
     )
-    file = open("gm_d_inserted_argument_type_markers.txt", "w")
-    file.write(str(compiled_graph))
-    file.close()
+    # file = open("gm_d_inserted_argument_type_markers.txt", "w")
+    # file.write(str(compiled_graph))
+    # file.close()
     compiled_graph = bypass_dtype_promotion_and_redundant_cast(
         compiled_graph, example_inputs
     )
-    file = open("gm_e_bypassed_redundant_getitem.txt", "w")
-    file.write(str(compiled_graph))
-    file.close()
+    # file = open("gm_e_bypassed_redundant_getitem.txt", "w")
+    # file.write(str(compiled_graph))
+    # file.close()
     compiled_graph = bypass_redundant_getitem(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
-    file = open("gm_f_bypassed_assert_tensor_metadata.txt", "w")
-    file.write(str(compiled_graph))
-    file.close()
+    # file = open("gm_f_bypassed_assert_tensor_metadata.txt", "w")
+    # file.write(str(compiled_graph))
+    # file.close()
     # Recompile the GraphModule to ensure the modifications made by the above
     # passes are reflected during execution.
     compiled_graph.recompile()
@@ -190,6 +190,10 @@ class XLAExecutor:
             # program = program.run_decompositions(decompositions)
 
             # program = replace_cpu_device_with_xla(program)
+
+            # file = open("program_g_before_experimental_compile_run.txt", "w")
+            # file.write(str(program))
+            # file.close()
 
             # Collect the params and constants from the exported program.
             self.params_and_consts = self._build_params_and_consts(program)
