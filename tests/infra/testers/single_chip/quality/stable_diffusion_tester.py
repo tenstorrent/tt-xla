@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
 import torch
+import torch_xla.runtime as xr
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.evaluators.quality_config import QualityConfig
 from infra.evaluators.quality_evaluator import QualityEvaluator, QualityResult
@@ -147,25 +147,27 @@ class StableDiffusionTester(QualityTester):
         """
         Serialize the UNet compilation artifacts to disk.
 
-        This clears the torch compile cache, sets up the pipeline,
-        then extracts and saves the compilation artifacts.
+        If compilation artifacts already exist in the cache (e.g., from a prior test() call),
+        they are reused. Otherwise, a new pipeline is set up to generate the artifacts.
 
         Args:
             output_prefix: Base path and filename prefix for output files
                            (creates {prefix}_ttir.mlir, {prefix}_ttnn.mlir, {prefix}.ttnn)
         """
-        # Clear the torch compile cache to ensure clean serialization
         cache_dir = TorchDeviceConnector.get_cache_dir()
         cache_dir_path = Path(cache_dir)
-        if cache_dir_path.exists():
-            shutil.rmtree(cache_dir_path)
-        cache_dir_path.mkdir(parents=True, exist_ok=True)
 
-        if self._pipeline is None:
-            self._pipeline = self._pipeline_cls(config=self._pipeline_config)
-            self._pipeline.setup(warmup=True)
+        cache_has_artifacts = cache_dir_path.exists() and any(
+            f.is_file() for f in cache_dir_path.iterdir()
+        )
 
-        # Extract and save compilation artifacts from cache
+        if not cache_has_artifacts:
+            cache_dir_path.mkdir(parents=True, exist_ok=True)
+            xr.clear_computation_cache()
+
+            pipeline = self._pipeline_cls(config=self._pipeline_config)
+            pipeline.setup(warmup=True)
+
         parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
 
     def serialize_compilation_artifacts(self, test_name: str) -> None:

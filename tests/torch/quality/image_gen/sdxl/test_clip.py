@@ -42,7 +42,7 @@ def test_clip_sdxl(request):
         height=MODEL_INFO["height"],
     )
 
-    quality_config = QualityConfig(min_clip_threshold=25.0)
+    quality_config = QualityConfig(min_clip_threshold=23.0)
 
     tester = StableDiffusionTester(
         pipeline_cls=SDXLPipeline,

@@ -9,9 +9,10 @@ from typing import Any, Dict, List, Optional
 
 from infra.evaluators import EvaluatorFactory, QualityEvaluator, QualityResult
 from infra.evaluators.quality_config import QualityConfig
+from infra.testers.base_tester import BaseTester
 
 
-class QualityTester:
+class QualityTester(BaseTester):
     """
     Abstract base class for quality metric-based testing.
     """
