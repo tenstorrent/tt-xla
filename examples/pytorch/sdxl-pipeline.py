@@ -352,12 +352,25 @@ def save_image(image: torch.Tensor, filepath: str = "output.png"):
     image_pil.save(filepath)
 
 
+def prompt_to_filename(prompt: str) -> str:
+    """Convert prompt to filename: lowercase, underscores for spaces."""
+    filename = prompt.lower().replace(" ", "_")
+    filename = "".join(c if c.isalnum() or c == "_" else "_" for c in filename)
+    return filename + ".png"
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", type=str, default="a photo of a cat")
     parser.add_argument("--negative_prompt", type=str, default="")
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        default=False,
+        help="Generate images by inputting prompts interactively",
+    )
     parser.add_argument("--resolution", type=int, default=512, choices=[512, 1024])
     parser.add_argument("--optimization_level", type=int, default=1)
     parser.add_argument("--do_cfg", type=bool, default=True)
@@ -395,16 +408,31 @@ if __name__ == "__main__":
     pipeline = SDXLPipeline(config=config)
     pipeline.setup(warmup=True)
 
-    start_time = time.time()
-    img = pipeline.generate(
-        prompt=args.prompt,
-        negative_prompt=args.negative_prompt,
-        do_cfg=True,
-        cfg_scale=args.cfg_scale,
-        num_inference_steps=args.num_inference_steps,
-        seed=args.seed,
-    )
+    while True:
+        if args.interactive:
+            user_input = input("\nEnter prompt (or 'q' to quit): ")
+            if user_input.lower() == "q":
+                print("Exiting interactive mode.")
+                break
+            prompt = user_input
+            output_path = prompt_to_filename(prompt)
+        else:
+            prompt = args.prompt
+            output_path = args.output_path
 
-    end_time = time.time()
-    print(f"Warm inference time taken: {end_time - start_time} seconds")
-    save_image(img, args.output_path)
+        start_time = time.time()
+        img = pipeline.generate(
+            prompt=prompt,
+            negative_prompt=args.negative_prompt,
+            do_cfg=True,
+            cfg_scale=args.cfg_scale,
+            num_inference_steps=args.num_inference_steps,
+            seed=args.seed,
+        )
+        end_time = time.time()
+        print(f"Inference time taken: {end_time - start_time} seconds")
+        save_image(img, output_path)
+        print(f"Image saved to: {output_path}")
+
+        if not args.interactive:
+            break
