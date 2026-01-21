@@ -2231,9 +2231,10 @@ def _convert_boxes_to_pooler_format(
     boxes: torch.Tensor, sizes: torch.Tensor
 ) -> torch.Tensor:
     sizes = sizes.to(device=boxes.device)
-    indices = torch.repeat_interleave(
-        torch.arange(len(sizes), dtype=boxes.dtype, device=boxes.device), sizes
-    )
+    cum_sizes = torch.cumsum(sizes, dim=0)
+    indices = torch.searchsorted(
+        cum_sizes, torch.arange(cum_sizes[-1], device=sizes.device)
+    ).to(dtype=boxes.dtype)
     return cat([indices[:, None], boxes], dim=1)
 
 
