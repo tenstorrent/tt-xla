@@ -98,15 +98,33 @@ class DCN(nn.Module):
         o1, o2, mask = torch.chunk(offset_mask, 3, dim=1)
         offset = torch.cat((o1, o2), dim=1)
         mask = torch.sigmoid(mask)  # Ensure mask values in [0, 1]
-
-        out = torchvision.ops.deform_conv2d(
-            input=x,
-            offset=offset,
-            weight=self.weight,
-            bias=self.bias,
-            stride=self.stride,
-            padding=self.padding,
-            dilation=self.dilation,
-            mask=mask,
-        )
+        input_dtype = x.dtype
+        if input_dtype is torch.bfloat16:
+            x_fp32 = x.to(dtype=torch.float32)
+            offset_fp32 = offset.to(dtype=torch.float32)
+            weight_fp32 = self.weight.to(dtype=torch.float32)
+            bias_fp32 = (
+                self.bias.to(dtype=torch.float32) if self.bias is not None else None
+            )
+            out = torchvision.ops.deform_conv2d(
+                input=x_fp32,
+                offset=offset_fp32,
+                weight=weight_fp32,
+                bias=bias_fp32,
+                stride=self.stride,
+                padding=self.padding,
+                dilation=self.dilation,
+                mask=mask.to(dtype=torch.float32),
+            ).to(dtype=input_dtype)
+        else:
+            out = torchvision.ops.deform_conv2d(
+                input=x,
+                offset=offset,
+                weight=self.weight,
+                bias=self.bias,
+                stride=self.stride,
+                padding=self.padding,
+                dilation=self.dilation,
+                mask=mask,
+            )
         return out
