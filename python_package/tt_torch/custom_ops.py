@@ -66,6 +66,16 @@ def _(tensor: torch.Tensor, argument_type: str, name: str = None) -> torch.Tenso
     return tensor.clone()
 
 
+@mark_argument_attributes.register_autograd
+def _(ctx, grad_output):
+    """
+    Autograd implementation for mark_argument_attributes.
+    This op is just metadata annotation, so gradients pass through unchanged.
+    Returns gradients for: (tensor, argument_type, name)
+    """
+    return grad_output, None, None
+
+
 @torch.library.custom_op(
     "tt::sharding_constraint", mutates_args=[], device_types=["cpu", "xla"]
 )
@@ -117,6 +127,16 @@ def _(tensor: torch.Tensor, sdy_sharding: str) -> torch.Tensor:
     This must be implemented in order for dynamo to trace the function.
     """
     return tensor.clone()
+
+
+@sharding_constraint.register_autograd
+def _(ctx, grad_output):
+    """
+    Autograd implementation for sharding_constraint.
+    This op only applies sharding metadata, so gradients pass through unchanged.
+    Returns gradients for: (tensor, sdy_sharding)
+    """
+    return grad_output, None
 
 
 @torch.library.custom_op(
