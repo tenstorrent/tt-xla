@@ -18,6 +18,7 @@ from infra.workloads import TorchWorkload
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.serialization import parse_compiled_artifacts_from_cache_to_disk
 from tt_torch.sharding import sharding_constraint_hook
+from ttxla_tools.serialization import save_system_descriptor_to_disk
 
 from tests.infra import RunMode, TorchModelTester
 from tests.infra.connectors.torch_device_connector import TorchDeviceConnector
@@ -475,3 +476,22 @@ def test_spmd_sharding_constraints(request):
         pattern_files=pattern_files,
     )
     validate_filecheck_results(filecheck_results)
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_save_system_descriptor_to_disk(tmp_path):
+    device = xm.xla_device()
+
+    x = torch.randn(2, 2, device=device)
+    y = x + 1
+    xm.mark_step()
+
+    output_prefix = str(tmp_path / "test_system_desc")
+    save_system_descriptor_to_disk(output_prefix, as_json=False)
+
+    system_desc_path = Path(f"{output_prefix}_system_desc.ttsys")
+    assert (
+        system_desc_path.exists()
+    ), f"System descriptor binary file not created at {system_desc_path}"
+    assert system_desc_path.stat().st_size > 0, "System descriptor binary file is empty"
