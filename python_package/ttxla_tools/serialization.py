@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import io
+import os
+import shutil
 
 
 def parse_executable(executable_io: io.BytesIO):
@@ -88,3 +90,72 @@ def parse_executable(executable_io: io.BytesIO):
     flatbuffer_binary = executable_io.read(size_flatbuffer)
 
     return ttir_mlir, ttnn_mlir, flatbuffer_binary
+
+
+# TODO: When tt-mlir removes the temp file mechanism (m_cached_system_descriptor_path),
+# this function will need to be updated.
+def save_system_descriptor_to_disk(output_prefix: str, as_json: bool = False):
+    """
+    Save the current system descriptor to disk.
+
+    Creates one file:
+    - {output_prefix}_system_desc.ttsys (binary format, default)
+    - {output_prefix}_system_desc.json (JSON format, if as_json=True)
+
+    Output directory is created if it doesn't exist.
+
+    Note: This relies on the temp file stored in m_cached_system_descriptor_path
+    (see pjrt_implementation/src/api/client_instance.cc). The system descriptor
+    is created when the PJRT client initializes and is used for all compilations.
+
+    Example:
+    ```
+        save_system_descriptor_to_disk("output/model")
+        # Creates: output/model_system_desc.ttsys
+
+        save_system_descriptor_to_disk("output/model", as_json=True)
+        # Creates: output/model_system_desc.json
+    ```
+
+    Args:
+        output_prefix (str): Base path and filename prefix for output file
+        as_json (bool): If True, save as JSON instead of binary. Default: False
+
+    Raises:
+        FileNotFoundError: If the system descriptor temp file doesn't exist
+        ImportError: If as_json=True and ttrt.binary module is not available
+    """
+    import tempfile
+
+    system_desc_temp_path = os.path.join(
+        tempfile.gettempdir(), "tt_pjrt_system_descriptor"
+    )
+
+    if not os.path.exists(system_desc_temp_path):
+        raise FileNotFoundError(
+            f"System descriptor temp file not found at {system_desc_temp_path}. "
+        )
+
+    dirname = os.path.dirname(output_prefix)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
+
+    if as_json:
+        try:
+            import ttrt
+        except ImportError as e:
+            raise ImportError(
+                "Cannot import ttrt. "
+                "This requires building with TTMLIR_ENABLE_BINDINGS_PYTHON=ON. "
+                f"Error: {e}"
+            )
+
+        system_desc = ttrt.binary.load_system_desc_from_path(system_desc_temp_path)
+        json_string = system_desc.as_json()
+
+        system_desc_path = f"{output_prefix}_system_desc.json"
+        with open(system_desc_path, "w", encoding="utf-8") as f:
+            f.write(json_string)
+    else:
+        system_desc_path = f"{output_prefix}_system_desc.ttsys"
+        shutil.copy(system_desc_temp_path, system_desc_path)
