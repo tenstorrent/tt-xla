@@ -92,7 +92,7 @@ def parse_executable(executable_io: io.BytesIO):
     return ttir_mlir, ttnn_mlir, flatbuffer_binary
 
 
-# TODO: When tt-mlir removes the temp file mechanism (m_cached_system_descriptor_path),
+# TODO: When the temp file mechanism (m_cached_system_descriptor_path) is removed,
 # this function will need to be updated.
 def save_system_descriptor_to_disk(output_prefix: str, as_json: bool = False):
     """
