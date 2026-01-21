@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 
 import jax.numpy as jnp
-from tt_jax import serialize_compiled_artifacts_to_disk
+from tt_jax import save_system_descriptor_to_disk, serialize_compiled_artifacts_to_disk
 
 
 def add(x, y):
@@ -18,6 +18,7 @@ def main():
     b = jnp.array([4.0, 5.0, 6.0])
 
     serialize_compiled_artifacts_to_disk(add, a, b, output_prefix="output/add")
+    save_system_descriptor_to_disk("output/add")
 
 
 def test_serialization_artifacts():
@@ -33,6 +34,7 @@ def test_serialization_artifacts():
             Path("output/add.ttnn"),
             Path("output/add_ttnn.mlir"),
             Path("output/add_ttir.mlir"),
+            Path("output/add_system_desc.ttsys"),
         ]
 
         for filepath in expected_files:
