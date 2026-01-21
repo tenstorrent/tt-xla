@@ -50,5 +50,4 @@ def test_qwen3_backward():
     loss.backward()
 
     loss_value = loss.item()
-    print(f"Loss value: {loss_value}")
     assert loss_value > 0
