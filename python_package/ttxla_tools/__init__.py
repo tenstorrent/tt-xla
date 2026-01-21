@@ -2,4 +2,4 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .serialization import parse_executable
+from .serialization import parse_executable, serialize_system_descriptor_to_disk

@@ -3,27 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import importlib.util
-import json
 import os
 
 import torch
 import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
-import ttrt.binary
 from torch_xla.experimental import plugins
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
-
-
-def serialize_system_descriptor_to_disk(input_path, output_path):
-    """Load system descriptor from cache and serialize to JSON file."""
-    system_desc = ttrt.binary.load_system_desc_from_path(input_path)
-    data = ttrt.binary.fbb_as_dict(system_desc)
-
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "w") as f:
-        json.dump(data, f, indent=2)
-
+from ttxla_tools import serialize_system_descriptor_to_disk
 
 xr.set_device_type("TT")
 

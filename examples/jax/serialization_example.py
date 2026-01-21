@@ -4,6 +4,7 @@
 
 import jax.numpy as jnp
 from tt_jax import serialize_compiled_artifacts_to_disk
+from ttxla_tools import serialize_system_descriptor_to_disk
 
 a = jnp.array([1.0, 2.0, 3.0])
 b = jnp.array([4.0, 5.0, 6.0])
@@ -14,3 +15,6 @@ def add(x, y):
 
 
 serialize_compiled_artifacts_to_disk(add, a, b, output_prefix="output/add")
+serialize_system_descriptor_to_disk(
+    "/tmp/tt_pjrt_system_descriptor", "output/system_descriptor.json"
+)

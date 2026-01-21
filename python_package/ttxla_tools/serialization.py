@@ -3,6 +3,51 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import io
+import os
+
+
+def serialize_system_descriptor_to_disk(input_path: str, output_path: str):
+    """
+    Load the system descriptor from the temporary cache and serialize it to a JSON file.
+
+    Args:
+        input_path: Path to the binary system descriptor file (typically /tmp/tt_pjrt_system_descriptor)
+        output_path: Path where the JSON file will be written
+
+    Raises:
+        ImportError: If ttrt.binary module is not available (requires TTMLIR_ENABLE_BINDINGS_PYTHON)
+        FileNotFoundError: If input_path doesn't exist
+
+    Example:
+        >>> serialize_system_descriptor_to_disk(
+        ...     "/tmp/tt_pjrt_system_descriptor",
+        ...     "output/system_descriptor.json"
+        ... )
+    """
+    try:
+        import ttrt.binary
+    except ImportError as e:
+        raise ImportError(
+            "ttrt.binary module is not available. This module requires TT-MLIR to be built "
+            "with TTMLIR_ENABLE_BINDINGS_PYTHON=ON. Please rebuild TT-MLIR with Python bindings enabled, "
+            "or ensure your environment is correctly configured."
+        ) from e
+
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(
+            f"System descriptor not found at {input_path}. "
+            "Ensure a PJRT client has been initialized before calling this function."
+        )
+
+    system_desc = ttrt.binary.load_system_desc_from_path(input_path)
+    json_string = system_desc.as_json()
+
+    dir_name = os.path.dirname(output_path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(json_string)
 
 
 def parse_executable(executable_io: io.BytesIO):
