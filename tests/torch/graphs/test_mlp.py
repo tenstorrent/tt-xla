@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
 from typing import Callable
 
 import numpy as np
@@ -9,6 +8,7 @@ import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
+import tt_torch
 from infra import Framework, run_graph_test
 from infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
@@ -469,12 +469,17 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
 
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("mlp_type", ["original", "sparse"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
-def test_gpt_oss_mlp(variant, variant_config, arch):
+def test_gpt_oss_mlp(variant, variant_config, mlp_type, arch):
+    if mlp_type == "sparse":
+        if arch == "llmbox":
+            pytest.skip("Sparse MLP not supported in llmbox arch yet")
+
     xr.set_device_type("TT")
 
     loader = GPTOSSModelLoader(variant=variant, num_layers=1)
@@ -484,6 +489,9 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
 
     batch_size = inputs["input_ids"].shape[0]  # 1
     seq_len = inputs["input_ids"].shape[1]  # 128 with padding
+
+    if mlp_type == "sparse":
+        tt_torch.sparse_mlp.enable_sparse_mlp(model)
 
     mlp = model.model.layers[0].mlp
 

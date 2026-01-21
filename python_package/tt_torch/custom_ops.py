@@ -806,6 +806,169 @@ def paged_scaled_dot_product_attention_decode_fake(
     return torch.zeros_like(query)
 
 
+@torch.library.custom_op(
+    "tt::sparse_matmul", mutates_args=[], device_types=["xla", "cpu"]
+)
+def sparse_matmul(
+    input_tensor_a: torch.Tensor,
+    input_tensor_b: torch.Tensor,
+    sparsity: torch.Tensor,
+    nnz: int = None,
+    is_input_a_sparse: bool = False,
+    is_input_b_sparse: bool = True,
+) -> torch.Tensor:
+    """
+    Sparse matrix multiplication for MoE (Mixture of Experts) models.
+
+    This operation performs matrix multiplication where computation is skipped
+    for sparse (zero) blocks based on the sparsity tensor.
+
+    Args:
+        input_tensor_a: First input tensor. Shape depends on sparse mode:
+            - is_input_a_sparse=True, is_input_b_sparse=True: [1, E, M, K]
+            - is_input_a_sparse=False, is_input_b_sparse=True: [A, B, M, K]
+            - is_input_a_sparse=True, is_input_b_sparse=False: [A, E, M, K]
+        input_tensor_b: Second input tensor (expert weights). Shape:
+            - [1, E, K, N] for all modes
+        sparsity: Sparsity mask tensor (bfloat16, ROW_MAJOR). Shape depends on mode:
+            - is_input_a_sparse=True, is_input_b_sparse=True: [1, 1, 1, E]
+            - is_input_a_sparse=False, is_input_b_sparse=True: [A, B, 1, E]
+            - is_input_a_sparse=True, is_input_b_sparse=False: [1, 1, A, E]
+        nnz: Number of non-zero elements in sparsity tensor. If None, inferred at runtime.
+        is_input_a_sparse: Whether input_tensor_a is sparse.
+        is_input_b_sparse: Whether input_tensor_b is sparse.
+
+    Returns:
+        Output tensor with sparse results. Shape depends on mode:
+            - is_input_a_sparse=True, is_input_b_sparse=True: [1, E, M, N]
+            - is_input_a_sparse=False, is_input_b_sparse=True: [A, B, 1, E, M, N]
+            - is_input_a_sparse=True, is_input_b_sparse=False: [A, E, M, N]
+    """
+    device = input_tensor_a.device
+
+    if device.type == "xla":
+        frontend_attributes = {
+            "is_input_a_sparse": str(is_input_a_sparse),
+            "is_input_b_sparse": str(is_input_b_sparse),
+        }
+        if nnz is not None:
+            frontend_attributes["nnz"] = str(nnz)
+
+        # Compute output shape based on sparse mode
+        if is_input_a_sparse and is_input_b_sparse:
+            # [1, E, M, K] @ [1, E, K, N] -> [1, E, M, N]
+            output_shape = list(input_tensor_a.shape)
+            output_shape[-1] = input_tensor_b.shape[-1]
+        elif not is_input_a_sparse and is_input_b_sparse:
+            # [A, B, M, K] @ [1, E, K, N] -> [A, B, 1, E, M, N]
+            A, B, M, K = input_tensor_a.shape
+            E = input_tensor_b.shape[1]
+            N = input_tensor_b.shape[-1]
+            output_shape = [A, B, 1, E, M, N]
+        elif is_input_a_sparse and not is_input_b_sparse:
+            # [A, E, M, K] @ [1, E, K, N] -> [A, E, M, N]
+            output_shape = list(input_tensor_a.shape)
+            output_shape[-1] = input_tensor_b.shape[-1]
+        else:
+            raise ValueError(
+                "Invalid sparse mode: both is_input_a_sparse and is_input_b_sparse cannot be False"
+            )
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [input_tensor_a, input_tensor_b, sparsity],
+            "tt.sparse_matmul",
+            [output_shape],
+            [input_tensor_a.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    elif device.type == "cpu":
+        # CPU fallback: dense matmul with masking
+        # This is not truly sparse but provides correct results for testing
+        if is_input_a_sparse and is_input_b_sparse:
+            # [1, E, M, K] @ [1, E, K, N] -> [1, E, M, N]
+            # Ensure same dtype for matmul
+            input_b_casted = input_tensor_b.to(input_tensor_a.dtype)
+            output = torch.matmul(input_tensor_a, input_b_casted)
+            # Mask out inactive experts
+            mask = (sparsity > 0).to(input_tensor_a.dtype)
+            # Broadcast mask to output shape
+            while mask.dim() < output.dim():
+                mask = mask.unsqueeze(-1)
+            output = output * mask
+            return output
+
+        elif not is_input_a_sparse and is_input_b_sparse:
+            # [A, B, M, K] @ [1, E, K, N] -> [A, B, 1, E, M, N]
+            A, B, M, K = input_tensor_a.shape
+            E = input_tensor_b.shape[1]
+            N = input_tensor_b.shape[-1]
+
+            # Ensure same dtype for matmul
+            input_b_casted = input_tensor_b.to(input_tensor_a.dtype)
+
+            # Expand input_a for broadcasting: [A, B, 1, 1, M, K]
+            input_a_expanded = input_tensor_a.unsqueeze(2).unsqueeze(3)
+            # Expand input_b for broadcasting: [1, 1, 1, E, K, N]
+            input_b_expanded = input_b_casted.unsqueeze(0)
+
+            # Matmul: [A, B, 1, E, M, N]
+            output = torch.matmul(input_a_expanded, input_b_expanded)
+
+            # Apply sparsity mask [A, B, 1, E] -> [A, B, 1, E, 1, 1]
+            mask = (sparsity > 0).to(input_tensor_a.dtype).unsqueeze(-1).unsqueeze(-1)
+            output = output * mask
+            return output
+
+        elif is_input_a_sparse and not is_input_b_sparse:
+            # [A, E, M, K] @ [1, E, K, N] -> [A, E, M, N]
+            # Ensure same dtype for matmul
+            input_b_casted = input_tensor_b.to(input_tensor_a.dtype)
+            output = torch.matmul(input_tensor_a, input_b_casted)
+            # Apply sparsity mask [1, 1, A, E] -> [A, E, 1, 1]
+            mask = (sparsity > 0).to(input_tensor_a.dtype).permute(2, 3, 0, 1)
+            output = output * mask
+            return output
+
+        else:
+            raise ValueError(
+                "Invalid sparse mode: both is_input_a_sparse and is_input_b_sparse cannot be False"
+            )
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@sparse_matmul.register_fake
+def sparse_matmul_fake(
+    input_tensor_a: torch.Tensor,
+    input_tensor_b: torch.Tensor,
+    sparsity: torch.Tensor,
+    nnz: int = None,
+    is_input_a_sparse: bool = False,
+    is_input_b_sparse: bool = True,
+) -> torch.Tensor:
+    """FakeTensor implementation of sparse_matmul for torch dynamo tracing."""
+    if is_input_a_sparse and is_input_b_sparse:
+        output_shape = list(input_tensor_a.shape)
+        output_shape[-1] = input_tensor_b.shape[-1]
+    elif not is_input_a_sparse and is_input_b_sparse:
+        A, B, M, K = input_tensor_a.shape
+        E = input_tensor_b.shape[1]
+        N = input_tensor_b.shape[-1]
+        output_shape = [A, B, 1, E, M, N]
+    elif is_input_a_sparse and not is_input_b_sparse:
+        output_shape = list(input_tensor_a.shape)
+        output_shape[-1] = input_tensor_b.shape[-1]
+    else:
+        raise ValueError(
+            "Invalid sparse mode: both is_input_a_sparse and is_input_b_sparse cannot be False"
+        )
+
+    return torch.zeros(
+        output_shape, dtype=input_tensor_a.dtype, device=input_tensor_a.device
+    )
+
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 for attr in dir(torch.ops.tt):
