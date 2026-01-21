@@ -84,6 +84,11 @@ def test_gpt_oss_120b():
     print(f"Full text: {full_text}")
 
     print("GPT-OSS tensor parallel test completed successfully.")
+    
+    # Flush logs to ensure all loguru logs are written
+    import sys
+    sys.stdout.flush()
+    sys.stderr.flush()
 
     # Flush logs to ensure all loguru logs are written
     import sys
