@@ -365,7 +365,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", type=str, default="a photo of a cat")
     parser.add_argument("--negative_prompt", type=str, default="")
-    parser.add_argument("--interactive", action="store_true", default=False, help="Generate images by inputting prompts interactively")
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        default=False,
+        help="Generate images by inputting prompts interactively",
+    )
     parser.add_argument("--resolution", type=int, default=512, choices=[512, 1024])
     parser.add_argument("--optimization_level", type=int, default=1)
     parser.add_argument("--do_cfg", type=bool, default=True)
