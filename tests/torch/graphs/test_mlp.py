@@ -10,6 +10,7 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
+from infra.comparators.comparison_config import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers.models.falcon.modeling_falcon import FalconMLP
 from transformers.models.gemma.modeling_gemma import GemmaMLP
@@ -30,6 +31,12 @@ from third_party.tt_forge_models.gemma.pytorch.loader import (
 )
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelVariant as GemmaModelVariant,
+)
+from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+    ModelLoader as GPTOSSModelLoader,
+)
+from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+    ModelVariant as GPTOSSModelVariant,
 )
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
@@ -60,6 +67,7 @@ MODEL_LOADER_MAP = {
     "gemma": GemmaModelLoader,
     "mistral": MistralModelLoader,
     "falcon": FalconModelLoader,
+    "gpt_oss": GPTOSSModelLoader,
 }
 
 AVAILABLE_VARIANT_MAP = {
@@ -106,6 +114,7 @@ AVAILABLE_VARIANT_MAP = {
         "tiiuae/Falcon3-Mamba-7B-Base",
         "tiiuae/falcon-7b-instruct",
     ],
+    "gpt_oss": ["gpt_oss_20b", "gpt_oss_120b"],
 }
 
 
@@ -450,6 +459,70 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
         mlp,
         [hidden_states],
         framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""GPT-OSS MLP test"""
+
+
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("gpt_oss").items(),
+    ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
+)
+def test_gpt_oss_mlp(variant, variant_config, arch):
+    xr.set_device_type("TT")
+
+    loader = GPTOSSModelLoader(variant=variant, num_layers=1)
+    model = loader.load_model()
+    config = loader.load_config()
+    inputs = loader.load_inputs()
+
+    batch_size = inputs["input_ids"].shape[0]  # 1
+    seq_len = inputs["input_ids"].shape[1]  # 128 with padding
+
+    mlp = model.model.layers[0].mlp
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+
+    if arch == "llmbox":
+        comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (1, num_devices)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(mlp, args, kwargs):
+            shard_specs = {}
+
+            # Router weights (not sharded).
+            shard_specs[mlp.router.weight] = (None, None)
+            shard_specs[mlp.router.bias] = (None,)
+
+            # Shard experts across devices.
+            shard_specs[mlp.experts.gate_up_proj] = ("model", None, None)
+            shard_specs[mlp.experts.gate_up_proj_bias] = ("model", None)
+            shard_specs[mlp.experts.down_proj] = ("model", None, None)
+            shard_specs[mlp.experts.down_proj_bias] = ("model", None)
+
+            return shard_specs
+
+    else:
+        comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 
 @dataclass
@@ -39,6 +39,19 @@ class CompilerConfig:
     # Enables experimental BFP8 weight conversion in MLIR optimizer passes.
     experimental_enable_weight_bfp8_conversion: bool = False
 
+    # Override math fidelity for all ttnn operations exposing compute kernel
+    # config. Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".
+    # "ttnn_default" - means that we don't override math_fidelity in comiler,
+    # and let ttnn choose math_fidelity for each operation based on its own logic.
+    # If math_fidelity not set (None), the default behavior from MLIR is used. Currently,
+    # MLIR default is HiFi4 for all operations.
+    math_fidelity: Optional[str] = None
+
+    # Override fp32 destination accumulation for all ttnn operations exposing
+    # compute kernel config. If None, the default behavior from MLIR is used.
+    # Currently, MLIR default is true for all operations.
+    fp32_dest_acc_en: Optional[bool] = None
+
     # Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
     # TODO(sdjordjevicTT): This is a temporary option and will be removed once the underlying
     # issue https://github.com/tenstorrent/tt-mlir/issues/4628 is fixed.
@@ -55,6 +68,11 @@ class CompilerConfig:
 
     # Enables IR dumping to a specified path.
     export_path: str = ""
+
+    # Enables "try to recover structure" option for TTNN IR. Tries to match the
+    # structure of the original graph. This generates a more readable solution,
+    # useful when generating code.
+    codegen_try_recover_structure: bool = False
 
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
@@ -74,6 +92,12 @@ class CompilerConfig:
         if self.experimental_enable_weight_bfp8_conversion:
             options["experimental_enable_weight_bfp8_conversion"] = "true"
 
+        if self.math_fidelity is not None:
+            options["math_fidelity"] = self.math_fidelity
+
+        if self.fp32_dest_acc_en is not None:
+            options["fp32_dest_acc_en"] = "true" if self.fp32_dest_acc_en else "false"
+
         if self.experimental_enable_fusing_conv2d_with_multiply_pattern:
             options["experimental_enable_fusing_conv2d_with_multiply_pattern"] = "true"
 
@@ -85,6 +109,9 @@ class CompilerConfig:
 
         if self.export_path != "":
             options["export_path"] = self.export_path
+
+        if self.codegen_try_recover_structure:
+            options["codegen_try_recover_structure"] = "true"
 
         return options
 

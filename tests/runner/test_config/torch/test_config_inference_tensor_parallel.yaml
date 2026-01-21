@@ -6,15 +6,12 @@
 test_config:
   falcon/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.970244288444519. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
     markers: [tp_2x4_mesh]
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2435
     markers: [tp_2x4_mesh]
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-inference:
@@ -36,6 +33,11 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494"
     bringup_status: FAILED_RUNTIME
+
+  gpt_oss/pytorch-gpt_oss_20b-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
 
   falcon/pytorch-tiiuae/falcon-7b-instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -72,7 +74,6 @@ test_config:
   qwen_3/causal_lm/pytorch-14b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    required_pcc: 0.98 # 0.9860
 
   qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -82,7 +83,6 @@ test_config:
   qwen_3/causal_lm/pytorch-32b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    required_pcc: 0.98 # 0.9899
 
   qwen_3/causal_lm/pytorch-8b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -129,20 +129,14 @@ test_config:
   qwen_2_5/causal_lm/pytorch-14b_instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
 
   qwen_2_5/causal_lm/pytorch-32b_instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
 
   qwen_2_5_coder/pytorch-32b_instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    bringup_status: INCORRECT_RESULT
-    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/1474
 
   qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]

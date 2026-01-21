@@ -302,7 +302,9 @@ class CMakeBuildPy(build_py):
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
             return
-
+        # Broken symlinks introduced in tt-umd -> tt-metal -> tt-mlir uplift
+        # issue: https://github.com/tenstorrent/tt-umd/issues/1864
+        _remove_broken_symlinks(install_dir)
         _remove_static_archives(install_dir)
 
         if config.build_type == "release":
@@ -330,6 +332,15 @@ def _remove_static_archives(root: Path) -> None:
         if rel.parts and rel.parts[0] == "lib":
             print(f"Removing static archive: {rel}")
             archive.unlink()
+
+
+def _remove_broken_symlinks(root: Path) -> None:
+    """Remove broken symlinks that would cause wheel packaging to fail."""
+    for path in root.rglob("*"):
+        if path.is_symlink() and not path.exists():
+            rel = path.relative_to(root)
+            print(f"Removing broken symlink: {rel}")
+            path.unlink()
 
 
 def _strip_shared_objects(root: Path) -> None:

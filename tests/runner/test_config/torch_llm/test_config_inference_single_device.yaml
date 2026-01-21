@@ -1,0 +1,129 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# LLM decode/prefill inference single-device test configuration
+# Use Python enum names or values for fields below (names preferred for readability):
+#   - status: ModelTestStatus names (e.g., EXPECTED_PASSING) or values (e.g., expected_passing)
+#   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
+
+test_config:
+  falcon/pytorch-tiiuae/Falcon3-1B-Base-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+
+  falcon/pytorch-tiiuae/Falcon3-3B-Base-llm_decode-single_device-inference:
+    required_pcc: 0.985 # Is 0.990 (p150) or 0.989 (n150)
+    status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+
+  falcon/pytorch-tiiuae/Falcon3-7B-Base-llm_decode-single_device-inference:
+    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    status: EXPECTED_PASSING
+
+  falcon/pytorch-tiiuae/Falcon3-10B-Base-llm_decode-single_device-inference:
+    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    required_pcc: 0.985 # Is 0.990 (p150)
+    status: EXPECTED_PASSING
+
+  qwen_2_5/causal_lm/pytorch-0_5b_instruct-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+
+  qwen_2_5/causal_lm/pytorch-1_5b_instruct-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+
+  qwen_2_5/causal_lm/pytorch-3b_instruct-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845 - original test also has low pcc
+
+  qwen_2_5/causal_lm/pytorch-7b_instruct-llm_decode-single_device-inference:
+    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    status: EXPECTED_PASSING
+
+  qwen_2_5/causal_lm/pytorch-14b_instruct-llm_decode-single_device-inference:
+    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+
+  qwen_2_5/causal_lm/pytorch-32b_instruct-llm_decode-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  qwen_2_5/causal_lm/pytorch-72b_instruct-llm_decode-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  gemma/pytorch-google/gemma-1.1-2b-it-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+
+  gemma/pytorch-google/gemma-1.1-7b-it-llm_decode-single_device-inference:
+    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+
+  gemma/pytorch-google/gemma-2-2b-it-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+
+  gemma/pytorch-google/gemma-2-9b-it-llm_decode-single_device-inference:
+    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+
+  gemma/pytorch-google/gemma-2-27b-it-llm_decode-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  llama/causal_lm/pytorch-llama_3_1_8b_instruct-llm_decode-single_device-inference:
+    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+
+  llama/causal_lm/pytorch-llama_3_1_70b-llm_decode-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  llama/causal_lm/pytorch-llama_3_1_70b_instruct-llm_decode-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  llama/causal_lm/pytorch-llama_3_1_405b-llm_decode-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  llama/causal_lm/pytorch-llama_3_2_1b_instruct-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+
+  llama/causal_lm/pytorch-llama_3_2_3b_instruct-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-llama_3_3_70b_instruct-llm_decode-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  qwen_3/causal_lm/pytorch-0_6b-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+
+  qwen_3/causal_lm/pytorch-1_7b-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+
+  qwen_3/causal_lm/pytorch-4b-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+
+  qwen_3/causal_lm/pytorch-8b-llm_decode-single_device-inference:
+    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+
+  qwen_3/causal_lm/pytorch-14b-llm_decode-single_device-inference:
+    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    status: EXPECTED_PASSING
+
+  qwen_3/causal_lm/pytorch-32b-llm_decode-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  qwen_3/causal_lm/pytorch-30b_a3b-llm_decode-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  llama/causal_lm/pytorch-llama_3_2_3b-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-TinyLlama_v1.1-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING

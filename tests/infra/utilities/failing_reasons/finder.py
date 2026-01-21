@@ -9,7 +9,7 @@ from typing import Generator, Optional
 from loguru import logger
 
 from .checks_xla import FailingReasons
-from .utils import ExceptionData, PyTestUtils
+from .utils import ExceptionData, ExceptionReason, PyTestUtils
 
 
 class FailingReasonsFinder:
@@ -46,11 +46,11 @@ class FailingReasonsFinder:
         return ex_data
 
     @classmethod
-    def find_reason_by_ex_data(cls, ex: ExceptionData) -> Optional["FailingReasons"]:
+    def find_reason_by_ex_data(cls, ex: ExceptionData) -> Optional["ExceptionReason"]:
         reasons = list(cls.find_reasons_by_ex_data(ex))
         if not reasons:
             # If no failing reason is found, classify as UNCLASSIFIED
-            return FailingReasons.UNCLASSIFIED
+            return ExceptionReason(failing_reasons=FailingReasons.UNCLASSIFIED)
         if len(reasons) > 1:
             # Extract just the error message from stderr for cleaner logging
             error_msg = None
@@ -72,16 +72,18 @@ class FailingReasonsFinder:
     @classmethod
     def find_reasons_by_ex_data(
         cls, ex: ExceptionData
-    ) -> Generator["FailingReasons", None, None]:
+    ) -> Generator["ExceptionReason", None, None]:
         for failing_reason in FailingReasons:
             # Checking if exception data matches the failing reason
-            if ex in failing_reason.value:
-                yield failing_reason
+            exception_reason = failing_reason.value.check(ex)
+            if exception_reason is not None:
+                exception_reason.failing_reasons = failing_reason
+                yield exception_reason
 
     @classmethod
     def find_reason_by_exception(
         cls, exc: Exception, stdout: str, stderr: str
-    ) -> Optional["FailingReasons"]:
+    ) -> Optional["ExceptionReason"]:
         """Find failing reason by exception"""
         # Get long representation of exception
         long_repr = PyTestUtils.get_long_repr(exc)

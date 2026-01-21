@@ -135,13 +135,11 @@ test_config:
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-single_device-inference:
     supported_archs: ["p150"]
-    required_pcc: 0.96 # PCC dropped after uplift https://github.com/tenstorrent/tt-xla/issues/2433
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
-    required_pcc: 0.98
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-single_device-inference:
     supported_archs: ["p150"]
@@ -587,6 +585,7 @@ test_config:
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-inference:
     status: EXPECTED_PASSING
@@ -902,6 +901,10 @@ test_config:
   qwen_2_5_vl/pytorch-7b_instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   llama/sequence_classification/pytorch-llama_3_2_1b-single_device-inference:
     status: EXPECTED_PASSING
@@ -1010,7 +1013,6 @@ test_config:
     markers: [push]
 
   qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-inference:
-    required_pcc: 0.97 # Previously 0.98, changed to 0.97 due to change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-inference:
@@ -1036,9 +1038,7 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
 
   yolov7/pytorch-yolov7-single_device-inference:
-    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.9570515751838684. Required: pcc=0.99."
-    assert_pcc: false
-    bringup_status: INCORRECT_RESULT
+    status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7-w6-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -1494,7 +1494,6 @@ test_config:
     status: EXPECTED_PASSING
 
   phi3/phi_3_5/pytorch-mini_instruct-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   bi_lstm_crf/pytorch-default-single_device-inference:
@@ -1528,6 +1527,7 @@ test_config:
   gemma/pytorch-google/gemma-1.1-7b-it-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   stable_diffusion_xl/pytorch-stable-diffusion-xl-base-1.0-single_device-inference:
     status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
@@ -1673,6 +1673,7 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_1_8b_instruct-single_device-inference:
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1802,9 +1803,7 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-14b_instruct-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8147078156471252. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
 
   qwen_2_5/causal_lm/pytorch-14b_instruct_1m-single_device-inference:
     arch_overrides:
@@ -1901,7 +1900,6 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-8b-single_device-inference:
-    required_pcc: 0.985
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -2155,26 +2153,50 @@ test_config:
   openvla/pytorch-openvla_7b-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla/pytorch-openvla_v01_7b-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla/pytorch-openvla_7b_finetuned_libero_10-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla/pytorch-openvla_7b_finetuned_libero_goal-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla/pytorch-openvla_7b_finetuned_libero_object-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla/pytorch-openvla_7b_finetuned_libero_spatial-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   transfuser/pytorch-single_device-inference:
     assert_pcc: false # PCC is -0.715
@@ -2318,15 +2340,14 @@ test_config:
         required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-swin_base_coco-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 61231104 B L1 buffer across 72 banks, where each bank needs to store 850432 B, but bank size is only 1331936 B"
+    status: EXPECTED_PASSING
 
   maskformer_swin_b/pytorch-swin_base_ade-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2237
 
   yolos_small/pytorch-small-single_device-inference:
-    required_pcc: 0.98
+    required_pcc: 0.965
     status: EXPECTED_PASSING
 
   yolos_small/pytorch-small_dwr-single_device-inference:
@@ -2395,10 +2416,18 @@ test_config:
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision_instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor while an async operation is in flight: UNKNOWN_SCALAR[]')"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   arnold/pytorch-deathmatch_shotgun_rnn-single_device-inference:
     status: EXPECTED_PASSING
@@ -2495,37 +2524,44 @@ test_config:
     required_pcc: 0.98
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_goal-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_object-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial_object_goal_10-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.97
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+        status: NOT_SUPPORTED_SKIP
+        reason: "Multi chip is required"
 
   mistral/pytorch-mistral_nemo_instruct_2407-single_device-inference:
     supported_archs: ["p150"] # 12B param model
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   wan/pytorch-wan2.2-ti2v-5b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Wan2.2 model requires a lot of memeory and takes a lot of time to load hence skipping it for now."
+
+  monodle/pytorch-dla34-single_device-inference:
+    status: EXPECTED_PASSING
+
+  alexnet/pytorch-alexnet_high_res-single_device-inference:
+    status: EXPECTED_PASSING

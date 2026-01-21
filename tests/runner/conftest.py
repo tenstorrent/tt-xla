@@ -9,10 +9,13 @@ import pytest
 
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
+from tests.runner.test_config.torch_llm import test_config as torch_llm_test_config
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
 # Global set to track collected test node IDs
 _collected_nodeids = set()
+# Global set to track collected test function names
+_collected_test_functions = set()
 
 # Allowed architecture identifiers for arch_overrides and --arch option
 ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
@@ -33,6 +36,12 @@ def _get_model_group_from_item(item):
         return None
 
     test_entry = item.callspec.params.get("test_entry")
+    if test_entry is None:
+        # Try test_entry_and_phase (for test_llms_torch which uses tuple parametrization)
+        test_entry_and_phase = item.callspec.params.get("test_entry_and_phase")
+        if test_entry_and_phase is not None:
+            test_entry, _ = test_entry_and_phase  # Unpack tuple
+
     if test_entry is None:
         return None
 
@@ -93,13 +102,18 @@ def pytest_collection_modifyitems(config, items):
     validate_config = config.getoption("--validate-test-config")
 
     # Merge torch and jax test configs once outside the loop
-    combined_test_config = torch_test_config | jax_test_config
+    combined_test_config = torch_test_config | jax_test_config | torch_llm_test_config
 
     deselected = []
 
     for item in items:
 
         nodeid = item.nodeid
+
+        if "::" in nodeid:
+            test_function_name = nodeid.split("::")[-1].split("[")[0]
+            _collected_test_functions.add(test_function_name)
+
         if "[" in nodeid:
             nodeid = nodeid[nodeid.index("[") + 1 : -1]
 
@@ -198,27 +212,27 @@ def pytest_sessionfinish(session, exitstatus):
     print("VALIDATING TEST CONFIGURATIONS")
     print("=" * 60 + "\n")
 
-    # Determine which configs to validate based on collected tests
-    # Check if we collected torch tests, jax tests, or both
-    has_torch_tests = any(
-        "pytorch" in nodeid or "test_all_models_torch" in nodeid
-        for nodeid in _collected_nodeids
-    )
-    has_jax_tests = any(
-        "jax" in nodeid or "test_all_models_jax" in nodeid
-        for nodeid in _collected_nodeids
-    )
+    # Determine which configs to validate based on collected test function names
+    has_torch_tests = "test_all_models_torch" in _collected_test_functions
+    has_jax_tests = "test_all_models_jax" in _collected_test_functions
+    has_torch_llm_tests = "test_llms_torch" in _collected_test_functions
 
     # Only validate configs for the frameworks that were actually collected
-    if has_torch_tests and has_jax_tests:
-        combined_test_config = torch_test_config | jax_test_config
-    elif has_torch_tests:
-        combined_test_config = torch_test_config
-    elif has_jax_tests:
-        combined_test_config = jax_test_config
-    else:
-        # No framework-specific tests collected, validate all configs
-        combined_test_config = torch_test_config | jax_test_config
+    # or default to all configs if nothing was specifically collected
+    configs_to_merge = [
+        config
+        for enabled, config in [
+            (has_torch_tests, torch_test_config),
+            (has_jax_tests, jax_test_config),
+            (has_torch_llm_tests, torch_llm_test_config),
+        ]
+        if enabled
+    ] or [torch_test_config, jax_test_config, torch_llm_test_config]
+
+    # Merge selected configs
+    combined_test_config = {}
+    for config in configs_to_merge:
+        combined_test_config |= config
 
     # Basic validation: ensure all arch_overrides keys use allowed arches
     invalid_arch_entries = []
