@@ -2565,3 +2565,15 @@ test_config:
 
   alexnet/pytorch-alexnet_high_res-single_device-inference:
     status: EXPECTED_PASSING
+
+  dinov2/image_classification/pytorch-small-single_device-inference:
+    status: EXPECTED_PASSING
+
+  dinov2/image_classification/pytorch-base-single_device-inference:
+    status: EXPECTED_PASSING
+
+  dinov2/image_classification/pytorch-large-single_device-inference:
+    status: EXPECTED_PASSING
+
+  dinov2/image_classification/pytorch-giant-single_device-inference:
+    status: EXPECTED_PASSING
