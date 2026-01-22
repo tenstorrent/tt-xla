@@ -11,6 +11,10 @@ on:
         description: 'Artifact name of the wheel'
         type: string
         required: true
+      wheel_release_vllm_tt_artifact_name:
+        description: 'Artifact name of the vllm wheel'
+        type: string
+        required: true
       is_nightly_release:
         description: 'Is the wheel a nigthly release'
         type: boolean
@@ -38,14 +42,15 @@ jobs:
         shell: bash
         id: set-tag
         run: |
-          source .version
-          tag="$VERSION"
+          # source .version
+          # tag="$VERSION"
 
-          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
-            nightly_release_suffix="dev$(date -u +'%Y%m%d%H%M%S')"
-            tag="$VERSION.$nightly_release_suffix"
-          fi
+          # if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
+          #   nightly_release_suffix="dev$(date -u +'%Y%m%d%H%M%S')"
+          #   tag="$VERSION.$nightly_release_suffix"
+          # fi
 
+          tag="0.1.0.dev1"
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Set up Python
@@ -56,12 +61,23 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_PYPI_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Download wheel
+      - name: Download wheels
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          sudo apt-get update
+          sudo apt-get install -y -q curl gnupg
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+            sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
+            sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt-get update && sudo apt-get install -y -q gh
+
           rm -f *.whl
 
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_artifact_name }}"
@@ -70,25 +86,34 @@ jobs:
             --dir wheel \
             --name ${{ inputs.wheel_release_artifact_name }}
 
-          echo "Downloaded wheel"
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_vllm_tt_artifact_name }}"
+          gh run download ${{ inputs.wheel_release_artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheel \
+            --name ${{ inputs.wheel_release_vllm_tt_artifact_name }}
+
+          echo "Downloaded wheels"
           ls -l
 
-      - name: Rename wheel
+      - name: Rename wheels
         shell: bash
         run: |
           tag="${{ steps.set-tag.outputs.tag}}"
 
-          .github/scripts/modify_wheel_version.sh *.whl $tag
+          .github/scripts/modify_wheel_version.sh wheel/pjrt_plugin_tt*.whl $tag
+          .github/scripts/modify_wheel_version.sh wheel/vllm_tt*.whl $tag
 
-      - name: Publish Tenstorrent PyPI package
+      - name: Publish Tenstorrent PyPI packages
         shell: bash
         run: |
+          shopt -s nullglob
           pip install s3pypi
-          wheel_file=$(realpath *.whl)
 
-          echo "Pyblishing the tt-xla pypi wheel"
-          if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
-            s3pypi upload "$wheel_file" --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
-          else
-            s3pypi upload "$wheel_file" --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
-          fi
+          echo "Uploading wheels to the pypi bucket"
+          for wheel_file in wheel/*.whl; do
+            if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
+              s3pypi upload "$wheel_file" --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
+            else
+              s3pypi upload "$wheel_file" --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
+            fi
+          done

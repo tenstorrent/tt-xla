@@ -9,19 +9,21 @@ on:
         required: true
 
 jobs:
-  # now the tag is better, try again
-  # should work seamlessly
+  # tested - working
   perf-benchmark:
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/extract-mlir-version-differently
     secrets: inherit
     with:
-      project-filter: tt-xla
+      ref: vvukoman/extract-mlir-version-differently
       docker-image: ${{ inputs.release_docker_image }}
-      ref: main
+      project: tt-xla
+      sh-runner: true
 
-  demo-tests:
-    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
+  # tested - working
+  demo-test:
+    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@vvukoman/extract-mlir-version-differently
     secrets: inherit
     with:
       docker-image: ${{ inputs.release_docker_image }}
       project-filter: tt-xla
+      ref: vvukoman/extract-mlir-version-differently

@@ -79,6 +79,7 @@ jobs:
     with:
       wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
       is_nightly_release: true
 
   # todo(vvukoman): pack only the pjrt_plugin_tt whl or vllm whl as well?
@@ -91,6 +92,7 @@ jobs:
     with:
       wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
       wheel_version_override: ${{ needs.publish-release-wheel.outputs.release_tag }}
 
   # not tested - perf & demo tests

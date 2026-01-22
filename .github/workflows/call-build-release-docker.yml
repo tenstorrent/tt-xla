@@ -11,6 +11,10 @@ on:
         description: 'Artifact name of the wheel'
         type: string
         required: true
+      wheel_release_vllm_tt_artifact_name:
+        description: 'Artifact name of the vllm wheel'
+        type: string
+        required: true
       wheel_version_override:
         description: 'Wheel version override value'
         type: string
@@ -72,6 +76,13 @@ jobs:
             --dir . \
             --name ${{ inputs.wheel_release_artifact_name }}
 
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_artifact_name }}"
+          gh run download ${{ inputs.wheel_release_artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir . \
+            --name ${{ inputs.wheel_release_artifact_name }}
+
+          echo "Downloaded wheels"
           ls -l
 
       - name: Rename wheel
@@ -81,6 +92,7 @@ jobs:
           tag="${{ inputs.wheel_version_override }}"
 
           .github/scripts/modify_wheel_version.sh pjrt_plugin_tt*.whl $tag
+          .github/scripts/modify_wheel_version.sh vllm_tt*.whl $tag
 
       - name: Build & push Docker image
         shell: bash
