@@ -43,6 +43,9 @@ RUN apt-get update && \
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/
 
+# temporary fix for installing the vllm wheel successfully
+ENV VLLM_TARGET_DEVICE="empty"
+
 COPY *.whl /tmp/
 RUN pip install --no-cache-dir /tmp/pjrt_plugin_tt*.whl && \
     pip install --no-cache-dir /tmp/vllm_tt*.whl && \
