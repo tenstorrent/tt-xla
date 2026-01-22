@@ -689,7 +689,6 @@ def get_xla_device_arch():
     device_attributes = all_attributes[0]
 
     arch_name = device_attributes["device_arch"].lower()
-    print(f"Arch_name: {arch_name}")
 
     for arch in ["wormhole", "blackhole"]:
         if arch in arch_name:

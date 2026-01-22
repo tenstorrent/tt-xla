@@ -18,6 +18,20 @@
 
 namespace tt::pjrt {
 
+// Helper to create attributes.
+PJRT_NamedValue createStringAttribute(const std::string &name,
+                                      const std::string &value) {
+  PJRT_NamedValue attr;
+  attr.struct_size = PJRT_NamedValue_STRUCT_SIZE;
+  attr.extension_start = nullptr;
+  attr.name = name.c_str();
+  attr.name_size = name.size();
+  attr.type = PJRT_NamedValue_kString;
+  attr.string_value = value.c_str();
+  attr.value_size = value.size();
+  return attr;
+}
+
 DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch)
     : m_device_id(device_id), m_process_index(0),
       m_device_kind(tt::target::EnumNameArch(arch)) {
@@ -25,17 +39,10 @@ DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch)
   ss << "TTDevice(id=" << m_device_id << ", arch=" << m_device_kind << ")";
   m_user_string = ss.str();
 
-  // NEW: Initialize the attributes list
-  PJRT_NamedValue arch_attr;
-  arch_attr.struct_size = PJRT_NamedValue_STRUCT_SIZE;
-  arch_attr.extension_start = nullptr;
-  arch_attr.name = m_arch_attr_name.c_str(); // "arch"
-  arch_attr.name_size = m_arch_attr_name.size();
-  arch_attr.type = PJRT_NamedValue_kString;
-  arch_attr.string_value = m_device_kind.c_str(); // e.g. "wormhole_b0"
-  arch_attr.value_size = m_device_kind.size();
-
-  m_attributes.push_back(arch_attr);
+  // Create attributes list
+  m_attributes.push_back(createStringAttribute(
+      m_arch_attr_name,
+      m_device_kind)); // device arch attribute (e.g. "wormhole_b0")
 }
 
 void DeviceDescription::bindApi(PJRT_Api *api) {
@@ -74,7 +81,6 @@ PJRT_Error *
 onDeviceDescriptionAttributes(PJRT_DeviceDescription_Attributes_Args *args) {
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Attributes");
 
-  // NEW: Return the attributes we stored (device arch)
   const auto &attributes =
       DeviceDescription::unwrap(args->device_description)->getAttributes();
 
