@@ -76,11 +76,11 @@ jobs:
             --dir . \
             --name ${{ inputs.wheel_release_artifact_name }}
 
-          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_artifact_name }}"
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_vllm_tt_artifact_name }}"
           gh run download ${{ inputs.wheel_release_artifact_run_id }} \
             --repo ${{ github.repository }} \
             --dir . \
-            --name ${{ inputs.wheel_release_artifact_name }}
+            --name ${{ inputs.wheel_release_vllm_tt_artifact_name }}
 
           echo "Downloaded wheels"
           ls -l
