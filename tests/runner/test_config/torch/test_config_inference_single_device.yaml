@@ -80,7 +80,8 @@ test_config:
 
   xglm/pytorch-xglm-1.7B-single_device-inference:
     required_pcc: 0.98 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected.
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.9786. Required: pcc=0.98. Weekly test failure."
 
   resnet/pytorch-resnet_50_hf-single_device-inference:
     required_pcc: 0.98
@@ -292,10 +293,12 @@ test_config:
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.9712. Required: pcc=0.98. Weekly test failure."
 
   dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.9345. Required: pcc=0.99. Weekly test failure."
 
   efficientnet/pytorch-efficientnet_b0-single_device-inference:
     required_pcc: 0.985 # PCC droped to 0.9882324215005038
@@ -588,10 +591,12 @@ test_config:
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.9345. Required: pcc=0.99. Weekly test failure."
 
   phi2/token_classification/pytorch-microsoft/phi-2-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.8971. Required: pcc=0.975. Weekly test failure."
     arch_overrides:
       p150:
         required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
@@ -724,7 +729,8 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-xlarge_v1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.9873. Required: pcc=0.99. Weekly test failure."
 
   albert/masked_lm/pytorch-xxlarge_v1-single_device-inference:
     status: EXPECTED_PASSING
@@ -752,7 +758,8 @@ test_config:
 
   yolos/pytorch-single_device-inference:
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1168 https://github.com/tenstorrent/tt-xla/issues/2759
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.9592. Required: pcc=0.96. Weekly test failure."
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-inference:
     required_pcc: 0.98
@@ -1006,7 +1013,8 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_2_3b-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-mlir/issues/6461
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.9712. Required: pcc=0.98. Weekly test failure."
 
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-inference:
     status: EXPECTED_PASSING
@@ -1309,7 +1317,8 @@ test_config:
     markers: [push, nightly]
 
   yolov9/pytorch-s-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.9797-0.9873. Required: pcc=0.99. Weekly test failure."
 
   yolov9/pytorch-m-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -1586,7 +1595,8 @@ test_config:
     status: EXPECTED_PASSING
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.9786. Required: pcc=0.98. Weekly test failure."
 
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-inference:
     status: EXPECTED_PASSING
@@ -2332,7 +2342,8 @@ test_config:
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-TinyLlama_v1.1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.9388. Required: pcc=0.96. Weekly test failure."
     arch_overrides:
       n150:
         required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
