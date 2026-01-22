@@ -206,18 +206,28 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
             and hasattr(node.target, "name")
             and "prims::convert_element_type" in node.target.name()
         ):
-            is_unwanted_dtype_promotion = (
-                node.meta["original_aten"]._name != "aten::_to_copy"
-                and node.args[1] == torch.float32
-            )
-            is_redundant_cast = (
-                "tensor_meta" in node.args[0].meta
-                and node.args[0].meta["tensor_meta"].dtype == node.args[1]
-            )
+            target_dtype = node.args[1]
+        elif (
+            node.op == "call_function"
+            and node.target == torch.ops.aten._to_copy.default
+            and "dtype" in node.kwargs
+        ):
+            target_dtype = node.kwargs["dtype"]
+        else:
+            continue
 
-            if is_unwanted_dtype_promotion or is_redundant_cast:
-                node.replace_all_uses_with(node.args[0])
-                removed_non_redundant_casts |= is_unwanted_dtype_promotion
+        is_unwanted_dtype_promotion = (
+            node.meta["original_aten"]._name != "aten::_to_copy"
+            and target_dtype == torch.float32
+        )
+        is_redundant_cast = (
+            "tensor_meta" in node.args[0].meta
+            and node.args[0].meta["tensor_meta"].dtype == target_dtype
+        )
+
+        if is_unwanted_dtype_promotion or is_redundant_cast:
+            node.replace_all_uses_with(node.args[0])
+            removed_non_redundant_casts |= is_unwanted_dtype_promotion
 
     gm.graph.eliminate_dead_code()
     gm.graph.lint()
