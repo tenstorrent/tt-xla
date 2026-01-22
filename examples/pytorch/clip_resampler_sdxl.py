@@ -17,10 +17,16 @@ import torch_xla.runtime as xr
 from diffusers import StableDiffusionXLPipeline
 from transformers import CLIPImageProcessor, CLIPVisionModelWithProjection
 from transformers.image_utils import load_image
+from tt_torch import codegen_py
 
-# --- 1. CONFIGURATION ---
+# CONFIG
+compile_options = {
+    "optimization_level": 1,
+}
+EXPORT_PATH = "clip_resampler_codegen"
+torch_xla.set_custom_compile_options(compile_options)
+
 dtype = torch.bfloat16
-torch_xla.set_custom_compile_options({"optimization_level": 1})
 model_id = "stabilityai/stable-diffusion-xl-base-1.0"
 image_encoder_id = "laion/CLIP-ViT-H-14-laion2B-s32B-b79K"
 ip_adapter_weights_name = "ip-adapter-plus_sdxl_vit-h.bin"
@@ -138,16 +144,41 @@ def run_on_tt():
     clip_resampler = clip_resampler.to(device)
 
     # Move input to device
-    input = get_input()
-    input = input.to(device)
+    input_data = get_input()
+    input_tensor = input_data["pixel_values"]
+    input_tensor = input_tensor.to(device)
 
     print("Running on TT...")
-    output = clip_resampler(input["pixel_values"])
+    output = clip_resampler(input_tensor)
     print("Finished running on TT")
     return output
 
 
+def run_codegen():
+    """Generate Python code for the CLIPResamplerModule."""
+
+    # Set up XLA runtime for TT backend
+    xr.set_device_type("TT")
+
+    clip_resampler = get_model()
+
+    input_data = get_input()
+    input_tensor = input_data["pixel_values"]
+
+    print(f"Generating code to {EXPORT_PATH}...")
+    codegen_py(
+        clip_resampler,
+        input_tensor,
+        export_path=EXPORT_PATH,
+        compiler_options=compile_options,
+    )
+    print(f"Code generated to {EXPORT_PATH}")
+
+
 def main():
+    # run_codegen()
+    # return
+
     output_pt = run_on_cpu()
     output_tt = run_on_tt()
 
