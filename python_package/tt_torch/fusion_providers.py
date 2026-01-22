@@ -9,11 +9,13 @@ All fusion provider classes are defined in this file.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Type
+from typing import Any, Callable, List, Type
 
 import torch
 from torch import Tensor
 from torch.fx.subgraph_rewriter import replace_pattern_with_filters
+
+InternalMatch = Any
 
 
 class FusionProvider(ABC):
@@ -26,6 +28,11 @@ class FusionProvider(ABC):
     2. Implement the `name` property
     3. Implement the `pattern` static method (the pattern to match)
     4. Implement the `replacement` static method (the replacement function)
+
+    Optional:
+    5. Implement the `match_filter` method (single match filter to apply to the pattern)
+    or alternatively,
+    Implement the `get_match_filters` method (list of match filters to apply to the pattern)
     """
 
     _registered_providers: List[Type["FusionProvider"]] = []
@@ -57,6 +64,15 @@ class FusionProvider(ABC):
         """The replacement function."""
         pass
 
+    @staticmethod
+    def match_filter(*args, **kwargs) -> bool:
+        """The match filter to apply to the pattern."""
+        return True
+
+    def get_match_filters(self) -> List[Callable]:
+        """Return the match filters for the provider."""
+        return [self.match_filter]
+
     def replace_pattern(self, gm: torch.fx.GraphModule) -> int:
         """
         Replace a pattern in the graph.
@@ -71,6 +87,7 @@ class FusionProvider(ABC):
             gm,
             self.pattern,
             self.replacement,
+            match_filters=self.get_match_filters(),
         )
         return len(replaced)
 
@@ -122,3 +139,20 @@ class RMSNormFusionProvider(FusionProvider):
         return torch.nn.functional.rms_norm(
             hidden_states, normalized_shape=weight.shape, weight=weight, eps=eps
         )
+
+    @staticmethod
+    def match_filter(match, gm: torch.fx.Graph, subgraph: torch.fx.Graph) -> bool:
+        # TODO: Remove this once https://github.com/tenstorrent/tt-metal/issues/36094 is fixed
+        upper_bound = 4096
+        for pn, gn in match.nodes_map.items():
+            if pn.target != "weight":
+                continue
+            if (value := gn.meta.get("example_value", None)) is None:
+                raise ValueError("Example value is not set for weight node")
+            if value.size()[-1] >= upper_bound:
+                print(
+                    f"[Fusion] Skipping RMSNorm fusion for weight node with size {value.size()[-1]} because it is greater than the upper bound of {upper_bound}"
+                )
+                return False
+
+        return True
