@@ -13,8 +13,7 @@ from typing import List, Type
 
 import torch
 from torch import Tensor
-
-from .utils import FusionPattern
+from torch.fx.subgraph_rewriter import replace_pattern_with_filters
 
 
 class FusionProvider(ABC):
@@ -58,9 +57,25 @@ class FusionProvider(ABC):
         """The replacement function."""
         pass
 
-    def get_patterns(self) -> List[FusionPattern]:
-        """Return list of FusionPatterns."""
-        return [FusionPattern(self.name, self.pattern, self.replacement)]
+    def replace_pattern(self, gm: torch.fx.GraphModule) -> int:
+        """
+        Replace a pattern in the graph.
+
+        Args:
+            gm: The GraphModule to transform
+
+        Returns:
+            Number of replacements made
+        """
+        replaced = replace_pattern_with_filters(
+            gm,
+            self.pattern,
+            self.replacement,
+        )
+        return len(replaced)
+
+
+# ================================ Fusion Providers ================================
 
 
 class RMSNormFusionProvider(FusionProvider):
