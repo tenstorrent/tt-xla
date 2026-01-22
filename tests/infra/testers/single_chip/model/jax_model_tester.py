@@ -204,10 +204,19 @@ class JaxModelTester(ModelTester):
         return static_argnames
 
     # @override
-    def _compile_for_tt_device(self, workload: Workload) -> None:
+    def _compile_for_tt_device(
+        self, workload: Workload, skip_compiler_options: bool = False
+    ) -> None:
         """JIT-compiles model's forward pass into optimized kernels."""
         assert workload.is_jax, "Workload must be JAX workload to compile"
-        compiler_options = self._compiler_config.to_jax_compiler_options()
+
+        # Skip compiler_options for training workloads used with jax.vjp
+        # because vjp creates nested jit calls and JAX doesn't allow compiler_options
+        # to be passed to nested jits
+        if skip_compiler_options:
+            compiler_options = None
+        else:
+            compiler_options = self._compiler_config.to_jax_compiler_options()
 
         workload.compiled_executable = jax.jit(
             workload.executable,
@@ -282,7 +291,8 @@ class JaxModelTester(ModelTester):
         cpu_forward_out, cpu_pullback = self._run_on_cpu(train_fwd_cpu)
 
         # Compile workloads for TT device with vjp of model
-        self._compile_for_tt_device(training_workload)
+        # Skip compiler_options because jax.vjp creates nested jits which don't support compiler_options
+        self._compile_for_tt_device(training_workload, skip_compiler_options=True)
         train_fwd_tt = Workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(
