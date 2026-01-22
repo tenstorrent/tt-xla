@@ -18,12 +18,6 @@
     },
     "tests": [
       {
-        "name": "resnet_jax",
-        "bs": 8,
-        "lp": 4,
-        "pyreq": "pytest tqdm loguru requests transformers==4.57.1 datasets flax==0.10.4 torch==2.9.0"
-      },
-      {
         "name": "mnist",
         "pyreq": "datasets loguru pytest requests torch==2.9.0 torchvision==0.24.0 tqdm transformers==4.57.1",
         "pytest": "tests/perf_benchmark/test_vision.py::test_mnist"

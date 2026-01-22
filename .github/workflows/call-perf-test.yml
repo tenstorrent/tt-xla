@@ -76,14 +76,18 @@ jobs:
 
     - uses: actions/checkout@v4
       with:
-        submodules: recursive
         sparse-checkout: |
           .github
           tests/perf_benchmark
-          third_party/CMakeLists.txt
+          third_party
           pytest.ini
           python_package/requirements.txt
           venv
+
+    - name: Initialize submodules
+      shell: bash
+      run: |
+        git submodule update --init --recursive third_party/tt_forge_models
 
     - name: Fetch job id
       id: fetch-job-id
@@ -137,6 +141,7 @@ jobs:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
         cd ${{ steps.strings.outputs.work-dir }}
+        export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
         # Run pytest or custom script
         if [ -n "${{ matrix.build.pytest }}" ]; then
@@ -212,7 +217,7 @@ jobs:
       shell: bash
       run: |
         echo "Installing ttrt in separate venv"
-        python -m venv ttrt-venv
+        python3.11 -m venv ttrt-venv
         source ttrt-venv/bin/activate
         apt-get install -y -qq --no-install-recommends libtbb12 libcapstone4
         pip install ttrt-whl-tracy/ttrt*.whl --upgrade
@@ -223,6 +228,7 @@ jobs:
       shell: bash
       run: |
         source ttrt-venv/bin/activate
+        pip install pandas==2.3.3
 
         echo "Save artifacts"
         ttrt query --save-artifacts
@@ -235,7 +241,7 @@ jobs:
         ttrt perf flatbuffers --ignore-version || echo "ttrt perf failed, continuing..."
 
         echo "Write device perf to report"
-        python ./tests/perf_benchmark/device_perf.py ttrt-artifacts ${{ steps.strings.outputs.perf_report_json_file }} || echo "device_perf.py failed, continuing..."
+        python3 ./tests/perf_benchmark/device_perf.py ttrt-artifacts ${{ steps.strings.outputs.perf_report_json_file }} || echo "device_perf.py failed, continuing..."
 
         echo "Copy device perf CSVs"
         mkdir -p ${{ steps.strings.outputs.perf_report_path }}/device_perf
@@ -269,7 +275,7 @@ jobs:
         JOB_ID_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${{ steps.strings.outputs.job_id }}"
 
         if [ -f "$PERF_REPORT_FILE" ]; then
-          python tests/perf_benchmark/extend_result_config.py "$PERF_REPORT_FILE" \
+          python3 tests/perf_benchmark/extend_result_config.py "$PERF_REPORT_FILE" \
             ${TTIR_URL:+--ttir-url "$TTIR_URL"} \
             ${TTNN_URL:+--ttnn-url "$TTNN_URL"} \
             ${DEVICE_PERF_URL:+--device-perf-url "$DEVICE_PERF_URL"} \
