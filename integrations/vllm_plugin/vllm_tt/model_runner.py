@@ -88,7 +88,7 @@ from .attention import (
 )
 from .logger import tt_init_logger
 from .platform import TTConfig
-from .utils import shard_model
+from .vllm_utils import shard_model
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -1364,6 +1364,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.model = model
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = TPUSampler()
+        logger.info(f"Compiled model: \n{self.model}")
 
     def reload_weights(self) -> None:
         assert (
