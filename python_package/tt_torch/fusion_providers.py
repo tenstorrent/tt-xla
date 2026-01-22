@@ -15,8 +15,6 @@ import torch
 from torch import Tensor
 from torch.fx.subgraph_rewriter import replace_pattern_with_filters
 
-InternalMatch = Any
-
 
 class FusionProvider(ABC):
     """Base class for all fusion pattern providers.
