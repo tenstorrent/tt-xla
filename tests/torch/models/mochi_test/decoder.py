@@ -13,6 +13,20 @@ os.environ["XLA_HLO_DEBUG"] = "1"
 os.environ["TTMLIR_RUNTIME_LOGGER_LEVEL"] = "DEBUG"
 
 
+def calculate_output_shape(latent_shape):
+    """
+    Temporal compression: 6x
+    Spatial compression: 8x8
+    """
+    return (
+        latent_shape[0],
+        3,
+        latent_shape[2] * 6,
+        latent_shape[3] * 8,
+        latent_shape[4] * 8,
+    )
+
+
 def run_vae_decoder():
     """
     Test Mochi VAE decoder in isolation.
@@ -34,14 +48,14 @@ def run_vae_decoder():
         "genmo/mochi-1-preview", subfolder="vae", torch_dtype=torch.bfloat16
     )
 
-    enable_tiling = True
+    enable_tiling = False
     print(f"Enabling tiling: {enable_tiling}")
     if enable_tiling:
         vae.enable_tiling(
             tile_sample_min_height=128,  # 128 pixels output = 16 latent
-            tile_sample_min_width=128,   # 128 pixels output = 16 latent
+            tile_sample_min_width=128,  # 128 pixels output = 16 latent
             tile_sample_stride_height=128,  # no overlap
-            tile_sample_stride_width=128,   # no overlap
+            tile_sample_stride_width=128,  # no overlap
         )
 
     # VAE decoder: [B, 12, t, h, w] → [B, 3, T, H, W]
@@ -49,14 +63,14 @@ def run_vae_decoder():
     # Ecoder has 6x temporal compression and 8x8 spatial compression
     # So for the video [1, 3, 24, 480, 848] we get
     # Latent: [1, 12, 4, 60, 106] (24/6≈4, 480/8=60, 848/8=106)
-    latent = torch.randn(1, 12, 2, 16, 32, dtype=torch.bfloat16)
+    latent = torch.randn(1, 12, 2, 8, 8, dtype=torch.bfloat16)
     latent = latent.to(device)
 
     if enable_tiling:
         # Mochi VAE drops last temporal frames by default
-        # but for the sake of 6x temporal expansion calculation, 
+        # but for the sake of 6x temporal expansion calculation,
         # we will use all temporal frames
-        vae.drop_last_temporal_frames = False  
+        vae.drop_last_temporal_frames = False
         model = vae
     else:
         model = vae.decoder
@@ -92,11 +106,11 @@ def run_vae_decoder():
             print("Running with tiling")
             output = vae.decode(latent_normalized).sample
         else:
-            output = model(latent_normalized)
+            output, _ = model(latent_normalized)
 
-    print(f"Expected shape: [1, 3, 24, 480, 848]")
+    print(f"Expected shape: {calculate_output_shape(latent.shape)}")
     torch_xla.sync()
-    print(f"Got output shape: {output[0].shape}")
+    print(f"Got output shape: {output.shape}")
 
 
 if __name__ == "__main__":

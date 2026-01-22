@@ -28,7 +28,9 @@ class CogVideoXCausalConv3d(nn.Module):
         self.time_causal_padding = (1, 1, 1, 1, 2, 0)
 
         # Conv3d with no padding (padding handled manually)
-        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=3, stride=1, padding=0)
+        self.conv = nn.Conv3d(
+            in_channels, out_channels, kernel_size=3, stride=1, padding=0
+        )
 
     def forward(self, x):
         x = F.pad(x, self.time_causal_padding, mode="replicate")
@@ -43,21 +45,26 @@ class ReplicatePadding(nn.Module):
 
     def forward(self, x):
         return F.pad(x, self.time_causal_padding, mode="replicate")
-    
+
+
 class ReplicateConv3d(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=3, stride=1, padding=0)
+        self.conv = nn.Conv3d(
+            in_channels, out_channels, kernel_size=3, stride=1, padding=0
+        )
 
     def forward(self, x):
         return self.conv(x)
-    
-    
+
+
 def load_replicate_padding():
     return ReplicatePadding()
 
+
 def load_conv3d():
     return ReplicateConv3d(in_channels=768, out_channels=768)
+
 
 def load_original_decoder_conv1():
     """
@@ -87,6 +94,7 @@ def load_original_decoder_conv1():
         print(f"  Kernel size: {conv1.conv.kernel_size}")
 
     return conv1
+
 
 def load_repro_conv1():
     print("Loading repro conv1...")
@@ -199,6 +207,7 @@ def load_conv1_then_norm2():
 
     return model
 
+
 def test_module(load_fn):
     xr.set_device_type("TT")
     device = torch_xla.device()
@@ -233,11 +242,10 @@ def test_module(load_fn):
 if __name__ == "__main__":
     xr.set_device_type("TT")
 
-
     test_module(load_replicate_padding)
     # test_module(load_conv3d)
     # test_module(load_repro_conv1)
     # test_module(load_original_decoder_conv1)
-    # test_module(load_first_resnet_block)  
+    # test_module(load_first_resnet_block)
     # test_module(load_conv1_then_norm2) # Minimal repro of reshape error
     # test_module(load_norm2_only)
