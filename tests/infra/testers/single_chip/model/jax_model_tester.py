@@ -267,27 +267,27 @@ class JaxModelTester(ModelTester):
         )
 
         # Compile workloads for CPU with vjp of model
-        self._compile_for_cpu(training_workload)
         train_fwd_cpu = Workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(
                 jax.vjp,
-                self._wrapper_model(training_workload.compiled_executable),
+                self._wrapper_model(training_workload.executable),
             ),
             args=[training_workload.args, training_workload.kwargs],
         )
+        self._compile_for_cpu(train_fwd_cpu)
         cpu_forward_out, cpu_pullback = self._run_on_cpu(train_fwd_cpu)
 
         # Compile workloads for TT device with vjp of model
-        self._compile_for_tt_device(training_workload)
         train_fwd_tt = Workload(
             framework=self._framework,
             executable=jax.tree_util.Partial(
                 jax.vjp,
-                self._wrapper_model(training_workload.compiled_executable),
+                self._wrapper_model(training_workload.executable),
             ),
             args=[training_workload.args, training_workload.kwargs],
         )
+        self._compile_for_cpu(train_fwd_tt)
         tt_forward_out, tt_pullback = self._run_on_tt_device(train_fwd_tt)
 
         # Create random gradient with same shape as output
