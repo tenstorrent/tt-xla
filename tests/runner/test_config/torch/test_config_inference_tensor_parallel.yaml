@@ -7,12 +7,10 @@ test_config:
   falcon/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    markers: [tp_2x4_mesh]
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    markers: [tp_2x4_mesh]
 
   falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -42,7 +40,6 @@ test_config:
   falcon/pytorch-tiiuae/falcon-7b-instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    markers: [tp_2x4_mesh]
 
   llama/causal_lm/pytorch-llama_3_1_8b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
