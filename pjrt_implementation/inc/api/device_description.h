@@ -10,6 +10,8 @@
 
 // c++ standard library includes
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
@@ -62,6 +64,24 @@ public:
   // Sets process index from which this device is addressable.
   void setProcessIndex(int process_index) { m_process_index = process_index; }
 
+  // Sets custom device options.
+  void setCustomDeviceOptions(
+      const std::unordered_map<std::string, std::string> &options);
+
+  // Gets custom device options.
+  const std::unordered_map<std::string, std::string> &
+  getCustomDeviceOptions() const {
+    return m_custom_device_options;
+  }
+
+  // Returns PJRT attributes array (includes custom device options).
+  const std::vector<PJRT_NamedValue> &getAttributes() const {
+    return m_attributes;
+  }
+
+  // Returns number of attributes.
+  size_t getNumAttributes() const { return m_attributes.size(); }
+
 private:
   // Global ID of this device unique between all devices.
   int m_device_id;
@@ -76,6 +96,12 @@ private:
   // Device description string suitable for reading by the end users, should be
   // reasonably terse.
   std::string m_user_string;
+
+  // Custom device options set by the user.
+  std::unordered_map<std::string, std::string> m_custom_device_options;
+
+  // PJRT attributes array (built from custom device options).
+  std::vector<PJRT_NamedValue> m_attributes;
 };
 
 namespace internal {

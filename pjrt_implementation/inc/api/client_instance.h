@@ -15,6 +15,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -108,6 +109,10 @@ public:
   // shape, it is returned. Otherwise, we close any previously opened mesh
   // device and open a new one with the provided shape.
   //
+  // Device options are read from the DeviceDescription of the devices that will
+  // be part of the mesh. If the options differ from what was used to open the
+  // current mesh, the mesh will be reopened.
+  //
   // NOTE: this method is not thread-safe and we will need to revisit this when
   // adding support for parallel execution.
   tt::runtime::Device
@@ -146,6 +151,12 @@ public:
   tt::runtime::Device
   getOrCreateOptimizerSubmesh(const std::vector<uint32_t> &target_mesh_shape);
 
+  // Sets custom device options for a specific device by routing to the
+  // appropriate DeviceInstance via addressable devices.
+  void setCustomDeviceOptions(
+      int device_id,
+      const std::unordered_map<std::string, std::string> &options);
+
   // Closes currently opened parrent mesh device.
   void closeParentMesh();
 
@@ -164,7 +175,8 @@ private:
   tt_pjrt_status populateMemories();
 
   // Wrapper method around `tt::runtime::openMeshDevice` that also handles
-  // setting fabric config when needed.
+  // setting fabric config when needed. Reads device options from the
+  // DeviceDescription of device 0.
   tt::runtime::Device openMeshDevice(const std::vector<uint32_t> &mesh_shape);
 
   // Process index of this client. Always 0 in single-process settings.
@@ -208,6 +220,9 @@ private:
 
   // Currently in-use mesh device.
   std::optional<tt::runtime::Device> m_parent_mesh;
+
+  // Device options used to open the current mesh (for comparison).
+  std::unordered_map<std::string, std::string> m_current_mesh_device_options;
 
   // Optimizer submesh device (created from m_parent_mesh for optimizer passes).
   std::optional<tt::runtime::Device> m_optimizer_submesh;

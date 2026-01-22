@@ -82,6 +82,18 @@ public:
     return m_addressable_memories;
   }
 
+  // Sets custom device options (delegates to DeviceDescription).
+  void setCustomDeviceOptions(
+      const std::unordered_map<std::string, std::string> &options) {
+    m_description.setCustomDeviceOptions(options);
+  }
+
+  // Gets custom device options (delegates to DeviceDescription).
+  const std::unordered_map<std::string, std::string> &
+  getCustomDeviceOptions() const {
+    return m_description.getCustomDeviceOptions();
+  }
+
 private:
   // Constructor.
   DeviceInstance(int global_device_id, bool is_addressable, int local_device_id,

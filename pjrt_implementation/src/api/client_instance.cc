@@ -401,6 +401,13 @@ void ClientInstance::materializeAllBuffersToHost() {
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
     const std::vector<uint32_t> &target_mesh_shape) {
 
+  // Get current device options from device 0's description.
+  std::unordered_map<std::string, std::string> targetDeviceOptions;
+  if (!m_addressable_devices_raw.empty()) {
+    targetDeviceOptions =
+        m_addressable_devices_raw[0]->getDeviceDescription().getCustomDeviceOptions();
+  }
+
   if (!m_parent_mesh.has_value()) {
     m_parent_mesh = openMeshDevice(target_mesh_shape);
     return *m_parent_mesh;
@@ -409,7 +416,10 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
   std::vector<uint32_t> parent_mesh_shape =
       tt::runtime::getMeshShape(*m_parent_mesh);
 
-  if (parent_mesh_shape == target_mesh_shape) {
+  bool shapeMatches = (parent_mesh_shape == target_mesh_shape);
+  bool optionsMatch = (m_current_mesh_device_options == targetDeviceOptions);
+
+  if (shapeMatches && optionsMatch) {
     DLOG_F(LOG_DEBUG,
            "ClientInstance::getOrCreateMeshDevice - reusing "
            "already opened mesh device %s",
@@ -417,11 +427,19 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
     return *m_parent_mesh;
   }
 
-  DLOG_F(LOG_DEBUG,
-         "ClientInstance::getOrCreateMeshDevice - "
-         "reshaping mesh device - %s -> %s",
-         utils::to_string(parent_mesh_shape).c_str(),
-         utils::to_string(target_mesh_shape).c_str());
+  if (!shapeMatches) {
+    DLOG_F(LOG_DEBUG,
+           "ClientInstance::getOrCreateMeshDevice - "
+           "reshaping mesh device - %s -> %s",
+           utils::to_string(parent_mesh_shape).c_str(),
+           utils::to_string(target_mesh_shape).c_str());
+  }
+
+  if (!optionsMatch) {
+    DLOG_F(LOG_DEBUG,
+           "ClientInstance::getOrCreateMeshDevice - "
+           "device options changed, reopening mesh");
+  }
 
   // Materialize all buffers to host and clear prepared tensors before closing
   // the mesh. This ensures buffers don't hold references to deallocated tensors
@@ -467,29 +485,66 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
     tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
   }
 
-  // TODO(odjuricicTT, #1485): This is a temporary way to disable program cache
-  // now that it's enabled by default here,
-  // until we have a proper way for a user to pass device options. After that
-  // this should be removed. Issue for device options:
-  // https://github.com/tenstorrent/tt-xla/issues/1480
-  bool enableProgramCache =
-      std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE") == nullptr ||
-      std::string(std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE")) != "0";
-
-  // TODO(jnie-TT, #1485): This is a temporary way to set trace region size
-  // until we have a proper way for a user to pass device options. After that
-  // this should be removed. Issue for device options:
-  // https://github.com/tenstorrent/tt-xla/issues/1480
+  // Read device options from device 0's description.
+  // Custom device options take precedence over environment variables.
+  bool enableProgramCache = true;
+  std::optional<size_t> l1SmallSize = std::nullopt;
   std::optional<size_t> traceRegionSize = std::nullopt;
-  if (std::getenv("TT_RUNTIME_TRACE_REGION_SIZE") != nullptr) {
-    traceRegionSize = std::stoull(std::getenv("TT_RUNTIME_TRACE_REGION_SIZE"));
+
+  if (!m_addressable_devices_raw.empty()) {
+    const auto &deviceOptions =
+        m_addressable_devices_raw[0]->getDeviceDescription().getCustomDeviceOptions();
+
+    // Check for enable_program_cache option
+    auto it = deviceOptions.find("enable_program_cache");
+    if (it != deviceOptions.end()) {
+      enableProgramCache = (it->second != "0" && it->second != "false" &&
+                            it->second != "False");
+    } else if (std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE") != nullptr) {
+      enableProgramCache =
+          std::string(std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE")) != "0";
+    }
+
+    // Check for l1_small_size option
+    it = deviceOptions.find("l1_small_size");
+    if (it != deviceOptions.end()) {
+      l1SmallSize = std::stoull(it->second);
+    }
+
+    // Check for trace_region_size option
+    it = deviceOptions.find("trace_region_size");
+    if (it != deviceOptions.end()) {
+      traceRegionSize = std::stoull(it->second);
+    } else if (std::getenv("TT_RUNTIME_TRACE_REGION_SIZE") != nullptr) {
+      traceRegionSize =
+          std::stoull(std::getenv("TT_RUNTIME_TRACE_REGION_SIZE"));
+    }
+  } else {
+    // No devices available, use environment variables
+    if (std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE") != nullptr) {
+      enableProgramCache =
+          std::string(std::getenv("TT_RUNTIME_ENABLE_PROGRAM_CACHE")) != "0";
+    }
+    if (std::getenv("TT_RUNTIME_TRACE_REGION_SIZE") != nullptr) {
+      traceRegionSize =
+          std::stoull(std::getenv("TT_RUNTIME_TRACE_REGION_SIZE"));
+    }
   }
 
   tt::runtime::MeshDeviceOptions options = tt::runtime::MeshDeviceOptions{
       .enableProgramCache = enableProgramCache,
       .meshShape = mesh_shape,
+      .l1SmallSize = l1SmallSize,
       .traceRegionSize = traceRegionSize,
   };
+
+  // Store the device options used for this mesh (for later comparison).
+  if (!m_addressable_devices_raw.empty()) {
+    m_current_mesh_device_options =
+        m_addressable_devices_raw[0]->getDeviceDescription().getCustomDeviceOptions();
+  } else {
+    m_current_mesh_device_options.clear();
+  }
 
   return tt::runtime::openMeshDevice(options);
 }
@@ -538,6 +593,25 @@ tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
       tt::runtime::createSubMeshDevice(parent_mesh, target_mesh_shape);
 
   return *m_optimizer_submesh;
+}
+
+void ClientInstance::setCustomDeviceOptions(
+    int device_id,
+    const std::unordered_map<std::string, std::string> &options) {
+  // Route device options to the appropriate DeviceInstance via addressable
+  // devices.
+  if (device_id >= 0 &&
+      device_id < static_cast<int>(m_addressable_devices_raw.size())) {
+    m_addressable_devices_raw[device_id]->setCustomDeviceOptions(options);
+    DLOG_F(LOG_DEBUG,
+           "ClientInstance::setCustomDeviceOptions - set %zu options for "
+           "device %d",
+           options.size(), device_id);
+  } else {
+    DLOG_F(WARNING,
+           "ClientInstance::setCustomDeviceOptions - invalid device_id %d",
+           device_id);
+  }
 }
 
 namespace internal {

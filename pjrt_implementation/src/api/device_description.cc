@@ -26,6 +26,32 @@ DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch)
   m_user_string = ss.str();
 }
 
+void DeviceDescription::setCustomDeviceOptions(
+    const std::unordered_map<std::string, std::string> &options) {
+  m_custom_device_options = options;
+
+  // Rebuild the PJRT attributes array from the options.
+  m_attributes.clear();
+  m_attributes.reserve(options.size());
+
+  for (const auto &[key, value] : m_custom_device_options) {
+    PJRT_NamedValue attr;
+    attr.struct_size = PJRT_NamedValue_STRUCT_SIZE;
+    attr.extension_start = nullptr;
+    attr.name = key.c_str();
+    attr.name_size = key.size();
+    attr.type = PJRT_NamedValue_kString;
+    attr.string_value = value.c_str();
+    attr.value_size = value.size();
+    m_attributes.push_back(attr);
+  }
+
+  DLOG_F(LOG_DEBUG,
+         "DeviceDescription::setCustomDeviceOptions - set %zu options for "
+         "device %d",
+         options.size(), m_device_id);
+}
+
 void DeviceDescription::bindApi(PJRT_Api *api) {
   api->PJRT_DeviceDescription_Id = internal::onDeviceDescriptionId;
   api->PJRT_DeviceDescription_ProcessIndex =
@@ -62,9 +88,11 @@ PJRT_Error *
 onDeviceDescriptionAttributes(PJRT_DeviceDescription_Attributes_Args *args) {
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Attributes");
 
-  // We don't set any device attributes currently.
-  args->num_attributes = 0;
-  args->attributes = nullptr;
+  DeviceDescription *desc =
+      DeviceDescription::unwrap(args->device_description);
+  args->num_attributes = desc->getNumAttributes();
+  args->attributes =
+      desc->getNumAttributes() > 0 ? desc->getAttributes().data() : nullptr;
 
   return nullptr;
 }

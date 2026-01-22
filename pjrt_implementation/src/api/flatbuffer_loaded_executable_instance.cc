@@ -16,9 +16,11 @@
 
 // tt-xla includes
 #include "api/buffer_instance.h"
+#include "api/device_instance.h"
 #include "api/error_instance.h"
 #include "api/event_instance.h"
 #include "api/executable_image.h"
+#include "api/tt_pjrt_device_options_extension.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
 
@@ -270,6 +272,42 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     DLOG_F(ERROR, "Argument count mismatch: %zu vs %zu", args->num_args,
            m_executable_image->getNumInputs());
     return tt_pjrt_status::kInternal;
+  }
+
+  // Extract device options from the TT extension in execute options.
+  if (args->options != nullptr && args->options->extension_start != nullptr) {
+    PJRT_Extension_Base *ext = args->options->extension_start;
+    while (ext != nullptr) {
+      if (ext->type == PJRT_Extension_Type_TT_DeviceOptions) {
+        auto *ttExt =
+            reinterpret_cast<PJRT_TT_DeviceOptions_Extension *>(ext);
+        if (ttExt->device_options != nullptr && ttExt->num_device_options > 0) {
+          // Convert PJRT_NamedValue array to unordered_map and set on device 0.
+          std::unordered_map<std::string, std::string> options;
+          for (size_t i = 0; i < ttExt->num_device_options; ++i) {
+            const auto &opt = ttExt->device_options[i];
+            std::string key(opt.name, opt.name_size);
+            if (opt.type == PJRT_NamedValue_kString) {
+              options[key] = std::string(opt.string_value, opt.value_size);
+            } else if (opt.type == PJRT_NamedValue_kBool) {
+              options[key] = opt.bool_value ? "true" : "false";
+            } else if (opt.type == PJRT_NamedValue_kInt64) {
+              options[key] = std::to_string(opt.int64_value);
+            }
+          }
+          // Set options on device 0 (will be used for mesh creation).
+          if (!m_addressable_devices.empty()) {
+            m_addressable_devices[0]->setCustomDeviceOptions(options);
+            DLOG_F(LOG_DEBUG,
+                   "FlatbufferLoadedExecutableInstance::execute - set %zu "
+                   "device options from execute options extension",
+                   options.size());
+          }
+        }
+        break;
+      }
+      ext = ext->next;
+    }
   }
 
   std::optional<tt::runtime::Device> runtime_device =
