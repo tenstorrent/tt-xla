@@ -11,7 +11,7 @@ export LD_LIBRARY_PATH=$TTMLIR_TOOLCHAIN_DIR/lib:$LD_LIBRARY_PATH
 
 export TT_MLIR_HOME="$(pwd)/third_party/tt-mlir/src/tt-mlir/"
 METAL_PATH_IN_SOURCE="${TT_MLIR_HOME}/third_party/tt-metal/src/tt-metal"
-export PYTHONPATH="$(pwd):$(pwd)/tests:$(pwd)/integrations/vllm_plugin:${TT_MLIR_HOME}/build/python_packages:${METAL_PATH_IN_SOURCE}/ttnn:${METAL_PATH_IN_SOURCE}/tools"
+export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/integrations/vllm_plugin:${TT_MLIR_HOME}/build/python_packages"
 
 # Allow uv to select the best package version across multiple indexes (PyPI + PyTorch CPU index)
 # Without this, uv may fail to resolve PyTorch packages correctly from extra-index-url
