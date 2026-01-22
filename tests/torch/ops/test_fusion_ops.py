@@ -36,6 +36,7 @@ def has_op_in_graph(gm, target):
 def capture_graph_backend(gm, example_inputs, options=None):
 
     fused_op_fn = options.get("fused_op_fn")
+    should_fuse = options.get("should_fuse", False)
 
     assert not has_op_in_graph(
         gm, fused_op_fn
@@ -43,9 +44,14 @@ def capture_graph_backend(gm, example_inputs, options=None):
 
     gm = run_fusion_passes(gm)
 
-    assert has_op_in_graph(
-        gm, fused_op_fn
-    ), f"{fused_op_fn} should be in graph after fusion"
+    if should_fuse:
+        assert has_op_in_graph(
+            gm, fused_op_fn
+        ), f"{fused_op_fn} should be in graph after fusion"
+    else:
+        assert not has_op_in_graph(
+            gm, fused_op_fn
+        ), f"{fused_op_fn} should not be in graph after fusion"
 
     return gm
 
@@ -55,15 +61,17 @@ def capture_graph_backend(gm, example_inputs, options=None):
 
 @pytest.mark.single_device
 @pytest.mark.push
-@pytest.mark.parametrize("hidden_size", [32, 768])
+@pytest.mark.parametrize(
+    "hidden_size, should_fuse", [(32, True), (768, True), (4096, False)]
+)
 @pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float32])
-def test_rms_norm_fusion_graph_level(hidden_size, dtype):
+def test_rms_norm_fusion_graph_level(hidden_size, should_fuse, dtype):
     """Test that RMS norm fusion creates rms_norm op in the dynamo graph."""
 
     model = LlamaRMSNorm(hidden_size).to(dtype)
     input_tensor = torch.randn(1, 32, hidden_size, dtype=dtype)
 
-    options = {"fused_op_fn": torch.nn.functional.rms_norm}
+    options = {"fused_op_fn": torch.nn.functional.rms_norm, "should_fuse": should_fuse}
 
     torch.compile(model, backend="capture_graph", options=options)(input_tensor)
 

@@ -143,13 +143,13 @@ class RMSNormFusionProvider(FusionProvider):
     @staticmethod
     def match_filter(match, gm: torch.fx.Graph, subgraph: torch.fx.Graph) -> bool:
         # TODO: Remove this once https://github.com/tenstorrent/tt-metal/issues/36094 is fixed
-        upper_bound = 4096
+        upper_bound = 3968
         for pn, gn in match.nodes_map.items():
             if pn.target != "weight":
                 continue
             if (value := gn.meta.get("example_value", None)) is None:
                 raise ValueError("Example value is not set for weight node")
-            if value.size()[-1] >= upper_bound:
+            if value.size()[-1] > upper_bound:
                 print(
                     f"[Fusion] Skipping RMSNorm fusion for weight node with size {value.size()[-1]} because it is greater than the upper bound of {upper_bound}"
                 )
