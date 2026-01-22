@@ -18,7 +18,6 @@ from pathlib import Path
 import psutil
 import pytest
 import torch
-import torch_xla
 import torch_xla.runtime as xr
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
@@ -490,14 +489,12 @@ def clear_torchxla_computation_cache():
     """
     yield
     try:
-        torch_xla.sync(wait=True)
+        xr.clear_computation_cache()
     except Exception as e:
-        logger.warning(f"Failed to sync TorchXLA computation cache: {e}")
+        logger.warning(f"Failed to clear TorchXLA computation cache: {e}")
         logger.warning(
             "This is expected if the test throws an exception, https://github.com/tenstorrent/tt-xla/issues/2814"
         )
-
-    xr.clear_computation_cache()
 
 
 class TeeCaptureResult:
