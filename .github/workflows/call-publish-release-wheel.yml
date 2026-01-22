@@ -22,7 +22,8 @@ on:
       should_overwrite_release:
         description: 'Should we overwrite an existing pypi wheel'
         type: boolean
-        required: true
+        required: false
+        default: false
     outputs:
       release_tag:
         description: 'Release tag'
