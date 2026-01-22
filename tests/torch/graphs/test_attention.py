@@ -2282,14 +2282,16 @@ def test_eager_batched_attention():
     output = model(hidden_states).to("cpu")
 
 
+@pytest.mark.push
 @pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
-@parametrize_arch(["single_device", "llmbox"])
-def test_gpt_oss_attention(variant, variant_config, arch):
+@pytest.mark.parametrize("shard", ["1d", "2x4", "4x2"])
+def test_gpt_oss_attention(variant, variant_config, arch, shard):
     xr.set_device_type("TT")
 
     def sdpa(
@@ -2338,20 +2340,39 @@ def test_gpt_oss_attention(variant, variant_config, arch):
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
-        mesh_shape = (1, num_devices)
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        if shard == "1d":
+            mesh_shape = (1, num_devices)
+        elif shard == "2x4" or shard == "4x2":
+            mesh_shape = (2, num_devices // 2)
+            assert num_devices == 8
+        else:
+            raise ValueError(f"Invalid shard: {shard}")
+
+        if shard == "2x4" or shard == "1d":
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+        elif shard == "4x2":
+            mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
+        else:
+            raise ValueError(f"Invalid shard: {shard}")
 
         def get_shard_spec(sdpa, args, kwargs):
             # Attention is the first argument to sdpa.
             attention = args[0]
             shard_specs = {}
-            shard_specs[attention.q_proj.weight] = ("model", None)
-            shard_specs[attention.k_proj.weight] = ("model", None)
-            shard_specs[attention.v_proj.weight] = ("model", None)
-            shard_specs[attention.o_proj.weight] = (None, "model")
+            shard_specs[attention.q_proj.weight] = ("model", "batch")
+            shard_specs[attention.q_proj.bias] = ("model",)
+            shard_specs[attention.k_proj.weight] = ("model", "batch")
+            shard_specs[attention.k_proj.bias] = ("model",)
+            shard_specs[attention.v_proj.weight] = ("model", "batch")
+            shard_specs[attention.v_proj.bias] = ("model",)
+            shard_specs[attention.o_proj.weight] = ("batch", "model")
+            shard_specs[attention.o_proj.bias] = ("batch",)
             return shard_specs
 
     else:
+        if shard != "1d":
+            pytest.skip("Only 1D shard is supported on a single device")
         mesh = None
         get_shard_spec = None
 

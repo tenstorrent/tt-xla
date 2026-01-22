@@ -467,6 +467,7 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
 """GPT-OSS MLP test"""
 
 
+@pytest.mark.push
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
@@ -474,7 +475,8 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
-def test_gpt_oss_mlp(variant, variant_config, arch):
+@pytest.mark.parametrize("shard", ["1d", "2x4", "4x2"])
+def test_gpt_oss_mlp(variant, variant_config, arch, shard):
     xr.set_device_type("TT")
 
     loader = GPTOSSModelLoader(variant=variant, num_layers=1)
@@ -494,26 +496,41 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
     if arch == "llmbox":
         comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        if shard == "1d":
+            mesh_shape = (1, num_devices)
+        elif shard == "2x4" or shard == "4x2":
+            mesh_shape = (2, num_devices // 2)
+            assert num_devices == 8
+        else:
+            raise ValueError(f"Invalid shard: {shard}")
+
+        if shard == "2x4" or shard == "1d":
+            mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+        elif shard == "4x2":
+            mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
+        else:
+            raise ValueError(f"Invalid shard: {shard}")
 
         def get_shard_spec(mlp, args, kwargs):
             shard_specs = {}
 
             # Router weights (not sharded).
-            shard_specs[mlp.router.weight] = (None, None)
+            shard_specs[mlp.router.weight] = (None, "batch")
             shard_specs[mlp.router.bias] = (None,)
 
             # Shard experts across devices.
-            shard_specs[mlp.experts.gate_up_proj] = ("model", None, None)
+            shard_specs[mlp.experts.gate_up_proj] = ("model", "batch", None)
             shard_specs[mlp.experts.gate_up_proj_bias] = ("model", None)
-            shard_specs[mlp.experts.down_proj] = ("model", None, None)
-            shard_specs[mlp.experts.down_proj_bias] = ("model", None)
+            shard_specs[mlp.experts.down_proj] = ("model", None, "batch")
+            shard_specs[mlp.experts.down_proj_bias] = ("model", "batch")
 
             return shard_specs
 
     else:
+        if shard != "1d":
+            pytest.skip("Only 1D shard is supported on a single device")
         comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
         mesh = None
         get_shard_spec = None
