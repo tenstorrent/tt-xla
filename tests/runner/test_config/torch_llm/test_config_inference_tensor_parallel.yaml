@@ -76,6 +76,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-8b-llm_decode-tensor_parallel-inference:
+    required_pcc: 0.985 # https://github.com/tenstorrent/tt-xla/issues/2942
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
 
