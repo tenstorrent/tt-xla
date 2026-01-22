@@ -884,7 +884,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.device
         )
         if use_max_model_len:
-            assert self.num_reqs_most_model_len is not None
+            assert self.num_reqs_max_model_len is not None
             page_table = self.block_table_cpu[
                 : self.num_reqs_max_model_len, : self.max_num_blocks_per_req
             ]
@@ -1353,7 +1353,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             prompt_logprobs_dict=prompt_logprobs_dict,
             pooler_output=[],
             kv_connector_output=kv_connector_output,
-            spec_token_ids=None,
         )
 
         # Check there are no new graphs compiled - all the graphs should be
