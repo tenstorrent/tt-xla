@@ -692,8 +692,14 @@ class InputBatch:
         pooling_params = self.get_pooling_params()
         pooling_states = self.get_pooling_states()
 
+        prompt_lens_tensor = torch.tensor(
+            self.num_prompt_tokens[: self.num_reqs].copy(),
+            dtype=torch.int64,
+            device="cpu",
+        )
+
         return PoolingMetadata(
-            prompt_lens=torch.from_numpy(self.num_prompt_tokens[: self.num_reqs]),
+            prompt_lens=prompt_lens_tensor,
             prompt_token_ids=self.sampling_metadata.prompt_token_ids,
             pooling_params=pooling_params,
             pooling_states=pooling_states,
