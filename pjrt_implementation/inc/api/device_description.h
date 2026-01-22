@@ -62,6 +62,11 @@ public:
   // Sets process index from which this device is addressable.
   void setProcessIndex(int process_index) { m_process_index = process_index; }
 
+  // NEW: Helper to get attributes
+  const std::vector<PJRT_NamedValue> &getAttributes() const {
+    return m_attributes;
+  }
+
 private:
   // Global ID of this device unique between all devices.
   int m_device_id;
@@ -76,6 +81,10 @@ private:
   // Device description string suitable for reading by the end users, should be
   // reasonably terse.
   std::string m_user_string;
+
+  // NEW: Storage for attributes
+  std::string m_arch_attr_name = "device_arch";
+  std::vector<PJRT_NamedValue> m_attributes;
 };
 
 namespace internal {
