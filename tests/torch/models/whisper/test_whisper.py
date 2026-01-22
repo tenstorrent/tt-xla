@@ -21,6 +21,11 @@ _FAILING_VARIANTS = [
 ]
 
 
+_SKIPPED_VARIANTS = [
+    ModelVariant.WHISPER_LARGE_V3_TURBO,
+]
+
+
 def _variant_param(v):
     """Create a pytest parameter for each ModelVariant with bringup_status and marks."""
     marks = []
@@ -28,7 +33,14 @@ def _variant_param(v):
     # Compute model info for specific variants
     model_info = ModelLoader.get_model_info(v)
 
-    if v in _FAILING_VARIANTS:
+    if v in _SKIPPED_VARIANTS:
+        bringup_status = BringupStatus.FAILED_RUNTIME
+        marks.append(
+            pytest.mark.skip(
+                reason="Test fails when run with full test suite - https://github.com/tenstorrent/tt-xla/issues/2029"
+            )
+        )
+    elif v in _FAILING_VARIANTS:
         bringup_status = BringupStatus.FAILED_TTMLIR_COMPILATION
         marks.append(
             pytest.mark.xfail(
