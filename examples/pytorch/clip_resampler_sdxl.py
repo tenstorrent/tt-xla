@@ -7,6 +7,8 @@ Runs CLIP Vision Encoder + IP-Adapter Resampler pipeline on TT hardware.
 This is the image encoding portion of IP-Adapter Plus for SDXL.
 """
 
+import os
+
 import torch
 import torch.nn as nn
 import torch_xla
@@ -18,10 +20,11 @@ from transformers.image_utils import load_image
 
 # --- 1. CONFIGURATION ---
 dtype = torch.bfloat16
-torch_xla.set_custom_compile_options({"optimization_level": 0})
+torch_xla.set_custom_compile_options({"optimization_level": 1})
 model_id = "stabilityai/stable-diffusion-xl-base-1.0"
 image_encoder_id = "laion/CLIP-ViT-H-14-laion2B-s32B-b79K"
 ip_adapter_weights_name = "ip-adapter-plus_sdxl_vit-h.bin"
+MODEL_CACHE_PATH = "clip_resampler_sdxl.pt"
 
 
 class CLIPResamplerModule(nn.Module):
@@ -46,7 +49,26 @@ class CLIPResamplerModule(nn.Module):
         return output_tokens
 
 
-def get_model():
+def save_model(model, path=MODEL_CACHE_PATH):
+    """Save the entire CLIPResamplerModule to disk."""
+    print(f"Saving model to {path}...")
+    torch.save(model, path)
+    print(f"Model saved to {path}")
+
+
+def load_model(path=MODEL_CACHE_PATH):
+    """Load CLIPResamplerModule directly from disk."""
+    print(f"Loading model from {path}...")
+    clip_resampler = torch.load(path, weights_only=False)
+    clip_resampler.eval()
+    print(f"Model loaded from {path}")
+    return clip_resampler
+
+
+def get_model(cache_path=MODEL_CACHE_PATH):
+    """Get model, loading from cache if available."""
+    if cache_path and os.path.exists(cache_path):
+        return load_model(cache_path)
 
     # --- 2. LOAD BACKBONES ON CPU ---
     print(f"Loading CLIP Vision Encoder and Processor in {dtype}...")
@@ -73,6 +95,10 @@ def get_model():
     clip_resampler = CLIPResamplerModule(image_encoder, resampler)
     clip_resampler.eval()
 
+    # Save to cache for future use
+    if cache_path:
+        save_model(clip_resampler, cache_path)
+
     return clip_resampler
 
 
@@ -80,7 +106,7 @@ def get_input():
     raw_image = load_image("http://images.cocodataset.org/val2017/000000039769.jpg")
     processor = CLIPImageProcessor.from_pretrained(image_encoder_id)
     input_data = processor(images=raw_image, return_tensors="pt")
-    pixel_values = input_data["pixel_values"].to(dtype)
+    input_data["pixel_values"] = input_data["pixel_values"].to(dtype)
     return input_data
 
 
