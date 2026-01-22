@@ -18,6 +18,7 @@ from .tester import WhisperTester
 
 _FAILING_VARIANTS = [
     ModelVariant.WHISPER_LARGE,
+    ModelVariant.WHISPER_LARGE_V3_TURBO, # https://github.com/tenstorrent/tt-xla/issues/2950
 ]
 
 
