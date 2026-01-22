@@ -84,8 +84,10 @@ class ModelLoader(ForgeModel):
         model_name = self._variant_config.pretrained_model_name
         self.tokenizer = BertTokenizer.from_pretrained(model_name)
 
-        model = BertForSequenceClassification.from_pretrained(model_name, num_classes=2)
-        return model
+        self.model = BertForSequenceClassification.from_pretrained(
+            model_name, num_classes=2
+        )
+        return self.model
 
     def load_inputs(
         self,
@@ -103,3 +105,14 @@ class ModelLoader(ForgeModel):
         )
         inputs = [paddle.to_tensor(value) for value in encoded_input.values()]
         return inputs
+
+    def decode_output(self, outputs):
+        """Decode the model output for sequence classification.
+
+        Args:
+            outputs: Model output
+        """
+        predicted_value = outputs[0].argmax(-1).item()
+
+        # Answer - "positive"
+        print(f"Predicted Sentiment: {self.model.config.id2label[predicted_value]}")

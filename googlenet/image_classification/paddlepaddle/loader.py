@@ -20,6 +20,7 @@ from ....config import (
     StrEnum,
 )
 from ....base import ForgeModel
+from ....tools.utils import print_compiled_model_results
 
 
 class ModelVariant(StrEnum):
@@ -65,3 +66,8 @@ class ModelLoader(ForgeModel):
         """Prepare sample input for GoogleNet model (Paddle)."""
         inputs = paddle.rand([batch_size, 3, 224, 224])
         return [inputs]
+
+    def print_results(self, compiled_model=None, inputs=None):
+        """Print results for GoogleNet model (Paddle)."""
+        compiled_model_out = compiled_model(inputs)
+        print_compiled_model_results(compiled_model_out)

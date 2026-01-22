@@ -20,6 +20,7 @@ from ....config import (
     StrEnum,
 )
 from ....base import ForgeModel
+from pytorch.loader import ModelLoader as PyTorchModelLoader
 
 
 class ModelVariant(StrEnum):
@@ -102,3 +103,10 @@ class ModelLoader(ForgeModel):
         )
         inputs = [paddle.to_tensor(value) for value in encoded.values()]
         return inputs
+
+    def decode_output(self, outputs, inputs=None):
+        """Decode the model output for masked language modeling."""
+        if outputs is None or self.tokenizer is None:
+            return None
+        pytorch_model_loader = PyTorchModelLoader(self.DEFAULT_VARIANT)
+        pytorch_model_loader.decode_output(outputs, inputs)
