@@ -9,7 +9,7 @@ from torch._dynamo import register_backend
 from transformers.models.llama.modeling_llama import LlamaRMSNorm
 from tt_torch.backend.passes import run_fusion_passes
 
-from tests.infra.comparators.comparison_config import ComparisonConfig
+from tests.infra.evaluators import ComparisonConfig
 from tests.infra.testers.single_chip.graph.graph_tester import run_graph_test
 
 # ============= Graph Inspection Utilities =============
