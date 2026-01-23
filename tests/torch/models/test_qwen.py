@@ -16,65 +16,126 @@ from third_party.tt_forge_models.qwen_2_5_vl.pytorch.loader import ModelLoader
 
 
 @pytest.mark.parametrize("tp_bool", [True, False])
+def test_display_language_inputs(tp_bool):
+    # Load model
+    loader = ModelLoader()
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    inputs = (
+        loader.load_inputs()
+    )  # returns BatchFeature with input_ids, attention_mask, pixel_values, image_grid_thw, video_grid_thw, second_per_grid_ts
+
+    # print(inputs)
+    # for key, value in inputs.items():
+    #    print(f"{key}: {value.shape}")
+
+    input_ids = inputs["input_ids"]
+    vl_model = model.model  # Qwen2_5_VLModel
+    inputs_embeds = vl_model.get_input_embeddings()(input_ids)
+    print(f"input_embeds: {inputs_embeds}")
+    print(f"input_embeds.shape: {inputs_embeds.shape}")
+
+    print(f"vl_model.config.hidden_size: {vl_model.config.hidden_size}")
+    language_model = vl_model.language_model  # Qwen2_5_VLTextModel
+    print(f"language_model.config.hidden_size: {language_model.config.hidden_size}")
+
+    past_seen_tokens = 0
+    cache_position = torch.arange(
+        past_seen_tokens,
+        past_seen_tokens + inputs_embeds.shape[1],
+        device=inputs_embeds.device,
+    )
+    position_ids = cache_position.view(1, 1, -1).expand(3, inputs_embeds.shape[0], -1)
+    print(f"position_ids: {position_ids}")
+    print(f"position_ids.shape: {position_ids.shape}")
+
+    hidden_states = inputs_embeds
+
+    # create position embeddings to be shared across the decoder layers
+    position_embeddings = language_model.rotary_emb(hidden_states, position_ids)
+    print(f"position_embeddings: {position_embeddings}")
+    print(f"position_embeddings[0].shape: {position_embeddings[0].shape}")
+
+
+@pytest.mark.parametrize("tp_bool", [True, False])
 def test_qwen_2_5_vl_language_layer(tp_bool):
     """Test Qwen2.5-VL single language decoder layer with tensor parallel sharding."""
     # Load model
     loader = ModelLoader()
     model = loader.load_model(dtype_override=torch.bfloat16)
+    inputs = (
+        loader.load_inputs()
+    )  # returns BatchFeature with input_ids, attention_mask, pixel_values, image_grid_thw, video_grid_thw, second_per_grid_ts
 
-    # Extract language layer
-    layer = model.model.language_model.layers[0]
+    language_model = model.model.language_model  # Qwen2_5_VLTextModel
+    config = language_model.config  # Qwen2_5_VLTextConfig
+
+    # Extract language model layer
+    decoder_layer = language_model.layers[0]  # Qwen2_5_VLDecoderLayer[0]
 
     print(f"\n{'='*60}")
     print(f"Testing Language Layer with tp={tp_bool}")
     print(f"{'='*60}\n")
 
-    config = model.model.config
-
     batch_size = 1
     seq_len = 512
-    hidden_size = config.hidden_size
-
-    # Hidden states
-    hidden_states = torch.randn(batch_size, seq_len, hidden_size, dtype=torch.bfloat16)
-
+    hidden_size = config.hidden_size  # 2048
     head_dim = hidden_size // config.num_attention_heads
 
+    # hidden states
+    # input_ids from Qwen2_5_VLForConditionalGeneration passed to Qwen2_5_VLTextModel and made into inputs_embeds with
+    # self.get_input_embeddings()(input_ids)
+    # input_embeds then adds image/video embeddings if present
+    # and then passes to Qwen2_5_VLTextModel
+    # Qwen2_5_VLTextModel passes inputs_embeds to Qwen2_5_VLDecoderLayer[0] as hidden_states
+    # should be (batch_size, seq_len, hidden_size)
+    hidden_states = torch.randn(batch_size, seq_len, hidden_size, dtype=torch.bfloat16)
+
+    # position embeddings
+    # should be (3, batch_size, seq_len, head_dim)
     cos = torch.randn(3, batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     sin = torch.randn(3, batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos, sin)
 
     # Forward signature:
     # (hidden_states, attention_mask, position_ids, past_key_values, output_attentions, use_cache, cache_position, position_embeddings)
-    inputs = [hidden_states, None, None, None, False, False, None, position_embeddings]
+    decoder_inputs = [
+        hidden_states,
+        None,
+        None,
+        None,
+        False,
+        False,
+        None,
+        position_embeddings,
+    ]
 
     xr.set_device_type("TT")
 
     # Setup Mesh
     if tp_bool:
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
+        mesh_shape = (batch_size, num_devices // batch_size)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(layer_model, args, kwargs):
+        def get_shard_spec(layer, args, kwargs):
             shard_specs = {}
             # Attention
-            shard_specs[layer_model.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer_model.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer_model.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer_model.self_attn.o_proj.weight] = ("batch", "model")
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
 
             # MLP
-            shard_specs[layer_model.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer_model.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer_model.mlp.down_proj.weight] = ("batch", "model")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             return shard_specs
 
     run_graph_test(
-        layer,
-        inputs,
+        decoder_layer,
+        decoder_inputs,
         framework=Framework.TORCH,
         comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
         mesh=mesh,
@@ -83,69 +144,155 @@ def test_qwen_2_5_vl_language_layer(tp_bool):
 
 
 @pytest.mark.parametrize("tp_bool", [True, False])
-def test_qwen_2_5_vl_vision_patch_embed(tp_bool):
-    """Test Qwen2.5-VL patch embedding (Conv3d) with tensor parallel sharding."""
+def test_qwen_2_5_vl_language_attention(tp_bool):
+    """Test Qwen2.5-VL single language decoder layer attention with tensor parallel sharding."""
     # Load model
     loader = ModelLoader()
     model = loader.load_model(dtype_override=torch.bfloat16)
+    inputs = (
+        loader.load_inputs()
+    )  # returns BatchFeature with input_ids, attention_mask, pixel_values, image_grid_thw, video_grid_thw, second_per_grid_ts
 
-    # Extract patch_embed layer
-    # Structure: model.model.visual.patch_embed
-    patch_embed = model.model.visual.patch_embed
+    language_model = model.model.language_model  # Qwen2_5_VLTextModel
+    config = language_model.config  # Qwen2_5_VLTextConfig
+
+    # Extract language model layer
+    decoder_layer = language_model.layers[0]  # Qwen2_5_VLDecoderLayer[0]
+
+    attention = decoder_layer.self_attn  # Qwen2_5_VLAttention
 
     print(f"\n{'='*60}")
-    print(f"Testing Patch Embed with tp={tp_bool}")
+    print(f"Testing Language Layer attention with tp={tp_bool}")
     print(f"{'='*60}\n")
 
-    # Construct input for Conv3d(3, 1280, kernel_size=(2, 14, 14), ...)
-    # Input shape expected: (Batch, C, D, H, W)
-    # C=3.
-    # Kernel depth=2, stride depth=2. So D must be at least 2.
-    # Kernel H/W=14, stride=14. H, W must be at least 14.
+    batch_size = 1
+    seq_len = 512
+    hidden_size = config.hidden_size  # 2048
+    head_dim = hidden_size // config.num_attention_heads
 
-    batch_size = 32
-    C = 3
-    D = 2  # Temporal dimension (or depth)
-    H = 28  # 2 patches high
-    W = 28  # 2 patches wide
+    # hidden states
+    # input_ids from Qwen2_5_VLForConditionalGeneration passed to Qwen2_5_VLTextModel and made into inputs_embeds with
+    # self.get_input_embeddings()(input_ids)
+    # input_embeds then adds image/video embeddings if present
+    # and then passes to Qwen2_5_VLTextModel
+    # Qwen2_5_VLTextModel passes inputs_embeds to Qwen2_5_VLDecoderLayer[0] as hidden_states
+    # should be (batch_size, seq_len, hidden_size)
+    hidden_states = torch.randn(batch_size, seq_len, hidden_size, dtype=torch.bfloat16)
 
-    pixel_values = torch.randn(batch_size, C, D, H, W, dtype=torch.bfloat16)
+    # position embeddings
+    # should be (3, batch_size, seq_len, head_dim)
+    cos = torch.randn(3, batch_size, seq_len, head_dim, dtype=torch.bfloat16)
+    sin = torch.randn(3, batch_size, seq_len, head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos, sin)
 
-    # Forward signature: patch_embed(pixel_values)
-    inputs = [pixel_values]
+    # Forward signature:
+    # (hidden_states, attention_mask, position_ids, past_key_values, output_attentions, use_cache, cache_position, position_embeddings)
+    attention_inputs = [
+        hidden_states,
+        None,
+        None,
+        None,
+        False,
+        False,
+        None,
+        position_embeddings,
+    ]
 
     xr.set_device_type("TT")
 
     # Setup Mesh
-    mesh = None
-    get_shard_spec = None
     if tp_bool:
         num_devices = xr.global_runtime_device_count()
-        if num_devices < 2:
-            pytest.skip("Need at least 2 devices for TP test")
-
-        mesh_shape = (1, num_devices)
+        mesh_shape = (batch_size, num_devices // batch_size)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(layer_model, args, kwargs):
+        def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
-            # Shard Conv3d output channels (1280)
-            # visual.patch_embed.proj is the Conv3d layer
-            shard_specs[layer_model.proj.weight] = ("model", "batch", None, None, None)
-            if layer_model.proj.bias is not None:
-                shard_specs[layer_model.proj.bias] = ("model",)
+            # Attention
+            shard_specs[attention.q_proj.weight] = ("model", "batch")
+            # shard_specs[attention.k_proj.weight] = ("model", "batch")
+            # shard_specs[attention.v_proj.weight] = ("model", "batch")
+            shard_specs[attention.o_proj.weight] = ("batch", "model")
 
             return shard_specs
 
     run_graph_test(
-        patch_embed,
-        inputs,
+        attention,
+        attention_inputs,
         framework=Framework.TORCH,
         comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
+
+
+def generate_vision_block_inputs():
+    # Load model
+    loader = ModelLoader()
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    inputs = (
+        loader.load_inputs()
+    )  # returns BatchFeature with input_ids, attention_mask, pixel_values, image_grid_thw, video_grid_thw, second_per_grid_ts
+
+    # print(inputs)
+    for key, value in inputs.items():
+        print(f"{key}: {value.shape}")
+
+    vl_model = model.model  # Qwen2_5_VLModel
+    print(f"vl_model.config.hidden_size: {vl_model.config.hidden_size}")
+    vision_model = vl_model.visual  # Qwen2_5_VisionTransformerPretrainedModel
+    # takes input hidden_states and grid_thw
+    hidden_states = inputs["pixel_values"]
+    grid_thw = inputs["image_grid_thw"]
+    print(f"hidden_states: {hidden_states.shape}")
+    print(f"grid_thw: {grid_thw}")
+
+    patch_embed = vision_model.patch_embed  # Qwen2_5_VisionPatchEmbed
+
+    hidden_states = patch_embed(hidden_states)
+    print(f"hidden_states (patched): {hidden_states.shape}")
+
+    rotary_pos_emb = vision_model.rot_pos_emb(grid_thw)
+    window_index, cu_window_seqlens = vision_model.get_window_index(grid_thw)
+    cu_window_seqlens = torch.tensor(
+        cu_window_seqlens,
+        device=hidden_states.device,
+        dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+    )
+    cu_window_seqlens = torch.unique_consecutive(cu_window_seqlens)
+
+    seq_len, _ = hidden_states.size()
+    hidden_states = hidden_states.reshape(
+        seq_len // vision_model.spatial_merge_unit, vision_model.spatial_merge_unit, -1
+    )
+    hidden_states = hidden_states[window_index, :, :]
+    hidden_states = hidden_states.reshape(seq_len, -1)
+    print(f"Final hidden_states.shape after some reshaping: {hidden_states.shape}")
+    rotary_pos_emb = rotary_pos_emb.reshape(
+        seq_len // vision_model.spatial_merge_unit, vision_model.spatial_merge_unit, -1
+    )
+    rotary_pos_emb = rotary_pos_emb[window_index, :, :]
+    rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)
+    emb = torch.cat((rotary_pos_emb, rotary_pos_emb), dim=-1)
+    position_embeddings = (emb.cos(), emb.sin())
+    # print(f"position_embeddings: {position_embeddings}")
+    print(f"position_embeddings[0].shape: {position_embeddings[0].shape}")
+
+    cu_seqlens = torch.repeat_interleave(
+        grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]
+    ).cumsum(
+        dim=0,
+        dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+    )
+
+    import torch.nn.functional as F
+
+    cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
+    print(f"cu_seqlens: {cu_seqlens}")
+    print(f"cu_seqlens.shape: {cu_seqlens.shape}")
+
+    return hidden_states, cu_seqlens, position_embeddings
 
 
 @pytest.mark.parametrize("tp_bool", [True, False])
@@ -155,29 +302,14 @@ def test_qwen_2_5_vl_vision_block(tp_bool):
     loader = ModelLoader()
     model = loader.load_model(dtype_override=torch.bfloat16)
 
+    vision_model = model.model.visual  # Qwen2_5_VisionTransformerPretrainedModel
     visual_block = model.model.visual.blocks[0]
 
     print(f"\n{'='*60}")
     print(f"Testing Vision Block with tp={tp_bool}")
     print(f"{'='*60}\n")
 
-    # Determine shapes from visual config
-    visual_config = model.model.visual.config
-    hidden_size = visual_config.hidden_size
-
-    num_patches = 256  # Arbitrary number of patches
-    hidden_states = torch.randn(num_patches, hidden_size, dtype=torch.bfloat16)
-
-    # rotary_pos_emb = torch.randn(num_patches, head_dim, dtype=torch.bfloat16)
-    cu_seqlens = torch.tensor([0, num_patches], dtype=torch.int32)
-    seq_len = num_patches
-    head_dim = hidden_size // visual_config.num_heads
-
-    # cos/sin should be (seq_len, head_dim)
-    cos = torch.randn(seq_len, head_dim, dtype=torch.bfloat16)
-    sin = torch.randn(seq_len, head_dim, dtype=torch.bfloat16)
-    position_embeddings = (cos, sin)
-
+    hidden_states, cu_seqlens, position_embeddings = generate_vision_block_inputs()
     # Forward signature: (hidden_states, cu_seqlens, rotary_pos_emb=None, position_embeddings=None)
     inputs = [hidden_states, cu_seqlens, None, position_embeddings]
 
@@ -185,24 +317,21 @@ def test_qwen_2_5_vl_vision_block(tp_bool):
 
     if tp_bool:
         num_devices = xr.global_runtime_device_count()
-
         mesh_shape = (1, num_devices)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(layer_model, args, kwargs):
+        def get_shard_spec(visual_block, args, kwargs):
             shard_specs = {}
 
             # Attention
-            shard_specs[layer_model.attn.qkv.weight] = ("model", "batch")
-            # if layer_model.attn.qkv.bias is not None:
-            #    shard_specs[layer_model.attn.qkv.bias] = ("model",)
-            shard_specs[layer_model.attn.proj.weight] = ("batch", "model")
+            shard_specs[visual_block.attn.qkv.weight] = ("model", "batch")
+            shard_specs[visual_block.attn.proj.weight] = ("batch", "model")
 
             # MLP
-            shard_specs[layer_model.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer_model.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer_model.mlp.down_proj.weight] = ("batch", "model")
+            shard_specs[visual_block.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[visual_block.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[visual_block.mlp.down_proj.weight] = ("batch", "model")
 
             return shard_specs
 
