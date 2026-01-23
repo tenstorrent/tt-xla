@@ -2577,3 +2577,6 @@ test_config:
 
   dinov2/image_classification/pytorch-giant-single_device-inference:
     status: EXPECTED_PASSING
+
+  gemma/text_translation/pytorch-translategemma_4b_it-single_device-inference:
+    status: EXPECTED_PASSING

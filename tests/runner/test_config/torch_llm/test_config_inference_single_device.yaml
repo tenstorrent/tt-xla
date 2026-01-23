@@ -127,3 +127,51 @@ test_config:
 
   llama/causal_lm/pytorch-TinyLlama_v1.1-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
+
+  qwen_2_5/causal_lm/pytorch-7b-llm_decode-single_device-inference:
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+
+  qwen_2_5/causal_lm/pytorch-7b_instruct_1m-llm_decode-single_device-inference:
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+
+  qwen_2_5/causal_lm/pytorch-14b_instruct_1m-llm_decode-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-llama_3_8b_instruct-llm_decode-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-llama_3_8b-llm_decode-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-llama_3_1_8b-llm_decode-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-huggyllama_7b-llm_decode-single_device-inference:
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+
+  falcon/pytorch-tiiuae/falcon-7b-instruct-llm_decode-single_device-inference:
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
