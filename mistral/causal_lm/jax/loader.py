@@ -16,6 +16,7 @@ from ....config import (
     ModelTask,
     ModelSource,
     Framework,
+    Parallelism,
     StrEnum,
 )
 from ....tools.jax_utils import cast_hf_model_to_type
@@ -206,24 +207,30 @@ class ModelLoader(ForgeModel):
             input_ids = jnp.repeat(inputs["input_ids"], batch_size, axis=0)
             return {"input_ids": input_ids}
 
-    def get_input_activations_partition_spec(self, mesh, axis_name="X"):
+    def get_input_activations_partition_spec(self, mesh, parallelism, axis_name="X"):
         """Get partition specification for input activations.
 
         Args:
             mesh: The device mesh for sharding.
-            axis_name: Name of the sharding axis.
+            parallelism: The level of parallelism for sharding.
+            axis_name: The name of the mesh axis to use for sharding.
 
         Returns:
             PartitionSpec for input activations (sharded on batch dimension)
         """
-        if np.prod(list(mesh.shape.values())) == 1:
+        if (
+            parallelism.name == Parallelism.TENSOR_PARALLEL.name
+            or np.prod(list(mesh.shape.values())) == 1
+        ):
             return (PartitionSpec(),)
 
         return (PartitionSpec(axis_name),)
 
     def load_parameters_partition_spec(
         self,
-        model_for_multichip=None,
+        model_for_multichip,
+        parallelism,
+        axis_name="X",
         cpu_mesh=None,
         input_activations_partition_specs=None,
         inputs=None,
@@ -232,10 +239,21 @@ class ModelLoader(ForgeModel):
         # Get the model state
         state = nnx.split(model_for_multichip)[1]
 
-        partition_rules = ((r".*", PartitionSpec()),)  # Everything replicated
+        if (
+            parallelism.name == Parallelism.DATA_PARALLEL.name
+            or parallelism.name == Parallelism.SINGLE_DEVICE.name
+        ):
+            # In data parallel mode, use fully replicated partitioning
+            partition_rules = ((r".*", PartitionSpec()),)
+        else:
+            # Use EasyDel's MistralConfig to get proper partition rules
+            from easydel.modules.mistral import MistralConfig
+
+            mistral_config = MistralConfig()
+            partition_rules = mistral_config.get_partition_rules()
 
         from infra.utilities import make_easydel_parameters_partition_specs
 
         return make_easydel_parameters_partition_specs(
-            model_state=state, partition_rules=partition_rules
+            model_state=state, partition_rules=partition_rules, axis_name=axis_name
         )
