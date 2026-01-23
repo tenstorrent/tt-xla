@@ -76,12 +76,15 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-8b-llm_decode-tensor_parallel-inference:
+    required_pcc: 0.985 # https://github.com/tenstorrent/tt-xla/issues/2942
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-14b-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "trisc2 compile failure - https://github.com/tenstorrent/tt-xla/issues/2958"
 
   qwen_3/causal_lm/pytorch-32b-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
