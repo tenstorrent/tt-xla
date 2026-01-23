@@ -1,4 +1,4 @@
-name: Publish the xla wheel to pypi (call)
+name: Publish the wheel to pypi (call)
 
 on:
   workflow_call:
@@ -24,6 +24,11 @@ on:
         type: boolean
         required: false
         default: false
+      release_tag_override:
+        description: 'Release tag override'
+        type: string
+        required: true
+
     outputs:
       release_tag:
         description: 'Release tag'
@@ -31,7 +36,7 @@ on:
 
 jobs:
   publish-wheel:
-    name: Publish wheel to pypi
+    name: Publish wheels to pypi
     runs-on: ubuntu-latest
     outputs:
       release-tag: ${{ steps.set-tag.outputs.tag }}
@@ -39,6 +44,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+        # todo(vvukoman): inputs.release_tag_override is a temporary input for testing
       - name: Set tag
         shell: bash
         id: set-tag
@@ -51,7 +57,7 @@ jobs:
           #   tag="$VERSION.$nightly_release_suffix"
           # fi
 
-          tag="0.1.0.dev1"
+          tag="${{ inputs.release_tag_override }}"
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Set up Python
@@ -79,7 +85,7 @@ jobs:
             sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
           sudo apt-get update && sudo apt-get install -y -q gh
 
-          rm -f *.whl
+          rm -f wheel/*.whl
 
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_artifact_name }}"
           gh run download ${{ inputs.wheel_release_artifact_run_id }} \
@@ -104,7 +110,7 @@ jobs:
           .github/scripts/modify_wheel_version.sh wheel/pjrt_plugin_tt*.whl $tag
           .github/scripts/modify_wheel_version.sh wheel/vllm_tt*.whl $tag
 
-      - name: Publish Tenstorrent PyPI packages
+      - name: Publish wheels to PyPI
         shell: bash
         run: |
           shopt -s nullglob

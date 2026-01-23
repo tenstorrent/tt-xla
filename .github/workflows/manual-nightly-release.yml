@@ -1,0 +1,65 @@
+name: Manual nightly release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag'
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+  packages: write
+  checks: write
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+
+  build-ttxla:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla"
+    secrets: inherit
+    needs: build-image
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  publish-release-wheel:
+    uses: ./.github/workflows/call-publish-release-wheel.yml
+    secrets: inherit
+    needs: [ build-ttxla ]
+    with:
+      wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
+      is_nightly_release: true
+
+  build-release-docker:
+    uses: ./.github/workflows/call-build-release-docker.yml
+    needs: [ build-ttxla, publish-release-wheel ]
+    secrets: inherit
+    with:
+      wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
+      wheel_version_override: ${{ needs.publish-release-wheel.outputs.release_tag }}
+
+  release-tests:
+    uses: ./.github/workflows/call-release-tests.yml
+    needs: [ build-release-docker ]
+    secrets: inherit
+    with:
+      release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
+
+  publish-release:
+    uses: ./.github/workflows/call-publish-release.yml
+    needs: [ release-tests, build-release-docker, publish-release-wheel ]
+    secrets: inherit
+    with:
+      release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}
+      docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}
+      is_nightly_release: true
