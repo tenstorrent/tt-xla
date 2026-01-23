@@ -10,8 +10,12 @@ from typing import Any, Dict, List, Optional, Type, Union
 import torch
 import torch_xla.runtime as xr
 from infra.connectors.torch_device_connector import TorchDeviceConnector
-from infra.evaluators.quality_config import QualityConfig
-from infra.evaluators.quality_evaluator import QualityEvaluator, QualityResult
+from infra.evaluators import (
+    ImageGenQualityConfig,
+    QualityConfig,
+    QualityEvaluator,
+    QualityResult,
+)
 from infra.utilities import sanitize_test_name
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
 
@@ -74,7 +78,11 @@ class StableDiffusionTester(QualityTester):
         metric_kwargs = self._build_metric_kwargs()
 
         super().__init__(
-            quality_config=quality_config,
+            quality_config=(
+                quality_config
+                if quality_config is not None
+                else ImageGenQualityConfig()
+            ),
             metric_kwargs=metric_kwargs,
             metric_names=self._metric_names,
         )

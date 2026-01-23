@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra.evaluators.quality_config import QualityConfig
+from infra.evaluators import ImageGenQualityConfig
 from infra.testers.single_chip.model.model_tester import RunMode
 from infra.testers.single_chip.quality.stable_diffusion_tester import (
     StableDiffusionTester,
@@ -42,7 +42,7 @@ def test_clip_sdxl(request):
         height=MODEL_INFO["height"],
     )
 
-    quality_config = QualityConfig(min_clip_threshold=23.0)
+    quality_config = ImageGenQualityConfig(min_clip_threshold=23.0)
 
     tester = StableDiffusionTester(
         pipeline_cls=SDXLPipeline,

@@ -7,8 +7,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from infra.evaluators import ComparisonConfig, Evaluator, EvaluatorFactory
-from infra.evaluators.quality_config import QualityConfig
+from infra.evaluators import (
+    ComparisonConfig,
+    Evaluator,
+    EvaluatorFactory,
+    QualityConfig,
+)
 from infra.runners import DeviceRunner, DeviceRunnerFactory
 from infra.utilities import Framework, sanitize_test_name
 

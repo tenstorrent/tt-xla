@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra.evaluators.quality_config import QualityConfig
+from infra.evaluators import ImageGenQualityConfig
 from infra.testers.single_chip.model.model_tester import RunMode
 from infra.testers.single_chip.quality.stable_diffusion_tester import (
     StableDiffusionTester,
@@ -50,7 +50,7 @@ def test_fid_sdxl(request):
         pipeline_config=pipeline_config,
         dataset=dataset,
         metric_names="fid",
-        quality_config=QualityConfig(),
+        quality_config=ImageGenQualityConfig(),
         warmup=True,
         seed=42,
     )

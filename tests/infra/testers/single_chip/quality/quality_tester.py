@@ -7,8 +7,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from typing import Any, Dict, List, Optional
 
-from infra.evaluators import QualityResult
-from infra.evaluators.quality_config import QualityConfig
+from infra.evaluators import QualityConfig, QualityResult
 from infra.testers.base_tester import BaseTester
 
 

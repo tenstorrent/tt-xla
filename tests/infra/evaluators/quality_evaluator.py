@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 from infra.metrics import QualityMetric, get_metric
 
+from .evaluation_config import QualityConfig
 from .evaluator import Evaluator, QualityResult
-from .quality_config import QualityConfig
 
 
 class QualityEvaluator(Evaluator):
@@ -103,39 +103,15 @@ class QualityEvaluator(Evaluator):
         """
         Evaluate computed metrics against configured thresholds.
 
+        Delegates to the config's check_thresholds() method.
+
         Args:
             metrics: Dictionary of computed metric values
 
         Returns:
             Tuple of (passed, error_message)
         """
-        passed = True
-        error_messages = []
-
-        # Check CLIP threshold (higher is better, use clip_min for worst-case)
-        if "clip_min" in metrics:
-            min_clip = self._quality_config.min_clip_threshold
-            if metrics["clip_min"] < min_clip:
-                passed = False
-                error_messages.append(
-                    f"CLIP quality check failed. "
-                    f"Calculated: clip_min={metrics['clip_min']:.2f}. "
-                    f"Required: min_clip_threshold={min_clip:.2f}."
-                )
-
-        # Check FID threshold (lower is better)
-        if "fid" in metrics:
-            max_fid = self._quality_config.max_fid_threshold
-            if metrics["fid"] > max_fid:
-                passed = False
-                error_messages.append(
-                    f"FID quality check failed. "
-                    f"Calculated: fid={metrics['fid']:.2f}. "
-                    f"Required: max_fid_threshold={max_fid:.2f}."
-                )
-
-        combined_error = "\n".join(error_messages) if error_messages else None
-        return passed, combined_error
+        return self._quality_config.check_thresholds(metrics)
 
     @property
     def metrics(self) -> Dict[str, QualityMetric]:
