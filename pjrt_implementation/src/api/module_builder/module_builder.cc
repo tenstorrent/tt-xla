@@ -41,6 +41,7 @@
 
 // stablehlo includes
 #include "stablehlo/dialect/Register.h"
+#include "stablehlo/dialect/StablehloOps.h"
 #include "stablehlo/transforms/Passes.h"
 
 // shardy includes
@@ -282,6 +283,21 @@ ModuleBuilder::buildModule(
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
+
+  // Workaround for issue #2840: Convert sdy.constant to stablehlo.constant
+  // Shardy propagation may create sdy.constant operations, but the
+  // StableHLO->TTIR conversion doesn't have a pattern to handle them.
+  // This cleanup ensures only stablehlo.constant operations reach the
+  // conversion.
+  // See: https://github.com/tenstorrent/tt-xla/issues/2840
+  mlir_module->walk([&](mlir::sdy::ConstantOp sdyConst) {
+    mlir::OpBuilder builder(sdyConst->getContext());
+    builder.setInsertionPoint(sdyConst);
+    auto stablehloConst = builder.create<mlir::stablehlo::ConstantOp>(
+        sdyConst.getLoc(), sdyConst.getValue());
+    sdyConst.replaceAllUsesWith(stablehloConst.getResult());
+    sdyConst.erase();
+  });
 
   // Shardy output shardings must be collected after the SHLO compiler pipeline
   // is run. If shardy is being used, overwrite the GSPMD shardings collected
