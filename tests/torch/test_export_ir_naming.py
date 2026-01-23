@@ -24,16 +24,22 @@ def test_export_ir_naming():
 
     with tempfile.TemporaryDirectory() as export_dir:
         model_name = "test_mlp"
-        torch_xla.set_custom_compile_options({
-            "export_path": export_dir,
-            "export_model_name": model_name,
-        })
+        torch_xla.set_custom_compile_options(
+            {
+                "export_path": export_dir,
+                "export_model_name": model_name,
+            }
+        )
 
-        model = nn.Sequential(
-            nn.Linear(64, 128),
-            nn.ReLU(),
-            nn.Linear(128, 10),
-        ).to(torch.bfloat16).to(device)
+        model = (
+            nn.Sequential(
+                nn.Linear(64, 128),
+                nn.ReLU(),
+                nn.Linear(128, 10),
+            )
+            .to(torch.bfloat16)
+            .to(device)
+        )
 
         x = torch.randn(4, 64, dtype=torch.bfloat16, device=device)
 
@@ -56,4 +62,6 @@ def test_export_ir_naming():
             for graph_num in [0, 1]:
                 pattern = re.compile(rf"^{stage}_{model_name}_g{graph_num}_\d+\.mlir$")
                 matching = [f for f in mlir_files if pattern.match(f.name)]
-                assert len(matching) > 0, f"No file matching {stage}_{model_name}_g{graph_num}_<timestamp>.mlir"
+                assert (
+                    len(matching) > 0
+                ), f"No file matching {stage}_{model_name}_g{graph_num}_<timestamp>.mlir"
