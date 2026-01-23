@@ -94,7 +94,7 @@ jobs:
             --name ${{ inputs.wheel_release_vllm_tt_artifact_name }}
 
           echo "Downloaded wheels"
-          ls -l
+          ls -l wheel
 
       - name: Rename wheels
         shell: bash
