@@ -297,7 +297,9 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         """Returns partition specs for the input activations."""
         if self._model_loader is not None:
             return self._model_loader.get_input_activations_partition_spec(
-                self._cpu_mesh, axis_name=self.main_axis_name, parallelism=self._parallelism
+                self._cpu_mesh,
+                axis_name=self.main_axis_name,
+                parallelism=self._parallelism,
             )
         else:
             raise NotImplementedError(

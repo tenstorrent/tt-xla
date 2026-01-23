@@ -88,7 +88,7 @@ def make_easydel_parameters_partition_specs(
         PyTree of partition specs matching the model_state structure
     """
     import re
-    
+
     def jax_path_to_string(path) -> str:
         """Convert JAX tree path to string representation.
 
@@ -114,31 +114,31 @@ def make_easydel_parameters_partition_specs(
 
     def map_tp_to_mesh_axis(spec: PartitionSpec) -> PartitionSpec:
         """Partition rules are taken from EasyDeL, which defines them in a specific form (e.g. (('fsdp', 'sp'), 'tp')).
-        For our use case, we only care about the 'tp' axis, which we want to map to a specific mesh axis (e.g. 'X'). 
+        For our use case, we only care about the 'tp' axis, which we want to map to a specific mesh axis (e.g. 'X').
         All other axes ('fsdp', 'sp', etc.) are treated as replicated and replaced with None.
-        
+
         Examples:
         - PartitionSpec(('fsdp', 'sp'), 'tp') → PartitionSpec(None, 'X')
         - PartitionSpec('tp', ('fsdp', 'sp')) → PartitionSpec('X', None)
         - PartitionSpec(('fsdp', 'sp')) → PartitionSpec(None)
         - PartitionSpec('tp') → PartitionSpec('X')
         """
-        
+
         if spec is None:
             return spec
-            
+
         def map_single_axis(axis):
             if axis is None or axis == PartitionSpec.UNCONSTRAINED:
                 return None
             if isinstance(axis, tuple):
                 # Check if 'tp' is in compound axis like ('fsdp', 'sp')
-                return axis_name if 'tp' in axis else None
+                return axis_name if "tp" in axis else None
             if isinstance(axis, str):
-                return axis_name if axis == 'tp' else None
+                return axis_name if axis == "tp" else None
             return None
-            
+
         # Apply mapping to each dimension in partition spec
-        if hasattr(spec, '__iter__') and not isinstance(spec, str):
+        if hasattr(spec, "__iter__") and not isinstance(spec, str):
             mapped_axes = [map_single_axis(axis) for axis in spec]
             return PartitionSpec(*mapped_axes)
         else:

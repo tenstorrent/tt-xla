@@ -153,7 +153,7 @@ test_config:
 
   falcon/jax-tiiuae/Falcon3-1B-Base-single_device-inference:
     status: EXPECTED_PASSING
-  
+
   falcon/jax-tiiuae/Falcon3-3B-Base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 37748736 B DRAM buffer across 12 banks, where each bank needs to store 3145728 B, but bank size is 1073741792 B"
@@ -319,10 +319,10 @@ test_config:
 
   phi1/causal_lm/jax-microsoft/phi-1-single_device-inference:
     status: EXPECTED_PASSING
-  
+
   phi1_5/causal_lm/jax-microsoft/phi-1_5-single_device-inference:
     status: EXPECTED_PASSING
-  
+
   phi2/causal_lm/jax-microsoft/phi-2-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
@@ -332,12 +332,12 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
-  
+
   phi3/causal_lm/jax-microsoft/Phi-3-mini-128k-instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     bringup_status: FAILED_RUNTIME
-  
+
   phi3/causal_lm/jax-microsoft/Phi-3-mini-4k-instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "OOM DRAM"
@@ -379,33 +379,33 @@ test_config:
 
   qwen_2_5_coder/causal_lm/jax-0_5b-single_device-inference:
     status: EXPECTED_PASSING
-  
+
   qwen_2_5_coder/causal_lm/jax-1_5b-single_device-inference:
     status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-1_5b_instruct-single_device-inference:
     status: EXPECTED_PASSING
-  
+
   qwen_2_5_coder/causal_lm/jax-3b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
-    bringup_status: FAILED_RUNTIME 
-  
+    bringup_status: FAILED_RUNTIME
+
   qwen_2_5_coder/causal_lm/jax-3b_instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
-    bringup_status: FAILED_RUNTIME 
-  
+    bringup_status: FAILED_RUNTIME
+
   qwen_2_5_coder/causal_lm/jax-7b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     bringup_status: FAILED_RUNTIME
-  
+
   qwen_2_5_coder/causal_lm/jax-7b_instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     bringup_status: FAILED_RUNTIME
-    
+
   qwen_3/causal_lm/jax-0_6b-single_device-inference:
     status: EXPECTED_PASSING
 
