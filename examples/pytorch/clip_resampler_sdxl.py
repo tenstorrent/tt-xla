@@ -22,6 +22,7 @@ from tt_torch import codegen_py
 # CONFIG
 compile_options = {
     "optimization_level": 1,
+    "codegen_try_recover_structure": True,
 }
 EXPORT_PATH = "clip_resampler_codegen"
 torch_xla.set_custom_compile_options(compile_options)
@@ -176,8 +177,8 @@ def run_codegen():
 
 
 def main():
-    # run_codegen()
-    # return
+    run_codegen()
+    return
 
     output_pt = run_on_cpu()
     output_tt = run_on_tt()
