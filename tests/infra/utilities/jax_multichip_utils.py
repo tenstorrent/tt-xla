@@ -98,7 +98,6 @@ def make_easydel_parameters_partition_specs(
         Returns:
             String representation of the path (e.g., "transformer/h/0/attn/c_attn/kernel")
         """
-
         return "/".join(
             (
                 key.name
@@ -128,10 +127,18 @@ def make_easydel_parameters_partition_specs(
             return spec
 
         def map_single_axis(axis):
-            if axis is None or axis == PartitionSpec.UNCONSTRAINED:
+            """Map a single axis specification to the target mesh axis name.
+            
+            Args:
+                axis: Can be None, a string (e.g., 'tp'), or a tuple of strings (e.g., ('fsdp', 'tp'))
+                
+            Returns:
+                The target axis_name if 'tp' is found in the axis, None otherwise
+            """
+            if axis is None:
                 return None
             if isinstance(axis, tuple):
-                # Check if 'tp' is in compound axis like ('fsdp', 'sp')
+                # Check if 'tp' is in compound axis like ('fsdp', 'tp')
                 return axis_name if "tp" in axis else None
             if isinstance(axis, str):
                 return axis_name if axis == "tp" else None
