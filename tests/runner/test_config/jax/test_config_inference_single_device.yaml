@@ -154,6 +154,11 @@ test_config:
   falcon/jax-tiiuae/Falcon3-1B-Base-single_device-inference:
     status: EXPECTED_PASSING
   
+  falcon/jax-tiiuae/Falcon3-3B-Base-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 37748736 B DRAM buffer across 12 banks, where each bank needs to store 3145728 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
   gpt2/causal_lm/jax-base-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]
