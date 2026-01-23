@@ -7,7 +7,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from typing import Any, Dict, List, Optional
 
-from infra.evaluators import EvaluatorFactory, QualityEvaluator, QualityResult
+from infra.evaluators import QualityResult
 from infra.evaluators.quality_config import QualityConfig
 from infra.testers.base_tester import BaseTester
 
@@ -29,28 +29,18 @@ class QualityTester(BaseTester):
         Args:
             quality_config: Configuration for quality thresholds
             metric_kwargs: Optional dict mapping metric_name -> kwargs for metric creation
+            metric_names: List of metric names to evaluate
         """
-        self._quality_config = (
-            quality_config if quality_config is not None else QualityConfig()
-        )
-        self._metric_kwargs = metric_kwargs or {}
-        self._quality_evaluator: Optional[QualityEvaluator] = None
         self._last_result: Optional[QualityResult] = None
-        self._metric_names: List[str] = metric_names or []
 
-    def _initialize_quality_evaluator(self) -> None:
-        assert (
-            self._metric_names is not None and len(self._metric_names) > 0
-        ), "Metric names are required for quality evaluators"
-        evaluator = EvaluatorFactory.create_evaluator(
-            evaluation_type="quality",
-            quality_config=self._quality_config,
-            metric_names=self._metric_names,
-            metric_kwargs=self._metric_kwargs,
+        super().__init__(
+            evaluator_type="quality",
+            quality_config=(
+                quality_config if quality_config is not None else QualityConfig()
+            ),
+            metric_names=metric_names or [],
+            metric_kwargs=metric_kwargs or {},
         )
-
-        assert isinstance(evaluator, QualityEvaluator)
-        self._quality_evaluator = evaluator
 
     @abstractmethod
     def test(self) -> QualityResult:

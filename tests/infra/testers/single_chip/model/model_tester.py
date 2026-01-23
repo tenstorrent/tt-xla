@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Callable, Optional, Tuple
 
-from infra.evaluators import ComparisonConfig, ComparisonResult, EvaluatorFactory
+from infra.evaluators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
 
@@ -53,7 +53,11 @@ class ModelTester(BaseTester, ABC):
         )
         self._perf_measurements: list[dict[str, float]] = []
 
-        super().__init__(comparison_config, framework)
+        super().__init__(
+            evaluator_type="comparison",
+            comparison_config=comparison_config,
+            framework=framework,
+        )
         self._initialize_components()
 
     def _initialize_components(self) -> None:
@@ -62,7 +66,6 @@ class ModelTester(BaseTester, ABC):
         self._cache_model_inputs()
         self._set_inputs_dtype()
         self._initialize_workload()
-        self._initialize_evaluator()
 
     def _initialize_model(self) -> None:
         """
@@ -75,13 +78,6 @@ class ModelTester(BaseTester, ABC):
         self._model = self._get_model()
         # Configure it.
         self._configure_model()
-
-    def _initialize_evaluator(self) -> None:
-        self._evaluator = EvaluatorFactory.create_evaluator(
-            evaluation_type="comparison",
-            framework=self._framework,
-            comparison_config=self._comparison_config,
-        )
 
     def _get_shard_specs_function(self) -> Optional[Callable[[Model], ShardSpec]]:
         """Optional: returns shard specs function if required; otherwise None."""

@@ -5,9 +5,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from infra.evaluators import ComparisonConfig, Evaluator, EvaluatorFactory
+from infra.evaluators.quality_config import QualityConfig
 from infra.runners import DeviceRunner, DeviceRunnerFactory
 from infra.utilities import Framework, sanitize_test_name
 
@@ -17,12 +18,25 @@ class BaseTester(ABC):
 
     def __init__(
         self,
-        comparison_config: ComparisonConfig = ComparisonConfig(),
+        evaluator_type: str,
+        comparison_config: Optional[ComparisonConfig] = None,
         framework: Optional[Framework] = None,
+        quality_config: Optional[QualityConfig] = None,
+        metric_names: Optional[List[str]] = None,
+        metric_kwargs: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
         """Protected constructor for subclasses to use."""
-        self._comparison_config = comparison_config
+        self._evaluator_type = evaluator_type
+        self._comparison_config = (
+            comparison_config if comparison_config is not None else ComparisonConfig()
+        )
         self._framework = framework
+        self._quality_config = (
+            quality_config if quality_config is not None else QualityConfig()
+        )
+        self._metric_names = metric_names
+        self._metric_kwargs = metric_kwargs
+
         # Placeholders for objects that will be set during
         # `_initialize_framework_specific_helpers`. Easier to spot if located in
         # constructor instead of dynamically creating them somewhere in methods.
@@ -44,9 +58,25 @@ class BaseTester(ABC):
 
         This function triggers connection to device.
         """
-        assert self._framework is not None
-        # Creating runner will register plugin and connect the device properly.
-        self._device_runner = DeviceRunnerFactory.create_runner(self._framework)
+        if self._framework is not None:
+            # Creating runner will register plugin and connect the device properly.
+            self._device_runner = DeviceRunnerFactory.create_runner(self._framework)
+        self._initialize_evaluator()
+
+    def _initialize_evaluator(self) -> None:
+        """Initialize evaluator using factory with stored params."""
+        # Skip if quality evaluator needs lazy init (no metric_names yet)
+        if self._evaluator_type == "quality" and not self._metric_names:
+            return
+
+        self._evaluator = EvaluatorFactory.create_evaluator(
+            evaluation_type=self._evaluator_type,
+            framework=self._framework,
+            comparison_config=self._comparison_config,
+            quality_config=self._quality_config,
+            metric_names=self._metric_names,
+            metric_kwargs=self._metric_kwargs,
+        )
 
     def serialize_compilation_artifacts(self, test_name: str) -> None:
         """Serialize the model with the appropriate output prefix.

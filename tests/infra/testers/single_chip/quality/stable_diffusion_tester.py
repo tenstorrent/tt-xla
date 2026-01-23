@@ -80,15 +80,10 @@ class StableDiffusionTester(QualityTester):
         )
 
     def test(self) -> QualityResult:
-        # lazy init
-        if self._quality_evaluator is None:
-            self._initialize_quality_evaluator()
-
         outputs = self._generate_outputs()
 
-        # At this point, evaluator is guaranteed to be initialized
-        assert self._quality_evaluator is not None
-        self._last_result = self._quality_evaluator.evaluate(outputs, self._captions)
+        assert self._evaluator is not None
+        self._last_result = self._evaluator.evaluate(outputs, self._captions)
 
         if self._quality_config.assert_on_failure and not self._last_result.passed:
             QualityEvaluator._assert_on_results(self._last_result)
