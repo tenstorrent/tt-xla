@@ -200,9 +200,6 @@ def construct_inputs(
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
-    logger.warning(
-        "Regression in left-padded multibatch inference accuracy after uplift of transformers==4.57.1 and torch==2.9.0, https://github.com/tenstorrent/tt-xla/issues/2546 "
-    )
     inputs = tokenizer(
         input_prompt,
         return_tensors="pt",
@@ -232,17 +229,20 @@ def construct_inputs(
     )
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
-    # it is for some reason necessary to pass an attention mask (even though it is not updated/becomes invalid)
-    # to avoid a left padded model from producing degenerate outputs. We do not update the attention mask
-    # during generation, so it will remain technically invalid after the first step, but produced output is still correct.
-    # -- just as a test, passing in a randint attention mask also produces degenerate output, so during prefill attn mask does matter.
+    # Attention mask is needed to ignore padding tokens in left-padded batches. The mask should match max_cache_len
+    # to prevent recompilation or implicit padding by transformers, which can cause degenerate output.
+    prompt_len = inputs.input_ids.shape[1]
+    full_attention_mask = torch.ones(
+        (batch_size, max_cache_len), dtype=inputs.attention_mask.dtype
+    )
+    full_attention_mask[:, :prompt_len] = inputs.attention_mask
 
     input_args = {
         "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
         "cache_position": cache_position,
         "use_cache": True,
-        "attention_mask": inputs.attention_mask,
+        "attention_mask": full_attention_mask,
     }
 
     #   Debug prints
@@ -250,8 +250,9 @@ def construct_inputs(
     print(f"Input prompt: '{input_prompt}'")
     print(f"Input IDs shape: {inputs.input_ids.shape}")
     print(f"Input IDs: {inputs.input_ids}")
-    print(f"Attention mask shape: {inputs.attention_mask.shape}")
-    print(f"Attention mask: {inputs.attention_mask}")
+    print(f"Input attention mask shape: {inputs.attention_mask.shape}")
+    print(f"Full attention mask shape (pre-allocated): {full_attention_mask.shape}")
+    print(f"Full attention mask: {full_attention_mask}")
     print(f"Cache position shape: {cache_position.shape}")
     print(f"Cache position: {cache_position}")
     print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
