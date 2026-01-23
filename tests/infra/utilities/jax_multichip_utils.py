@@ -128,10 +128,10 @@ def make_easydel_parameters_partition_specs(
 
         def map_single_axis(axis):
             """Map a single axis specification to the target mesh axis name.
-            
+
             Args:
                 axis: Can be None, a string (e.g., 'tp'), or a tuple of strings (e.g., ('fsdp', 'tp'))
-                
+
             Returns:
                 The target axis_name if 'tp' is found in the axis, None otherwise
             """
