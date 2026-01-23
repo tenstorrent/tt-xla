@@ -15,8 +15,9 @@ from convert_weights import convert_llama_weights
 from flax.core.frozen_dict import freeze
 from generation import LLaMA
 from jax.sharding import Mesh
-from model import FlaxLLaMAForCausalLM
 from transformers import AutoTokenizer
+
+from model import FlaxLLaMAForCausalLM
 
 ROOT = Path(__file__).parent.parent
 

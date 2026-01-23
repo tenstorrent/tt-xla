@@ -19,7 +19,11 @@ class TorchDeviceConnector(DeviceConnector):
     def __init__(self) -> None:
         super().__init__()
         xr.runtime.set_device_type("TT")
-        xr.initialize_cache(self.get_cache_dir())
+        # Only initialize cache if not already initialized (avoids assertion
+        # error when tests have already performed XLA operations before using
+        # the comparison evaluator)
+        if not torch_xla._XLAC._xla_computation_cache_is_initialized():
+            xr.initialize_cache(self.get_cache_dir())
 
     @staticmethod
     def get_cache_dir() -> str:

@@ -89,11 +89,15 @@ def mnist_performant():
 
     # Run fast inference loop and measure performance.
     inference_input = generate_input(batch_size, torch.bfloat16)
-    run_inference(model, device, inference_input, loop_count=128, verbose=True)
+    throughput = run_inference(
+        model, device, inference_input, loop_count=128, verbose=True
+    )
+
+    return throughput
 
 
 def run_inference(model, device, input, loop_count, verbose=True):
-    """Run inference and measure performance."""
+    """Run inference and measure performance. Returns samples per second."""
     iteration_times = []
     # Run fast inference loop.
     with torch.no_grad():
@@ -120,10 +124,24 @@ def run_inference(model, device, input, loop_count, verbose=True):
     if verbose:
         print(f"Average throughput: {round(samples_per_second)} samples/second")
 
+    return samples_per_second
+
 
 def generate_input(batch_size, dtype):
     """Helper to generate random inputs for inference."""
     return torch.randn((batch_size, 1, 28, 28), dtype=dtype)
+
+
+def test_mnist_performant():
+    """Test that MNIST performant achieves at least 7500 samples/second throughput."""
+    xr.set_device_type("TT")
+
+    throughput = mnist_performant()
+
+    print(f"Throughput: {throughput} samples/second")
+    assert (
+        throughput > 7500
+    ), f"Throughput too low: {throughput}, expected > 7500 samples/second"
 
 
 if __name__ == "__main__":
