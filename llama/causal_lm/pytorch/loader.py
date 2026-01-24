@@ -217,13 +217,13 @@ class ModelLoader(ForgeModel):
 
         return self.tokenizer
 
-    def load_model(self, dtype_override=None):
+    def load_model(self, dtype_override=None, num_layers=None):
         """Load and return the Llama model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
-
+            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
         Returns:
             torch.nn.Module: The Llama model instance for causal LM.
         """
@@ -242,6 +242,8 @@ class ModelLoader(ForgeModel):
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
+        if num_layers is not None:
+            model.model.layers = model.model.layers[:num_layers]
 
         model.eval()
         self.model = model
@@ -344,7 +346,13 @@ class ModelLoader(ForgeModel):
         return answer
 
     def get_mesh_config(self, num_devices: int):
-        mesh_shape = (1, num_devices)
+        if self._variant in [
+            ModelVariant.LLAMA_3_1_70B,
+            ModelVariant.LLAMA_3_1_70B_INSTRUCT,
+        ]:
+            mesh_shape = (2, num_devices // 2)
+        else:
+            mesh_shape = (1, num_devices)
 
         return mesh_shape, ("batch", "model")
 
@@ -359,6 +367,9 @@ class ModelLoader(ForgeModel):
             return None
 
         shard_specs = {}
+        shard_specs[model.model.embed_tokens.weight] = (None, "batch")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
+        shard_specs[model.model.norm.weight] = ("batch",)
         for layer in model.model.layers:
             shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
             shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
@@ -368,6 +379,8 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+            shard_specs[layer.input_layernorm.weight] = ("batch",)
+            shard_specs[layer.post_attention_layernorm.weight] = ("batch",)
         return shard_specs
 
     def load_config(self):
