@@ -23,7 +23,7 @@ from .passes import (
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
-    #replace_cpu_device_with_xla,
+    replace_cpu_device_with_xla,
     run_fusion_passes,
 )
 
@@ -183,13 +183,13 @@ class XLAExecutor:
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
             program = torch.export.export(self.module, tuple(args), strict=False)
 
-            # # Apply decompositions after re-export. The re-export can introduce new ops
-            # # (like copy.default from slice_scatter decomposition) that need to be
-            # # decomposed to work correctly with functional tensors + XLA.
-            # decompositions = populate_decompositions()
-            # program = program.run_decompositions(decompositions)
+            # Apply decompositions after re-export. The re-export can introduce new ops
+            # (like copy.default from slice_scatter decomposition) that need to be
+            # decomposed to work correctly with functional tensors + XLA.
+            decompositions = populate_decompositions()
+            program = program.run_decompositions(decompositions)
 
-            # program = replace_cpu_device_with_xla(program)
+            program = replace_cpu_device_with_xla(program)
 
             # file = open("program_g_before_experimental_compile_run.txt", "w")
             # file.write(str(program))

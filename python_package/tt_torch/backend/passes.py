@@ -232,22 +232,22 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
     return gm
 
 
-# def replace_cpu_device_with_xla(gm):
-#     """
-#     Replaces cpu device with xla device.
-#     """
-#     for node in gm.graph.nodes:
-#         if "device" in node.kwargs and node.kwargs["device"] == torch.device("cpu"):
-#             print(f"Gottem! {node.name}")
-#             kwarg_dict = node.kwargs.copy()
-#             kwarg_dict["device"] = torch.device("xla:0")
-#             node.kwargs = kwarg_dict
-#         if (
-#             node.op == "call_function"
-#             and node.target == torch.ops.aten.full_like.default
-#         ):
-#             print(f"Gottem! {node.name}")
-#             kwarg_dict = node.kwargs.copy()
-#             kwarg_dict["device"] = torch.device("xla:0")
-#             node.kwargs = kwarg_dict
-#     return gm
+def replace_cpu_device_with_xla(gm):
+    """
+    Replaces cpu device with xla device.
+    """
+    for node in gm.graph.nodes:
+        if "device" in node.kwargs and node.kwargs["device"] == torch.device("cpu"):
+            print(f"Gottem! {node.name}")
+            kwarg_dict = node.kwargs.copy()
+            kwarg_dict["device"] = torch.device("xla:0")
+            node.kwargs = kwarg_dict
+        if (
+            node.op == "call_function"
+            and node.target == torch.ops.aten.full_like.default
+        ):
+            print(f"Gottem! {node.name}")
+            kwarg_dict = node.kwargs.copy()
+            kwarg_dict["device"] = torch.device("xla:0")
+            node.kwargs = kwarg_dict
+    return gm

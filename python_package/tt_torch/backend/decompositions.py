@@ -371,7 +371,7 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
-        # aten.copy.default: copy_default,
+        aten.copy.default: copy_default,
         aten.matmul.default: matmul,
         aten.dot.default: dot,
         # Interpolation decompositions here perform interpolation
