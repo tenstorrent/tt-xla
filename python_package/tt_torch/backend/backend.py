@@ -213,7 +213,5 @@ def xla_backend(gm, example_inputs, options=None):
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
-    experimental_compile_enabled = (
-        options.get("tt_experimental_compile", False) if options else False
-    )
+    experimental_compile_enabled = True
     return XLAExecutor(module, graph_signature, node_info, experimental_compile_enabled)
