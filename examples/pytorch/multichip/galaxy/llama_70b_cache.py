@@ -76,6 +76,16 @@ def construct_inputs(
         device="cpu",
         dtype=torch.bfloat16,
     )
+
+    num_key_value_heads = model_config.num_key_value_heads
+    head_dim = model_config.hidden_size // model_config.num_attention_heads
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=num_key_value_heads,
+        head_dim=head_dim,
+        dtype=torch.bfloat16,
+        device="cpu",
+    )
     cache_position = torch.arange(0, inputs.input_ids.shape[1])
 
     input_args = {
@@ -106,12 +116,9 @@ def transfer_to_device(model, input_args, device):
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
 
     # Move cache to device
-    input_args["past_key_values"].key_cache = [
-        k.to(device) for k in input_args["past_key_values"].key_cache
-    ]
-    input_args["past_key_values"].value_cache = [
-        v.to(device) for v in input_args["past_key_values"].value_cache
-    ]
+    for layer in input_args["past_key_values"].layers:
+        layer.keys = layer.keys.to(device)
+        layer.values = layer.values.to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
 
     # Finally, move model to device
@@ -134,18 +141,13 @@ def mark_sharding_on_model_and_inputs(model, input_args, mesh):
         xs.mark_sharding(input_args["attention_mask"], mesh, ("batch", None))
 
     # Shard cache
-    for i, (key, value) in enumerate(
-        zip(
-            input_args["past_key_values"].key_cache,
-            input_args["past_key_values"].value_cache,
-        )
-    ):
+    for layer in input_args["past_key_values"].layers:
         if batch_size == 1:
-            xs.mark_sharding(key, mesh, (None, "model", None, None))
-            xs.mark_sharding(value, mesh, (None, "model", None, None))
+            xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+            xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
         else:
-            xs.mark_sharding(key, mesh, ("batch", "model", None, None))
-            xs.mark_sharding(value, mesh, ("batch", "model", None, None))
+            xs.mark_sharding(layer.keys, mesh, ("batch", "model", None, None))
+            xs.mark_sharding(layer.values, mesh, ("batch", "model", None, None))
 
     # Shard model
     for layer in model.model.layers:
@@ -204,20 +206,6 @@ def run_generate(
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
 
-            # Reapply shardings for static cache if SPMD is enabled
-            # See https://github.com/tenstorrent/tt-xla/issues/1641
-            for i, (key, value) in enumerate(
-                zip(
-                    input_args["past_key_values"].key_cache,
-                    input_args["past_key_values"].value_cache,
-                )
-            ):
-                if batch_size == 1:
-                    xs.mark_sharding(key, mesh, (None, "model", None, None))
-                    xs.mark_sharding(value, mesh, (None, "model", None, None))
-                else:
-                    xs.mark_sharding(key, mesh, ("batch", "model", None, None))
-                    xs.mark_sharding(value, mesh, ("batch", "model", None, None))
             end_time = time.time()
             times.append(end_time - start_time)
     print()
