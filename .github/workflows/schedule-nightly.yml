@@ -247,13 +247,16 @@ jobs:
           # Set PYTHONPATH to include op_by_op_infra
           export PYTHONPATH="${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/build/python_packages:${PYTHONPATH}"
 
+          # Suppress unnecessary runtime logs
+          export TTRT_LOGGER_LEVEL=ERROR
+
           echo "=== Verifying op_by_op_infra is importable ==="
           python3 -c "import op_by_op_infra; print(f'op_by_op_infra found at: {op_by_op_infra.__file__}')"
 
           echo "=== Running op-by-op tests ==="
           python3 -m pytest -svv tests/op_by_op/op_by_op_test.py::test_op_by_op \
             --folder=collected_irs \
-            --ir-file-prefix="irs/shlo_compiler" \
+            --ir-file-prefix="irs/ttir" \
             --json-report \
             --json-report-file=op_by_op_report.json \
             || echo "Op-by-op test completed with failures"
