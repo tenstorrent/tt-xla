@@ -375,29 +375,6 @@ void ClientInstance::unregisterBuffer(BufferInstance *buffer) {
   m_tracked_buffers.erase(buffer);
 }
 
-void ClientInstance::materializeAllBuffersToHost() {
-  std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
-
-  for (BufferInstance *buffer : m_tracked_buffers) {
-    if (!buffer->getHostRuntimeTensor().has_value() &&
-        buffer->getPreparedTensor().has_value()) {
-      if (tt::runtime::isTensorAllocated(buffer->getPreparedTensor().value())) {
-        std::vector<tt::runtime::Tensor> host_tensors = tt::runtime::toHost(
-            buffer->getPreparedTensor().value(), /*untilize=*/true);
-        if (!host_tensors.empty()) {
-          buffer->setHostRuntimeTensor(host_tensors[0]);
-        }
-      }
-    }
-  }
-
-  // This ensures all buffers in a sharded group have the same prepared_tensor
-  // state (none) after mesh reshape, which is required by prepareInputTensor.
-  for (BufferInstance *buffer : m_tracked_buffers) {
-    buffer->clearPreparedTensor();
-  }
-}
-
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
     const std::vector<uint32_t> &target_mesh_shape) {
 
@@ -423,11 +400,11 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
          utils::to_string(parent_mesh_shape).c_str(),
          utils::to_string(target_mesh_shape).c_str());
 
-  // Materialize all buffers to host and clear prepared tensors before closing
-  // the mesh. This ensures buffers don't hold references to deallocated tensors
-  // after mesh close, which could cause assertion failures in
-  // prepareInputTensor when buffers are reused as inputs to subsequent graphs.
-  materializeAllBuffersToHost();
+  // Move tensors to host before closing the mesh. This ensures buffers don't
+  // hold references to deallocated tensors after mesh close, which could cause
+  // assertion failures in prepareInputTensor when buffers are reused as inputs
+  // to subsequent graphs.
+  TensorPool::move_tensors_to_host();
 
   // NOTE: Due to some issues hit when testing, instead of using the reshape
   // mesh API, we are closing and re-opening the device with the wanted mesh
@@ -730,6 +707,7 @@ PJRT_Error *onClientDefaultDeviceAssignment(
   return nullptr;
 }
 
+// Constructing buffer instance for the first time.
 PJRT_Error *
 onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
@@ -783,9 +761,9 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   }
 
   std::unique_ptr<BufferInstance> buffer =
-      BufferInstance::createInputBufferInstance(
-          args->type, args->dims, args->num_dims, device_instance,
-          memory_instance, client_instance);
+      BufferInstance::createInputBufferInstance(args->type, args->dims,
+                                                args->num_dims, device_instance,
+                                                memory_instance);
 
   buffer->copyFromHost(
       args->data, args->type, args->dims, args->num_dims, args->byte_strides,

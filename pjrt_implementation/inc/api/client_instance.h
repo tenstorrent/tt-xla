@@ -121,10 +121,6 @@ public:
   // destroyed.
   void unregisterBuffer(BufferInstance *buffer);
 
-  // Materializes all tracked buffers that have device tensors but no host
-  // tensors. This should be called before mesh reshape to prevent data loss.
-  void materializeAllBuffersToHost();
-
   // Returns parent mesh.
   std::optional<tt::runtime::Device> &parentMesh() { return m_parent_mesh; };
 

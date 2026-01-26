@@ -39,7 +39,7 @@ protected:
   std::unique_ptr<BufferInstance> createInputBuffer(ClientInstance *client) {
     return BufferInstance::createInputBufferInstance(
         DEFAULT_DATA_TYPE, DEFAULT_DIMS, DEFAULT_NUM_DIMS, m_device.get(),
-        m_default_memory.get(), client);
+        m_default_memory.get());
   }
 
   // Mock client for buffer tracking (uninitialized, no hardware access).
@@ -56,7 +56,7 @@ TEST_F(BufferInstanceUnitTests, createInputBufferInstance_successCase) {
   EXPECT_EQ(m_buffer->getNumberOfDimensions(), DEFAULT_NUM_DIMS);
   EXPECT_EQ(m_buffer->getDevice(), m_device.get());
   EXPECT_EQ(m_buffer->getMemory(), m_default_memory.get());
-  EXPECT_FALSE(m_buffer->getHostRuntimeTensor().has_value());
+  EXPECT_FALSE(m_buffer->pjrtTensor());
   EXPECT_FALSE(m_buffer->isDataDeleted());
   EXPECT_FALSE(m_buffer->toShapeStr().empty());
 }
