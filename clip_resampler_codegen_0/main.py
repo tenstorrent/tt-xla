@@ -23,12 +23,13 @@ WEIGHT_MAP_PATH = "weight_map.json"
 dtype = torch.bfloat16
 
 
-def load_inputs_from_pytorch(state_dict):
+def load_inputs_from_pytorch(state_dict, device):
     """
     Load model weights from PyTorch state_dict instead of tensorbin files.
 
     Args:
         state_dict: PyTorch model state_dict
+        device: TTNN device to load weights onto
 
     Returns:
         List of TTNN tensors. The input tensor slot (index 390) contains None
@@ -37,8 +38,6 @@ def load_inputs_from_pytorch(state_dict):
     # Load tensor configuration
     with open("tensor_load_config.json", "r") as f:
         tensor_config = json.load(f)
-
-    device = utils.DeviceGetter.get_device((1, 1))
     dram_memory_config = ttnn.MemoryConfig(
         ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
     )
@@ -187,33 +186,27 @@ def main():
     input_ttnn_host = ttnn.to_layout(input_ttnn_host, ttnn.Layout.TILE)
     input_ttnn_host = ttnn.to_dtype(input_ttnn_host, ttnn.DataType.BFLOAT16)
 
+    # Open mesh device
+    device = ttnn.open_mesh_device(
+        mesh_shape=ttnn.MeshShape((1, 1)),
+        l1_small_size=1 << 15,
+    )
+
     # Load weights from PyTorch state_dict
     print("Loading weights from PyTorch state_dict...")
     pt_model = get_pt_model()
     state_dict = pt_model.state_dict()
-    weights = load_inputs_from_pytorch(state_dict)
+    weights = load_inputs_from_pytorch(state_dict, device)
 
     # Create TTNN model
-    model = CLIPResampler(weights)
-
-    # Get device
-    device = utils.DeviceGetter.get_device((1, 1))
+    model = CLIPResampler(weights, device)
 
     # Run ttnn model
     for i in range(3):
         start_time = time.time()
 
-        # Move input to device
-        pixel_values = ttnn.to_device(
-            input_ttnn_host,
-            device,
-            ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-
         # Run ttnn model
-        out_ttnn_device = model(pixel_values)[0]
+        out_ttnn_device = model(input_ttnn_host)[0]
 
         # Get outputs
         out_ttnn_host = ttnn.from_device(out_ttnn_device, blocking=True)
