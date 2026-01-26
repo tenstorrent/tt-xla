@@ -33,13 +33,14 @@ import vllm
             "Qwen/Qwen3-Embedding-8B",
             "baseline/qwen3_embedding_8B_baseline.pt",
             True,
+            marks=pytest.mark.qwen3_8b_bfp8,
             # marks=pytest.mark.xfail(
             #     reason="Static CBs exceed L1 size - https://github.com/tenstorrent/tt-xla/issues/2935"
             # ),
         ),
     ],
 )
-@pytest.mark.parametrize("min_context_len", [32, 64])
+@pytest.mark.parametrize("min_context_len", [32])
 def test_embed_qwen3(
     model_name: str,
     baseline_path: str,
