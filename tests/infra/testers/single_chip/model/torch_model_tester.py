@@ -213,26 +213,9 @@ class TorchModelTester(ModelTester):
         return existing_grads, none_grads
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
-        # Run forward on CPU
-        # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
-        # self._compile_for_cpu(self._workload)
-        cpu_res = self._run_on_cpu(self._workload)
-        cpu_res = self._unpack_forward_output(cpu_res)
-
-        # Generate random gradient
-        random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
-
-        # Create and run backward on CPU
-        cpu_backward_workload = Workload(
-            framework=self._framework,
-            executable=cpu_res.backward,
-            args=[],
-            kwargs={"gradient": random_grad},
-        )
-        self._run_on_cpu(cpu_backward_workload)
-
-        cpu_grads, cpu_none_grads = self._extract_grads(self._model)
-        self._workload.model.zero_grad()
+        # Run TT forward/backward FIRST to avoid autograd engine device queue issues
+        # See: https://github.com/pytorch/xla/issues/4174
+        # Running CPU backward before XLA backward corrupts device_ready_queues
 
         # Run forward on TT
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
@@ -242,6 +225,9 @@ class TorchModelTester(ModelTester):
 
         # Force graph break so we can differentiate between forward and backward
         torch_xla.sync(wait=True)
+
+        # Generate random gradient (on CPU, will be moved to device by workload runner)
+        random_grad = torch.randn(tt_res.shape, dtype=tt_res.dtype)
 
         # Run backward on TT
         tt_backward_workload = Workload(
@@ -260,6 +246,24 @@ class TorchModelTester(ModelTester):
             wait=True,
         )
         tt_grads, tt_none_grads = self._extract_grads(self._model)
+        self._workload.model.zero_grad()
+
+        # Now run forward on CPU
+        # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
+        # self._compile_for_cpu(self._workload)
+        cpu_res = self._run_on_cpu(self._workload)
+        cpu_res = self._unpack_forward_output(cpu_res)
+
+        # Create and run backward on CPU
+        cpu_backward_workload = Workload(
+            framework=self._framework,
+            executable=cpu_res.backward,
+            args=[],
+            kwargs={"gradient": random_grad},
+        )
+        self._run_on_cpu(cpu_backward_workload)
+
+        cpu_grads, cpu_none_grads = self._extract_grads(self._model)
 
         assert (
             cpu_none_grads == tt_none_grads

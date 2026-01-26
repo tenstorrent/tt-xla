@@ -109,6 +109,9 @@ class DynamicTorchModelTester(TorchModelTester):
         Returns:
             Mesh object if loader supports mesh configuration, None otherwise
         """
+        if self.parallelism == Parallelism.SINGLE_DEVICE:
+            return None
+
         num_devices = xr.global_runtime_device_count()
         if self.parallelism == Parallelism.DATA_PARALLEL:
             mesh_shape, mesh_names = (1, num_devices), ("model", "data")
