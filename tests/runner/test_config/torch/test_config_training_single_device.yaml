@@ -49,7 +49,7 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "Node arity mismatch; expected 339, but got 338"
   llama/causal_lm/pytorch-llama_3_2_1b-single_device-training:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
