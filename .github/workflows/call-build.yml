@@ -171,6 +171,7 @@ jobs:
             path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
 
       - name: Upload alchemist library and templates
+        if: inputs.build_type == 'release'
         id: upload-alchemist
         uses: actions/upload-artifact@v4
         with:

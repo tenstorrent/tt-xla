@@ -11,9 +11,8 @@ import numpy as np
 from convert_weights import convert_llama_weights
 from flax.core.frozen_dict import freeze
 from generation import LLaMA
-from transformers import AutoTokenizer
-
 from model import FlaxLLaMAForCausalLM
+from transformers import AutoTokenizer
 
 ROOT = Path(__file__).parent.parent
 
