@@ -15,6 +15,22 @@ on:
         description: 'Released docker image base'
         type: string
         required: true
+      wheel_release_artifact_run_id:
+        description: 'Run id of the release wheel'
+        type: string
+        required: true
+      wheel_release_artifact_name:
+        description: 'Artifact name of the wheel'
+        type: string
+        required: true
+      wheel_release_vllm_tt_artifact_name:
+        description: 'Artifact name of the vllm wheel'
+        type: string
+        required: true
+      wheel_version_override:
+        description: 'Wheel version override value'
+        type: string
+        required: false
 
 permissions:
   contents: write
@@ -73,6 +89,34 @@ jobs:
           skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
           skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$version_tag"
 
+      - name: Download wheels
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_artifact_name }}"
+          gh run download ${{ inputs.wheel_release_artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheel \
+            --name ${{ inputs.wheel_release_artifact_name }}
+
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_vllm_tt_artifact_name }}"
+          gh run download ${{ inputs.wheel_release_artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheel \
+            --name ${{ inputs.wheel_release_vllm_tt_artifact_name }}
+
+          echo "Downloaded wheels"
+          ls -l wheel
+
+      - name: Rename wheels
+        shell: bash
+        if: ${{ inputs.release_tag != ''}}
+        run: |
+          tag="${{ inputs.release_tag }}"
+
+          .github/scripts/modify_wheel_version.sh wheel/pjrt_plugin_tt*.whl $tag
+          .github/scripts/modify_wheel_version.sh wheel/vllm_tt*.whl $tag
 
         # todo(vvukoman): think about body structure, what is relevant to show?
       - name: Publish github release
@@ -81,3 +125,5 @@ jobs:
           tag_name: ${{ inputs.release_tag }}
           generate_release_notes: true
           draft: true
+          files: |
+            wheel/*.whl
