@@ -699,11 +699,19 @@ def get_xla_device_arch():
 def get_input_shape_info(inputs) -> tuple[int, int, tuple]:
     """Extract batch_size, sequence_length, and input_size from input activations.
 
+    This function uses heuristics to determine shape information:
+    - If inputs is a Mapping (dict), it tries to get 'input_ids' if present,
+      otherwise uses the first value found (generally the primary input).
+    - If inputs is a Sequence (list/tuple), it uses the first element.
+    - It assumes the extracted item is a torch.Tensor.
+
     Returns:
         (batch_size, sequence_length, input_size)
         For LLMs: input_size is (sequence_length,)
         For image models: input_size is shape[1:] (e.g., (3, 224, 224))
                          sequence_length will be -1 (not applicable)
+
+        Returns default (1, -1, (-1,)) if inputs are None, empty, or don't match expected formats.
     """
     if inputs is None:
         return 1, -1, (-1,)
@@ -713,8 +721,11 @@ def get_input_shape_info(inputs) -> tuple[int, int, tuple]:
     if isinstance(inputs, torch.Tensor):
         tensor = inputs
     elif isinstance(inputs, collections.abc.Mapping):
-        if len(inputs) > 0:
-            # Get first value from the mapping (usually 'input_ids' for LLMs)
+        # Get 'input_ids' if present
+        if "input_ids" in inputs:
+            tensor = inputs["input_ids"]
+        elif len(inputs) > 0:
+            # Fallback: Get first value from the mapping
             tensor = next(iter(inputs.values()))
     elif isinstance(inputs, collections.abc.Sequence) and not isinstance(inputs, str):
         if len(inputs) > 0:
