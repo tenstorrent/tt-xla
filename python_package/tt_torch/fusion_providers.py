@@ -151,7 +151,10 @@ class RMSNormFusionProvider(FusionProvider):
             if pn.target != "weight":
                 continue
             if (value := gn.meta.get("example_value", None)) is None:
-                raise ValueError("Example value is not set for weight node")
+                raise ValueError(
+                    f"Weight node is missing required metadata 'example_value'. "
+                    f"Available meta keys: {list(gn.meta.keys())}"
+                )
             if value.size()[-1] > UPPER_BOUND:
                 print(
                     f"[Fusion] Skipping RMSNorm fusion for weight node with size {value.size()[-1]} because it is greater than the upper bound of {UPPER_BOUND}"
