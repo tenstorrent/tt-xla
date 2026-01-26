@@ -256,7 +256,7 @@ jobs:
           echo "=== Running op-by-op tests ==="
           python3 -m pytest -svv tests/op_by_op/op_by_op_test.py::test_op_by_op \
             --folder=collected_irs \
-            --ir-file-prefix="irs/ttir" \
+            --ir-file-prefix="irs/ttnn" \
             --json-report \
             --json-report-file=op_by_op_report.json \
             || echo "Op-by-op test completed with failures"
