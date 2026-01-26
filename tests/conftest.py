@@ -224,8 +224,10 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--dump-irs",
-        action="store_true",
-        default=False,
+        nargs="?",
+        const="always",
+        default=None,
+        choices=["always", "on-fail"],
         help="Enable IR dumping during model tests",
     )
 
