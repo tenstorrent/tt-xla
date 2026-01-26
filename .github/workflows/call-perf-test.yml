@@ -47,7 +47,7 @@ jobs:
       matrix:
         build: ${{ fromJson(inputs.matrix) }}
 
-    runs-on: ${{ !inputs.sh-runner && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on }}
+    runs-on: ${{ !inputs.sh-runner && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) }}
 
     name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on }})"
 

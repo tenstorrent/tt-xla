@@ -30,11 +30,6 @@ def filter_matrix(matrix, project_filter, name_filter=None):
     name_filters = name_filter.split(",") if name_filter else []
 
     def should_include(item):
-        if project_filter == "tt-forge" and item.get("project") not in ["tt-xla"]:
-            return False
-        if project_filter != "tt-forge" and item.get("project") != project_filter:
-            return False
-
         name_filter_match = False
         for filter in name_filters:
             if filter.lower() in item.get("name").lower():
