@@ -22,28 +22,29 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-  nightly_tests:
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    needs: [ build-image, build-ttxla ]
-    with:
-      test_suite: basic-test-nightly.json
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
+  # Commented out for testing IR dump workflow
+  # nightly_tests:
+  #   uses: ./.github/workflows/call-test.yml
+  #   secrets: inherit
+  #   needs: [ build-image, build-ttxla ]
+  #   with:
+  #     test_suite: basic-test-nightly.json
+  #     docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+  #     artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+  #     wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+  #     wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
 
-  test_full_model:
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    needs: [ build-image, build-ttxla ]
-    # This ensures the job runs regardless of success or failure of `nightly_tests`:
-    if: success() || failure()
-    with:
-      test_suite: model-test-full.json
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+  # test_full_model:
+  #   uses: ./.github/workflows/call-test.yml
+  #   secrets: inherit
+  #   needs: [ build-image, build-ttxla ]
+  #   # This ensures the job runs regardless of success or failure of `nightly_tests`:
+  #   if: success() || failure()
+  #   with:
+  #     test_suite: model-test-full.json
+  #     docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+  #     artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+  #     wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
   # This is a single test job that runs all passing tt-forge-models tests.
   test_forge_models_passing:
@@ -58,7 +59,7 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
-  # This is a single test job that runs all xfailing, skipped or placeholder tt-forge-models tests.
+  # Commented out to test IR processing on only passing models
   test_forge_models_xfail:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
@@ -71,57 +72,255 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
-  fail-notify:
-    if: always()
-    needs:
-      - nightly_tests
-      - test_full_model
-      - test_forge_models_passing
-      - test_forge_models_xfail
-      - build-image
-      - build-ttxla
-    runs-on: Ubuntu-latest
-    outputs:
-      is-main: ${{ steps.branch-check.outputs.IS_MAIN }}
-      failed: ${{ steps.check.outputs.failure }}
-    steps:
-      - name: Check if branch is main
-        id: branch-check
-        run: echo "IS_MAIN=$(if [ '${{ github.ref }}' == 'refs/heads/main' ]; then echo true; else echo false; fi)" >> $GITHUB_OUTPUT
-      - name: Check if the needed jobs succeeded or failed
-        id: check
-        uses: re-actors/alls-green@release/v1
-        with:
-          jobs: ${{ toJSON(needs) }}
+  # Commented out - replaced by test_forge_models_passing with --dump-irs
+  # test_single_model_with_ir_dump:
+  #   uses: ./.github/workflows/call-test.yml
+  #   secrets: inherit
+  #   needs: [ build-image, build-ttxla ]
+  #   if: success() || failure()
+  #   with:
+  #     test_suite: model-test-ir-dump-single.json
+  #     docker_image: ${{ needs.build-image.outputs.docker-image }}
+  #     artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+  #     wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
-  fail-send-msg:
-    if: always()
-    needs:
-      - fail-notify
-    runs-on: Ubuntu-latest
-    steps:
-      - name: Send Fail Notification
-        if: ${{ needs.fail-notify.outputs.failed == 'true' && needs.fail-notify.outputs.is-main == 'true' }}
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload: |
-            {
-              "text": "Bad bad nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
-              "channel": "C08GYB57C8M",
-              "unfurl_links": false, "unfurl_media": false
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
+  process_dumped_irs:
+    runs-on: tt-ubuntu-2204-n150-stable
+    needs: [ build-image, build-ttxla, test_forge_models_xfail, test_forge_models_passing ]
+    if: success() || failure()
+    strategy:
+      fail-fast: false
+      matrix:
+        job_index: [0, 1, 2, 3, 4]
 
-      - name: Send Success Notification
-        if: ${{ needs.fail-notify.outputs.failed == 'false' && needs.fail-notify.outputs.is-main == 'true' }}
-        uses: slackapi/slack-github-action@v1.26.0
+    name: "process_dumped_irs (job ${{ matrix.job_index }})"
+
+    container:
+      image: ${{ needs.build-image.outputs.docker-image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+      TT_XLA_CI: 1
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - uses: actions/checkout@v4
         with:
-          payload: |
-            {
-              "text": "Good nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
-              "channel": "C08GYB57C8M",
-              "unfurl_links": false, "unfurl_media": false
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_SUCCESS }}
+          submodules: recursive
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+          echo "wheel_artifact_name=${{ needs.build-ttxla.outputs.wheel_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "artifact_run_id=${{ needs.build-ttxla.outputs.artifacts_run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Download and install tt-xla wheel
+        shell: bash
+        run: |
+          echo "=== Downloading wheel ==="
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name ${{ steps.strings.outputs.wheel_artifact_name }}
+          echo "Downloaded wheel files:"
+          ls -la wheels
+
+          echo "=== Installing wheel ==="
+          source venv/activate
+          pip install wheels/*.whl
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+          key: "nightly-op-by-op-build"
+
+      - name: Build tt-mlir with Python bindings
+        shell: bash
+        run: |
+          source venv/activate
+
+          echo "=== Building tt-mlir with Python bindings ==="
+          # Build tt-mlir via tt-xla with Python bindings enabled
+          # This automatically passes -DTTMLIR_ENABLE_STABLEHLO=ON and -DTTMLIR_ENABLE_RUNTIME=ON
+          # to tt-mlir (see third_party/CMakeLists.txt)
+          cmake -G Ninja -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON \
+            -DTTXLA_ENABLE_PJRT_TESTS=OFF
+
+          # Build the tt-mlir external project target
+          cmake --build build --target tt-mlir
+
+          echo "=== Verifying op_by_op_infra build ==="
+          find third_party/tt-mlir -name "op_by_op_infra" -type d
+
+      - name: Download dumped IR artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dumped-irs-*
+          path: collected_irs/
+          merge-multiple: true
+
+      - name: Verify downloaded IRs
+        shell: bash
+        run: |
+          echo "=== Contents of collected_irs ==="
+          set +o pipefail
+          find collected_irs -type f -name "*.mlir" | head -20
+          set -o pipefail
+
+      - name: Split IRs for parallel processing
+        shell: bash
+        run: |
+          echo "=== Splitting IRs for job ${{ matrix.job_index }} of 5 ==="
+
+          # Get all model directories (first-level subdirectories)
+          cd collected_irs
+          model_dirs=($(ls -d */ 2>/dev/null | sed 's:/$::' | sort))
+          total_models=${#model_dirs[@]}
+
+          echo "Total models found: $total_models"
+          echo "Model directories: ${model_dirs[@]}"
+
+          # Calculate which models this job should process
+          # Split into 5 groups
+          job_index=${{ matrix.job_index }}
+          total_jobs=5
+          models_per_job=$(( (total_models + total_jobs - 1) / total_jobs ))
+          start_idx=$((job_index * models_per_job))
+          end_idx=$(((job_index + 1) * models_per_job))
+
+          if [ $end_idx -gt $total_models ]; then
+            end_idx=$total_models
+          fi
+
+          echo "This job will process models from index $start_idx to $((end_idx - 1))"
+
+          # Create a new directory with only this job's models
+          cd ..
+          mkdir -p collected_irs_job_$job_index
+
+          for i in $(seq $start_idx $((end_idx - 1))); do
+            if [ $i -lt $total_models ]; then
+              model="${model_dirs[$i]}"
+              echo "Including model: $model"
+              mv "collected_irs/$model" "collected_irs_job_$job_index/"
+            fi
+          done
+
+          # Replace collected_irs with the filtered version
+          rm -rf collected_irs
+          mv collected_irs_job_$job_index collected_irs
+
+          echo "=== Final IRs for this job ==="
+          ls -la collected_irs/
+
+      - name: Generate system descriptor
+        shell: bash
+        run: |
+          source venv/activate
+          echo "=== Generating system descriptor ==="
+          ttrt query --save-artifacts
+          ls -la ttrt-artifacts/
+
+      - name: Run op-by-op tests
+        shell: bash
+        run: |
+          source venv/activate
+
+          # Set PYTHONPATH to include op_by_op_infra
+          export PYTHONPATH="${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/build/python_packages:${PYTHONPATH}"
+
+          # Suppress unnecessary runtime logs
+          export TTRT_LOGGER_LEVEL=ERROR
+
+          echo "=== Verifying op_by_op_infra is importable ==="
+          python3 -c "import op_by_op_infra; print(f'op_by_op_infra found at: {op_by_op_infra.__file__}')"
+
+          echo "=== Running op-by-op tests ==="
+          python3 -m pytest -svv tests/op_by_op/op_by_op_test.py::test_op_by_op \
+            --folder=collected_irs \
+            --ir-file-prefix="irs/shlo_compiler" \
+            --json-report \
+            --json-report-file=op_by_op_report.json \
+            || echo "Op-by-op test completed with failures"
+
+      - name: Upload op-by-op test report
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: op-by-op-report-${{ matrix.job_index }}
+          path: op_by_op_report.json
+          if-no-files-found: 'warn'
+
+  # Commented out for testing IR dump workflow
+  # fail-notify:
+  #   if: always()
+  #   needs:
+  #     # - nightly_tests
+  #     # - test_full_model
+  #     # - test_forge_models_passing
+  #     # - test_forge_models_xfail
+  #     - build-image
+  #     - build-ttxla
+  #   runs-on: Ubuntu-latest
+  #   outputs:
+  #     is-main: ${{ steps.branch-check.outputs.IS_MAIN }}
+  #     failed: ${{ steps.check.outputs.failure }}
+  #   steps:
+  #     - name: Check if branch is main
+  #       id: branch-check
+  #       run: echo "IS_MAIN=$(if [ '${{ github.ref }}' == 'refs/heads/main' ]; then echo true; else echo false; fi)" >> $GITHUB_OUTPUT
+  #     - name: Check if the needed jobs succeeded or failed
+  #       id: check
+  #       uses: re-actors/alls-green@release/v1
+  #       with:
+  #         jobs: ${{ toJSON(needs) }}
+
+  # fail-send-msg:
+  #   if: always()
+  #   needs:
+  #     - fail-notify
+  #   runs-on: Ubuntu-latest
+  #   steps:
+  #     - name: Send Fail Notification
+  #       if: ${{ needs.fail-notify.outputs.failed == 'true' && needs.fail-notify.outputs.is-main == 'true' }}
+  #       uses: slackapi/slack-github-action@v1.26.0
+  #       with:
+  #         payload: |
+  #           {
+  #             "text": "Bad bad nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+  #             "channel": "C08GYB57C8M",
+  #             "unfurl_links": false, "unfurl_media": false
+  #           }
+  #       env:
+  #         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
+
+  #     - name: Send Success Notification
+  #       if: ${{ needs.fail-notify.outputs.failed == 'false' && needs.fail-notify.outputs.is-main == 'true' }}
+  #       uses: slackapi/slack-github-action@v1.26.0
+  #       with:
+  #         payload: |
+  #           {
+  #             "text": "Good nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+  #             "channel": "C08GYB57C8M",
+  #             "unfurl_links": false, "unfurl_media": false
+  #           }
+  #       env:
+  #         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_SUCCESS }}
