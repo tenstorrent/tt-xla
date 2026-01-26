@@ -966,6 +966,36 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
         std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
             submesh_for_optim.handle);
   }
+
+  if (loguru::g_stderr_verbosity >= LOG_DEBUG) {
+    VLOG_F(LOG_DEBUG, "TTIR to TTNN Backend Pipeline Options:");
+
+    // Extract values from Option types to avoid copy constructor issues in
+    // variadic functions
+    int opt_level = options.optimizationLevel;
+    bool bfp8_conv = options.enableBfp8Conversion;
+    bool bfp8_weights = options.experimentalBfp8Weights;
+    bool opt_enabled = options.optimizerPassEnabled;
+    bool mem_layout = options.memoryLayoutAnalysisEnabled;
+    bool fp32_dest_acc = options.computeCfgFp32DestAccEn;
+    bool const_eval = options.enableConstEval;
+    bool trace_enabled = options.enableTrace;
+
+    VLOG_F(LOG_DEBUG, "  optimization-level=%d", opt_level);
+    VLOG_F(LOG_DEBUG, "  enable-bfp8-conversion=%s",
+           bfp8_conv ? "true" : "false");
+    VLOG_F(LOG_DEBUG, "  experimental-bfp8-weights=%s",
+           bfp8_weights ? "true" : "false");
+    VLOG_F(LOG_DEBUG, "  system-desc-path=%s", options.systemDescPath.c_str());
+    VLOG_F(LOG_DEBUG, "  enable-optimizer=%s", opt_enabled ? "true" : "false");
+    VLOG_F(LOG_DEBUG, "  memory-layout-analysis-enabled=%s",
+           mem_layout ? "true" : "false");
+    VLOG_F(LOG_DEBUG, "  compute-cfg-fp32-dest-acc-en=%s",
+           fp32_dest_acc ? "true" : "false");
+    VLOG_F(LOG_DEBUG, "  enable-const-eval=%s", const_eval ? "true" : "false");
+    VLOG_F(LOG_DEBUG, "  enable-trace=%s", trace_enabled ? "true" : "false");
+  }
+
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
