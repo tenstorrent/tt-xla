@@ -156,9 +156,10 @@ class RMSNormFusionProvider(FusionProvider):
                     f"Available meta keys: {list(gn.meta.keys())}"
                 )
             if value.size()[-1] > UPPER_BOUND:
-                print(
-                    f"[Fusion] Skipping RMSNorm fusion for weight node with size {value.size()[-1]} because it is greater than the upper bound of {UPPER_BOUND}"
-                )
+                # TODO: enable logging once https://github.com/tenstorrent/tt-xla/issues/2961 is resolved
+                # print(
+                #     f"[Fusion] Skipping RMSNorm fusion for weight node with size {value.size()[-1]} because it is greater than the upper bound of {UPPER_BOUND}"
+                # )
                 return False
 
         return True
