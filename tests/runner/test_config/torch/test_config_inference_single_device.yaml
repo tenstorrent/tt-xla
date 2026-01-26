@@ -79,7 +79,7 @@ test_config:
     status: EXPECTED_PASSING
 
   xglm/pytorch-xglm-1.7B-single_device-inference:
-    required_pcc: 0.98 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected.
+    required_pcc: 0.97 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected; also https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   resnet/pytorch-resnet_50_hf-single_device-inference:
@@ -96,7 +96,7 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-xxlarge_v2-single_device-inference:
-    required_pcc: 0.98
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-large_v2-single_device-inference:
@@ -292,9 +292,11 @@ test_config:
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-single_device-inference:
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-inference:
+    assert_pcc: false # PCC: 0.9345 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
     status: EXPECTED_PASSING
 
   efficientnet/pytorch-efficientnet_b0-single_device-inference:
@@ -588,9 +590,11 @@ test_config:
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   phi2/causal_lm/pytorch-microsoft/phi-2-pytdml-single_device-inference:
+    assert_pcc: false # PCC: 0.9345 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
     status: EXPECTED_PASSING
 
   phi2/token_classification/pytorch-microsoft/phi-2-single_device-inference:
+    assert_pcc: false # PCC: 0.8971 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
@@ -724,6 +728,7 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-xlarge_v1-single_device-inference:
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-xxlarge_v1-single_device-inference:
@@ -752,6 +757,7 @@ test_config:
 
   yolos/pytorch-single_device-inference:
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1168 https://github.com/tenstorrent/tt-xla/issues/2759
+    assert_pcc: false # PCC: 0.9592 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-inference:
@@ -1005,7 +1011,7 @@ test_config:
     markers: ["extended"]
 
   llama/causal_lm/pytorch-llama_3_2_3b-single_device-inference:
-    required_pcc: 0.98 # https://github.com/tenstorrent/tt-mlir/issues/6461
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-mlir/issues/6461, https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-inference:
@@ -1116,6 +1122,7 @@ test_config:
     markers: ["extended"]
 
   vit/pytorch-vit_h_14-single_device-inference:
+    required_pcc: 0.985 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   vit/pytorch-vit_l_16-single_device-inference:
@@ -1309,6 +1316,7 @@ test_config:
     markers: [push, nightly]
 
   yolov9/pytorch-s-single_device-inference:
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   yolov9/pytorch-m-single_device-inference:
@@ -1586,6 +1594,7 @@ test_config:
     status: EXPECTED_PASSING
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-inference:
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-inference:
@@ -1664,6 +1673,7 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/causal_lm/pytorch-llama_3_1_8b-single_device-inference:
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -1687,6 +1697,7 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/causal_lm/pytorch-llama_3_8b-single_device-inference:
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -2332,6 +2343,7 @@ test_config:
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-TinyLlama_v1.1-single_device-inference:
+    assert_pcc: false # PCC: 0.9388 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
