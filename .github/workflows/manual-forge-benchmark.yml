@@ -1,4 +1,4 @@
-name: Performance Benchmark
+name: Forge Performance Benchmark
 
 on:
   workflow_dispatch:
