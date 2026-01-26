@@ -140,8 +140,13 @@ class RMSNormFusionProvider(FusionProvider):
 
     @staticmethod
     def match_filter(match, gm: torch.fx.Graph, subgraph: torch.fx.Graph) -> bool:
-        # TODO: Remove this once https://github.com/tenstorrent/tt-metal/issues/36094 is fixed
+        # TODO: This filter should be removed once tt-metal starts supporting splitting work
+        # across multiple cores on column axis (for now it works on row axis only).
+        # Check https://github.com/tenstorrent/tt-metal/issues/36094 for more details.
+
+        # From testing, this was the last multiple of 32 that worked.
         UPPER_BOUND = 3968
+
         for pn, gn in match.nodes_map.items():
             if pn.target != "weight":
                 continue
