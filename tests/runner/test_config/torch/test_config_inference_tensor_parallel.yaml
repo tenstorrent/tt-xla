@@ -155,9 +155,10 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_1_70b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on galaxy"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "Needs bringup on galaxy"
+    # bringup_status: FAILED_RUNTIME
 
   llama/causal_lm/pytorch-llama_3_1_70b_instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]

@@ -264,6 +264,13 @@ def test_all_models_torch(
     clear_torchxla_computation_cache,
 ):
     """PyTorch model test - delegates to shared implementation."""
+    # Create CompilerConfig with bfp8 weights enabled if BFP8_WEIGHTS=1
+    compiler_config = None
+    if os.environ.get("BFP8_WEIGHTS") == "1":
+        compiler_config = CompilerConfig(
+            experimental_enable_weight_bfp8_conversion=True
+        )
+
     _run_model_test_impl(
         test_entry=test_entry,
         run_mode=run_mode,
@@ -274,6 +281,7 @@ def test_all_models_torch(
         test_metadata=test_metadata,
         captured_output_fixture=captured_output_fixture,
         clear_torchxla_computation_cache=clear_torchxla_computation_cache,
+        compiler_config=compiler_config,
     )
 
 
