@@ -13,7 +13,7 @@ import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModel, AutoTokenizer
 
-"""
+r"""
 Overview of tensor parallelism (TP) strategy for LLM MLP and attention layers:
 
 For MLP, we want to shard in a way that minimizes CCLs. The most common method is megatron style,
@@ -210,7 +210,9 @@ def qwen3_tp():
         last_hidden_states = output.last_hidden_state.cpu()
         attention_mask = inputs["attention_mask"].cpu()
 
-        postprocessing(last_hidden_states, attention_mask, sample_queries)
+        scores = postprocessing(last_hidden_states, attention_mask, sample_queries)
+
+    return scores
 
 
 def create_input_texts():
@@ -247,6 +249,33 @@ def postprocessing(last_hidden_states, attention_mask, sample_queries):
 
     print("Similarity scores:")
     print(scores.tolist())
+
+    return scores
+
+
+def test_qwen3_tp():
+    """Test that Qwen3 TP produces correct query-document similarity matching.
+
+    Each query should have the highest similarity score with its corresponding document,
+    i.e., the diagonal of the similarity matrix should contain the maximum values per row.
+    """
+    xr.set_device_type("TT")
+
+    scores = qwen3_tp()
+
+    # Check that diagonal scores are the highest in each row
+    # (each query best matches its corresponding document)
+    num_queries = scores.shape[0]
+    for i in range(num_queries):
+        row = scores[i]
+        diagonal_score = row[i].item()
+        max_score = row.max().item()
+        assert diagonal_score == max_score, (
+            f"Query {i} does not best match its document. "
+            f"Diagonal score: {diagonal_score}, max score: {max_score}"
+        )
+
+    print("All queries correctly matched their corresponding documents.")
 
 
 if __name__ == "__main__":

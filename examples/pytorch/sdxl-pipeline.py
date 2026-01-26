@@ -1,8 +1,10 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import argparse
 import time
 from enum import Enum
+from pathlib import Path
 from typing import Optional
 
 import torch
@@ -359,9 +361,55 @@ def prompt_to_filename(prompt: str) -> str:
     return filename + ".png"
 
 
-if __name__ == "__main__":
-    import argparse
+def run_sdxl_pipeline(output_path: str = "output.png", num_inference_steps: int = 5):
+    """Run SDXL pipeline and save output image."""
+    torch_xla.set_custom_compile_options({"optimization_level": 1})
 
+    config = SDXLConfig(width=512, height=512, device="cpu")
+    pipeline = SDXLPipeline(config=config)
+    pipeline.setup(warmup=False)
+
+    img = pipeline.generate(
+        prompt="a photo of a cat",
+        negative_prompt="",
+        do_cfg=True,
+        cfg_scale=7.5,
+        num_inference_steps=num_inference_steps,
+        seed=42,
+    )
+
+    save_image(img, output_path)
+    return output_path
+
+
+def test_sdxl_pipeline():
+    """Test SDXL pipeline generates valid output image."""
+    xr.set_device_type("TT")
+
+    output_path = "test_sdxl_output.png"
+    output_file = Path(output_path)
+    if output_file.exists():
+        output_file.unlink()
+
+    try:
+        run_sdxl_pipeline(output_path=output_path, num_inference_steps=5)
+
+        assert output_file.exists(), f"Output image {output_path} was not created"
+
+        with Image.open(output_path) as img:
+            width, height = img.size
+            assert width == 512, f"Expected width 512, got {width}"
+            assert height == 512, f"Expected height 512, got {height}"
+
+        print(f"Output image created with resolution {width}x{height}")
+
+    finally:
+        if output_file.exists():
+            output_file.unlink()
+            print(f"Cleaned up {output_path}")
+
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", type=str, default="a photo of a cat")
     parser.add_argument("--negative_prompt", type=str, default="")

@@ -2,6 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+ResNet Data Parallel inference example.
+
+This example demonstrates data-parallel inference where:
+- The model is REPLICATED on each device
+- The inputs are SHARDED along the batch dimension
+"""
+
 import os
 
 import numpy as np
@@ -9,111 +17,95 @@ import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from PIL import Image
 from torch_xla.distributed.spmd import Mesh
-from transformers import AutoImageProcessor, ResNetForImageClassification
 
-from third_party.tt_forge_models.tools.utils import get_file
-
-# Known valid COCO 2017 validation image IDs.
-# To run with batch_size > 16, extend the list below.
-BASE_IMAGE_IDS = [
-    39769,
-    37777,
-    252219,
-    87038,
-    289343,
-    581781,
-    284623,
-    456559,
-    397133,
-    42296,
-    184321,
-    403817,
-    6818,
-    480985,
-    458755,
-    331352,
-]
+from third_party.tt_forge_models.resnet.pytorch import ModelLoader, ModelVariant
 
 
-# --------------------------------
-# Test run
-# --------------------------------
-def resnet_dp():
-    # Set SPMD mode and get number of devices.
+def enable_spmd():
+    """Enable torch_xla SPMD mode."""
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
     xr.use_spmd()
 
+
+def resnet_dp():
+    """Run ResNet with data parallel inference on TT devices."""
     num_devices = xr.global_runtime_device_count()
 
-    # Instantiate model.
-    model_name = "microsoft/resnet-50"
-    model: torch.nn.Module = ResNetForImageClassification.from_pretrained(model_name)
-    model = model.to(torch.bfloat16)
-
-    # Put it in inference mode and compile it.
+    # Load model using tt_forge_models loader
+    loader = ModelLoader(ModelVariant.RESNET_50)
+    model = loader.load_model()
     model = model.eval()
-    compiled_model = torch.compile(model, backend="tt")
 
-    # Create a batch of images.
-    batch_size = 16  # Must be a multiple of num_devices
-    images = []
-    for i in range(batch_size):
-        image_file = get_file(
-            f"http://images.cocodataset.org/val2017/0000{BASE_IMAGE_IDS[i]:08d}.jpg"
-        )
-        images.append(Image.open(image_file).convert("RGB"))
+    # Create batch of inputs (batch_size must be divisible by num_devices)
+    batch_size = num_devices * 4  # 4 samples per device
+    inputs = loader.load_inputs(batch_size=batch_size)
 
-    # Prepare inputs.
-    image_processor = AutoImageProcessor.from_pretrained(
-        model_name, dtype=torch.bfloat16
-    )
-    inputs = image_processor(images=images, return_tensors="pt").pixel_values
-    inputs = inputs.to(torch.bfloat16)
+    # Create 1D data-parallel mesh
+    device_ids = np.arange(num_devices)
+    mesh = Mesh(device_ids=device_ids, mesh_shape=(num_devices,), axis_names=("data",))
 
-    # Create a mesh.
-    mesh_shape = (1, num_devices)
-    device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
-
-    # Move inputs and model to device.
     device = torch_xla.device()
 
-    inputs = inputs.to(device)
-    compiled_model = compiled_model.to(device)
+    # Move model to device (replicated)
+    model = model.to(device=device)
 
-    # Mark sharding for inputs along batch dimension.
-    xs.mark_sharding(inputs, mesh, ("batch", None, None, None))
+    # Move inputs to device and mark for sharding along batch dim
+    inputs = inputs.to(device=device)
+    xs.mark_sharding(inputs, mesh, ("data", None, None, None))
 
-    # Run model.
+    # Run inference
     with torch.no_grad():
-        output = compiled_model(inputs)
+        output = model(inputs)
 
-    # Post-process outputs.
-    post_process_output(output, model.config)
+    return output
 
 
-def post_process_output(output, config):
-    logits = output.logits.cpu()
+def post_process_output(output):
+    """Post-process and print top predictions."""
+    logits = output.cpu()
+
     probabilities = torch.softmax(logits, dim=-1)
     top_5_probs, top_5_indices = torch.topk(probabilities, k=5)
 
     print(f"Processing {logits.shape[0]} batch items:")
-    for batch_idx in range(logits.shape[0]):
+    for batch_idx in range(min(logits.shape[0], 4)):  # Print first 4
         print(f"\nInput {batch_idx + 1} - Top 5 predictions:")
         for i in range(5):
             idx = top_5_indices[batch_idx, i].item()
             prob = top_5_probs[batch_idx, i].item() * 100
-            label = config.id2label[idx]
-            print(f"{i+1}. {label}: {prob:.2f}%")
+            print(f"{i+1}. class_{idx}: {prob:.2f}%")
+
+
+def test_resnet_dp():
+    """Test ResNet DP predictions have expected top-5 class ordering."""
+    xr.set_device_type("TT")
+    enable_spmd()
+
+    output = resnet_dp()
+
+    # Expected top-5 class indices (default COCO image produces these)
+    expected_top5 = [281, 282, 285, 761, 721]
+
+    logits = output.cpu()
+    _, top_5_indices = torch.topk(logits, k=5, dim=-1)
+
+    # Check all batch items have the expected top-5 ordering
+    for batch_idx in range(logits.shape[0]):
+        actual_top5 = top_5_indices[batch_idx].tolist()
+        assert (
+            actual_top5 == expected_top5
+        ), f"Input {batch_idx}: expected top-5 {expected_top5}, got {actual_top5}"
+
+    print("All batch items have expected top-5 class ordering.")
 
 
 # --------------------------------
 # main
 # --------------------------------
 if __name__ == "__main__":
-    # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
+    enable_spmd()
 
-    resnet_dp()
+    output = resnet_dp()
+    post_process_output(output)
