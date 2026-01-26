@@ -89,7 +89,7 @@ def test_rms_norm_fusion_graph_level(hidden_size, should_fuse, dtype):
 def test_llama_rms_norm_fusion(batch_size, seq_len, hidden_size, dtype):
 
     options = {
-        "tt_enable_fusion_passes": True,
+        "tt_enable_torch_fx_fusion_pass": True,
         "tt_enable_composite_ops": True,
     }
 
