@@ -151,6 +151,14 @@ test_config:
   electra/causal_lm/jax-small-discriminator-single_device-inference:
     status: EXPECTED_PASSING
 
+  falcon/jax-tiiuae/Falcon3-1B-Base-single_device-inference:
+    status: EXPECTED_PASSING
+
+  falcon/jax-tiiuae/Falcon3-3B-Base-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 37748736 B DRAM buffer across 12 banks, where each bank needs to store 3145728 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
   gpt2/causal_lm/jax-base-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]
@@ -185,6 +193,9 @@ test_config:
   gpt_sw3/causal_lm/jax-1_3b_instruct-single_device-inference:
     status: EXPECTED_PASSING
     markers: [large]
+
+  llama/causal_lm/jax-1B_TINY-single_device-inference:
+    status: EXPECTED_PASSING
 
   llama/causal_lm/jax-3b-v2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -240,9 +251,9 @@ test_config:
     markers: [large]
 
   mlp_mixer/image_classification/jax-base_16-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     reason: "PCC comparison failed. Calculated: pcc=-0.006557859480381012. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
     markers: [nightly]
 
   mnist/image_classification/jax-mlp_custom-single_device-inference:
@@ -305,6 +316,110 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
+
+  phi1/causal_lm/jax-microsoft/phi-1-single_device-inference:
+    status: EXPECTED_PASSING
+
+  phi1_5/causal_lm/jax-microsoft/phi-1_5-single_device-inference:
+    status: EXPECTED_PASSING
+
+  phi2/causal_lm/jax-microsoft/phi-2-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
+  phi2/causal_lm/jax-microsoft/phi-2-pytdml-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/causal_lm/jax-microsoft/Phi-3-mini-128k-instruct-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/causal_lm/jax-microsoft/Phi-3-mini-4k-instruct-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "OOM DRAM"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/jax-0_5b-single_device-inference:
+    status: EXPECTED_PASSING
+
+  qwen_2_5/causal_lm/jax-0_5b_instruct-single_device-inference:
+    status: EXPECTED_PASSING
+
+  qwen_2_5/causal_lm/jax-1_5b-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 34359738368 B DRAM buffer across 12 banks, where each bank needs to store 2863312896 B, but bank size is 1073741792 B "
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/jax-1_5b_instruct-single_device-inference:
+    status: EXPECTED_PASSING
+
+  qwen_2_5/causal_lm/jax-3b-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Out of Memory: Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B "
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/jax-3b_instruct-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B "
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/jax-7b-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 271581184 B DRAM buffer across 12 banks, where each bank needs to store 22636544 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/jax-7b_instruct-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 271581184 B DRAM buffer across 12 banks, where each bank needs to store 22636544 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/causal_lm/jax-0_5b-single_device-inference:
+    status: EXPECTED_PASSING
+
+  qwen_2_5_coder/causal_lm/jax-1_5b-single_device-inference:
+    status: EXPECTED_PASSING
+
+  qwen_2_5_coder/causal_lm/jax-1_5b_instruct-single_device-inference:
+    status: EXPECTED_PASSING
+
+  qwen_2_5_coder/causal_lm/jax-3b-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/causal_lm/jax-3b_instruct-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/causal_lm/jax-7b-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/causal_lm/jax-7b_instruct-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_3/causal_lm/jax-0_6b-single_device-inference:
+    status: EXPECTED_PASSING
+
+  qwen_3/causal_lm/jax-1_7b-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_3/causal_lm/jax-4b-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 10485760 B DRAM buffer across 12 banks, where each bank needs to store 876544 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
+
 
   regnet/image_classification/jax-y-040-single_device-inference:
     status: EXPECTED_PASSING

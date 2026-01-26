@@ -120,6 +120,7 @@ def _run_model_test_impl(
                             run_mode=run_mode,
                             comparison_config=test_metadata.to_comparison_config(),
                             compiler_config=compiler_config,
+                            parallelism=parallelism,
                         )
                     else:
                         if model_info.source.name == ModelSource.EASYDEL.name:
@@ -129,6 +130,7 @@ def _run_model_test_impl(
                                 comparison_config=test_metadata.to_comparison_config(),
                                 num_devices=1,
                                 compiler_config=compiler_config,
+                                parallelism=parallelism,
                             )
                         else:
                             tester = DynamicJaxModelTester(
