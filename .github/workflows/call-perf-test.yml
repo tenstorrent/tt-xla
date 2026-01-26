@@ -143,17 +143,7 @@ jobs:
         cd ${{ steps.strings.outputs.work-dir }}
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
-        # Run pytest or custom script
-        if [ -n "${{ matrix.build.pytest }}" ]; then
-          pytest -svv ${{ matrix.build.pytest }} \
-            --output-file ${{ steps.strings.outputs.perf_report_json_file }}
-        elif [ -n "${{ matrix.build.script }}" ]; then
-          python ${{ matrix.build.script }} \
-            --output-file ${{ steps.strings.outputs.perf_report_json_file }}
-        else
-          echo "No pytest or script specified for test ${{ matrix.build.name }}"
-          exit 1
-        fi
+        pytest -svv ${{ matrix.build.pytest }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
 
     - name: Upload TTIR MLIR
       id: upload-ttir-mlir

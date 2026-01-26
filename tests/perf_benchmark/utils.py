@@ -21,6 +21,18 @@ def align_arch(arch: str):
     return ""
 
 
+def get_jax_device_arch():
+
+    import jax
+
+    devices = jax.devices("tt")
+    for device in devices:
+        arch_name = str(device.device_kind).lower()
+        return align_arch(arch_name)
+
+    return ""
+
+
 def get_xla_device_arch():
     """Get the architecture of the XLA device."""
     import torch_xla.core.xla_model as xm
