@@ -7,7 +7,7 @@
 from typing import Any, Dict, Sequence
 
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
-from infra.comparators.comparator import ComparisonResult
+from infra.evaluators.evaluator import ComparisonResult
 
 from third_party.tt_forge_models.mochi.pytorch import ModelLoader
 
@@ -36,16 +36,18 @@ class MochiVAETester(TorchModelTester):
         run_mode: RunMode = RunMode.INFERENCE,
         **kwargs,
     ) -> None:
-        self._model_loader = ModelLoader(variant_name)
+        self._model_loader = ModelLoader(variant_name, subfolder="vae")
         super().__init__(comparison_config, run_mode, **kwargs)
 
     def _get_model(self) -> Model:
         vae_model = self._model_loader.load_model()
         enable_tiling = self._model_loader._variant_config.enable_tiling
+        if not enable_tiling:
+            vae_model = vae_model.decoder
         return MochiVAEWrapper(vae_model, enable_tiling)
 
     def _get_input_activations(self) -> Dict | Sequence[Any]:
-        return self._model_loader.load_inputs()
+        return self._model_loader.load_inputs(vae_type="decoder")
 
     def test(self):
         """
@@ -62,25 +64,9 @@ class MochiVAETester(TorchModelTester):
         self._compile_for_tt_device(self._workload)
 
         output = self._device_runner.run_on_tt_device(self._workload)
-
-        # Validate output shape
         expected_shape = calculate_expected_output_shape(self._input_activations.shape)
-        success = output.shape == expected_shape
-        error_message = None
 
-        if not success:
-            error_message = f"Output shape {output.shape} does not match expected shape {expected_shape}"
-
-        result = ComparisonResult(
-            passed=success,
-            pcc=None,
-            atol=None,
-            allclose=None,
-            equal=None,
-            error_message=error_message,
-        )
-
-        if self._comparison_config.assert_on_failure and not result.passed:
-            assert result.passed, result.error_message
-
-        return result
+        if self._comparison_config.assert_on_failure:
+            assert (
+                output.shape == expected_shape
+            ), f"Output shape {output.shape} does not match expected shape {expected_shape}"
