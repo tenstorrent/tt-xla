@@ -158,7 +158,10 @@ class JaxDeviceRunner(DeviceRunner):
                 lambda spec, param: jax.device_put(
                     param,
                     NamedSharding(
-                        device_mesh, PartitionSpec() if param.ndim == 0 else spec
+                        device_mesh, 
+                        # Use empty PartitionSpec() for scalars (rank 0) since JAX requires this
+                        # for scalar values. Non-scalars use the provided spec for sharding.
+                        PartitionSpec() if param.ndim == 0 else spec
                     ),
                 ),
                 partition_spec,
