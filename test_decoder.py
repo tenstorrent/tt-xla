@@ -1164,9 +1164,543 @@ def test_layer_components_from_cpu_output(layer_idx: int):
     return pcc_results
 
 
+def test_input_layernorm(layer_idx: int):
+    """
+    Deep debug test for input_layernorm of a specific layer.
+    Analyzes input statistics, intermediate computations, and output quality.
+
+    Args:
+        layer_idx: The layer index to test (0-based)
+    """
+    setup_spmd()
+
+    # Create directory for saving outputs
+    os.makedirs("layernorm_debug", exist_ok=True)
+
+    # Check if the required input file exists
+    if layer_idx == 0:
+        input_file = "first_layer_inputs.pt"
+    else:
+        input_file = f"cpu_hidden_states/layer_{layer_idx - 1}.pt"
+
+    if not os.path.exists(input_file):
+        print(f"Error: Input file '{input_file}' not found!")
+        print(f"Please run test_single_layer_multiple_runs() first.")
+        return
+
+    # Check if component outputs exist for verification
+    cpu_output_file = f"component_outputs/layer_{layer_idx}_input_ln_cpu.pt"
+    tt_output_file = f"component_outputs/layer_{layer_idx}_input_ln_tt.pt"
+    if not os.path.exists(cpu_output_file) or not os.path.exists(tt_output_file):
+        print(
+            f"Warning: Component output files not found. Run test_layer_components({layer_idx}) first for comparison."
+        )
+
+    print(f"\n{'='*60}")
+    print(f"Testing input_layernorm for Layer {layer_idx}")
+    print(f"{'='*60}")
+
+    # Connect the device and create an xla mesh
+    device: torch.device = torch_xla.device()
+    mesh: Mesh = create_device_mesh()
+
+    # Load config and model
+    quantization_config = Mxfp4Config(dequantize=True)
+    config = AutoConfig.from_pretrained("openai/gpt-oss-120b", trust_remote_code=True)
+
+    model = AutoModelForCausalLM.from_pretrained(
+        "openai/gpt-oss-120b",
+        config=config,
+        quantization_config=quantization_config,
+        torch_dtype=torch.bfloat16,
+        low_cpu_mem_usage=True,
+        trust_remote_code=True,
+        attn_implementation="eager",
+    )
+    model.eval()
+
+    # Load input
+    if layer_idx == 0:
+        print(f"\nLoading initial inputs from '{input_file}'...")
+        captured_inputs = torch.load(input_file)
+        hidden_states_cpu = captured_inputs["hidden_states"]
+    else:
+        print(f"\nLoading hidden states from '{input_file}'...")
+        hidden_states_cpu = torch.load(input_file)
+
+    print(f"Input shape: {hidden_states_cpu.shape}")
+
+    # ========================================
+    # Analyze Input Statistics
+    # ========================================
+    print(f"\n{'='*60}")
+    print("Input Statistics")
+    print(f"{'='*60}")
+    print(f"Mean:     {hidden_states_cpu.mean().item():.6f}")
+    print(f"Std:      {hidden_states_cpu.std().item():.6f}")
+    print(f"Min:      {hidden_states_cpu.min().item():.6f}")
+    print(f"Max:      {hidden_states_cpu.max().item():.6f}")
+    print(f"Abs Max:  {hidden_states_cpu.abs().max().item():.6f}")
+
+    # Per-token statistics
+    token_means = hidden_states_cpu.mean(dim=-1)
+    token_stds = hidden_states_cpu.std(dim=-1)
+    print(
+        f"\nPer-token mean range: [{token_means.min().item():.6f}, {token_means.max().item():.6f}]"
+    )
+    print(
+        f"Per-token std range:  [{token_stds.min().item():.6f}, {token_stds.max().item():.6f}]"
+    )
+
+    # Get the layer
+    layer = model.model.layers[layer_idx]
+    input_ln = layer.input_layernorm
+
+    print(f"\nRMSNorm parameters:")
+    print(f"Weight shape: {input_ln.weight.shape}")
+    print(f"Weight mean:  {input_ln.weight.mean().item():.6f}")
+    print(f"Weight std:   {input_ln.weight.std().item():.6f}")
+    print(f"Epsilon:      {input_ln.variance_epsilon}")
+
+    # ========================================
+    # CPU Reference with Intermediate Values
+    # ========================================
+    print(f"\n{'='*60}")
+    print("CPU Reference Computation")
+    print(f"{'='*60}")
+
+    input_ln_cpu = input_ln.cpu()
+
+    with torch.no_grad():
+        # Replicate the forward pass to get intermediates
+        input_dtype = hidden_states_cpu.dtype
+        hidden_fp32 = hidden_states_cpu.to(torch.float32)
+
+        # Compute variance
+        variance = hidden_fp32.pow(2).mean(-1, keepdim=True)
+        print(f"Variance statistics:")
+        print(f"  Mean:     {variance.mean().item():.6e}")
+        print(f"  Std:      {variance.std().item():.6e}")
+        print(f"  Min:      {variance.min().item():.6e}")
+        print(f"  Max:      {variance.max().item():.6e}")
+
+        # Compute rsqrt
+        rsqrt_var = torch.rsqrt(variance + input_ln_cpu.variance_epsilon)
+        print(f"\nRsqrt(variance + eps) statistics:")
+        print(f"  Mean:     {rsqrt_var.mean().item():.6f}")
+        print(f"  Std:      {rsqrt_var.std().item():.6f}")
+        print(f"  Min:      {rsqrt_var.min().item():.6f}")
+        print(f"  Max:      {rsqrt_var.max().item():.6f}")
+
+        # Normalized output
+        normalized = hidden_fp32 * rsqrt_var
+        print(f"\nNormalized (before weight) statistics:")
+        print(f"  Mean:     {normalized.mean().item():.6f}")
+        print(f"  Std:      {normalized.std().item():.6f}")
+        print(f"  Min:      {normalized.min().item():.6f}")
+        print(f"  Max:      {normalized.max().item():.6f}")
+
+        # Final output
+        output_cpu = (input_ln_cpu.weight * normalized).to(input_dtype)
+        print(f"\nFinal output statistics:")
+        print(f"  Mean:     {output_cpu.mean().item():.6f}")
+        print(f"  Std:      {output_cpu.std().item():.6f}")
+        print(f"  Min:      {output_cpu.min().item():.6f}")
+        print(f"  Max:      {output_cpu.max().item():.6f}")
+
+    # ========================================
+    # TT Device Computation
+    # ========================================
+    print(f"\n{'='*60}")
+    print("TT Device Computation")
+    print(f"{'='*60}")
+
+    input_ln_tt = layer.input_layernorm.to(device)
+    xs.mark_sharding(input_ln_tt.weight, mesh, ("batch",))
+
+    compiled_input_ln = torch.compile(input_ln_tt, backend="tt")
+
+    hidden_states_tt = hidden_states_cpu.to(device)
+
+    with torch.no_grad():
+        output_tt = compiled_input_ln(hidden_states_tt)
+
+    output_tt_cpu = output_tt.cpu()
+
+    print(f"TT output statistics:")
+    print(f"  Mean:     {output_tt_cpu.mean().item():.6f}")
+    print(f"  Std:      {output_tt_cpu.std().item():.6f}")
+    print(f"  Min:      {output_tt_cpu.min().item():.6f}")
+    print(f"  Max:      {output_tt_cpu.max().item():.6f}")
+
+    # ========================================
+    # Comparison
+    # ========================================
+    print(f"\n{'='*60}")
+    print("CPU vs TT Comparison")
+    print(f"{'='*60}")
+
+    pcc = compute_pcc(output_cpu, output_tt_cpu)
+    print(f"PCC: {pcc:.6f}")
+
+    # Element-wise error analysis
+    abs_diff = (output_cpu - output_tt_cpu).abs()
+    rel_diff = abs_diff / (output_cpu.abs() + 1e-8)
+
+    print(f"\nAbsolute difference statistics:")
+    print(f"  Mean:     {abs_diff.mean().item():.6e}")
+    print(f"  Std:      {abs_diff.std().item():.6e}")
+    print(f"  Min:      {abs_diff.min().item():.6e}")
+    print(f"  Max:      {abs_diff.max().item():.6e}")
+    print(f"  Median:   {abs_diff.median().item():.6e}")
+
+    print(f"\nRelative difference statistics:")
+    print(f"  Mean:     {rel_diff.mean().item():.6f}")
+    print(f"  Std:      {rel_diff.std().item():.6f}")
+    print(f"  Max:      {rel_diff.max().item():.6f}")
+
+    # Find worst mismatches
+    abs_diff_flat = abs_diff.flatten()
+    worst_indices = abs_diff_flat.topk(5).indices
+    print(f"\nTop 5 worst mismatches:")
+    for i, idx in enumerate(worst_indices):
+        cpu_val = output_cpu.flatten()[idx].item()
+        tt_val = output_tt_cpu.flatten()[idx].item()
+        diff = abs_diff_flat[idx].item()
+        print(f"  {i+1}. CPU: {cpu_val:.6f}, TT: {tt_val:.6f}, Diff: {diff:.6e}")
+
+    # ========================================
+    # Save Debug Information
+    # ========================================
+    debug_info = {
+        "layer_idx": layer_idx,
+        "pcc": pcc,
+        "input_stats": {
+            "mean": hidden_states_cpu.mean().item(),
+            "std": hidden_states_cpu.std().item(),
+            "min": hidden_states_cpu.min().item(),
+            "max": hidden_states_cpu.max().item(),
+        },
+        "variance_stats": {
+            "mean": variance.mean().item(),
+            "std": variance.std().item(),
+            "min": variance.min().item(),
+            "max": variance.max().item(),
+        },
+        "output_cpu_stats": {
+            "mean": output_cpu.mean().item(),
+            "std": output_cpu.std().item(),
+            "min": output_cpu.min().item(),
+            "max": output_cpu.max().item(),
+        },
+        "output_tt_stats": {
+            "mean": output_tt_cpu.mean().item(),
+            "std": output_tt_cpu.std().item(),
+            "min": output_tt_cpu.min().item(),
+            "max": output_tt_cpu.max().item(),
+        },
+        "error_stats": {
+            "abs_diff_mean": abs_diff.mean().item(),
+            "abs_diff_max": abs_diff.max().item(),
+            "rel_diff_mean": rel_diff.mean().item(),
+            "rel_diff_max": rel_diff.max().item(),
+        },
+    }
+
+    debug_file = f"layernorm_debug/layer_{layer_idx}_input_ln_debug.pt"
+    torch.save(debug_info, debug_file)
+    print(f"\nDebug info saved to '{debug_file}'")
+
+    # Save outputs
+    torch.save(
+        output_cpu, f"layernorm_debug/layer_{layer_idx}_input_ln_cpu_detailed.pt"
+    )
+    torch.save(
+        output_tt_cpu, f"layernorm_debug/layer_{layer_idx}_input_ln_tt_detailed.pt"
+    )
+    torch.save(abs_diff, f"layernorm_debug/layer_{layer_idx}_input_ln_abs_diff.pt")
+
+    print(f"{'='*60}\n")
+
+    return debug_info
+
+
+def test_post_attention_layernorm(layer_idx: int):
+    """
+    Deep debug test for post_attention_layernorm of a specific layer.
+    Analyzes input statistics, intermediate computations, and output quality.
+
+    Args:
+        layer_idx: The layer index to test (0-based)
+    """
+    setup_spmd()
+
+    # Create directory for saving outputs
+    os.makedirs("layernorm_debug", exist_ok=True)
+
+    # Check if the required input file exists (residual after attention)
+    input_file = f"component_outputs/layer_{layer_idx}_attn_cpu.pt"
+
+    if not os.path.exists(input_file):
+        print(f"Error: Input file '{input_file}' not found!")
+        print(f"Please run test_layer_components({layer_idx}) first.")
+        return
+
+    # Also need the original hidden states for residual
+    if layer_idx == 0:
+        original_input_file = "first_layer_inputs.pt"
+    else:
+        original_input_file = f"cpu_hidden_states/layer_{layer_idx - 1}.pt"
+
+    if not os.path.exists(original_input_file):
+        print(f"Error: Original input file '{original_input_file}' not found!")
+        return
+
+    # Check if component outputs exist for verification
+    cpu_output_file = f"component_outputs/layer_{layer_idx}_post_attn_ln_cpu.pt"
+    tt_output_file = f"component_outputs/layer_{layer_idx}_post_attn_ln_tt.pt"
+    if not os.path.exists(cpu_output_file) or not os.path.exists(tt_output_file):
+        print(
+            f"Warning: Component output files not found. Run test_layer_components({layer_idx}) first for comparison."
+        )
+
+    print(f"\n{'='*60}")
+    print(f"Testing post_attention_layernorm for Layer {layer_idx}")
+    print(f"{'='*60}")
+
+    # Connect the device and create an xla mesh
+    device: torch.device = torch_xla.device()
+    mesh: Mesh = create_device_mesh()
+
+    # Load config and model
+    quantization_config = Mxfp4Config(dequantize=True)
+    config = AutoConfig.from_pretrained("openai/gpt-oss-120b", trust_remote_code=True)
+
+    model = AutoModelForCausalLM.from_pretrained(
+        "openai/gpt-oss-120b",
+        config=config,
+        quantization_config=quantization_config,
+        torch_dtype=torch.bfloat16,
+        low_cpu_mem_usage=True,
+        trust_remote_code=True,
+        attn_implementation="eager",
+    )
+    model.eval()
+
+    # Load inputs
+    print(f"\nLoading attention output from '{input_file}'...")
+    attn_output_cpu = torch.load(input_file)
+
+    if layer_idx == 0:
+        captured_inputs = torch.load(original_input_file)
+        original_hidden_states = captured_inputs["hidden_states"]
+    else:
+        original_hidden_states = torch.load(original_input_file)
+
+    # Compute residual (input to post_attention_layernorm)
+    residual_cpu = original_hidden_states + attn_output_cpu
+
+    print(f"Residual shape: {residual_cpu.shape}")
+
+    # ========================================
+    # Analyze Input Statistics
+    # ========================================
+    print(f"\n{'='*60}")
+    print("Input (Residual) Statistics")
+    print(f"{'='*60}")
+    print(f"Mean:     {residual_cpu.mean().item():.6f}")
+    print(f"Std:      {residual_cpu.std().item():.6f}")
+    print(f"Min:      {residual_cpu.min().item():.6f}")
+    print(f"Max:      {residual_cpu.max().item():.6f}")
+    print(f"Abs Max:  {residual_cpu.abs().max().item():.6f}")
+
+    # Per-token statistics
+    token_means = residual_cpu.mean(dim=-1)
+    token_stds = residual_cpu.std(dim=-1)
+    print(
+        f"\nPer-token mean range: [{token_means.min().item():.6f}, {token_means.max().item():.6f}]"
+    )
+    print(
+        f"Per-token std range:  [{token_stds.min().item():.6f}, {token_stds.max().item():.6f}]"
+    )
+
+    # Get the layer
+    layer = model.model.layers[layer_idx]
+    post_attn_ln = layer.post_attention_layernorm
+
+    print(f"\nRMSNorm parameters:")
+    print(f"Weight shape: {post_attn_ln.weight.shape}")
+    print(f"Weight mean:  {post_attn_ln.weight.mean().item():.6f}")
+    print(f"Weight std:   {post_attn_ln.weight.std().item():.6f}")
+    print(f"Epsilon:      {post_attn_ln.variance_epsilon}")
+
+    # ========================================
+    # CPU Reference with Intermediate Values
+    # ========================================
+    print(f"\n{'='*60}")
+    print("CPU Reference Computation")
+    print(f"{'='*60}")
+
+    post_attn_ln_cpu = post_attn_ln.cpu()
+
+    with torch.no_grad():
+        # Replicate the forward pass to get intermediates
+        input_dtype = residual_cpu.dtype
+        hidden_fp32 = residual_cpu.to(torch.float32)
+
+        # Compute variance
+        variance = hidden_fp32.pow(2).mean(-1, keepdim=True)
+        print(f"Variance statistics:")
+        print(f"  Mean:     {variance.mean().item():.6e}")
+        print(f"  Std:      {variance.std().item():.6e}")
+        print(f"  Min:      {variance.min().item():.6e}")
+        print(f"  Max:      {variance.max().item():.6e}")
+
+        # Compute rsqrt
+        rsqrt_var = torch.rsqrt(variance + post_attn_ln_cpu.variance_epsilon)
+        print(f"\nRsqrt(variance + eps) statistics:")
+        print(f"  Mean:     {rsqrt_var.mean().item():.6f}")
+        print(f"  Std:      {rsqrt_var.std().item():.6f}")
+        print(f"  Min:      {rsqrt_var.min().item():.6f}")
+        print(f"  Max:      {rsqrt_var.max().item():.6f}")
+
+        # Normalized output
+        normalized = hidden_fp32 * rsqrt_var
+        print(f"\nNormalized (before weight) statistics:")
+        print(f"  Mean:     {normalized.mean().item():.6f}")
+        print(f"  Std:      {normalized.std().item():.6f}")
+        print(f"  Min:      {normalized.min().item():.6f}")
+        print(f"  Max:      {normalized.max().item():.6f}")
+
+        # Final output
+        output_cpu = (post_attn_ln_cpu.weight * normalized).to(input_dtype)
+        print(f"\nFinal output statistics:")
+        print(f"  Mean:     {output_cpu.mean().item():.6f}")
+        print(f"  Std:      {output_cpu.std().item():.6f}")
+        print(f"  Min:      {output_cpu.min().item():.6f}")
+        print(f"  Max:      {output_cpu.max().item():.6f}")
+
+    # ========================================
+    # TT Device Computation
+    # ========================================
+    print(f"\n{'='*60}")
+    print("TT Device Computation")
+    print(f"{'='*60}")
+
+    post_attn_ln_tt = layer.post_attention_layernorm.to(device)
+    xs.mark_sharding(post_attn_ln_tt.weight, mesh, ("batch",))
+    compiled_post_attn_ln = torch.compile(post_attn_ln_tt, backend="tt")
+
+    residual_tt = residual_cpu.to(device)
+
+    with torch.no_grad():
+        output_tt = compiled_post_attn_ln(residual_tt)
+
+    output_tt_cpu = output_tt.cpu()
+
+    print(f"TT output statistics:")
+    print(f"  Mean:     {output_tt_cpu.mean().item():.6f}")
+    print(f"  Std:      {output_tt_cpu.std().item():.6f}")
+    print(f"  Min:      {output_tt_cpu.min().item():.6f}")
+    print(f"  Max:      {output_tt_cpu.max().item():.6f}")
+
+    # ========================================
+    # Comparison
+    # ========================================
+    print(f"\n{'='*60}")
+    print("CPU vs TT Comparison")
+    print(f"{'='*60}")
+
+    pcc = compute_pcc(output_cpu, output_tt_cpu)
+    print(f"PCC: {pcc:.6f}")
+
+    # Element-wise error analysis
+    abs_diff = (output_cpu - output_tt_cpu).abs()
+    rel_diff = abs_diff / (output_cpu.abs() + 1e-8)
+
+    print(f"\nAbsolute difference statistics:")
+    print(f"  Mean:     {abs_diff.mean().item():.6e}")
+    print(f"  Std:      {abs_diff.std().item():.6e}")
+    print(f"  Min:      {abs_diff.min().item():.6e}")
+    print(f"  Max:      {abs_diff.max().item():.6e}")
+    print(f"  Median:   {abs_diff.median().item():.6e}")
+
+    print(f"\nRelative difference statistics:")
+    print(f"  Mean:     {rel_diff.mean().item():.6f}")
+    print(f"  Std:      {rel_diff.std().item():.6f}")
+    print(f"  Max:      {rel_diff.max().item():.6f}")
+
+    # Find worst mismatches
+    abs_diff_flat = abs_diff.flatten()
+    worst_indices = abs_diff_flat.topk(5).indices
+    print(f"\nTop 5 worst mismatches:")
+    for i, idx in enumerate(worst_indices):
+        cpu_val = output_cpu.flatten()[idx].item()
+        tt_val = output_tt_cpu.flatten()[idx].item()
+        diff = abs_diff_flat[idx].item()
+        print(f"  {i+1}. CPU: {cpu_val:.6f}, TT: {tt_val:.6f}, Diff: {diff:.6e}")
+
+    # ========================================
+    # Save Debug Information
+    # ========================================
+    debug_info = {
+        "layer_idx": layer_idx,
+        "pcc": pcc,
+        "input_stats": {
+            "mean": residual_cpu.mean().item(),
+            "std": residual_cpu.std().item(),
+            "min": residual_cpu.min().item(),
+            "max": residual_cpu.max().item(),
+        },
+        "variance_stats": {
+            "mean": variance.mean().item(),
+            "std": variance.std().item(),
+            "min": variance.min().item(),
+            "max": variance.max().item(),
+        },
+        "output_cpu_stats": {
+            "mean": output_cpu.mean().item(),
+            "std": output_cpu.std().item(),
+            "min": output_cpu.min().item(),
+            "max": output_cpu.max().item(),
+        },
+        "output_tt_stats": {
+            "mean": output_tt_cpu.mean().item(),
+            "std": output_tt_cpu.std().item(),
+            "min": output_tt_cpu.min().item(),
+            "max": output_tt_cpu.max().item(),
+        },
+        "error_stats": {
+            "abs_diff_mean": abs_diff.mean().item(),
+            "abs_diff_max": abs_diff.max().item(),
+            "rel_diff_mean": rel_diff.mean().item(),
+            "rel_diff_max": rel_diff.max().item(),
+        },
+    }
+
+    debug_file = f"layernorm_debug/layer_{layer_idx}_post_attn_ln_debug.pt"
+    torch.save(debug_info, debug_file)
+    print(f"\nDebug info saved to '{debug_file}'")
+
+    # Save outputs
+    torch.save(
+        output_cpu, f"layernorm_debug/layer_{layer_idx}_post_attn_ln_cpu_detailed.pt"
+    )
+    torch.save(
+        output_tt_cpu, f"layernorm_debug/layer_{layer_idx}_post_attn_ln_tt_detailed.pt"
+    )
+    torch.save(abs_diff, f"layernorm_debug/layer_{layer_idx}_post_attn_ln_abs_diff.pt")
+
+    print(f"{'='*60}\n")
+
+    return debug_info
+
+
 if __name__ == "__main__":
     xr.set_device_type("TT")
-    test_layer_components_from_cpu_output(6)
-    # test_layer_components(6)
+    test_input_layernorm(7)
+    # test_post_attention_layernorm(7)
+    # test_layer_components_from_cpu_output(1)
+    # test_layer_components(0)
     # test_specific_layer(6)
     # test_single_layer_multiple_runs()
