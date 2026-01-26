@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -8,12 +8,12 @@ from infra.runners import run_on_cpu
 from infra.utilities import Framework, PyTree
 from jax.tree import map as tree_map
 
-from .comparator import Comparator
-from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
+from .comparison_evaluator import ComparisonEvaluator
+from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig
 
 
-class JaxComparator(Comparator):
-    """Comparator for JAX tensors/pytrees."""
+class JaxComparisonEvaluator(ComparisonEvaluator):
+    """ComparisonEvaluator for JAX tensors/pytrees."""
 
     # @override
     def _is_single_element(self, tensor: PyTree) -> bool:
@@ -66,7 +66,7 @@ class JaxComparator(Comparator):
         def compute_pcc(x: jax.Array, y: jax.Array):
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
             # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
-            if JaxComparator._compare_allclose(x, y, pcc_config.allclose):
+            if JaxComparisonEvaluator._compare_allclose(x, y, pcc_config.allclose):
                 return 1.0
 
             # PCC is undefined for single-element tensors (no variance), but we want to fail if we came to this.

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -8,12 +8,12 @@ from infra.utilities import Framework, PyTree
 from torch.utils._pytree import tree_flatten, tree_map
 from transformers import DynamicCache, EncoderDecoderCache
 
-from .comparator import Comparator
-from .comparison_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
+from .comparison_evaluator import ComparisonEvaluator
+from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig
 
 
-class TorchComparator(Comparator):
-    """Comparator for Torch tensors/pytrees."""
+class TorchComparisonEvaluator(ComparisonEvaluator):
+    """ComparisonEvaluator for Torch tensors/pytrees."""
 
     # @override
     def _is_single_element(self, tensor: PyTree) -> bool:
@@ -41,7 +41,7 @@ class TorchComparator(Comparator):
 
     @staticmethod
     def _both_static_cache(x: object, y: object) -> bool:
-        is_sc = TorchComparator._is_static_cache
+        is_sc = TorchComparisonEvaluator._is_static_cache
         return is_sc(x) and is_sc(y)
 
     # @override
@@ -73,7 +73,9 @@ class TorchComparator(Comparator):
     @run_on_cpu(Framework.TORCH)
     def _compare_equal(device_output: PyTree, golden_output: PyTree) -> bool:
         def _equal_leaf(x, y):
-            if TorchComparator._both_static_cache(x, y) or (x is None and y is None):
+            if TorchComparisonEvaluator._both_static_cache(x, y) or (
+                x is None and y is None
+            ):
                 return True
             return torch.equal(x, y)
 
@@ -88,7 +90,9 @@ class TorchComparator(Comparator):
         device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
     ) -> float:
         def _atol_leaf(x, y):
-            if TorchComparator._both_static_cache(x, y) or (x is None and y is None):
+            if TorchComparisonEvaluator._both_static_cache(x, y) or (
+                x is None and y is None
+            ):
                 return torch.tensor(0.0)
             return torch.max(torch.abs(x - y))
 
@@ -104,13 +108,13 @@ class TorchComparator(Comparator):
         self, device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
-            if TorchComparator._both_static_cache(x, y):
+            if TorchComparisonEvaluator._both_static_cache(x, y):
                 return torch.tensor(1.0)
             if x is None and y is None:
                 return None
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
             # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
-            if TorchComparator._compare_allclose(x, y, pcc_config.allclose):
+            if TorchComparisonEvaluator._compare_allclose(x, y, pcc_config.allclose):
                 return 1.0
 
             # PCC is undefined for single-element tensors (no variance), but we want to fail if we came to this.
@@ -138,7 +142,9 @@ class TorchComparator(Comparator):
         allclose_config: AllcloseConfig,
     ) -> bool:
         def _allclose_leaf(x, y):
-            if TorchComparator._both_static_cache(x, y) or (x is None and y is None):
+            if TorchComparisonEvaluator._both_static_cache(x, y) or (
+                x is None and y is None
+            ):
                 return True
             return torch.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol

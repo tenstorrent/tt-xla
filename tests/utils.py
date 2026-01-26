@@ -23,6 +23,7 @@ class Category(StrEnum):
     OP_TEST = "op_test"
     GRAPH_TEST = "graph_test"
     MODEL_TEST = "model_test"
+    QUALITY_TEST = "quality_test"
     OTHER = "other"
 
 

@@ -12,8 +12,8 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra.comparators.comparison_config import AtolConfig, ComparisonConfig, PccConfig
-from infra.comparators.torch_comparator import TorchComparator
+from infra.evaluators import TorchComparisonEvaluator
+from infra.evaluators.evaluation_config import AtolConfig, ComparisonConfig, PccConfig
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 
@@ -67,13 +67,13 @@ def test_all_reduce(shard_dim):
 
     expected = torch.ones(256, 512) * 2.0
 
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(required_atol=0.001),
             pcc=PccConfig(required_pcc=0.99),
         )
     )
-    comparator.compare(y, expected)
+    comparator.evaluate(y, expected)
 
 
 @pytest.mark.parametrize("shard_dim", [0, 1])
@@ -109,12 +109,12 @@ def test_all_gather(shard_dim):
     print(f"All-gather shard dim: {shard_dim}, Y Shape: {y.shape}")
     chunks = torch.chunk(y, len(groups[0]), dim=gather_dim)
 
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(required_atol=0.001),
             pcc=PccConfig(required_pcc=0.99),
         )
     )
     for i in range(1, len(chunks)):
-        comparator.compare(chunks[i], chunks[0])
-    comparator.compare(chunks[0], golden)
+        comparator.evaluate(chunks[i], chunks[0])
+    comparator.evaluate(chunks[0], golden)

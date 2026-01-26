@@ -9,11 +9,20 @@ import re
 import time
 from typing import Callable, Optional, Sequence
 
-import jax
 import torch
 import torch_xla
-from infra.comparators import ComparisonConfig
-from infra.utilities import Framework, Mesh, Tensor, random_tensor, sanitize_test_name
+from infra.evaluators import ComparisonConfig
+from infra.utilities import (
+    Framework,
+    Mesh,
+    Tensor,
+    compile_jax_workload_for_cpu,
+    compile_jax_workload_for_tt_device,
+    compile_torch_workload_for_cpu,
+    compile_torch_workload_for_tt_device,
+    random_tensor,
+    sanitize_test_name,
+)
 from infra.workloads import Workload
 from infra.workloads.torch_workload import TorchWorkload
 from jax._src.typing import DTypeLike
@@ -42,21 +51,28 @@ class OpTester(BaseTester):
             os.environ.get("ENABLE_OP_TEST_PERF_MEASUREMENT", "0") == "1"
         )
         self._perf_measurements: list[dict[str, float]] = []
-        super().__init__(comparison_config, framework)
+        super().__init__(
+            evaluator_type="comparison",
+            comparison_config=comparison_config,
+            framework=framework,
+        )
 
     def test(self, workload: Workload) -> None:
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
         cpu_workload = workload
-        self._compile_for_cpu(cpu_workload)
+        if self._framework == Framework.JAX:
+            compile_jax_workload_for_cpu(cpu_workload)
+        else:
+            compile_torch_workload_for_cpu(cpu_workload)
         cpu_res = self._device_runner.run_on_cpu(cpu_workload)
 
         tt_workload = workload
         self._compile_for_tt_device(tt_workload)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
-        self._comparator.compare(tt_res, cpu_res)
+        self._evaluator.evaluate(tt_res, cpu_res)
 
         if self._enable_perf_measurement:
             self._test_e2e_perf(tt_workload)
@@ -99,65 +115,17 @@ class OpTester(BaseTester):
         """
         Compiles executable carried in `workload` based on framework.
         """
-
-        def compile_jax_workload(workload: Workload) -> None:
-            compiler_options = self._compiler_config.to_jax_compiler_options()
-            workload.compiled_executable = jax.jit(
-                workload.executable,
-                static_argnames=workload.static_argnames,
-                compiler_options=compiler_options,
+        if self._framework == Framework.JAX:
+            compile_jax_workload_for_tt_device(
+                workload, self._compiler_config.to_jax_compiler_options()
             )
-
-        def compile_torch_workload(workload: Workload) -> None:
-            assert (workload.executable is None) ^ (
-                workload.model is None
-            ), "Either executable or model must be set, but not both"
-
-            to_compile = (
-                workload.model if workload.model is not None else workload.executable
-            )
-            # Set custom compile options if provided.
-            # Use explicit API for passing compiler options.
+        else:
+            # Must set torch compiler options before compiling for TT device
             if self._compiler_config is not None:
                 torch_xla.set_custom_compile_options(
                     self._compiler_config.to_torch_compile_options()
                 )
-            workload.compiled_executable = torch.compile(
-                to_compile, backend="tt", options=self._torch_options
-            )
-
-        if self._framework == Framework.JAX:
-            assert workload.is_jax, "Workload must be JAX workload to compile"
-            compile_jax_workload(workload)
-        else:
-            assert workload.is_torch, "Workload must be Torch workload to compile"
-            compile_torch_workload(workload)
-
-    def _compile_for_cpu(self, workload: Workload) -> None:
-        """
-        Compiles executable carried in `workload` for CPU based on framework.
-        """
-
-        def compile_jax_workload(workload: Workload) -> None:
-            workload.compiled_executable = jax.jit(
-                workload.executable,
-                static_argnames=workload.static_argnames,
-            )
-
-        def compile_torch_workload(workload: Workload) -> None:
-            assert (workload.executable is None) != (workload.model is None)
-
-            to_compile = (
-                workload.model if workload.model is not None else workload.executable
-            )
-            workload.compiled_executable = torch.compile(to_compile, backend="inductor")
-
-        if self._framework == Framework.JAX:
-            assert workload.is_jax, "Workload must be JAX workload to compile"
-            compile_jax_workload(workload)
-        else:
-            assert workload.is_torch, "Workload must be Torch workload to compile"
-            compile_torch_workload(workload)
+            compile_torch_workload_for_tt_device(workload, self._torch_options)
 
     def test_with_random_inputs(
         self,
