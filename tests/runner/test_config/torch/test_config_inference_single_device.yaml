@@ -292,7 +292,7 @@ test_config:
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-single_device-inference:
-    required_pcc: 0.97
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-inference:
@@ -728,7 +728,7 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-xlarge_v1-single_device-inference:
-    required_pcc: 0.98
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-xxlarge_v1-single_device-inference:
@@ -1594,7 +1594,7 @@ test_config:
     status: EXPECTED_PASSING
 
   phi3/token_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-inference:
-    required_pcc: 0.97
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-128k-instruct-single_device-inference:
