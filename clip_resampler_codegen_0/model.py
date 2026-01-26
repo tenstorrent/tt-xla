@@ -22,7 +22,12 @@ class CLIPResampler(LightweightModule):
             weights: List of weight tensors (loaded via load_inputs_from_pytorch)
         """
         self.weights = weights
-        self._const_eval_cache = {}
+
+        # Run const-eval functions once at init and store the results dict
+        self._ce = run_const_evals(self.weights, {})
+
+        # Get device reference
+        self.device = utils.DeviceGetter.get_device((1, 1))
 
     def forward(self, pixel_values):
         """
@@ -34,203 +39,6 @@ class CLIPResampler(LightweightModule):
         Returns:
             List containing the output tensor
         """
-        # Run const-eval functions
-        _ce = run_const_evals(self.weights, self._const_eval_cache)
-        utils_constEvalFuncWrapperZeroArg_0_0 = _ce[
-            "utils_constEvalFuncWrapperZeroArg_0_0"
-        ]
-        utils_constEvalFuncWrapper_0_0 = _ce["utils_constEvalFuncWrapper_0_0"]
-        utils_constEvalFuncWrapperZeroArg_1_0 = _ce[
-            "utils_constEvalFuncWrapperZeroArg_1_0"
-        ]
-        utils_constEvalFuncWrapper_1_0 = _ce["utils_constEvalFuncWrapper_1_0"]
-        utils_constEvalFuncWrapperZeroArg_2_0 = _ce[
-            "utils_constEvalFuncWrapperZeroArg_2_0"
-        ]
-        utils_constEvalFuncWrapper_2_0 = _ce["utils_constEvalFuncWrapper_2_0"]
-        utils_constEvalFuncWrapperZeroArg_3_0 = _ce[
-            "utils_constEvalFuncWrapperZeroArg_3_0"
-        ]
-        utils_constEvalFuncWrapper_3_0 = _ce["utils_constEvalFuncWrapper_3_0"]
-        utils_constEvalFuncWrapperZeroArg_4_0 = _ce[
-            "utils_constEvalFuncWrapperZeroArg_4_0"
-        ]
-        utils_constEvalFuncWrapper_4_0 = _ce["utils_constEvalFuncWrapper_4_0"]
-        utils_constEvalFuncWrapperZeroArg_5_0 = _ce[
-            "utils_constEvalFuncWrapperZeroArg_5_0"
-        ]
-        utils_constEvalFuncWrapper_5_0 = _ce["utils_constEvalFuncWrapper_5_0"]
-        utils_constEvalFuncWrapperZeroArg_6_0 = _ce[
-            "utils_constEvalFuncWrapperZeroArg_6_0"
-        ]
-        utils_constEvalFuncWrapper_6_0 = _ce["utils_constEvalFuncWrapper_6_0"]
-        utils_constEvalFuncWrapperZeroArg_7_0 = _ce[
-            "utils_constEvalFuncWrapperZeroArg_7_0"
-        ]
-        utils_constEvalFuncWrapper_7_0 = _ce["utils_constEvalFuncWrapper_7_0"]
-        utils_constEvalFuncWrapperZeroArg_8_0 = _ce[
-            "utils_constEvalFuncWrapperZeroArg_8_0"
-        ]
-        utils_constEvalFuncWrapper_8_0 = _ce["utils_constEvalFuncWrapper_8_0"]
-        utils_constEvalFuncWrapperZeroArg_9_0 = _ce[
-            "utils_constEvalFuncWrapperZeroArg_9_0"
-        ]
-        utils_constEvalFuncWrapper_9_0 = _ce["utils_constEvalFuncWrapper_9_0"]
-        utils_constEvalFuncWrapper_10_0 = _ce["utils_constEvalFuncWrapper_10_0"]
-        utils_constEvalFuncWrapper_11_0 = _ce["utils_constEvalFuncWrapper_11_0"]
-        utils_constEvalFuncWrapper_12_0 = _ce["utils_constEvalFuncWrapper_12_0"]
-        utils_constEvalFuncWrapper_13_0 = _ce["utils_constEvalFuncWrapper_13_0"]
-        utils_constEvalFuncWrapper_14_0 = _ce["utils_constEvalFuncWrapper_14_0"]
-        utils_constEvalFuncWrapper_15_0 = _ce["utils_constEvalFuncWrapper_15_0"]
-        utils_constEvalFuncWrapper_16_0 = _ce["utils_constEvalFuncWrapper_16_0"]
-        utils_constEvalFuncWrapper_17_0 = _ce["utils_constEvalFuncWrapper_17_0"]
-        utils_constEvalFuncWrapper_18_0 = _ce["utils_constEvalFuncWrapper_18_0"]
-        utils_constEvalFuncWrapper_19_0 = _ce["utils_constEvalFuncWrapper_19_0"]
-        utils_constEvalFuncWrapper_20_0 = _ce["utils_constEvalFuncWrapper_20_0"]
-        utils_constEvalFuncWrapper_21_0 = _ce["utils_constEvalFuncWrapper_21_0"]
-        utils_constEvalFuncWrapper_22_0 = _ce["utils_constEvalFuncWrapper_22_0"]
-        utils_constEvalFuncWrapper_23_0 = _ce["utils_constEvalFuncWrapper_23_0"]
-        utils_constEvalFuncWrapper_24_0 = _ce["utils_constEvalFuncWrapper_24_0"]
-        utils_constEvalFuncWrapper_25_0 = _ce["utils_constEvalFuncWrapper_25_0"]
-        utils_constEvalFuncWrapper_26_0 = _ce["utils_constEvalFuncWrapper_26_0"]
-        utils_constEvalFuncWrapper_27_0 = _ce["utils_constEvalFuncWrapper_27_0"]
-        utils_constEvalFuncWrapper_28_0 = _ce["utils_constEvalFuncWrapper_28_0"]
-        utils_constEvalFuncWrapper_29_0 = _ce["utils_constEvalFuncWrapper_29_0"]
-        utils_constEvalFuncWrapper_30_0 = _ce["utils_constEvalFuncWrapper_30_0"]
-        utils_constEvalFuncWrapper_31_0 = _ce["utils_constEvalFuncWrapper_31_0"]
-        utils_constEvalFuncWrapper_32_0 = _ce["utils_constEvalFuncWrapper_32_0"]
-        utils_constEvalFuncWrapper_33_0 = _ce["utils_constEvalFuncWrapper_33_0"]
-        utils_constEvalFuncWrapper_34_0 = _ce["utils_constEvalFuncWrapper_34_0"]
-        utils_constEvalFuncWrapper_35_0 = _ce["utils_constEvalFuncWrapper_35_0"]
-        utils_constEvalFuncWrapper_36_0 = _ce["utils_constEvalFuncWrapper_36_0"]
-        utils_constEvalFuncWrapper_37_0 = _ce["utils_constEvalFuncWrapper_37_0"]
-        utils_constEvalFuncWrapper_38_0 = _ce["utils_constEvalFuncWrapper_38_0"]
-        utils_constEvalFuncWrapper_39_0 = _ce["utils_constEvalFuncWrapper_39_0"]
-        utils_constEvalFuncWrapper_40_0 = _ce["utils_constEvalFuncWrapper_40_0"]
-        utils_constEvalFuncWrapper_41_0 = _ce["utils_constEvalFuncWrapper_41_0"]
-        utils_constEvalFuncWrapper_42_0 = _ce["utils_constEvalFuncWrapper_42_0"]
-        utils_constEvalFuncWrapper_43_0 = _ce["utils_constEvalFuncWrapper_43_0"]
-        utils_constEvalFuncWrapper_44_0 = _ce["utils_constEvalFuncWrapper_44_0"]
-        utils_constEvalFuncWrapper_45_0 = _ce["utils_constEvalFuncWrapper_45_0"]
-        utils_constEvalFuncWrapper_46_0 = _ce["utils_constEvalFuncWrapper_46_0"]
-        utils_constEvalFuncWrapper_47_0 = _ce["utils_constEvalFuncWrapper_47_0"]
-        utils_constEvalFuncWrapper_48_0 = _ce["utils_constEvalFuncWrapper_48_0"]
-        utils_constEvalFuncWrapper_49_0 = _ce["utils_constEvalFuncWrapper_49_0"]
-        utils_constEvalFuncWrapper_50_0 = _ce["utils_constEvalFuncWrapper_50_0"]
-        utils_constEvalFuncWrapper_51_0 = _ce["utils_constEvalFuncWrapper_51_0"]
-        utils_constEvalFuncWrapper_52_0 = _ce["utils_constEvalFuncWrapper_52_0"]
-        utils_constEvalFuncWrapper_53_0 = _ce["utils_constEvalFuncWrapper_53_0"]
-        utils_constEvalFuncWrapper_54_0 = _ce["utils_constEvalFuncWrapper_54_0"]
-        utils_constEvalFuncWrapper_55_0 = _ce["utils_constEvalFuncWrapper_55_0"]
-        utils_constEvalFuncWrapper_56_0 = _ce["utils_constEvalFuncWrapper_56_0"]
-        utils_constEvalFuncWrapper_57_0 = _ce["utils_constEvalFuncWrapper_57_0"]
-        utils_constEvalFuncWrapper_58_0 = _ce["utils_constEvalFuncWrapper_58_0"]
-        utils_constEvalFuncWrapper_59_0 = _ce["utils_constEvalFuncWrapper_59_0"]
-        utils_constEvalFuncWrapper_60_0 = _ce["utils_constEvalFuncWrapper_60_0"]
-        utils_constEvalFuncWrapper_61_0 = _ce["utils_constEvalFuncWrapper_61_0"]
-        utils_constEvalFuncWrapper_62_0 = _ce["utils_constEvalFuncWrapper_62_0"]
-        utils_constEvalFuncWrapper_63_0 = _ce["utils_constEvalFuncWrapper_63_0"]
-        utils_constEvalFuncWrapper_64_0 = _ce["utils_constEvalFuncWrapper_64_0"]
-        utils_constEvalFuncWrapper_65_0 = _ce["utils_constEvalFuncWrapper_65_0"]
-        utils_constEvalFuncWrapper_66_0 = _ce["utils_constEvalFuncWrapper_66_0"]
-        utils_constEvalFuncWrapper_67_0 = _ce["utils_constEvalFuncWrapper_67_0"]
-        utils_constEvalFuncWrapper_68_0 = _ce["utils_constEvalFuncWrapper_68_0"]
-        utils_constEvalFuncWrapper_69_0 = _ce["utils_constEvalFuncWrapper_69_0"]
-        utils_constEvalFuncWrapper_70_0 = _ce["utils_constEvalFuncWrapper_70_0"]
-        utils_constEvalFuncWrapper_71_0 = _ce["utils_constEvalFuncWrapper_71_0"]
-        utils_constEvalFuncWrapper_72_0 = _ce["utils_constEvalFuncWrapper_72_0"]
-        utils_constEvalFuncWrapper_73_0 = _ce["utils_constEvalFuncWrapper_73_0"]
-        utils_constEvalFuncWrapper_74_0 = _ce["utils_constEvalFuncWrapper_74_0"]
-        utils_constEvalFuncWrapper_75_0 = _ce["utils_constEvalFuncWrapper_75_0"]
-        utils_constEvalFuncWrapper_76_0 = _ce["utils_constEvalFuncWrapper_76_0"]
-        utils_constEvalFuncWrapper_77_0 = _ce["utils_constEvalFuncWrapper_77_0"]
-        utils_constEvalFuncWrapper_78_0 = _ce["utils_constEvalFuncWrapper_78_0"]
-        utils_constEvalFuncWrapper_79_0 = _ce["utils_constEvalFuncWrapper_79_0"]
-        utils_constEvalFuncWrapper_80_0 = _ce["utils_constEvalFuncWrapper_80_0"]
-        utils_constEvalFuncWrapper_81_0 = _ce["utils_constEvalFuncWrapper_81_0"]
-        utils_constEvalFuncWrapper_82_0 = _ce["utils_constEvalFuncWrapper_82_0"]
-        utils_constEvalFuncWrapper_83_0 = _ce["utils_constEvalFuncWrapper_83_0"]
-        utils_constEvalFuncWrapper_84_0 = _ce["utils_constEvalFuncWrapper_84_0"]
-        utils_constEvalFuncWrapper_85_0 = _ce["utils_constEvalFuncWrapper_85_0"]
-        utils_constEvalFuncWrapper_86_0 = _ce["utils_constEvalFuncWrapper_86_0"]
-        utils_constEvalFuncWrapper_87_0 = _ce["utils_constEvalFuncWrapper_87_0"]
-        utils_constEvalFuncWrapper_88_0 = _ce["utils_constEvalFuncWrapper_88_0"]
-        utils_constEvalFuncWrapper_89_0 = _ce["utils_constEvalFuncWrapper_89_0"]
-        utils_constEvalFuncWrapper_90_0 = _ce["utils_constEvalFuncWrapper_90_0"]
-        utils_constEvalFuncWrapper_91_0 = _ce["utils_constEvalFuncWrapper_91_0"]
-        utils_constEvalFuncWrapper_92_0 = _ce["utils_constEvalFuncWrapper_92_0"]
-        utils_constEvalFuncWrapper_93_0 = _ce["utils_constEvalFuncWrapper_93_0"]
-        utils_constEvalFuncWrapper_94_0 = _ce["utils_constEvalFuncWrapper_94_0"]
-        utils_constEvalFuncWrapper_95_0 = _ce["utils_constEvalFuncWrapper_95_0"]
-        utils_constEvalFuncWrapper_96_0 = _ce["utils_constEvalFuncWrapper_96_0"]
-        utils_constEvalFuncWrapper_97_0 = _ce["utils_constEvalFuncWrapper_97_0"]
-        utils_constEvalFuncWrapper_98_0 = _ce["utils_constEvalFuncWrapper_98_0"]
-        utils_constEvalFuncWrapper_99_0 = _ce["utils_constEvalFuncWrapper_99_0"]
-        utils_constEvalFuncWrapper_100_0 = _ce["utils_constEvalFuncWrapper_100_0"]
-        utils_constEvalFuncWrapper_101_0 = _ce["utils_constEvalFuncWrapper_101_0"]
-        utils_constEvalFuncWrapper_102_0 = _ce["utils_constEvalFuncWrapper_102_0"]
-        utils_constEvalFuncWrapper_103_0 = _ce["utils_constEvalFuncWrapper_103_0"]
-        utils_constEvalFuncWrapper_104_0 = _ce["utils_constEvalFuncWrapper_104_0"]
-        utils_constEvalFuncWrapper_105_0 = _ce["utils_constEvalFuncWrapper_105_0"]
-        utils_constEvalFuncWrapper_106_0 = _ce["utils_constEvalFuncWrapper_106_0"]
-        utils_constEvalFuncWrapper_107_0 = _ce["utils_constEvalFuncWrapper_107_0"]
-        utils_constEvalFuncWrapper_108_0 = _ce["utils_constEvalFuncWrapper_108_0"]
-        utils_constEvalFuncWrapper_109_0 = _ce["utils_constEvalFuncWrapper_109_0"]
-        utils_constEvalFuncWrapper_110_0 = _ce["utils_constEvalFuncWrapper_110_0"]
-        utils_constEvalFuncWrapper_111_0 = _ce["utils_constEvalFuncWrapper_111_0"]
-        utils_constEvalFuncWrapper_112_0 = _ce["utils_constEvalFuncWrapper_112_0"]
-        utils_constEvalFuncWrapper_113_0 = _ce["utils_constEvalFuncWrapper_113_0"]
-        utils_constEvalFuncWrapper_114_0 = _ce["utils_constEvalFuncWrapper_114_0"]
-        utils_constEvalFuncWrapper_115_0 = _ce["utils_constEvalFuncWrapper_115_0"]
-        utils_constEvalFuncWrapper_116_0 = _ce["utils_constEvalFuncWrapper_116_0"]
-        utils_constEvalFuncWrapper_117_0 = _ce["utils_constEvalFuncWrapper_117_0"]
-        utils_constEvalFuncWrapper_118_0 = _ce["utils_constEvalFuncWrapper_118_0"]
-        utils_constEvalFuncWrapper_119_0 = _ce["utils_constEvalFuncWrapper_119_0"]
-        utils_constEvalFuncWrapper_120_0 = _ce["utils_constEvalFuncWrapper_120_0"]
-        utils_constEvalFuncWrapper_121_0 = _ce["utils_constEvalFuncWrapper_121_0"]
-        utils_constEvalFuncWrapper_122_0 = _ce["utils_constEvalFuncWrapper_122_0"]
-        utils_constEvalFuncWrapper_123_0 = _ce["utils_constEvalFuncWrapper_123_0"]
-        utils_constEvalFuncWrapper_124_0 = _ce["utils_constEvalFuncWrapper_124_0"]
-        utils_constEvalFuncWrapper_125_0 = _ce["utils_constEvalFuncWrapper_125_0"]
-        utils_constEvalFuncWrapper_126_0 = _ce["utils_constEvalFuncWrapper_126_0"]
-        utils_constEvalFuncWrapper_127_0 = _ce["utils_constEvalFuncWrapper_127_0"]
-        utils_constEvalFuncWrapper_128_0 = _ce["utils_constEvalFuncWrapper_128_0"]
-        utils_constEvalFuncWrapper_129_0 = _ce["utils_constEvalFuncWrapper_129_0"]
-        utils_constEvalFuncWrapper_130_0 = _ce["utils_constEvalFuncWrapper_130_0"]
-        utils_constEvalFuncWrapper_131_0 = _ce["utils_constEvalFuncWrapper_131_0"]
-        utils_constEvalFuncWrapper_132_0 = _ce["utils_constEvalFuncWrapper_132_0"]
-        utils_constEvalFuncWrapper_133_0 = _ce["utils_constEvalFuncWrapper_133_0"]
-        utils_constEvalFuncWrapper_134_0 = _ce["utils_constEvalFuncWrapper_134_0"]
-        utils_constEvalFuncWrapper_135_0 = _ce["utils_constEvalFuncWrapper_135_0"]
-        utils_constEvalFuncWrapper_136_0 = _ce["utils_constEvalFuncWrapper_136_0"]
-        utils_constEvalFuncWrapper_137_0 = _ce["utils_constEvalFuncWrapper_137_0"]
-        utils_constEvalFuncWrapper_137_1 = _ce["utils_constEvalFuncWrapper_137_1"]
-        utils_constEvalFuncWrapper_137_2 = _ce["utils_constEvalFuncWrapper_137_2"]
-        utils_constEvalFuncWrapper_138_0 = _ce["utils_constEvalFuncWrapper_138_0"]
-        utils_constEvalFuncWrapper_139_0 = _ce["utils_constEvalFuncWrapper_139_0"]
-        utils_constEvalFuncWrapper_140_0 = _ce["utils_constEvalFuncWrapper_140_0"]
-        utils_constEvalFuncWrapper_141_0 = _ce["utils_constEvalFuncWrapper_141_0"]
-        utils_constEvalFuncWrapper_142_0 = _ce["utils_constEvalFuncWrapper_142_0"]
-        utils_constEvalFuncWrapper_143_0 = _ce["utils_constEvalFuncWrapper_143_0"]
-        utils_constEvalFuncWrapper_144_0 = _ce["utils_constEvalFuncWrapper_144_0"]
-        utils_constEvalFuncWrapper_145_0 = _ce["utils_constEvalFuncWrapper_145_0"]
-        utils_constEvalFuncWrapper_146_0 = _ce["utils_constEvalFuncWrapper_146_0"]
-        utils_constEvalFuncWrapper_147_0 = _ce["utils_constEvalFuncWrapper_147_0"]
-        utils_constEvalFuncWrapper_148_0 = _ce["utils_constEvalFuncWrapper_148_0"]
-        utils_constEvalFuncWrapper_149_0 = _ce["utils_constEvalFuncWrapper_149_0"]
-        utils_constEvalFuncWrapper_150_0 = _ce["utils_constEvalFuncWrapper_150_0"]
-        utils_constEvalFuncWrapper_151_0 = _ce["utils_constEvalFuncWrapper_151_0"]
-        utils_constEvalFuncWrapper_152_0 = _ce["utils_constEvalFuncWrapper_152_0"]
-        utils_constEvalFuncWrapper_153_0 = _ce["utils_constEvalFuncWrapper_153_0"]
-        utils_constEvalFuncWrapper_154_0 = _ce["utils_constEvalFuncWrapper_154_0"]
-        utils_constEvalFuncWrapper_155_0 = _ce["utils_constEvalFuncWrapper_155_0"]
-        utils_constEvalFuncWrapper_156_0 = _ce["utils_constEvalFuncWrapper_156_0"]
-        utils_constEvalFuncWrapper_157_0 = _ce["utils_constEvalFuncWrapper_157_0"]
-        utils_constEvalFuncWrapper_158_0 = _ce["utils_constEvalFuncWrapper_158_0"]
-        utils_constEvalFuncWrapper_159_0 = _ce["utils_constEvalFuncWrapper_159_0"]
-        utils_constEvalFuncWrapper_160_0 = _ce["utils_constEvalFuncWrapper_160_0"]
-        utils_DeviceGetter_get_device_171 = utils.DeviceGetter.get_device((1, 1))
-
         ttnn_to_layout_287 = ttnn.to_layout(
             pixel_values,
             ttnn.Layout.TILE,
@@ -259,8 +67,8 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_3, False)
         ttnn_conv2d_0 = ttnn.conv2d(
             input_tensor=ttnn_reshape_192,
-            weight_tensor=utils_constEvalFuncWrapper_46_0,
-            device=utils_DeviceGetter_get_device_171,
+            weight_tensor=self._ce["ce_46_0"],
+            device=self.device,
             in_channels=3,
             out_channels=1280,
             batch_size=1,
@@ -313,7 +121,7 @@ class CLIPResampler(LightweightModule):
             ),
         )
         ttnn.deallocate(ttnn_permute_4, False)
-        util_create_list_394 = [utils_constEvalFuncWrapper_116_0, ttnn_reshape_194]
+        util_create_list_394 = [self._ce["ce_116_0"], ttnn_reshape_194]
         ttnn_concat_62 = ttnn.concat(
             util_create_list_394,
             2,
@@ -324,7 +132,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_194, False)
         ttnn_add_0 = ttnn.add(
             ttnn_concat_62,
-            utils_constEvalFuncWrapper_53_0,
+            self._ce["ce_53_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -373,7 +181,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_2, False)
         ttnn_matmul_1 = ttnn.matmul(
             ttnn_reshape_195,
-            utils_constEvalFuncWrapper_123_0,
+            self._ce["ce_123_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -386,7 +194,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_195, False)
         ttnn_add_1 = ttnn.add(
             ttnn_matmul_1,
-            utils_constEvalFuncWrapper_138_0,
+            self._ce["ce_138_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -482,7 +290,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_6, False)
         ttnn_multiply_1 = ttnn.multiply(
             ttnn_typecast_2,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -508,7 +316,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_3, False)
         ttnn_multiply_2 = ttnn.multiply(
             ttnn_permute_9,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -531,7 +339,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_1, False)
         ttnn_eq_0 = ttnn.eq(
             ttnn_matmul_2,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -555,7 +363,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_0, False)
         ttnn_ne_0 = ttnn.ne(
             ttnn_sum_0,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -597,7 +405,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_188, False)
         ttnn_where_0 = ttnn.where(
             ttnn_typecast_4,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_0,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -667,7 +475,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_200, False)
         ttnn_add_2 = ttnn.add(
             ttnn_matmul_4,
-            utils_constEvalFuncWrapper_76_0,
+            self._ce["ce_76_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -718,7 +526,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_201, False)
         ttnn_add_4 = ttnn.add(
             ttnn_matmul_5,
-            utils_constEvalFuncWrapper_63_0,
+            self._ce["ce_63_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -756,7 +564,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_202, False)
         ttnn_add_5 = ttnn.add(
             ttnn_matmul_6,
-            utils_constEvalFuncWrapper_157_0,
+            self._ce["ce_157_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -794,7 +602,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_4, False)
         ttnn_matmul_7 = ttnn.matmul(
             ttnn_reshape_203,
-            utils_constEvalFuncWrapper_88_0,
+            self._ce["ce_88_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -807,7 +615,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_203, False)
         ttnn_add_7 = ttnn.add(
             ttnn_matmul_7,
-            utils_constEvalFuncWrapper_107_0,
+            self._ce["ce_107_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -903,7 +711,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_11, False)
         ttnn_multiply_3 = ttnn.multiply(
             ttnn_typecast_7,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -929,7 +737,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_8, False)
         ttnn_multiply_4 = ttnn.multiply(
             ttnn_permute_14,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -952,7 +760,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_3, False)
         ttnn_eq_1 = ttnn.eq(
             ttnn_matmul_8,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -976,7 +784,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_2, False)
         ttnn_ne_1 = ttnn.ne(
             ttnn_sum_1,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1018,7 +826,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_189, False)
         ttnn_where_1 = ttnn.where(
             ttnn_typecast_9,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_1,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1088,7 +896,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_208, False)
         ttnn_add_8 = ttnn.add(
             ttnn_matmul_10,
-            utils_constEvalFuncWrapper_143_0,
+            self._ce["ce_143_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1139,7 +947,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_209, False)
         ttnn_add_10 = ttnn.add(
             ttnn_matmul_11,
-            utils_constEvalFuncWrapper_148_0,
+            self._ce["ce_148_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1177,7 +985,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_210, False)
         ttnn_add_11 = ttnn.add(
             ttnn_matmul_12,
-            utils_constEvalFuncWrapper_25_0,
+            self._ce["ce_25_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1215,7 +1023,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_6, False)
         ttnn_matmul_13 = ttnn.matmul(
             ttnn_reshape_211,
-            utils_constEvalFuncWrapper_84_0,
+            self._ce["ce_84_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1228,7 +1036,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_211, False)
         ttnn_add_13 = ttnn.add(
             ttnn_matmul_13,
-            utils_constEvalFuncWrapper_124_0,
+            self._ce["ce_124_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1324,7 +1132,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_16, False)
         ttnn_multiply_5 = ttnn.multiply(
             ttnn_typecast_12,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1350,7 +1158,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_13, False)
         ttnn_multiply_6 = ttnn.multiply(
             ttnn_permute_19,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1373,7 +1181,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_5, False)
         ttnn_eq_2 = ttnn.eq(
             ttnn_matmul_14,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1397,7 +1205,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_4, False)
         ttnn_ne_2 = ttnn.ne(
             ttnn_sum_2,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1439,7 +1247,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_190, False)
         ttnn_where_2 = ttnn.where(
             ttnn_typecast_14,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_2,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1509,7 +1317,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_216, False)
         ttnn_add_14 = ttnn.add(
             ttnn_matmul_16,
-            utils_constEvalFuncWrapper_147_0,
+            self._ce["ce_147_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1560,7 +1368,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_217, False)
         ttnn_add_16 = ttnn.add(
             ttnn_matmul_17,
-            utils_constEvalFuncWrapper_118_0,
+            self._ce["ce_118_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1598,7 +1406,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_218, False)
         ttnn_add_17 = ttnn.add(
             ttnn_matmul_18,
-            utils_constEvalFuncWrapper_97_0,
+            self._ce["ce_97_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1636,7 +1444,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_8, False)
         ttnn_matmul_19 = ttnn.matmul(
             ttnn_reshape_219,
-            utils_constEvalFuncWrapper_110_0,
+            self._ce["ce_110_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1649,7 +1457,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_219, False)
         ttnn_add_19 = ttnn.add(
             ttnn_matmul_19,
-            utils_constEvalFuncWrapper_111_0,
+            self._ce["ce_111_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1745,7 +1553,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_21, False)
         ttnn_multiply_7 = ttnn.multiply(
             ttnn_typecast_17,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1771,7 +1579,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_18, False)
         ttnn_multiply_8 = ttnn.multiply(
             ttnn_permute_24,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1794,7 +1602,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_7, False)
         ttnn_eq_3 = ttnn.eq(
             ttnn_matmul_20,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1818,7 +1626,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_6, False)
         ttnn_ne_3 = ttnn.ne(
             ttnn_sum_3,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1860,7 +1668,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_191, False)
         ttnn_where_3 = ttnn.where(
             ttnn_typecast_19,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_3,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1930,7 +1738,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_224, False)
         ttnn_add_20 = ttnn.add(
             ttnn_matmul_22,
-            utils_constEvalFuncWrapper_11_0,
+            self._ce["ce_11_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1981,7 +1789,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_225, False)
         ttnn_add_22 = ttnn.add(
             ttnn_matmul_23,
-            utils_constEvalFuncWrapper_45_0,
+            self._ce["ce_45_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2019,7 +1827,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_226, False)
         ttnn_add_23 = ttnn.add(
             ttnn_matmul_24,
-            utils_constEvalFuncWrapper_74_0,
+            self._ce["ce_74_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2057,7 +1865,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_10, False)
         ttnn_matmul_25 = ttnn.matmul(
             ttnn_reshape_227,
-            utils_constEvalFuncWrapper_6_0,
+            self._ce["ce_6_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2070,7 +1878,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_227, False)
         ttnn_add_25 = ttnn.add(
             ttnn_matmul_25,
-            utils_constEvalFuncWrapper_75_0,
+            self._ce["ce_75_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2166,7 +1974,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_26, False)
         ttnn_multiply_9 = ttnn.multiply(
             ttnn_typecast_22,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2192,7 +2000,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_23, False)
         ttnn_multiply_10 = ttnn.multiply(
             ttnn_permute_29,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2215,7 +2023,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_9, False)
         ttnn_eq_4 = ttnn.eq(
             ttnn_matmul_26,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2239,7 +2047,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_8, False)
         ttnn_ne_4 = ttnn.ne(
             ttnn_sum_4,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2281,7 +2089,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_192, False)
         ttnn_where_4 = ttnn.where(
             ttnn_typecast_24,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_4,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2351,7 +2159,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_232, False)
         ttnn_add_26 = ttnn.add(
             ttnn_matmul_28,
-            utils_constEvalFuncWrapper_89_0,
+            self._ce["ce_89_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2402,7 +2210,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_233, False)
         ttnn_add_28 = ttnn.add(
             ttnn_matmul_29,
-            utils_constEvalFuncWrapper_91_0,
+            self._ce["ce_91_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2440,7 +2248,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_234, False)
         ttnn_add_29 = ttnn.add(
             ttnn_matmul_30,
-            utils_constEvalFuncWrapper_99_0,
+            self._ce["ce_99_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2478,7 +2286,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_12, False)
         ttnn_matmul_31 = ttnn.matmul(
             ttnn_reshape_235,
-            utils_constEvalFuncWrapper_94_0,
+            self._ce["ce_94_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2491,7 +2299,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_235, False)
         ttnn_add_31 = ttnn.add(
             ttnn_matmul_31,
-            utils_constEvalFuncWrapper_71_0,
+            self._ce["ce_71_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2587,7 +2395,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_31, False)
         ttnn_multiply_11 = ttnn.multiply(
             ttnn_typecast_27,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2613,7 +2421,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_28, False)
         ttnn_multiply_12 = ttnn.multiply(
             ttnn_permute_34,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2636,7 +2444,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_11, False)
         ttnn_eq_5 = ttnn.eq(
             ttnn_matmul_32,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2660,7 +2468,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_10, False)
         ttnn_ne_5 = ttnn.ne(
             ttnn_sum_5,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2702,7 +2510,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_193, False)
         ttnn_where_5 = ttnn.where(
             ttnn_typecast_29,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_5,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2772,7 +2580,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_240, False)
         ttnn_add_32 = ttnn.add(
             ttnn_matmul_34,
-            utils_constEvalFuncWrapper_70_0,
+            self._ce["ce_70_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2823,7 +2631,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_241, False)
         ttnn_add_34 = ttnn.add(
             ttnn_matmul_35,
-            utils_constEvalFuncWrapper_58_0,
+            self._ce["ce_58_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2861,7 +2669,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_242, False)
         ttnn_add_35 = ttnn.add(
             ttnn_matmul_36,
-            utils_constEvalFuncWrapper_149_0,
+            self._ce["ce_149_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2899,7 +2707,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_14, False)
         ttnn_matmul_37 = ttnn.matmul(
             ttnn_reshape_243,
-            utils_constEvalFuncWrapper_120_0,
+            self._ce["ce_120_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2912,7 +2720,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_243, False)
         ttnn_add_37 = ttnn.add(
             ttnn_matmul_37,
-            utils_constEvalFuncWrapper_153_0,
+            self._ce["ce_153_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3008,7 +2816,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_36, False)
         ttnn_multiply_13 = ttnn.multiply(
             ttnn_typecast_32,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3034,7 +2842,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_33, False)
         ttnn_multiply_14 = ttnn.multiply(
             ttnn_permute_39,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3057,7 +2865,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_13, False)
         ttnn_eq_6 = ttnn.eq(
             ttnn_matmul_38,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3081,7 +2889,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_12, False)
         ttnn_ne_6 = ttnn.ne(
             ttnn_sum_6,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3123,7 +2931,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_194, False)
         ttnn_where_6 = ttnn.where(
             ttnn_typecast_34,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_6,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3193,7 +3001,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_248, False)
         ttnn_add_38 = ttnn.add(
             ttnn_matmul_40,
-            utils_constEvalFuncWrapper_112_0,
+            self._ce["ce_112_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3244,7 +3052,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_249, False)
         ttnn_add_40 = ttnn.add(
             ttnn_matmul_41,
-            utils_constEvalFuncWrapper_87_0,
+            self._ce["ce_87_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3282,7 +3090,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_250, False)
         ttnn_add_41 = ttnn.add(
             ttnn_matmul_42,
-            utils_constEvalFuncWrapper_160_0,
+            self._ce["ce_160_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3320,7 +3128,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_16, False)
         ttnn_matmul_43 = ttnn.matmul(
             ttnn_reshape_251,
-            utils_constEvalFuncWrapper_18_0,
+            self._ce["ce_18_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3333,7 +3141,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_251, False)
         ttnn_add_43 = ttnn.add(
             ttnn_matmul_43,
-            utils_constEvalFuncWrapper_96_0,
+            self._ce["ce_96_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3429,7 +3237,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_41, False)
         ttnn_multiply_15 = ttnn.multiply(
             ttnn_typecast_37,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3455,7 +3263,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_38, False)
         ttnn_multiply_16 = ttnn.multiply(
             ttnn_permute_44,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3478,7 +3286,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_15, False)
         ttnn_eq_7 = ttnn.eq(
             ttnn_matmul_44,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3502,7 +3310,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_14, False)
         ttnn_ne_7 = ttnn.ne(
             ttnn_sum_7,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3544,7 +3352,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_195, False)
         ttnn_where_7 = ttnn.where(
             ttnn_typecast_39,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_7,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3614,7 +3422,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_256, False)
         ttnn_add_44 = ttnn.add(
             ttnn_matmul_46,
-            utils_constEvalFuncWrapper_62_0,
+            self._ce["ce_62_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3665,7 +3473,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_257, False)
         ttnn_add_46 = ttnn.add(
             ttnn_matmul_47,
-            utils_constEvalFuncWrapper_61_0,
+            self._ce["ce_61_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3703,7 +3511,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_258, False)
         ttnn_add_47 = ttnn.add(
             ttnn_matmul_48,
-            utils_constEvalFuncWrapper_0_0,
+            self._ce["ce_0_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3741,7 +3549,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_18, False)
         ttnn_matmul_49 = ttnn.matmul(
             ttnn_reshape_259,
-            utils_constEvalFuncWrapper_24_0,
+            self._ce["ce_24_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3754,7 +3562,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_259, False)
         ttnn_add_49 = ttnn.add(
             ttnn_matmul_49,
-            utils_constEvalFuncWrapper_13_0,
+            self._ce["ce_13_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3850,7 +3658,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_46, False)
         ttnn_multiply_17 = ttnn.multiply(
             ttnn_typecast_42,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3876,7 +3684,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_43, False)
         ttnn_multiply_18 = ttnn.multiply(
             ttnn_permute_49,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3899,7 +3707,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_17, False)
         ttnn_eq_8 = ttnn.eq(
             ttnn_matmul_50,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3923,7 +3731,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_16, False)
         ttnn_ne_8 = ttnn.ne(
             ttnn_sum_8,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3965,7 +3773,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_196, False)
         ttnn_where_8 = ttnn.where(
             ttnn_typecast_44,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_8,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4035,7 +3843,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_264, False)
         ttnn_add_50 = ttnn.add(
             ttnn_matmul_52,
-            utils_constEvalFuncWrapper_77_0,
+            self._ce["ce_77_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4086,7 +3894,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_265, False)
         ttnn_add_52 = ttnn.add(
             ttnn_matmul_53,
-            utils_constEvalFuncWrapper_98_0,
+            self._ce["ce_98_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4124,7 +3932,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_266, False)
         ttnn_add_53 = ttnn.add(
             ttnn_matmul_54,
-            utils_constEvalFuncWrapper_86_0,
+            self._ce["ce_86_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4162,7 +3970,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_20, False)
         ttnn_matmul_55 = ttnn.matmul(
             ttnn_reshape_267,
-            utils_constEvalFuncWrapper_7_0,
+            self._ce["ce_7_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4175,7 +3983,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_267, False)
         ttnn_add_55 = ttnn.add(
             ttnn_matmul_55,
-            utils_constEvalFuncWrapper_144_0,
+            self._ce["ce_144_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4271,7 +4079,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_51, False)
         ttnn_multiply_19 = ttnn.multiply(
             ttnn_typecast_47,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4297,7 +4105,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_48, False)
         ttnn_multiply_20 = ttnn.multiply(
             ttnn_permute_54,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4320,7 +4128,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_19, False)
         ttnn_eq_9 = ttnn.eq(
             ttnn_matmul_56,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4344,7 +4152,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_18, False)
         ttnn_ne_9 = ttnn.ne(
             ttnn_sum_9,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4386,7 +4194,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_197, False)
         ttnn_where_9 = ttnn.where(
             ttnn_typecast_49,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_9,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4456,7 +4264,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_272, False)
         ttnn_add_56 = ttnn.add(
             ttnn_matmul_58,
-            utils_constEvalFuncWrapper_82_0,
+            self._ce["ce_82_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4507,7 +4315,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_273, False)
         ttnn_add_58 = ttnn.add(
             ttnn_matmul_59,
-            utils_constEvalFuncWrapper_23_0,
+            self._ce["ce_23_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4545,7 +4353,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_274, False)
         ttnn_add_59 = ttnn.add(
             ttnn_matmul_60,
-            utils_constEvalFuncWrapper_152_0,
+            self._ce["ce_152_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4583,7 +4391,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_22, False)
         ttnn_matmul_61 = ttnn.matmul(
             ttnn_reshape_275,
-            utils_constEvalFuncWrapper_101_0,
+            self._ce["ce_101_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4596,7 +4404,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_275, False)
         ttnn_add_61 = ttnn.add(
             ttnn_matmul_61,
-            utils_constEvalFuncWrapper_65_0,
+            self._ce["ce_65_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4692,7 +4500,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_56, False)
         ttnn_multiply_21 = ttnn.multiply(
             ttnn_typecast_52,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4718,7 +4526,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_53, False)
         ttnn_multiply_22 = ttnn.multiply(
             ttnn_permute_59,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4741,7 +4549,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_21, False)
         ttnn_eq_10 = ttnn.eq(
             ttnn_matmul_62,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4765,7 +4573,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_20, False)
         ttnn_ne_10 = ttnn.ne(
             ttnn_sum_10,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4807,7 +4615,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_198, False)
         ttnn_where_10 = ttnn.where(
             ttnn_typecast_54,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_10,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4877,7 +4685,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_280, False)
         ttnn_add_62 = ttnn.add(
             ttnn_matmul_64,
-            utils_constEvalFuncWrapper_129_0,
+            self._ce["ce_129_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4928,7 +4736,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_281, False)
         ttnn_add_64 = ttnn.add(
             ttnn_matmul_65,
-            utils_constEvalFuncWrapper_81_0,
+            self._ce["ce_81_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4966,7 +4774,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_282, False)
         ttnn_add_65 = ttnn.add(
             ttnn_matmul_66,
-            utils_constEvalFuncWrapper_20_0,
+            self._ce["ce_20_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5004,7 +4812,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_24, False)
         ttnn_matmul_67 = ttnn.matmul(
             ttnn_reshape_283,
-            utils_constEvalFuncWrapper_156_0,
+            self._ce["ce_156_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5017,7 +4825,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_283, False)
         ttnn_add_67 = ttnn.add(
             ttnn_matmul_67,
-            utils_constEvalFuncWrapper_9_0,
+            self._ce["ce_9_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5113,7 +4921,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_61, False)
         ttnn_multiply_23 = ttnn.multiply(
             ttnn_typecast_57,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5139,7 +4947,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_58, False)
         ttnn_multiply_24 = ttnn.multiply(
             ttnn_permute_64,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5162,7 +4970,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_23, False)
         ttnn_eq_11 = ttnn.eq(
             ttnn_matmul_68,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5186,7 +4994,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_22, False)
         ttnn_ne_11 = ttnn.ne(
             ttnn_sum_11,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5228,7 +5036,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_199, False)
         ttnn_where_11 = ttnn.where(
             ttnn_typecast_59,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_11,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5298,7 +5106,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_288, False)
         ttnn_add_68 = ttnn.add(
             ttnn_matmul_70,
-            utils_constEvalFuncWrapper_151_0,
+            self._ce["ce_151_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5349,7 +5157,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_289, False)
         ttnn_add_70 = ttnn.add(
             ttnn_matmul_71,
-            utils_constEvalFuncWrapper_141_0,
+            self._ce["ce_141_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5387,7 +5195,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_290, False)
         ttnn_add_71 = ttnn.add(
             ttnn_matmul_72,
-            utils_constEvalFuncWrapper_132_0,
+            self._ce["ce_132_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5425,7 +5233,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_26, False)
         ttnn_matmul_73 = ttnn.matmul(
             ttnn_reshape_291,
-            utils_constEvalFuncWrapper_159_0,
+            self._ce["ce_159_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5438,7 +5246,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_291, False)
         ttnn_add_73 = ttnn.add(
             ttnn_matmul_73,
-            utils_constEvalFuncWrapper_67_0,
+            self._ce["ce_67_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5534,7 +5342,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_66, False)
         ttnn_multiply_25 = ttnn.multiply(
             ttnn_typecast_62,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5560,7 +5368,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_63, False)
         ttnn_multiply_26 = ttnn.multiply(
             ttnn_permute_69,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5583,7 +5391,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_25, False)
         ttnn_eq_12 = ttnn.eq(
             ttnn_matmul_74,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5607,7 +5415,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_24, False)
         ttnn_ne_12 = ttnn.ne(
             ttnn_sum_12,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5649,7 +5457,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_200, False)
         ttnn_where_12 = ttnn.where(
             ttnn_typecast_64,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_12,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5719,7 +5527,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_296, False)
         ttnn_add_74 = ttnn.add(
             ttnn_matmul_76,
-            utils_constEvalFuncWrapper_51_0,
+            self._ce["ce_51_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5770,7 +5578,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_297, False)
         ttnn_add_76 = ttnn.add(
             ttnn_matmul_77,
-            utils_constEvalFuncWrapper_1_0,
+            self._ce["ce_1_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5808,7 +5616,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_298, False)
         ttnn_add_77 = ttnn.add(
             ttnn_matmul_78,
-            utils_constEvalFuncWrapper_105_0,
+            self._ce["ce_105_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5846,7 +5654,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_28, False)
         ttnn_matmul_79 = ttnn.matmul(
             ttnn_reshape_299,
-            utils_constEvalFuncWrapper_95_0,
+            self._ce["ce_95_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5859,7 +5667,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_299, False)
         ttnn_add_79 = ttnn.add(
             ttnn_matmul_79,
-            utils_constEvalFuncWrapper_128_0,
+            self._ce["ce_128_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5955,7 +5763,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_71, False)
         ttnn_multiply_27 = ttnn.multiply(
             ttnn_typecast_67,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5981,7 +5789,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_68, False)
         ttnn_multiply_28 = ttnn.multiply(
             ttnn_permute_74,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6004,7 +5812,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_27, False)
         ttnn_eq_13 = ttnn.eq(
             ttnn_matmul_80,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6028,7 +5836,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_26, False)
         ttnn_ne_13 = ttnn.ne(
             ttnn_sum_13,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6070,7 +5878,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_201, False)
         ttnn_where_13 = ttnn.where(
             ttnn_typecast_69,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_13,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6140,7 +5948,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_304, False)
         ttnn_add_80 = ttnn.add(
             ttnn_matmul_82,
-            utils_constEvalFuncWrapper_109_0,
+            self._ce["ce_109_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6191,7 +5999,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_305, False)
         ttnn_add_82 = ttnn.add(
             ttnn_matmul_83,
-            utils_constEvalFuncWrapper_66_0,
+            self._ce["ce_66_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6229,7 +6037,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_306, False)
         ttnn_add_83 = ttnn.add(
             ttnn_matmul_84,
-            utils_constEvalFuncWrapper_27_0,
+            self._ce["ce_27_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6267,7 +6075,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_30, False)
         ttnn_matmul_85 = ttnn.matmul(
             ttnn_reshape_307,
-            utils_constEvalFuncWrapper_142_0,
+            self._ce["ce_142_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6280,7 +6088,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_307, False)
         ttnn_add_85 = ttnn.add(
             ttnn_matmul_85,
-            utils_constEvalFuncWrapper_12_0,
+            self._ce["ce_12_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6376,7 +6184,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_76, False)
         ttnn_multiply_29 = ttnn.multiply(
             ttnn_typecast_72,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6402,7 +6210,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_73, False)
         ttnn_multiply_30 = ttnn.multiply(
             ttnn_permute_79,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6425,7 +6233,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_29, False)
         ttnn_eq_14 = ttnn.eq(
             ttnn_matmul_86,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6449,7 +6257,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_28, False)
         ttnn_ne_14 = ttnn.ne(
             ttnn_sum_14,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6491,7 +6299,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_202, False)
         ttnn_where_14 = ttnn.where(
             ttnn_typecast_74,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_14,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6561,7 +6369,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_312, False)
         ttnn_add_86 = ttnn.add(
             ttnn_matmul_88,
-            utils_constEvalFuncWrapper_19_0,
+            self._ce["ce_19_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6612,7 +6420,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_313, False)
         ttnn_add_88 = ttnn.add(
             ttnn_matmul_89,
-            utils_constEvalFuncWrapper_37_0,
+            self._ce["ce_37_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6650,7 +6458,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_314, False)
         ttnn_add_89 = ttnn.add(
             ttnn_matmul_90,
-            utils_constEvalFuncWrapper_38_0,
+            self._ce["ce_38_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6688,7 +6496,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_32, False)
         ttnn_matmul_91 = ttnn.matmul(
             ttnn_reshape_315,
-            utils_constEvalFuncWrapper_10_0,
+            self._ce["ce_10_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6701,7 +6509,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_315, False)
         ttnn_add_91 = ttnn.add(
             ttnn_matmul_91,
-            utils_constEvalFuncWrapper_40_0,
+            self._ce["ce_40_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6797,7 +6605,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_81, False)
         ttnn_multiply_31 = ttnn.multiply(
             ttnn_typecast_77,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6823,7 +6631,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_78, False)
         ttnn_multiply_32 = ttnn.multiply(
             ttnn_permute_84,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6846,7 +6654,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_31, False)
         ttnn_eq_15 = ttnn.eq(
             ttnn_matmul_92,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6870,7 +6678,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_30, False)
         ttnn_ne_15 = ttnn.ne(
             ttnn_sum_15,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6912,7 +6720,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_203, False)
         ttnn_where_15 = ttnn.where(
             ttnn_typecast_79,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_15,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6982,7 +6790,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_320, False)
         ttnn_add_92 = ttnn.add(
             ttnn_matmul_94,
-            utils_constEvalFuncWrapper_130_0,
+            self._ce["ce_130_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7033,7 +6841,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_321, False)
         ttnn_add_94 = ttnn.add(
             ttnn_matmul_95,
-            utils_constEvalFuncWrapper_125_0,
+            self._ce["ce_125_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7071,7 +6879,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_322, False)
         ttnn_add_95 = ttnn.add(
             ttnn_matmul_96,
-            utils_constEvalFuncWrapper_92_0,
+            self._ce["ce_92_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7109,7 +6917,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_34, False)
         ttnn_matmul_97 = ttnn.matmul(
             ttnn_reshape_323,
-            utils_constEvalFuncWrapper_106_0,
+            self._ce["ce_106_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7122,7 +6930,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_323, False)
         ttnn_add_97 = ttnn.add(
             ttnn_matmul_97,
-            utils_constEvalFuncWrapper_21_0,
+            self._ce["ce_21_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7218,7 +7026,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_86, False)
         ttnn_multiply_33 = ttnn.multiply(
             ttnn_typecast_82,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7244,7 +7052,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_83, False)
         ttnn_multiply_34 = ttnn.multiply(
             ttnn_permute_89,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7267,7 +7075,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_33, False)
         ttnn_eq_16 = ttnn.eq(
             ttnn_matmul_98,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7291,7 +7099,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_32, False)
         ttnn_ne_16 = ttnn.ne(
             ttnn_sum_16,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7333,7 +7141,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_204, False)
         ttnn_where_16 = ttnn.where(
             ttnn_typecast_84,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7403,7 +7211,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_328, False)
         ttnn_add_98 = ttnn.add(
             ttnn_matmul_100,
-            utils_constEvalFuncWrapper_146_0,
+            self._ce["ce_146_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7454,7 +7262,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_329, False)
         ttnn_add_100 = ttnn.add(
             ttnn_matmul_101,
-            utils_constEvalFuncWrapper_52_0,
+            self._ce["ce_52_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7492,7 +7300,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_330, False)
         ttnn_add_101 = ttnn.add(
             ttnn_matmul_102,
-            utils_constEvalFuncWrapper_134_0,
+            self._ce["ce_134_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7530,7 +7338,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_36, False)
         ttnn_matmul_103 = ttnn.matmul(
             ttnn_reshape_331,
-            utils_constEvalFuncWrapper_100_0,
+            self._ce["ce_100_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7543,7 +7351,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_331, False)
         ttnn_add_103 = ttnn.add(
             ttnn_matmul_103,
-            utils_constEvalFuncWrapper_122_0,
+            self._ce["ce_122_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7639,7 +7447,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_91, False)
         ttnn_multiply_35 = ttnn.multiply(
             ttnn_typecast_87,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7665,7 +7473,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_88, False)
         ttnn_multiply_36 = ttnn.multiply(
             ttnn_permute_94,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7688,7 +7496,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_35, False)
         ttnn_eq_17 = ttnn.eq(
             ttnn_matmul_104,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7712,7 +7520,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_34, False)
         ttnn_ne_17 = ttnn.ne(
             ttnn_sum_17,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7754,7 +7562,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_205, False)
         ttnn_where_17 = ttnn.where(
             ttnn_typecast_89,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_17,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7824,7 +7632,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_336, False)
         ttnn_add_104 = ttnn.add(
             ttnn_matmul_106,
-            utils_constEvalFuncWrapper_104_0,
+            self._ce["ce_104_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7875,7 +7683,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_337, False)
         ttnn_add_106 = ttnn.add(
             ttnn_matmul_107,
-            utils_constEvalFuncWrapper_44_0,
+            self._ce["ce_44_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7913,7 +7721,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_338, False)
         ttnn_add_107 = ttnn.add(
             ttnn_matmul_108,
-            utils_constEvalFuncWrapper_115_0,
+            self._ce["ce_115_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7951,7 +7759,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_38, False)
         ttnn_matmul_109 = ttnn.matmul(
             ttnn_reshape_339,
-            utils_constEvalFuncWrapper_72_0,
+            self._ce["ce_72_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7964,7 +7772,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_339, False)
         ttnn_add_109 = ttnn.add(
             ttnn_matmul_109,
-            utils_constEvalFuncWrapper_17_0,
+            self._ce["ce_17_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8060,7 +7868,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_96, False)
         ttnn_multiply_37 = ttnn.multiply(
             ttnn_typecast_92,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8086,7 +7894,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_93, False)
         ttnn_multiply_38 = ttnn.multiply(
             ttnn_permute_99,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8109,7 +7917,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_37, False)
         ttnn_eq_18 = ttnn.eq(
             ttnn_matmul_110,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8133,7 +7941,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_36, False)
         ttnn_ne_18 = ttnn.ne(
             ttnn_sum_18,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8175,7 +7983,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_206, False)
         ttnn_where_18 = ttnn.where(
             ttnn_typecast_94,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_18,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8245,7 +8053,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_344, False)
         ttnn_add_110 = ttnn.add(
             ttnn_matmul_112,
-            utils_constEvalFuncWrapper_31_0,
+            self._ce["ce_31_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8296,7 +8104,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_345, False)
         ttnn_add_112 = ttnn.add(
             ttnn_matmul_113,
-            utils_constEvalFuncWrapper_83_0,
+            self._ce["ce_83_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8334,7 +8142,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_346, False)
         ttnn_add_113 = ttnn.add(
             ttnn_matmul_114,
-            utils_constEvalFuncWrapper_90_0,
+            self._ce["ce_90_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8372,7 +8180,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_40, False)
         ttnn_matmul_115 = ttnn.matmul(
             ttnn_reshape_347,
-            utils_constEvalFuncWrapper_47_0,
+            self._ce["ce_47_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8385,7 +8193,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_347, False)
         ttnn_add_115 = ttnn.add(
             ttnn_matmul_115,
-            utils_constEvalFuncWrapper_54_0,
+            self._ce["ce_54_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8481,7 +8289,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_101, False)
         ttnn_multiply_39 = ttnn.multiply(
             ttnn_typecast_97,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8507,7 +8315,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_98, False)
         ttnn_multiply_40 = ttnn.multiply(
             ttnn_permute_104,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8530,7 +8338,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_39, False)
         ttnn_eq_19 = ttnn.eq(
             ttnn_matmul_116,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8554,7 +8362,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_38, False)
         ttnn_ne_19 = ttnn.ne(
             ttnn_sum_19,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8596,7 +8404,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_207, False)
         ttnn_where_19 = ttnn.where(
             ttnn_typecast_99,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_19,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8666,7 +8474,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_352, False)
         ttnn_add_116 = ttnn.add(
             ttnn_matmul_118,
-            utils_constEvalFuncWrapper_34_0,
+            self._ce["ce_34_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8717,7 +8525,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_353, False)
         ttnn_add_118 = ttnn.add(
             ttnn_matmul_119,
-            utils_constEvalFuncWrapper_158_0,
+            self._ce["ce_158_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8755,7 +8563,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_354, False)
         ttnn_add_119 = ttnn.add(
             ttnn_matmul_120,
-            utils_constEvalFuncWrapper_113_0,
+            self._ce["ce_113_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8793,7 +8601,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_42, False)
         ttnn_matmul_121 = ttnn.matmul(
             ttnn_reshape_355,
-            utils_constEvalFuncWrapper_102_0,
+            self._ce["ce_102_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8806,7 +8614,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_355, False)
         ttnn_add_121 = ttnn.add(
             ttnn_matmul_121,
-            utils_constEvalFuncWrapper_154_0,
+            self._ce["ce_154_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8902,7 +8710,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_106, False)
         ttnn_multiply_41 = ttnn.multiply(
             ttnn_typecast_102,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8928,7 +8736,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_103, False)
         ttnn_multiply_42 = ttnn.multiply(
             ttnn_permute_109,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8951,7 +8759,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_41, False)
         ttnn_eq_20 = ttnn.eq(
             ttnn_matmul_122,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8975,7 +8783,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_40, False)
         ttnn_ne_20 = ttnn.ne(
             ttnn_sum_20,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9017,7 +8825,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_208, False)
         ttnn_where_20 = ttnn.where(
             ttnn_typecast_104,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_20,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9087,7 +8895,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_360, False)
         ttnn_add_122 = ttnn.add(
             ttnn_matmul_124,
-            utils_constEvalFuncWrapper_85_0,
+            self._ce["ce_85_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9138,7 +8946,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_361, False)
         ttnn_add_124 = ttnn.add(
             ttnn_matmul_125,
-            utils_constEvalFuncWrapper_114_0,
+            self._ce["ce_114_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9176,7 +8984,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_362, False)
         ttnn_add_125 = ttnn.add(
             ttnn_matmul_126,
-            utils_constEvalFuncWrapper_36_0,
+            self._ce["ce_36_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9214,7 +9022,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_44, False)
         ttnn_matmul_127 = ttnn.matmul(
             ttnn_reshape_363,
-            utils_constEvalFuncWrapper_55_0,
+            self._ce["ce_55_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9227,7 +9035,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_363, False)
         ttnn_add_127 = ttnn.add(
             ttnn_matmul_127,
-            utils_constEvalFuncWrapper_127_0,
+            self._ce["ce_127_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9323,7 +9131,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_111, False)
         ttnn_multiply_43 = ttnn.multiply(
             ttnn_typecast_107,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9349,7 +9157,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_108, False)
         ttnn_multiply_44 = ttnn.multiply(
             ttnn_permute_114,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9372,7 +9180,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_43, False)
         ttnn_eq_21 = ttnn.eq(
             ttnn_matmul_128,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9396,7 +9204,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_42, False)
         ttnn_ne_21 = ttnn.ne(
             ttnn_sum_21,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9438,7 +9246,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_209, False)
         ttnn_where_21 = ttnn.where(
             ttnn_typecast_109,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_21,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9508,7 +9316,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_368, False)
         ttnn_add_128 = ttnn.add(
             ttnn_matmul_130,
-            utils_constEvalFuncWrapper_68_0,
+            self._ce["ce_68_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9559,7 +9367,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_369, False)
         ttnn_add_130 = ttnn.add(
             ttnn_matmul_131,
-            utils_constEvalFuncWrapper_56_0,
+            self._ce["ce_56_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9597,7 +9405,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_370, False)
         ttnn_add_131 = ttnn.add(
             ttnn_matmul_132,
-            utils_constEvalFuncWrapper_133_0,
+            self._ce["ce_133_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9635,7 +9443,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_46, False)
         ttnn_matmul_133 = ttnn.matmul(
             ttnn_reshape_371,
-            utils_constEvalFuncWrapper_5_0,
+            self._ce["ce_5_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9648,7 +9456,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_371, False)
         ttnn_add_133 = ttnn.add(
             ttnn_matmul_133,
-            utils_constEvalFuncWrapper_32_0,
+            self._ce["ce_32_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9744,7 +9552,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_116, False)
         ttnn_multiply_45 = ttnn.multiply(
             ttnn_typecast_112,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9770,7 +9578,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_113, False)
         ttnn_multiply_46 = ttnn.multiply(
             ttnn_permute_119,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9793,7 +9601,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_45, False)
         ttnn_eq_22 = ttnn.eq(
             ttnn_matmul_134,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9817,7 +9625,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_44, False)
         ttnn_ne_22 = ttnn.ne(
             ttnn_sum_22,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9859,7 +9667,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_210, False)
         ttnn_where_22 = ttnn.where(
             ttnn_typecast_114,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_22,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9929,7 +9737,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_376, False)
         ttnn_add_134 = ttnn.add(
             ttnn_matmul_136,
-            utils_constEvalFuncWrapper_135_0,
+            self._ce["ce_135_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9980,7 +9788,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_377, False)
         ttnn_add_136 = ttnn.add(
             ttnn_matmul_137,
-            utils_constEvalFuncWrapper_150_0,
+            self._ce["ce_150_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10018,7 +9826,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_378, False)
         ttnn_add_137 = ttnn.add(
             ttnn_matmul_138,
-            utils_constEvalFuncWrapper_155_0,
+            self._ce["ce_155_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10056,7 +9864,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_48, False)
         ttnn_matmul_139 = ttnn.matmul(
             ttnn_reshape_379,
-            utils_constEvalFuncWrapper_16_0,
+            self._ce["ce_16_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -10069,7 +9877,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_379, False)
         ttnn_add_139 = ttnn.add(
             ttnn_matmul_139,
-            utils_constEvalFuncWrapper_103_0,
+            self._ce["ce_103_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10165,7 +9973,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_121, False)
         ttnn_multiply_47 = ttnn.multiply(
             ttnn_typecast_117,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10191,7 +9999,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_118, False)
         ttnn_multiply_48 = ttnn.multiply(
             ttnn_permute_124,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10214,7 +10022,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_47, False)
         ttnn_eq_23 = ttnn.eq(
             ttnn_matmul_140,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10238,7 +10046,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_46, False)
         ttnn_ne_23 = ttnn.ne(
             ttnn_sum_23,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10280,7 +10088,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_211, False)
         ttnn_where_23 = ttnn.where(
             ttnn_typecast_119,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_23,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10350,7 +10158,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_384, False)
         ttnn_add_140 = ttnn.add(
             ttnn_matmul_142,
-            utils_constEvalFuncWrapper_22_0,
+            self._ce["ce_22_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10401,7 +10209,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_385, False)
         ttnn_add_142 = ttnn.add(
             ttnn_matmul_143,
-            utils_constEvalFuncWrapper_60_0,
+            self._ce["ce_60_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10439,7 +10247,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_386, False)
         ttnn_add_143 = ttnn.add(
             ttnn_matmul_144,
-            utils_constEvalFuncWrapper_140_0,
+            self._ce["ce_140_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10477,7 +10285,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_50, False)
         ttnn_matmul_145 = ttnn.matmul(
             ttnn_reshape_387,
-            utils_constEvalFuncWrapper_42_0,
+            self._ce["ce_42_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -10490,7 +10298,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_387, False)
         ttnn_add_145 = ttnn.add(
             ttnn_matmul_145,
-            utils_constEvalFuncWrapper_26_0,
+            self._ce["ce_26_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10586,7 +10394,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_126, False)
         ttnn_multiply_49 = ttnn.multiply(
             ttnn_typecast_122,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10612,7 +10420,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_123, False)
         ttnn_multiply_50 = ttnn.multiply(
             ttnn_permute_129,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10635,7 +10443,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_49, False)
         ttnn_eq_24 = ttnn.eq(
             ttnn_matmul_146,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10659,7 +10467,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_48, False)
         ttnn_ne_24 = ttnn.ne(
             ttnn_sum_24,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10701,7 +10509,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_212, False)
         ttnn_where_24 = ttnn.where(
             ttnn_typecast_124,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_24,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10771,7 +10579,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_392, False)
         ttnn_add_146 = ttnn.add(
             ttnn_matmul_148,
-            utils_constEvalFuncWrapper_121_0,
+            self._ce["ce_121_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10822,7 +10630,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_393, False)
         ttnn_add_148 = ttnn.add(
             ttnn_matmul_149,
-            utils_constEvalFuncWrapper_108_0,
+            self._ce["ce_108_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10860,7 +10668,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_394, False)
         ttnn_add_149 = ttnn.add(
             ttnn_matmul_150,
-            utils_constEvalFuncWrapper_80_0,
+            self._ce["ce_80_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10898,7 +10706,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_52, False)
         ttnn_matmul_151 = ttnn.matmul(
             ttnn_reshape_395,
-            utils_constEvalFuncWrapper_119_0,
+            self._ce["ce_119_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -10911,7 +10719,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_395, False)
         ttnn_add_151 = ttnn.add(
             ttnn_matmul_151,
-            utils_constEvalFuncWrapper_30_0,
+            self._ce["ce_30_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11007,7 +10815,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_131, False)
         ttnn_multiply_51 = ttnn.multiply(
             ttnn_typecast_127,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11033,7 +10841,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_128, False)
         ttnn_multiply_52 = ttnn.multiply(
             ttnn_permute_134,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11056,7 +10864,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_51, False)
         ttnn_eq_25 = ttnn.eq(
             ttnn_matmul_152,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11080,7 +10888,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_50, False)
         ttnn_ne_25 = ttnn.ne(
             ttnn_sum_25,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11122,7 +10930,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_213, False)
         ttnn_where_25 = ttnn.where(
             ttnn_typecast_129,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_25,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11192,7 +11000,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_400, False)
         ttnn_add_152 = ttnn.add(
             ttnn_matmul_154,
-            utils_constEvalFuncWrapper_35_0,
+            self._ce["ce_35_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11243,7 +11051,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_401, False)
         ttnn_add_154 = ttnn.add(
             ttnn_matmul_155,
-            utils_constEvalFuncWrapper_79_0,
+            self._ce["ce_79_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11281,7 +11089,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_402, False)
         ttnn_add_155 = ttnn.add(
             ttnn_matmul_156,
-            utils_constEvalFuncWrapper_117_0,
+            self._ce["ce_117_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11319,7 +11127,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_54, False)
         ttnn_matmul_157 = ttnn.matmul(
             ttnn_reshape_403,
-            utils_constEvalFuncWrapper_93_0,
+            self._ce["ce_93_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -11332,7 +11140,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_403, False)
         ttnn_add_157 = ttnn.add(
             ttnn_matmul_157,
-            utils_constEvalFuncWrapper_28_0,
+            self._ce["ce_28_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11428,7 +11236,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_136, False)
         ttnn_multiply_53 = ttnn.multiply(
             ttnn_typecast_132,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11454,7 +11262,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_133, False)
         ttnn_multiply_54 = ttnn.multiply(
             ttnn_permute_139,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11477,7 +11285,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_53, False)
         ttnn_eq_26 = ttnn.eq(
             ttnn_matmul_158,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11501,7 +11309,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_52, False)
         ttnn_ne_26 = ttnn.ne(
             ttnn_sum_26,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11543,7 +11351,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_214, False)
         ttnn_where_26 = ttnn.where(
             ttnn_typecast_134,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_26,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11613,7 +11421,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_408, False)
         ttnn_add_158 = ttnn.add(
             ttnn_matmul_160,
-            utils_constEvalFuncWrapper_8_0,
+            self._ce["ce_8_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11664,7 +11472,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_409, False)
         ttnn_add_160 = ttnn.add(
             ttnn_matmul_161,
-            utils_constEvalFuncWrapper_43_0,
+            self._ce["ce_43_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11702,7 +11510,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_410, False)
         ttnn_add_161 = ttnn.add(
             ttnn_matmul_162,
-            utils_constEvalFuncWrapper_2_0,
+            self._ce["ce_2_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11740,7 +11548,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_56, False)
         ttnn_matmul_163 = ttnn.matmul(
             ttnn_reshape_411,
-            utils_constEvalFuncWrapper_33_0,
+            self._ce["ce_33_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -11753,7 +11561,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_411, False)
         ttnn_add_163 = ttnn.add(
             ttnn_matmul_163,
-            utils_constEvalFuncWrapper_73_0,
+            self._ce["ce_73_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11849,7 +11657,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_141, False)
         ttnn_multiply_55 = ttnn.multiply(
             ttnn_typecast_137,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11875,7 +11683,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_138, False)
         ttnn_multiply_56 = ttnn.multiply(
             ttnn_permute_144,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11898,7 +11706,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_55, False)
         ttnn_eq_27 = ttnn.eq(
             ttnn_matmul_164,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11922,7 +11730,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_54, False)
         ttnn_ne_27 = ttnn.ne(
             ttnn_sum_27,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -11964,7 +11772,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_215, False)
         ttnn_where_27 = ttnn.where(
             ttnn_typecast_139,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_27,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12034,7 +11842,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_416, False)
         ttnn_add_164 = ttnn.add(
             ttnn_matmul_166,
-            utils_constEvalFuncWrapper_29_0,
+            self._ce["ce_29_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12085,7 +11893,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_417, False)
         ttnn_add_166 = ttnn.add(
             ttnn_matmul_167,
-            utils_constEvalFuncWrapper_49_0,
+            self._ce["ce_49_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12123,7 +11931,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_418, False)
         ttnn_add_167 = ttnn.add(
             ttnn_matmul_168,
-            utils_constEvalFuncWrapper_145_0,
+            self._ce["ce_145_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12161,7 +11969,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_58, False)
         ttnn_matmul_169 = ttnn.matmul(
             ttnn_reshape_419,
-            utils_constEvalFuncWrapper_15_0,
+            self._ce["ce_15_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -12174,7 +11982,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_419, False)
         ttnn_add_169 = ttnn.add(
             ttnn_matmul_169,
-            utils_constEvalFuncWrapper_41_0,
+            self._ce["ce_41_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12270,7 +12078,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_146, False)
         ttnn_multiply_57 = ttnn.multiply(
             ttnn_typecast_142,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12296,7 +12104,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_143, False)
         ttnn_multiply_58 = ttnn.multiply(
             ttnn_permute_149,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12319,7 +12127,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_57, False)
         ttnn_eq_28 = ttnn.eq(
             ttnn_matmul_170,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12343,7 +12151,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_56, False)
         ttnn_ne_28 = ttnn.ne(
             ttnn_sum_28,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12385,7 +12193,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_216, False)
         ttnn_where_28 = ttnn.where(
             ttnn_typecast_144,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_28,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12455,7 +12263,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_424, False)
         ttnn_add_170 = ttnn.add(
             ttnn_matmul_172,
-            utils_constEvalFuncWrapper_57_0,
+            self._ce["ce_57_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12506,7 +12314,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_425, False)
         ttnn_add_172 = ttnn.add(
             ttnn_matmul_173,
-            utils_constEvalFuncWrapper_136_0,
+            self._ce["ce_136_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12544,7 +12352,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_426, False)
         ttnn_add_173 = ttnn.add(
             ttnn_matmul_174,
-            utils_constEvalFuncWrapper_59_0,
+            self._ce["ce_59_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12582,7 +12390,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_60, False)
         ttnn_matmul_175 = ttnn.matmul(
             ttnn_reshape_427,
-            utils_constEvalFuncWrapper_69_0,
+            self._ce["ce_69_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -12595,7 +12403,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_427, False)
         ttnn_add_175 = ttnn.add(
             ttnn_matmul_175,
-            utils_constEvalFuncWrapper_14_0,
+            self._ce["ce_14_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12691,7 +12499,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_151, False)
         ttnn_multiply_59 = ttnn.multiply(
             ttnn_typecast_147,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12717,7 +12525,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_148, False)
         ttnn_multiply_60 = ttnn.multiply(
             ttnn_permute_154,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12740,7 +12548,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_59, False)
         ttnn_eq_29 = ttnn.eq(
             ttnn_matmul_176,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12764,7 +12572,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_58, False)
         ttnn_ne_29 = ttnn.ne(
             ttnn_sum_29,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12806,7 +12614,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_217, False)
         ttnn_where_29 = ttnn.where(
             ttnn_typecast_149,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_29,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12876,7 +12684,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_432, False)
         ttnn_add_176 = ttnn.add(
             ttnn_matmul_178,
-            utils_constEvalFuncWrapper_131_0,
+            self._ce["ce_131_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12927,7 +12735,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_433, False)
         ttnn_add_178 = ttnn.add(
             ttnn_matmul_179,
-            utils_constEvalFuncWrapper_64_0,
+            self._ce["ce_64_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -12965,7 +12773,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_434, False)
         ttnn_add_179 = ttnn.add(
             ttnn_matmul_180,
-            utils_constEvalFuncWrapper_139_0,
+            self._ce["ce_139_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13003,7 +12811,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_layer_norm_62, False)
         ttnn_matmul_181 = ttnn.matmul(
             ttnn_reshape_435,
-            utils_constEvalFuncWrapper_3_0,
+            self._ce["ce_3_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -13016,7 +12824,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_435, False)
         ttnn_add_181 = ttnn.add(
             ttnn_matmul_181,
-            utils_constEvalFuncWrapper_50_0,
+            self._ce["ce_50_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13112,7 +12920,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_permute_156, False)
         ttnn_multiply_61 = ttnn.multiply(
             ttnn_typecast_152,
-            utils_constEvalFuncWrapperZeroArg_8_0,
+            self._ce["cez_8_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13138,7 +12946,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_typecast_153, False)
         ttnn_multiply_62 = ttnn.multiply(
             ttnn_permute_159,
-            utils_constEvalFuncWrapperZeroArg_2_0,
+            self._ce["cez_2_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13161,7 +12969,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_61, False)
         ttnn_eq_30 = ttnn.eq(
             ttnn_matmul_182,
-            utils_constEvalFuncWrapperZeroArg_5_0,
+            self._ce["cez_5_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13185,7 +12993,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_60, False)
         ttnn_ne_30 = ttnn.ne(
             ttnn_sum_30,
-            utils_constEvalFuncWrapperZeroArg_7_0,
+            self._ce["cez_7_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13227,7 +13035,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_218, False)
         ttnn_where_30 = ttnn.where(
             ttnn_typecast_154,
-            utils_constEvalFuncWrapperZeroArg_4_0,
+            self._ce["cez_4_0"],
             ttnn_softmax_30,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13297,7 +13105,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_440, False)
         ttnn_add_182 = ttnn.add(
             ttnn_matmul_184,
-            utils_constEvalFuncWrapper_78_0,
+            self._ce["ce_78_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13348,7 +13156,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_441, False)
         ttnn_add_184 = ttnn.add(
             ttnn_matmul_185,
-            utils_constEvalFuncWrapper_39_0,
+            self._ce["ce_39_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13386,7 +13194,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_442, False)
         ttnn_add_185 = ttnn.add(
             ttnn_matmul_186,
-            utils_constEvalFuncWrapper_4_0,
+            self._ce["ce_4_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13426,7 +13234,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_443, False)
         ttnn_add_187 = ttnn.add(
             ttnn_matmul_187,
-            utils_constEvalFuncWrapper_126_0,
+            self._ce["ce_126_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13452,7 +13260,7 @@ class CLIPResampler(LightweightModule):
             ),
         )
         ttnn.deallocate(ttnn_layer_norm_64, False)
-        util_create_list_395 = [ttnn_reshape_444, utils_constEvalFuncWrapper_137_2]
+        util_create_list_395 = [ttnn_reshape_444, self._ce["ce_137_2"]]
         ttnn_concat_63 = ttnn.concat(
             util_create_list_395,
             0,
@@ -13500,7 +13308,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_445, False)
         ttnn_multiply_63 = ttnn.multiply(
             ttnn_permute_161,
-            utils_constEvalFuncWrapperZeroArg_9_0,
+            self._ce["cez_9_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13508,7 +13316,7 @@ class CLIPResampler(LightweightModule):
         )
         ttnn.deallocate(ttnn_permute_161, False)
         ttnn_matmul_189 = ttnn.matmul(
-            utils_constEvalFuncWrapper_137_1,
+            self._ce["ce_137_1"],
             ttnn_multiply_63,
             transpose_a=False,
             transpose_b=False,
@@ -13522,7 +13330,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_63, False)
         ttnn_eq_31 = ttnn.eq(
             ttnn_matmul_189,
-            utils_constEvalFuncWrapperZeroArg_3_0,
+            self._ce["cez_3_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13546,7 +13354,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_62, False)
         ttnn_ne_31 = ttnn.ne(
             ttnn_sum_31,
-            utils_constEvalFuncWrapperZeroArg_0_0,
+            self._ce["cez_0_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13588,7 +13396,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_219, False)
         ttnn_where_31 = ttnn.where(
             ttnn_typecast_158,
-            utils_constEvalFuncWrapperZeroArg_6_0,
+            self._ce["cez_6_0"],
             ttnn_softmax_31,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13694,7 +13502,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_matmul_192, False)
         ttnn_divide_0 = ttnn.divide(
             ttnn_reshape_449,
-            utils_constEvalFuncWrapperZeroArg_1_0,
+            self._ce["cez_1_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13831,7 +13639,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_453, False)
         ttnn_multiply_64 = ttnn.multiply(
             ttnn_permute_163,
-            utils_constEvalFuncWrapper_137_0,
+            self._ce["ce_137_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13914,7 +13722,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_456, False)
         ttnn_multiply_65 = ttnn.multiply(
             ttnn_permute_164,
-            utils_constEvalFuncWrapperZeroArg_9_0,
+            self._ce["cez_9_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13937,7 +13745,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_64, False)
         ttnn_eq_32 = ttnn.eq(
             ttnn_matmul_197,
-            utils_constEvalFuncWrapperZeroArg_3_0,
+            self._ce["cez_3_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -13961,7 +13769,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_64, False)
         ttnn_ne_32 = ttnn.ne(
             ttnn_sum_32,
-            utils_constEvalFuncWrapperZeroArg_0_0,
+            self._ce["cez_0_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14003,7 +13811,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_220, False)
         ttnn_where_32 = ttnn.where(
             ttnn_typecast_163,
-            utils_constEvalFuncWrapperZeroArg_6_0,
+            self._ce["cez_6_0"],
             ttnn_softmax_32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14109,7 +13917,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_matmul_200, False)
         ttnn_divide_1 = ttnn.divide(
             ttnn_reshape_460,
-            utils_constEvalFuncWrapperZeroArg_1_0,
+            self._ce["cez_1_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14247,7 +14055,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_464, False)
         ttnn_multiply_66 = ttnn.multiply(
             ttnn_permute_166,
-            utils_constEvalFuncWrapper_137_0,
+            self._ce["ce_137_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14330,7 +14138,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_467, False)
         ttnn_multiply_67 = ttnn.multiply(
             ttnn_permute_167,
-            utils_constEvalFuncWrapperZeroArg_9_0,
+            self._ce["cez_9_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14353,7 +14161,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_66, False)
         ttnn_eq_33 = ttnn.eq(
             ttnn_matmul_205,
-            utils_constEvalFuncWrapperZeroArg_3_0,
+            self._ce["cez_3_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14377,7 +14185,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_66, False)
         ttnn_ne_33 = ttnn.ne(
             ttnn_sum_33,
-            utils_constEvalFuncWrapperZeroArg_0_0,
+            self._ce["cez_0_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14419,7 +14227,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_221, False)
         ttnn_where_33 = ttnn.where(
             ttnn_typecast_168,
-            utils_constEvalFuncWrapperZeroArg_6_0,
+            self._ce["cez_6_0"],
             ttnn_softmax_33,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14525,7 +14333,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_matmul_208, False)
         ttnn_divide_2 = ttnn.divide(
             ttnn_reshape_471,
-            utils_constEvalFuncWrapperZeroArg_1_0,
+            self._ce["cez_1_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14663,7 +14471,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_475, False)
         ttnn_multiply_68 = ttnn.multiply(
             ttnn_permute_169,
-            utils_constEvalFuncWrapper_137_0,
+            self._ce["ce_137_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14747,7 +14555,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_reshape_478, False)
         ttnn_multiply_69 = ttnn.multiply(
             ttnn_permute_170,
-            utils_constEvalFuncWrapperZeroArg_9_0,
+            self._ce["cez_9_0"],
             dtype=ttnn.DataType.FLOAT32,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14770,7 +14578,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_multiply_68, False)
         ttnn_eq_34 = ttnn.eq(
             ttnn_matmul_213,
-            utils_constEvalFuncWrapperZeroArg_3_0,
+            self._ce["cez_3_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14794,7 +14602,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_logical_not_68, False)
         ttnn_ne_34 = ttnn.ne(
             ttnn_sum_34,
-            utils_constEvalFuncWrapperZeroArg_0_0,
+            self._ce["cez_0_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14836,7 +14644,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_repeat_222, False)
         ttnn_where_34 = ttnn.where(
             ttnn_typecast_173,
-            utils_constEvalFuncWrapperZeroArg_6_0,
+            self._ce["cez_6_0"],
             ttnn_softmax_34,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -14942,7 +14750,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_matmul_216, False)
         ttnn_divide_3 = ttnn.divide(
             ttnn_reshape_482,
-            utils_constEvalFuncWrapperZeroArg_1_0,
+            self._ce["cez_1_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -15037,7 +14845,7 @@ class CLIPResampler(LightweightModule):
         ttnn.deallocate(ttnn_add_195, False)
         ttnn_add_196 = ttnn.add(
             ttnn_matmul_219,
-            utils_constEvalFuncWrapper_48_0,
+            self._ce["ce_48_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
