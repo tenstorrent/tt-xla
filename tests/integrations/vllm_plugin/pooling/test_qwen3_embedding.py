@@ -20,6 +20,11 @@ import vllm
             False,
         ),
         pytest.param(
+            "Qwen/Qwen3-Embedding-4B",
+            "baseline/qwen3_embedding_4B_baseline.pt",
+            True,
+        ),
+        pytest.param(
             "Qwen/Qwen3-Embedding-0.6B",
             "baseline/qwen3_embedding_0.6B_baseline.pt",
             False,
@@ -28,9 +33,9 @@ import vllm
             "Qwen/Qwen3-Embedding-8B",
             "baseline/qwen3_embedding_8B_baseline.pt",
             True,
-            marks=pytest.mark.xfail(
-                reason="Static CBs exceed L1 size - https://github.com/tenstorrent/tt-xla/issues/2935"
-            ),
+            # marks=pytest.mark.xfail(
+            #     reason="Static CBs exceed L1 size - https://github.com/tenstorrent/tt-xla/issues/2935"
+            # ),
         ),
     ],
 )
@@ -68,20 +73,40 @@ def test_embed_qwen3(
     path = os.path.join(os.path.dirname(__file__), baseline_path)
     loaded_data = torch.load(path)
 
+    # prompts = [
+    #     "The quick-thinking engineer designed a compact neural processor that could adapt to changing data patterns in real time, optimizing energy use while maintaining exceptional computational accuracy as well.",
+    #     "Hello, my name is chatbot. How can I help you?",
+    #     "We build computers for AI. We design Graph Processors, high-performance RISC CPUs, and configurable chips that run our robust software stack.",
+    #     "The capital of France is Paris",
+    # ]
+    # llm_args = {
+    #     "model": model_name,
+    #     "task": "embed",
+    #     "dtype": "bfloat16",
+    #     "max_model_len": 64,
+    #     "disable_sliding_window": True,
+    #     "max_num_batched_tokens": 64,
+    #     "max_num_seqs": 2,
+    #     "additional_config": {
+    #         "min_context_len": min_context_len,
+    #         "experimental_enable_weight_bfp8_conversion": experimental_enable_weight_bfp8_conversion,
+    #     },
+    # }
+
     prompts = [
-        "The quick-thinking engineer designed a compact neural processor that could adapt to changing data patterns in real time, optimizing energy use while maintaining exceptional computational accuracy as well.",
-        "Hello, my name is chatbot. How can I help you?",
-        "We build computers for AI. We design Graph Processors, high-performance RISC CPUs, and configurable chips that run our robust software stack.",
+        # "The quick-thinking engineer designed a compact neural processor that could adapt to changing data patterns in real time, optimizing energy use while maintaining exceptional computational accuracy as well.",
+        # "Hello, my name is chatbot. How can I help you?",
+        # "We build computers for AI. We design Graph Processors, high-performance RISC CPUs, and configurable chips that run our robust software stack.",
         "The capital of France is Paris",
     ]
     llm_args = {
         "model": model_name,
         "task": "embed",
         "dtype": "bfloat16",
-        "max_model_len": 64,
+        "max_model_len": 32,
         "disable_sliding_window": True,
-        "max_num_batched_tokens": 64,
-        "max_num_seqs": 2,
+        "max_num_batched_tokens": 32,
+        "max_num_seqs": 1,
         "additional_config": {
             "min_context_len": min_context_len,
             "experimental_enable_weight_bfp8_conversion": experimental_enable_weight_bfp8_conversion,
