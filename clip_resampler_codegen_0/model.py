@@ -14,20 +14,19 @@ from models.common.lightweightmodule import LightweightModule
 class CLIPResampler(LightweightModule):
     """CLIP Vision Encoder + IP-Adapter Resampler model."""
 
-    def __init__(self, weights):
+    def __init__(self, weights, device):
         """
         Initialize the model with pre-loaded weights.
 
         Args:
             weights: List of weight tensors (loaded via load_inputs_from_pytorch)
+            device: TTNN device
         """
         self.weights = weights
+        self.device = device
 
         # Run const-eval functions once at init and store the results dict
-        self._ce = run_const_evals(self.weights, {})
-
-        # Get device reference
-        self.device = utils.DeviceGetter.get_device((1, 1))
+        self._ce = run_const_evals(self.weights, {}, device)
 
     def forward(self, pixel_values):
         """
@@ -39,6 +38,17 @@ class CLIPResampler(LightweightModule):
         Returns:
             List containing the output tensor
         """
+
+        # Move input to device
+        assert pixel_values.device() is None, "pixel_values must be on host"
+        pixel_values = ttnn.to_device(
+            pixel_values,
+            self.device,
+            ttnn.MemoryConfig(
+                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+            ),
+        )
+
         ttnn_to_layout_287 = ttnn.to_layout(
             pixel_values,
             ttnn.Layout.TILE,
