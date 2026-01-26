@@ -11,7 +11,7 @@ from consteval import *
 from models.common.lightweightmodule import LightweightModule
 
 
-class CLIPResampler(LightweightModule):
+class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
     """CLIP Vision Encoder + IP-Adapter Resampler model."""
 
     def __init__(self, weights, device):
