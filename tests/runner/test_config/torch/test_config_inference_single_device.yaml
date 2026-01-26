@@ -79,7 +79,7 @@ test_config:
     status: EXPECTED_PASSING
 
   xglm/pytorch-xglm-1.7B-single_device-inference:
-    required_pcc: 0.97 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected.
+    required_pcc: 0.97 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected; also https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   resnet/pytorch-resnet_50_hf-single_device-inference:
@@ -96,7 +96,7 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-xxlarge_v2-single_device-inference:
-    required_pcc: 0.98
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-large_v2-single_device-inference:
@@ -1011,7 +1011,7 @@ test_config:
     markers: ["extended"]
 
   llama/causal_lm/pytorch-llama_3_2_3b-single_device-inference:
-    required_pcc: 0.97 # https://github.com/tenstorrent/tt-mlir/issues/6461
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-mlir/issues/6461, https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-inference:
@@ -1316,7 +1316,7 @@ test_config:
     markers: [push, nightly]
 
   yolov9/pytorch-s-single_device-inference:
-    required_pcc: 0.98
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   yolov9/pytorch-m-single_device-inference:
