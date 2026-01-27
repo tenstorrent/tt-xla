@@ -66,7 +66,6 @@ class MochiVAETester(TorchModelTester):
         output = self._device_runner.run_on_tt_device(self._workload)
         expected_shape = calculate_expected_output_shape(self._input_activations.shape)
 
-        if self._comparison_config.assert_on_failure:
-            assert (
-                output.shape == expected_shape
-            ), f"Output shape {output.shape} does not match expected shape {expected_shape}"
+        assert (
+            output.shape == expected_shape
+        ), f"Output shape {output.shape} does not match expected shape {expected_shape}"
