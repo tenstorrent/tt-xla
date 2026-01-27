@@ -28,6 +28,12 @@ class SparseMLP(nn.Module):
 
     This module wraps an existing MLP and replaces dense expert computation
     with sparse_matmul operations that skip inactive experts.
+
+    Uses INTERLEAVED gate_up_proj layout directly from original model:
+    - Weights stored as [g0, u0, g1, u1, ...] (interleaved)
+    - Split with [::2]/[1::2] strided slices
+    - TP sharding works because UpdateGlobalToLocalShapes pass handles
+      strided slices where stride == shard_factor
     """
 
     def __init__(self, original_mlp, num_experts: int, num_experts_per_tok: int):
@@ -38,40 +44,47 @@ class SparseMLP(nn.Module):
         self.num_experts_per_tok = num_experts_per_tok
 
         # Copy references to original module's components
+        # Keep same structure as original MLP: router + experts
         self.router = original_mlp.router
-        self.experts = original_mlp.experts
+        self.experts = original_mlp.experts  # Keep same structure for sharding
 
-        # Verify weight shapes match expected expert count
+        # Use INTERLEAVED gate_up_proj directly (no conversion needed)
+        # The UpdateGlobalToLocalShapes pass now handles strided slices
+        # where stride == shard_factor, making [::2]/[1::2] TP-compatible.
         if hasattr(self.experts, "gate_up_proj"):
-            actual_experts = self.experts.gate_up_proj.shape[0]
-            if actual_experts != num_experts:
-                print(
-                    f"[SparseMLP WARNING] Expert count mismatch! "
-                    f"gate_up_proj.shape[0]={actual_experts}, num_experts={num_experts}"
-                )
-            print(f"[SparseMLP] gate_up_proj shape: {self.experts.gate_up_proj.shape}")
-            print(f"[SparseMLP] down_proj shape: {self.experts.down_proj.shape}")
+            # intermediate_size is half of the last dimension (interleaved)
+            self.intermediate_size = self.experts.gate_up_proj.shape[-1] // 2
+
+            print(f"[SparseMLP] Using interleaved gate_up_proj layout:")
+            print(
+                f"  gate_up_proj shape: {self.experts.gate_up_proj.shape} (interleaved)"
+            )
+            print(f"  down_proj shape: {self.experts.down_proj.shape}")
+            print(f"  intermediate_size: {self.intermediate_size}")
+        else:
+            raise ValueError("Expected fused gate_up_proj in experts module")
 
         # GPT-OSS specific activation parameters
-        # TODO: Make these configurable for different model architectures
-        self.alpha = getattr(original_mlp.experts, "alpha", 1.702)
-        self.limit = getattr(original_mlp.experts, "limit", 7.0)
+        self.alpha = getattr(self.experts, "alpha", 1.702)
+        self.limit = getattr(self.experts, "limit", 7.0)
 
     def forward(self, hidden_states):
         """
         Forward pass using sparse_matmul for MoE computation.
 
-        The original MLP forward:
-        1. Router computes expert scores
-        2. Top-k experts are selected
-        3. All experts compute (dense)
-        4. Results are weighted and summed
+        Uses FUSED gate+up projection with INTERLEAVED layout:
+        - Single sparse_matmul for gate+up (fused, efficient)
+        - Split with [::2]/[1::2] strided slices (interleaved layout)
+        - TP sharding works because stride == shard_factor
 
-        This replaces step 3 with sparse_matmul:
+        The flow:
         1. Router computes expert scores
         2. Top-k experts are selected -> sparsity mask
-        3. sparse_matmul computes only active experts
-        4. Results are weighted and summed
+        3. Fused gate+up projection via single sparse_matmul
+        4. Split with [::2]/[1::2] (interleaved layout)
+        5. Apply activation (GPT-OSS style)
+        6. Down projection via sparse_matmul
+        7. Weight by router scores and sum
         """
         batch_size, seq_len, hidden_size = hidden_states.shape
 
@@ -107,25 +120,19 @@ class SparseMLP(nn.Module):
             src=torch.ones_like(topk_indices.unsqueeze(2), dtype=hidden_states.dtype),
         )
 
-        # Get expert weights (keep fused gate_up_proj for efficiency)
-        gate_up_proj = self.experts.gate_up_proj  # [E, hidden, inter*2]
-        gate_up_proj_bias = self.experts.gate_up_proj_bias  # [E, inter*2]
-        down_proj = self.experts.down_proj
-        down_proj_bias = self.experts.down_proj_bias
-
-        intermediate_size = gate_up_proj.shape[-1] // 2
-
-        # Reshape for sparse_matmul
+        # Reshape input for sparse_matmul
         # input: [batch, seq, hidden] -> [batch, seq, 1, hidden]
         hidden_4d = hidden_states.unsqueeze(2)
 
-        # Prepare weights: [E, hidden, inter*2] -> [1, E, hidden, inter*2]
-        gate_up_weight = gate_up_proj.unsqueeze(0)
+        # nnz = 0 means runtime will calculate from sparsity tensor
+        # This is required for EP/TP sharding where nnz changes per device
+        nnz = 0
 
-        # nnz = total non-zero elements in sparsity = batch * seq * num_experts_per_tok
-        nnz = batch_size * seq_len * self.num_experts_per_tok
-
-        # Combined gate+up projection with single sparse_matmul (OPTIMIZED!)
+        # === FUSED GATE+UP PROJECTION (single sparse_matmul, interleaved layout) ===
+        # gate_up_proj: [E, hidden, inter*2] (interleaved: [g0, u0, g1, u1, ...])
+        gate_up_weight = self.experts.gate_up_proj.unsqueeze(
+            0
+        )  # [1, E, hidden, inter*2]
         gate_up_out = torch.ops.tt.sparse_matmul(
             hidden_4d,
             gate_up_weight,
@@ -134,20 +141,25 @@ class SparseMLP(nn.Module):
             is_input_a_sparse=False,
             is_input_b_sparse=True,
         )
+        # gate_up_out shape: [batch, seq, 1, E, 1, inter*2] -> [batch, seq, 1, E, inter*2]
+        gate_up_out = gate_up_out.squeeze(4)
 
-        # gate_up_out shape: [batch, seq, 1, E, 1, inter*2]
-        gate_up_out = gate_up_out.squeeze(4)  # [batch, seq, 1, E, inter*2]
+        # === SPLIT INTERLEAVED OUTPUT (before bias add to reduce memory) ===
+        # [::2] and [1::2] work with TP sharding when stride == shard_factor
+        # UpdateGlobalToLocalShapes pass handles this case specially
+        gate_out = gate_up_out[..., ::2]  # [batch, seq, 1, E, inter] - even indices
+        up_out = gate_up_out[..., 1::2]  # [batch, seq, 1, E, inter] - odd indices
 
-        # Add bias: [E, inter*2] -> [1, 1, 1, E, inter*2]
-        gate_up_out = gate_up_out + gate_up_proj_bias.unsqueeze(0).unsqueeze(
-            0
-        ).unsqueeze(0)
+        # Add bias AFTER split to reduce const_eval memory pressure
+        # Split bias first: [E, inter*2] -> [E, inter] each
+        # This avoids materializing [1, seq, 1, E, inter*2] in const_eval
+        gate_bias = self.experts.gate_up_proj_bias[..., ::2]  # [E, inter]
+        up_bias = self.experts.gate_up_proj_bias[..., 1::2]  # [E, inter]
+        # Broadcast: [E, inter] -> [1, 1, 1, E, inter] (half the size!)
+        gate_out = gate_out + gate_bias.unsqueeze(0).unsqueeze(0).unsqueeze(0)
+        up_out = up_out + up_bias.unsqueeze(0).unsqueeze(0).unsqueeze(0)
 
-        # Split gate and up (GPT-OSS style: interleaved)
-        gate_out = gate_up_out[..., ::2]  # [batch, seq, 1, E, inter]
-        up_out = gate_up_out[..., 1::2]  # [batch, seq, 1, E, inter]
-
-        # GPT-OSS activation (NOT SwiGLU):
+        # === GPT-OSS ACTIVATION (NOT SwiGLU) ===
         # gate = gate.clamp(max=limit)
         # up = up.clamp(-limit, limit)
         # glu = gate * sigmoid(gate * alpha)
@@ -157,14 +169,14 @@ class SparseMLP(nn.Module):
         glu = gate_out * torch.sigmoid(gate_out * self.alpha)
         activated = (up_out + 1) * glu
 
-        # Down projection with sparse_matmul
+        # === DOWN PROJECTION ===
         # activated: [batch, seq, 1, E, inter] -> reshape to [batch*seq, E, 1, inter]
         activated_reshaped = activated.view(
-            batch_size * seq_len, self.num_experts, 1, intermediate_size
+            batch_size * seq_len, self.num_experts, 1, self.intermediate_size
         )
 
-        # down_proj: [E, inter, hidden] -> [1, E, inter, hidden] = [1, E, K, N]
-        down_weight = down_proj.unsqueeze(0)
+        # down_proj: [E, inter, hidden] -> [1, E, inter, hidden]
+        down_weight = self.experts.down_proj.unsqueeze(0)
 
         # Create sparsity for down projection [1, 1, batch*seq, E]
         sparsity_down = sparsity.view(
@@ -175,15 +187,15 @@ class SparseMLP(nn.Module):
             activated_reshaped,
             down_weight,
             sparsity_down,
-            nnz=nnz,
+            nnz=0,
             is_input_a_sparse=True,
             is_input_b_sparse=False,
         )
 
-        # down_out: [batch*seq, E, 1, hidden]
-        down_out = down_out.squeeze(2)  # [batch*seq, E, hidden]
+        # down_out: [batch*seq, E, 1, hidden] -> [batch*seq, E, hidden]
+        down_out = down_out.squeeze(2)
         # bias: [E, hidden] -> [1, E, hidden]
-        down_out = down_out + down_proj_bias.unsqueeze(0)
+        down_out = down_out + self.experts.down_proj_bias.unsqueeze(0)
 
         # Weight by router scores and sum across experts
         down_out = down_out.view(batch_size, seq_len, self.num_experts, hidden_size)
@@ -227,10 +239,12 @@ def _is_moe_mlp(module: nn.Module) -> bool:
 def _get_moe_config(module: nn.Module) -> Optional[tuple]:
     """Extract MoE configuration from a module."""
     try:
+        num_experts = None
         # Try to get from experts
         if hasattr(module, "experts"):
             experts = module.experts
             num_experts = getattr(experts, "num_experts", None)
+            # Try fused gate_up_proj (expected input format)
             if num_experts is None and hasattr(experts, "gate_up_proj"):
                 num_experts = experts.gate_up_proj.shape[0]
 
