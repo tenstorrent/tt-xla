@@ -1,4 +1,4 @@
-name: Run Test Single
+name: Run nightly release
 
 on:
   workflow_dispatch:
