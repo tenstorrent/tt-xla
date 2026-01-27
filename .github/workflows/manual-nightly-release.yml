@@ -39,7 +39,6 @@ jobs:
       is_nightly_release: true
       release_tag_override: ${{ inputs.release_tag }}
 
-  # tested - working
   build-release-docker:
     uses: ./.github/workflows/call-build-release-docker.yml
     needs: [ publish-release-wheel, build-ttxla ]
@@ -50,7 +49,7 @@ jobs:
       wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
       wheel_version_override: ${{ inputs.release_tag }}
 
-  # tested - individual tests work
+  # ommited during testing
   # release-tests:
   #   uses: ./.github/workflows/call-release-tests.yml
   #   needs: [ build-release-docker ]
@@ -58,7 +57,6 @@ jobs:
   #   with:
   #     release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
 
-  # tested - working
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
     needs: [ build-release-docker ]

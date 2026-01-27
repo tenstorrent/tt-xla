@@ -73,7 +73,6 @@ jobs:
           skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
           skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$version_tag"
 
-        # todo(vvukoman): think about body structure, what is relevant to show?
       - name: Publish github release
         uses: softprops/action-gh-release@v2
         with:
