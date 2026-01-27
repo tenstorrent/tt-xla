@@ -23,11 +23,13 @@ from tests.utils import failed_ttmlir_compilation
 def test_kimi_k2_single_layer():
     xr.set_device_type("TT")
 
-    # Create model config with a single layer for testing
-    config = DeepseekV3Config(
-        num_hidden_layers=1,
-        use_cache=False,
-    )
+    # Load full Kimi K2 config from JSON file
+    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    config = DeepseekV3Config.from_json_file(config_path)
+
+    # Override for single layer testing
+    config.num_hidden_layers = 1
+    config.use_cache = False
 
     model = DeepseekV3ForCausalLM(config)
 
