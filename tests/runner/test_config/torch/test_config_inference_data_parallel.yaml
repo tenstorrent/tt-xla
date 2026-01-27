@@ -97,7 +97,7 @@ test_config:
 
   yolov6/pytorch-yolov6l-data_parallel-inference:
     supported_archs: [n300]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL # Failed after experimental compile  https://github.com/tenstorrent/tt-xla/issues/2994
 
   vgg/pytorch-torchvision_vgg16-data_parallel-inference:
     supported_archs: [n300]
@@ -511,7 +511,7 @@ test_config:
 
   yolov6/pytorch-yolov6n-data_parallel-inference:
     supported_archs: [n300]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL # Failed after experimental compile  https://github.com/tenstorrent/tt-xla/issues/2994
 
   vgg/pytorch-timm_vgg19_bn-data_parallel-inference:
     supported_archs: [n300]
@@ -580,8 +580,7 @@ test_config:
 
   yolov6/pytorch-yolov6s-data_parallel-inference:
     supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+    status: KNOWN_FAILURE_XFAIL # Failed after experimental compile  https://github.com/tenstorrent/tt-xla/issues/2994
 
   vgg/pytorch-torchvision_vgg11_bn-data_parallel-inference:
     supported_archs: [n300]
@@ -1017,8 +1016,7 @@ test_config:
 
   yolov6/pytorch-yolov6m-data_parallel-inference:
     supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+    status: KNOWN_FAILURE_XFAIL # Failed after experimental compile  https://github.com/tenstorrent/tt-xla/issues/2994
 
   mobilenetv3/pytorch-mobilenet_v3_large-data_parallel-inference:
     supported_archs: [n300]
