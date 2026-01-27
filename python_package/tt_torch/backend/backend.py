@@ -8,7 +8,9 @@ import torch
 import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
+from functorch.compile import make_boxed_func
 from torch._dynamo import register_backend
+from torch._dynamo.backends.common import aot_autograd
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 from ttxla_tools.logging import logger
@@ -209,9 +211,11 @@ class XLAExecutor:
         return output
 
 
-@register_backend(name="tt")
-def xla_backend(gm, example_inputs, options={}):
-    """TT backend for torch.compile."""
+def _build_executor(
+    gm: torch.fx.GraphModule,
+    example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool] | None,
+) -> XLAExecutor:
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
@@ -225,3 +229,26 @@ def xla_backend(gm, example_inputs, options={}):
     if "tt_legacy_compile" in options:
         legacy_compile_enabled = bool(options["tt_legacy_compile"])
     return XLAExecutor(module, graph_signature, node_info, legacy_compile_enabled)
+
+
+def _tt_backend_helper(
+    model: torch.fx.GraphModule,
+    example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool] | None,
+    boxed: bool = False,
+):
+    executor = _build_executor(model, example_inputs, options)
+    return make_boxed_func(executor) if boxed else executor
+
+
+def _tt_aot_autograd_backend(gm, example_inputs, options=None):
+    def fw_compiler(model, inputs):
+        return _tt_backend_helper(model, inputs, options=options, boxed=True)
+
+    return aot_autograd(fw_compiler=fw_compiler)(gm, example_inputs)
+
+
+@register_backend(name="tt")
+def xla_backend(gm, example_inputs, options=None):
+    """TT backend for torch.compile."""
+    return _tt_aot_autograd_backend(gm, example_inputs, options=options)
