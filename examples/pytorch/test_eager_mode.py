@@ -127,9 +127,10 @@ def test_small_mnist_like_eager(model, dummy_input, device):
             print("Final output:", out)
 
 
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'stablehlo.select_and_scatter' "
+        "MaxPool2d causes compiler crash: TT-MLIR cannot handle ui32 attributes "
+        "in pooling ops (dense<4294967295>) and hits UNREACHABLE in ElementsAttr::getValues"
     )
 )
 @pytest.mark.push

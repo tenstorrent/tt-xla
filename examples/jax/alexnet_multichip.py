@@ -7,20 +7,20 @@ from typing import Sequence
 
 import jax
 import jax._src.xla_bridge as xb
+import jax.numpy as jnp
 from flax import linen as nn
 from jax.experimental.shard_map import shard_map
 from jax.sharding import NamedSharding
 from jax.sharding import PartitionSpec as P
 
-# TODO Move this to TT models repo.
-from tests.jax.multi_chip.n300.models.tensor_parallel.alexnet.model_implementation import (
+from third_party.tt_forge_models.alexnet.image_classification.jax.src.model_implementation import (
     AlexNetMultichipModel,
 )
 
 # Allocating enough CPU devices so we can create various meshes depending on which TT
 # device this example is running. Can't be set to exact number of TT devices because
 # after calling `jax.devices` function this config update doesn't work anymore.
-jax.config.update("jax_num_cpu_devices", 8)
+jax.config.update("jax_num_cpu_devices", 2)
 
 # Change if you want to use shardy.
 jax.config.update("jax_use_shardy_partitioner", False)
@@ -117,8 +117,71 @@ def run_alexnet():
     )
     results = compiled_apply(params, device_inputs)
 
-    print(results)
+    return results
+
+
+def run_alexnet_cpu():
+    """Run the same sharded AlexNet on CPU devices for comparison."""
+    cpu_devices = jax.devices("cpu")
+    num_cpu_devices = len(cpu_devices)
+
+    axis_name = "X"
+    device_mesh = jax.make_mesh((num_cpu_devices,), (axis_name,), devices=cpu_devices)
+
+    model = AlexNetMultichipModel(
+        axis_name=axis_name, num_devices=num_cpu_devices, train_mode=False
+    )
+
+    prng_key = jax.random.PRNGKey(23)
+
+    inputs_specs = P(axis_name)
+    cpu_inputs = generate_inputs_on_cpu(prng_key)
+
+    params_specs = nn.get_partition_spec(
+        jax.eval_shape(
+            shard_map(
+                model.init, device_mesh, in_specs=(None, inputs_specs), out_specs=P()
+            ),
+            prng_key,
+            cpu_inputs,
+        )
+    )
+    params = initialize_parameters(
+        model, inputs_specs, cpu_inputs, params_specs, device_mesh, prng_key
+    )
+
+    device_inputs = jax.device_put(cpu_inputs, NamedSharding(device_mesh, inputs_specs))
+
+    out_spec = P()
+
+    compiled_apply = jax.jit(
+        shard_map(
+            model.apply,
+            device_mesh,
+            in_specs=(params_specs, inputs_specs),
+            out_specs=out_spec,
+            check_rep=False,
+        ),
+        out_shardings=NamedSharding(device_mesh, out_spec),
+    )
+    results = compiled_apply(params, device_inputs)
+
+    return results
+
+
+def test_alexnet_multichip():
+    """Test AlexNet multichip output against CPU reference."""
+    tt_results = run_alexnet()
+    cpu_results = run_alexnet_cpu()
+
+    tt_results_cpu = jax.device_get(tt_results)
+    cpu_results_cpu = jax.device_get(cpu_results)
+
+    assert jnp.allclose(
+        tt_results_cpu, cpu_results_cpu, atol=0.05
+    ), f"AlexNet multichip mismatch. Max diff: {jnp.abs(tt_results_cpu - cpu_results_cpu).max()}"
 
 
 if __name__ == "__main__":
-    run_alexnet()
+    results = run_alexnet()
+    print(results)

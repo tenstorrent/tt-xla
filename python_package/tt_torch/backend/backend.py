@@ -35,8 +35,8 @@ def torch_pass_pipeline(
 
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
-    enable_fusion_passes = options is not None and options.get(
-        "tt_enable_fusion_passes", False
+    enable_fusion_passes = options is None or options.get(
+        "tt_enable_torch_fx_fusion_pass", True
     )
     if enable_fusion_passes:
         gm = run_fusion_passes(gm)
