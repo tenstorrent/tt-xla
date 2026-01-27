@@ -239,8 +239,7 @@ class TorchModelTester(ModelTester):
         self._workload.model.zero_grad()
 
         # Run forward on TT
-        # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
-        # self._compile_for_tt_device(self._workload)
+        self._compile_for_tt_device(self._workload)
         tt_res = self._run_on_tt_device(self._workload)
         tt_res = self._unpack_forward_output(tt_res)
 
