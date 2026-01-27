@@ -4,21 +4,17 @@
 
 import os
 
+import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
+from modeling_deepseek_v3_2_exp import ModelArgs, Transformer
 
-from tests.torch.models.deepseek_v3.modelling_deepseek_v3_2_exp import (
-    ModelArgs,
-    Transformer,
+
+@pytest.mark.xfail(
+    reason="TT_THROW: Statically allocated circular buffers on core range [(x=7,y=6) - (x=7,y=6)] grow to 16897152 B which is beyond max L1 size of 1499136 B"
 )
-
-
-# --------------------------------
-# Test run
-# --------------------------------
-def test_deepseek():
-    # Set device type
+def test_deepseek_v3_2_exp():
     xr.set_device_type("TT")
 
     # Create model args with a single layer for testing
@@ -27,33 +23,20 @@ def test_deepseek():
         q_lora_rank=3072,
     )
 
-    # Instantiate model - freqs_cis will be computed automatically
-    # (no need to pass freqs_cis_path, it computes on the fly and converts to real format)
     model = Transformer(args)
 
     model = model.to(torch.bfloat16)
 
-    # Put it in inference mode and compile it
     model = model.eval()
     compiled_model = torch.compile(model, backend="tt")
 
-    # Create batch of random token IDs
     batch_size = 1
     seq_len = 32
     tokens = torch.randint(0, args.vocab_size, (batch_size, seq_len))
 
-    # Move inputs and model to device
     device = torch_xla.device()
     tokens = tokens.to(device)
     compiled_model = compiled_model.to(device)
 
-    # Run model
     with torch.no_grad():
         output = compiled_model(tokens)
-
-
-# --------------------------------
-# main
-# --------------------------------
-if __name__ == "__main__":
-    test_deepseek()
