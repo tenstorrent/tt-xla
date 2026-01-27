@@ -54,7 +54,7 @@ def test_llama_step(run_mode):
     batch_size: int = 1
     max_cache_len: int = 128
     # Changed prompt due to issue https://github.com/tenstorrent/tt-xla/issues/2823
-    input_prompt: str = "Hey how are you doing today?"
+    input_prompt: str = "I like taking walks in the"
     model_name: str = "meta-llama/Llama-3.2-3B"
 
     # Connect the device and create mesh.
@@ -77,6 +77,7 @@ def test_llama_step(run_mode):
         input_prompt,
         return_tensors="pt",
         truncation=True,
+        return_attention_mask=True,
     )
 
     # Instantiate static cache on host (device instantiation leads to trace of unfusable creation ops.)
@@ -89,11 +90,19 @@ def test_llama_step(run_mode):
     )
 
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
+
+    prompt_len = inputs.input_ids.shape[1]
+    full_attention_mask = torch.ones(
+        (batch_size, max_cache_len), dtype=inputs.attention_mask.dtype
+    )
+    full_attention_mask[:, :prompt_len] = inputs.attention_mask
+
     input_args = {
         "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
         "cache_position": cache_position,
         "use_cache": True,
+        "attention_mask": full_attention_mask,
     }
 
     # In decode mode, use only the first token and reset cache position
@@ -118,6 +127,7 @@ def test_llama_step(run_mode):
         layer.values = layer.values.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
+    input_args["attention_mask"] = input_args["attention_mask"].to(device)
 
     model = model.to(device)
 
