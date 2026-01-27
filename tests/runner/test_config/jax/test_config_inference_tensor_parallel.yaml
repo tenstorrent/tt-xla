@@ -160,7 +160,7 @@ test_config:
 
   gpt2/causal_lm/jax-base-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
     reason: "'stablehlo.gather' op slice size out of bounds - https://github.com/tenstorrent/tt-mlir/issues/6653"
     bringup_status: FAILED_TTMLIR_COMPILATION
     markers: [nightly]
