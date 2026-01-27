@@ -46,3 +46,4 @@ def test_kimi_k2_single_layer():
 
     with torch.no_grad():
         output = compiled_model(tokens)
+        output.to("cpu")
