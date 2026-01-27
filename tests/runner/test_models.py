@@ -97,7 +97,9 @@ def _run_model_test_impl(
             ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
 
         if compiler_config is None and ir_dump_path:
-            compiler_config = CompilerConfig(export_path=ir_dump_path)
+            compiler_config = CompilerConfig(
+                export_path=ir_dump_path, export_model_name=model_info.name
+            )
 
         succeeded = False
         comparison_result = None
