@@ -94,7 +94,7 @@ jobs:
   # tested - working
   build-release-docker:
     uses: ./.github/workflows/call-build-release-docker.yml
-    needs: [ build-ttxla ]
+    needs: [ publish-release-wheel, build-ttxla ]
     secrets: inherit
     with:
       wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
