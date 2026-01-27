@@ -10,6 +10,7 @@ from infra.utilities import PyTree, Tensor
 
 from .evaluation_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
 from .evaluator import ComparisonResult, Evaluator
+from loguru import logger
 
 
 class ComparisonEvaluator(Evaluator):
@@ -86,6 +87,7 @@ class ComparisonEvaluator(Evaluator):
         """
         passed = True
         error_messages = []
+        logger.info("PCC={}",comparison_result.pcc)
 
         # Check each enabled comparison type and collect all failures
         if self._comparison_config.equal.enabled and comparison_result.equal is False:
