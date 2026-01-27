@@ -94,7 +94,7 @@ class XLAExecutor:
         module: torch.fx.GraphModule,
         signature: torch.export.ExportGraphSignature,
         node_info: list[str],
-        experimental_compile_enabled: bool,
+        legacy_compile_enabled: bool,
     ):
         self.module = module
         self.signature = signature
@@ -111,9 +111,9 @@ class XLAExecutor:
             self.devices.add(tensor.device.type)
         self.devices = list(self.devices)
 
-        # Whether to enable experimental compile flow.
+        # Whether to enable the legacy compile flow.
         # The following group of fields will only be used if the experimental flow is enabled.
-        self.experimental_compile_enabled = experimental_compile_enabled
+        self.legacy_compile_enabled = legacy_compile_enabled
         self.params_and_consts = None
         self.compiled_graph = None
 
@@ -181,7 +181,7 @@ class XLAExecutor:
         return self.compiled_graph(*full_args)
 
     def __call__(self, *args):
-        if self.experimental_compile_enabled:
+        if not self.legacy_compile_enabled:
             return self._call_experimental_compile(*args)
 
         if self.inject_metadata:
@@ -218,10 +218,15 @@ def xla_backend(gm, example_inputs, options=None):
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
-    experimental_compile_default = True
-    experimental_compile_enabled = (
-        options.get("tt_experimental_compile", experimental_compile_default)
-        if options
-        else experimental_compile_default
-    )
-    return XLAExecutor(module, graph_signature, node_info, experimental_compile_enabled)
+    legacy_compile_default = True
+    legacy_compile_enabled = legacy_compile_default
+    if options:
+        if "tt_experimental_compile" in options:
+            print(
+                'Warning: Experimental compile is now the default. As such, the "tt_experimental_compile" flag is deprecated.'
+                'Honoring the flag, but please use "tt_legacy_compile" flag or no flag in the future.'
+            )
+            legacy_compile_enabled = not bool(options["tt_experimental_compile"])
+        if "tt_legacy_compile" in options:
+            legacy_compile_enabled = bool(options["tt_legacy_compile"])
+    return XLAExecutor(module, graph_signature, node_info, legacy_compile_enabled)
