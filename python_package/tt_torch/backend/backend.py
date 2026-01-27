@@ -231,19 +231,17 @@ def _build_executor(
     return XLAExecutor(module, graph_signature, node_info, legacy_compile_enabled)
 
 
-def _tt_backend_helper(
-    model: torch.fx.GraphModule,
-    example_inputs: Tuple[torch.Tensor],
-    options: dict[str, bool] | None,
-    boxed: bool = False,
-):
-    executor = _build_executor(model, example_inputs, options)
-    return make_boxed_func(executor) if boxed else executor
-
-
 def _tt_aot_autograd_backend(gm, example_inputs, options=None):
     def fw_compiler(model, inputs):
-        return _tt_backend_helper(model, inputs, options=options, boxed=True)
+        compiled_executor = None
+
+        def fwd(*args):
+            nonlocal compiled_executor
+            if compiled_executor is None:
+                compiled_executor = _build_executor(model, args, options)
+            return compiled_executor(*args)
+
+        return make_boxed_func(fwd)
 
     return aot_autograd(fw_compiler=fw_compiler)(gm, example_inputs)
 
