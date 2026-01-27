@@ -206,18 +206,20 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
         if (
             node.op == "call_function"
             and hasattr(node.target, "name")
-            and "prims::convert_element_type" in node.target.name()
+            and "aten::_to_copy" in node.target.name()
         ):
             is_unwanted_dtype_promotion = (
                 node.meta["original_aten"]._name != "aten::_to_copy"
-                and node.args[1] == torch.float32
+                and "tensor_meta" in node.meta
+                and node.meta["tensor_meta"].dtype == torch.float32
             )
             is_redundant_cast = (
                 "tensor_meta" in node.args[0].meta
-                and node.args[0].meta["tensor_meta"].dtype == node.args[1]
+                and "tensor_meta" in node.meta
+                and node.args[0].meta["tensor_meta"].dtype == node.meta["tensor_meta"].dtype
             )
-
-            if is_unwanted_dtype_promotion or is_redundant_cast:
+            if is_redundant_cast or is_unwanted_dtype_promotion:
+                print(f"[Bypass Dtype Cast] Removing _to_copy cast to {node.meta['tensor_meta'].dtype} in node {node.name}")
                 node.replace_all_uses_with(node.args[0])
                 removed_non_redundant_casts |= is_unwanted_dtype_promotion
 
