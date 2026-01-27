@@ -213,6 +213,10 @@ class TorchModelTester(ModelTester):
         return existing_grads, none_grads
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
+        # Initialize XLA computation client to properly set up autograd engine device queues
+        # before any backward passes. See: https://github.com/pytorch/xla/issues/4174
+        torch_xla._XLAC._init_computation_client()
+
         # Run forward on CPU
         # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
         # self._compile_for_cpu(self._workload)
