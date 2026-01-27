@@ -89,6 +89,7 @@ jobs:
   #     wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
   #     wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
   #     is_nightly_release: true
+  #     release_tag_override: ${{ inputs.release_tag }}
 
   # tested - working
   build-release-docker:
@@ -102,17 +103,17 @@ jobs:
       wheel_version_override: ${{ inputs.release_tag }}
 
   # tested - individual tests work
-  release-tests:
-    uses: ./.github/workflows/call-release-tests.yml
-    needs: [ build-release-docker ]
-    secrets: inherit
-    with:
-      release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
+  # release-tests:
+  #   uses: ./.github/workflows/call-release-tests.yml
+  #   needs: [ build-release-docker ]
+  #   secrets: inherit
+  #   with:
+  #     release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
 
   # tested - working
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
-    needs: [ release-tests, build-release-docker ]
+    needs: [ build-release-docker ]
     secrets: inherit
     with:
       release_tag: ${{ inputs.release_tag }}
