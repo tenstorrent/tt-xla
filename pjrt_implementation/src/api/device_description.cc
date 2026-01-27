@@ -18,12 +18,31 @@
 
 namespace tt::pjrt {
 
+// Helper to create attributes.
+PJRT_NamedValue createStringAttribute(const std::string &name,
+                                      const std::string &value) {
+  PJRT_NamedValue attr;
+  attr.struct_size = PJRT_NamedValue_STRUCT_SIZE;
+  attr.extension_start = nullptr;
+  attr.name = name.c_str();
+  attr.name_size = name.size();
+  attr.type = PJRT_NamedValue_kString;
+  attr.string_value = value.c_str();
+  attr.value_size = value.size();
+  return attr;
+}
+
 DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch)
     : m_device_id(device_id), m_process_index(0),
       m_device_kind(tt::target::EnumNameArch(arch)) {
   std::stringstream ss;
   ss << "TTDevice(id=" << m_device_id << ", arch=" << m_device_kind << ")";
   m_user_string = ss.str();
+
+  // Create attributes list
+  m_attributes.push_back(createStringAttribute(
+      m_arch_attr_name,
+      m_device_kind)); // device arch attribute (e.g. "wormhole_b0")
 }
 
 void DeviceDescription::bindApi(PJRT_Api *api) {
@@ -62,9 +81,11 @@ PJRT_Error *
 onDeviceDescriptionAttributes(PJRT_DeviceDescription_Attributes_Args *args) {
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Attributes");
 
-  // We don't set any device attributes currently.
-  args->num_attributes = 0;
-  args->attributes = nullptr;
+  const auto &attributes =
+      DeviceDescription::unwrap(args->device_description)->getAttributes();
+
+  args->num_attributes = attributes.size();
+  args->attributes = attributes.data();
 
   return nullptr;
 }
