@@ -21,9 +21,6 @@ class SimpleLinear(torch.nn.Module):
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
-@pytest.mark.xfail(
-    reason="Negative test, becomes inapplicable once we add AOT autograd", strict=True
-)
 def test_compile_backward_faults_without_aot_autograd():
     torch.manual_seed(0)
     device = xm.xla_device()
