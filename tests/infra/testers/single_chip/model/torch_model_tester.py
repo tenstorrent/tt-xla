@@ -218,8 +218,7 @@ class TorchModelTester(ModelTester):
         torch_xla._XLAC._init_computation_client()
 
         # Run forward on CPU
-        # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
-        # self._compile_for_cpu(self._workload)
+        self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
         cpu_res = self._unpack_forward_output(cpu_res)
 
