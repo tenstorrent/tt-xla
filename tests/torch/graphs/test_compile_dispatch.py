@@ -54,7 +54,7 @@ def test_old_compile_dispatch_asserts():
     global WARMUP_DONE
     WARMUP_DONE = False
     model = Dummy().to(torch_xla.device())
-    model.compile(backend=custom_backend, options={"tt_experimental_compile": False})
+    model.compile(backend=custom_backend, options={"tt_legacy_compile": True})
     input = torch.randn(2, 2).to(torch_xla.device())
     model(input)
     WARMUP_DONE = True
@@ -70,7 +70,7 @@ def test_new_compile_dispatch():
     global WARMUP_DONE
     WARMUP_DONE = False
     model = Dummy().to(torch_xla.device())
-    model.compile(backend=custom_backend, options={"tt_experimental_compile": True})
+    model.compile(backend=custom_backend, options={"tt_legacy_compile": False})
     input = torch.randn(3, 3).to(torch_xla.device())
     model(input)
     WARMUP_DONE = True
