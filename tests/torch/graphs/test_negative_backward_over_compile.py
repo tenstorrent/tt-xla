@@ -17,13 +17,13 @@ class SimpleLinear(torch.nn.Module):
         return self.linear(x).relu()
 
 
-# This test becomes inapplicable once we add AOT autograd
-
-
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+@pytest.mark.xfail(
+    reason="Negative test, becomes inapplicable once we add AOT autograd", strict=True
+)
 def test_compile_backward_faults_without_aot_autograd():
     torch.manual_seed(0)
     device = xm.xla_device()
@@ -33,5 +33,4 @@ def test_compile_backward_faults_without_aot_autograd():
     x = torch.randn(4, 8, device=device, requires_grad=True)
     output = model(x).sum()
 
-    with pytest.raises(Exception):
-        output.backward()
+    output.backward()
