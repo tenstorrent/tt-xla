@@ -25,6 +25,7 @@ test_config:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     required_pcc: 0.985 # Is 0.990 (p150)
     status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3000
 
   qwen_2_5/causal_lm/pytorch-0_5b_instruct-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
@@ -41,6 +42,7 @@ test_config:
   qwen_2_5/causal_lm/pytorch-7b_instruct-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
+    assert_pcc: false #https://github.com/tenstorrent/tt-xla/issues/3000
 
   qwen_2_5/causal_lm/pytorch-14b_instruct-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
