@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from functools import partial
 from typing import Tuple
 
 import torch
@@ -9,7 +10,9 @@ import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
 import torch_xla.runtime as xr
+from functorch.compile import make_boxed_func
 from torch._dynamo import register_backend
+from torch._dynamo.backends.common import aot_autograd, fake_tensor_unsupported
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 from torch_xla.distributed.spmd import ShardingType
@@ -251,19 +254,96 @@ class XLAExecutor:
         return output
 
 
-@register_backend(name="tt")
-def xla_backend(gm, example_inputs, options={}):
-    """TT backend for torch.compile."""
+def _build_executor(
+    gm: torch.fx.GraphModule,
+    example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool] | None,
+):
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
-    legacy_compile_enabled = False
-    if "tt_experimental_compile" in options:
-        logger.warning(
-            'Warning: Experimental compile is now the default. As such, the "tt_experimental_compile" flag is deprecated.'
-            'Honoring the flag, but please use "tt_legacy_compile" flag or no flag in the future.'
-        )
-        legacy_compile_enabled = not bool(options["tt_experimental_compile"])
-    if "tt_legacy_compile" in options:
-        legacy_compile_enabled = bool(options["tt_legacy_compile"])
+    legacy_compile_default = False
+    legacy_compile_enabled = legacy_compile_default
+    if options:
+        if "tt_experimental_compile" in options:
+            print(
+                'Warning: Experimental compile is now the default. As such, the "tt_experimental_compile" flag is deprecated.'
+                'Honoring the flag, but please use "tt_legacy_compile" flag or no flag in the future.'
+            )
+            legacy_compile_enabled = not bool(options["tt_experimental_compile"])
+        if "tt_legacy_compile" in options:
+            legacy_compile_enabled = bool(options["tt_legacy_compile"])
     return XLAExecutor(module, graph_signature, node_info, legacy_compile_enabled)
+
+
+@fake_tensor_unsupported
+def _build_boxed_executor(
+    gm: torch.fx.GraphModule,
+    example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool] | None,
+):
+    executor = _build_executor(gm, example_inputs, options)
+    return make_boxed_func(executor)
+
+
+def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Rewrite call_module nodes targeting AdaptiveAvgPool1d/2d with output_size=1/(1,1)
+    to use torch.mean instead.
+
+    This works around an XLA + FunctionalTensorMode incompatibility where inplace_view
+    ops (aten.as_strided_ inside adaptive pooling) are re-executed under no_dispatch()
+    for metadata fixup, causing dispatch to XLA's kernel on wrapper subclass tensors
+    that XLA can't handle. See docs/aot_autograd_xla_inplace_view_bug.md for details.
+    """
+    graph = gm.graph
+    modified = False
+
+    for node in list(graph.nodes):
+        if node.op == "call_module" and isinstance(node.target, str):
+            target_module = gm.get_submodule(node.target)
+            if isinstance(target_module, torch.nn.AdaptiveAvgPool1d):
+                output_size = target_module.output_size
+                if output_size == 1 or output_size == (1,) or output_size == [1]:
+                    with graph.inserting_after(node):
+                        mean_node = graph.call_function(
+                            torch.mean,
+                            args=(node.args[0],),
+                            kwargs={"dim": [-1], "keepdim": True},
+                        )
+                        node.replace_all_uses_with(mean_node)
+                        graph.erase_node(node)
+                        modified = True
+            elif isinstance(target_module, torch.nn.AdaptiveAvgPool2d):
+                output_size = target_module.output_size
+                if output_size == 1 or output_size == (1, 1) or output_size == [1, 1]:
+                    with graph.inserting_after(node):
+                        mean_node = graph.call_function(
+                            torch.mean,
+                            args=(node.args[0],),
+                            kwargs={"dim": [-2, -1], "keepdim": True},
+                        )
+                        node.replace_all_uses_with(mean_node)
+                        graph.erase_node(node)
+                        modified = True
+
+    if modified:
+        gm.recompile()
+
+    return gm
+
+
+@register_backend(name="tt")
+def tt_backend(
+    gm: torch.fx.GraphModule,
+    example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool] | None = None,
+):
+    # Rewrite AdaptiveAvgPool1d/2d(1) to torch.mean before AOTAutograd tracing.
+    # See docs/aot_autograd_xla_inplace_view_bug.md for why this is needed.
+    gm = rewrite_adaptive_avgpool_to_mean(gm)
+
+    fw_compiler = partial(_build_boxed_executor, options=options)
+
+    aotautograd = aot_autograd(fw_compiler=fw_compiler)
+    return aotautograd(gm, example_inputs)
