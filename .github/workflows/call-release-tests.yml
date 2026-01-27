@@ -9,7 +9,6 @@ on:
         required: true
 
 jobs:
-  # add basic tests
   basic-tests:
     uses: tenstorrent/tt-forge/.github/workflows/basic-tests.yml@vvukoman/extract-mlir-version-differently
     secrets: inherit
@@ -18,7 +17,6 @@ jobs:
       project-filter: tt-xla
       ref: vvukoman/extract-mlir-version-differently
 
-  # tested - working
   perf-benchmark:
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/extract-mlir-version-differently
     secrets: inherit
@@ -28,7 +26,6 @@ jobs:
       project: tt-xla
       sh-runner: true
 
-  # tested - working
   demo-test:
     uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@vvukoman/extract-mlir-version-differently
     secrets: inherit
