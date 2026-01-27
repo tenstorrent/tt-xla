@@ -16,7 +16,7 @@ from modeling_deepseek_v3_2_exp import ModelArgs, Transformer
 # 3. Avoid torch.view_as_complex/view_as_real operations
 
 
-def test_deepseek_transformer():
+def test_deepseek_transformer_single_layer():
     xr.set_device_type("TT")
 
     # Create model args with a single layer for testing

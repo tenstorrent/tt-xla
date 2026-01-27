@@ -14,16 +14,13 @@ from modeling_deepseek import DeepseekV3ForCausalLM
 
 from tests.utils import failed_ttmlir_compilation
 
-# Add the kimi-k2 directory to the path so we can import the modules
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 
 @pytest.mark.xfail(
     reason=failed_ttmlir_compilation(
         "'ttir.concat' op Output tensor dimension 0 does not match the sum of input tensor dimensions: 1 vs. 32. "
     )
 )
-def test_kimi_k2():
+def test_kimi_k2_single_layer():
     xr.set_device_type("TT")
 
     # Create model config with a single layer for testing
