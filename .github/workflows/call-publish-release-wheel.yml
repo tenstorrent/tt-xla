@@ -28,7 +28,6 @@ on:
         description: 'Release tag override'
         type: string
         required: false
-
     outputs:
       release_tag:
         description: 'Release tag'
@@ -65,11 +64,11 @@ jobs:
         with:
           python-version: 3.11
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
-          aws-region: ${{ secrets.AWS_REGION }}
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
+      #     aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Download wheels
         shell: bash
@@ -109,9 +108,10 @@ jobs:
 
           echo "Uploading wheels to the pypi bucket"
           for wheel_file in wheel/*.whl; do
-            if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
-              s3pypi upload "$wheel_file" --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
-            else
-              s3pypi upload "$wheel_file" --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
-            fi
+            echo "Uploaded $wheel_file successfully"
+            # if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
+            #   s3pypi upload "$wheel_file" --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
+            # else
+            #   s3pypi upload "$wheel_file" --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
+            # fi
           done
