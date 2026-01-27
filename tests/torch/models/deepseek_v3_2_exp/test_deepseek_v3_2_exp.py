@@ -16,10 +16,7 @@ from modeling_deepseek_v3_2_exp import ModelArgs, Transformer
 # 3. Avoid torch.view_as_complex/view_as_real operations
 
 
-@pytest.mark.xfail(
-    reason="TT_THROW: Statically allocated circular buffers on core range [(x=7,y=6) - (x=7,y=6)] grow to 16897152 B which is beyond max L1 size of 1499136 B"
-)
-def test_deepseek_transformer_non_complex():
+def test_deepseek_transformer():
     xr.set_device_type("TT")
 
     # Create model args with a single layer for testing
