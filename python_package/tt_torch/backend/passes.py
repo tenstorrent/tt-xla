@@ -219,7 +219,6 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
                 and node.args[0].meta["tensor_meta"].dtype == node.meta["tensor_meta"].dtype
             )
             if is_redundant_cast or is_unwanted_dtype_promotion:
-                print(f"[Bypass Dtype Cast] Removing _to_copy cast to {node.meta['tensor_meta'].dtype} in node {node.name}")
                 node.replace_all_uses_with(node.args[0])
                 removed_non_redundant_casts |= is_unwanted_dtype_promotion
 
