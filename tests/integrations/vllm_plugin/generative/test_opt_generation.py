@@ -30,6 +30,7 @@ def test_opt_generation():
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 def test_opt_generation_multibatch():
     prompts = [
         "Hello, my name is",
