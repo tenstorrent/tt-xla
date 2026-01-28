@@ -160,7 +160,7 @@ jobs:
 
         echo "=== Installing wheel ==="
         source venv/activate
-        pip install wheels/*.whl
+        uv pip install wheels/*.whl
 
     - name: Download and setup alchemist library
       shell: bash
@@ -331,8 +331,9 @@ jobs:
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
-          $(pwd)/venv/bin/pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
-          pip freeze
+          command -v uv &> /dev/null && PIP="uv pip" || PIP="pip"
+          uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
+          uv pip freeze
         fi
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
@@ -343,8 +344,8 @@ jobs:
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
-          $(pwd)/venv/bin/pip uninstall -y vllm transformers
-          $(pwd)/venv/bin/pip install -r $(pwd)/venv/requirements-dev.txt
+          uv pip uninstall -y vllm transformers
+          uv pip install -r $(pwd)/venv/requirements-dev.txt
         fi
 
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
