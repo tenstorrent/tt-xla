@@ -8,8 +8,22 @@ from typing import Literal, Optional, Tuple
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
-from kernel import act_quant, fp8_gemm, fp8_index
 from torch import nn
+
+
+# from kernel import act_quant, fp8_gemm, fp8_index
+# Stub implementations for when tilelang/CUDA is not available
+def act_quant(x, block_size=128, scale_fmt=None):
+    raise NotImplementedError("act_quant requires tilelang with CUDA support")
+
+
+def fp8_gemm(a, a_s, b, b_s):
+    raise NotImplementedError("fp8_gemm requires tilelang with CUDA support")
+
+
+def fp8_index(q, q_s, k, k_s):
+    raise NotImplementedError("fp8_index requires tilelang with CUDA support")
+
 
 world_size = 1
 rank = 0
@@ -449,37 +463,71 @@ def apply_rotary_emb(
     x: torch.Tensor, freqs_cis: torch.Tensor, interleaved: bool = True
 ) -> torch.Tensor:
     """
-    Applies rotary positional embeddings to the input tensor.
+    Applies rotary positional embeddings using real arithmetic instead of complex operations.
 
     Args:
         x (torch.Tensor): Input tensor with positional embeddings to be applied.
         freqs_cis (torch.Tensor): Precomputed complex exponential values for positional embeddings.
+                                 Can be complex tensor or real tensor with last dim [real, imag].
 
     Returns:
         torch.Tensor: Tensor with rotary embeddings applied.
     """
     dtype = x.dtype
     shape = x.shape
+
     if not interleaved:
         x = x.view(*shape[:-1], 2, -1).transpose(-1, -2).contiguous()
-    x = torch.view_as_complex(x.float().view(*shape[:-1], -1, 2))
-    freqs_cis = freqs_cis.view(1, x.size(1), 1, x.size(-1))
-    y = torch.view_as_real(x * freqs_cis).flatten(3)
+
+    # Reshape x to [..., pairs, 2] where last dim is [real, imag]
+    x = x.float().view(*shape[:-1], -1, 2)
+    x_real = x[..., 0]  # [..., pairs]
+    x_imag = x[..., 1]  # [..., pairs]
+
+    # Handle freqs_cis format
+    if freqs_cis.dtype.is_complex:
+        # Convert complex to real format
+        freqs_cis_real_format = torch.view_as_real(freqs_cis)
+    else:
+        freqs_cis_real_format = freqs_cis
+
+    # Reshape freqs_cis to match x dimensions
+    freqs_cis_real_format = freqs_cis_real_format.view(1, x.size(1), 1, x.size(-2), 2)
+    cos_vals = freqs_cis_real_format[..., 0]  # [..., pairs]
+    sin_vals = freqs_cis_real_format[..., 1]  # [..., pairs]
+
+    # Manual complex multiplication: (a + bi) * (c + di) = (ac - bd) + (ad + bc)i
+    y_real = x_real * cos_vals - x_imag * sin_vals
+    y_imag = x_real * sin_vals + x_imag * cos_vals
+
+    # Stack back to [..., pairs, 2] and flatten
+    y = torch.stack([y_real, y_imag], dim=-1).flatten(-2)
+
     if not interleaved:
         y = torch.cat([y[..., 0::2], y[..., 1::2]], dim=-1)
+
     return y.to(dtype)
 
 
 def rotate_activation(x: torch.Tensor) -> torch.Tensor:
     assert x.dtype == torch.bfloat16
-    from fast_hadamard_transform import hadamard_transform
-
+    # from fast_hadamard_transform import hadamard_transform
     hidden_size = x.size(-1)
-    return hadamard_transform(x, scale=hidden_size**-0.5)
+    import scipy
+
+    a = (
+        torch.tensor(scipy.linalg.hadamard(hidden_size), dtype=torch.bfloat16)
+        * (hidden_size**-0.5)
+    ).to("xla")
+    b = F.linear(x, a)
+    return b
+    # from fast_hadamard_transform import hadamard_transform
+    # hidden_size = x.size(-1)
+    # return hadamard_transform(x, scale=hidden_size ** -0.5)
 
 
 class Indexer(torch.nn.Module):
-    def __init__(self, args: ModelArgs):
+    def __init__(self, args: ModelArgs, haddamard_matrix):
         super().__init__()
         self.dim: int = args.dim
         self.n_heads: int = args.index_n_heads
@@ -495,6 +543,9 @@ class Indexer(torch.nn.Module):
         self.weights_proj = Linear(self.dim, self.n_heads, dtype=torch.float32)
         self.softmax_scale = self.head_dim**-0.5
         self.scale_fmt = args.scale_fmt
+
+        # Register Hadamard matrix as a buffer so it moves with the model to the correct device
+        self.register_buffer("haddamard", haddamard_matrix, persistent=False)
 
         self.register_buffer(
             "k_cache",
@@ -543,28 +594,43 @@ class Indexer(torch.nn.Module):
         # rope in indexer is not interleaved
         k_pe = apply_rotary_emb(k_pe.unsqueeze(2), freqs_cis, False).squeeze(2)
         k = torch.cat([k_pe, k_nope], dim=-1)
-        q = rotate_activation(q)
-        k = rotate_activation(k)
-        q_fp8, q_scale = act_quant(q, block_size, self.scale_fmt)
-        k_fp8, k_scale = act_quant(k, block_size, self.scale_fmt)
-        self.k_cache[:bsz, start_pos:end_pos] = k_fp8
-        self.k_scale_cache[:bsz, start_pos:end_pos] = k_scale
+        # q = rotate_activation(q)
+        q = F.linear(
+            q, self.haddamard
+        )  ###Haddamard matrix is precomputed and passed from outside
+        # k = rotate_activation(k)
+        k = F.linear(
+            k, self.haddamard
+        )  ###Haddamard matrix is precomputed and passed from outside
+
+        # For now, skip FP8 quantization in BF16 mode - just use the values directly
+        # This is a simplified version that won't work in actual FP8 deployment
+        # TODO: Implement proper indexer logic for BF16 mode
+        # In the original code, these would be quantized:
+        # q_fp8, q_scale = act_quant(q, block_size, self.scale_fmt)
+        # k_fp8, k_scale = act_quant(k, block_size, self.scale_fmt)
+
+        # For now, return a simple topk without the full indexer logic
+        # This is a placeholder until proper BF16 indexer support is added
+        bsz, seqlen, n_heads, head_dim = q.shape
+        end_pos = start_pos + seqlen
+
+        # Simple dot product scoring (placeholder)
+        # In full implementation, this would use fp8_index with quantized values
         weights = self.weights_proj(x.float()) * self.n_heads**-0.5
-        weights = weights.unsqueeze(-1) * q_scale * self.softmax_scale
-        index_score = fp8_index(
-            q_fp8.contiguous(),
-            weights,
-            self.k_cache[:bsz, :end_pos].contiguous(),
-            self.k_scale_cache[:bsz, :end_pos].contiguous(),
+
+        # Return dummy topk indices for now
+        # TODO: Implement proper indexing logic for BF16 mode
+        topk_indices = torch.zeros(
+            bsz,
+            seqlen,
+            min(self.index_topk, end_pos),
+            dtype=torch.long,
+            device=x.device,
         )
-        if mask is not None:
-            index_score += mask
-        topk_indices = index_score.topk(min(self.index_topk, end_pos), dim=-1)[1]
-        topk_indices_ = topk_indices.clone()
-        dist.broadcast(topk_indices_, src=0)
-        assert torch.all(
-            topk_indices == topk_indices_
-        ), f"{topk_indices=} {topk_indices_=}"
+        for i in range(min(self.index_topk, end_pos)):
+            topk_indices[:, :, i] = i
+
         return topk_indices
 
 
@@ -607,7 +673,7 @@ class MLA(nn.Module):
         softmax_scale (float): Scaling factor for softmax in attention computation.
     """
 
-    def __init__(self, args: ModelArgs):
+    def __init__(self, args: ModelArgs, haddamard_matrix):
         super().__init__()
         self.dim = args.dim
         self.n_heads = args.n_heads
@@ -632,11 +698,15 @@ class MLA(nn.Module):
         self.wo = RowParallelLinear(self.n_heads * self.v_head_dim, self.dim)
         self.softmax_scale = self.qk_head_dim**-0.5
         self.scale_fmt = args.scale_fmt
+        self.dtype = args.dtype
         if args.max_seq_len > args.original_seq_len:
             mscale = 0.1 * args.mscale * math.log(args.rope_factor) + 1.0
             self.softmax_scale = self.softmax_scale * mscale * mscale
 
-        self.indexer = Indexer(args)
+        self.indexer = (
+            Indexer(args, haddamard_matrix) if args.index_n_heads > 0 else None
+        )
+        self.register_buffer("hadamard_matrix", haddamard_matrix, persistent=False)
 
         self.register_buffer(
             "kv_cache",
@@ -683,12 +753,13 @@ class MLA(nn.Module):
         kv = self.kv_norm(kv)
         k_pe = apply_rotary_emb(k_pe.unsqueeze(2), freqs_cis)
         # we use fp8 kv cache in actual deployment, so here we simulate the precision by casting kv to fp8 and then back to bf16.
-        kv_fp8, kv_scale = act_quant(kv, block_size, self.scale_fmt)
-        kv = (
-            (kv_fp8.view(-1, block_size).float() * kv_scale.view(-1, 1))
-            .to(kv.dtype)
-            .view_as(kv)
-        )
+        if self.dtype == "fp8":
+            kv_fp8, kv_scale = act_quant(kv, block_size, self.scale_fmt)
+            kv = (
+                (kv_fp8.view(-1, block_size).float() * kv_scale.view(-1, 1))
+                .to(kv.dtype)
+                .view_as(kv)
+            )
         self.kv_cache[:bsz, start_pos:end_pos] = kv
         self.pe_cache[:bsz, start_pos:end_pos] = k_pe.squeeze(2)
         if mask is not None:  # MHA prefill
@@ -704,12 +775,13 @@ class MLA(nn.Module):
             scores = torch.einsum("bshd,bthd->bsht", q, k).mul_(self.softmax_scale)
 
             # indexer
-            topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
-            index_mask = torch.full(
-                (bsz, seqlen, seqlen), float("-inf"), device=x.device
-            ).scatter_(-1, topk_indices, 0)
-            index_mask += mask
-            scores += index_mask.unsqueeze(2)
+            if self.indexer is not None:
+                topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
+                index_mask = torch.full(
+                    (bsz, seqlen, seqlen), float("-inf"), device=x.device
+                ).scatter_(-1, topk_indices, 0)
+                index_mask += mask
+                scores += index_mask.unsqueeze(2)
 
             scores = scores.softmax(dim=-1)
             x = torch.einsum("bsht,bthd->bshd", scores, v)
@@ -729,11 +801,12 @@ class MLA(nn.Module):
             ) * self.softmax_scale
 
             # indexer
-            topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
-            index_mask = torch.full(
-                (bsz, 1, end_pos), float("-inf"), device=x.device
-            ).scatter_(-1, topk_indices, 0)
-            scores += index_mask.unsqueeze(2)
+            if self.indexer is not None:
+                topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
+                index_mask = torch.full(
+                    (bsz, 1, end_pos), float("-inf"), device=x.device
+                ).scatter_(-1, topk_indices, 0)
+                scores += index_mask.unsqueeze(2)
 
             scores = scores.softmax(dim=-1)
             x = torch.einsum("bsht,btc->bshc", scores, self.kv_cache[:bsz, :end_pos])
@@ -973,16 +1046,17 @@ class Block(nn.Module):
         ffn_norm (nn.Module): Layer normalization for feed-forward network.
     """
 
-    def __init__(self, layer_id: int, args: ModelArgs):
+    def __init__(self, layer_id: int, args: ModelArgs, hadamard_matrix: torch.Tensor):
         """
         Initializes the Transformer block.
 
         Args:
             layer_id (int): Layer index in the transformer.
             args (ModelArgs): Model arguments containing block parameters.
+            hadamard_matrix (torch.Tensor): Precomputed Hadamard matrix.
         """
         super().__init__()
-        self.attn = MLA(args)
+        self.attn = MLA(args, hadamard_matrix)
         self.ffn = (
             MLP(args.dim, args.inter_dim)
             if layer_id < args.n_dense_layers
@@ -1034,12 +1108,15 @@ class Transformer(nn.Module):
         freqs_cis (torch.Tensor): Precomputed complex exponential values for rotary embeddings.
     """
 
-    def __init__(self, args: ModelArgs):
+    def __init__(self, args: ModelArgs, freqs_cis_path: Optional[str] = None):
         """
         Initializes the Transformer model.
 
         Args:
             args (ModelArgs): Model arguments containing transformer parameters.
+            freqs_cis_path (Optional[str]): Path to precomputed freqs_cis file.
+                If None, freqs_cis will be computed on the fly.
+                Can be either complex format (.pt) or real format (_real.pt).
         """
         global world_size, rank
         world_size = dist.get_world_size() if dist.is_initialized() else 1
@@ -1049,15 +1126,44 @@ class Transformer(nn.Module):
         super().__init__()
         self.max_seq_len = args.max_seq_len
         self.embed = ParallelEmbedding(args.vocab_size, args.dim)
+
+        # Generate Hadamard matrix once and register as a buffer so it moves with the model
+        hidden_size = args.index_head_dim
+        import scipy.linalg
+
+        hadamard_matrix = torch.tensor(
+            scipy.linalg.hadamard(hidden_size), dtype=torch.bfloat16
+        ) * (hidden_size**-0.5)
+
+        # Register as a buffer so it's part of the model's state and moves to device
+        self.register_buffer("hadamard_matrix", hadamard_matrix, persistent=False)
+
         self.layers = torch.nn.ModuleList()
         for layer_id in range(args.n_layers):
-            self.layers.append(Block(layer_id, args))
+            self.layers.append(Block(layer_id, args, self.hadamard_matrix))
         self.norm = RMSNorm(args.dim)
         # lm_head in the checkpoint is stored in bf16, while the parameter here is stored in fp32 for easier computation of logits later.
         self.head = ColumnParallelLinear(args.dim, args.vocab_size, dtype=torch.float32)
-        self.register_buffer("freqs_cis", precompute_freqs_cis(args), persistent=False)
 
-    @torch.inference_mode()
+        # Load or compute freqs_cis
+        if freqs_cis_path is not None:
+            import os
+
+            if not os.path.exists(freqs_cis_path):
+                raise FileNotFoundError(f"freqs_cis file not found: {freqs_cis_path}")
+            print(f"Loading precomputed freqs_cis from {freqs_cis_path}")
+            freqs_cis = torch.load(freqs_cis_path)
+            # Convert to real format if it's complex
+            if freqs_cis.dtype.is_complex:
+                freqs_cis = torch.view_as_real(freqs_cis)
+            print(f"Loaded freqs_cis with shape {freqs_cis.shape}")
+        else:
+            print("Computing freqs_cis on the fly")
+            freqs_cis_complex = precompute_freqs_cis(args)
+            freqs_cis = torch.view_as_real(freqs_cis_complex)
+
+        self.register_buffer("freqs_cis", freqs_cis, persistent=False)
+
     def forward(self, tokens: torch.Tensor, start_pos: int = 0):
         """
         Forward pass for the Transformer model.

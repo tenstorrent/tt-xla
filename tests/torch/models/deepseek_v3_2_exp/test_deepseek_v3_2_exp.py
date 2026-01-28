@@ -8,18 +8,23 @@ import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
-from model import ModelArgs, Transformer
+from modified_model import ModelArgs
+from modified_model import Transformer as ModifiedTransformer
+
+from tests.utils import failed_ttmlir_compilation
 
 # This model is modified from the original deepseek_v3_2_exp model.py to:
 # 1. Use scipy.linalg.hadamard instead of fast_hadamard_transform
+#    - fast_hadamard_transform requires a CUDA enviroment and fails to install
 # 2. Disable FP8 quantization features (act_quant, fp8_gemm, fp8_index) with stubs
+#    - the original implementation (kernel.py) relies on custom tilelang kernels not supported on TT
 # 3. Avoid torch.view_as_complex/view_as_real operations
 
 
 @pytest.mark.xfail(
     reason="TT_THROW: Statically allocated circular buffers on core range [(x=7,y=6) - (x=7,y=6)] grow to 16897152 B which is beyond max L1 size of 1499136 B"
 )
-def test_deepseek_transformer_single_layer():
+def test_deepseek_modified_transformer_single_layer():
     xr.set_device_type("TT")
 
     # Create model args with a single layer for testing
@@ -28,7 +33,7 @@ def test_deepseek_transformer_single_layer():
         q_lora_rank=3072,
     )
 
-    model = Transformer(args)
+    model = ModifiedTransformer(args)
 
     model = model.to(torch.bfloat16)
 
@@ -46,3 +51,43 @@ def test_deepseek_transformer_single_layer():
     with torch.no_grad():
         output = compiled_model(tokens)
         output.to("cpu")
+
+
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "error: failed to legalize operation 'stablehlo.constant'"
+    )
+)
+def test_deepseek_complex_rotary_emb():
+    xr.set_device_type("TT")
+
+    # apply_rotary_emb function copied from model.py
+    def apply_rotary_emb(
+        x: torch.Tensor, freqs_cis: torch.Tensor, interleaved: bool = True
+    ) -> torch.Tensor:
+        dtype = x.dtype
+        shape = x.shape
+        if not interleaved:
+            x = x.view(*shape[:-1], 2, -1).transpose(-1, -2).contiguous()
+        x = torch.view_as_complex(x.float().view(*shape[:-1], -1, 2))
+        freqs_cis = freqs_cis.view(1, x.size(1), 1, x.size(-1))
+        y = torch.view_as_real(x * freqs_cis).flatten(3)
+        if not interleaved:
+            y = torch.cat([y[..., 0::2], y[..., 1::2]], dim=-1)
+        return y.to(dtype)
+
+    compiled_apply_rotary_emb = torch.compile(apply_rotary_emb, backend="tt")
+
+    batch_size = 2
+    seq_len = 16
+    dim = 64
+    n_heads = 4
+    head_dim = dim // n_heads
+
+    x = torch.randn(
+        batch_size, seq_len, n_heads, head_dim, device="xla", dtype=torch.bfloat16
+    )
+    freqs_cis = torch.randn(seq_len, head_dim // 2, device="xla", dtype=torch.complex64)
+
+    y = compiled_apply_rotary_emb(x, freqs_cis, interleaved=True)
+    assert y.shape == x.shape
