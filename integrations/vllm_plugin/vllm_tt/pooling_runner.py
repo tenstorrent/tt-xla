@@ -281,7 +281,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Setup for parallel execution.
         if self.enable_tensor_parallel or self.enable_data_parallel:
             mesh_shape = (self.num_devices, 1)
-            device_ids = np.array(range(self.num_devices))
+            device_ids = torch.arange(self.num_devices, dtype=torch.int64).numpy()
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
 
         self.enforce_eager = model_config.enforce_eager
@@ -426,7 +426,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.positions_cpu = torch.zeros(
             (self.batch_size, self.max_num_tokens), dtype=torch.int32, device="cpu"
         )
-        self.positions_np = self.positions_cpu.numpy()
         # adjust num_reqs to avoid SMEM OOM.
         self.num_reqs_most_model_len = (
             min(
@@ -448,7 +447,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             device="cpu",
             pin_memory=self.pin_memory,
         )
-        self.query_start_loc_np = self.query_start_loc_cpu.numpy()
 
         self.seq_lens_cpu = torch.zeros(
             self.max_num_tokens,
@@ -456,7 +454,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             device="cpu",
             pin_memory=self.pin_memory,
         )
-        self.seq_lens_np = self.seq_lens_cpu.numpy()
 
         # Only relevant for multimodal models
         if self.supports_mm_inputs:
@@ -470,7 +467,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Range tensor with values [0 .. self.max_num_tokens - 1].
         # Used to initialize positions / context_lens / seq_lens
         # Keep in int64 to avoid overflow with long context
-        self.arange_np = np.arange(self.max_num_tokens, dtype=np.int64)
+        self.arange_torch = torch.arange(
+            self.max_num_tokens, dtype=torch.int64, device="cpu"
+        )
         self.num_reqs_paddings = _get_req_paddings(
             min_req_size=MIN_NUM_SEQS, max_req_size=self.max_num_reqs
         )
@@ -659,7 +658,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 continue
 
             # Update the persistent batch.
-            self.input_batch.num_computed_tokens_cpu[req_index] = num_computed_tokens
+            self.input_batch.num_computed_tokens_cpu_tensor[req_index] = (
+                num_computed_tokens
+            )
             if new_block_ids is not None:
                 self.input_batch.block_table.append_row(new_block_ids, req_index)
 
@@ -826,10 +827,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else:
                 end_index = num_reqs
         max_num_scheduled_tokens_all_reqs = max(num_scheduled_tokens_per_req)
-        num_scheduled_tokens_per_req = np.array(
-            num_scheduled_tokens_per_req, dtype=np.int32
+        num_scheduled_tokens_per_req = torch.tensor(
+            num_scheduled_tokens_per_req, dtype=torch.int32, device="cpu"
         )
-        total_num_scheduled_tokens = sum(num_scheduled_tokens_per_req)
+        total_num_scheduled_tokens = int(num_scheduled_tokens_per_req.sum())
         assert max_num_scheduled_tokens_all_reqs > 0
 
         num_reqs = len(num_scheduled_tokens_per_req)
@@ -849,26 +850,23 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Get request indices.
             # E.g., [2, 5, 3] -> [[0, 0, 1, 1, 1, 1, 1, 2, 2, 2]]
             # For each scheduled token, what are the corresponding req index.
-            req_indices = np.repeat(
-                self.arange_np[:num_reqs], num_scheduled_tokens_per_req
-            )[None, :]
+            req_indices = torch.repeat_interleave(
+                self.arange_torch[:num_reqs], num_scheduled_tokens_per_req
+            ).unsqueeze(0)
 
             # Get batched arange.
             # E.g., [2, 5, 3] -> [[0, 1, 0, 1, 2, 3, 4, 0, 1, 2]]
             # For each scheduled token, what is its position in corresponding req.
-            arange = np.concatenate(
-                [self.arange_np[:n] for n in num_scheduled_tokens_per_req]
-            )[None, :]
+            arange = torch.cat(
+                [self.arange_torch[:n] for n in num_scheduled_tokens_per_req.tolist()]
+            ).unsqueeze(0)
 
-            # Get positions. Numpy slice returns a view so self.positions_np is
-            # updated in place.
-            positions_np = self.positions_np[
+            # Get positions using torch operations
+            positions_slice = self.positions_cpu[
                 : self.batch_size, :total_num_scheduled_tokens
             ]
-            np.add(
-                self.input_batch.num_computed_tokens_cpu[req_indices],
-                arange,
-                out=positions_np,
+            positions_slice.copy_(
+                self.input_batch.num_computed_tokens_cpu_tensor[req_indices] + arange
             )
             # Get token indices.
             # E.g., [[0, 1, 0, 1, 2, 3, 4, 0, 1, 2]]
@@ -876,7 +874,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # where M is the max_model_len.
             # Fused Inputs
             token_indices = (
-                positions_np + req_indices * self.input_batch.token_ids_cpu.shape[1]
+                positions_slice + req_indices * self.input_batch.token_ids_cpu.shape[1]
             )
 
             # NOTE(woosuk): We use torch.index_select instead of np.take here
@@ -886,7 +884,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             torch.index_select(
                 self.input_batch.token_ids_cpu_tensor.flatten(),
                 0,
-                torch.from_numpy(token_indices[0]),
+                token_indices[0],
                 out=self.input_ids_cpu[0, :total_num_scheduled_tokens],
             )
 
@@ -906,8 +904,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask_batch_size = 1
         else:
             # Create zero tensor of shape [num_reqs x max_token_len] for position tensor.
-            arange = np.zeros(
-                (num_reqs, max_num_scheduled_tokens_all_reqs), dtype=np.int32
+            arange = torch.zeros(
+                (num_reqs, max_num_scheduled_tokens_all_reqs),
+                dtype=torch.int32,
+                device="cpu",
             )
 
             # Get batched arange; padded with zero.
@@ -915,9 +915,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             #                     [0, 1, 2, 3, 4],
             #                     [0, 1, 2, 0, 0]]
             # For each scheduled token, what is its position in corresponding req.
-            for i, n in enumerate(num_scheduled_tokens_per_req):
-                arange[i, :n] = np.arange(n, dtype=np.int32)
-            arange = torch.from_numpy(arange)
+            for i, n in enumerate(num_scheduled_tokens_per_req.tolist()):
+                arange[i, :n] = torch.arange(n, dtype=torch.int32)
 
             self.input_ids_cpu = self.input_batch.token_ids_cpu_tensor[
                 :, :max_num_scheduled_tokens_all_reqs
@@ -966,15 +965,17 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.position_ids = arange.to(self.device)
 
         # Prepare the attention metadata.
-        self.query_start_loc_np[0] = 0
-        np.cumsum(
-            num_scheduled_tokens_per_req, out=self.query_start_loc_np[1 : num_reqs + 1]
+        self.query_start_loc_cpu[0] = 0
+        torch.cumsum(
+            num_scheduled_tokens_per_req,
+            dim=0,
+            out=self.query_start_loc_cpu[1 : num_reqs + 1],
         )
-        self.query_start_loc_np[num_reqs + 1 :] = 1
+        self.query_start_loc_cpu[num_reqs + 1 :] = 1
 
-        self.seq_lens_np.fill(0)
-        self.seq_lens_np[:num_reqs] = (
-            self.input_batch.num_computed_tokens_cpu[:num_reqs]
+        self.seq_lens_cpu.fill_(0)
+        self.seq_lens_cpu[:num_reqs] = (
+            self.input_batch.num_computed_tokens_cpu_tensor[:num_reqs]
             + num_scheduled_tokens_per_req
         )
 
@@ -985,9 +986,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
-            padded_num_scheduled_tokens_per_req = np.copy(
-                num_scheduled_tokens_per_req
-            )  # Copying to avoid accidental state corruption bugs
+            # Copying to avoid accidental state corruption bugs
+            padded_num_scheduled_tokens_per_req = num_scheduled_tokens_per_req.clone()
             padded_num_scheduled_tokens_per_req[-1] += (
                 padded_total_num_scheduled_tokens - total_num_scheduled_tokens
             )
@@ -1036,9 +1036,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
-            padded_num_scheduled_tokens_per_req = np.copy(
-                num_scheduled_tokens_per_req
-            )  # Copying to avoid accidental state corruption bugs
+            padded_num_scheduled_tokens_per_req = num_scheduled_tokens_per_req.clone()
+            # Copying to avoid accidental state corruption bugs
             padded_num_scheduled_tokens_per_req[-1] += (
                 padded_total_num_scheduled_tokens - total_num_scheduled_tokens
             )
@@ -1502,7 +1501,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         }
 
         with self.maybe_select_dummy_loras(
-            self.lora_config, np.array([num_tokens], dtype=np.int32)
+            self.lora_config,
+            torch.tensor([num_tokens], dtype=torch.int32, device="cpu"),
         ), set_forward_context(per_layer_attn_metadata, self.vllm_config, 0):
             out = self.model(
                 input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
@@ -1675,11 +1675,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         return
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
         device = hidden_states.device
-        indices_do_sample = indices_do_sample.to("cpu")
-        hidden_states = hidden_states.to("cpu")
+        indices_do_sample = indices_do_sample.to(device)
+        hidden_states = hidden_states.to(device)
         return hidden_states[indices_do_sample].to(device)
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -1783,6 +1783,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.grammar_bitmask_cpu.zero_()
         self.require_structured_out_cpu.zero_()
 
+        # Convert grammar_bitmask to torch tensor (handles both numpy and torch efficiently)
+        grammar_bitmask_tensor = torch.as_tensor(grammar_bitmask, device="cpu")
+
         sorted_struct_requests = sorted(
             scheduler_output.structured_output_request_ids.items(),
             key=lambda item: item[1],
@@ -1792,9 +1795,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if req_id not in self.input_batch.req_id_to_index:
                 continue
             batch_index = self.input_batch.req_id_to_index[req_id]
-            self.grammar_bitmask_cpu[batch_index] = torch.from_numpy(
-                grammar_bitmask[cumulative_mask_idx]
-            )
+            self.grammar_bitmask_cpu[batch_index] = grammar_bitmask_tensor[
+                cumulative_mask_idx
+            ]
             # It's not guaranteed that all requests in this batch require
             # structured output, so create a bool tensor to represent
             # the requests that need structured output.

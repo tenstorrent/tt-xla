@@ -4,7 +4,6 @@
 
 from typing import Optional, cast
 
-import numpy as np
 import torch
 from vllm.lora.request import LoRARequest
 from vllm.pooling_params import PoolingParams
@@ -59,25 +58,26 @@ class InputBatch:
             dtype=torch.int32,
             pin_memory=False,
         )
-        self.token_ids_cpu = self.token_ids_cpu_tensor.numpy()
         self.is_token_ids_tensor = torch.zeros(
             (max_num_reqs, max_model_len), device="cpu", dtype=bool, pin_memory=False
         )
-        self.is_token_ids = self.is_token_ids_tensor.numpy()
         # Store prompt embeddings per request to avoid OOM from large upfront
         # allocation if max_model_len is big.
         # Maps req_index -> tensor of shape (num_prompt_tokens, hidden_size)
         self.req_prompt_embeds: dict[int, torch.Tensor] = {}
-        self.num_tokens = np.zeros(max_num_reqs, dtype=np.int32)
-        self.num_tokens_no_spec = np.zeros(max_num_reqs, dtype=np.int32)
-        self.num_prompt_tokens = np.zeros(max_num_reqs, dtype=np.int32)
+        self.num_tokens = torch.zeros(max_num_reqs, dtype=torch.int32, device="cpu")
+        self.num_tokens_no_spec = torch.zeros(
+            max_num_reqs, dtype=torch.int32, device="cpu"
+        )
+        self.num_prompt_tokens = torch.zeros(
+            max_num_reqs, dtype=torch.int32, device="cpu"
+        )
         self.num_computed_tokens_cpu_tensor = torch.zeros(
             (max_num_reqs,),
             device="cpu",
             dtype=torch.int32,
             pin_memory=pin_memory,
         )
-        self.num_computed_tokens_cpu = self.num_computed_tokens_cpu_tensor.numpy()
 
         # Block table.
         self.block_table = MultiGroupBlockTable(
@@ -99,7 +99,6 @@ class InputBatch:
         self.temperature_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
         )
-        self.temperature_cpu = self.temperature_cpu_tensor.numpy()
         self.greedy_reqs: set[str] = set()
         self.random_reqs: set[str] = set()
 
@@ -107,21 +106,18 @@ class InputBatch:
         self.top_p_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
         )
-        self.top_p_cpu = self.top_p_cpu_tensor.numpy()
         self.top_p_reqs: set[str] = set()
 
         self.top_k = torch.empty((max_num_reqs,), dtype=torch.int32, device=device)
         self.top_k_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.int32, device="cpu", pin_memory=pin_memory
         )
-        self.top_k_cpu = self.top_k_cpu_tensor.numpy()
         self.top_k_reqs: set[str] = set()
 
         self.min_p = torch.empty((max_num_reqs,), dtype=torch.float32, device=device)
         self.min_p_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
         )
-        self.min_p_cpu = self.min_p_cpu_tensor.numpy()
         self.min_p_reqs: set[str] = set()
 
         # Frequency penalty related data structures
@@ -131,7 +127,6 @@ class InputBatch:
         self.frequency_penalties_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float, device="cpu", pin_memory=pin_memory
         )
-        self.frequency_penalties_cpu = self.frequency_penalties_cpu_tensor.numpy()
         self.frequency_penalties_reqs: set[str] = set()
 
         # Presence penalty related data structures
@@ -141,7 +136,6 @@ class InputBatch:
         self.presence_penalties_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float, device="cpu", pin_memory=pin_memory
         )
-        self.presence_penalties_cpu = self.presence_penalties_cpu_tensor.numpy()
         self.presence_penalties_reqs: set[str] = set()
 
         # Repetition penalty related data structures
@@ -151,17 +145,17 @@ class InputBatch:
         self.repetition_penalties_cpu_tensor = torch.empty(
             (max_num_reqs,), dtype=torch.float, device="cpu", pin_memory=pin_memory
         )
-        self.repetition_penalties_cpu = self.repetition_penalties_cpu_tensor.numpy()
         self.repetition_penalties_reqs: set[str] = set()
 
         # Speculative decoding
         self.num_accepted_tokens_cpu_tensor = torch.ones(
             (max_num_reqs,), dtype=torch.int64, device="cpu", pin_memory=pin_memory
         )
-        self.num_accepted_tokens_cpu = self.num_accepted_tokens_cpu_tensor.numpy()
 
         # lora related
-        self.request_lora_mapping = np.zeros((self.max_num_reqs,), dtype=np.int64)
+        self.request_lora_mapping = torch.zeros(
+            (self.max_num_reqs,), dtype=torch.int64, device="cpu"
+        )
         self.lora_id_to_request_ids: dict[int, set[str]] = {}
         self.lora_id_to_lora_request: dict[int, LoRARequest] = {}
 
@@ -188,7 +182,9 @@ class InputBatch:
         # req_index -> bad_words_token_ids
         self.bad_words_token_ids: dict[int, list[list[int]]] = {}
 
-        self.logits_processing_needs_token_ids = np.zeros(max_num_reqs, dtype=bool)
+        self.logits_processing_needs_token_ids = torch.zeros(
+            max_num_reqs, dtype=torch.bool, device="cpu"
+        )
 
         self.req_output_token_ids: list[Optional[list[int]]] = []
 
@@ -239,17 +235,21 @@ class InputBatch:
         # TODO: copy prompt_embeds
         num_prompt_tokens = len(request.prompt_token_ids)
         self.num_prompt_tokens[req_index] = num_prompt_tokens
-        self.token_ids_cpu[req_index, :num_prompt_tokens] = request.prompt_token_ids
+        self.token_ids_cpu_tensor[req_index, :num_prompt_tokens] = (
+            request.prompt_token_ids
+        )
         start_idx = num_prompt_tokens
         end_idx = start_idx + len(request.output_token_ids)
-        self.token_ids_cpu[req_index, start_idx:end_idx] = request.output_token_ids
+        self.token_ids_cpu_tensor[req_index, start_idx:end_idx] = (
+            request.output_token_ids
+        )
         # Number of token ids in token_ids_cpu.
         # NOTE(woosuk): This may include spec decode tokens.
         self.num_tokens[req_index] = request.num_tokens
         # Number of tokens without spec decode tokens.
         self.num_tokens_no_spec[req_index] = request.num_tokens
 
-        self.num_computed_tokens_cpu[req_index] = request.num_computed_tokens
+        self.num_computed_tokens_cpu_tensor[req_index] = request.num_computed_tokens
         # Only manage block tables for models that actually need KV cache
         if len(self.block_table.block_tables) > 0:
             self.block_table.add_row(request.block_ids, req_index)
@@ -258,13 +258,13 @@ class InputBatch:
             # assert sampling_params is not None, "pooling requests not supported yet"
             if sampling_params.sampling_type == SamplingType.GREEDY:
                 # Should avoid division by zero later when apply_temperature.
-                self.temperature_cpu[req_index] = 0.0
+                self.temperature_cpu_tensor[req_index] = 0.0
                 self.greedy_reqs.add(req_id)
             else:
-                self.temperature_cpu[req_index] = sampling_params.temperature
+                self.temperature_cpu_tensor[req_index] = sampling_params.temperature
                 self.random_reqs.add(req_id)
 
-            self.top_p_cpu[req_index] = sampling_params.top_p
+            self.top_p_cpu_tensor[req_index] = sampling_params.top_p
             if sampling_params.top_p < 1:
                 self.top_p_reqs.add(req_id)
             top_k = sampling_params.top_k
@@ -272,17 +272,21 @@ class InputBatch:
                 self.top_k_reqs.add(req_id)
             else:
                 top_k = self.vocab_size
-            self.top_k_cpu[req_index] = top_k
-            self.min_p_cpu[req_index] = sampling_params.min_p
-            self.frequency_penalties_cpu[req_index] = sampling_params.frequency_penalty
+            self.top_k_cpu_tensor[req_index] = top_k
+            self.min_p_cpu_tensor[req_index] = sampling_params.min_p
+            self.frequency_penalties_cpu_tensor[req_index] = (
+                sampling_params.frequency_penalty
+            )
             if sampling_params.min_p > _SAMPLING_EPS:
                 self.min_p_reqs.add(req_id)
             if sampling_params.frequency_penalty != 0.0:
                 self.frequency_penalties_reqs.add(req_id)
-            self.presence_penalties_cpu[req_index] = sampling_params.presence_penalty
+            self.presence_penalties_cpu_tensor[req_index] = (
+                sampling_params.presence_penalty
+            )
             if sampling_params.presence_penalty != 0.0:
                 self.presence_penalties_reqs.add(req_id)
-            self.repetition_penalties_cpu[req_index] = (
+            self.repetition_penalties_cpu_tensor[req_index] = (
                 sampling_params.repetition_penalty
             )
             if sampling_params.repetition_penalty != 1.0:
@@ -440,19 +444,22 @@ class InputBatch:
             self.num_prompt_tokens[i2],
             self.num_prompt_tokens[i1],
         )
-        self.num_computed_tokens_cpu[i1], self.num_computed_tokens_cpu[i2] = (
-            self.num_computed_tokens_cpu[i2],
-            self.num_computed_tokens_cpu[i1],
+        (
+            self.num_computed_tokens_cpu_tensor[i1],
+            self.num_computed_tokens_cpu_tensor[i2],
+        ) = (
+            self.num_computed_tokens_cpu_tensor[i2],
+            self.num_computed_tokens_cpu_tensor[i1],
         )
 
         # NOTE: the following is unsafe
-        # self.token_ids_cpu[i1, ...], self.token_ids_cpu[i2, ...], =\
-        #     self.token_ids_cpu[i2, ...], self.token_ids_cpu[i1, ...]
+        # self.token_ids_cpu_tensor[i1, ...], self.token_ids_cpu_tensor[i2, ...], =\
+        #     self.token_ids_cpu_tensor[i2, ...], self.token_ids_cpu_tensor[i1, ...]
         # instead, we need to temporarily copy the data for one of the indices
         # TODO(lucas): optimize this by only copying valid indices
-        tmp = self.token_ids_cpu[i1, ...].copy()
-        self.token_ids_cpu[i1, ...] = self.token_ids_cpu[i2, ...]
-        self.token_ids_cpu[i2, ...] = tmp
+        tmp = self.token_ids_cpu_tensor[i1, ...].clone()
+        self.token_ids_cpu_tensor[i1, ...] = self.token_ids_cpu_tensor[i2, ...]
+        self.token_ids_cpu_tensor[i2, ...] = tmp
 
         # Only manage block tables for models that need KV cache
         if len(self.block_table.block_tables) > 0:
@@ -463,25 +470,43 @@ class InputBatch:
             self.request_lora_mapping[i1],
         )
 
-        self.temperature_cpu[i1], self.temperature_cpu[i2] = (
-            self.temperature_cpu[i2],
-            self.temperature_cpu[i1],
+        self.temperature_cpu_tensor[i1], self.temperature_cpu_tensor[i2] = (
+            self.temperature_cpu_tensor[i2],
+            self.temperature_cpu_tensor[i1],
         )
-        self.top_p_cpu[i1], self.top_p_cpu[i2] = self.top_p_cpu[i2], self.top_p_cpu[i1]
-        self.top_k_cpu[i1], self.top_k_cpu[i2] = self.top_k_cpu[i2], self.top_k_cpu[i1]
-        self.frequency_penalties_cpu[i1], self.frequency_penalties_cpu[i2] = (
-            self.frequency_penalties_cpu[i2],
-            self.frequency_penalties_cpu[i1],
+        self.top_p_cpu_tensor[i1], self.top_p_cpu_tensor[i2] = (
+            self.top_p_cpu_tensor[i2],
+            self.top_p_cpu_tensor[i1],
         )
-        self.presence_penalties_cpu[i1], self.presence_penalties_cpu[i2] = (
-            self.presence_penalties_cpu[i2],
-            self.presence_penalties_cpu[i1],
+        self.top_k_cpu_tensor[i1], self.top_k_cpu_tensor[i2] = (
+            self.top_k_cpu_tensor[i2],
+            self.top_k_cpu_tensor[i1],
         )
-        self.repetition_penalties_cpu[i1], self.repetition_penalties_cpu[i2] = (
-            self.repetition_penalties_cpu[i2],
-            self.repetition_penalties_cpu[i1],
+        (
+            self.frequency_penalties_cpu_tensor[i1],
+            self.frequency_penalties_cpu_tensor[i2],
+        ) = (
+            self.frequency_penalties_cpu_tensor[i2],
+            self.frequency_penalties_cpu_tensor[i1],
         )
-        self.min_p_cpu[i1], self.min_p_cpu[i2] = self.min_p_cpu[i2], self.min_p_cpu[i1]
+        (
+            self.presence_penalties_cpu_tensor[i1],
+            self.presence_penalties_cpu_tensor[i2],
+        ) = (
+            self.presence_penalties_cpu_tensor[i2],
+            self.presence_penalties_cpu_tensor[i1],
+        )
+        (
+            self.repetition_penalties_cpu_tensor[i1],
+            self.repetition_penalties_cpu_tensor[i2],
+        ) = (
+            self.repetition_penalties_cpu_tensor[i2],
+            self.repetition_penalties_cpu_tensor[i1],
+        )
+        self.min_p_cpu_tensor[i1], self.min_p_cpu_tensor[i2] = (
+            self.min_p_cpu_tensor[i2],
+            self.min_p_cpu_tensor[i1],
+        )
 
         swap_dict_values(self.generators, i1, i2)
         swap_dict_values(self.min_tokens, i1, i2)
@@ -538,17 +563,17 @@ class InputBatch:
             self.req_id_to_index[req_id] = empty_index
 
             num_tokens = self.num_tokens[last_req_index]
-            self.token_ids_cpu[empty_index, :num_tokens] = self.token_ids_cpu[
-                last_req_index, :num_tokens
-            ]
+            self.token_ids_cpu_tensor[empty_index, :num_tokens] = (
+                self.token_ids_cpu_tensor[last_req_index, :num_tokens]
+            )
             self.num_tokens[empty_index] = num_tokens
             self.num_tokens_no_spec[empty_index] = self.num_tokens_no_spec[
                 last_req_index
             ]
             self.num_prompt_tokens[empty_index] = self.num_prompt_tokens[last_req_index]
-            self.num_computed_tokens_cpu[empty_index] = self.num_computed_tokens_cpu[
-                last_req_index
-            ]
+            self.num_computed_tokens_cpu_tensor[empty_index] = (
+                self.num_computed_tokens_cpu_tensor[last_req_index]
+            )
             # Only manage block tables for models that need KV cache
             if len(self.block_table.block_tables) > 0:
                 self.block_table.move_row(last_req_index, empty_index)
@@ -557,19 +582,21 @@ class InputBatch:
                 last_req_index
             ]
 
-            self.temperature_cpu[empty_index] = self.temperature_cpu[last_req_index]
-            self.top_p_cpu[empty_index] = self.top_p_cpu[last_req_index]
-            self.top_k_cpu[empty_index] = self.top_k_cpu[last_req_index]
-            self.frequency_penalties_cpu[empty_index] = self.frequency_penalties_cpu[
+            self.temperature_cpu_tensor[empty_index] = self.temperature_cpu_tensor[
                 last_req_index
             ]
-            self.presence_penalties_cpu[empty_index] = self.presence_penalties_cpu[
-                last_req_index
-            ]
-            self.repetition_penalties_cpu[empty_index] = self.repetition_penalties_cpu[
-                last_req_index
-            ]
-            self.min_p_cpu[empty_index] = self.min_p_cpu[last_req_index]
+            self.top_p_cpu_tensor[empty_index] = self.top_p_cpu_tensor[last_req_index]
+            self.top_k_cpu_tensor[empty_index] = self.top_k_cpu_tensor[last_req_index]
+            self.frequency_penalties_cpu_tensor[empty_index] = (
+                self.frequency_penalties_cpu_tensor[last_req_index]
+            )
+            self.presence_penalties_cpu_tensor[empty_index] = (
+                self.presence_penalties_cpu_tensor[last_req_index]
+            )
+            self.repetition_penalties_cpu_tensor[empty_index] = (
+                self.repetition_penalties_cpu_tensor[last_req_index]
+            )
+            self.min_p_cpu_tensor[empty_index] = self.min_p_cpu_tensor[last_req_index]
             generator = self.generators.pop(last_req_index, None)
             if generator is not None:
                 self.generators[empty_index] = generator
@@ -693,7 +720,7 @@ class InputBatch:
         pooling_states = self.get_pooling_states()
 
         prompt_lens_tensor = torch.tensor(
-            self.num_prompt_tokens[: self.num_reqs].copy(),
+            self.num_prompt_tokens[: self.num_reqs],
             dtype=torch.int64,
             device="cpu",
         )
@@ -715,7 +742,7 @@ class InputBatch:
             pin_memory=self.pin_memory,
         )
         prompt_token_ids = prompt_token_ids_cpu_tensor.numpy()
-        prompt_token_ids[:] = self.token_ids_cpu[:num_reqs, :max_prompt_len]
+        prompt_token_ids[:] = self.token_ids_cpu_tensor[:num_reqs, :max_prompt_len]
         # Use the value of vocab_size as a pad since we don't have a
         # token_id of this value.
         for i in range(num_reqs):
@@ -723,7 +750,7 @@ class InputBatch:
         return prompt_token_ids_cpu_tensor.to(device=self.device, non_blocking=True)
 
     def make_lora_inputs(
-        self, num_scheduled_tokens: np.ndarray, num_sampled_tokens: np.ndarray
+        self, num_scheduled_tokens: torch.Tensor, num_sampled_tokens: torch.Tensor
     ) -> tuple[tuple[int, ...], tuple[int, ...], set[LoRARequest]]:
         """
         Given the num_scheduled_tokens for each request in the batch, return
@@ -731,7 +758,7 @@ class InputBatch:
         Returns:
             1. prompt_lora_mapping: A tuple of size self.num_reqs where,
                prompt_lora_mapping[i] is the LoRA id to use for the ith prompt.
-            2. token_lora_mapping: A tuple of size np.sum(num_scheduled_tokens)
+            2. token_lora_mapping: A tuple of size torch.sum(num_scheduled_tokens)
                where, token_lora_mapping[i] is the LoRA id to use for ith token.
             3. lora_requests: Set of relevant LoRA requests.
         """
