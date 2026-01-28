@@ -219,8 +219,7 @@ def xla_backend(gm, example_inputs, options=None):
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
-    legacy_compile_default = True
-    legacy_compile_enabled = legacy_compile_default
+    legacy_compile_enabled = False
     if options:
         if "tt_experimental_compile" in options:
             print(
