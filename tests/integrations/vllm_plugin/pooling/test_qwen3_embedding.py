@@ -12,20 +12,35 @@ import vllm
 @pytest.mark.push
 @pytest.mark.single_device
 @pytest.mark.parametrize(
-    ["model_name", "baseline_path"],
+    ["model_name", "baseline_path", "experimental_enable_weight_bfp8_conversion"],
     [
         pytest.param(
             "Qwen/Qwen3-Embedding-4B",
             "baseline/qwen3_embedding_4B_baseline.pt",
+            False,
         ),
         pytest.param(
             "Qwen/Qwen3-Embedding-0.6B",
             "baseline/qwen3_embedding_0.6B_baseline.pt",
+            False,
+        ),
+        pytest.param(
+            "Qwen/Qwen3-Embedding-8B",
+            "baseline/qwen3_embedding_8B_baseline.pt",
+            True,
+            marks=pytest.mark.xfail(
+                reason="Static CBs exceed L1 size - https://github.com/tenstorrent/tt-xla/issues/2935"
+            ),
         ),
     ],
 )
 @pytest.mark.parametrize("min_context_len", [32, 64])
-def test_embed_qwen3(model_name: str, baseline_path: str, min_context_len: int):
+def test_embed_qwen3(
+    model_name: str,
+    baseline_path: str,
+    experimental_enable_weight_bfp8_conversion: bool,
+    min_context_len: int,
+):
     """
     Test the Qwen3-Embedding models embedding outputs for correctness
     under different batching and padding scenarios.
@@ -69,6 +84,7 @@ def test_embed_qwen3(model_name: str, baseline_path: str, min_context_len: int):
         "max_num_seqs": 2,
         "additional_config": {
             "min_context_len": min_context_len,
+            "experimental_enable_weight_bfp8_conversion": experimental_enable_weight_bfp8_conversion,
         },
     }
     model = vllm.LLM(**llm_args)

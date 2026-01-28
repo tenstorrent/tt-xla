@@ -639,32 +639,32 @@ test_config:
     status: EXPECTED_PASSING
 
   yoloworld/pytorch-small_640-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
     status: EXPECTED_PASSING
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2727
 
   yoloworld/pytorch-small_1280-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
     status: EXPECTED_PASSING
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2727
 
   yoloworld/pytorch-medium_640-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
     status: EXPECTED_PASSING
+    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
 
   yoloworld/pytorch-medium_1280-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
     status: EXPECTED_PASSING
+    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
 
   yoloworld/pytorch-large_640-single_device-inference:
-    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
     status: EXPECTED_PASSING
+    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
 
   yoloworld/pytorch-large_1280-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
     status: EXPECTED_PASSING
+    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
 
   yoloworld/pytorch-xlarge_640-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2727
     status: EXPECTED_PASSING
+    required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
 
   opt/qa/pytorch-facebook/opt-125m-single_device-inference:
     status: EXPECTED_PASSING
@@ -1454,9 +1454,7 @@ test_config:
     status: EXPECTED_PASSING
 
   vovnet/pytorch-ese_vovnet99b-single_device-inference:
-    assert_pcc: false  # Exposed by removal of consteval on host
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.7919955849647522. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/1242"
 
   gemma/pytorch-google/gemma-2-2b-it-single_device-inference:
     status: EXPECTED_PASSING
@@ -1993,12 +1991,12 @@ test_config:
     reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
 
   centernet/pytorch-dla1x_coco-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507"
+    status: EXPECTED_PASSING
+    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2990
 
   centernet/pytorch-dla2x_coco-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "ValueError from torchvision.deform_conv2d op - https://github.com/tenstorrent/tt-xla/issues/1507"
+    status: EXPECTED_PASSING
+    required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/2990
 
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2597,3 +2595,13 @@ test_config:
 
   gemma/text_translation/pytorch-translategemma_4b_it-single_device-inference:
     status: EXPECTED_PASSING
+
+  bge_1_5/embedding_generation/pytorch-large_en_v1_5-single_device-inference:
+    status: EXPECTED_PASSING
+
+  allam/causal_lm/pytorch-allam_7b_instruct-single_device-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+        n150:
+          status: KNOWN_FAILURE_XFAIL
+          reason: "Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B"
