@@ -7,10 +7,31 @@ from typing import Optional, Tuple, Union
 import torch
 from torch_xla.experimental import stablehlo_custom_call
 
+# Import FakeTensor for type checking
+try:
+    from torch._subclasses.fake_tensor import FakeTensor
+except ImportError:
+    FakeTensor = None
 
-@torch.library.custom_op(
-    "tt::mark_argument_attributes", mutates_args=[], device_types=["cpu", "xla"]
-)
+# Import debugging utilities (only if available to avoid import errors)
+try:
+    from .debug_utils import check_and_log_fake_tensor, is_fake_tensor
+
+    DEBUG_AVAILABLE = True
+except ImportError as e:
+    DEBUG_AVAILABLE = False
+    import sys
+
+    print(f"[DEBUG] Failed to import debug_utils: {e}", file=sys.stderr, flush=True)
+
+    def is_fake_tensor(tensor):
+        return hasattr(tensor, "_is_fake") and tensor._is_fake
+
+    def check_and_log_fake_tensor(*args, **kwargs):
+        pass
+
+
+@torch.library.custom_op("tt::mark_argument_attributes", mutates_args=[])
 def mark_argument_attributes(
     tensor: torch.Tensor, argument_type: str, name: str = None
 ) -> torch.Tensor:
@@ -19,6 +40,51 @@ def mark_argument_attributes(
     You may only apply this function to a tensor which is on an XLA device.
     This function will annotate the tensor in a compiled program with a "name" and "argument_type" attribute.
     """
+    # DEBUG: Always print entry to confirm function is being called
+    import os
+    import sys
+    import traceback
+
+    from torch.utils._python_dispatch import _get_current_dispatch_mode
+
+    try:
+        # Write to a file that will definitely be visible
+        with open("/tmp/tt_debug_mark_attr.log", "a") as f:
+            f.write(
+                f"[MARK_ATTR CALLED] name={name}, arg_type={argument_type}, device={tensor.device}, shape={tensor.shape}\n"
+            )
+            f.write(f"  tensor type: {type(tensor)}\n")
+            f.write(f"  tensor type name: {type(tensor).__name__}\n")
+            f.write(
+                f"  isinstance FakeTensor: {FakeTensor is not None and isinstance(tensor, FakeTensor) if FakeTensor else 'N/A'}\n"
+            )
+            f.write(
+                f"  torch._subclasses.fake_tensor.is_fake: {torch._subclasses.fake_tensor.is_fake(tensor)}\n"
+            )
+            f.write(f"  device: {tensor.device}\n")
+            f.write(f"  device type: {tensor.device.type}\n")
+            f.write(f"  Current mode: {_get_current_dispatch_mode()}\n")
+            f.write(f"  Has dispatch: {hasattr(tensor, '__torch_dispatch__')}\n")
+            if hasattr(tensor, "_dispatch_keys"):
+                f.write(f"  Dispatch keys: {tensor._dispatch_keys}\n")
+            # Check if we're in FakeTensorMode
+            try:
+                from torch.utils._python_dispatch import _get_current_dispatch_mode
+
+                current_mode = _get_current_dispatch_mode()
+                f.write(f"  Current dispatch mode: {current_mode}\n")
+                f.write(
+                    f"  Current mode type: {type(current_mode) if current_mode else None}\n"
+                )
+            except Exception:
+                f.write(f"  Could not check dispatch mode\n")
+            f.write(f"  Call stack (last 5 frames):\n")
+            for line in traceback.format_stack()[-5:-1]:
+                f.write(f"    {line}")
+            f.flush()
+    except Exception as e:
+        pass
+
     if tensor.device.type == "cpu":
         return tensor.clone()
 
@@ -35,6 +101,48 @@ def mark_argument_attributes(
     if name is not None:
         frontend_attributes["ttir.name"] = name
 
+    # DEBUG: Check if this is a FakeTensor (should not happen at runtime)
+    # Check by type - FakeTensor might not have accessible _is_fake attribute
+    is_fake = False
+    if FakeTensor is not None:
+        is_fake = isinstance(tensor, FakeTensor)
+    else:
+        # Fallback: check by type name string
+        is_fake = "FakeTensor" in str(type(tensor))
+
+    if is_fake:
+        # Write to file AND stderr
+        import traceback
+
+        msg = (
+            f"\n{'='*80}\n"
+            f"[FAKE TENSOR DETECTED] mark_argument_attributes called with FakeTensor!\n"
+            f"  Tensor name: {name}\n"
+            f"  Argument type: {argument_type}\n"
+            f"  Shape: {tensor.shape}\n"
+            f"  Dtype: {tensor.dtype}\n"
+            f"  Device: {tensor.device}\n"
+            f"  _is_fake: {getattr(tensor, '_is_fake', 'N/A')}\n"
+            f"  Type: {type(tensor)}\n"
+            f"  Stack trace:\n{''.join(traceback.format_stack()[:-2])}\n"
+            f"{'='*80}\n"
+        )
+        try:
+            with open("/tmp/tt_debug_fake_tensor.log", "a") as f:
+                f.write(msg)
+                f.flush()
+        except Exception:
+            pass
+        print(msg, file=sys.stderr, flush=True)
+
+    if DEBUG_AVAILABLE:
+        check_and_log_fake_tensor(
+            tensor,
+            context="mark_argument_attributes (real implementation)",
+            name=name or "tensor",
+            raise_error=False,  # Log but don't crash to see all occurrences
+        )
+
     # @LPanosTT: stablehlo_custom_call causes issues (sometimes) within XLA for shapes which are 2D (or less?), it is unclear why.
     # There is a todo within torch-xla addressing this: venv/lib/python3.10/site-packages/torch_xla/experimental/stablehlo_custom_call.py
     # I have implemented a workaround for this by reshaping the tensor to 2D if it is less than 2D, then reshaping back to the original shape.
@@ -42,6 +150,28 @@ def mark_argument_attributes(
     original_shape = list(tensor.shape)
     if len(tensor.shape) < 3:
         extra_dims = [1] * (3 - len(original_shape))
+        # If this is a FakeTensor, reshape will fail with XLA validation error
+        if is_fake:
+            msg = (
+                f"[FAKE TENSOR] About to attempt reshape on FakeTensor!\n"
+                f"  Shape: {tensor.shape} -> {(*extra_dims, *original_shape)}\n"
+                f"  This will likely fail with XLA validation error.\n"
+            )
+            try:
+                with open("/tmp/tt_debug_fake_tensor.log", "a") as f:
+                    f.write(msg)
+                    f.flush()
+            except Exception:
+                pass
+            print(msg, file=sys.stderr, flush=True)
+        try:
+            with open("/tmp/tt_debug_mark_attr.log", "a") as f:
+                f.write(
+                    f"[BEFORE RESHAPE] is_fake={is_fake}, shape={tensor.shape} -> {(*extra_dims, *original_shape)}\n"
+                )
+                f.flush()
+        except Exception:
+            pass
         tensor = tensor.reshape((*extra_dims, *original_shape))
     result = stablehlo_custom_call.stablehlo_custom_call(
         [tensor],
@@ -63,6 +193,26 @@ def _(tensor: torch.Tensor, argument_type: str, name: str = None) -> torch.Tenso
     returns:
         - tensor: the same tensor that was passed in
     """
+    # DEBUG: Log when fake implementation is called
+    try:
+        with open("/tmp/tt_debug_fake_impl.log", "a") as f:
+            f.write(f"[FAKE IMPL CALLED] name={name}, arg_type={argument_type}\n")
+            f.write(f"  tensor type: {type(tensor)}\n")
+            f.write(
+                f"  shape: {tensor.shape}, dtype: {tensor.dtype}, device: {tensor.device}\n"
+            )
+            f.write(f"  has _is_fake: {hasattr(tensor, '_is_fake')}\n")
+            if hasattr(tensor, "_is_fake"):
+                f.write(f"  _is_fake value: {tensor._is_fake}\n")
+            import traceback
+
+            f.write(f"  Stack trace:\n{''.join(traceback.format_stack()[:-1])}\n")
+            f.flush()
+    except Exception as e:
+        pass
+
+    # For FakeTensors, just return the tensor as-is - no need to clone
+    # Cloning FakeTensors can fail if it tries to do XLA operations
     return tensor.clone()
 
 

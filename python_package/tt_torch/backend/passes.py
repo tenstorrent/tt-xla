@@ -180,7 +180,35 @@ def run_shape_prop(gm, example_inputs):
     Propagates shape and dtype information through the graph.
     """
     shape_prop = torch.fx.passes.shape_prop.ShapeProp(gm)
+
+    # DEBUG: Log if FakeTensorMode is active - write to file for visibility
+    try:
+        with open("/tmp/tt_debug_shape_prop.log", "a") as f:
+            f.write(f"[run_shape_prop] Starting shape propagation\n")
+            f.write(f"  fake_mode is None: {shape_prop.fake_mode is None}\n")
+            if shape_prop.fake_mode is not None:
+                f.write(f"  fake_mode type: {type(shape_prop.fake_mode)}\n")
+            f.write(f"  num_inputs: {len(example_inputs)}\n")
+            f.flush()
+    except Exception:
+        pass
+
     if shape_prop.fake_mode is not None:
+        msg = (
+            f"\n[DEBUG] run_shape_prop: FakeTensorMode is ACTIVE\n"
+            f"  Fake mode: {shape_prop.fake_mode}\n"
+            f"  Converting {len(example_inputs)} inputs to FakeTensors\n"
+        )
+        try:
+            with open("/tmp/tt_debug_shape_prop.log", "a") as f:
+                f.write(msg)
+                f.flush()
+        except Exception:
+            pass
+        import sys
+
+        print(msg, file=sys.stderr, flush=True)
+
         fake_args = [
             (
                 shape_prop.fake_mode.from_tensor(act, static_shapes=True)
@@ -189,8 +217,36 @@ def run_shape_prop(gm, example_inputs):
             )
             for act in example_inputs
         ]
+        # DEBUG: Check if any converted inputs are FakeTensors
+        for i, arg in enumerate(fake_args):
+            if isinstance(arg, torch.Tensor):
+                is_fake = hasattr(arg, "_is_fake") and arg._is_fake
+                if is_fake:
+                    msg = (
+                        f"[DEBUG] run_shape_prop: Input {i} is a FakeTensor\n"
+                        f"  Shape: {arg.shape}, dtype: {arg.dtype}, device: {arg.device}\n"
+                    )
+                    try:
+                        with open("/tmp/tt_debug_shape_prop.log", "a") as f:
+                            f.write(msg)
+                            f.flush()
+                    except Exception:
+                        pass
+                    import sys
+
+                    print(msg, file=sys.stderr, flush=True)
     else:
         fake_args = example_inputs
+        msg = f"\n[DEBUG] run_shape_prop: FakeTensorMode is NOT active\n"
+        try:
+            with open("/tmp/tt_debug_shape_prop.log", "a") as f:
+                f.write(msg)
+                f.flush()
+        except Exception:
+            pass
+        import sys
+
+        print(msg, file=sys.stderr, flush=True)
     shape_prop.run(*fake_args)
 
 
