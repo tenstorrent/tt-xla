@@ -23,3 +23,6 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/b
 
 # Now do the actual installation
 RUN ln -sf /usr/bin/FileCheck-17 /usr/bin/FileCheck
+
+# Update pip to the latest version
+RUN python3.11 -m pip install --upgrade pip --no-cache-dir
