@@ -551,7 +551,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
 
   whisper/audio_classification/jax-large_v3-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 6710886400 B DRAM buffer across 12 banks, where each bank needs to store 559243264 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
     markers: [large,nightly]
 
   xglm/causal_lm/jax-564M-single_device-inference:
