@@ -1,0 +1,87 @@
+name: Publish github release, push git tag and push docker tag (call)
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: 'Release tag'
+        type: string
+        required: true
+      is_nightly_release:
+        description: 'Is the docker a nigthly release'
+        type: boolean
+        required: true
+      docker_image_base:
+        description: 'Released docker image base'
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+  id-token: write
+  packages: write
+
+jobs:
+  publish-release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Create and push tag if missing
+        shell: bash
+        run: |
+          set -o pipefail
+          tag="${{ inputs.release_tag }}"
+          commit="${{ github.sha }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists"
+          else
+            git tag -a "$tag" -m "Release $tag" "$commit"
+            git push origin "refs/tags/$tag"
+          fi
+
+      - name: Push release docker tag
+        shell: bash
+        run: |
+          docker_image_base=${{ inputs.docker_image_base }}
+          commit_tag="${{ github.sha }}"
+          version_tag="${{ inputs.release_tag }}"
+
+          latest_tag="latest"
+          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
+            latest_tag="nightly-latest"
+          fi
+
+          echo "Pushing tags for $docker_image_base"
+          skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
+          skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$version_tag"
+
+      - name: Publish github release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          generate_release_notes: true
+          draft: true
+          body: |
+            Install via pypi
+            pip install pjrt-plugin-tt==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+
+            Pull docker image
+            docker pull ${{ inputs.docker_image_base }}:${{ inputs.release_tag }}

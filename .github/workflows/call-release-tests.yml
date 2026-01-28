@@ -1,0 +1,35 @@
+name: Run release tests in Docker image (call)
+
+on:
+  workflow_call:
+    inputs:
+      release_docker_image:
+        description: 'Name of the release Docker image'
+        type: string
+        required: true
+
+jobs:
+  basic-tests:
+    uses: tenstorrent/tt-forge/.github/workflows/basic-tests.yml@main
+    secrets: inherit
+    with:
+      docker-image: ${{ inputs.release_docker_image }}
+      ref: main
+      project-filter: tt-xla
+
+  perf-benchmark:
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    secrets: inherit
+    with:
+      docker-image: ${{ inputs.release_docker_image }}
+      ref: main
+      project: tt-xla
+      sh-runner: true
+
+  demo-test:
+    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
+    secrets: inherit
+    with:
+      docker-image: ${{ inputs.release_docker_image }}
+      ref: main
+      project-filter: tt-xla
