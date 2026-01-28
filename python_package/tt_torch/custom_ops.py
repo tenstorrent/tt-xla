@@ -100,12 +100,6 @@ def sharding_constraint(tensor: torch.Tensor, sdy_sharding: str) -> torch.Tensor
         "xla.sdy.sharding": sdy_sharding,
     }
 
-    # Handle shape requirements (same workaround as mark_argument_attributes)
-    original_shape = list(tensor.shape)
-    if len(tensor.shape) < 3:
-        extra_dims = [1] * (3 - len(original_shape))
-        tensor = tensor.reshape((*extra_dims, *original_shape))
-
     result = stablehlo_custom_call.stablehlo_custom_call(
         [tensor],
         "tt.sharding_constraint",  # tt-mlir converts this to sdy.sharding_constraint
@@ -113,9 +107,6 @@ def sharding_constraint(tensor: torch.Tensor, sdy_sharding: str) -> torch.Tensor
         [tensor.dtype],
         frontend_attributes=frontend_attributes,
     )
-
-    if len(original_shape) < 3:
-        result = result.reshape(original_shape)
 
     return result
 
