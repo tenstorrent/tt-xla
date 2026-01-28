@@ -178,6 +178,9 @@ def replace_layer_norm_module(
         new_node = gm.graph.call_function(
             composite_layer_norm, args=(input_tensor,), kwargs=kwargs
         )
+        # Preserve metadata (stack_trace, nn_module_stack) from original node
+        # so location info propagates to the generated IR
+        new_node.meta = node.meta.copy()
 
     node.replace_all_uses_with(new_node)
     gm.graph.erase_node(node)

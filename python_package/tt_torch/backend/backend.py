@@ -13,7 +13,11 @@ from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 
 from .decompositions import populate_decompositions
-from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
+from .metadata_propagation import (
+    MetadataDispatchMode,
+    OpBasedNodeInfo,
+    extract_nodes_info,
+)
 from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
@@ -91,15 +95,19 @@ class XLAExecutor:
         self,
         module: torch.fx.GraphModule,
         signature: torch.export.ExportGraphSignature,
-        node_info: list[str],
+        node_info: OpBasedNodeInfo,
         experimental_compile_enabled: bool,
     ):
         self.module = module
         self.signature = signature
         self.node_info = node_info
-        # Inject metadata if xla debug is enabled and node_info is not empty
+        # Inject metadata if xla debug is enabled and node_info has data
         # We need xla debug to be enabled in order for torch-xla to inject metadata
-        self.inject_metadata = os.environ.get("XLA_HLO_DEBUG", "0") == "1" and node_info
+        self.inject_metadata = (
+            os.environ.get("XLA_HLO_DEBUG", "0") == "1"
+            and node_info
+            and node_info.total_fx_nodes > 0
+        )
 
         # Collect all devices this model will use. This device list is used to
         # signal to torch xla which devices are involved in computing the output
@@ -182,8 +190,15 @@ class XLAExecutor:
         if self.inject_metadata:
             # MetadataDispatchMode intercepts tensor operations via TorchDispatchMode and
             # attaches FX metadata (module hierarchy, file, line) to XLA tensors.
-            with MetadataDispatchMode(self.node_info):
+            # Uses op-based matching: each op type has its own counter, so XLA decompositions
+            # (e.g., matmul -> view + mm + view) don't throw off alignment of other ops.
+            dispatch_mode = MetadataDispatchMode(
+                self.node_info, validate_alignment=True
+            )
+            with dispatch_mode:
                 output = self.module(*args)
+            # Print alignment report after execution (only when validate_alignment=True)
+            print(dispatch_mode.get_alignment_report())
         else:
             output = self.module(*args)
         gm_has_functional_output_kind: bool = True
