@@ -46,7 +46,7 @@ from torch.utils._python_dispatch import TorchDispatchMode
 logger = logging.getLogger(__name__)
 
 # Enable debug logging for location metadata
-DBG_LOC = True
+DBG_LOC = False
 
 # Context variable to track current FX node metadata across dispatch calls.
 # This allows MetadataDispatchMode to know which FX node triggered each dispatch,
