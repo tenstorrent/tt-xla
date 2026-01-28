@@ -246,6 +246,8 @@ def _extract_source_and_module_hierarchy_info(
         "python_package/tt_torch/torch_overrides.py",  # Case 1: our custom torch overrides (e.g., tt-xla/python_package/tt_torch/torch_overrides.py)
         "site-packages/torch/",  # Case 2: Internal torch files (e.g., venv/.../torch/_tensor.py)
         "dist-packages/torch/",  # Case 3: Internal torch files (e.g., /usr/local/lib/.../torch/_tensor.py)
+        "-packages/transformers/activations.py",  # this fixes gelu, find a better pattern to describe this (all of transformers, but not models?)
+        "-packages/transformers/integrations/",  # this fixes sdpa op
     ]
     line = next(
         (
