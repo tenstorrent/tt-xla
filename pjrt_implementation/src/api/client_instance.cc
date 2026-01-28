@@ -37,7 +37,9 @@ static std::string getRankBindingPath(const std::string &metal_home) {
   static std::unordered_map<std::string, std::string> rank_binding_paths = {
       {"2x4_multiprocess",
        "tests/tt_metal/distributed/config/2x4_multiprocess_rank_bindings.yaml"},
-       {"2x4_double_bhqbae", "tests/scale_out/4x_bh_quietbox/rank_bindings/2x4.yaml"}
+       {"2x4_double_bhqbae", "tests/scale_out/4x_bh_quietbox/rank_bindings/2x4.yaml"},
+      {"double_glx", "tests/tt_metal/distributed/config/dual_galaxy_rank_bindings.yaml"},
+      {"quad_glx", "tests/tt_metal/distributed/config/quad_galaxy_rank_bindings.yaml"},
   };
 
   const char *rank_binding = std::getenv("TT_DISTRIBUTED_RANK_BINDING");
