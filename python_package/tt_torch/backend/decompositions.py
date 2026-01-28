@@ -364,7 +364,6 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
         aten._log_softmax,
         aten.lift_fresh_copy.default,
         aten._unsafe_index.Tensor,
-        aten.slice_scatter,
     ]
 
 
