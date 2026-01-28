@@ -161,7 +161,11 @@ class JaxDeviceRunner(DeviceRunner):
                         device_mesh,
                         # Use empty PartitionSpec() for scalars (rank 0) since JAX requires this
                         # for scalar values. Non-scalars use the provided spec for sharding.
-                        PartitionSpec() if (hasattr(param, 'ndim') and param.ndim == 0) else spec,
+                        (
+                            PartitionSpec()
+                            if (hasattr(param, "ndim") and param.ndim == 0)
+                            else spec
+                        ),
                     ),
                 ),
                 partition_spec,
