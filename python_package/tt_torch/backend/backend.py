@@ -13,7 +13,11 @@ from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 
 from .decompositions import populate_decompositions
-from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
+from .metadata_propagation import (
+    MetadataDispatchMode,
+    MetadataInterpreter,
+    extract_nodes_info,
+)
 from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
@@ -31,7 +35,7 @@ def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
-) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
+) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, dict[str, str]]:
 
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
@@ -91,7 +95,7 @@ class XLAExecutor:
         self,
         module: torch.fx.GraphModule,
         signature: torch.export.ExportGraphSignature,
-        node_info: list[str],
+        node_info: dict[str, str],
         experimental_compile_enabled: bool,
     ):
         self.module = module
@@ -180,10 +184,13 @@ class XLAExecutor:
             return self._call_experimental_compile(*args)
 
         if self.inject_metadata:
-            # MetadataDispatchMode intercepts tensor operations via TorchDispatchMode and
-            # attaches FX metadata (module hierarchy, file, line) to XLA tensors.
-            with MetadataDispatchMode(self.node_info):
-                output = self.module(*args)
+            # Use MetadataInterpreter + MetadataDispatchMode to correctly track metadata
+            # even when FX nodes decompose into multiple aten operations at dispatch time.
+            # MetadataInterpreter sets a context variable for each FX node, and
+            # MetadataDispatchMode reads it to attach the correct metadata to each dispatch.
+            with MetadataDispatchMode():
+                interp = MetadataInterpreter(self.module, self.node_info)
+                output = interp.run(*args)
         else:
             output = self.module(*args)
         gm_has_functional_output_kind: bool = True
@@ -214,6 +221,6 @@ def xla_backend(gm, example_inputs, options=None):
         gm, example_inputs, options
     )
     experimental_compile_enabled = (
-        options.get("tt_experimental_compile", False) if options else False
+        options.get("tt_experimental_compile", True) if options else False
     )
     return XLAExecutor(module, graph_signature, node_info, experimental_compile_enabled)
