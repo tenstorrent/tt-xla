@@ -66,7 +66,6 @@ def test_mochi_causal_conv3d():
 
     with torch.no_grad():
         output = model(input_tensor)
-        torch_xla.sync()
         assert output.shape == (
             1,
             768,
