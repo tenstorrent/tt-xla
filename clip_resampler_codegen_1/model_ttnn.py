@@ -112,81 +112,6 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         self.weights = run_const_evals(self.weights)
 
         # Build mappings for fused QKV weights
-        self._build_weight_mappings()
-
-    def _build_weight_mappings(self):
-        """Build mappings from layer index to fused QKV weight keys."""
-        # fmt: off
-        # Fused QKV weight keys (from _three_weight_concat_dim0 in consteval)
-        self.qkv_weight_keys = {
-            0: "utils_constEvalFuncWrapper_70_0",
-            1: "utils_constEvalFuncWrapper_157_0",
-            2: "utils_constEvalFuncWrapper_25_0",
-            3: "utils_constEvalFuncWrapper_26_0",
-            4: "utils_constEvalFuncWrapper_127_0",
-            5: "utils_constEvalFuncWrapper_96_0",
-            6: "utils_constEvalFuncWrapper_128_0",
-            7: "utils_constEvalFuncWrapper_49_0",
-            8: "utils_constEvalFuncWrapper_29_0",
-            9: "utils_constEvalFuncWrapper_119_0",
-            10: "utils_constEvalFuncWrapper_152_0",
-            11: "utils_constEvalFuncWrapper_67_0",
-            12: "utils_constEvalFuncWrapper_87_0",
-            13: "utils_constEvalFuncWrapper_102_0",
-            14: "utils_constEvalFuncWrapper_86_0",
-            15: "utils_constEvalFuncWrapper_23_0",
-            16: "utils_constEvalFuncWrapper_89_0",
-            17: "utils_constEvalFuncWrapper_34_0",
-            18: "utils_constEvalFuncWrapper_112_0",
-            19: "utils_constEvalFuncWrapper_12_0",
-            20: "utils_constEvalFuncWrapper_65_0",
-            21: "utils_constEvalFuncWrapper_37_0",
-            22: "utils_constEvalFuncWrapper_148_0",
-            23: "utils_constEvalFuncWrapper_36_0",
-            24: "utils_constEvalFuncWrapper_76_0",
-            25: "utils_constEvalFuncWrapper_61_0",
-            26: "utils_constEvalFuncWrapper_9_0",
-            27: "utils_constEvalFuncWrapper_159_0",
-            28: "utils_constEvalFuncWrapper_3_0",
-            29: "utils_constEvalFuncWrapper_75_0",
-            30: "utils_constEvalFuncWrapper_138_0",
-        }
-
-        # Fused QKV bias keys (from _three_weight_reshape_repeat_concat_dim2 in consteval)
-        self.qkv_bias_keys = {
-            0: "utils_constEvalFuncWrapper_47_0",
-            1: "utils_constEvalFuncWrapper_62_0",
-            2: "utils_constEvalFuncWrapper_80_0",
-            3: "utils_constEvalFuncWrapper_90_0",
-            4: "utils_constEvalFuncWrapper_43_0",
-            5: "utils_constEvalFuncWrapper_158_0",
-            6: "utils_constEvalFuncWrapper_99_0",
-            7: "utils_constEvalFuncWrapper_84_0",
-            8: "utils_constEvalFuncWrapper_40_0",
-            9: "utils_constEvalFuncWrapper_133_0",
-            10: "utils_constEvalFuncWrapper_71_0",
-            11: "utils_constEvalFuncWrapper_116_0",
-            12: "utils_constEvalFuncWrapper_136_0",
-            13: "utils_constEvalFuncWrapper_1_0",
-            14: "utils_constEvalFuncWrapper_101_0",
-            15: "utils_constEvalFuncWrapper_72_0",
-            16: "utils_constEvalFuncWrapper_118_0",
-            17: "utils_constEvalFuncWrapper_17_0",
-            18: "utils_constEvalFuncWrapper_134_0",
-            19: "utils_constEvalFuncWrapper_50_0",
-            20: "utils_constEvalFuncWrapper_60_0",
-            21: "utils_constEvalFuncWrapper_111_0",
-            22: "utils_constEvalFuncWrapper_57_0",
-            23: "utils_constEvalFuncWrapper_32_0",
-            24: "utils_constEvalFuncWrapper_59_0",
-            25: "utils_constEvalFuncWrapper_58_0",
-            26: "utils_constEvalFuncWrapper_77_0",
-            27: "utils_constEvalFuncWrapper_41_0",
-            28: "utils_constEvalFuncWrapper_16_0",
-            29: "utils_constEvalFuncWrapper_45_0",
-            30: "utils_constEvalFuncWrapper_131_0",
-        }
-        # fmt: on
 
     def _dram_memory_config(self):
         """Standard DRAM interleaved memory config."""
@@ -258,7 +183,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         x = ttnn.concat([class_embedding, x], 2, memory_config=mem_config)
 
         # Add position embedding (shape [1, 1280, 257])
-        position_embedding = self.weights["utils_constEvalFuncWrapper_88_0"]
+        position_embedding = self.weights["__POSITION_EMBEDDING__"]
         x = ttnn.add(
             x,
             position_embedding,
@@ -374,8 +299,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         x = ttnn.reshape(hidden_states, [257, 1280], memory_config=mem_config)
 
         # Fused QKV projection: [257, 1280] @ [3840, 1280]^T -> [257, 3840]
-        qkv_weight = self.weights[self.qkv_weight_keys[layer_idx]]
-        qkv_bias = self.weights[self.qkv_bias_keys[layer_idx]]
+        layer_prefix = (
+            f"image_encoder.vision_model.encoder.layers.{layer_idx}.self_attn"
+        )
+        qkv_weight = self.weights[f"{layer_prefix}.qkv_weight"]
+        qkv_bias = self.weights[f"{layer_prefix}.qkv_bias"]
 
         x = ttnn.matmul(
             x,
@@ -626,7 +554,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         First resampler block - uses precomputed latents.
 
         The learned latents have already had ln1 and to_q applied in consteval.
-        Q = utils_constEvalFuncWrapper_30_1 (already reshaped and permuted)
+        Q = resampler.layers.0.attn.precomputed_q (already reshaped and permuted)
         """
         mem_config = self._dram_memory_config()
 
@@ -645,10 +573,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         x_ln0 = ttnn.reshape(x_ln0, [257, 1280], memory_config=mem_config)
 
         # Precomputed: latents with ln1 applied, ready for concat
-        # utils_constEvalFuncWrapper_30_0 is the ln1(latents) output [16, 1280]
+        # resampler.layers.0.ln1_latents_reshaped is the ln1(latents) output [16, 1280]
         # Concat encoder hidden states with latents
         concat_input = ttnn.concat(
-            [x_ln0, self.weights["utils_constEvalFuncWrapper_30_0"]],
+            [x_ln0, self.weights["resampler.layers.0.ln1_latents_reshaped"]],
             0,
             memory_config=mem_config,
         )
@@ -697,8 +625,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         k = ttnn.typecast(k, ttnn.DataType.BFLOAT16, memory_config=mem_config)
         v = ttnn.typecast(v, ttnn.DataType.BFLOAT16, memory_config=mem_config)
 
-        # Q is precomputed: utils_constEvalFuncWrapper_30_1 is to_q(ln1(latents)) with reshape and permute
-        q = self.weights["utils_constEvalFuncWrapper_30_1"]
+        # Q is precomputed: resampler.layers.0.attn.precomputed_q is to_q(ln1(latents)) with reshape and permute
+        q = self.weights["resampler.layers.0.attn.precomputed_q"]
 
         # Scaled Dot-Product Attention
         # Scale = 1/sqrt(8) = 0.35355338454246521 (not 1/sqrt(64))
@@ -739,7 +667,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         # Divide by ones tensor (matches original - may be for numerical precision)
         attn_output = ttnn.divide(
             attn_output,
-            self.weights["utils_constEvalFuncWrapperZeroArg_0_0"],
+            self.weights["__ONES_1_16_1280__"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=mem_config,
         )
@@ -887,7 +815,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         # Divide by ones tensor (matches original)
         attn_output = ttnn.divide(
             attn_output,
-            self.weights["utils_constEvalFuncWrapperZeroArg_0_0"],
+            self.weights["__ONES_1_16_1280__"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=mem_config,
         )
