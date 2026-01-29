@@ -8,303 +8,141 @@ import utils
 
 
 def _full_1_16_1280_ones():
-    utils_DeviceGetter_get_device_0 = utils.DeviceGetter.get_device((1, 1))
-    ttnn_full_0 = ttnn.full(
+    device = utils.DeviceGetter.get_device((1, 1))
+    return ttnn.full(
         shape=ttnn.Shape([1, 16, 1280]),
         fill_value=1.0,
         dtype=ttnn.DataType.BFLOAT16,
         layout=ttnn.Layout.TILE,
-        device=utils_DeviceGetter_get_device_0,
+        device=device,
         memory_config=ttnn.DRAM_MEMORY_CONFIG,
     )
-    return ttnn_full_0
 
 
 def _single_weight_reshape_repeat_5120(input):
-    utils_DeviceGetter_get_device_1 = utils.DeviceGetter.get_device((1, 1))
-    ttnn_to_device_0 = ttnn.to_device(
-        input,
-        device=utils_DeviceGetter_get_device_1,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_layout_0 = ttnn.to_layout(
-        ttnn_to_device_0,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_reshape_0 = ttnn.reshape(
-        ttnn_to_layout_0,
-        [1, 1, 5120],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_repeat_0 = ttnn.repeat(ttnn_reshape_0, ttnn.Shape([1, 257, 1]))
-    return ttnn_repeat_0
+    device = utils.DeviceGetter.get_device((1, 1))
+    x = ttnn.to_device(input, device=device, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+    x = ttnn.to_layout(x, ttnn.Layout.TILE, None, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+    x = ttnn.reshape(x, [1, 1, 5120], memory_config=ttnn.DRAM_MEMORY_CONFIG)
+    return ttnn.repeat(x, ttnn.Shape([1, 257, 1]))
 
 
 def _single_weight_reshape_repeat_1280(input):
-    utils_DeviceGetter_get_device_3 = utils.DeviceGetter.get_device((1, 1))
-    ttnn_to_device_4 = ttnn.to_device(
-        input,
-        device=utils_DeviceGetter_get_device_3,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_layout_4 = ttnn.to_layout(
-        ttnn_to_device_4,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_reshape_4 = ttnn.reshape(
-        ttnn_to_layout_4,
-        [1, 1, 1280],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_repeat_4 = ttnn.repeat(ttnn_reshape_4, ttnn.Shape([1, 257, 1]))
-    return ttnn_repeat_4
+    device = utils.DeviceGetter.get_device((1, 1))
+    x = ttnn.to_device(input, device=device, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+    x = ttnn.to_layout(x, ttnn.Layout.TILE, None, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+    x = ttnn.reshape(x, [1, 1, 1280], memory_config=ttnn.DRAM_MEMORY_CONFIG)
+    return ttnn.repeat(x, ttnn.Shape([1, 257, 1]))
 
 
 def _single_weight_reshape_repeat_2048(input):
-    utils_DeviceGetter_get_device_7 = utils.DeviceGetter.get_device((1, 1))
-    ttnn_to_device_10 = ttnn.to_device(
-        input,
-        device=utils_DeviceGetter_get_device_7,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_layout_10 = ttnn.to_layout(
-        ttnn_to_device_10,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_reshape_7 = ttnn.reshape(
-        ttnn_to_layout_10,
-        [1, 1, 2048],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_repeat_7 = ttnn.repeat(ttnn_reshape_7, ttnn.Shape([1, 16, 1]))
-    return ttnn_repeat_7
+    device = utils.DeviceGetter.get_device((1, 1))
+    x = ttnn.to_device(input, device=device, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+    x = ttnn.to_layout(x, ttnn.Layout.TILE, None, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+    x = ttnn.reshape(x, [1, 1, 2048], memory_config=ttnn.DRAM_MEMORY_CONFIG)
+    return ttnn.repeat(x, ttnn.Shape([1, 16, 1]))
 
 
 def _three_weight_reshape_repeat_concat_dim2(input):
     """Concatenates Q, K, V biases along dim 2. Input order: [q_proj, k_proj, v_proj]."""
-    utils_DeviceGetter_get_device_2 = utils.DeviceGetter.get_device((1, 1))
-    # Q bias (input[0])
-    q_device = ttnn.to_device(
-        input[0],
-        device=utils_DeviceGetter_get_device_2,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    q_layout = ttnn.to_layout(
-        q_device,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    # K bias (input[1])
-    k_device = ttnn.to_device(
-        input[1],
-        device=utils_DeviceGetter_get_device_2,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    k_layout = ttnn.to_layout(
-        k_device,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    # V bias (input[2])
-    v_device = ttnn.to_device(
-        input[2],
-        device=utils_DeviceGetter_get_device_2,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    v_layout = ttnn.to_layout(
-        v_device,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    q_reshape = ttnn.reshape(
-        q_layout,
-        [1, 1, 1280],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    q_repeat = ttnn.repeat(q_reshape, ttnn.Shape([1, 257, 1]))
-    k_reshape = ttnn.reshape(
-        k_layout,
-        [1, 1, 1280],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    k_repeat = ttnn.repeat(k_reshape, ttnn.Shape([1, 257, 1]))
-    v_reshape = ttnn.reshape(
-        v_layout,
-        [1, 1, 1280],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    v_repeat = ttnn.repeat(v_reshape, ttnn.Shape([1, 257, 1]))
-    # Concat in Q, K, V order
-    ttnn_concat_0 = ttnn.concat(
-        [q_repeat, k_repeat, v_repeat],
-        2,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    return ttnn_concat_0
+    device = utils.DeviceGetter.get_device((1, 1))
+    mem = ttnn.DRAM_MEMORY_CONFIG
+
+    def process(tensor):
+        x = ttnn.to_device(tensor, device=device, memory_config=mem)
+        x = ttnn.to_layout(x, ttnn.Layout.TILE, None, memory_config=mem)
+        x = ttnn.reshape(x, [1, 1, 1280], memory_config=mem)
+        return ttnn.repeat(x, ttnn.Shape([1, 257, 1]))
+
+    q = process(input[0])
+    k = process(input[1])
+    v = process(input[2])
+    return ttnn.concat([q, k, v], 2, memory_config=mem)
 
 
 def _three_weight_concat_dim0(input):
     """Concatenates Q, K, V weights along dim 0. Input order: [q_proj, k_proj, v_proj]."""
-    utils_DeviceGetter_get_device_4 = utils.DeviceGetter.get_device((1, 1))
-    # Q weight (input[0])
-    q_device = ttnn.to_device(
-        input[0],
-        device=utils_DeviceGetter_get_device_4,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    q_layout = ttnn.to_layout(
-        q_device,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    # K weight (input[1])
-    k_device = ttnn.to_device(
-        input[1],
-        device=utils_DeviceGetter_get_device_4,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    k_layout = ttnn.to_layout(
-        k_device,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    # V weight (input[2])
-    v_device = ttnn.to_device(
-        input[2],
-        device=utils_DeviceGetter_get_device_4,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    v_layout = ttnn.to_layout(
-        v_device,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    # Concat in Q, K, V order
-    ttnn_concat_1 = ttnn.concat(
-        [q_layout, k_layout, v_layout],
-        0,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    return ttnn_concat_1
+    device = utils.DeviceGetter.get_device((1, 1))
+    mem = ttnn.DRAM_MEMORY_CONFIG
+
+    def process(tensor):
+        x = ttnn.to_device(tensor, device=device, memory_config=mem)
+        return ttnn.to_layout(x, ttnn.Layout.TILE, None, memory_config=mem)
+
+    q = process(input[0])
+    k = process(input[1])
+    v = process(input[2])
+    return ttnn.concat([q, k, v], 0, memory_config=mem)
 
 
 def _resampler_attention_query(input):
-    utils_DeviceGetter_get_device_31 = utils.DeviceGetter.get_device((1, 1))
-    ttnn_to_device_50 = ttnn.to_device(
-        input[3],
-        device=utils_DeviceGetter_get_device_31,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_layout_50 = ttnn.to_layout(
-        ttnn_to_device_50,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_device_51 = ttnn.to_device(
-        input[2],
-        device=utils_DeviceGetter_get_device_31,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_layout_51 = ttnn.to_layout(
-        ttnn_to_device_51,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_device_52 = ttnn.to_device(
-        input[1],
-        device=utils_DeviceGetter_get_device_31,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_layout_52 = ttnn.to_layout(
-        ttnn_to_device_52,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_full_1 = ttnn.full(
+    """Precompute resampler attention query from latents.
+
+    Input: [latents, ln1_bias, ln1_weight, to_q_weight]
+    Returns: (ln1_latents_reshaped, precomputed_q)
+    """
+    device = utils.DeviceGetter.get_device((1, 1))
+    mem = ttnn.DRAM_MEMORY_CONFIG
+
+    # Load weights to device
+    to_q_weight = ttnn.to_device(input[3], device=device, memory_config=mem)
+    to_q_weight = ttnn.to_layout(to_q_weight, ttnn.Layout.TILE, None, memory_config=mem)
+    ln1_weight = ttnn.to_device(input[2], device=device, memory_config=mem)
+    ln1_weight = ttnn.to_layout(ln1_weight, ttnn.Layout.TILE, None, memory_config=mem)
+    ln1_bias = ttnn.to_device(input[1], device=device, memory_config=mem)
+    ln1_bias = ttnn.to_layout(ln1_bias, ttnn.Layout.TILE, None, memory_config=mem)
+
+    # Scale factor for attention (1/sqrt(8))
+    scale = ttnn.full(
         shape=ttnn.Shape([1, 20, 16, 64]),
         fill_value=0.35355338454246521,
         dtype=ttnn.DataType.FLOAT32,
         layout=ttnn.Layout.TILE,
-        device=utils_DeviceGetter_get_device_31,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
+        device=device,
+        memory_config=mem,
     )
-    ttnn_layer_norm_0 = ttnn.layer_norm(
+
+    # Layer norm on latents
+    ln_out = ttnn.layer_norm(
         input[0],
         epsilon=9.9999997473787516e-06,
-        weight=ttnn_to_layout_51,
-        bias=ttnn_to_layout_52,
+        weight=ln1_weight,
+        bias=ln1_bias,
         residual_input_tensor=None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
+        memory_config=mem,
         program_config=None,
     )
-    ttnn_reshape_29 = ttnn.reshape(
-        ttnn_layer_norm_0,
-        [16, 1280],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_matmul_0 = ttnn.matmul(
-        ttnn_reshape_29,
-        ttnn_to_layout_50,
+
+    # Q projection: [16, 1280] @ [1280, 1280]^T -> [16, 1280]
+    ln_reshaped = ttnn.reshape(ln_out, [16, 1280], memory_config=mem)
+    q = ttnn.matmul(
+        ln_reshaped,
+        to_q_weight,
         transpose_a=False,
         transpose_b=True,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
+        memory_config=mem,
         dtype=None,
         program_config=None,
         activation=None,
     )
-    ttnn_reshape_30 = ttnn.reshape(
-        ttnn_matmul_0,
-        [1, 16, 20, 64],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_permute_0 = ttnn.permute(
-        ttnn_reshape_30,
-        [0, 2, 1, 3],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-        pad_value=0.0,
-    )
-    ttnn_typecast_0 = ttnn.typecast(
-        ttnn_permute_0,
-        ttnn.DataType.FLOAT32,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_multiply_0 = ttnn.multiply(
-        ttnn_typecast_0,
-        ttnn_full_1,
-        dtype=ttnn.DataType.FLOAT32,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_reshape_31 = ttnn.reshape(
-        ttnn_layer_norm_0,
-        [16, 1280],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_typecast_1 = ttnn.typecast(
-        ttnn_multiply_0,
-        ttnn.DataType.BFLOAT16,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    return ttnn_reshape_31, ttnn_typecast_1
+
+    # Reshape and permute for multi-head attention
+    q = ttnn.reshape(q, [1, 16, 20, 64], memory_config=mem)
+    q = ttnn.permute(q, [0, 2, 1, 3], memory_config=mem, pad_value=0.0)
+
+    # Apply scale
+    q = ttnn.typecast(q, ttnn.DataType.FLOAT32, memory_config=mem)
+    q = ttnn.multiply(q, scale, dtype=ttnn.DataType.FLOAT32, memory_config=mem)
+    q = ttnn.typecast(q, ttnn.DataType.BFLOAT16, memory_config=mem)
+
+    # Return reshaped ln output and precomputed q
+    ln_reshaped_out = ttnn.reshape(ln_out, [16, 1280], memory_config=mem)
+    return ln_reshaped_out, q
 
 
 def _prepare_conv_weights(input):
-    utils_DeviceGetter_get_device_67 = utils.DeviceGetter.get_device((1, 1))
-    ttnn_prepare_conv_weights_0 = ttnn.prepare_conv_weights(
+    device = utils.DeviceGetter.get_device((1, 1))
+    return ttnn.prepare_conv_weights(
         weight_tensor=input,
         input_memory_config=ttnn.DRAM_MEMORY_CONFIG,
         input_layout=ttnn.Layout.TILE,
@@ -320,7 +158,7 @@ def _prepare_conv_weights(input):
         dilation=[1, 1],
         has_bias=False,
         groups=1,
-        device=utils_DeviceGetter_get_device_67,
+        device=device,
         input_dtype=ttnn.DataType.BFLOAT16,
         output_dtype=ttnn.DataType.BFLOAT16,
         conv_config=ttnn.Conv2dConfig(
@@ -333,75 +171,35 @@ def _prepare_conv_weights(input):
         compute_config=None,
         slice_config=None,
     )
-    return ttnn_prepare_conv_weights_0
 
 
 def _position_embedding_lookup(input):
-    utils_DeviceGetter_get_device_89 = utils.DeviceGetter.get_device((1, 1))
-    ttnn_to_device_167 = ttnn.to_device(
-        input[0],
-        device=utils_DeviceGetter_get_device_89,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_layout_167 = ttnn.to_layout(
-        ttnn_to_device_167,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_typecast_2 = ttnn.typecast(
-        ttnn_to_layout_167,
-        ttnn.DataType.UINT32,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_layout_168 = ttnn.to_layout(
-        ttnn_typecast_2,
-        ttnn.Layout.ROW_MAJOR,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_device_168 = ttnn.to_device(
-        input[1],
-        device=utils_DeviceGetter_get_device_89,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_embedding_0 = ttnn.embedding(
-        ttnn_to_layout_168, ttnn_to_device_168, layout=ttnn.Layout.TILE
-    )
-    ttnn_permute_1 = ttnn.permute(
-        ttnn_embedding_0,
-        [0, 2, 1],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-        pad_value=0.0,
-    )
-    return ttnn_permute_1
+    """Lookup position embeddings. Input: [position_ids, embedding_weight]."""
+    device = utils.DeviceGetter.get_device((1, 1))
+    mem = ttnn.DRAM_MEMORY_CONFIG
+
+    # Prepare position IDs
+    pos_ids = ttnn.to_device(input[0], device=device, memory_config=mem)
+    pos_ids = ttnn.to_layout(pos_ids, ttnn.Layout.TILE, None, memory_config=mem)
+    pos_ids = ttnn.typecast(pos_ids, ttnn.DataType.UINT32, memory_config=mem)
+    pos_ids = ttnn.to_layout(pos_ids, ttnn.Layout.ROW_MAJOR, None, memory_config=mem)
+
+    # Load embedding weight
+    embed_weight = ttnn.to_device(input[1], device=device, memory_config=mem)
+
+    # Lookup and permute
+    embed = ttnn.embedding(pos_ids, embed_weight, layout=ttnn.Layout.TILE)
+    return ttnn.permute(embed, [0, 2, 1], memory_config=mem, pad_value=0.0)
 
 
 def _reshape_permute_1280(input):
-    utils_DeviceGetter_get_device_143 = utils.DeviceGetter.get_device((1, 1))
-    ttnn_to_device_258 = ttnn.to_device(
-        input,
-        device=utils_DeviceGetter_get_device_143,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_layout_258 = ttnn.to_layout(
-        ttnn_to_device_258,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_reshape_175 = ttnn.reshape(
-        ttnn_to_layout_258,
-        [1, 1, 1280],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_permute_2 = ttnn.permute(
-        ttnn_reshape_175,
-        [0, 2, 1],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-        pad_value=0.0,
-    )
-    return ttnn_permute_2
+    """Reshape to [1, 1, 1280] and permute to [1, 1280, 1]."""
+    device = utils.DeviceGetter.get_device((1, 1))
+    mem = ttnn.DRAM_MEMORY_CONFIG
+    x = ttnn.to_device(input, device=device, memory_config=mem)
+    x = ttnn.to_layout(x, ttnn.Layout.TILE, None, memory_config=mem)
+    x = ttnn.reshape(x, [1, 1, 1280], memory_config=mem)
+    return ttnn.permute(x, [0, 2, 1], memory_config=mem, pad_value=0.0)
 
 
 def run_const_evals(weights):
