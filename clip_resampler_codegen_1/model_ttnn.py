@@ -11,13 +11,24 @@ from weights_loader import load_inputs_for__main
 
 
 class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
-    def __init__(self, weights, cache):
+    def __init__(self, weights, cache, device):
+        self.device = device
         self.weights = weights
         self.cer = run_const_evals(weights, cache)
 
-    def forward(self, input_tensor):
+    def forward(self, pixel_values):
+        # Move input to device
+        assert pixel_values.device() is None, "pixel_values must be on host"
+        pixel_values = ttnn.to_device(
+            pixel_values,
+            self.device,
+            ttnn.MemoryConfig(
+                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+            ),
+        )
+
         CLIPVisionEmbeddings_0_0_0 = self.CLIPVisionEmbeddings_0_0(
-            input_tensor,
+            pixel_values,
             self.cer["utils_constEvalFuncWrapper_142_0"],
             self.cer["utils_constEvalFuncWrapper_88_0"],
             self.cer["utils_constEvalFuncWrapper_66_0"],
