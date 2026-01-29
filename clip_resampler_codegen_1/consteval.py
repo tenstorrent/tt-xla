@@ -42,6 +42,50 @@ def _single_weight_reshape_repeat_5120(input):
     return ttnn_repeat_0
 
 
+def _single_weight_reshape_repeat_1280(input):
+    utils_DeviceGetter_get_device_3 = utils.DeviceGetter.get_device((1, 1))
+    ttnn_to_device_4 = ttnn.to_device(
+        input,
+        device=utils_DeviceGetter_get_device_3,
+        memory_config=ttnn.DRAM_MEMORY_CONFIG,
+    )
+    ttnn_to_layout_4 = ttnn.to_layout(
+        ttnn_to_device_4,
+        ttnn.Layout.TILE,
+        None,
+        memory_config=ttnn.DRAM_MEMORY_CONFIG,
+    )
+    ttnn_reshape_4 = ttnn.reshape(
+        ttnn_to_layout_4,
+        [1, 1, 1280],
+        memory_config=ttnn.DRAM_MEMORY_CONFIG,
+    )
+    ttnn_repeat_4 = ttnn.repeat(ttnn_reshape_4, ttnn.Shape([1, 257, 1]))
+    return ttnn_repeat_4
+
+
+def _single_weight_reshape_repeat_2048(input):
+    utils_DeviceGetter_get_device_7 = utils.DeviceGetter.get_device((1, 1))
+    ttnn_to_device_10 = ttnn.to_device(
+        input,
+        device=utils_DeviceGetter_get_device_7,
+        memory_config=ttnn.DRAM_MEMORY_CONFIG,
+    )
+    ttnn_to_layout_10 = ttnn.to_layout(
+        ttnn_to_device_10,
+        ttnn.Layout.TILE,
+        None,
+        memory_config=ttnn.DRAM_MEMORY_CONFIG,
+    )
+    ttnn_reshape_7 = ttnn.reshape(
+        ttnn_to_layout_10,
+        [1, 1, 2048],
+        memory_config=ttnn.DRAM_MEMORY_CONFIG,
+    )
+    ttnn_repeat_7 = ttnn.repeat(ttnn_reshape_7, ttnn.Shape([1, 16, 1]))
+    return ttnn_repeat_7
+
+
 def _three_weight_reshape_repeat_concat_dim2(input):
     """Concatenates Q, K, V biases along dim 2. Input order: [q_proj, k_proj, v_proj]."""
     utils_DeviceGetter_get_device_2 = utils.DeviceGetter.get_device((1, 1))
@@ -108,28 +152,6 @@ def _three_weight_reshape_repeat_concat_dim2(input):
     return ttnn_concat_0
 
 
-def _single_weight_reshape_repeat_1280(input):
-    utils_DeviceGetter_get_device_3 = utils.DeviceGetter.get_device((1, 1))
-    ttnn_to_device_4 = ttnn.to_device(
-        input,
-        device=utils_DeviceGetter_get_device_3,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_layout_4 = ttnn.to_layout(
-        ttnn_to_device_4,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_reshape_4 = ttnn.reshape(
-        ttnn_to_layout_4,
-        [1, 1, 1280],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_repeat_4 = ttnn.repeat(ttnn_reshape_4, ttnn.Shape([1, 257, 1]))
-    return ttnn_repeat_4
-
-
 def _three_weight_concat_dim0(input):
     """Concatenates Q, K, V weights along dim 0. Input order: [q_proj, k_proj, v_proj]."""
     utils_DeviceGetter_get_device_4 = utils.DeviceGetter.get_device((1, 1))
@@ -176,28 +198,6 @@ def _three_weight_concat_dim0(input):
         memory_config=ttnn.DRAM_MEMORY_CONFIG,
     )
     return ttnn_concat_1
-
-
-def _single_weight_reshape_repeat_2048(input):
-    utils_DeviceGetter_get_device_7 = utils.DeviceGetter.get_device((1, 1))
-    ttnn_to_device_10 = ttnn.to_device(
-        input,
-        device=utils_DeviceGetter_get_device_7,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_to_layout_10 = ttnn.to_layout(
-        ttnn_to_device_10,
-        ttnn.Layout.TILE,
-        None,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_reshape_7 = ttnn.reshape(
-        ttnn_to_layout_10,
-        [1, 1, 2048],
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-    )
-    ttnn_repeat_7 = ttnn.repeat(ttnn_reshape_7, ttnn.Shape([1, 16, 1]))
-    return ttnn_repeat_7
 
 
 def _resampler_attention_query(input):
