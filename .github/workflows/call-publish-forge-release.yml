@@ -29,6 +29,9 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -79,7 +82,7 @@ jobs:
         run: |
           set -eo pipefail
           sudo apt-get update
-          sudo apt-get install -y -qq skopeo
+          sudo apt-get install -y -q skopeo
 
           project="tt-forge"
           commit_tag="${{ github.sha }}"
