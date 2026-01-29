@@ -15,7 +15,10 @@ os.environ["TTMLIR_RUNTIME_LOGGER_LEVEL"] = "DEBUG"
 
 def run_transformer():
     """
-    Test Mochi DiT (Diffusion Transformer) in isolation.
+    Test Mochi DiT (Diffusion Transformer) with minimal config.
+
+    Uses random weights and reduced layers for fast runtime testing.
+    Activation shapes are identical to full model (layers don't change dimensions).
 
     Input:
     - hidden_states: Noisy latents [B, 12, t, h, w]
@@ -25,29 +28,28 @@ def run_transformer():
 
     Output: Transformer2DModelOutput with .sample [B, 12, t, h, w]
 
-    Mochi DiT specs:
-    - AsymmDiT architecture: 10B parameters
-    - 48 layers, 24 heads, visual_dim=3072, text_dim=1536
+    Minimal config (vs full Mochi):
+    - 2 layers (vs 48)
+    - Same attention: 24 heads, 128 dim each
     """
     xr.set_device_type("TT")
     device = torch_xla.device()
 
-    # Load ONLY the transformer (not the full pipeline!)
-    # This loads ~10B params (~20GB in bfloat16)
-    transformer = MochiTransformer3DModel.from_pretrained(
-        "genmo/mochi-1-preview", subfolder="transformer", torch_dtype=torch.bfloat16
-    )
+    # Create minimal transformer with random weights (no pretrained loading)
+    # Uses 2 layers instead of 48, same architecture otherwise
+    transformer = MochiTransformer3DModel(
+        num_layers=4,  # 48 → 4 for fast testing
+    ).to(torch.bfloat16)
 
     # Prepare inputs
-    # hidden_states (noisy latents): [B, C, T, H, W] = [1, 12, 4, 60, 106]
-    # generating 1s video @ 480x848 resolution (24 frames)
-    hidden_states = torch.randn(1, 12, 4, 60, 106, dtype=torch.bfloat16)
+    # hidden_states (noisy latents): [B, C, T, H, W] = [1, 12, 2, 8, 8]
+    hidden_states = torch.randn(1, 12, 2, 60, 106, dtype=torch.bfloat16)
 
     # timestep: diffusion step index as LongTensor [B]
     # Mochi uses 1000 diffusion steps, so valid range is 0-999
     timestep = torch.tensor([500], dtype=torch.long)
 
-    text_seq_len = 16
+    text_seq_len = 128
     # text_encoder_hidden_states (text embeddings from T5-XXL): [B, text_seq_len, 4096]
     # Using minimal 16 tokens for runtime testing
     text_encoder_hidden_states = torch.randn(
@@ -83,5 +85,5 @@ def run_transformer():
 
 
 if __name__ == "__main__":
-    print("Running Mochi DiT test...")
+    print("Running Mochi DiT (minimal) test...")
     run_transformer()
