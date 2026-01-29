@@ -44,7 +44,7 @@
           "TTMLIR_ENABLE_RUNTIME_TESTS": "ON",
           "TTMLIR_ENABLE_RUNTIME": "ON",
           "TTMLIR_ENABLE_BINDINGS_PYTHON": "ON",
-          "TT_RUNTIME_DEBUG": "ON",
+          "TT_RUNTIME_DEBUG": "OFF",
           "TTMLIR_ENABLE_STABLEHLO": "ON"
         },
         "cmakeExecutable": "sea_cmake"
