@@ -17,14 +17,15 @@ export TTMLIR_VENV_DIR="$(pwd)/venv"
 if [ -d $TTMLIR_VENV_DIR/bin ]; then
   [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
 else
+  curl -LsSf https://astral.sh/uv/install.sh | sh
   echo "Creating virtual environment in $TTMLIR_VENV_DIR"
   python3.11 -m venv $TTMLIR_VENV_DIR
   source $TTMLIR_VENV_DIR/bin/activate
-  pip install --upgrade pip
+  uv pip install --upgrade pip
   # Requirements for third party projects are installed during their build in `CMakeLists.txt`
-  pip install --extra-index-url https://download.pytorch.org/whl/cpu -r python_package/requirements.txt
+  uv pip install --extra-index-url https://download.pytorch.org/whl/cpu -r python_package/requirements.txt
   # Install dev/test requirements
-  pip install --extra-index-url https://download.pytorch.org/whl/cpu -r venv/requirements-dev.txt
+  uv pip install --extra-index-url https://download.pytorch.org/whl/cpu -r venv/requirements-dev.txt
 fi
 
 export VLLM_TARGET_DEVICE="empty"
