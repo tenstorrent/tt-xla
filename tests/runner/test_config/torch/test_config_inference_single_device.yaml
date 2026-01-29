@@ -2605,3 +2605,64 @@ test_config:
         n150:
           status: KNOWN_FAILURE_XFAIL
           reason: "Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B"
+
+  siglip/image_text_similarity/pytorch-base_patch16_224-single_device-inference:
+    status: EXPECTED_PASSING
+
+  siglip/image_text_similarity/pytorch-base_patch16_256-single_device-inference:
+    status: EXPECTED_PASSING
+
+  siglip/image_text_similarity/pytorch-base_patch16_384-single_device-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        required_pcc: 0.98  # Actual PCC: 0.9847531158203227 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+
+  siglip/image_text_similarity/pytorch-base_patch16_512-single_device-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        required_pcc: 0.98  # Actual PCC: 0.9867153999500852 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+
+  siglip/image_text_similarity/pytorch-base_patch16_256_multilingual-single_device-inference:
+    status: EXPECTED_PASSING
+
+  siglip/image_text_similarity/pytorch-large_patch16_256-single_device-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.98  # Actual PCC: 0.986684763880969 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+      p150:
+        required_pcc: 0.98  # Actual PCC: 0.9873568504978747 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+
+  siglip/image_text_similarity/pytorch-large_patch16_384-single_device-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.98  # Actual PCC: 0.9893993879478543 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+      p150:
+        assert_pcc: false  # Actual PCC: 0.9799736818706198 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+
+  siglip/image_text_similarity/pytorch-so400m_patch14_224-single_device-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        assert_pcc: false  # Actual PCC: 0.9590273983037481 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+      p150:
+        assert_pcc: false  # Actual PCC: 0.9558645998697567 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+
+  siglip/image_text_similarity/pytorch-so400m_patch14_384-single_device-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        assert_pcc: false  # Actual PCC: 0.9579560773278014 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+      p150:
+        assert_pcc: false  # Actual PCC: 0.9555685660373453 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+
+  siglip/image_text_similarity/pytorch-so400m_patch16_256_i18n-single_device-inference:
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        assert_pcc: false  # Actual PCC: 0.9693205147128082 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+      p150:
+        assert_pcc: false  # Actual PCC: 0.9661477411303401 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation

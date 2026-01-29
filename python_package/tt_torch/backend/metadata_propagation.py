@@ -32,7 +32,6 @@ Correct usage pattern:
 
 """
 import ast
-import logging
 import os
 import types
 from dataclasses import dataclass
@@ -40,8 +39,7 @@ from dataclasses import dataclass
 import torch
 import torch_xla
 from torch.utils._python_dispatch import TorchDispatchMode
-
-logger = logging.getLogger(__name__)
+from ttxla_tools.logging import logger
 
 # Enable debug logging for location metadata
 DBG_LOC = False
@@ -448,6 +446,6 @@ class MetadataDispatchMode(TorchDispatchMode):
                 )
                 return True
         except Exception:
-            print(f"Error setting metadata - ({module_hierarchy})", flush=True)
+            logger.error(f"Error setting metadata - ({module_hierarchy})")
 
         return False

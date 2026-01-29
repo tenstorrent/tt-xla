@@ -11,6 +11,8 @@
 # Static lib containing core PJRT API implementation: handling device/client/buffer/etc.
 # Depends on: TTMLIRCompiler, TTMLIRRuntime, TTPJRTUtils, coverage_config, protobuf::libprotobuf
 
+find_package(Protobuf REQUIRED)
+
 add_library(TTPJRTApi
     "buffer_instance.cc"
     "client_instance.cc"
@@ -35,7 +37,6 @@ add_library(TTPJRTApi
 )
 
 target_include_directories(TTPJRTApi PUBLIC
-    ${Protobuf_INCLUDE_DIRS}
     ${TTMLIR_TOOLCHAIN_DIR}/src/shardy
     ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
 )
@@ -44,7 +45,7 @@ target_link_libraries(TTPJRTApi
 PRIVATE
     dl
     coverage_config
-    libprotobuf
+    protobuf::libprotobuf
     TTMLIRCompiler
     TTMLIRRuntime
 PUBLIC
