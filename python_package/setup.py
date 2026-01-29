@@ -302,6 +302,81 @@ class CMakeBuildPy(build_py):
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
             return
+
+        # Remove not needed executables from sfpi runtime
+        runtime_exclude_files = [
+            "riscv32-unknown-elf-lto-dump",
+            "riscv32-unknown-elf-gdb",
+            "riscv32-unknown-elf-objdump",
+            "riscv32-unknown-elf-run",
+            "riscv32-unknown-elf-ranlib",
+            "riscv32-unknown-elf-gprof",
+            "riscv32-unknown-elf-strings",
+            "riscv32-unknown-elf-size",
+            "riscv32-unknown-elf-readelf",
+            "riscv32-unknown-elf-nm",
+            "riscv32-unknown-elf-c++filt",
+            "riscv32-unknown-elf-addr2line",
+            "riscv32-unknown-elf-gcov",
+            "riscv32-unknown-elf-gcov-tool",
+            "riscv32-unknown-elf-gcov-dump",
+            "riscv32-unknown-elf-elfedit",
+            "riscv32-unknown-elf-gcc-ranlib",
+            "riscv32-unknown-elf-gcc-nm",
+            "riscv32-unknown-elf-gdb-add-index",
+        ]
+        _remove_bloat_files(
+            install_dir / "tt-metal" / "runtime" / "sfpi", runtime_exclude_files
+        )
+
+        # remove cmake and pkgconfig files
+        _remove_bloat_dir(install_dir / "lib" / "cmake")
+        _remove_bloat_dir(install_dir / "lib" / "pkgconfig")
+        _remove_bloat_dir(install_dir / "bin")
+        _remove_bloat_dir(install_dir / "include")
+        _remove_bloat_dir(install_dir / "tt-metal" / "tests")
+
+        ttnn_cpp_patterns = [
+            "kernel/**/*",
+            "operations/**/kernels/**/*",
+            "operations/**/kernels_ng/**/*",
+            "operations/kernel_helper_functions/*",
+            "operations/ccl/**/*",
+            "operations/data_movement/**/*",
+            "operations/moreh/**/*",
+            "kernel/*",
+            "operations/normalization/kernel_util/**/*",
+        ]
+        _remove_bloat_leave_patterns(
+            install_dir / "tt-metal" / "ttnn", ttnn_cpp_patterns
+        )
+        tt_metal_patterns = [
+            "api/tt-metalium/buffer_constants.hpp",
+            "api/tt-metalium/buffer_types.hpp",
+            "api/tt-metalium/circular_buffer_constants.h",
+            "api/tt-metalium/constants.hpp",
+            "api/tt-metalium/dev_msgs.h",
+            "api/tt-metalium/experimental/fabric/fabric_edm_types.hpp",
+            "fabric/fabric_edm_packet_header.hpp",
+            "api/tt-metalium/experimental/fabric/edm_fabric_counters.hpp",
+            "core_descriptors/*.yaml",
+            "fabric/hw/**/*",
+            "fabric/mesh_graph_descriptors/*.yaml",
+            "fabric/mesh_graph_descriptors/*.textproto",
+            "fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp",
+            "fabric/impl/kernels/tt_fabric_mux.cpp",
+            "hw/**/*",
+            "hostdevcommon/api/hostdevcommon/**/*",
+            "impl/dispatch/kernels/**/*",
+            "include/**/*",
+            "kernels/**/*",
+            "third_party/tt_llk/**/*",
+            "tools/profiler/**/*",
+            "soc_descriptors/*.yaml",
+        ]
+        _remove_bloat_leave_patterns(
+            install_dir / "tt-metal" / "tt_metal", tt_metal_patterns
+        )
         # Broken symlinks introduced in tt-umd -> tt-metal -> tt-mlir uplift
         # issue: https://github.com/tenstorrent/tt-umd/issues/1864
         _remove_broken_symlinks(install_dir)
@@ -322,6 +397,30 @@ class CMakeBuildPy(build_py):
                 shutil.copy2(script_src, config.jax_plugin_target_dir)
             else:
                 print(f"{script_file} already copied.")
+
+
+def _remove_bloat_dir(dir_path: Path) -> None:
+    if dir_path.exists() and dir_path.is_dir():
+        print(f"Removing bloat directory: {dir_path}")
+        shutil.rmtree(dir_path)
+
+
+def _remove_bloat_files(dir_path: Path, patterns: list[str]) -> None:
+    if dir_path.exists() and dir_path.is_dir():
+        for file in dir_path.rglob("*"):
+            if file.is_file() and file.name in patterns:
+                print(f"Removing excluded file: {file.relative_to(dir_path)}")
+                file.unlink()
+
+
+def _remove_bloat_leave_patterns(dir_path: Path, leave_patterns: list[str]) -> None:
+    if dir_path.exists() and dir_path.is_dir():
+        for file in dir_path.rglob("*"):
+            if file.is_file() and all(
+                not file.match(pattern) for pattern in leave_patterns
+            ):
+                print(f"Removing excluded file: {file.relative_to(dir_path)}")
+                file.unlink()
 
 
 def _remove_static_archives(root: Path) -> None:
@@ -365,7 +464,33 @@ def _deduplicate_shared_objects(root: Path) -> None:
     for so_file in sorted(
         root.rglob("*.so*"), key=lambda p: p.relative_to(root).as_posix()
     ):
-        if so_file.is_symlink() or not so_file.is_file():
+        if so_file.is_symlink():
+            try:
+                link_target = os.readlink(so_file)
+            except OSError:
+                continue
+
+            target_path = (so_file.parent / link_target).resolve()
+            if not target_path.exists() or not target_path.is_file():
+                continue
+            if ".so." not in target_path.name:
+                continue
+
+            try:
+                target_path.relative_to(root)
+            except ValueError:
+                continue
+
+            rel_symlink = so_file.relative_to(root)
+            rel_target = target_path.relative_to(root)
+            print(
+                f"Materializing shared library symlink: {rel_symlink} -> {rel_target}"
+            )
+            so_file.unlink()
+            target_path.rename(so_file)
+            continue
+
+        if not so_file.is_file():
             continue
 
         checksum = _sha256_file(so_file)
