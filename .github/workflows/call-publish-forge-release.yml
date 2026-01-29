@@ -29,9 +29,6 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-tags: true
-          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -75,31 +72,31 @@ jobs:
           #   s3pypi upload tt_forge*.whl --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
           # fi
 
-      - name: Build & push Docker image
-        shell: bash
-        id: build-docker
-        run: |
-          set -eo pipefail
+      # - name: Build & push Docker image
+      #   shell: bash
+      #   id: build-docker
+      #   run: |
+      #     set -eo pipefail
 
-          project="tt-forge"
-          commit_tag="${{ github.sha }}"
-          version_tag="${{ inputs.release_tag }}"
-          latest_tag="latest"
-          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
-            latest_tag="nightly-latest"
-          fi
+      #     project="tt-forge"
+      #     commit_tag="${{ github.sha }}"
+      #     version_tag="${{ inputs.release_tag }}"
+      #     latest_tag="latest"
+      #     if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
+      #       latest_tag="nightly-latest"
+      #     fi
 
-          .github/build-release-docker-image.sh $project $commit_tag | tee docker.log
-          docker_image=$(tail -n 1 docker.log)
-          docker_image_base=$(tail -n 2 docker.log | head -n 1)
+      #     .github/build-release-docker-image.sh $project $commit_tag | tee docker.log
+      #     docker_image=$(tail -n 1 docker.log)
+      #     docker_image_base=$(tail -n 2 docker.log | head -n 1)
 
-          echo "Pushing tags for $docker_image_base"
-          docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$latest_tag"
-          docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$version_tag"
-          docker push "$docker_image_base:$latest_tag"
-          docker push "$docker_image_base:$version_tag"
+      #     echo "Pushing tags for $docker_image_base"
+      #     docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$latest_tag"
+      #     docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$version_tag"
+      #     docker push "$docker_image_base:$latest_tag"
+      #     docker push "$docker_image_base:$version_tag"
 
-          echo "docker_image_base=$docker_image_base" >> $GITHUB_OUTPUT
+      #     echo "docker_image_base=$docker_image_base" >> $GITHUB_OUTPUT
 
       - name: Create and push tag if missing
         shell: bash
