@@ -82,10 +82,7 @@ def load_weights_from_pytorch(
 
         # Move to device if needed
         if on_device and device is not None:
-            mem_config = ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            )
-            ttnn_tensor = ttnn.to_device(ttnn_tensor, device, mem_config)
+            ttnn_tensor = ttnn.to_device(ttnn_tensor, device, ttnn.DRAM_MEMORY_CONFIG)
 
         weights[weight_name] = ttnn_tensor
         converted_count += 1

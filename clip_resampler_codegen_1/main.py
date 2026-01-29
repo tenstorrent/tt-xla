@@ -6,7 +6,6 @@ import time
 import torch
 import ttnn
 import utils
-from load_weights_from_pytorch import load_weights_from_pytorch
 from model_pt import CLIPVisionEncoderAndResamplerPT, get_input
 
 # from model_ttnn import CLIPVisionEncoderAndResamplerTTNN

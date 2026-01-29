@@ -105,9 +105,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
 
     def _dram_memory_config(self):
         """Standard DRAM interleaved memory config."""
-        return ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        )
+        return ttnn.DRAM_MEMORY_CONFIG
 
     # ============ Vision Embeddings ============
 
@@ -940,9 +938,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         pixel_values = ttnn.to_device(
             pixel_values,
             self.device,
-            ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            ttnn.DRAM_MEMORY_CONFIG,
         )
         pixel_values = ttnn.to_layout(
             pixel_values,
