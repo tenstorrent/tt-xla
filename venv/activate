@@ -17,7 +17,7 @@ export TTMLIR_VENV_DIR="$(pwd)/venv"
 if [ -d $TTMLIR_VENV_DIR/bin ]; then
   [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
 else
-  curl -LsSf https://astral.sh/uv/install.sh | sh
+  pip install uv
   echo "Creating virtual environment in $TTMLIR_VENV_DIR"
   python3.11 -m venv $TTMLIR_VENV_DIR
   source $TTMLIR_VENV_DIR/bin/activate
