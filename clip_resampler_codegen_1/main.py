@@ -6,6 +6,7 @@ import time
 import torch
 import ttnn
 import utils
+from load_weights_from_pytorch import load_weights_from_pytorch
 from model_pt import CLIPVisionEncoderAndResamplerPT, get_input
 
 # from model_ttnn import CLIPVisionEncoderAndResamplerTTNN
@@ -14,21 +15,6 @@ from model_ttnn_unwrapped import CLIPVisionEncoderAndResamplerTTNN  # Unwrapped 
 from tracy import signpost
 
 _CONST_EVAL_CACHE = {}
-
-
-def load_weights(device=None):
-    """
-    Load weights from PyTorch model (HuggingFace).
-
-    Args:
-        device: TTNN device for on-device tensors.
-
-    Returns:
-        Tuple of TTNN tensors.
-    """
-    from load_weights_from_pytorch import load_weights_from_pytorch
-
-    return load_weights_from_pytorch(device=device)
 
 
 def main():
@@ -58,13 +44,9 @@ def main():
 
     mesh_device = utils.DeviceGetter.get_device([1, 1])
 
-    # Load weights from PyTorch/HuggingFace
-    print("Loading weights from PyTorch/HuggingFace...")
-    weights = load_weights(device=mesh_device)
-
     # Load TTNN model
     model_ttnn = CLIPVisionEncoderAndResamplerTTNN(
-        weights, _CONST_EVAL_CACHE, mesh_device
+        mesh_device, model_torch.state_dict(), _CONST_EVAL_CACHE
     )
 
     # Run ttnn model

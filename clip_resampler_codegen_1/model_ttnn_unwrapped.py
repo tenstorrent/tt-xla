@@ -6,14 +6,15 @@
 import ttnn
 import utils
 from consteval import run_const_evals
+from load_weights_from_pytorch import load_weights_from_pytorch
 from models.common.lightweightmodule import LightweightModule
 
 
 class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
-    def __init__(self, weights, cache, device):
+    def __init__(self, device, torch_weights, cache):
         self.device = device
-        self.weights = weights
-        self.cer = run_const_evals(weights, cache)
+        self.weights = load_weights_from_pytorch(torch_weights, device)
+        self.cer = run_const_evals(self.weights, cache)
 
     def forward(self, pixel_values):
         # Move input to device
