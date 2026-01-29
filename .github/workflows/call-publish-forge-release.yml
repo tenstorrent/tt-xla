@@ -29,6 +29,9 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -58,7 +61,6 @@ jobs:
           pip install wheel
           # maybe will output wrong arch suffix (takes it from os it's built on)
           python ./.github/scripts/forge-wheel-setup.py bdist_wheel --dist-dir ./
-          ls -lah *.whl
 
       - name: Publish wheels to PyPI
         shell: bash
