@@ -160,7 +160,7 @@ jobs:
 
         echo "=== Installing wheel ==="
         source venv/activate
-        uv install wheels/*.whl
+        uv pip install wheels/*.whl
 
     - name: Download and setup alchemist library
       shell: bash
