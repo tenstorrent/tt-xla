@@ -90,10 +90,14 @@ def test_kimi_k2_attention_prefill():
     def get_shard_spec(attention, args, kwargs):
         shard_specs = {}
 
-        shard_specs[args[0]] = (None, None, "model")
-        shard_specs[attention.q_b_proj.weight] = ("model", "batch")
-        shard_specs[attention.kv_b_proj.weight] = ("model", "batch")
+        shard_specs[args[0]] = (None, None, "batch")
+        shard_specs[attention.q_b_proj.weight] = ("model", None)
+        shard_specs[attention.kv_b_proj.weight] = ("model", None)
         shard_specs[attention.o_proj.weight] = ("batch", "model")
+
+        # Consume hidden states, TP on batch dimension
+        shard_specs[attention.q_a_proj.weight] = (None, "batch")
+        shard_specs[attention.kv_a_proj_with_mqa.weight] = (None, "batch")
         return shard_specs
 
 
@@ -142,9 +146,17 @@ def test_kimi_k2_layer():
         shard_specs = {}
 
         shard_specs[args[0]] = (None, None, "batch")
-        shard_specs[layer.self_attn.q_b_proj.weight] = ("model", "batch")
-        shard_specs[layer.self_attn.kv_b_proj.weight] = ("model", "batch")
+        
+        # Main attention weights, TP across model and batch dimensions
+        shard_specs[layer.self_attn.q_b_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.kv_b_proj.weight] = ("model", None)
         shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+
+        # Consume hidden states, TP on batch dimension
+        shard_specs[layer.self_attn.q_a_proj.weight] = (None, "batch")
+        shard_specs[layer.self_attn.kv_a_proj_with_mqa.weight] = (None, "batch")
+
+
         shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
         shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
         shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
