@@ -38,12 +38,51 @@ def test_tensor_parallel_generation_n300(model_name: str):
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_enable_weight_bfp8_conversion"],
     [
+        pytest.param("Qwen/Qwen3-0.6B", False, False),
+        pytest.param("Qwen/Qwen2.5-0.5B", False, False),
+        pytest.param("meta-llama/Llama-3.1-8B", True, True),
+    ],
+)
+def test_tensor_parallel_generation_llmbox_small(
+    model_name: str,
+    enable_const_eval: bool,
+    experimental_enable_weight_bfp8_conversion: bool,
+):
+    prompts = [
+        "I like taking walks in the",
+    ]
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "max_num_batched_tokens": 32,
+        "max_num_seqs": 1,
+        "max_model_len": 32,
+        "gpu_memory_utilization": 0.002,
+        "additional_config": {
+            "enable_const_eval": enable_const_eval,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "experimental_enable_weight_bfp8_conversion": experimental_enable_weight_bfp8_conversion,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
+    print(f"prompt: {prompts[0]}, output: {output_text}")
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize(
+    ["model_name", "enable_const_eval", "experimental_enable_weight_bfp8_conversion"],
+    [
         pytest.param("Qwen/Qwen3-32B", False, False),
         pytest.param("Qwen/Qwen2.5-32B", False, False),
         pytest.param("meta-llama/Llama-3.1-70B", True, True),
     ],
 )
-def test_tensor_parallel_generation_llmbox(
+def test_tensor_parallel_generation_llmbox_large(
     model_name: str,
     enable_const_eval: bool,
     experimental_enable_weight_bfp8_conversion: bool,
