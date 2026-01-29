@@ -5,17 +5,18 @@
 
 set -e
 
-if [ $# -ne 1 ]; then
-    echo "Error: Exactly 1 argument is required."
-    echo "Usage: $0 <docker-commit-tag>"
+if [ $# -ne 2 ]; then
+    echo "Error: Exactly 2 arguments are required."
+    echo "Usage: $0 <project> <docker-commit-tag>"
     exit 1
 fi
 
-COMMIT_TAG=$1
+PROJECT=$1
+COMMIT_TAG=$2
 
 # todo(vvukoman): change REPO to "tenstorrent" when done to avoid end-user changes
-REPO=tenstorrent/tt-xla
-IMAGE_NAME=ghcr.io/$REPO/tt-xla-slim
+REPO=tenstorrent/$PROJECT
+IMAGE_NAME=ghcr.io/$REPO/$PROJECT-slim
 
 build_and_push() {
   local image_name=$1

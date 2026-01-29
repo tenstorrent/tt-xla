@@ -100,10 +100,10 @@ jobs:
         run: |
           set -eo pipefail
 
+          project="tt-xla"
           docker_tag="${{ github.sha }}"
-          echo "Docker tag: $docker_tag"
 
-          .github/build-release-docker-image.sh $docker_tag | tee docker.log
+          .github/build-release-docker-image.sh $project $docker_tag | tee docker.log
 
           docker_image=$(tail -n 1 docker.log)
           docker_image_base=$(tail -n 2 docker.log | head -n 1)
