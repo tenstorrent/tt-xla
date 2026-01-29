@@ -23,6 +23,12 @@ on:
         description: "Run on shared runner"
         required: false
         type: boolean
+        default: true
+      skip-device-perf:
+        description: "Skip device performance measurement"
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   packages: write
@@ -72,3 +78,4 @@ jobs:
         ref: ${{ needs.set-inputs.outputs.ref }}
         test-filter: ${{ inputs.test_filter }}
         sh-runner: ${{ inputs.sh-runner }}
+        skip-device-perf: ${{ inputs.skip-device-perf }}
