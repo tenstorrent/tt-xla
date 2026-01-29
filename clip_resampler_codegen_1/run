@@ -36,6 +36,12 @@ if [[ -z "${VIRTUAL_ENV}" ]]; then
     echo "Error: VIRTUAL_ENV environment variable is not set. Please activate your virtual environment."
     exit 1
 fi
+
+if [[ ":$PYTHONPATH:" != *":${TT_METAL_RUNTIME_ROOT}:"* ]]; then
+    # This covers the corner case where PYTHONPATH is not set, avoids leading colon
+    export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}${TT_METAL_RUNTIME_ROOT}"
+fi
+
 # If ttnn module is not in PYTHONPATH, add it
 if [[ ":$PYTHONPATH:" != *":${TT_METAL_RUNTIME_ROOT}/ttnn:"* ]]; then
     # This covers the corner case where PYTHONPATH is not set, avoids leading colon
