@@ -1,0 +1,191 @@
+# Layer configurations
+# For each layer, maps semantic names to weight indices or CER keys
+
+LAYER_CONFIGS = {
+    # Layer 25 attention (method 103)
+    # Input mappings: {4: 'hidden_states', 1: 'qkv_weight', 0: 'out_proj_weight', 3: 'qkv_bias', 2: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_61_0]
+    # out_proj_weight: weight[80]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_58_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_31_0]
+    # Layer 26 attention (method 107)
+    # Input mappings: {1: 'hidden_states', 4: 'qkv_weight', 2: 'out_proj_weight', 0: 'qkv_bias', 3: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_9_0]
+    # out_proj_weight: weight[68]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_77_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_105_0]
+    # Layer 2 attention (method 11)
+    # Input mappings: {2: 'hidden_states', 1: 'qkv_weight', 4: 'out_proj_weight', 0: 'qkv_bias', 3: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_25_0]
+    # out_proj_weight: weight[356]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_80_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_122_0]
+    # Layer 27 attention (method 111)
+    # Input mappings: {0: 'hidden_states', 2: 'qkv_weight', 1: 'out_proj_weight', 4: 'qkv_bias', 3: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_159_0]
+    # out_proj_weight: weight[56]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_41_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_8_0]
+    # Layer 28 attention (method 115)
+    # Input mappings: {0: 'hidden_states', 3: 'qkv_weight', 1: 'out_proj_weight', 2: 'qkv_bias', 4: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_3_0]
+    # out_proj_weight: weight[44]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_16_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_121_0]
+    # Layer 29 attention (method 119)
+    # Input mappings: {2: 'hidden_states', 4: 'qkv_weight', 3: 'out_proj_weight', 0: 'qkv_bias', 1: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_75_0]
+    # out_proj_weight: weight[32]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_45_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_79_0]
+    # Layer 30 attention (method 123)
+    # Input mappings: {2: 'hidden_states', 3: 'qkv_weight', 0: 'out_proj_weight', 4: 'qkv_bias', 1: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_138_0]
+    # out_proj_weight: weight[20]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_131_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_48_0]
+    # Layer 3 attention (method 15)
+    # Input mappings: {3: 'hidden_states', 4: 'qkv_weight', 1: 'out_proj_weight', 0: 'qkv_bias', 2: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_26_0]
+    # out_proj_weight: weight[344]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_90_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_132_0]
+    # Layer 4 attention (method 19)
+    # Input mappings: {1: 'hidden_states', 3: 'qkv_weight', 4: 'out_proj_weight', 2: 'qkv_bias', 0: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_127_0]
+    # out_proj_weight: weight[332]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_43_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_97_0]
+    # Layer 5 attention (method 23)
+    # Input mappings: {3: 'hidden_states', 4: 'qkv_weight', 0: 'out_proj_weight', 1: 'qkv_bias', 2: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_96_0]
+    # out_proj_weight: weight[320]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_158_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_69_0]
+    # Layer 6 attention (method 27)
+    # Input mappings: {1: 'hidden_states', 3: 'qkv_weight', 4: 'out_proj_weight', 0: 'qkv_bias', 2: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_128_0]
+    # out_proj_weight: weight[308]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_99_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_46_0]
+    # Layer 0 attention (method 3)
+    # Input mappings: {4: 'hidden_states', 3: 'qkv_weight', 0: 'out_proj_weight', 1: 'qkv_bias', 2: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_70_0]
+    # out_proj_weight: weight[380]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_47_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_124_0]
+    # Layer 7 attention (method 31)
+    # Input mappings: {2: 'hidden_states', 4: 'qkv_weight', 3: 'out_proj_weight', 1: 'qkv_bias', 0: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_49_0]
+    # out_proj_weight: weight[296]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_84_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_120_0]
+    # Layer 8 attention (method 35)
+    # Input mappings: {0: 'hidden_states', 4: 'qkv_weight', 2: 'out_proj_weight', 1: 'qkv_bias', 3: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_29_0]
+    # out_proj_weight: weight[284]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_40_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_74_0]
+    # Layer 9 attention (method 39)
+    # Input mappings: {0: 'hidden_states', 1: 'qkv_weight', 4: 'out_proj_weight', 2: 'qkv_bias', 3: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_119_0]
+    # out_proj_weight: weight[272]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_133_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_113_0]
+    # Layer 10 attention (method 43)
+    # Input mappings: {3: 'hidden_states', 1: 'qkv_weight', 0: 'out_proj_weight', 4: 'qkv_bias', 2: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_152_0]
+    # out_proj_weight: weight[260]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_71_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_64_0]
+    # Layer 11 attention (method 47)
+    # Input mappings: {2: 'hidden_states', 0: 'qkv_weight', 4: 'out_proj_weight', 3: 'qkv_bias', 1: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_67_0]
+    # out_proj_weight: weight[248]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_116_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_140_0]
+    # Layer 12 attention (method 51)
+    # Input mappings: {2: 'hidden_states', 1: 'qkv_weight', 0: 'out_proj_weight', 3: 'qkv_bias', 4: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_87_0]
+    # out_proj_weight: weight[236]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_136_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_68_0]
+    # Layer 13 attention (method 55)
+    # Input mappings: {4: 'hidden_states', 3: 'qkv_weight', 0: 'out_proj_weight', 1: 'qkv_bias', 2: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_102_0]
+    # out_proj_weight: weight[224]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_1_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_126_0]
+    # Layer 14 attention (method 59)
+    # Input mappings: {0: 'hidden_states', 1: 'qkv_weight', 2: 'out_proj_weight', 3: 'qkv_bias', 4: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_86_0]
+    # out_proj_weight: weight[212]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_101_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_11_0]
+    # Layer 15 attention (method 63)
+    # Input mappings: {0: 'hidden_states', 4: 'qkv_weight', 3: 'out_proj_weight', 1: 'qkv_bias', 2: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_23_0]
+    # out_proj_weight: weight[200]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_72_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_114_0]
+    # Layer 16 attention (method 67)
+    # Input mappings: {1: 'hidden_states', 2: 'qkv_weight', 3: 'out_proj_weight', 0: 'qkv_bias', 4: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_89_0]
+    # out_proj_weight: weight[188]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_118_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_63_0]
+    # Layer 1 attention (method 7)
+    # Input mappings: {2: 'hidden_states', 4: 'qkv_weight', 3: 'out_proj_weight', 0: 'qkv_bias', 1: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_157_0]
+    # out_proj_weight: weight[368]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_62_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_55_0]
+    # Layer 17 attention (method 71)
+    # Input mappings: {2: 'hidden_states', 0: 'qkv_weight', 3: 'out_proj_weight', 4: 'qkv_bias', 1: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_34_0]
+    # out_proj_weight: weight[176]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_17_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_7_0]
+    # Layer 18 attention (method 75)
+    # Input mappings: {3: 'hidden_states', 2: 'qkv_weight', 1: 'out_proj_weight', 0: 'qkv_bias', 4: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_112_0]
+    # out_proj_weight: weight[164]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_134_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_100_0]
+    # Layer 19 attention (method 79)
+    # Input mappings: {1: 'hidden_states', 2: 'qkv_weight', 0: 'out_proj_weight', 3: 'qkv_bias', 4: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_12_0]
+    # out_proj_weight: weight[152]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_50_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_52_0]
+    # Layer 20 attention (method 83)
+    # Input mappings: {4: 'hidden_states', 3: 'qkv_weight', 2: 'out_proj_weight', 1: 'qkv_bias', 0: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_65_0]
+    # out_proj_weight: weight[140]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_60_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_78_0]
+    # Layer 21 attention (method 87)
+    # Input mappings: {3: 'hidden_states', 1: 'qkv_weight', 0: 'out_proj_weight', 4: 'qkv_bias', 2: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_37_0]
+    # out_proj_weight: weight[128]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_111_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_20_0]
+    # Layer 22 attention (method 91)
+    # Input mappings: {0: 'hidden_states', 1: 'qkv_weight', 2: 'out_proj_weight', 3: 'qkv_bias', 4: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_148_0]
+    # out_proj_weight: weight[116]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_57_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_33_0]
+    # Layer 23 attention (method 95)
+    # Input mappings: {1: 'hidden_states', 2: 'qkv_weight', 0: 'out_proj_weight', 3: 'qkv_bias', 4: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_36_0]
+    # out_proj_weight: weight[104]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_32_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_51_0]
+    # Layer 24 attention (method 99)
+    # Input mappings: {1: 'hidden_states', 0: 'qkv_weight', 4: 'out_proj_weight', 3: 'qkv_bias', 2: 'out_proj_bias'}
+    # qkv_weight: cer[utils_constEvalFuncWrapper_76_0]
+    # out_proj_weight: weight[92]
+    # qkv_bias: cer[utils_constEvalFuncWrapper_59_0]
+    # out_proj_bias: cer[utils_constEvalFuncWrapper_143_0]
+}

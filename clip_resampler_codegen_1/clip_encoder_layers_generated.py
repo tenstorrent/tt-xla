@@ -1,1421 +1,71 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""TTNN model wrapper for CLIP Vision Encoder + IP-Adapter Resampler."""
+"""Generated CLIP encoder layer classes."""
 
 import ttnn
-import utils
-from consteval import run_const_evals
 from models.common.lightweightmodule import LightweightModule
-from weights_loader import load_inputs_for__main
 
 
-class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
-    def __init__(self, weights, cache, device):
-        self.device = device
-        self.weights = weights
-        self.cer = run_const_evals(weights, cache)
+class CLIPEncoderLayerTTNN_0(LightweightModule):
+    """CLIP Encoder Layer 0."""
 
-    def forward(self, pixel_values):
-        # Move input to device
-        assert pixel_values.device() is None, "pixel_values must be on host"
-        pixel_values = ttnn.to_device(
-            pixel_values,
-            self.device,
-            ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w384 = weights[
+            "image_encoder.vision_model.encoder.layers.0.layer_norm1.weight"
+        ]
+        self.w383 = weights[
+            "image_encoder.vision_model.encoder.layers.0.layer_norm1.bias"
+        ]
+        self.w380 = weights[
+            "image_encoder.vision_model.encoder.layers.0.self_attn.out_proj.weight"
+        ]
+        self.w378 = weights[
+            "image_encoder.vision_model.encoder.layers.0.layer_norm2.weight"
+        ]
+        self.w377 = weights[
+            "image_encoder.vision_model.encoder.layers.0.layer_norm2.bias"
+        ]
+        self.w376 = weights[
+            "image_encoder.vision_model.encoder.layers.0.mlp.fc1.weight"
+        ]
+        self.w374 = weights[
+            "image_encoder.vision_model.encoder.layers.0.mlp.fc2.weight"
+        ]
+        self.w372 = weights[
+            "image_encoder.vision_model.encoder.layers.1.layer_norm1.weight"
+        ]
+        self.w371 = weights[
+            "image_encoder.vision_model.encoder.layers.1.layer_norm1.bias"
+        ]
+        self.cer_124_0 = cer["utils_constEvalFuncWrapper_124_0"]
+        self.cer_42_0 = cer["utils_constEvalFuncWrapper_42_0"]
+        self.cer_47_0 = cer["utils_constEvalFuncWrapper_47_0"]
+        self.cer_70_0 = cer["utils_constEvalFuncWrapper_70_0"]
+        self.cer_73_0 = cer["utils_constEvalFuncWrapper_73_0"]
 
-        CLIPVisionEmbeddings_0_0_0 = self.CLIPVisionEmbeddings_0_0(
-            pixel_values,
-            self.cer["utils_constEvalFuncWrapper_142_0"],
-            self.cer["utils_constEvalFuncWrapper_88_0"],
-            self.cer["utils_constEvalFuncWrapper_66_0"],
-        )
-        LayerNorm_1_0_0 = self.LayerNorm_1_0(
-            self.weights["image_encoder.vision_model.pre_layrnorm.bias"],
-            self.weights["image_encoder.vision_model.pre_layrnorm.weight"],
-            CLIPVisionEmbeddings_0_0_0,
-        )
-        CLIPEncoderLayer_2_0_0 = self.CLIPEncoderLayer_2_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.0.layer_norm1.bias"
-            ],
-            LayerNorm_1_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.0.layer_norm1.weight"
-            ],
-        )
-        CLIPAttention_3_0_0 = self.CLIPAttention_3_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.0.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_47_0"],
-            self.cer["utils_constEvalFuncWrapper_124_0"],
-            self.cer["utils_constEvalFuncWrapper_70_0"],
-            CLIPEncoderLayer_2_0_0,
-        )
-        v_163, v_164 = self.CLIPEncoderLayer_4_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.0.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.0.layer_norm2.weight"
-            ],
-            LayerNorm_1_0_0,
-            CLIPAttention_3_0_0,
-        )
-        CLIPMLP_5_0_0 = self.CLIPMLP_5_0(
-            v_163,
-            self.cer["utils_constEvalFuncWrapper_73_0"],
-            self.cer["utils_constEvalFuncWrapper_42_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.0.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.0.mlp.fc1.weight"],
-        )
-        v_165, v_166 = self.CLIPEncoderLayer_6_0(
-            CLIPMLP_5_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.1.layer_norm1.weight"
-            ],
-            v_164,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.1.layer_norm1.bias"
-            ],
-        )
-        CLIPAttention_7_0_0 = self.CLIPAttention_7_0(
-            self.cer["utils_constEvalFuncWrapper_62_0"],
-            self.cer["utils_constEvalFuncWrapper_55_0"],
-            v_166,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.1.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_157_0"],
-        )
-        v_167, v_168 = self.CLIPEncoderLayer_8_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.1.layer_norm2.weight"
-            ],
-            v_165,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.1.layer_norm2.bias"
-            ],
-            CLIPAttention_7_0_0,
-        )
-        CLIPMLP_9_0_0 = self.CLIPMLP_9_0(
-            self.cer["utils_constEvalFuncWrapper_13_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.1.mlp.fc2.weight"],
-            self.cer["utils_constEvalFuncWrapper_21_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.1.mlp.fc1.weight"],
-            v_168,
-        )
-        v_169, v_170 = self.CLIPEncoderLayer_10_0(
-            v_167,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.2.layer_norm1.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.2.layer_norm1.bias"
-            ],
-            CLIPMLP_9_0_0,
-        )
-        CLIPAttention_11_0_0 = self.CLIPAttention_11_0(
-            self.cer["utils_constEvalFuncWrapper_80_0"],
-            self.cer["utils_constEvalFuncWrapper_25_0"],
-            v_170,
-            self.cer["utils_constEvalFuncWrapper_122_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.2.self_attn.out_proj.weight"
-            ],
-        )
-        v_171, v_172 = self.CLIPEncoderLayer_12_0(
-            v_169,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.2.layer_norm2.bias"
-            ],
-            CLIPAttention_11_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.2.layer_norm2.weight"
-            ],
-        )
-        CLIPMLP_13_0_0 = self.CLIPMLP_13_0(
-            self.cer["utils_constEvalFuncWrapper_81_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.2.mlp.fc1.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.2.mlp.fc2.weight"],
-            v_172,
-            self.cer["utils_constEvalFuncWrapper_146_0"],
-        )
-        v_173, v_174 = self.CLIPEncoderLayer_14_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.3.layer_norm1.bias"
-            ],
-            CLIPMLP_13_0_0,
-            v_171,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.3.layer_norm1.weight"
-            ],
-        )
-        CLIPAttention_15_0_0 = self.CLIPAttention_15_0(
-            self.cer["utils_constEvalFuncWrapper_90_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.3.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_132_0"],
-            v_174,
-            self.cer["utils_constEvalFuncWrapper_26_0"],
-        )
-        v_175, v_176 = self.CLIPEncoderLayer_16_0(
-            CLIPAttention_15_0_0,
-            v_173,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.3.layer_norm2.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.3.layer_norm2.bias"
-            ],
-        )
-        CLIPMLP_17_0_0 = self.CLIPMLP_17_0(
-            v_175,
-            self.cer["utils_constEvalFuncWrapper_145_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.3.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.3.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_10_0"],
-        )
-        v_177, v_178 = self.CLIPEncoderLayer_18_0(
-            CLIPMLP_17_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.4.layer_norm1.bias"
-            ],
-            v_176,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.4.layer_norm1.weight"
-            ],
-        )
-        CLIPAttention_19_0_0 = self.CLIPAttention_19_0(
-            self.cer["utils_constEvalFuncWrapper_97_0"],
-            v_177,
-            self.cer["utils_constEvalFuncWrapper_43_0"],
-            self.cer["utils_constEvalFuncWrapper_127_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.4.self_attn.out_proj.weight"
-            ],
-        )
-        v_179, v_180 = self.CLIPEncoderLayer_20_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.4.layer_norm2.bias"
-            ],
-            v_178,
-            CLIPAttention_19_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.4.layer_norm2.weight"
-            ],
-        )
-        CLIPMLP_21_0_0 = self.CLIPMLP_21_0(
-            self.cer["utils_constEvalFuncWrapper_150_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.4.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.4.mlp.fc1.weight"],
-            v_179,
-            self.cer["utils_constEvalFuncWrapper_149_0"],
-        )
-        v_181, v_182 = self.CLIPEncoderLayer_22_0(
-            CLIPMLP_21_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.5.layer_norm1.weight"
-            ],
-            v_180,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.5.layer_norm1.bias"
-            ],
-        )
-        CLIPAttention_23_0_0 = self.CLIPAttention_23_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.5.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_158_0"],
-            self.cer["utils_constEvalFuncWrapper_69_0"],
-            v_182,
-            self.cer["utils_constEvalFuncWrapper_96_0"],
-        )
-        v_183, v_184 = self.CLIPEncoderLayer_24_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.5.layer_norm2.weight"
-            ],
-            CLIPAttention_23_0_0,
-            v_181,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.5.layer_norm2.bias"
-            ],
-        )
-        CLIPMLP_25_0_0 = self.CLIPMLP_25_0(
-            self.cer["utils_constEvalFuncWrapper_91_0"],
-            v_183,
-            self.cer["utils_constEvalFuncWrapper_106_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.5.mlp.fc1.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.5.mlp.fc2.weight"],
-        )
-        v_185, v_186 = self.CLIPEncoderLayer_26_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.6.layer_norm1.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.6.layer_norm1.bias"
-            ],
-            CLIPMLP_25_0_0,
-            v_184,
-        )
-        CLIPAttention_27_0_0 = self.CLIPAttention_27_0(
-            self.cer["utils_constEvalFuncWrapper_99_0"],
-            v_185,
-            self.cer["utils_constEvalFuncWrapper_46_0"],
-            self.cer["utils_constEvalFuncWrapper_128_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.6.self_attn.out_proj.weight"
-            ],
-        )
-        v_187, v_188 = self.CLIPEncoderLayer_28_0(
-            CLIPAttention_27_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.6.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.6.layer_norm2.weight"
-            ],
-            v_186,
-        )
-        CLIPMLP_29_0_0 = self.CLIPMLP_29_0(
-            self.cer["utils_constEvalFuncWrapper_53_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.6.mlp.fc1.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.6.mlp.fc2.weight"],
-            v_188,
-            self.cer["utils_constEvalFuncWrapper_103_0"],
-        )
-        v_189, v_190 = self.CLIPEncoderLayer_30_0(
-            CLIPMLP_29_0_0,
-            v_187,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.7.layer_norm1.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.7.layer_norm1.weight"
-            ],
-        )
-        CLIPAttention_31_0_0 = self.CLIPAttention_31_0(
-            self.cer["utils_constEvalFuncWrapper_120_0"],
-            self.cer["utils_constEvalFuncWrapper_84_0"],
-            v_189,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.7.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_49_0"],
-        )
-        v_191, v_192 = self.CLIPEncoderLayer_32_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.7.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.7.layer_norm2.weight"
-            ],
-            CLIPAttention_31_0_0,
-            v_190,
-        )
-        CLIPMLP_33_0_0 = self.CLIPMLP_33_0(
-            self.cer["utils_constEvalFuncWrapper_153_0"],
-            self.cer["utils_constEvalFuncWrapper_27_0"],
-            v_192,
-            self.weights["image_encoder.vision_model.encoder.layers.7.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.7.mlp.fc1.weight"],
-        )
-        v_193, v_194 = self.CLIPEncoderLayer_34_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.8.layer_norm1.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.8.layer_norm1.bias"
-            ],
-            v_191,
-            CLIPMLP_33_0_0,
-        )
-        CLIPAttention_35_0_0 = self.CLIPAttention_35_0(
-            v_193,
-            self.cer["utils_constEvalFuncWrapper_40_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.8.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_74_0"],
-            self.cer["utils_constEvalFuncWrapper_29_0"],
-        )
-        v_195, v_196 = self.CLIPEncoderLayer_36_0(
-            CLIPAttention_35_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.8.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.8.layer_norm2.weight"
-            ],
-            v_194,
-        )
-        CLIPMLP_37_0_0 = self.CLIPMLP_37_0(
-            self.cer["utils_constEvalFuncWrapper_24_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.8.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.8.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_93_0"],
-            v_195,
-        )
-        v_197, v_198 = self.CLIPEncoderLayer_38_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.9.layer_norm1.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.9.layer_norm1.bias"
-            ],
-            CLIPMLP_37_0_0,
-            v_196,
-        )
-        CLIPAttention_39_0_0 = self.CLIPAttention_39_0(
-            v_197,
-            self.cer["utils_constEvalFuncWrapper_119_0"],
-            self.cer["utils_constEvalFuncWrapper_133_0"],
-            self.cer["utils_constEvalFuncWrapper_113_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.9.self_attn.out_proj.weight"
-            ],
-        )
-        v_199, v_200 = self.CLIPEncoderLayer_40_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.9.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.9.layer_norm2.weight"
-            ],
-            v_198,
-            CLIPAttention_39_0_0,
-        )
-        CLIPMLP_41_0_0 = self.CLIPMLP_41_0(
-            self.cer["utils_constEvalFuncWrapper_2_0"],
-            v_200,
-            self.weights["image_encoder.vision_model.encoder.layers.9.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.9.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_155_0"],
-        )
-        v_201, v_202 = self.CLIPEncoderLayer_42_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.10.layer_norm1.weight"
-            ],
-            CLIPMLP_41_0_0,
-            v_199,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.10.layer_norm1.bias"
-            ],
-        )
-        CLIPAttention_43_0_0 = self.CLIPAttention_43_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.10.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_152_0"],
-            self.cer["utils_constEvalFuncWrapper_64_0"],
-            v_202,
-            self.cer["utils_constEvalFuncWrapper_71_0"],
-        )
-        v_203, v_204 = self.CLIPEncoderLayer_44_0(
-            CLIPAttention_43_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.10.layer_norm2.weight"
-            ],
-            v_201,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.10.layer_norm2.bias"
-            ],
-        )
-        CLIPMLP_45_0_0 = self.CLIPMLP_45_0(
-            self.weights["image_encoder.vision_model.encoder.layers.10.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_95_0"],
-            self.cer["utils_constEvalFuncWrapper_85_0"],
-            v_204,
-            self.weights["image_encoder.vision_model.encoder.layers.10.mlp.fc2.weight"],
-        )
-        v_205, v_206 = self.CLIPEncoderLayer_46_0(
-            v_203,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.11.layer_norm1.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.11.layer_norm1.bias"
-            ],
-            CLIPMLP_45_0_0,
-        )
-        CLIPAttention_47_0_0 = self.CLIPAttention_47_0(
-            self.cer["utils_constEvalFuncWrapper_67_0"],
-            self.cer["utils_constEvalFuncWrapper_140_0"],
-            v_205,
-            self.cer["utils_constEvalFuncWrapper_116_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.11.self_attn.out_proj.weight"
-            ],
-        )
-        v_207, v_208 = self.CLIPEncoderLayer_48_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.11.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.11.layer_norm2.weight"
-            ],
-            CLIPAttention_47_0_0,
-            v_206,
-        )
-        CLIPMLP_49_0_0 = self.CLIPMLP_49_0(
-            v_207,
-            self.cer["utils_constEvalFuncWrapper_156_0"],
-            self.cer["utils_constEvalFuncWrapper_151_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.11.mlp.fc1.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.11.mlp.fc2.weight"],
-        )
-        v_209, v_210 = self.CLIPEncoderLayer_50_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.12.layer_norm1.weight"
-            ],
-            v_208,
-            CLIPMLP_49_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.12.layer_norm1.bias"
-            ],
-        )
-        CLIPAttention_51_0_0 = self.CLIPAttention_51_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.12.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_87_0"],
-            v_209,
-            self.cer["utils_constEvalFuncWrapper_136_0"],
-            self.cer["utils_constEvalFuncWrapper_68_0"],
-        )
-        v_211, v_212 = self.CLIPEncoderLayer_52_0(
-            CLIPAttention_51_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.12.layer_norm2.bias"
-            ],
-            v_210,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.12.layer_norm2.weight"
-            ],
-        )
-        CLIPMLP_53_0_0 = self.CLIPMLP_53_0(
-            self.weights["image_encoder.vision_model.encoder.layers.12.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_5_0"],
-            self.cer["utils_constEvalFuncWrapper_15_0"],
-            v_211,
-            self.weights["image_encoder.vision_model.encoder.layers.12.mlp.fc2.weight"],
-        )
-        v_213, v_214 = self.CLIPEncoderLayer_54_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.13.layer_norm1.bias"
-            ],
-            CLIPMLP_53_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.13.layer_norm1.weight"
-            ],
-            v_212,
-        )
-        CLIPAttention_55_0_0 = self.CLIPAttention_55_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.13.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_1_0"],
-            self.cer["utils_constEvalFuncWrapper_126_0"],
-            self.cer["utils_constEvalFuncWrapper_102_0"],
-            v_214,
-        )
-        v_215, v_216 = self.CLIPEncoderLayer_56_0(
-            CLIPAttention_55_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.13.layer_norm2.bias"
-            ],
-            v_213,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.13.layer_norm2.weight"
-            ],
-        )
-        CLIPMLP_57_0_0 = self.CLIPMLP_57_0(
-            self.cer["utils_constEvalFuncWrapper_92_0"],
-            self.cer["utils_constEvalFuncWrapper_109_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.13.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.13.mlp.fc1.weight"],
-            v_216,
-        )
-        v_217, v_218 = self.CLIPEncoderLayer_58_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.14.layer_norm1.bias"
-            ],
-            v_215,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.14.layer_norm1.weight"
-            ],
-            CLIPMLP_57_0_0,
-        )
-        CLIPAttention_59_0_0 = self.CLIPAttention_59_0(
-            v_217,
-            self.cer["utils_constEvalFuncWrapper_86_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.14.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_101_0"],
-            self.cer["utils_constEvalFuncWrapper_11_0"],
-        )
-        v_219, v_220 = self.CLIPEncoderLayer_60_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.14.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.14.layer_norm2.weight"
-            ],
-            v_218,
-            CLIPAttention_59_0_0,
-        )
-        CLIPMLP_61_0_0 = self.CLIPMLP_61_0(
-            self.weights["image_encoder.vision_model.encoder.layers.14.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.14.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_18_0"],
-            v_220,
-            self.cer["utils_constEvalFuncWrapper_141_0"],
-        )
-        v_221, v_222 = self.CLIPEncoderLayer_62_0(
-            CLIPMLP_61_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.15.layer_norm1.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.15.layer_norm1.weight"
-            ],
-            v_219,
-        )
-        CLIPAttention_63_0_0 = self.CLIPAttention_63_0(
-            v_221,
-            self.cer["utils_constEvalFuncWrapper_72_0"],
-            self.cer["utils_constEvalFuncWrapper_114_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.15.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_23_0"],
-        )
-        v_223, v_224 = self.CLIPEncoderLayer_64_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.15.layer_norm2.bias"
-            ],
-            CLIPAttention_63_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.15.layer_norm2.weight"
-            ],
-            v_222,
-        )
-        CLIPMLP_65_0_0 = self.CLIPMLP_65_0(
-            self.weights["image_encoder.vision_model.encoder.layers.15.mlp.fc2.weight"],
-            self.cer["utils_constEvalFuncWrapper_83_0"],
-            self.cer["utils_constEvalFuncWrapper_154_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.15.mlp.fc1.weight"],
-            v_224,
-        )
-        v_225, v_226 = self.CLIPEncoderLayer_66_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.16.layer_norm1.bias"
-            ],
-            v_223,
-            CLIPMLP_65_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.16.layer_norm1.weight"
-            ],
-        )
-        CLIPAttention_67_0_0 = self.CLIPAttention_67_0(
-            self.cer["utils_constEvalFuncWrapper_118_0"],
-            v_226,
-            self.cer["utils_constEvalFuncWrapper_89_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.16.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_63_0"],
-        )
-        v_227, v_228 = self.CLIPEncoderLayer_68_0(
-            v_225,
-            CLIPAttention_67_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.16.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.16.layer_norm2.weight"
-            ],
-        )
-        CLIPMLP_69_0_0 = self.CLIPMLP_69_0(
-            self.weights["image_encoder.vision_model.encoder.layers.16.mlp.fc1.weight"],
-            v_228,
-            self.weights["image_encoder.vision_model.encoder.layers.16.mlp.fc2.weight"],
-            self.cer["utils_constEvalFuncWrapper_130_0"],
-            self.cer["utils_constEvalFuncWrapper_104_0"],
-        )
-        v_229, v_230 = self.CLIPEncoderLayer_70_0(
-            v_227,
-            CLIPMLP_69_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.17.layer_norm1.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.17.layer_norm1.bias"
-            ],
-        )
-        CLIPAttention_71_0_0 = self.CLIPAttention_71_0(
-            self.cer["utils_constEvalFuncWrapper_34_0"],
-            self.cer["utils_constEvalFuncWrapper_7_0"],
-            v_230,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.17.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_17_0"],
-        )
-        v_231, v_232 = self.CLIPEncoderLayer_72_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.17.layer_norm2.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.17.layer_norm2.bias"
-            ],
-            CLIPAttention_71_0_0,
-            v_229,
-        )
-        CLIPMLP_73_0_0 = self.CLIPMLP_73_0(
-            v_231,
-            self.cer["utils_constEvalFuncWrapper_108_0"],
-            self.cer["utils_constEvalFuncWrapper_19_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.17.mlp.fc1.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.17.mlp.fc2.weight"],
-        )
-        v_233, v_234 = self.CLIPEncoderLayer_74_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.18.layer_norm1.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.18.layer_norm1.bias"
-            ],
-            v_232,
-            CLIPMLP_73_0_0,
-        )
-        CLIPAttention_75_0_0 = self.CLIPAttention_75_0(
-            self.cer["utils_constEvalFuncWrapper_134_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.18.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_112_0"],
-            v_233,
-            self.cer["utils_constEvalFuncWrapper_100_0"],
-        )
-        v_235, v_236 = self.CLIPEncoderLayer_76_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.18.layer_norm2.bias"
-            ],
-            CLIPAttention_75_0_0,
-            v_234,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.18.layer_norm2.weight"
-            ],
-        )
-        CLIPMLP_77_0_0 = self.CLIPMLP_77_0(
-            v_235,
-            self.weights["image_encoder.vision_model.encoder.layers.18.mlp.fc1.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.18.mlp.fc2.weight"],
-            self.cer["utils_constEvalFuncWrapper_94_0"],
-            self.cer["utils_constEvalFuncWrapper_147_0"],
-        )
-        v_237, v_238 = self.CLIPEncoderLayer_78_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.19.layer_norm1.weight"
-            ],
-            CLIPMLP_77_0_0,
-            v_236,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.19.layer_norm1.bias"
-            ],
-        )
-        CLIPAttention_79_0_0 = self.CLIPAttention_79_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.19.self_attn.out_proj.weight"
-            ],
-            v_237,
-            self.cer["utils_constEvalFuncWrapper_12_0"],
-            self.cer["utils_constEvalFuncWrapper_50_0"],
-            self.cer["utils_constEvalFuncWrapper_52_0"],
-        )
-        v_239, v_240 = self.CLIPEncoderLayer_80_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.19.layer_norm2.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.19.layer_norm2.bias"
-            ],
-            v_238,
-            CLIPAttention_79_0_0,
-        )
-        CLIPMLP_81_0_0 = self.CLIPMLP_81_0(
-            v_240,
-            self.cer["utils_constEvalFuncWrapper_44_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.19.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.19.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_28_0"],
-        )
-        v_241, v_242 = self.CLIPEncoderLayer_82_0(
-            v_239,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.20.layer_norm1.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.20.layer_norm1.bias"
-            ],
-            CLIPMLP_81_0_0,
-        )
-        CLIPAttention_83_0_0 = self.CLIPAttention_83_0(
-            self.cer["utils_constEvalFuncWrapper_78_0"],
-            self.cer["utils_constEvalFuncWrapper_60_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.20.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_65_0"],
-            v_242,
-        )
-        v_243, v_244 = self.CLIPEncoderLayer_84_0(
-            CLIPAttention_83_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.20.layer_norm2.bias"
-            ],
-            v_241,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.20.layer_norm2.weight"
-            ],
-        )
-        CLIPMLP_85_0_0 = self.CLIPMLP_85_0(
-            self.cer["utils_constEvalFuncWrapper_82_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.20.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.20.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_107_0"],
-            v_244,
-        )
-        v_245, v_246 = self.CLIPEncoderLayer_86_0(
-            v_243,
-            CLIPMLP_85_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.21.layer_norm1.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.21.layer_norm1.bias"
-            ],
-        )
-        CLIPAttention_87_0_0 = self.CLIPAttention_87_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.21.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_37_0"],
-            self.cer["utils_constEvalFuncWrapper_20_0"],
-            v_246,
-            self.cer["utils_constEvalFuncWrapper_111_0"],
-        )
-        v_247, v_248 = self.CLIPEncoderLayer_88_0(
-            CLIPAttention_87_0_0,
-            v_245,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.21.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.21.layer_norm2.weight"
-            ],
-        )
-        CLIPMLP_89_0_0 = self.CLIPMLP_89_0(
-            self.weights["image_encoder.vision_model.encoder.layers.21.mlp.fc2.weight"],
-            self.cer["utils_constEvalFuncWrapper_110_0"],
-            v_247,
-            self.weights["image_encoder.vision_model.encoder.layers.21.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_160_0"],
-        )
-        v_249, v_250 = self.CLIPEncoderLayer_90_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.22.layer_norm1.weight"
-            ],
-            CLIPMLP_89_0_0,
-            v_248,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.22.layer_norm1.bias"
-            ],
-        )
-        CLIPAttention_91_0_0 = self.CLIPAttention_91_0(
-            v_249,
-            self.cer["utils_constEvalFuncWrapper_148_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.22.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_57_0"],
-            self.cer["utils_constEvalFuncWrapper_33_0"],
-        )
-        v_251, v_252 = self.CLIPEncoderLayer_92_0(
-            CLIPAttention_91_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.22.layer_norm2.bias"
-            ],
-            v_250,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.22.layer_norm2.weight"
-            ],
-        )
-        CLIPMLP_93_0_0 = self.CLIPMLP_93_0(
-            self.weights["image_encoder.vision_model.encoder.layers.22.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_125_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.22.mlp.fc2.weight"],
-            v_252,
-            self.cer["utils_constEvalFuncWrapper_4_0"],
-        )
-        v_253, v_254 = self.CLIPEncoderLayer_94_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.23.layer_norm1.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.23.layer_norm1.bias"
-            ],
-            v_251,
-            CLIPMLP_93_0_0,
-        )
-        CLIPAttention_95_0_0 = self.CLIPAttention_95_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.23.self_attn.out_proj.weight"
-            ],
-            v_254,
-            self.cer["utils_constEvalFuncWrapper_36_0"],
-            self.cer["utils_constEvalFuncWrapper_32_0"],
-            self.cer["utils_constEvalFuncWrapper_51_0"],
-        )
-        v_255, v_256 = self.CLIPEncoderLayer_96_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.23.layer_norm2.weight"
-            ],
-            CLIPAttention_95_0_0,
-            v_253,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.23.layer_norm2.bias"
-            ],
-        )
-        CLIPMLP_97_0_0 = self.CLIPMLP_97_0(
-            self.weights["image_encoder.vision_model.encoder.layers.23.mlp.fc2.weight"],
-            self.cer["utils_constEvalFuncWrapper_0_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.23.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_22_0"],
-            v_256,
-        )
-        v_257, v_258 = self.CLIPEncoderLayer_98_0(
-            v_255,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.24.layer_norm1.bias"
-            ],
-            CLIPMLP_97_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.24.layer_norm1.weight"
-            ],
-        )
-        CLIPAttention_99_0_0 = self.CLIPAttention_99_0(
-            self.cer["utils_constEvalFuncWrapper_76_0"],
-            v_258,
-            self.cer["utils_constEvalFuncWrapper_143_0"],
-            self.cer["utils_constEvalFuncWrapper_59_0"],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.24.self_attn.out_proj.weight"
-            ],
-        )
-        v_259, v_260 = self.CLIPEncoderLayer_100_0(
-            v_257,
-            CLIPAttention_99_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.24.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.24.layer_norm2.weight"
-            ],
-        )
-        CLIPMLP_101_0_0 = self.CLIPMLP_101_0(
-            self.cer["utils_constEvalFuncWrapper_144_0"],
-            self.cer["utils_constEvalFuncWrapper_139_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.24.mlp.fc1.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.24.mlp.fc2.weight"],
-            v_260,
-        )
-        v_261, v_262 = self.CLIPEncoderLayer_102_0(
-            CLIPMLP_101_0_0,
-            v_259,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.25.layer_norm1.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.25.layer_norm1.weight"
-            ],
-        )
-        CLIPAttention_103_0_0 = self.CLIPAttention_103_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.25.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_61_0"],
-            self.cer["utils_constEvalFuncWrapper_31_0"],
-            self.cer["utils_constEvalFuncWrapper_58_0"],
-            v_261,
-        )
-        v_263, v_264 = self.CLIPEncoderLayer_104_0(
-            CLIPAttention_103_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.25.layer_norm2.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.25.layer_norm2.bias"
-            ],
-            v_262,
-        )
-        CLIPMLP_105_0_0 = self.CLIPMLP_105_0(
-            self.weights["image_encoder.vision_model.encoder.layers.25.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_117_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.25.mlp.fc2.weight"],
-            self.cer["utils_constEvalFuncWrapper_39_0"],
-            v_264,
-        )
-        v_265, v_266 = self.CLIPEncoderLayer_106_0(
-            v_263,
-            CLIPMLP_105_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.26.layer_norm1.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.26.layer_norm1.bias"
-            ],
-        )
-        CLIPAttention_107_0_0 = self.CLIPAttention_107_0(
-            self.cer["utils_constEvalFuncWrapper_77_0"],
-            v_265,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.26.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_105_0"],
-            self.cer["utils_constEvalFuncWrapper_9_0"],
-        )
-        v_267, v_268 = self.CLIPEncoderLayer_108_0(
-            CLIPAttention_107_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.26.layer_norm2.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.26.layer_norm2.bias"
-            ],
-            v_266,
-        )
-        CLIPMLP_109_0_0 = self.CLIPMLP_109_0(
-            self.weights["image_encoder.vision_model.encoder.layers.26.mlp.fc2.weight"],
-            v_267,
-            self.cer["utils_constEvalFuncWrapper_123_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.26.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_98_0"],
-        )
-        v_269, v_270 = self.CLIPEncoderLayer_110_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.27.layer_norm1.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.27.layer_norm1.weight"
-            ],
-            CLIPMLP_109_0_0,
-            v_268,
-        )
-        CLIPAttention_111_0_0 = self.CLIPAttention_111_0(
-            v_270,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.27.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_159_0"],
-            self.cer["utils_constEvalFuncWrapper_8_0"],
-            self.cer["utils_constEvalFuncWrapper_41_0"],
-        )
-        v_271, v_272 = self.CLIPEncoderLayer_112_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.27.layer_norm2.weight"
-            ],
-            v_269,
-            CLIPAttention_111_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.27.layer_norm2.bias"
-            ],
-        )
-        CLIPMLP_113_0_0 = self.CLIPMLP_113_0(
-            v_271,
-            self.weights["image_encoder.vision_model.encoder.layers.27.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.27.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_129_0"],
-            self.cer["utils_constEvalFuncWrapper_115_0"],
-        )
-        v_273, v_274 = self.CLIPEncoderLayer_114_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.28.layer_norm1.bias"
-            ],
-            CLIPMLP_113_0_0,
-            v_272,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.28.layer_norm1.weight"
-            ],
-        )
-        CLIPAttention_115_0_0 = self.CLIPAttention_115_0(
-            v_274,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.28.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_16_0"],
-            self.cer["utils_constEvalFuncWrapper_3_0"],
-            self.cer["utils_constEvalFuncWrapper_121_0"],
-        )
-        v_275, v_276 = self.CLIPEncoderLayer_116_0(
-            v_273,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.28.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.28.layer_norm2.weight"
-            ],
-            CLIPAttention_115_0_0,
-        )
-        CLIPMLP_117_0_0 = self.CLIPMLP_117_0(
-            self.weights["image_encoder.vision_model.encoder.layers.28.mlp.fc2.weight"],
-            self.cer["utils_constEvalFuncWrapper_56_0"],
-            v_275,
-            self.cer["utils_constEvalFuncWrapper_14_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.28.mlp.fc1.weight"],
-        )
-        v_277, v_278 = self.CLIPEncoderLayer_118_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.29.layer_norm1.weight"
-            ],
-            CLIPMLP_117_0_0,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.29.layer_norm1.bias"
-            ],
-            v_276,
-        )
-        CLIPAttention_119_0_0 = self.CLIPAttention_119_0(
-            self.cer["utils_constEvalFuncWrapper_45_0"],
-            self.cer["utils_constEvalFuncWrapper_79_0"],
-            v_278,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.29.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_75_0"],
-        )
-        v_279, v_280 = self.CLIPEncoderLayer_120_0(
-            v_277,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.29.layer_norm2.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.29.layer_norm2.weight"
-            ],
-            CLIPAttention_119_0_0,
-        )
-        CLIPMLP_121_0_0 = self.CLIPMLP_121_0(
-            self.cer["utils_constEvalFuncWrapper_38_0"],
-            self.cer["utils_constEvalFuncWrapper_35_0"],
-            self.weights["image_encoder.vision_model.encoder.layers.29.mlp.fc2.weight"],
-            v_280,
-            self.weights["image_encoder.vision_model.encoder.layers.29.mlp.fc1.weight"],
-        )
-        v_281, v_282 = self.CLIPEncoderLayer_122_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.30.layer_norm1.bias"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.30.layer_norm1.weight"
-            ],
-            v_279,
-            CLIPMLP_121_0_0,
-        )
-        CLIPAttention_123_0_0 = self.CLIPAttention_123_0(
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.30.self_attn.out_proj.weight"
-            ],
-            self.cer["utils_constEvalFuncWrapper_48_0"],
-            v_281,
-            self.cer["utils_constEvalFuncWrapper_138_0"],
-            self.cer["utils_constEvalFuncWrapper_131_0"],
-        )
-        v_283, v_284 = self.CLIPEncoderLayer_124_0(
-            CLIPAttention_123_0_0,
-            v_282,
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.30.layer_norm2.weight"
-            ],
-            self.weights[
-                "image_encoder.vision_model.encoder.layers.30.layer_norm2.bias"
-            ],
-        )
-        CLIPMLP_125_0_0 = self.CLIPMLP_125_0(
-            v_284,
-            self.weights["image_encoder.vision_model.encoder.layers.30.mlp.fc2.weight"],
-            self.weights["image_encoder.vision_model.encoder.layers.30.mlp.fc1.weight"],
-            self.cer["utils_constEvalFuncWrapper_135_0"],
-            self.cer["utils_constEvalFuncWrapper_54_0"],
-        )
-        CLIPEncoderLayer_126_0_0 = self.CLIPEncoderLayer_126_0(v_283, CLIPMLP_125_0_0)
-        Linear_127_0_0 = self.Linear_127_0(
-            self.cer["utils_constEvalFuncWrapper_137_0"],
-            self.weights["resampler.proj_in.weight"],
-            CLIPEncoderLayer_126_0_0,
-        )
-        v_285, v_286, v_287, v_288 = self.IPAdapterPlusImageProjectionBlock_128_0(
-            self.cer["utils_constEvalFuncWrapper_30_0"],
-            self.weights["resampler.layers.2.ln0.weight"],
-            self.weights["resampler.layers.3.ln0.weight"],
-            Linear_127_0_0,
-            self.weights["resampler.layers.1.ln0.weight"],
-            self.weights["resampler.layers.3.ln0.bias"],
-            self.weights["resampler.layers.0.ln0.weight"],
-            self.weights["resampler.layers.1.ln0.bias"],
-            self.weights["resampler.layers.0.ln0.bias"],
-            self.weights["resampler.layers.2.ln0.bias"],
-        )
-        Attention_129_0_0 = self.Attention_129_0(
-            v_286,
-            self.weights["resampler.layers.0.attn.to_out.0.weight"],
-            self.weights["resampler.layers.0.attn.to_k.weight"],
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
-            self.weights["resampler.layers.0.attn.to_v.weight"],
-            self.cer["utils_constEvalFuncWrapper_30_1"],
-        )
-        v_289, v_290 = self.IPAdapterPlusImageProjectionBlock_130_0(
-            self.weights["resampler.layers.0.ff.0.weight"],
-            Attention_129_0_0,
-            self.weights["resampler.latents"],
-            self.weights["resampler.layers.0.ff.0.bias"],
-        )
-        Linear_131_0_0 = self.Linear_131_0(
-            self.weights["resampler.layers.0.ff.1.net.0.proj.weight"], v_290
-        )
-        Linear_132_0_0 = self.Linear_132_0(
-            self.weights["resampler.layers.0.ff.1.net.2.weight"], Linear_131_0_0
-        )
-        v_291, v_292, v_293 = self.IPAdapterPlusImageProjectionBlock_133_0(
-            v_289,
-            Linear_132_0_0,
-            self.weights["resampler.layers.1.ln1.weight"],
-            self.weights["resampler.layers.1.ln1.bias"],
-            v_288,
-        )
-        Attention_134_0_0 = self.Attention_134_0(
-            self.weights["resampler.layers.1.attn.to_q.weight"],
-            self.weights["resampler.layers.1.attn.to_k.weight"],
-            self.weights["resampler.layers.1.attn.to_out.0.weight"],
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
-            self.weights["resampler.layers.1.attn.to_v.weight"],
-            v_292,
-            v_293,
-        )
-        v_294, v_295 = self.IPAdapterPlusImageProjectionBlock_135_0(
-            v_291,
-            self.weights["resampler.layers.1.ff.0.weight"],
-            Attention_134_0_0,
-            self.weights["resampler.layers.1.ff.0.bias"],
-        )
-        Linear_136_0_0 = self.Linear_136_0(
-            self.weights["resampler.layers.1.ff.1.net.0.proj.weight"], v_295
-        )
-        Linear_137_0_0 = self.Linear_137_0(
-            Linear_136_0_0, self.weights["resampler.layers.1.ff.1.net.2.weight"]
-        )
-        v_296, v_297, v_298 = self.IPAdapterPlusImageProjectionBlock_138_0(
-            v_285,
-            self.weights["resampler.layers.2.ln1.weight"],
-            v_294,
-            Linear_137_0_0,
-            self.weights["resampler.layers.2.ln1.bias"],
-        )
-        Attention_139_0_0 = self.Attention_139_0(
-            self.weights["resampler.layers.2.attn.to_k.weight"],
-            self.weights["resampler.layers.2.attn.to_v.weight"],
-            self.weights["resampler.layers.2.attn.to_q.weight"],
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
-            self.weights["resampler.layers.2.attn.to_out.0.weight"],
-            v_296,
-            v_298,
-        )
-        v_299, v_300 = self.IPAdapterPlusImageProjectionBlock_140_0(
-            self.weights["resampler.layers.2.ff.0.bias"],
-            Attention_139_0_0,
-            v_297,
-            self.weights["resampler.layers.2.ff.0.weight"],
-        )
-        Linear_141_0_0 = self.Linear_141_0(
-            self.weights["resampler.layers.2.ff.1.net.0.proj.weight"], v_300
-        )
-        Linear_142_0_0 = self.Linear_142_0(
-            Linear_141_0_0, self.weights["resampler.layers.2.ff.1.net.2.weight"]
-        )
-        v_301, v_302, v_303 = self.IPAdapterPlusImageProjectionBlock_143_0(
-            Linear_142_0_0,
-            v_287,
-            self.weights["resampler.layers.3.ln1.bias"],
-            self.weights["resampler.layers.3.ln1.weight"],
-            v_299,
-        )
-        Attention_144_0_0 = self.Attention_144_0(
-            self.weights["resampler.layers.3.attn.to_k.weight"],
-            self.weights["resampler.layers.3.attn.to_q.weight"],
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
-            self.weights["resampler.layers.3.attn.to_v.weight"],
-            self.weights["resampler.layers.3.attn.to_out.0.weight"],
-            v_301,
-            v_302,
-        )
-        v_304, v_305 = self.IPAdapterPlusImageProjectionBlock_145_0(
-            self.weights["resampler.layers.3.ff.0.bias"],
-            self.weights["resampler.layers.3.ff.0.weight"],
-            Attention_144_0_0,
-            v_303,
-        )
-        v_306, v_307 = self.Linear_147_0(
-            v_304, self.weights["resampler.layers.3.ff.1.net.0.proj.weight"]
-        )
-        self.Linear_150_0(v_307)
-        Linear_146_0_0 = self.Linear_146_0(v_305)
-        IPAdapterPlusImageProjectionBlock_148_0_0 = (
-            self.IPAdapterPlusImageProjectionBlock_148_0(
-                Linear_146_0_0,
-                v_306,
-                self.weights["resampler.layers.3.ff.1.net.2.weight"],
-            )
-        )
-        IPAdapterPlusImageProjection_149_0_0 = self.IPAdapterPlusImageProjection_149_0(
-            v_305,
-            self.weights["resampler.norm_out.weight"],
-            self.cer["utils_constEvalFuncWrapper_6_0"],
-            IPAdapterPlusImageProjectionBlock_148_0_0,
-            self.weights["resampler.proj_out.weight"],
-            self.weights["resampler.norm_out.bias"],
-        )
-        self.IPAdapterPlusImageProjectionBlock_151_0(v_306)
-        util_create_list_385 = [IPAdapterPlusImageProjection_149_0_0]
-        return util_create_list_385
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # layer_norm1
+        hidden_states = self._layer_norm1(hidden_states)
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
 
-    def CLIPVisionEmbeddings_0_0(self, input_0, input_1, input_2, input_3):
-        ttnn_to_layout_287 = ttnn.to_layout(
-            input_0,
-            ttnn.Layout.TILE,
-            None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        utils_DeviceGetter_get_device_162 = utils.DeviceGetter.get_device((1, 1))
-        ttnn_permute_3 = ttnn.permute(
-            ttnn_to_layout_287,
-            [0, 2, 3, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_reshape_192 = ttnn.reshape(
-            ttnn_permute_3,
-            [1, 1, 50176, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_conv2d_0 = ttnn.conv2d(
-            input_tensor=ttnn_reshape_192,
-            weight_tensor=input_3,
-            device=utils_DeviceGetter_get_device_162,
-            in_channels=3,
-            out_channels=1280,
-            batch_size=1,
-            input_height=224,
-            input_width=224,
-            kernel_size=[14, 14],
-            stride=[14, 14],
-            padding=[0, 0, 0, 0],
-            dilation=[1, 1],
-            groups=1,
-            bias_tensor=None,
-            conv_config=ttnn.Conv2dConfig(
-                weights_dtype=ttnn.DataType.BFLOAT16,
-                deallocate_activation=True,
-                config_tensors_in_dram=True,
-                act_block_h_override=0,
-                enable_kernel_stride_folding=False,
-            ),
-            compute_config=None,
-            slice_config=ttnn.Conv2dSliceConfig(
-                slice_type=ttnn.Conv2dL1Full, num_slices=0
-            ),
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_193 = ttnn.reshape(
-            ttnn_conv2d_0,
-            [1, 16, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_4 = ttnn.permute(
-            ttnn_reshape_193,
-            [0, 3, 1, 2],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_reshape_194 = ttnn.reshape(
-            ttnn_permute_4,
-            [1, 1280, 256],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        util_create_list_386 = [input_1, ttnn_reshape_194]
-        ttnn_concat_62 = ttnn.concat(
-            util_create_list_386,
-            2,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_add_0 = ttnn.add(
-            ttnn_concat_62,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_5 = ttnn.permute(
-            ttnn_add_0,
-            [0, 2, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        return ttnn_permute_5
+    def _layer_norm1(self, hidden_states):
 
-    def LayerNorm_1_0(self, input_0, input_1, input_2):
-        ttnn_layer_norm_1 = ttnn.layer_norm(
-            input_2,
-            epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_0,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        return ttnn_layer_norm_1
-
-    def CLIPEncoderLayer_2_0(self, input_0, input_1, input_2):
         ttnn_layer_norm_2 = ttnn.layer_norm(
-            input_1,
+            hidden_states,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_0,
+            weight=self.w384,
+            bias=self.w383,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1424,9 +74,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_2
 
-    def CLIPAttention_3_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _attention(self, hidden_states):
+
         ttnn_reshape_195 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1434,7 +85,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_1 = ttnn.matmul(
             ttnn_reshape_195,
-            input_3,
+            self.cer_70_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1446,7 +97,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_1 = ttnn.add(
             ttnn_matmul_1,
-            input_1,
+            self.cer_47_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1591,7 +242,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_2 = ttnn.matmul(
             ttnn_reshape_199,
-            input_0,
+            self.w380,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1603,7 +254,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_2 = ttnn.add(
             ttnn_matmul_2,
-            input_2,
+            self.cer_124_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1611,10 +262,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_2
 
-    def CLIPEncoderLayer_4_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_3 = ttnn.add(
-            input_2,
-            input_3,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1623,8 +275,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_3 = ttnn.layer_norm(
             ttnn_add_3,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_0,
+            weight=self.w378,
+            bias=self.w377,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1633,9 +285,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_3, ttnn_add_3
 
-    def CLIPMLP_5_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_200 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1643,7 +296,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_3 = ttnn.matmul(
             ttnn_reshape_200,
-            input_4,
+            self.w376,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1655,7 +308,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_4 = ttnn.add(
             ttnn_matmul_3,
-            input_2,
+            self.cer_42_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1677,7 +330,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_4 = ttnn.matmul(
             ttnn_reshape_201,
-            input_3,
+            self.w374,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1689,7 +342,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_5 = ttnn.add(
             ttnn_matmul_4,
-            input_1,
+            self.cer_73_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1697,10 +350,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_5
 
-    def CLIPEncoderLayer_6_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_6 = ttnn.add(
-            input_2,
-            input_0,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1709,8 +363,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_4 = ttnn.layer_norm(
             ttnn_add_6,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_3,
+            weight=self.w372,
+            bias=self.w371,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1719,9 +373,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_6, ttnn_layer_norm_4
 
-    def CLIPAttention_7_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_1(LightweightModule):
+    """CLIP Encoder Layer 1."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w368 = weights[
+            "image_encoder.vision_model.encoder.layers.1.self_attn.out_proj.weight"
+        ]
+        self.w366 = weights[
+            "image_encoder.vision_model.encoder.layers.1.layer_norm2.weight"
+        ]
+        self.w365 = weights[
+            "image_encoder.vision_model.encoder.layers.1.layer_norm2.bias"
+        ]
+        self.w364 = weights[
+            "image_encoder.vision_model.encoder.layers.1.mlp.fc1.weight"
+        ]
+        self.w362 = weights[
+            "image_encoder.vision_model.encoder.layers.1.mlp.fc2.weight"
+        ]
+        self.w360 = weights[
+            "image_encoder.vision_model.encoder.layers.2.layer_norm1.weight"
+        ]
+        self.w359 = weights[
+            "image_encoder.vision_model.encoder.layers.2.layer_norm1.bias"
+        ]
+        self.cer_13_0 = cer["utils_constEvalFuncWrapper_13_0"]
+        self.cer_157_0 = cer["utils_constEvalFuncWrapper_157_0"]
+        self.cer_21_0 = cer["utils_constEvalFuncWrapper_21_0"]
+        self.cer_55_0 = cer["utils_constEvalFuncWrapper_55_0"]
+        self.cer_62_0 = cer["utils_constEvalFuncWrapper_62_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_202 = ttnn.reshape(
-            input_2,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1729,7 +429,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_5 = ttnn.matmul(
             ttnn_reshape_202,
-            input_4,
+            self.cer_157_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1741,7 +441,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_7 = ttnn.add(
             ttnn_matmul_5,
-            input_0,
+            self.cer_62_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1886,7 +586,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_6 = ttnn.matmul(
             ttnn_reshape_206,
-            input_3,
+            self.w368,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1898,7 +598,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_8 = ttnn.add(
             ttnn_matmul_6,
-            input_1,
+            self.cer_55_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1906,10 +606,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_8
 
-    def CLIPEncoderLayer_8_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_9 = ttnn.add(
-            input_1,
-            input_3,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1918,19 +619,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_5 = ttnn.layer_norm(
             ttnn_add_9,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_2,
+            weight=self.w366,
+            bias=self.w365,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_9, ttnn_layer_norm_5
+        return ttnn_layer_norm_5, ttnn_add_9
 
-    def CLIPMLP_9_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_207 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1938,7 +640,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_7 = ttnn.matmul(
             ttnn_reshape_207,
-            input_3,
+            self.w364,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1950,7 +652,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_10 = ttnn.add(
             ttnn_matmul_7,
-            input_0,
+            self.cer_13_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1972,7 +674,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_8 = ttnn.matmul(
             ttnn_reshape_208,
-            input_1,
+            self.w362,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1984,7 +686,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_11 = ttnn.add(
             ttnn_matmul_8,
-            input_2,
+            self.cer_21_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1992,10 +694,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_11
 
-    def CLIPEncoderLayer_10_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_12 = ttnn.add(
-            input_0,
-            input_3,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2004,8 +707,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_6 = ttnn.layer_norm(
             ttnn_add_12,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_2,
+            weight=self.w360,
+            bias=self.w359,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2014,9 +717,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_12, ttnn_layer_norm_6
 
-    def CLIPAttention_11_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_2(LightweightModule):
+    """CLIP Encoder Layer 2."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w356 = weights[
+            "image_encoder.vision_model.encoder.layers.2.self_attn.out_proj.weight"
+        ]
+        self.w354 = weights[
+            "image_encoder.vision_model.encoder.layers.2.layer_norm2.weight"
+        ]
+        self.w353 = weights[
+            "image_encoder.vision_model.encoder.layers.2.layer_norm2.bias"
+        ]
+        self.w352 = weights[
+            "image_encoder.vision_model.encoder.layers.2.mlp.fc1.weight"
+        ]
+        self.w350 = weights[
+            "image_encoder.vision_model.encoder.layers.2.mlp.fc2.weight"
+        ]
+        self.w348 = weights[
+            "image_encoder.vision_model.encoder.layers.3.layer_norm1.weight"
+        ]
+        self.w347 = weights[
+            "image_encoder.vision_model.encoder.layers.3.layer_norm1.bias"
+        ]
+        self.cer_122_0 = cer["utils_constEvalFuncWrapper_122_0"]
+        self.cer_146_0 = cer["utils_constEvalFuncWrapper_146_0"]
+        self.cer_25_0 = cer["utils_constEvalFuncWrapper_25_0"]
+        self.cer_80_0 = cer["utils_constEvalFuncWrapper_80_0"]
+        self.cer_81_0 = cer["utils_constEvalFuncWrapper_81_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_209 = ttnn.reshape(
-            input_2,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2024,7 +773,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_9 = ttnn.matmul(
             ttnn_reshape_209,
-            input_1,
+            self.cer_25_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2036,7 +785,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_13 = ttnn.add(
             ttnn_matmul_9,
-            input_0,
+            self.cer_80_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2181,7 +930,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_10 = ttnn.matmul(
             ttnn_reshape_213,
-            input_4,
+            self.w356,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2193,7 +942,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_14 = ttnn.add(
             ttnn_matmul_10,
-            input_3,
+            self.cer_122_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2201,10 +950,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_14
 
-    def CLIPEncoderLayer_12_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_15 = ttnn.add(
-            input_0,
-            input_2,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2213,19 +963,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_7 = ttnn.layer_norm(
             ttnn_add_15,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_1,
+            weight=self.w354,
+            bias=self.w353,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_15, ttnn_layer_norm_7
+        return ttnn_layer_norm_7, ttnn_add_15
 
-    def CLIPMLP_13_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_214 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2233,7 +984,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_11 = ttnn.matmul(
             ttnn_reshape_214,
-            input_1,
+            self.w352,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2245,7 +996,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_16 = ttnn.add(
             ttnn_matmul_11,
-            input_0,
+            self.cer_81_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2267,7 +1018,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_12 = ttnn.matmul(
             ttnn_reshape_215,
-            input_2,
+            self.w350,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2279,7 +1030,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_17 = ttnn.add(
             ttnn_matmul_12,
-            input_4,
+            self.cer_146_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2287,10 +1038,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_17
 
-    def CLIPEncoderLayer_14_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_18 = ttnn.add(
-            input_2,
-            input_1,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2299,8 +1051,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_8 = ttnn.layer_norm(
             ttnn_add_18,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_0,
+            weight=self.w348,
+            bias=self.w347,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2309,9 +1061,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_18, ttnn_layer_norm_8
 
-    def CLIPAttention_15_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_3(LightweightModule):
+    """CLIP Encoder Layer 3."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w344 = weights[
+            "image_encoder.vision_model.encoder.layers.3.self_attn.out_proj.weight"
+        ]
+        self.w342 = weights[
+            "image_encoder.vision_model.encoder.layers.3.layer_norm2.weight"
+        ]
+        self.w341 = weights[
+            "image_encoder.vision_model.encoder.layers.3.layer_norm2.bias"
+        ]
+        self.w340 = weights[
+            "image_encoder.vision_model.encoder.layers.3.mlp.fc1.weight"
+        ]
+        self.w338 = weights[
+            "image_encoder.vision_model.encoder.layers.3.mlp.fc2.weight"
+        ]
+        self.w336 = weights[
+            "image_encoder.vision_model.encoder.layers.4.layer_norm1.weight"
+        ]
+        self.w335 = weights[
+            "image_encoder.vision_model.encoder.layers.4.layer_norm1.bias"
+        ]
+        self.cer_10_0 = cer["utils_constEvalFuncWrapper_10_0"]
+        self.cer_132_0 = cer["utils_constEvalFuncWrapper_132_0"]
+        self.cer_145_0 = cer["utils_constEvalFuncWrapper_145_0"]
+        self.cer_26_0 = cer["utils_constEvalFuncWrapper_26_0"]
+        self.cer_90_0 = cer["utils_constEvalFuncWrapper_90_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_216 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2319,7 +1117,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_13 = ttnn.matmul(
             ttnn_reshape_216,
-            input_4,
+            self.cer_26_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2331,7 +1129,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_19 = ttnn.add(
             ttnn_matmul_13,
-            input_0,
+            self.cer_90_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2476,7 +1274,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_14 = ttnn.matmul(
             ttnn_reshape_220,
-            input_1,
+            self.w344,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2488,7 +1286,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_20 = ttnn.add(
             ttnn_matmul_14,
-            input_2,
+            self.cer_132_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2496,10 +1294,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_20
 
-    def CLIPEncoderLayer_16_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_21 = ttnn.add(
-            input_1,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2508,8 +1307,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_9 = ttnn.layer_norm(
             ttnn_add_21,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_3,
+            weight=self.w342,
+            bias=self.w341,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2518,9 +1317,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_9, ttnn_add_21
 
-    def CLIPMLP_17_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_221 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2528,7 +1328,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_15 = ttnn.matmul(
             ttnn_reshape_221,
-            input_3,
+            self.w340,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2540,7 +1340,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_22 = ttnn.add(
             ttnn_matmul_15,
-            input_1,
+            self.cer_145_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2562,7 +1362,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_16 = ttnn.matmul(
             ttnn_reshape_222,
-            input_2,
+            self.w338,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2574,7 +1374,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_23 = ttnn.add(
             ttnn_matmul_16,
-            input_4,
+            self.cer_10_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2582,10 +1382,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_23
 
-    def CLIPEncoderLayer_18_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_24 = ttnn.add(
-            input_2,
-            input_0,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2594,19 +1395,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_10 = ttnn.layer_norm(
             ttnn_add_24,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_1,
+            weight=self.w336,
+            bias=self.w335,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_10, ttnn_add_24
+        return ttnn_add_24, ttnn_layer_norm_10
 
-    def CLIPAttention_19_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_4(LightweightModule):
+    """CLIP Encoder Layer 4."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w332 = weights[
+            "image_encoder.vision_model.encoder.layers.4.self_attn.out_proj.weight"
+        ]
+        self.w330 = weights[
+            "image_encoder.vision_model.encoder.layers.4.layer_norm2.weight"
+        ]
+        self.w329 = weights[
+            "image_encoder.vision_model.encoder.layers.4.layer_norm2.bias"
+        ]
+        self.w328 = weights[
+            "image_encoder.vision_model.encoder.layers.4.mlp.fc1.weight"
+        ]
+        self.w326 = weights[
+            "image_encoder.vision_model.encoder.layers.4.mlp.fc2.weight"
+        ]
+        self.w324 = weights[
+            "image_encoder.vision_model.encoder.layers.5.layer_norm1.weight"
+        ]
+        self.w323 = weights[
+            "image_encoder.vision_model.encoder.layers.5.layer_norm1.bias"
+        ]
+        self.cer_127_0 = cer["utils_constEvalFuncWrapper_127_0"]
+        self.cer_149_0 = cer["utils_constEvalFuncWrapper_149_0"]
+        self.cer_150_0 = cer["utils_constEvalFuncWrapper_150_0"]
+        self.cer_43_0 = cer["utils_constEvalFuncWrapper_43_0"]
+        self.cer_97_0 = cer["utils_constEvalFuncWrapper_97_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_223 = ttnn.reshape(
-            input_1,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2614,7 +1461,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_17 = ttnn.matmul(
             ttnn_reshape_223,
-            input_3,
+            self.cer_127_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2626,7 +1473,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_25 = ttnn.add(
             ttnn_matmul_17,
-            input_2,
+            self.cer_43_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2771,7 +1618,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_18 = ttnn.matmul(
             ttnn_reshape_227,
-            input_4,
+            self.w332,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2783,7 +1630,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_26 = ttnn.add(
             ttnn_matmul_18,
-            input_0,
+            self.cer_97_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2791,10 +1638,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_26
 
-    def CLIPEncoderLayer_20_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_27 = ttnn.add(
-            input_1,
-            input_2,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2803,8 +1651,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_11 = ttnn.layer_norm(
             ttnn_add_27,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_0,
+            weight=self.w330,
+            bias=self.w329,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2813,9 +1661,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_11, ttnn_add_27
 
-    def CLIPMLP_21_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_228 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2823,7 +1672,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_19 = ttnn.matmul(
             ttnn_reshape_228,
-            input_2,
+            self.w328,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2835,7 +1684,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_28 = ttnn.add(
             ttnn_matmul_19,
-            input_0,
+            self.cer_150_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2857,7 +1706,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_20 = ttnn.matmul(
             ttnn_reshape_229,
-            input_1,
+            self.w326,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2869,7 +1718,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_29 = ttnn.add(
             ttnn_matmul_20,
-            input_4,
+            self.cer_149_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2877,10 +1726,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_29
 
-    def CLIPEncoderLayer_22_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_30 = ttnn.add(
-            input_2,
-            input_0,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2889,8 +1739,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_12 = ttnn.layer_norm(
             ttnn_add_30,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_3,
+            weight=self.w324,
+            bias=self.w323,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2899,9 +1749,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_30, ttnn_layer_norm_12
 
-    def CLIPAttention_23_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_5(LightweightModule):
+    """CLIP Encoder Layer 5."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w320 = weights[
+            "image_encoder.vision_model.encoder.layers.5.self_attn.out_proj.weight"
+        ]
+        self.w318 = weights[
+            "image_encoder.vision_model.encoder.layers.5.layer_norm2.weight"
+        ]
+        self.w317 = weights[
+            "image_encoder.vision_model.encoder.layers.5.layer_norm2.bias"
+        ]
+        self.w316 = weights[
+            "image_encoder.vision_model.encoder.layers.5.mlp.fc1.weight"
+        ]
+        self.w314 = weights[
+            "image_encoder.vision_model.encoder.layers.5.mlp.fc2.weight"
+        ]
+        self.w312 = weights[
+            "image_encoder.vision_model.encoder.layers.6.layer_norm1.weight"
+        ]
+        self.w311 = weights[
+            "image_encoder.vision_model.encoder.layers.6.layer_norm1.bias"
+        ]
+        self.cer_106_0 = cer["utils_constEvalFuncWrapper_106_0"]
+        self.cer_158_0 = cer["utils_constEvalFuncWrapper_158_0"]
+        self.cer_69_0 = cer["utils_constEvalFuncWrapper_69_0"]
+        self.cer_91_0 = cer["utils_constEvalFuncWrapper_91_0"]
+        self.cer_96_0 = cer["utils_constEvalFuncWrapper_96_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_230 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2909,7 +1805,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_21 = ttnn.matmul(
             ttnn_reshape_230,
-            input_4,
+            self.cer_96_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2921,7 +1817,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_31 = ttnn.add(
             ttnn_matmul_21,
-            input_1,
+            self.cer_158_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3066,7 +1962,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_22 = ttnn.matmul(
             ttnn_reshape_234,
-            input_0,
+            self.w320,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3078,7 +1974,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_32 = ttnn.add(
             ttnn_matmul_22,
-            input_2,
+            self.cer_69_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3086,10 +1982,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_32
 
-    def CLIPEncoderLayer_24_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_33 = ttnn.add(
-            input_2,
-            input_1,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3098,8 +1995,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_13 = ttnn.layer_norm(
             ttnn_add_33,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_3,
+            weight=self.w318,
+            bias=self.w317,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3108,9 +2005,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_13, ttnn_add_33
 
-    def CLIPMLP_25_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_235 = ttnn.reshape(
-            input_1,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3118,7 +2016,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_23 = ttnn.matmul(
             ttnn_reshape_235,
-            input_3,
+            self.w316,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3130,7 +2028,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_34 = ttnn.add(
             ttnn_matmul_23,
-            input_0,
+            self.cer_91_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3152,7 +2050,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_24 = ttnn.matmul(
             ttnn_reshape_236,
-            input_4,
+            self.w314,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3164,7 +2062,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_35 = ttnn.add(
             ttnn_matmul_24,
-            input_2,
+            self.cer_106_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3172,10 +2070,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_35
 
-    def CLIPEncoderLayer_26_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_36 = ttnn.add(
-            input_3,
-            input_2,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3184,19 +2083,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_14 = ttnn.layer_norm(
             ttnn_add_36,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_1,
+            weight=self.w312,
+            bias=self.w311,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_14, ttnn_add_36
+        return ttnn_add_36, ttnn_layer_norm_14
 
-    def CLIPAttention_27_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_6(LightweightModule):
+    """CLIP Encoder Layer 6."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w308 = weights[
+            "image_encoder.vision_model.encoder.layers.6.self_attn.out_proj.weight"
+        ]
+        self.w306 = weights[
+            "image_encoder.vision_model.encoder.layers.6.layer_norm2.weight"
+        ]
+        self.w305 = weights[
+            "image_encoder.vision_model.encoder.layers.6.layer_norm2.bias"
+        ]
+        self.w304 = weights[
+            "image_encoder.vision_model.encoder.layers.6.mlp.fc1.weight"
+        ]
+        self.w302 = weights[
+            "image_encoder.vision_model.encoder.layers.6.mlp.fc2.weight"
+        ]
+        self.w300 = weights[
+            "image_encoder.vision_model.encoder.layers.7.layer_norm1.weight"
+        ]
+        self.w299 = weights[
+            "image_encoder.vision_model.encoder.layers.7.layer_norm1.bias"
+        ]
+        self.cer_103_0 = cer["utils_constEvalFuncWrapper_103_0"]
+        self.cer_128_0 = cer["utils_constEvalFuncWrapper_128_0"]
+        self.cer_46_0 = cer["utils_constEvalFuncWrapper_46_0"]
+        self.cer_53_0 = cer["utils_constEvalFuncWrapper_53_0"]
+        self.cer_99_0 = cer["utils_constEvalFuncWrapper_99_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_237 = ttnn.reshape(
-            input_1,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3204,7 +2149,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_25 = ttnn.matmul(
             ttnn_reshape_237,
-            input_3,
+            self.cer_128_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3216,7 +2161,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_37 = ttnn.add(
             ttnn_matmul_25,
-            input_0,
+            self.cer_99_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3361,7 +2306,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_26 = ttnn.matmul(
             ttnn_reshape_241,
-            input_4,
+            self.w308,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3373,7 +2318,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_38 = ttnn.add(
             ttnn_matmul_26,
-            input_2,
+            self.cer_46_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3381,10 +2326,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_38
 
-    def CLIPEncoderLayer_28_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_39 = ttnn.add(
-            input_3,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3393,19 +2339,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_15 = ttnn.layer_norm(
             ttnn_add_39,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_1,
+            weight=self.w306,
+            bias=self.w305,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_39, ttnn_layer_norm_15
+        return ttnn_layer_norm_15, ttnn_add_39
 
-    def CLIPMLP_29_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_242 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3413,7 +2360,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_27 = ttnn.matmul(
             ttnn_reshape_242,
-            input_1,
+            self.w304,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3425,7 +2372,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_40 = ttnn.add(
             ttnn_matmul_27,
-            input_0,
+            self.cer_53_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3447,7 +2394,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_28 = ttnn.matmul(
             ttnn_reshape_243,
-            input_2,
+            self.w302,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3459,7 +2406,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_41 = ttnn.add(
             ttnn_matmul_28,
-            input_4,
+            self.cer_103_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3467,10 +2414,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_41
 
-    def CLIPEncoderLayer_30_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_42 = ttnn.add(
-            input_1,
-            input_0,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3479,19 +2427,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_16 = ttnn.layer_norm(
             ttnn_add_42,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_2,
+            weight=self.w300,
+            bias=self.w299,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_16, ttnn_add_42
+        return ttnn_add_42, ttnn_layer_norm_16
 
-    def CLIPAttention_31_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_7(LightweightModule):
+    """CLIP Encoder Layer 7."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w296 = weights[
+            "image_encoder.vision_model.encoder.layers.7.self_attn.out_proj.weight"
+        ]
+        self.w294 = weights[
+            "image_encoder.vision_model.encoder.layers.7.layer_norm2.weight"
+        ]
+        self.w293 = weights[
+            "image_encoder.vision_model.encoder.layers.7.layer_norm2.bias"
+        ]
+        self.w292 = weights[
+            "image_encoder.vision_model.encoder.layers.7.mlp.fc1.weight"
+        ]
+        self.w290 = weights[
+            "image_encoder.vision_model.encoder.layers.7.mlp.fc2.weight"
+        ]
+        self.w288 = weights[
+            "image_encoder.vision_model.encoder.layers.8.layer_norm1.weight"
+        ]
+        self.w287 = weights[
+            "image_encoder.vision_model.encoder.layers.8.layer_norm1.bias"
+        ]
+        self.cer_120_0 = cer["utils_constEvalFuncWrapper_120_0"]
+        self.cer_153_0 = cer["utils_constEvalFuncWrapper_153_0"]
+        self.cer_27_0 = cer["utils_constEvalFuncWrapper_27_0"]
+        self.cer_49_0 = cer["utils_constEvalFuncWrapper_49_0"]
+        self.cer_84_0 = cer["utils_constEvalFuncWrapper_84_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_244 = ttnn.reshape(
-            input_2,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3499,7 +2493,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_29 = ttnn.matmul(
             ttnn_reshape_244,
-            input_4,
+            self.cer_49_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3511,7 +2505,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_43 = ttnn.add(
             ttnn_matmul_29,
-            input_1,
+            self.cer_84_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3656,7 +2650,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_30 = ttnn.matmul(
             ttnn_reshape_248,
-            input_3,
+            self.w296,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3668,7 +2662,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_44 = ttnn.add(
             ttnn_matmul_30,
-            input_0,
+            self.cer_120_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3676,10 +2670,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_44
 
-    def CLIPEncoderLayer_32_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_45 = ttnn.add(
-            input_3,
-            input_2,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3688,19 +2683,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_17 = ttnn.layer_norm(
             ttnn_add_45,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_0,
+            weight=self.w294,
+            bias=self.w293,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_45, ttnn_layer_norm_17
+        return ttnn_layer_norm_17, ttnn_add_45
 
-    def CLIPMLP_33_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_249 = ttnn.reshape(
-            input_2,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3708,7 +2704,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_31 = ttnn.matmul(
             ttnn_reshape_249,
-            input_4,
+            self.w292,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3720,7 +2716,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_46 = ttnn.add(
             ttnn_matmul_31,
-            input_1,
+            self.cer_27_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3742,7 +2738,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_32 = ttnn.matmul(
             ttnn_reshape_250,
-            input_3,
+            self.w290,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3754,7 +2750,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_47 = ttnn.add(
             ttnn_matmul_32,
-            input_0,
+            self.cer_153_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3762,10 +2758,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_47
 
-    def CLIPEncoderLayer_34_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_48 = ttnn.add(
-            input_2,
-            input_3,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3774,19 +2771,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_18 = ttnn.layer_norm(
             ttnn_add_48,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_1,
+            weight=self.w288,
+            bias=self.w287,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_18, ttnn_add_48
+        return ttnn_add_48, ttnn_layer_norm_18
 
-    def CLIPAttention_35_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_8(LightweightModule):
+    """CLIP Encoder Layer 8."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w284 = weights[
+            "image_encoder.vision_model.encoder.layers.8.self_attn.out_proj.weight"
+        ]
+        self.w282 = weights[
+            "image_encoder.vision_model.encoder.layers.8.layer_norm2.weight"
+        ]
+        self.w281 = weights[
+            "image_encoder.vision_model.encoder.layers.8.layer_norm2.bias"
+        ]
+        self.w280 = weights[
+            "image_encoder.vision_model.encoder.layers.8.mlp.fc1.weight"
+        ]
+        self.w278 = weights[
+            "image_encoder.vision_model.encoder.layers.8.mlp.fc2.weight"
+        ]
+        self.w276 = weights[
+            "image_encoder.vision_model.encoder.layers.9.layer_norm1.weight"
+        ]
+        self.w275 = weights[
+            "image_encoder.vision_model.encoder.layers.9.layer_norm1.bias"
+        ]
+        self.cer_24_0 = cer["utils_constEvalFuncWrapper_24_0"]
+        self.cer_29_0 = cer["utils_constEvalFuncWrapper_29_0"]
+        self.cer_40_0 = cer["utils_constEvalFuncWrapper_40_0"]
+        self.cer_74_0 = cer["utils_constEvalFuncWrapper_74_0"]
+        self.cer_93_0 = cer["utils_constEvalFuncWrapper_93_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_251 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3794,7 +2837,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_33 = ttnn.matmul(
             ttnn_reshape_251,
-            input_4,
+            self.cer_29_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3806,7 +2849,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_49 = ttnn.add(
             ttnn_matmul_33,
-            input_1,
+            self.cer_40_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3951,7 +2994,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_34 = ttnn.matmul(
             ttnn_reshape_255,
-            input_2,
+            self.w284,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3963,7 +3006,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_50 = ttnn.add(
             ttnn_matmul_34,
-            input_3,
+            self.cer_74_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3971,10 +3014,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_50
 
-    def CLIPEncoderLayer_36_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_51 = ttnn.add(
-            input_3,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3983,8 +3027,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_19 = ttnn.layer_norm(
             ttnn_add_51,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_1,
+            weight=self.w282,
+            bias=self.w281,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3993,9 +3037,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_19, ttnn_add_51
 
-    def CLIPMLP_37_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_256 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4003,7 +3048,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_35 = ttnn.matmul(
             ttnn_reshape_256,
-            input_2,
+            self.w280,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4015,7 +3060,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_52 = ttnn.add(
             ttnn_matmul_35,
-            input_0,
+            self.cer_24_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4037,7 +3082,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_36 = ttnn.matmul(
             ttnn_reshape_257,
-            input_1,
+            self.w278,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4049,7 +3094,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_53 = ttnn.add(
             ttnn_matmul_36,
-            input_3,
+            self.cer_93_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4057,10 +3102,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_53
 
-    def CLIPEncoderLayer_38_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_54 = ttnn.add(
-            input_3,
-            input_2,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4069,19 +3115,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_20 = ttnn.layer_norm(
             ttnn_add_54,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_1,
+            weight=self.w276,
+            bias=self.w275,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_20, ttnn_add_54
+        return ttnn_add_54, ttnn_layer_norm_20
 
-    def CLIPAttention_39_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_9(LightweightModule):
+    """CLIP Encoder Layer 9."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w272 = weights[
+            "image_encoder.vision_model.encoder.layers.9.self_attn.out_proj.weight"
+        ]
+        self.w270 = weights[
+            "image_encoder.vision_model.encoder.layers.9.layer_norm2.weight"
+        ]
+        self.w269 = weights[
+            "image_encoder.vision_model.encoder.layers.9.layer_norm2.bias"
+        ]
+        self.w268 = weights[
+            "image_encoder.vision_model.encoder.layers.9.mlp.fc1.weight"
+        ]
+        self.w266 = weights[
+            "image_encoder.vision_model.encoder.layers.9.mlp.fc2.weight"
+        ]
+        self.w264 = weights[
+            "image_encoder.vision_model.encoder.layers.10.layer_norm1.weight"
+        ]
+        self.w263 = weights[
+            "image_encoder.vision_model.encoder.layers.10.layer_norm1.bias"
+        ]
+        self.cer_113_0 = cer["utils_constEvalFuncWrapper_113_0"]
+        self.cer_119_0 = cer["utils_constEvalFuncWrapper_119_0"]
+        self.cer_133_0 = cer["utils_constEvalFuncWrapper_133_0"]
+        self.cer_155_0 = cer["utils_constEvalFuncWrapper_155_0"]
+        self.cer_2_0 = cer["utils_constEvalFuncWrapper_2_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_258 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4089,7 +3181,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_37 = ttnn.matmul(
             ttnn_reshape_258,
-            input_1,
+            self.cer_119_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4101,7 +3193,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_55 = ttnn.add(
             ttnn_matmul_37,
-            input_2,
+            self.cer_133_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4246,7 +3338,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_38 = ttnn.matmul(
             ttnn_reshape_262,
-            input_4,
+            self.w272,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4258,7 +3350,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_56 = ttnn.add(
             ttnn_matmul_38,
-            input_3,
+            self.cer_113_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4266,10 +3358,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_56
 
-    def CLIPEncoderLayer_40_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_57 = ttnn.add(
-            input_2,
-            input_3,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4278,19 +3371,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_21 = ttnn.layer_norm(
             ttnn_add_57,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_0,
+            weight=self.w270,
+            bias=self.w269,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_57, ttnn_layer_norm_21
+        return ttnn_layer_norm_21, ttnn_add_57
 
-    def CLIPMLP_41_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_263 = ttnn.reshape(
-            input_1,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4298,7 +3392,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_39 = ttnn.matmul(
             ttnn_reshape_263,
-            input_3,
+            self.w268,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4310,7 +3404,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_58 = ttnn.add(
             ttnn_matmul_39,
-            input_4,
+            self.cer_155_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4332,7 +3426,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_40 = ttnn.matmul(
             ttnn_reshape_264,
-            input_2,
+            self.w266,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4344,7 +3438,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_59 = ttnn.add(
             ttnn_matmul_40,
-            input_0,
+            self.cer_2_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4352,10 +3446,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_59
 
-    def CLIPEncoderLayer_42_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_60 = ttnn.add(
-            input_2,
-            input_1,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4364,8 +3459,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_22 = ttnn.layer_norm(
             ttnn_add_60,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_3,
+            weight=self.w264,
+            bias=self.w263,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4374,9 +3469,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_60, ttnn_layer_norm_22
 
-    def CLIPAttention_43_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_10(LightweightModule):
+    """CLIP Encoder Layer 10."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w260 = weights[
+            "image_encoder.vision_model.encoder.layers.10.self_attn.out_proj.weight"
+        ]
+        self.w258 = weights[
+            "image_encoder.vision_model.encoder.layers.10.layer_norm2.weight"
+        ]
+        self.w257 = weights[
+            "image_encoder.vision_model.encoder.layers.10.layer_norm2.bias"
+        ]
+        self.w256 = weights[
+            "image_encoder.vision_model.encoder.layers.10.mlp.fc1.weight"
+        ]
+        self.w254 = weights[
+            "image_encoder.vision_model.encoder.layers.10.mlp.fc2.weight"
+        ]
+        self.w252 = weights[
+            "image_encoder.vision_model.encoder.layers.11.layer_norm1.weight"
+        ]
+        self.w251 = weights[
+            "image_encoder.vision_model.encoder.layers.11.layer_norm1.bias"
+        ]
+        self.cer_152_0 = cer["utils_constEvalFuncWrapper_152_0"]
+        self.cer_64_0 = cer["utils_constEvalFuncWrapper_64_0"]
+        self.cer_71_0 = cer["utils_constEvalFuncWrapper_71_0"]
+        self.cer_85_0 = cer["utils_constEvalFuncWrapper_85_0"]
+        self.cer_95_0 = cer["utils_constEvalFuncWrapper_95_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_265 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4384,7 +3525,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_41 = ttnn.matmul(
             ttnn_reshape_265,
-            input_1,
+            self.cer_152_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4396,7 +3537,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_61 = ttnn.add(
             ttnn_matmul_41,
-            input_4,
+            self.cer_71_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4541,7 +3682,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_42 = ttnn.matmul(
             ttnn_reshape_269,
-            input_0,
+            self.w260,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4553,7 +3694,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_62 = ttnn.add(
             ttnn_matmul_42,
-            input_2,
+            self.cer_64_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4561,10 +3702,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_62
 
-    def CLIPEncoderLayer_44_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_63 = ttnn.add(
-            input_2,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4573,19 +3715,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_23 = ttnn.layer_norm(
             ttnn_add_63,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_3,
+            weight=self.w258,
+            bias=self.w257,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_63, ttnn_layer_norm_23
+        return ttnn_layer_norm_23, ttnn_add_63
 
-    def CLIPMLP_45_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_270 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4593,7 +3736,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_43 = ttnn.matmul(
             ttnn_reshape_270,
-            input_0,
+            self.w256,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4605,7 +3748,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_64 = ttnn.add(
             ttnn_matmul_43,
-            input_1,
+            self.cer_95_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4627,7 +3770,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_44 = ttnn.matmul(
             ttnn_reshape_271,
-            input_4,
+            self.w254,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4639,7 +3782,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_65 = ttnn.add(
             ttnn_matmul_44,
-            input_2,
+            self.cer_85_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4647,10 +3790,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_65
 
-    def CLIPEncoderLayer_46_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_66 = ttnn.add(
-            input_0,
-            input_3,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4659,19 +3803,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_24 = ttnn.layer_norm(
             ttnn_add_66,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_2,
+            weight=self.w252,
+            bias=self.w251,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_24, ttnn_add_66
+        return ttnn_add_66, ttnn_layer_norm_24
 
-    def CLIPAttention_47_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_11(LightweightModule):
+    """CLIP Encoder Layer 11."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w248 = weights[
+            "image_encoder.vision_model.encoder.layers.11.self_attn.out_proj.weight"
+        ]
+        self.w246 = weights[
+            "image_encoder.vision_model.encoder.layers.11.layer_norm2.weight"
+        ]
+        self.w245 = weights[
+            "image_encoder.vision_model.encoder.layers.11.layer_norm2.bias"
+        ]
+        self.w244 = weights[
+            "image_encoder.vision_model.encoder.layers.11.mlp.fc1.weight"
+        ]
+        self.w242 = weights[
+            "image_encoder.vision_model.encoder.layers.11.mlp.fc2.weight"
+        ]
+        self.w240 = weights[
+            "image_encoder.vision_model.encoder.layers.12.layer_norm1.weight"
+        ]
+        self.w239 = weights[
+            "image_encoder.vision_model.encoder.layers.12.layer_norm1.bias"
+        ]
+        self.cer_116_0 = cer["utils_constEvalFuncWrapper_116_0"]
+        self.cer_140_0 = cer["utils_constEvalFuncWrapper_140_0"]
+        self.cer_151_0 = cer["utils_constEvalFuncWrapper_151_0"]
+        self.cer_156_0 = cer["utils_constEvalFuncWrapper_156_0"]
+        self.cer_67_0 = cer["utils_constEvalFuncWrapper_67_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_272 = ttnn.reshape(
-            input_2,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4679,7 +3869,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_45 = ttnn.matmul(
             ttnn_reshape_272,
-            input_0,
+            self.cer_67_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4691,7 +3881,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_67 = ttnn.add(
             ttnn_matmul_45,
-            input_3,
+            self.cer_116_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4836,7 +4026,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_46 = ttnn.matmul(
             ttnn_reshape_276,
-            input_4,
+            self.w248,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4848,7 +4038,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_68 = ttnn.add(
             ttnn_matmul_46,
-            input_1,
+            self.cer_140_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4856,10 +4046,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_68
 
-    def CLIPEncoderLayer_48_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_69 = ttnn.add(
-            input_3,
-            input_2,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4868,8 +4059,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_25 = ttnn.layer_norm(
             ttnn_add_69,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_0,
+            weight=self.w246,
+            bias=self.w245,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4878,9 +4069,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_25, ttnn_add_69
 
-    def CLIPMLP_49_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_277 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4888,7 +4080,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_47 = ttnn.matmul(
             ttnn_reshape_277,
-            input_3,
+            self.w244,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4900,7 +4092,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_70 = ttnn.add(
             ttnn_matmul_47,
-            input_1,
+            self.cer_156_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4922,7 +4114,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_48 = ttnn.matmul(
             ttnn_reshape_278,
-            input_4,
+            self.w242,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4934,7 +4126,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_71 = ttnn.add(
             ttnn_matmul_48,
-            input_2,
+            self.cer_151_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4942,10 +4134,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_71
 
-    def CLIPEncoderLayer_50_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_72 = ttnn.add(
-            input_1,
-            input_2,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4954,19 +4147,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_26 = ttnn.layer_norm(
             ttnn_add_72,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_3,
+            weight=self.w240,
+            bias=self.w239,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_26, ttnn_add_72
+        return ttnn_add_72, ttnn_layer_norm_26
 
-    def CLIPAttention_51_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_12(LightweightModule):
+    """CLIP Encoder Layer 12."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w236 = weights[
+            "image_encoder.vision_model.encoder.layers.12.self_attn.out_proj.weight"
+        ]
+        self.w234 = weights[
+            "image_encoder.vision_model.encoder.layers.12.layer_norm2.weight"
+        ]
+        self.w233 = weights[
+            "image_encoder.vision_model.encoder.layers.12.layer_norm2.bias"
+        ]
+        self.w232 = weights[
+            "image_encoder.vision_model.encoder.layers.12.mlp.fc1.weight"
+        ]
+        self.w230 = weights[
+            "image_encoder.vision_model.encoder.layers.12.mlp.fc2.weight"
+        ]
+        self.w228 = weights[
+            "image_encoder.vision_model.encoder.layers.13.layer_norm1.weight"
+        ]
+        self.w227 = weights[
+            "image_encoder.vision_model.encoder.layers.13.layer_norm1.bias"
+        ]
+        self.cer_136_0 = cer["utils_constEvalFuncWrapper_136_0"]
+        self.cer_15_0 = cer["utils_constEvalFuncWrapper_15_0"]
+        self.cer_5_0 = cer["utils_constEvalFuncWrapper_5_0"]
+        self.cer_68_0 = cer["utils_constEvalFuncWrapper_68_0"]
+        self.cer_87_0 = cer["utils_constEvalFuncWrapper_87_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_279 = ttnn.reshape(
-            input_2,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4974,7 +4213,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_49 = ttnn.matmul(
             ttnn_reshape_279,
-            input_1,
+            self.cer_87_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4986,7 +4225,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_73 = ttnn.add(
             ttnn_matmul_49,
-            input_3,
+            self.cer_136_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5131,7 +4370,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_50 = ttnn.matmul(
             ttnn_reshape_283,
-            input_0,
+            self.w236,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5143,7 +4382,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_74 = ttnn.add(
             ttnn_matmul_50,
-            input_4,
+            self.cer_68_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5151,10 +4390,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_74
 
-    def CLIPEncoderLayer_52_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_75 = ttnn.add(
-            input_2,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5163,8 +4403,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_27 = ttnn.layer_norm(
             ttnn_add_75,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_1,
+            weight=self.w234,
+            bias=self.w233,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5173,9 +4413,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_27, ttnn_add_75
 
-    def CLIPMLP_53_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_284 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5183,7 +4424,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_51 = ttnn.matmul(
             ttnn_reshape_284,
-            input_0,
+            self.w232,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5195,7 +4436,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_76 = ttnn.add(
             ttnn_matmul_51,
-            input_1,
+            self.cer_5_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5217,7 +4458,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_52 = ttnn.matmul(
             ttnn_reshape_285,
-            input_4,
+            self.w230,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5229,7 +4470,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_77 = ttnn.add(
             ttnn_matmul_52,
-            input_2,
+            self.cer_15_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5237,10 +4478,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_77
 
-    def CLIPEncoderLayer_54_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_78 = ttnn.add(
-            input_3,
-            input_1,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5249,8 +4491,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_28 = ttnn.layer_norm(
             ttnn_add_78,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_0,
+            weight=self.w228,
+            bias=self.w227,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5259,9 +4501,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_78, ttnn_layer_norm_28
 
-    def CLIPAttention_55_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_13(LightweightModule):
+    """CLIP Encoder Layer 13."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w224 = weights[
+            "image_encoder.vision_model.encoder.layers.13.self_attn.out_proj.weight"
+        ]
+        self.w222 = weights[
+            "image_encoder.vision_model.encoder.layers.13.layer_norm2.weight"
+        ]
+        self.w221 = weights[
+            "image_encoder.vision_model.encoder.layers.13.layer_norm2.bias"
+        ]
+        self.w220 = weights[
+            "image_encoder.vision_model.encoder.layers.13.mlp.fc1.weight"
+        ]
+        self.w218 = weights[
+            "image_encoder.vision_model.encoder.layers.13.mlp.fc2.weight"
+        ]
+        self.w216 = weights[
+            "image_encoder.vision_model.encoder.layers.14.layer_norm1.weight"
+        ]
+        self.w215 = weights[
+            "image_encoder.vision_model.encoder.layers.14.layer_norm1.bias"
+        ]
+        self.cer_102_0 = cer["utils_constEvalFuncWrapper_102_0"]
+        self.cer_109_0 = cer["utils_constEvalFuncWrapper_109_0"]
+        self.cer_126_0 = cer["utils_constEvalFuncWrapper_126_0"]
+        self.cer_1_0 = cer["utils_constEvalFuncWrapper_1_0"]
+        self.cer_92_0 = cer["utils_constEvalFuncWrapper_92_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_286 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5269,7 +4557,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_53 = ttnn.matmul(
             ttnn_reshape_286,
-            input_3,
+            self.cer_102_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5281,7 +4569,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_79 = ttnn.add(
             ttnn_matmul_53,
-            input_1,
+            self.cer_1_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5426,7 +4714,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_54 = ttnn.matmul(
             ttnn_reshape_290,
-            input_0,
+            self.w224,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5438,7 +4726,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_80 = ttnn.add(
             ttnn_matmul_54,
-            input_2,
+            self.cer_126_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5446,10 +4734,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_80
 
-    def CLIPEncoderLayer_56_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_81 = ttnn.add(
-            input_2,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5458,19 +4747,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_29 = ttnn.layer_norm(
             ttnn_add_81,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_1,
+            weight=self.w222,
+            bias=self.w221,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_81, ttnn_layer_norm_29
+        return ttnn_layer_norm_29, ttnn_add_81
 
-    def CLIPMLP_57_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_291 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5478,7 +4768,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_55 = ttnn.matmul(
             ttnn_reshape_291,
-            input_3,
+            self.w220,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5490,7 +4780,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_82 = ttnn.add(
             ttnn_matmul_55,
-            input_0,
+            self.cer_92_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5512,7 +4802,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_56 = ttnn.matmul(
             ttnn_reshape_292,
-            input_2,
+            self.w218,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5524,7 +4814,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_83 = ttnn.add(
             ttnn_matmul_56,
-            input_1,
+            self.cer_109_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5532,10 +4822,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_83
 
-    def CLIPEncoderLayer_58_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_84 = ttnn.add(
-            input_1,
-            input_3,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5544,19 +4835,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_30 = ttnn.layer_norm(
             ttnn_add_84,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_0,
+            weight=self.w216,
+            bias=self.w215,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_30, ttnn_add_84
+        return ttnn_add_84, ttnn_layer_norm_30
 
-    def CLIPAttention_59_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_14(LightweightModule):
+    """CLIP Encoder Layer 14."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w212 = weights[
+            "image_encoder.vision_model.encoder.layers.14.self_attn.out_proj.weight"
+        ]
+        self.w210 = weights[
+            "image_encoder.vision_model.encoder.layers.14.layer_norm2.weight"
+        ]
+        self.w209 = weights[
+            "image_encoder.vision_model.encoder.layers.14.layer_norm2.bias"
+        ]
+        self.w208 = weights[
+            "image_encoder.vision_model.encoder.layers.14.mlp.fc1.weight"
+        ]
+        self.w206 = weights[
+            "image_encoder.vision_model.encoder.layers.14.mlp.fc2.weight"
+        ]
+        self.w204 = weights[
+            "image_encoder.vision_model.encoder.layers.15.layer_norm1.weight"
+        ]
+        self.w203 = weights[
+            "image_encoder.vision_model.encoder.layers.15.layer_norm1.bias"
+        ]
+        self.cer_101_0 = cer["utils_constEvalFuncWrapper_101_0"]
+        self.cer_11_0 = cer["utils_constEvalFuncWrapper_11_0"]
+        self.cer_141_0 = cer["utils_constEvalFuncWrapper_141_0"]
+        self.cer_18_0 = cer["utils_constEvalFuncWrapper_18_0"]
+        self.cer_86_0 = cer["utils_constEvalFuncWrapper_86_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_293 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5564,7 +4901,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_57 = ttnn.matmul(
             ttnn_reshape_293,
-            input_1,
+            self.cer_86_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5576,7 +4913,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_85 = ttnn.add(
             ttnn_matmul_57,
-            input_3,
+            self.cer_101_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5721,7 +5058,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_58 = ttnn.matmul(
             ttnn_reshape_297,
-            input_2,
+            self.w212,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5733,7 +5070,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_86 = ttnn.add(
             ttnn_matmul_58,
-            input_4,
+            self.cer_11_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5741,10 +5078,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_86
 
-    def CLIPEncoderLayer_60_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_87 = ttnn.add(
-            input_2,
-            input_3,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5753,19 +5091,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_31 = ttnn.layer_norm(
             ttnn_add_87,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_0,
+            weight=self.w210,
+            bias=self.w209,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_87, ttnn_layer_norm_31
+        return ttnn_layer_norm_31, ttnn_add_87
 
-    def CLIPMLP_61_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_298 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5773,7 +5112,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_59 = ttnn.matmul(
             ttnn_reshape_298,
-            input_1,
+            self.w208,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5785,7 +5124,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_88 = ttnn.add(
             ttnn_matmul_59,
-            input_4,
+            self.cer_141_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5807,7 +5146,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_60 = ttnn.matmul(
             ttnn_reshape_299,
-            input_0,
+            self.w206,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5819,7 +5158,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_89 = ttnn.add(
             ttnn_matmul_60,
-            input_2,
+            self.cer_18_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5827,10 +5166,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_89
 
-    def CLIPEncoderLayer_62_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_90 = ttnn.add(
-            input_3,
-            input_0,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5839,19 +5179,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_32 = ttnn.layer_norm(
             ttnn_add_90,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_1,
+            weight=self.w204,
+            bias=self.w203,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_32, ttnn_add_90
+        return ttnn_add_90, ttnn_layer_norm_32
 
-    def CLIPAttention_63_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_15(LightweightModule):
+    """CLIP Encoder Layer 15."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w200 = weights[
+            "image_encoder.vision_model.encoder.layers.15.self_attn.out_proj.weight"
+        ]
+        self.w198 = weights[
+            "image_encoder.vision_model.encoder.layers.15.layer_norm2.weight"
+        ]
+        self.w197 = weights[
+            "image_encoder.vision_model.encoder.layers.15.layer_norm2.bias"
+        ]
+        self.w196 = weights[
+            "image_encoder.vision_model.encoder.layers.15.mlp.fc1.weight"
+        ]
+        self.w194 = weights[
+            "image_encoder.vision_model.encoder.layers.15.mlp.fc2.weight"
+        ]
+        self.w192 = weights[
+            "image_encoder.vision_model.encoder.layers.16.layer_norm1.weight"
+        ]
+        self.w191 = weights[
+            "image_encoder.vision_model.encoder.layers.16.layer_norm1.bias"
+        ]
+        self.cer_114_0 = cer["utils_constEvalFuncWrapper_114_0"]
+        self.cer_154_0 = cer["utils_constEvalFuncWrapper_154_0"]
+        self.cer_23_0 = cer["utils_constEvalFuncWrapper_23_0"]
+        self.cer_72_0 = cer["utils_constEvalFuncWrapper_72_0"]
+        self.cer_83_0 = cer["utils_constEvalFuncWrapper_83_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_300 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5859,7 +5245,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_61 = ttnn.matmul(
             ttnn_reshape_300,
-            input_4,
+            self.cer_23_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5871,7 +5257,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_91 = ttnn.add(
             ttnn_matmul_61,
-            input_1,
+            self.cer_72_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6016,7 +5402,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_62 = ttnn.matmul(
             ttnn_reshape_304,
-            input_3,
+            self.w200,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6028,7 +5414,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_92 = ttnn.add(
             ttnn_matmul_62,
-            input_2,
+            self.cer_114_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6036,10 +5422,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_92
 
-    def CLIPEncoderLayer_64_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_93 = ttnn.add(
-            input_3,
-            input_1,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6048,19 +5435,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_33 = ttnn.layer_norm(
             ttnn_add_93,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_0,
+            weight=self.w198,
+            bias=self.w197,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_93, ttnn_layer_norm_33
+        return ttnn_layer_norm_33, ttnn_add_93
 
-    def CLIPMLP_65_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_305 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6068,7 +5456,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_63 = ttnn.matmul(
             ttnn_reshape_305,
-            input_3,
+            self.w196,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6080,7 +5468,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_94 = ttnn.add(
             ttnn_matmul_63,
-            input_2,
+            self.cer_154_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6102,7 +5490,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_64 = ttnn.matmul(
             ttnn_reshape_306,
-            input_0,
+            self.w194,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6114,7 +5502,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_95 = ttnn.add(
             ttnn_matmul_64,
-            input_1,
+            self.cer_83_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6122,10 +5510,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_95
 
-    def CLIPEncoderLayer_66_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_96 = ttnn.add(
-            input_1,
-            input_2,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6134,8 +5523,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_34 = ttnn.layer_norm(
             ttnn_add_96,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_0,
+            weight=self.w192,
+            bias=self.w191,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6144,9 +5533,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_96, ttnn_layer_norm_34
 
-    def CLIPAttention_67_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_16(LightweightModule):
+    """CLIP Encoder Layer 16."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w188 = weights[
+            "image_encoder.vision_model.encoder.layers.16.self_attn.out_proj.weight"
+        ]
+        self.w186 = weights[
+            "image_encoder.vision_model.encoder.layers.16.layer_norm2.weight"
+        ]
+        self.w185 = weights[
+            "image_encoder.vision_model.encoder.layers.16.layer_norm2.bias"
+        ]
+        self.w184 = weights[
+            "image_encoder.vision_model.encoder.layers.16.mlp.fc1.weight"
+        ]
+        self.w182 = weights[
+            "image_encoder.vision_model.encoder.layers.16.mlp.fc2.weight"
+        ]
+        self.w180 = weights[
+            "image_encoder.vision_model.encoder.layers.17.layer_norm1.weight"
+        ]
+        self.w179 = weights[
+            "image_encoder.vision_model.encoder.layers.17.layer_norm1.bias"
+        ]
+        self.cer_104_0 = cer["utils_constEvalFuncWrapper_104_0"]
+        self.cer_118_0 = cer["utils_constEvalFuncWrapper_118_0"]
+        self.cer_130_0 = cer["utils_constEvalFuncWrapper_130_0"]
+        self.cer_63_0 = cer["utils_constEvalFuncWrapper_63_0"]
+        self.cer_89_0 = cer["utils_constEvalFuncWrapper_89_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_307 = ttnn.reshape(
-            input_1,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6154,7 +5589,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_65 = ttnn.matmul(
             ttnn_reshape_307,
-            input_2,
+            self.cer_89_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6166,7 +5601,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_97 = ttnn.add(
             ttnn_matmul_65,
-            input_0,
+            self.cer_118_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6311,7 +5746,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_66 = ttnn.matmul(
             ttnn_reshape_311,
-            input_3,
+            self.w188,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6323,7 +5758,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_98 = ttnn.add(
             ttnn_matmul_66,
-            input_4,
+            self.cer_63_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6331,10 +5766,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_98
 
-    def CLIPEncoderLayer_68_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_99 = ttnn.add(
-            input_0,
-            input_1,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6343,19 +5779,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_35 = ttnn.layer_norm(
             ttnn_add_99,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_2,
+            weight=self.w186,
+            bias=self.w185,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_99, ttnn_layer_norm_35
+        return ttnn_layer_norm_35, ttnn_add_99
 
-    def CLIPMLP_69_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_312 = ttnn.reshape(
-            input_1,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6363,7 +5800,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_67 = ttnn.matmul(
             ttnn_reshape_312,
-            input_0,
+            self.w184,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6375,7 +5812,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_100 = ttnn.add(
             ttnn_matmul_67,
-            input_3,
+            self.cer_130_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6397,7 +5834,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_68 = ttnn.matmul(
             ttnn_reshape_313,
-            input_2,
+            self.w182,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6409,7 +5846,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_101 = ttnn.add(
             ttnn_matmul_68,
-            input_4,
+            self.cer_104_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6417,10 +5854,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_101
 
-    def CLIPEncoderLayer_70_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_102 = ttnn.add(
-            input_0,
-            input_1,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6429,8 +5867,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_36 = ttnn.layer_norm(
             ttnn_add_102,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_3,
+            weight=self.w180,
+            bias=self.w179,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6439,9 +5877,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_102, ttnn_layer_norm_36
 
-    def CLIPAttention_71_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_17(LightweightModule):
+    """CLIP Encoder Layer 17."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w176 = weights[
+            "image_encoder.vision_model.encoder.layers.17.self_attn.out_proj.weight"
+        ]
+        self.w174 = weights[
+            "image_encoder.vision_model.encoder.layers.17.layer_norm2.weight"
+        ]
+        self.w173 = weights[
+            "image_encoder.vision_model.encoder.layers.17.layer_norm2.bias"
+        ]
+        self.w172 = weights[
+            "image_encoder.vision_model.encoder.layers.17.mlp.fc1.weight"
+        ]
+        self.w170 = weights[
+            "image_encoder.vision_model.encoder.layers.17.mlp.fc2.weight"
+        ]
+        self.w168 = weights[
+            "image_encoder.vision_model.encoder.layers.18.layer_norm1.weight"
+        ]
+        self.w167 = weights[
+            "image_encoder.vision_model.encoder.layers.18.layer_norm1.bias"
+        ]
+        self.cer_108_0 = cer["utils_constEvalFuncWrapper_108_0"]
+        self.cer_17_0 = cer["utils_constEvalFuncWrapper_17_0"]
+        self.cer_19_0 = cer["utils_constEvalFuncWrapper_19_0"]
+        self.cer_34_0 = cer["utils_constEvalFuncWrapper_34_0"]
+        self.cer_7_0 = cer["utils_constEvalFuncWrapper_7_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_314 = ttnn.reshape(
-            input_2,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6449,7 +5933,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_69 = ttnn.matmul(
             ttnn_reshape_314,
-            input_0,
+            self.cer_34_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6461,7 +5945,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_103 = ttnn.add(
             ttnn_matmul_69,
-            input_4,
+            self.cer_17_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6606,7 +6090,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_70 = ttnn.matmul(
             ttnn_reshape_318,
-            input_3,
+            self.w176,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6618,7 +6102,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_104 = ttnn.add(
             ttnn_matmul_70,
-            input_1,
+            self.cer_7_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6626,10 +6110,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_104
 
-    def CLIPEncoderLayer_72_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_105 = ttnn.add(
-            input_3,
-            input_2,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6638,8 +6123,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_37 = ttnn.layer_norm(
             ttnn_add_105,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_1,
+            weight=self.w174,
+            bias=self.w173,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6648,9 +6133,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_37, ttnn_add_105
 
-    def CLIPMLP_73_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_319 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6658,7 +6144,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_71 = ttnn.matmul(
             ttnn_reshape_319,
-            input_3,
+            self.w172,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6670,7 +6156,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_106 = ttnn.add(
             ttnn_matmul_71,
-            input_1,
+            self.cer_108_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6692,7 +6178,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_72 = ttnn.matmul(
             ttnn_reshape_320,
-            input_4,
+            self.w170,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6704,7 +6190,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_107 = ttnn.add(
             ttnn_matmul_72,
-            input_2,
+            self.cer_19_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6712,10 +6198,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_107
 
-    def CLIPEncoderLayer_74_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_108 = ttnn.add(
-            input_2,
-            input_3,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6724,19 +6211,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_38 = ttnn.layer_norm(
             ttnn_add_108,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_1,
+            weight=self.w168,
+            bias=self.w167,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_38, ttnn_add_108
+        return ttnn_add_108, ttnn_layer_norm_38
 
-    def CLIPAttention_75_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_18(LightweightModule):
+    """CLIP Encoder Layer 18."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w164 = weights[
+            "image_encoder.vision_model.encoder.layers.18.self_attn.out_proj.weight"
+        ]
+        self.w162 = weights[
+            "image_encoder.vision_model.encoder.layers.18.layer_norm2.weight"
+        ]
+        self.w161 = weights[
+            "image_encoder.vision_model.encoder.layers.18.layer_norm2.bias"
+        ]
+        self.w160 = weights[
+            "image_encoder.vision_model.encoder.layers.18.mlp.fc1.weight"
+        ]
+        self.w158 = weights[
+            "image_encoder.vision_model.encoder.layers.18.mlp.fc2.weight"
+        ]
+        self.w156 = weights[
+            "image_encoder.vision_model.encoder.layers.19.layer_norm1.weight"
+        ]
+        self.w155 = weights[
+            "image_encoder.vision_model.encoder.layers.19.layer_norm1.bias"
+        ]
+        self.cer_100_0 = cer["utils_constEvalFuncWrapper_100_0"]
+        self.cer_112_0 = cer["utils_constEvalFuncWrapper_112_0"]
+        self.cer_134_0 = cer["utils_constEvalFuncWrapper_134_0"]
+        self.cer_147_0 = cer["utils_constEvalFuncWrapper_147_0"]
+        self.cer_94_0 = cer["utils_constEvalFuncWrapper_94_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_321 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6744,7 +6277,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_73 = ttnn.matmul(
             ttnn_reshape_321,
-            input_2,
+            self.cer_112_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6756,7 +6289,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_109 = ttnn.add(
             ttnn_matmul_73,
-            input_0,
+            self.cer_134_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6901,7 +6434,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_74 = ttnn.matmul(
             ttnn_reshape_325,
-            input_1,
+            self.w164,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6913,7 +6446,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_110 = ttnn.add(
             ttnn_matmul_74,
-            input_4,
+            self.cer_100_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6921,10 +6454,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_110
 
-    def CLIPEncoderLayer_76_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_111 = ttnn.add(
-            input_2,
-            input_1,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6933,8 +6467,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_39 = ttnn.layer_norm(
             ttnn_add_111,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_0,
+            weight=self.w162,
+            bias=self.w161,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6943,9 +6477,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_39, ttnn_add_111
 
-    def CLIPMLP_77_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_326 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6953,7 +6488,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_75 = ttnn.matmul(
             ttnn_reshape_326,
-            input_1,
+            self.w160,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6965,7 +6500,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_112 = ttnn.add(
             ttnn_matmul_75,
-            input_3,
+            self.cer_94_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6987,7 +6522,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_76 = ttnn.matmul(
             ttnn_reshape_327,
-            input_2,
+            self.w158,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6999,7 +6534,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_113 = ttnn.add(
             ttnn_matmul_76,
-            input_4,
+            self.cer_147_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7007,10 +6542,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_113
 
-    def CLIPEncoderLayer_78_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_114 = ttnn.add(
-            input_2,
-            input_1,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7019,19 +6555,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_40 = ttnn.layer_norm(
             ttnn_add_114,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_3,
+            weight=self.w156,
+            bias=self.w155,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_40, ttnn_add_114
+        return ttnn_add_114, ttnn_layer_norm_40
 
-    def CLIPAttention_79_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_19(LightweightModule):
+    """CLIP Encoder Layer 19."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w152 = weights[
+            "image_encoder.vision_model.encoder.layers.19.self_attn.out_proj.weight"
+        ]
+        self.w150 = weights[
+            "image_encoder.vision_model.encoder.layers.19.layer_norm2.weight"
+        ]
+        self.w149 = weights[
+            "image_encoder.vision_model.encoder.layers.19.layer_norm2.bias"
+        ]
+        self.w148 = weights[
+            "image_encoder.vision_model.encoder.layers.19.mlp.fc1.weight"
+        ]
+        self.w146 = weights[
+            "image_encoder.vision_model.encoder.layers.19.mlp.fc2.weight"
+        ]
+        self.w144 = weights[
+            "image_encoder.vision_model.encoder.layers.20.layer_norm1.weight"
+        ]
+        self.w143 = weights[
+            "image_encoder.vision_model.encoder.layers.20.layer_norm1.bias"
+        ]
+        self.cer_12_0 = cer["utils_constEvalFuncWrapper_12_0"]
+        self.cer_28_0 = cer["utils_constEvalFuncWrapper_28_0"]
+        self.cer_44_0 = cer["utils_constEvalFuncWrapper_44_0"]
+        self.cer_50_0 = cer["utils_constEvalFuncWrapper_50_0"]
+        self.cer_52_0 = cer["utils_constEvalFuncWrapper_52_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_328 = ttnn.reshape(
-            input_1,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7039,7 +6621,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_77 = ttnn.matmul(
             ttnn_reshape_328,
-            input_2,
+            self.cer_12_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7051,7 +6633,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_115 = ttnn.add(
             ttnn_matmul_77,
-            input_3,
+            self.cer_50_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7196,7 +6778,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_78 = ttnn.matmul(
             ttnn_reshape_332,
-            input_0,
+            self.w152,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7208,7 +6790,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_116 = ttnn.add(
             ttnn_matmul_78,
-            input_4,
+            self.cer_52_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7216,10 +6798,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_116
 
-    def CLIPEncoderLayer_80_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_117 = ttnn.add(
-            input_2,
-            input_3,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7228,19 +6811,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_41 = ttnn.layer_norm(
             ttnn_add_117,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_1,
+            weight=self.w150,
+            bias=self.w149,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_117, ttnn_layer_norm_41
+        return ttnn_layer_norm_41, ttnn_add_117
 
-    def CLIPMLP_81_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_333 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7248,7 +6832,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_79 = ttnn.matmul(
             ttnn_reshape_333,
-            input_3,
+            self.w148,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7260,7 +6844,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_118 = ttnn.add(
             ttnn_matmul_79,
-            input_1,
+            self.cer_44_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7282,7 +6866,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_80 = ttnn.matmul(
             ttnn_reshape_334,
-            input_2,
+            self.w146,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7294,7 +6878,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_119 = ttnn.add(
             ttnn_matmul_80,
-            input_4,
+            self.cer_28_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7302,10 +6886,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_119
 
-    def CLIPEncoderLayer_82_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_120 = ttnn.add(
-            input_0,
-            input_3,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7314,8 +6899,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_42 = ttnn.layer_norm(
             ttnn_add_120,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_2,
+            weight=self.w144,
+            bias=self.w143,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7324,9 +6909,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_120, ttnn_layer_norm_42
 
-    def CLIPAttention_83_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_20(LightweightModule):
+    """CLIP Encoder Layer 20."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w140 = weights[
+            "image_encoder.vision_model.encoder.layers.20.self_attn.out_proj.weight"
+        ]
+        self.w138 = weights[
+            "image_encoder.vision_model.encoder.layers.20.layer_norm2.weight"
+        ]
+        self.w137 = weights[
+            "image_encoder.vision_model.encoder.layers.20.layer_norm2.bias"
+        ]
+        self.w136 = weights[
+            "image_encoder.vision_model.encoder.layers.20.mlp.fc1.weight"
+        ]
+        self.w134 = weights[
+            "image_encoder.vision_model.encoder.layers.20.mlp.fc2.weight"
+        ]
+        self.w132 = weights[
+            "image_encoder.vision_model.encoder.layers.21.layer_norm1.weight"
+        ]
+        self.w131 = weights[
+            "image_encoder.vision_model.encoder.layers.21.layer_norm1.bias"
+        ]
+        self.cer_107_0 = cer["utils_constEvalFuncWrapper_107_0"]
+        self.cer_60_0 = cer["utils_constEvalFuncWrapper_60_0"]
+        self.cer_65_0 = cer["utils_constEvalFuncWrapper_65_0"]
+        self.cer_78_0 = cer["utils_constEvalFuncWrapper_78_0"]
+        self.cer_82_0 = cer["utils_constEvalFuncWrapper_82_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_335 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7334,7 +6965,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_81 = ttnn.matmul(
             ttnn_reshape_335,
-            input_3,
+            self.cer_65_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7346,7 +6977,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_121 = ttnn.add(
             ttnn_matmul_81,
-            input_1,
+            self.cer_60_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7491,7 +7122,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_82 = ttnn.matmul(
             ttnn_reshape_339,
-            input_2,
+            self.w140,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7503,7 +7134,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_122 = ttnn.add(
             ttnn_matmul_82,
-            input_0,
+            self.cer_78_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7511,10 +7142,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_122
 
-    def CLIPEncoderLayer_84_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_123 = ttnn.add(
-            input_2,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7523,19 +7155,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_43 = ttnn.layer_norm(
             ttnn_add_123,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_1,
+            weight=self.w138,
+            bias=self.w137,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_123, ttnn_layer_norm_43
+        return ttnn_layer_norm_43, ttnn_add_123
 
-    def CLIPMLP_85_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_340 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7543,7 +7176,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_83 = ttnn.matmul(
             ttnn_reshape_340,
-            input_2,
+            self.w136,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7555,7 +7188,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_124 = ttnn.add(
             ttnn_matmul_83,
-            input_3,
+            self.cer_107_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7577,7 +7210,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_84 = ttnn.matmul(
             ttnn_reshape_341,
-            input_1,
+            self.w134,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7589,7 +7222,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_125 = ttnn.add(
             ttnn_matmul_84,
-            input_0,
+            self.cer_82_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7597,10 +7230,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_125
 
-    def CLIPEncoderLayer_86_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_126 = ttnn.add(
-            input_0,
-            input_1,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7609,8 +7243,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_44 = ttnn.layer_norm(
             ttnn_add_126,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_3,
+            weight=self.w132,
+            bias=self.w131,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7619,9 +7253,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_126, ttnn_layer_norm_44
 
-    def CLIPAttention_87_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_21(LightweightModule):
+    """CLIP Encoder Layer 21."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w128 = weights[
+            "image_encoder.vision_model.encoder.layers.21.self_attn.out_proj.weight"
+        ]
+        self.w126 = weights[
+            "image_encoder.vision_model.encoder.layers.21.layer_norm2.weight"
+        ]
+        self.w125 = weights[
+            "image_encoder.vision_model.encoder.layers.21.layer_norm2.bias"
+        ]
+        self.w124 = weights[
+            "image_encoder.vision_model.encoder.layers.21.mlp.fc1.weight"
+        ]
+        self.w122 = weights[
+            "image_encoder.vision_model.encoder.layers.21.mlp.fc2.weight"
+        ]
+        self.w120 = weights[
+            "image_encoder.vision_model.encoder.layers.22.layer_norm1.weight"
+        ]
+        self.w119 = weights[
+            "image_encoder.vision_model.encoder.layers.22.layer_norm1.bias"
+        ]
+        self.cer_110_0 = cer["utils_constEvalFuncWrapper_110_0"]
+        self.cer_111_0 = cer["utils_constEvalFuncWrapper_111_0"]
+        self.cer_160_0 = cer["utils_constEvalFuncWrapper_160_0"]
+        self.cer_20_0 = cer["utils_constEvalFuncWrapper_20_0"]
+        self.cer_37_0 = cer["utils_constEvalFuncWrapper_37_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_342 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7629,7 +7309,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_85 = ttnn.matmul(
             ttnn_reshape_342,
-            input_1,
+            self.cer_37_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7641,7 +7321,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_127 = ttnn.add(
             ttnn_matmul_85,
-            input_4,
+            self.cer_111_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7786,7 +7466,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_86 = ttnn.matmul(
             ttnn_reshape_346,
-            input_0,
+            self.w128,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7798,7 +7478,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_128 = ttnn.add(
             ttnn_matmul_86,
-            input_2,
+            self.cer_20_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7806,10 +7486,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_128
 
-    def CLIPEncoderLayer_88_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_129 = ttnn.add(
-            input_1,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7818,8 +7499,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_45 = ttnn.layer_norm(
             ttnn_add_129,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_2,
+            weight=self.w126,
+            bias=self.w125,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7828,9 +7509,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_45, ttnn_add_129
 
-    def CLIPMLP_89_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_347 = ttnn.reshape(
-            input_2,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7838,7 +7520,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_87 = ttnn.matmul(
             ttnn_reshape_347,
-            input_3,
+            self.w124,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7850,7 +7532,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_130 = ttnn.add(
             ttnn_matmul_87,
-            input_1,
+            self.cer_110_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7872,7 +7554,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_88 = ttnn.matmul(
             ttnn_reshape_348,
-            input_0,
+            self.w122,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7884,7 +7566,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_131 = ttnn.add(
             ttnn_matmul_88,
-            input_4,
+            self.cer_160_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7892,10 +7574,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_131
 
-    def CLIPEncoderLayer_90_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_132 = ttnn.add(
-            input_2,
-            input_1,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7904,19 +7587,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_46 = ttnn.layer_norm(
             ttnn_add_132,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_3,
+            weight=self.w120,
+            bias=self.w119,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_46, ttnn_add_132
+        return ttnn_add_132, ttnn_layer_norm_46
 
-    def CLIPAttention_91_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_22(LightweightModule):
+    """CLIP Encoder Layer 22."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w116 = weights[
+            "image_encoder.vision_model.encoder.layers.22.self_attn.out_proj.weight"
+        ]
+        self.w114 = weights[
+            "image_encoder.vision_model.encoder.layers.22.layer_norm2.weight"
+        ]
+        self.w113 = weights[
+            "image_encoder.vision_model.encoder.layers.22.layer_norm2.bias"
+        ]
+        self.w112 = weights[
+            "image_encoder.vision_model.encoder.layers.22.mlp.fc1.weight"
+        ]
+        self.w110 = weights[
+            "image_encoder.vision_model.encoder.layers.22.mlp.fc2.weight"
+        ]
+        self.w108 = weights[
+            "image_encoder.vision_model.encoder.layers.23.layer_norm1.weight"
+        ]
+        self.w107 = weights[
+            "image_encoder.vision_model.encoder.layers.23.layer_norm1.bias"
+        ]
+        self.cer_125_0 = cer["utils_constEvalFuncWrapper_125_0"]
+        self.cer_148_0 = cer["utils_constEvalFuncWrapper_148_0"]
+        self.cer_33_0 = cer["utils_constEvalFuncWrapper_33_0"]
+        self.cer_4_0 = cer["utils_constEvalFuncWrapper_4_0"]
+        self.cer_57_0 = cer["utils_constEvalFuncWrapper_57_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_349 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7924,7 +7653,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_89 = ttnn.matmul(
             ttnn_reshape_349,
-            input_1,
+            self.cer_148_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7936,7 +7665,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_133 = ttnn.add(
             ttnn_matmul_89,
-            input_3,
+            self.cer_57_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8081,7 +7810,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_90 = ttnn.matmul(
             ttnn_reshape_353,
-            input_2,
+            self.w116,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8093,7 +7822,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_134 = ttnn.add(
             ttnn_matmul_90,
-            input_4,
+            self.cer_33_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8101,10 +7830,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_134
 
-    def CLIPEncoderLayer_92_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_135 = ttnn.add(
-            input_2,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8113,19 +7843,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_47 = ttnn.layer_norm(
             ttnn_add_135,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_1,
+            weight=self.w114,
+            bias=self.w113,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_135, ttnn_layer_norm_47
+        return ttnn_layer_norm_47, ttnn_add_135
 
-    def CLIPMLP_93_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_354 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8133,7 +7864,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_91 = ttnn.matmul(
             ttnn_reshape_354,
-            input_0,
+            self.w112,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8145,7 +7876,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_136 = ttnn.add(
             ttnn_matmul_91,
-            input_4,
+            self.cer_4_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8167,7 +7898,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_92 = ttnn.matmul(
             ttnn_reshape_355,
-            input_2,
+            self.w110,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8179,7 +7910,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_137 = ttnn.add(
             ttnn_matmul_92,
-            input_1,
+            self.cer_125_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8187,10 +7918,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_137
 
-    def CLIPEncoderLayer_94_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_138 = ttnn.add(
-            input_2,
-            input_3,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8199,8 +7931,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_48 = ttnn.layer_norm(
             ttnn_add_138,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_1,
+            weight=self.w108,
+            bias=self.w107,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8209,9 +7941,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_138, ttnn_layer_norm_48
 
-    def CLIPAttention_95_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_23(LightweightModule):
+    """CLIP Encoder Layer 23."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w104 = weights[
+            "image_encoder.vision_model.encoder.layers.23.self_attn.out_proj.weight"
+        ]
+        self.w102 = weights[
+            "image_encoder.vision_model.encoder.layers.23.layer_norm2.weight"
+        ]
+        self.w101 = weights[
+            "image_encoder.vision_model.encoder.layers.23.layer_norm2.bias"
+        ]
+        self.w100 = weights[
+            "image_encoder.vision_model.encoder.layers.23.mlp.fc1.weight"
+        ]
+        self.w98 = weights[
+            "image_encoder.vision_model.encoder.layers.23.mlp.fc2.weight"
+        ]
+        self.w96 = weights[
+            "image_encoder.vision_model.encoder.layers.24.layer_norm1.weight"
+        ]
+        self.w95 = weights[
+            "image_encoder.vision_model.encoder.layers.24.layer_norm1.bias"
+        ]
+        self.cer_0_0 = cer["utils_constEvalFuncWrapper_0_0"]
+        self.cer_22_0 = cer["utils_constEvalFuncWrapper_22_0"]
+        self.cer_32_0 = cer["utils_constEvalFuncWrapper_32_0"]
+        self.cer_36_0 = cer["utils_constEvalFuncWrapper_36_0"]
+        self.cer_51_0 = cer["utils_constEvalFuncWrapper_51_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_356 = ttnn.reshape(
-            input_1,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8219,7 +7997,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_93 = ttnn.matmul(
             ttnn_reshape_356,
-            input_2,
+            self.cer_36_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8231,7 +8009,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_139 = ttnn.add(
             ttnn_matmul_93,
-            input_3,
+            self.cer_32_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8376,7 +8154,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_94 = ttnn.matmul(
             ttnn_reshape_360,
-            input_0,
+            self.w104,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8388,7 +8166,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_140 = ttnn.add(
             ttnn_matmul_94,
-            input_4,
+            self.cer_51_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8396,10 +8174,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_140
 
-    def CLIPEncoderLayer_96_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_141 = ttnn.add(
-            input_2,
-            input_1,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8408,19 +8187,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_49 = ttnn.layer_norm(
             ttnn_add_141,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_3,
+            weight=self.w102,
+            bias=self.w101,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_141, ttnn_layer_norm_49
+        return ttnn_layer_norm_49, ttnn_add_141
 
-    def CLIPMLP_97_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_361 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8428,7 +8208,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_95 = ttnn.matmul(
             ttnn_reshape_361,
-            input_2,
+            self.w100,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8440,7 +8220,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_142 = ttnn.add(
             ttnn_matmul_95,
-            input_1,
+            self.cer_0_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8462,7 +8242,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_96 = ttnn.matmul(
             ttnn_reshape_362,
-            input_0,
+            self.w98,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8474,7 +8254,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_143 = ttnn.add(
             ttnn_matmul_96,
-            input_3,
+            self.cer_22_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8482,10 +8262,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_143
 
-    def CLIPEncoderLayer_98_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_144 = ttnn.add(
-            input_0,
-            input_2,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8494,8 +8275,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_50 = ttnn.layer_norm(
             ttnn_add_144,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_1,
+            weight=self.w96,
+            bias=self.w95,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8504,9 +8285,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_144, ttnn_layer_norm_50
 
-    def CLIPAttention_99_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_24(LightweightModule):
+    """CLIP Encoder Layer 24."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w92 = weights[
+            "image_encoder.vision_model.encoder.layers.24.self_attn.out_proj.weight"
+        ]
+        self.w90 = weights[
+            "image_encoder.vision_model.encoder.layers.24.layer_norm2.weight"
+        ]
+        self.w89 = weights[
+            "image_encoder.vision_model.encoder.layers.24.layer_norm2.bias"
+        ]
+        self.w88 = weights[
+            "image_encoder.vision_model.encoder.layers.24.mlp.fc1.weight"
+        ]
+        self.w86 = weights[
+            "image_encoder.vision_model.encoder.layers.24.mlp.fc2.weight"
+        ]
+        self.w84 = weights[
+            "image_encoder.vision_model.encoder.layers.25.layer_norm1.weight"
+        ]
+        self.w83 = weights[
+            "image_encoder.vision_model.encoder.layers.25.layer_norm1.bias"
+        ]
+        self.cer_139_0 = cer["utils_constEvalFuncWrapper_139_0"]
+        self.cer_143_0 = cer["utils_constEvalFuncWrapper_143_0"]
+        self.cer_144_0 = cer["utils_constEvalFuncWrapper_144_0"]
+        self.cer_59_0 = cer["utils_constEvalFuncWrapper_59_0"]
+        self.cer_76_0 = cer["utils_constEvalFuncWrapper_76_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_363 = ttnn.reshape(
-            input_1,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8514,7 +8341,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_97 = ttnn.matmul(
             ttnn_reshape_363,
-            input_0,
+            self.cer_76_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8526,7 +8353,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_145 = ttnn.add(
             ttnn_matmul_97,
-            input_3,
+            self.cer_59_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8671,7 +8498,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_98 = ttnn.matmul(
             ttnn_reshape_367,
-            input_4,
+            self.w92,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8683,7 +8510,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_146 = ttnn.add(
             ttnn_matmul_98,
-            input_2,
+            self.cer_143_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8691,10 +8518,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_146
 
-    def CLIPEncoderLayer_100_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_147 = ttnn.add(
-            input_0,
-            input_1,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8703,19 +8531,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_51 = ttnn.layer_norm(
             ttnn_add_147,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_2,
+            weight=self.w90,
+            bias=self.w89,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_147, ttnn_layer_norm_51
+        return ttnn_layer_norm_51, ttnn_add_147
 
-    def CLIPMLP_101_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_368 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8723,7 +8552,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_99 = ttnn.matmul(
             ttnn_reshape_368,
-            input_2,
+            self.w88,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8735,7 +8564,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_148 = ttnn.add(
             ttnn_matmul_99,
-            input_1,
+            self.cer_139_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8757,7 +8586,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_100 = ttnn.matmul(
             ttnn_reshape_369,
-            input_3,
+            self.w86,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8769,7 +8598,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_149 = ttnn.add(
             ttnn_matmul_100,
-            input_0,
+            self.cer_144_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8777,10 +8606,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_149
 
-    def CLIPEncoderLayer_102_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_150 = ttnn.add(
-            input_1,
-            input_0,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8789,19 +8619,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_52 = ttnn.layer_norm(
             ttnn_add_150,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_2,
+            weight=self.w84,
+            bias=self.w83,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_52, ttnn_add_150
+        return ttnn_add_150, ttnn_layer_norm_52
 
-    def CLIPAttention_103_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_25(LightweightModule):
+    """CLIP Encoder Layer 25."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w80 = weights[
+            "image_encoder.vision_model.encoder.layers.25.self_attn.out_proj.weight"
+        ]
+        self.w78 = weights[
+            "image_encoder.vision_model.encoder.layers.25.layer_norm2.weight"
+        ]
+        self.w77 = weights[
+            "image_encoder.vision_model.encoder.layers.25.layer_norm2.bias"
+        ]
+        self.w76 = weights[
+            "image_encoder.vision_model.encoder.layers.25.mlp.fc1.weight"
+        ]
+        self.w74 = weights[
+            "image_encoder.vision_model.encoder.layers.25.mlp.fc2.weight"
+        ]
+        self.w72 = weights[
+            "image_encoder.vision_model.encoder.layers.26.layer_norm1.weight"
+        ]
+        self.w71 = weights[
+            "image_encoder.vision_model.encoder.layers.26.layer_norm1.bias"
+        ]
+        self.cer_117_0 = cer["utils_constEvalFuncWrapper_117_0"]
+        self.cer_31_0 = cer["utils_constEvalFuncWrapper_31_0"]
+        self.cer_39_0 = cer["utils_constEvalFuncWrapper_39_0"]
+        self.cer_58_0 = cer["utils_constEvalFuncWrapper_58_0"]
+        self.cer_61_0 = cer["utils_constEvalFuncWrapper_61_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_370 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8809,7 +8685,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_101 = ttnn.matmul(
             ttnn_reshape_370,
-            input_1,
+            self.cer_61_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8821,7 +8697,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_151 = ttnn.add(
             ttnn_matmul_101,
-            input_3,
+            self.cer_58_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8966,7 +8842,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_102 = ttnn.matmul(
             ttnn_reshape_374,
-            input_0,
+            self.w80,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8978,7 +8854,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_152 = ttnn.add(
             ttnn_matmul_102,
-            input_2,
+            self.cer_31_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8986,10 +8862,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_152
 
-    def CLIPEncoderLayer_104_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_153 = ttnn.add(
-            input_3,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8998,19 +8875,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_53 = ttnn.layer_norm(
             ttnn_add_153,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_2,
+            weight=self.w78,
+            bias=self.w77,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_153, ttnn_layer_norm_53
+        return ttnn_layer_norm_53, ttnn_add_153
 
-    def CLIPMLP_105_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_375 = ttnn.reshape(
-            input_4,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9018,7 +8896,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_103 = ttnn.matmul(
             ttnn_reshape_375,
-            input_0,
+            self.w76,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9030,7 +8908,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_154 = ttnn.add(
             ttnn_matmul_103,
-            input_1,
+            self.cer_117_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9052,7 +8930,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_104 = ttnn.matmul(
             ttnn_reshape_376,
-            input_2,
+            self.w74,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9064,7 +8942,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_155 = ttnn.add(
             ttnn_matmul_104,
-            input_3,
+            self.cer_39_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9072,10 +8950,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_155
 
-    def CLIPEncoderLayer_106_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_156 = ttnn.add(
-            input_0,
-            input_1,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9084,19 +8963,65 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_54 = ttnn.layer_norm(
             ttnn_add_156,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_3,
+            weight=self.w72,
+            bias=self.w71,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_54, ttnn_add_156
+        return ttnn_add_156, ttnn_layer_norm_54
 
-    def CLIPAttention_107_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_26(LightweightModule):
+    """CLIP Encoder Layer 26."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w68 = weights[
+            "image_encoder.vision_model.encoder.layers.26.self_attn.out_proj.weight"
+        ]
+        self.w66 = weights[
+            "image_encoder.vision_model.encoder.layers.26.layer_norm2.weight"
+        ]
+        self.w65 = weights[
+            "image_encoder.vision_model.encoder.layers.26.layer_norm2.bias"
+        ]
+        self.w64 = weights[
+            "image_encoder.vision_model.encoder.layers.26.mlp.fc1.weight"
+        ]
+        self.w62 = weights[
+            "image_encoder.vision_model.encoder.layers.26.mlp.fc2.weight"
+        ]
+        self.w60 = weights[
+            "image_encoder.vision_model.encoder.layers.27.layer_norm1.weight"
+        ]
+        self.w59 = weights[
+            "image_encoder.vision_model.encoder.layers.27.layer_norm1.bias"
+        ]
+        self.cer_105_0 = cer["utils_constEvalFuncWrapper_105_0"]
+        self.cer_123_0 = cer["utils_constEvalFuncWrapper_123_0"]
+        self.cer_77_0 = cer["utils_constEvalFuncWrapper_77_0"]
+        self.cer_98_0 = cer["utils_constEvalFuncWrapper_98_0"]
+        self.cer_9_0 = cer["utils_constEvalFuncWrapper_9_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_377 = ttnn.reshape(
-            input_1,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9104,7 +9029,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_105 = ttnn.matmul(
             ttnn_reshape_377,
-            input_4,
+            self.cer_9_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9116,7 +9041,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_157 = ttnn.add(
             ttnn_matmul_105,
-            input_0,
+            self.cer_77_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9261,7 +9186,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_106 = ttnn.matmul(
             ttnn_reshape_381,
-            input_2,
+            self.w68,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9273,7 +9198,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_158 = ttnn.add(
             ttnn_matmul_106,
-            input_3,
+            self.cer_105_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9281,10 +9206,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_158
 
-    def CLIPEncoderLayer_108_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_159 = ttnn.add(
-            input_3,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9293,8 +9219,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_55 = ttnn.layer_norm(
             ttnn_add_159,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_2,
+            weight=self.w66,
+            bias=self.w65,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9303,9 +9229,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_55, ttnn_add_159
 
-    def CLIPMLP_109_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_382 = ttnn.reshape(
-            input_1,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9313,7 +9240,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_107 = ttnn.matmul(
             ttnn_reshape_382,
-            input_3,
+            self.w64,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9325,7 +9252,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_160 = ttnn.add(
             ttnn_matmul_107,
-            input_4,
+            self.cer_98_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9347,7 +9274,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_108 = ttnn.matmul(
             ttnn_reshape_383,
-            input_0,
+            self.w62,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9359,7 +9286,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_161 = ttnn.add(
             ttnn_matmul_108,
-            input_2,
+            self.cer_123_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9367,10 +9294,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_161
 
-    def CLIPEncoderLayer_110_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_162 = ttnn.add(
-            input_3,
-            input_2,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9379,8 +9307,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_56 = ttnn.layer_norm(
             ttnn_add_162,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_0,
+            weight=self.w60,
+            bias=self.w59,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9389,9 +9317,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_162, ttnn_layer_norm_56
 
-    def CLIPAttention_111_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_27(LightweightModule):
+    """CLIP Encoder Layer 27."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w56 = weights[
+            "image_encoder.vision_model.encoder.layers.27.self_attn.out_proj.weight"
+        ]
+        self.w54 = weights[
+            "image_encoder.vision_model.encoder.layers.27.layer_norm2.weight"
+        ]
+        self.w53 = weights[
+            "image_encoder.vision_model.encoder.layers.27.layer_norm2.bias"
+        ]
+        self.w52 = weights[
+            "image_encoder.vision_model.encoder.layers.27.mlp.fc1.weight"
+        ]
+        self.w50 = weights[
+            "image_encoder.vision_model.encoder.layers.27.mlp.fc2.weight"
+        ]
+        self.w48 = weights[
+            "image_encoder.vision_model.encoder.layers.28.layer_norm1.weight"
+        ]
+        self.w47 = weights[
+            "image_encoder.vision_model.encoder.layers.28.layer_norm1.bias"
+        ]
+        self.cer_115_0 = cer["utils_constEvalFuncWrapper_115_0"]
+        self.cer_129_0 = cer["utils_constEvalFuncWrapper_129_0"]
+        self.cer_159_0 = cer["utils_constEvalFuncWrapper_159_0"]
+        self.cer_41_0 = cer["utils_constEvalFuncWrapper_41_0"]
+        self.cer_8_0 = cer["utils_constEvalFuncWrapper_8_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_384 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9399,7 +9373,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_109 = ttnn.matmul(
             ttnn_reshape_384,
-            input_2,
+            self.cer_159_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9411,7 +9385,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_163 = ttnn.add(
             ttnn_matmul_109,
-            input_4,
+            self.cer_41_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9556,7 +9530,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_110 = ttnn.matmul(
             ttnn_reshape_388,
-            input_1,
+            self.w56,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9568,7 +9542,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_164 = ttnn.add(
             ttnn_matmul_110,
-            input_3,
+            self.cer_8_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9576,10 +9550,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_164
 
-    def CLIPEncoderLayer_112_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_165 = ttnn.add(
-            input_1,
-            input_2,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9588,8 +9563,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_57 = ttnn.layer_norm(
             ttnn_add_165,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_3,
+            weight=self.w54,
+            bias=self.w53,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9598,9 +9573,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_57, ttnn_add_165
 
-    def CLIPMLP_113_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_389 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9608,7 +9584,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_111 = ttnn.matmul(
             ttnn_reshape_389,
-            input_2,
+            self.w52,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9620,7 +9596,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_166 = ttnn.add(
             ttnn_matmul_111,
-            input_4,
+            self.cer_115_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9642,7 +9618,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_112 = ttnn.matmul(
             ttnn_reshape_390,
-            input_1,
+            self.w50,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9654,7 +9630,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_167 = ttnn.add(
             ttnn_matmul_112,
-            input_3,
+            self.cer_129_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9662,10 +9638,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_167
 
-    def CLIPEncoderLayer_114_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_168 = ttnn.add(
-            input_2,
-            input_1,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9674,8 +9651,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_58 = ttnn.layer_norm(
             ttnn_add_168,
             epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_0,
+            weight=self.w48,
+            bias=self.w47,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9684,9 +9661,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_168, ttnn_layer_norm_58
 
-    def CLIPAttention_115_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_28(LightweightModule):
+    """CLIP Encoder Layer 28."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w44 = weights[
+            "image_encoder.vision_model.encoder.layers.28.self_attn.out_proj.weight"
+        ]
+        self.w42 = weights[
+            "image_encoder.vision_model.encoder.layers.28.layer_norm2.weight"
+        ]
+        self.w41 = weights[
+            "image_encoder.vision_model.encoder.layers.28.layer_norm2.bias"
+        ]
+        self.w40 = weights[
+            "image_encoder.vision_model.encoder.layers.28.mlp.fc1.weight"
+        ]
+        self.w38 = weights[
+            "image_encoder.vision_model.encoder.layers.28.mlp.fc2.weight"
+        ]
+        self.w36 = weights[
+            "image_encoder.vision_model.encoder.layers.29.layer_norm1.weight"
+        ]
+        self.w35 = weights[
+            "image_encoder.vision_model.encoder.layers.29.layer_norm1.bias"
+        ]
+        self.cer_121_0 = cer["utils_constEvalFuncWrapper_121_0"]
+        self.cer_14_0 = cer["utils_constEvalFuncWrapper_14_0"]
+        self.cer_16_0 = cer["utils_constEvalFuncWrapper_16_0"]
+        self.cer_3_0 = cer["utils_constEvalFuncWrapper_3_0"]
+        self.cer_56_0 = cer["utils_constEvalFuncWrapper_56_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_391 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9694,7 +9717,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_113 = ttnn.matmul(
             ttnn_reshape_391,
-            input_3,
+            self.cer_3_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9706,7 +9729,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_169 = ttnn.add(
             ttnn_matmul_113,
-            input_2,
+            self.cer_16_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9851,7 +9874,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_114 = ttnn.matmul(
             ttnn_reshape_395,
-            input_1,
+            self.w44,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9863,7 +9886,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_170 = ttnn.add(
             ttnn_matmul_114,
-            input_4,
+            self.cer_121_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9871,10 +9894,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_170
 
-    def CLIPEncoderLayer_116_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_171 = ttnn.add(
-            input_0,
-            input_3,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9883,8 +9907,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_59 = ttnn.layer_norm(
             ttnn_add_171,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_1,
+            weight=self.w42,
+            bias=self.w41,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9893,9 +9917,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_layer_norm_59, ttnn_add_171
 
-    def CLIPMLP_117_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_396 = ttnn.reshape(
-            input_2,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9903,7 +9928,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_115 = ttnn.matmul(
             ttnn_reshape_396,
-            input_4,
+            self.w40,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9915,7 +9940,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_172 = ttnn.add(
             ttnn_matmul_115,
-            input_3,
+            self.cer_14_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9937,7 +9962,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_116 = ttnn.matmul(
             ttnn_reshape_397,
-            input_0,
+            self.w38,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9949,7 +9974,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_173 = ttnn.add(
             ttnn_matmul_116,
-            input_1,
+            self.cer_56_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9957,10 +9982,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_173
 
-    def CLIPEncoderLayer_118_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_174 = ttnn.add(
-            input_3,
-            input_1,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9969,8 +9995,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_60 = ttnn.layer_norm(
             ttnn_add_174,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_2,
+            weight=self.w36,
+            bias=self.w35,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9979,9 +10005,55 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_174, ttnn_layer_norm_60
 
-    def CLIPAttention_119_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_29(LightweightModule):
+    """CLIP Encoder Layer 29."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w32 = weights[
+            "image_encoder.vision_model.encoder.layers.29.self_attn.out_proj.weight"
+        ]
+        self.w30 = weights[
+            "image_encoder.vision_model.encoder.layers.29.layer_norm2.weight"
+        ]
+        self.w29 = weights[
+            "image_encoder.vision_model.encoder.layers.29.layer_norm2.bias"
+        ]
+        self.w28 = weights[
+            "image_encoder.vision_model.encoder.layers.29.mlp.fc1.weight"
+        ]
+        self.w26 = weights[
+            "image_encoder.vision_model.encoder.layers.29.mlp.fc2.weight"
+        ]
+        self.w24 = weights[
+            "image_encoder.vision_model.encoder.layers.30.layer_norm1.weight"
+        ]
+        self.w23 = weights[
+            "image_encoder.vision_model.encoder.layers.30.layer_norm1.bias"
+        ]
+        self.cer_35_0 = cer["utils_constEvalFuncWrapper_35_0"]
+        self.cer_38_0 = cer["utils_constEvalFuncWrapper_38_0"]
+        self.cer_45_0 = cer["utils_constEvalFuncWrapper_45_0"]
+        self.cer_75_0 = cer["utils_constEvalFuncWrapper_75_0"]
+        self.cer_79_0 = cer["utils_constEvalFuncWrapper_79_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # residual + layer_norm1_next
+        new_residual, normalized = self._layer_norm1_next(residual, mlp_output)
+        return new_residual, normalized
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_398 = ttnn.reshape(
-            input_2,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9989,7 +10061,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_117 = ttnn.matmul(
             ttnn_reshape_398,
-            input_4,
+            self.cer_75_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -10001,7 +10073,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_175 = ttnn.add(
             ttnn_matmul_117,
-            input_0,
+            self.cer_45_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10146,7 +10218,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_118 = ttnn.matmul(
             ttnn_reshape_402,
-            input_3,
+            self.w32,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -10158,7 +10230,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_176 = ttnn.add(
             ttnn_matmul_118,
-            input_1,
+            self.cer_79_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10166,10 +10238,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_176
 
-    def CLIPEncoderLayer_120_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_177 = ttnn.add(
-            input_0,
-            input_3,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10178,19 +10251,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_61 = ttnn.layer_norm(
             ttnn_add_177,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_1,
+            weight=self.w30,
+            bias=self.w29,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_177, ttnn_layer_norm_61
+        return ttnn_layer_norm_61, ttnn_add_177
 
-    def CLIPMLP_121_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_403 = ttnn.reshape(
-            input_3,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10198,7 +10272,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_119 = ttnn.matmul(
             ttnn_reshape_403,
-            input_4,
+            self.w28,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -10210,7 +10284,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_178 = ttnn.add(
             ttnn_matmul_119,
-            input_0,
+            self.cer_38_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10232,7 +10306,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_120 = ttnn.matmul(
             ttnn_reshape_404,
-            input_2,
+            self.w26,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -10244,7 +10318,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_179 = ttnn.add(
             ttnn_matmul_120,
-            input_1,
+            self.cer_35_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10252,10 +10326,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_179
 
-    def CLIPEncoderLayer_122_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm1_next(self, residual, mlp_output):
+
         ttnn_add_180 = ttnn.add(
-            input_2,
-            input_3,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10264,19 +10339,59 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_62 = ttnn.layer_norm(
             ttnn_add_180,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_0,
+            weight=self.w24,
+            bias=self.w23,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_layer_norm_62, ttnn_add_180
+        return ttnn_add_180, ttnn_layer_norm_62
 
-    def CLIPAttention_123_0(self, input_0, input_1, input_2, input_3, input_4):
+
+class CLIPEncoderLayerTTNN_30(LightweightModule):
+    """CLIP Encoder Layer 30."""
+
+    def __init__(self, weights, cer):
+        """Store layer weights and cer values."""
+        self.w20 = weights[
+            "image_encoder.vision_model.encoder.layers.30.self_attn.out_proj.weight"
+        ]
+        self.w18 = weights[
+            "image_encoder.vision_model.encoder.layers.30.layer_norm2.weight"
+        ]
+        self.w17 = weights[
+            "image_encoder.vision_model.encoder.layers.30.layer_norm2.bias"
+        ]
+        self.w16 = weights[
+            "image_encoder.vision_model.encoder.layers.30.mlp.fc1.weight"
+        ]
+        self.w14 = weights[
+            "image_encoder.vision_model.encoder.layers.30.mlp.fc2.weight"
+        ]
+        self.cer_131_0 = cer["utils_constEvalFuncWrapper_131_0"]
+        self.cer_135_0 = cer["utils_constEvalFuncWrapper_135_0"]
+        self.cer_138_0 = cer["utils_constEvalFuncWrapper_138_0"]
+        self.cer_48_0 = cer["utils_constEvalFuncWrapper_48_0"]
+        self.cer_54_0 = cer["utils_constEvalFuncWrapper_54_0"]
+
+    def forward(self, hidden_states, residual):
+        """Forward pass."""
+        # attention
+        attn_output = self._attention(hidden_states)
+        # residual + layer_norm2
+        mlp_input, residual = self._layer_norm2_add(residual, attn_output)
+        # mlp
+        mlp_output = self._mlp(mlp_input)
+        # final residual
+        output = self._final_residual(residual, mlp_output)
+        return output, None
+
+    def _attention(self, hidden_states):
+
         ttnn_reshape_405 = ttnn.reshape(
-            input_2,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10284,7 +10399,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_121 = ttnn.matmul(
             ttnn_reshape_405,
-            input_3,
+            self.cer_138_0,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -10296,7 +10411,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_181 = ttnn.add(
             ttnn_matmul_121,
-            input_4,
+            self.cer_131_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10441,7 +10556,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_122 = ttnn.matmul(
             ttnn_reshape_409,
-            input_0,
+            self.w20,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -10453,7 +10568,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_182 = ttnn.add(
             ttnn_matmul_122,
-            input_1,
+            self.cer_48_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10461,10 +10576,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_182
 
-    def CLIPEncoderLayer_124_0(self, input_0, input_1, input_2, input_3):
+    def _layer_norm2_add(self, residual, attn_output):
+
         ttnn_add_183 = ttnn.add(
-            input_1,
-            input_0,
+            residual,
+            attn_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10473,19 +10589,20 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         ttnn_layer_norm_63 = ttnn.layer_norm(
             ttnn_add_183,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_3,
+            weight=self.w18,
+            bias=self.w17,
             residual_input_tensor=None,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
             program_config=None,
         )
-        return ttnn_add_183, ttnn_layer_norm_63
+        return ttnn_layer_norm_63, ttnn_add_183
 
-    def CLIPMLP_125_0(self, input_0, input_1, input_2, input_3, input_4):
+    def _mlp(self, hidden_states):
+
         ttnn_reshape_410 = ttnn.reshape(
-            input_0,
+            hidden_states,
             [257, 1280],
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10493,7 +10610,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_123 = ttnn.matmul(
             ttnn_reshape_410,
-            input_2,
+            self.w16,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -10505,7 +10622,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_184 = ttnn.add(
             ttnn_matmul_123,
-            input_3,
+            self.cer_135_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10527,7 +10644,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_matmul_124 = ttnn.matmul(
             ttnn_reshape_411,
-            input_1,
+            self.w14,
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -10539,7 +10656,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         ttnn_add_185 = ttnn.add(
             ttnn_matmul_124,
-            input_4,
+            self.cer_54_0,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10547,10 +10664,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         return ttnn_add_185
 
-    def CLIPEncoderLayer_126_0(self, input_0, input_1):
+    def _final_residual(self, residual, mlp_output):
+
         ttnn_add_186 = ttnn.add(
-            input_0,
-            input_1,
+            residual,
+            mlp_output,
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10564,1301 +10682,3 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
             ),
         )
         return ttnn_reshape_412
-
-    def Linear_127_0(self, input_0, input_1, input_2):
-        ttnn_matmul_125 = ttnn.matmul(
-            input_2,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_add_187 = ttnn.add(
-            ttnn_matmul_125,
-            input_0,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_add_187
-
-    def IPAdapterPlusImageProjectionBlock_128_0(
-        self,
-        input_0,
-        input_1,
-        input_2,
-        input_3,
-        input_4,
-        input_5,
-        input_6,
-        input_7,
-        input_8,
-        input_9,
-    ):
-        ttnn_layer_norm_64 = ttnn.layer_norm(
-            input_3,
-            epsilon=9.9999997473787516e-06,
-            weight=input_4,
-            bias=input_7,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_layer_norm_65 = ttnn.layer_norm(
-            input_3,
-            epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_9,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_layer_norm_66 = ttnn.layer_norm(
-            input_3,
-            epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_5,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_layer_norm_67 = ttnn.layer_norm(
-            input_3,
-            epsilon=9.9999997473787516e-06,
-            weight=input_6,
-            bias=input_8,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_reshape_413 = ttnn.reshape(
-            ttnn_layer_norm_64,
-            [257, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_414 = ttnn.reshape(
-            ttnn_layer_norm_65,
-            [257, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_415 = ttnn.reshape(
-            ttnn_layer_norm_66,
-            [257, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_416 = ttnn.reshape(
-            ttnn_layer_norm_67,
-            [257, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        util_create_list_387 = [ttnn_reshape_416, input_0]
-        ttnn_concat_63 = ttnn.concat(
-            util_create_list_387,
-            0,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_reshape_414, ttnn_concat_63, ttnn_reshape_415, ttnn_reshape_413
-
-    def Attention_129_0(self, input_0, input_1, input_2, input_3, input_4, input_5):
-        ttnn_matmul_126 = ttnn.matmul(
-            input_0,
-            input_2,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_matmul_127 = ttnn.matmul(
-            input_0,
-            input_4,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_3 = ttnn.typecast(
-            ttnn_matmul_126,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_4 = ttnn.typecast(
-            ttnn_matmul_127,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_417 = ttnn.reshape(
-            ttnn_typecast_3,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_418 = ttnn.reshape(
-            ttnn_typecast_4,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_130 = ttnn.permute(
-            ttnn_reshape_417,
-            [0, 2, 3, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_131 = ttnn.permute(
-            ttnn_reshape_418,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_132 = ttnn.permute(
-            ttnn_permute_130,
-            [0, 1, 3, 2],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_5 = ttnn.typecast(
-            ttnn_permute_131,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_6 = ttnn.typecast(
-            ttnn_permute_132,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_transformer_scaled_dot_product_attention_31 = (
-            ttnn.transformer.scaled_dot_product_attention(
-                input_5,
-                ttnn_typecast_6,
-                ttnn_typecast_5,
-                attn_mask=None,
-                is_causal=False,
-                scale=0.35355338454246521,
-                sliding_window_size=None,
-                memory_config=ttnn.MemoryConfig(
-                    ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-                ),
-            )
-        )
-        ttnn_transformer_concatenate_heads_0 = ttnn.transformer.concatenate_heads(
-            ttnn_transformer_scaled_dot_product_attention_31,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_419 = ttnn.reshape(
-            ttnn_transformer_concatenate_heads_0,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_128 = ttnn.matmul(
-            ttnn_reshape_419,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_420 = ttnn.reshape(
-            ttnn_matmul_128,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_divide_0 = ttnn.divide(
-            ttnn_reshape_420,
-            input_3,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_divide_0
-
-    def IPAdapterPlusImageProjectionBlock_130_0(
-        self, input_0, input_1, input_2, input_3
-    ):
-        ttnn_add_188 = ttnn.add(
-            input_1,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_68 = ttnn.layer_norm(
-            ttnn_add_188,
-            epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_3,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        return ttnn_add_188, ttnn_layer_norm_68
-
-    def Linear_131_0(self, input_0, input_1):
-        ttnn_reshape_421 = ttnn.reshape(
-            input_1,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_129 = ttnn.matmul(
-            ttnn_reshape_421,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation="gelu",
-        )
-        return ttnn_matmul_129
-
-    def Linear_132_0(self, input_0, input_1):
-        ttnn_matmul_130 = ttnn.matmul(
-            input_1,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_422 = ttnn.reshape(
-            ttnn_matmul_130,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_reshape_422
-
-    def IPAdapterPlusImageProjectionBlock_133_0(
-        self, input_0, input_1, input_2, input_3, input_4
-    ):
-        ttnn_add_189 = ttnn.add(
-            input_1,
-            input_0,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_69 = ttnn.layer_norm(
-            ttnn_add_189,
-            epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_3,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_reshape_423 = ttnn.reshape(
-            ttnn_layer_norm_69,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        util_create_list_388 = [input_4, ttnn_reshape_423]
-        ttnn_concat_64 = ttnn.concat(
-            util_create_list_388,
-            0,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_add_189, ttnn_concat_64, ttnn_layer_norm_69
-
-    def Attention_134_0(
-        self, input_0, input_1, input_2, input_3, input_4, input_5, input_6
-    ):
-        ttnn_reshape_424 = ttnn.reshape(
-            input_6,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_131 = ttnn.matmul(
-            ttnn_reshape_424,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_matmul_132 = ttnn.matmul(
-            input_5,
-            input_4,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_7 = ttnn.typecast(
-            ttnn_matmul_131,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_133 = ttnn.matmul(
-            input_5,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_8 = ttnn.typecast(
-            ttnn_matmul_132,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_425 = ttnn.reshape(
-            ttnn_typecast_7,
-            [1, 16, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_9 = ttnn.typecast(
-            ttnn_matmul_133,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_426 = ttnn.reshape(
-            ttnn_typecast_8,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_427 = ttnn.reshape(
-            ttnn_typecast_9,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_133 = ttnn.permute(
-            ttnn_reshape_425,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_134 = ttnn.permute(
-            ttnn_reshape_426,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_135 = ttnn.permute(
-            ttnn_reshape_427,
-            [0, 2, 3, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_10 = ttnn.typecast(
-            ttnn_permute_133,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_11 = ttnn.typecast(
-            ttnn_permute_134,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_136 = ttnn.permute(
-            ttnn_permute_135,
-            [0, 1, 3, 2],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_12 = ttnn.typecast(
-            ttnn_permute_136,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_transformer_scaled_dot_product_attention_32 = (
-            ttnn.transformer.scaled_dot_product_attention(
-                ttnn_typecast_10,
-                ttnn_typecast_12,
-                ttnn_typecast_11,
-                attn_mask=None,
-                is_causal=False,
-                scale=0.1249999925494194,
-                sliding_window_size=None,
-                memory_config=ttnn.MemoryConfig(
-                    ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-                ),
-            )
-        )
-        ttnn_transformer_concatenate_heads_1 = ttnn.transformer.concatenate_heads(
-            ttnn_transformer_scaled_dot_product_attention_32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_428 = ttnn.reshape(
-            ttnn_transformer_concatenate_heads_1,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_134 = ttnn.matmul(
-            ttnn_reshape_428,
-            input_2,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_429 = ttnn.reshape(
-            ttnn_matmul_134,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_divide_1 = ttnn.divide(
-            ttnn_reshape_429,
-            input_3,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_divide_1
-
-    def IPAdapterPlusImageProjectionBlock_135_0(
-        self, input_0, input_1, input_2, input_3
-    ):
-        ttnn_add_190 = ttnn.add(
-            input_2,
-            input_0,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_70 = ttnn.layer_norm(
-            ttnn_add_190,
-            epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_3,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        return ttnn_add_190, ttnn_layer_norm_70
-
-    def Linear_136_0(self, input_0, input_1):
-        ttnn_reshape_430 = ttnn.reshape(
-            input_1,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_135 = ttnn.matmul(
-            ttnn_reshape_430,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation="gelu",
-        )
-        return ttnn_matmul_135
-
-    def Linear_137_0(self, input_0, input_1):
-        ttnn_matmul_136 = ttnn.matmul(
-            input_0,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_431 = ttnn.reshape(
-            ttnn_matmul_136,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_reshape_431
-
-    def IPAdapterPlusImageProjectionBlock_138_0(
-        self, input_0, input_1, input_2, input_3, input_4
-    ):
-        ttnn_add_191 = ttnn.add(
-            input_3,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_71 = ttnn.layer_norm(
-            ttnn_add_191,
-            epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_4,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_reshape_432 = ttnn.reshape(
-            ttnn_layer_norm_71,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        util_create_list_389 = [input_0, ttnn_reshape_432]
-        ttnn_concat_65 = ttnn.concat(
-            util_create_list_389,
-            0,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_layer_norm_71, ttnn_add_191, ttnn_concat_65
-
-    def Attention_139_0(
-        self, input_0, input_1, input_2, input_3, input_4, input_5, input_6
-    ):
-        ttnn_reshape_433 = ttnn.reshape(
-            input_5,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_137 = ttnn.matmul(
-            ttnn_reshape_433,
-            input_2,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_matmul_138 = ttnn.matmul(
-            input_6,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_13 = ttnn.typecast(
-            ttnn_matmul_137,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_139 = ttnn.matmul(
-            input_6,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_14 = ttnn.typecast(
-            ttnn_matmul_138,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_434 = ttnn.reshape(
-            ttnn_typecast_13,
-            [1, 16, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_15 = ttnn.typecast(
-            ttnn_matmul_139,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_435 = ttnn.reshape(
-            ttnn_typecast_14,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_436 = ttnn.reshape(
-            ttnn_typecast_15,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_137 = ttnn.permute(
-            ttnn_reshape_434,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_138 = ttnn.permute(
-            ttnn_reshape_435,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_139 = ttnn.permute(
-            ttnn_reshape_436,
-            [0, 2, 3, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_16 = ttnn.typecast(
-            ttnn_permute_137,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_17 = ttnn.typecast(
-            ttnn_permute_138,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_140 = ttnn.permute(
-            ttnn_permute_139,
-            [0, 1, 3, 2],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_18 = ttnn.typecast(
-            ttnn_permute_140,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_transformer_scaled_dot_product_attention_33 = (
-            ttnn.transformer.scaled_dot_product_attention(
-                ttnn_typecast_16,
-                ttnn_typecast_18,
-                ttnn_typecast_17,
-                attn_mask=None,
-                is_causal=False,
-                scale=0.1249999925494194,
-                sliding_window_size=None,
-                memory_config=ttnn.MemoryConfig(
-                    ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-                ),
-            )
-        )
-        ttnn_transformer_concatenate_heads_2 = ttnn.transformer.concatenate_heads(
-            ttnn_transformer_scaled_dot_product_attention_33,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_437 = ttnn.reshape(
-            ttnn_transformer_concatenate_heads_2,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_140 = ttnn.matmul(
-            ttnn_reshape_437,
-            input_4,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_438 = ttnn.reshape(
-            ttnn_matmul_140,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_divide_2 = ttnn.divide(
-            ttnn_reshape_438,
-            input_3,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_divide_2
-
-    def IPAdapterPlusImageProjectionBlock_140_0(
-        self, input_0, input_1, input_2, input_3
-    ):
-        ttnn_add_192 = ttnn.add(
-            input_1,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_72 = ttnn.layer_norm(
-            ttnn_add_192,
-            epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_0,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        return ttnn_add_192, ttnn_layer_norm_72
-
-    def Linear_141_0(self, input_0, input_1):
-        ttnn_reshape_439 = ttnn.reshape(
-            input_1,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_141 = ttnn.matmul(
-            ttnn_reshape_439,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation="gelu",
-        )
-        return ttnn_matmul_141
-
-    def Linear_142_0(self, input_0, input_1):
-        ttnn_matmul_142 = ttnn.matmul(
-            input_0,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_440 = ttnn.reshape(
-            ttnn_matmul_142,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_reshape_440
-
-    def IPAdapterPlusImageProjectionBlock_143_0(
-        self, input_0, input_1, input_2, input_3, input_4
-    ):
-        ttnn_add_193 = ttnn.add(
-            input_0,
-            input_4,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_73 = ttnn.layer_norm(
-            ttnn_add_193,
-            epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_2,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_reshape_441 = ttnn.reshape(
-            ttnn_layer_norm_73,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        util_create_list_390 = [input_1, ttnn_reshape_441]
-        ttnn_concat_66 = ttnn.concat(
-            util_create_list_390,
-            0,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_layer_norm_73, ttnn_concat_66, ttnn_add_193
-
-    def Attention_144_0(
-        self, input_0, input_1, input_2, input_3, input_4, input_5, input_6
-    ):
-        ttnn_reshape_442 = ttnn.reshape(
-            input_5,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_143 = ttnn.matmul(
-            ttnn_reshape_442,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_matmul_144 = ttnn.matmul(
-            input_6,
-            input_3,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_19 = ttnn.typecast(
-            ttnn_matmul_143,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_145 = ttnn.matmul(
-            input_6,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_20 = ttnn.typecast(
-            ttnn_matmul_144,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_443 = ttnn.reshape(
-            ttnn_typecast_19,
-            [1, 16, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_21 = ttnn.typecast(
-            ttnn_matmul_145,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_444 = ttnn.reshape(
-            ttnn_typecast_20,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_445 = ttnn.reshape(
-            ttnn_typecast_21,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_141 = ttnn.permute(
-            ttnn_reshape_443,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_142 = ttnn.permute(
-            ttnn_reshape_444,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_143 = ttnn.permute(
-            ttnn_reshape_445,
-            [0, 2, 3, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_22 = ttnn.typecast(
-            ttnn_permute_141,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_23 = ttnn.typecast(
-            ttnn_permute_142,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_144 = ttnn.permute(
-            ttnn_permute_143,
-            [0, 1, 3, 2],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_24 = ttnn.typecast(
-            ttnn_permute_144,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_transformer_scaled_dot_product_attention_34 = (
-            ttnn.transformer.scaled_dot_product_attention(
-                ttnn_typecast_22,
-                ttnn_typecast_24,
-                ttnn_typecast_23,
-                attn_mask=None,
-                is_causal=False,
-                scale=0.1249999925494194,
-                sliding_window_size=None,
-                memory_config=ttnn.MemoryConfig(
-                    ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-                ),
-            )
-        )
-        ttnn_transformer_concatenate_heads_3 = ttnn.transformer.concatenate_heads(
-            ttnn_transformer_scaled_dot_product_attention_34,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_446 = ttnn.reshape(
-            ttnn_transformer_concatenate_heads_3,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_146 = ttnn.matmul(
-            ttnn_reshape_446,
-            input_4,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_447 = ttnn.reshape(
-            ttnn_matmul_146,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_divide_3 = ttnn.divide(
-            ttnn_reshape_447,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_divide_3
-
-    def IPAdapterPlusImageProjectionBlock_145_0(
-        self, input_0, input_1, input_2, input_3
-    ):
-        ttnn_add_194 = ttnn.add(
-            input_2,
-            input_3,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_74 = ttnn.layer_norm(
-            ttnn_add_194,
-            epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_0,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        return ttnn_layer_norm_74, ttnn_add_194
-
-    def Linear_146_0(self, input):
-        ttnn_reshape_448 = ttnn.reshape(
-            input,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_reshape_448
-
-    def Linear_147_0(self, input_0, input_1):
-        ttnn_reshape_449 = ttnn.reshape(
-            input_0,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_147 = ttnn.matmul(
-            ttnn_reshape_449,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation="gelu",
-        )
-        return ttnn_matmul_147, ttnn_reshape_449
-
-    def IPAdapterPlusImageProjectionBlock_148_0(self, input_0, input_1, input_2):
-        ttnn_matmul_148 = ttnn.matmul(
-            input_1,
-            input_2,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_add_195 = ttnn.add(
-            ttnn_matmul_148,
-            input_0,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_add_195
-
-    def IPAdapterPlusImageProjection_149_0(
-        self, input_0, input_1, input_2, input_3, input_4, input_5
-    ):
-        ttnn_matmul_149 = ttnn.matmul(
-            input_3,
-            input_4,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_add_196 = ttnn.add(
-            ttnn_matmul_149,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_75 = ttnn.layer_norm(
-            ttnn_add_196,
-            epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_5,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        return ttnn_layer_norm_75
-
-    def Linear_150_0(self, input):
-        return
-
-    def IPAdapterPlusImageProjectionBlock_151_0(self, input):
-        return

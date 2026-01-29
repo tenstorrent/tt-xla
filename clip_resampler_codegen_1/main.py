@@ -7,11 +7,28 @@ import torch
 import ttnn
 import utils
 from model_pt import CLIPVisionEncoderAndResamplerPT, get_input
-from model_ttnn import CLIPVisionEncoderAndResamplerTTNN
+
+# from model_ttnn import CLIPVisionEncoderAndResamplerTTNN
+# from model_ttnn_refactored import CLIPVisionEncoderAndResamplerTTNN  # Refactored version
+from model_ttnn_unwrapped import CLIPVisionEncoderAndResamplerTTNN  # Unwrapped version
 from tracy import signpost
-from weights_loader import load_inputs_for__main
 
 _CONST_EVAL_CACHE = {}
+
+
+def load_weights(device=None):
+    """
+    Load weights from PyTorch model (HuggingFace).
+
+    Args:
+        device: TTNN device for on-device tensors.
+
+    Returns:
+        Tuple of TTNN tensors.
+    """
+    from load_weights_from_pytorch import load_weights_from_pytorch
+
+    return load_weights_from_pytorch(device=device)
 
 
 def main():
@@ -25,6 +42,7 @@ def main():
         2. Extracts penultimate hidden layer [batch, 257, 1280]
         3. Resampler produces IP-Adapter tokens [batch, 16, 2048]
     """
+
     # Load input tensor
     input_torch = get_input()
 
@@ -40,9 +58,13 @@ def main():
 
     mesh_device = utils.DeviceGetter.get_device([1, 1])
 
+    # Load weights from PyTorch/HuggingFace
+    print("Loading weights from PyTorch/HuggingFace...")
+    weights = load_weights(device=mesh_device)
+
     # Load TTNN model
     model_ttnn = CLIPVisionEncoderAndResamplerTTNN(
-        load_inputs_for__main(), _CONST_EVAL_CACHE, mesh_device
+        weights, _CONST_EVAL_CACHE, mesh_device
     )
 
     # Run ttnn model
