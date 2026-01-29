@@ -5,10 +5,10 @@ import time
 
 import torch
 import ttnn
-import utils
 from model_pt import CLIPVisionEncoderAndResamplerPT, get_input
 from model_ttnn import CLIPVisionEncoderAndResamplerTTNN
 from tracy import signpost
+from utils import calculate_pcc
 
 
 def main():
@@ -36,7 +36,10 @@ def main():
     input_ttnn_host = ttnn.to_layout(input_ttnn_host, ttnn.Layout.TILE)
     input_ttnn_host = ttnn.to_dtype(input_ttnn_host, ttnn.DataType.BFLOAT16)
 
-    mesh_device = utils.DeviceGetter.get_device([1, 1])
+    mesh_device = ttnn.open_mesh_device(
+        mesh_shape=ttnn.MeshShape((1, 1)),
+        l1_small_size=1 << 15,
+    )
 
     # Load TTNN model
     model_ttnn = CLIPVisionEncoderAndResamplerTTNN(
@@ -61,7 +64,7 @@ def main():
         # Calculate FPS and PCC
         duration = (end_time - start_time) * 1000
         fps = 1.0 / (end_time - start_time)  # batch size is 1
-        pcc = utils.calculate_pcc(output_torch, ttnn.to_torch(out_ttnn_host))
+        pcc = calculate_pcc(output_torch, ttnn.to_torch(out_ttnn_host))
 
         # Print results
         print(f"Iteration {i}")

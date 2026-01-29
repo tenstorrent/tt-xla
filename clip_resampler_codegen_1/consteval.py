@@ -4,11 +4,9 @@
 """Const-eval functions for CLIP Resampler model."""
 
 import ttnn
-import utils
 
 
-def _full_1_16_1280_ones():
-    device = utils.DeviceGetter.get_device((1, 1))
+def _full_1_16_1280_ones(device):
     return ttnn.full(
         shape=ttnn.Shape([1, 16, 1280]),
         fill_value=1.0,
@@ -19,33 +17,29 @@ def _full_1_16_1280_ones():
     )
 
 
-def _single_weight_reshape_repeat_5120(input):
-    device = utils.DeviceGetter.get_device((1, 1))
+def _single_weight_reshape_repeat_5120(input, device):
     x = ttnn.to_device(input, device=device, memory_config=ttnn.DRAM_MEMORY_CONFIG)
     x = ttnn.to_layout(x, ttnn.Layout.TILE, None, memory_config=ttnn.DRAM_MEMORY_CONFIG)
     x = ttnn.reshape(x, [1, 1, 5120], memory_config=ttnn.DRAM_MEMORY_CONFIG)
     return ttnn.repeat(x, ttnn.Shape([1, 257, 1]))
 
 
-def _single_weight_reshape_repeat_1280(input):
-    device = utils.DeviceGetter.get_device((1, 1))
+def _single_weight_reshape_repeat_1280(input, device):
     x = ttnn.to_device(input, device=device, memory_config=ttnn.DRAM_MEMORY_CONFIG)
     x = ttnn.to_layout(x, ttnn.Layout.TILE, None, memory_config=ttnn.DRAM_MEMORY_CONFIG)
     x = ttnn.reshape(x, [1, 1, 1280], memory_config=ttnn.DRAM_MEMORY_CONFIG)
     return ttnn.repeat(x, ttnn.Shape([1, 257, 1]))
 
 
-def _single_weight_reshape_repeat_2048(input):
-    device = utils.DeviceGetter.get_device((1, 1))
+def _single_weight_reshape_repeat_2048(input, device):
     x = ttnn.to_device(input, device=device, memory_config=ttnn.DRAM_MEMORY_CONFIG)
     x = ttnn.to_layout(x, ttnn.Layout.TILE, None, memory_config=ttnn.DRAM_MEMORY_CONFIG)
     x = ttnn.reshape(x, [1, 1, 2048], memory_config=ttnn.DRAM_MEMORY_CONFIG)
     return ttnn.repeat(x, ttnn.Shape([1, 16, 1]))
 
 
-def _three_weight_reshape_repeat_concat_dim2(input):
+def _three_weight_reshape_repeat_concat_dim2(input, device):
     """Concatenates Q, K, V biases along dim 2. Input order: [q_proj, k_proj, v_proj]."""
-    device = utils.DeviceGetter.get_device((1, 1))
     mem = ttnn.DRAM_MEMORY_CONFIG
 
     def process(tensor):
@@ -60,9 +54,8 @@ def _three_weight_reshape_repeat_concat_dim2(input):
     return ttnn.concat([q, k, v], 2, memory_config=mem)
 
 
-def _three_weight_concat_dim0(input):
+def _three_weight_concat_dim0(input, device):
     """Concatenates Q, K, V weights along dim 0. Input order: [q_proj, k_proj, v_proj]."""
-    device = utils.DeviceGetter.get_device((1, 1))
     mem = ttnn.DRAM_MEMORY_CONFIG
 
     def process(tensor):
@@ -75,13 +68,12 @@ def _three_weight_concat_dim0(input):
     return ttnn.concat([q, k, v], 0, memory_config=mem)
 
 
-def _resampler_attention_query(input):
+def _resampler_attention_query(input, device):
     """Precompute resampler attention query from latents.
 
     Input: [latents, ln1_bias, ln1_weight, to_q_weight]
     Returns: (ln1_latents_reshaped, precomputed_q)
     """
-    device = utils.DeviceGetter.get_device((1, 1))
     mem = ttnn.DRAM_MEMORY_CONFIG
 
     # Load weights to device
@@ -140,8 +132,7 @@ def _resampler_attention_query(input):
     return ln_reshaped_out, q
 
 
-def _prepare_conv_weights(input):
-    device = utils.DeviceGetter.get_device((1, 1))
+def _prepare_conv_weights(input, device):
     return ttnn.prepare_conv_weights(
         weight_tensor=input,
         input_memory_config=ttnn.DRAM_MEMORY_CONFIG,
@@ -173,9 +164,8 @@ def _prepare_conv_weights(input):
     )
 
 
-def _position_embedding_lookup(input):
+def _position_embedding_lookup(input, device):
     """Lookup position embeddings. Input: [position_ids, embedding_weight]."""
-    device = utils.DeviceGetter.get_device((1, 1))
     mem = ttnn.DRAM_MEMORY_CONFIG
 
     # Prepare position IDs
@@ -192,9 +182,8 @@ def _position_embedding_lookup(input):
     return ttnn.permute(embed, [0, 2, 1], memory_config=mem, pad_value=0.0)
 
 
-def _reshape_permute_1280(input):
+def _reshape_permute_1280(input, device):
     """Reshape to [1, 1, 1280] and permute to [1, 1280, 1]."""
-    device = utils.DeviceGetter.get_device((1, 1))
     mem = ttnn.DRAM_MEMORY_CONFIG
     x = ttnn.to_device(input, device=device, memory_config=mem)
     x = ttnn.to_layout(x, ttnn.Layout.TILE, None, memory_config=mem)
@@ -202,170 +191,170 @@ def _reshape_permute_1280(input):
     return ttnn.permute(x, [0, 2, 1], memory_config=mem, pad_value=0.0)
 
 
-def run_const_evals(weights):
+def run_const_evals(weights, device):
     # fmt: off
-    weights["__ONES_1_16_1280__"] = _full_1_16_1280_ones()
-    weights["__POSITION_EMBEDDING__"] = _position_embedding_lookup([weights["__POSITION_IDS__"], weights["image_encoder.vision_model.embeddings.position_embedding.weight"]])
-    weights["image_encoder.vision_model.embeddings.class_embedding"] = _reshape_permute_1280(weights["image_encoder.vision_model.embeddings.class_embedding"])
-    weights["image_encoder.vision_model.embeddings.patch_embedding.weight"] = _prepare_conv_weights(weights["image_encoder.vision_model.embeddings.patch_embedding.weight"])
-    weights["image_encoder.vision_model.encoder.layers.0.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.0.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.0.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.0.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.0.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.0.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.0.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.0.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.0.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.0.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.0.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.0.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.0.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.0.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.1.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.1.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.1.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.1.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.1.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.1.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.1.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.1.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.1.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.1.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.1.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.1.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.1.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.1.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.2.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.2.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.2.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.2.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.2.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.2.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.2.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.2.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.2.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.2.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.2.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.2.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.2.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.2.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.3.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.3.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.3.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.3.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.3.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.3.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.3.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.3.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.3.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.3.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.3.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.3.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.3.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.3.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.4.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.4.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.4.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.4.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.4.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.4.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.4.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.4.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.4.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.4.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.4.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.4.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.4.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.4.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.5.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.5.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.5.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.5.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.5.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.5.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.5.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.5.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.5.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.5.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.5.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.5.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.5.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.5.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.6.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.6.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.6.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.6.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.6.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.6.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.6.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.6.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.6.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.6.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.6.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.6.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.6.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.6.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.7.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.7.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.7.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.7.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.7.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.7.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.7.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.7.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.7.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.7.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.7.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.7.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.7.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.7.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.8.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.8.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.8.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.8.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.8.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.8.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.8.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.8.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.8.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.8.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.8.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.8.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.8.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.8.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.9.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.9.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.9.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.9.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.9.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.9.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.9.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.9.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.9.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.9.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.9.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.9.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.9.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.9.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.10.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.10.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.10.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.10.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.10.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.10.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.10.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.10.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.10.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.10.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.10.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.10.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.10.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.10.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.11.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.11.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.11.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.11.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.11.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.11.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.11.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.11.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.11.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.11.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.11.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.11.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.11.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.11.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.12.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.12.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.12.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.12.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.12.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.12.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.12.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.12.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.12.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.12.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.12.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.12.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.12.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.12.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.13.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.13.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.13.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.13.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.13.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.13.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.13.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.13.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.13.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.13.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.13.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.13.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.13.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.13.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.14.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.14.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.14.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.14.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.14.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.14.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.14.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.14.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.14.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.14.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.14.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.14.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.14.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.14.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.15.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.15.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.15.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.15.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.15.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.15.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.15.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.15.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.15.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.15.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.15.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.15.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.15.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.15.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.16.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.16.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.16.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.16.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.16.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.16.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.16.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.16.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.16.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.16.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.16.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.16.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.16.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.16.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.17.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.17.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.17.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.17.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.17.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.17.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.17.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.17.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.17.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.17.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.17.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.17.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.17.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.17.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.18.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.18.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.18.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.18.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.18.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.18.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.18.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.18.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.18.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.18.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.18.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.18.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.18.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.18.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.19.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.19.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.19.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.19.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.19.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.19.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.19.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.19.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.19.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.19.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.19.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.19.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.19.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.19.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.20.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.20.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.20.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.20.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.20.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.20.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.20.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.20.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.20.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.20.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.20.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.20.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.20.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.20.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.21.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.21.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.21.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.21.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.21.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.21.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.21.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.21.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.21.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.21.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.21.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.21.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.21.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.21.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.22.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.22.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.22.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.22.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.22.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.22.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.22.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.22.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.22.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.22.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.22.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.22.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.22.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.22.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.23.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.23.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.23.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.23.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.23.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.23.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.23.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.23.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.23.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.23.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.23.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.23.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.23.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.23.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.24.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.24.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.24.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.24.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.24.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.24.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.24.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.24.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.24.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.24.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.24.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.24.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.24.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.24.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.25.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.25.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.25.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.25.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.25.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.25.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.25.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.25.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.25.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.25.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.25.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.25.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.25.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.25.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.26.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.26.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.26.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.26.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.26.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.26.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.26.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.26.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.26.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.26.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.26.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.26.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.26.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.26.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.27.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.27.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.27.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.27.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.27.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.27.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.27.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.27.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.27.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.27.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.27.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.27.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.27.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.27.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.28.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.28.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.28.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.28.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.28.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.28.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.28.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.28.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.28.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.28.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.28.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.28.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.28.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.28.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.29.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.29.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.29.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.29.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.29.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.29.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.29.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.29.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.29.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.29.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.29.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.29.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.29.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.29.mlp.fc2.bias"])
-    weights["image_encoder.vision_model.encoder.layers.30.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.30.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.30.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.30.self_attn.v_proj.weight"]])
-    weights["image_encoder.vision_model.encoder.layers.30.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.30.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.30.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.30.self_attn.v_proj.bias"]])
-    weights["image_encoder.vision_model.encoder.layers.30.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.30.self_attn.out_proj.bias"])
-    weights["image_encoder.vision_model.encoder.layers.30.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.30.mlp.fc1.bias"])
-    weights["image_encoder.vision_model.encoder.layers.30.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.30.mlp.fc2.bias"])
-    weights["resampler.proj_in.bias"] = _single_weight_reshape_repeat_1280(weights["resampler.proj_in.bias"])
-    weights["resampler.proj_out.bias"] = _single_weight_reshape_repeat_2048(weights["resampler.proj_out.bias"])
-    _tmp_30 = _resampler_attention_query([weights["resampler.latents"], weights["resampler.layers.0.ln1.bias"], weights["resampler.layers.0.ln1.weight"], weights["resampler.layers.0.attn.to_q.weight"]])
+    weights["__ONES_1_16_1280__"] = _full_1_16_1280_ones(device)
+    weights["__POSITION_EMBEDDING__"] = _position_embedding_lookup([weights["__POSITION_IDS__"], weights["image_encoder.vision_model.embeddings.position_embedding.weight"]], device)
+    weights["image_encoder.vision_model.embeddings.class_embedding"] = _reshape_permute_1280(weights["image_encoder.vision_model.embeddings.class_embedding"], device)
+    weights["image_encoder.vision_model.embeddings.patch_embedding.weight"] = _prepare_conv_weights(weights["image_encoder.vision_model.embeddings.patch_embedding.weight"], device)
+    weights["image_encoder.vision_model.encoder.layers.0.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.0.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.0.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.0.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.0.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.0.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.0.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.0.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.0.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.0.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.0.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.0.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.0.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.0.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.1.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.1.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.1.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.1.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.1.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.1.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.1.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.1.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.1.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.1.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.1.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.1.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.1.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.1.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.2.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.2.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.2.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.2.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.2.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.2.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.2.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.2.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.2.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.2.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.2.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.2.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.2.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.2.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.3.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.3.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.3.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.3.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.3.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.3.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.3.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.3.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.3.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.3.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.3.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.3.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.3.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.3.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.4.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.4.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.4.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.4.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.4.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.4.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.4.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.4.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.4.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.4.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.4.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.4.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.4.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.4.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.5.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.5.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.5.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.5.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.5.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.5.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.5.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.5.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.5.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.5.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.5.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.5.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.5.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.5.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.6.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.6.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.6.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.6.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.6.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.6.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.6.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.6.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.6.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.6.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.6.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.6.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.6.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.6.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.7.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.7.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.7.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.7.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.7.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.7.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.7.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.7.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.7.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.7.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.7.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.7.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.7.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.7.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.8.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.8.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.8.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.8.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.8.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.8.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.8.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.8.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.8.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.8.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.8.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.8.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.8.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.8.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.9.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.9.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.9.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.9.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.9.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.9.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.9.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.9.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.9.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.9.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.9.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.9.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.9.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.9.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.10.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.10.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.10.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.10.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.10.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.10.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.10.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.10.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.10.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.10.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.10.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.10.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.10.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.10.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.11.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.11.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.11.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.11.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.11.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.11.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.11.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.11.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.11.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.11.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.11.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.11.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.11.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.11.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.12.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.12.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.12.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.12.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.12.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.12.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.12.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.12.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.12.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.12.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.12.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.12.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.12.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.12.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.13.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.13.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.13.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.13.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.13.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.13.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.13.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.13.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.13.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.13.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.13.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.13.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.13.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.13.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.14.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.14.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.14.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.14.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.14.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.14.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.14.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.14.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.14.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.14.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.14.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.14.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.14.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.14.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.15.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.15.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.15.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.15.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.15.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.15.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.15.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.15.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.15.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.15.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.15.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.15.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.15.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.15.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.16.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.16.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.16.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.16.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.16.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.16.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.16.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.16.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.16.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.16.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.16.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.16.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.16.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.16.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.17.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.17.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.17.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.17.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.17.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.17.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.17.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.17.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.17.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.17.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.17.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.17.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.17.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.17.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.18.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.18.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.18.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.18.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.18.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.18.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.18.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.18.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.18.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.18.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.18.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.18.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.18.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.18.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.19.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.19.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.19.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.19.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.19.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.19.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.19.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.19.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.19.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.19.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.19.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.19.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.19.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.19.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.20.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.20.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.20.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.20.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.20.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.20.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.20.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.20.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.20.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.20.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.20.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.20.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.20.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.20.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.21.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.21.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.21.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.21.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.21.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.21.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.21.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.21.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.21.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.21.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.21.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.21.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.21.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.21.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.22.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.22.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.22.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.22.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.22.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.22.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.22.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.22.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.22.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.22.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.22.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.22.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.22.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.22.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.23.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.23.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.23.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.23.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.23.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.23.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.23.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.23.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.23.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.23.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.23.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.23.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.23.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.23.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.24.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.24.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.24.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.24.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.24.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.24.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.24.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.24.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.24.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.24.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.24.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.24.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.24.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.24.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.25.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.25.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.25.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.25.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.25.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.25.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.25.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.25.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.25.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.25.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.25.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.25.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.25.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.25.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.26.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.26.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.26.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.26.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.26.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.26.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.26.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.26.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.26.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.26.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.26.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.26.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.26.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.26.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.27.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.27.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.27.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.27.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.27.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.27.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.27.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.27.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.27.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.27.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.27.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.27.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.27.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.27.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.28.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.28.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.28.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.28.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.28.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.28.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.28.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.28.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.28.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.28.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.28.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.28.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.28.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.28.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.29.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.29.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.29.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.29.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.29.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.29.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.29.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.29.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.29.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.29.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.29.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.29.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.29.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.29.mlp.fc2.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.30.self_attn.qkv_weight"] = _three_weight_concat_dim0([weights["image_encoder.vision_model.encoder.layers.30.self_attn.q_proj.weight"], weights["image_encoder.vision_model.encoder.layers.30.self_attn.k_proj.weight"], weights["image_encoder.vision_model.encoder.layers.30.self_attn.v_proj.weight"]], device)
+    weights["image_encoder.vision_model.encoder.layers.30.self_attn.qkv_bias"] = _three_weight_reshape_repeat_concat_dim2([weights["image_encoder.vision_model.encoder.layers.30.self_attn.q_proj.bias"], weights["image_encoder.vision_model.encoder.layers.30.self_attn.k_proj.bias"], weights["image_encoder.vision_model.encoder.layers.30.self_attn.v_proj.bias"]], device)
+    weights["image_encoder.vision_model.encoder.layers.30.self_attn.out_proj.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.30.self_attn.out_proj.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.30.mlp.fc1.bias"] = _single_weight_reshape_repeat_5120(weights["image_encoder.vision_model.encoder.layers.30.mlp.fc1.bias"], device)
+    weights["image_encoder.vision_model.encoder.layers.30.mlp.fc2.bias"] = _single_weight_reshape_repeat_1280(weights["image_encoder.vision_model.encoder.layers.30.mlp.fc2.bias"], device)
+    weights["resampler.proj_in.bias"] = _single_weight_reshape_repeat_1280(weights["resampler.proj_in.bias"], device)
+    weights["resampler.proj_out.bias"] = _single_weight_reshape_repeat_2048(weights["resampler.proj_out.bias"], device)
+    _tmp_30 = _resampler_attention_query([weights["resampler.latents"], weights["resampler.layers.0.ln1.bias"], weights["resampler.layers.0.ln1.weight"], weights["resampler.layers.0.attn.to_q.weight"]], device)
     weights["resampler.layers.0.ln1_latents_reshaped"] = _tmp_30[0]
     weights["resampler.layers.0.attn.precomputed_q"] = _tmp_30[1]
     # fmt: on
