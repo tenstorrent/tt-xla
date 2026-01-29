@@ -81,8 +81,6 @@ jobs:
         id: build-docker
         run: |
           set -eo pipefail
-          sudo apt-get update
-          sudo apt-get install -y -q skopeo
 
           project="tt-forge"
           commit_tag="${{ github.sha }}"
@@ -97,8 +95,10 @@ jobs:
           docker_image_base=$(tail -n 2 docker.log | head -n 1)
 
           echo "Pushing tags for $docker_image_base"
-          skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
-          skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$version_tag"
+          docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$latest_tag"
+          docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$version_tag"
+          docker push "$docker_image_base:$latest_tag"
+          docker push "$docker_image_base:$version_tag"
 
           echo "docker_image_base=$docker_image_base" >> $GITHUB_OUTPUT
 
