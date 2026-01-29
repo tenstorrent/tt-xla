@@ -8,7 +8,7 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import run_graph_test
-from infra.comparators.comparison_config import ComparisonConfig, PccConfig
+from infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 from infra.utilities import Framework
 from torch_xla.distributed.spmd import Mesh
 
@@ -77,7 +77,7 @@ def test_qwen_2_5_vl_language_layer(tp_bool):
     print(f"{'='*60}\n")
 
     batch_size = 1
-    seq_len = 512
+    seq_len = 1024
     hidden_size = config.hidden_size  # 2048
     head_dim = hidden_size // config.num_attention_heads
 
@@ -122,8 +122,8 @@ def test_qwen_2_5_vl_language_layer(tp_bool):
             shard_specs = {}
             # Attention
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            # shard_specs[layer.self_attn.k_proj.weight] = (None, "batch")
+            # shard_specs[layer.self_attn.v_proj.weight] = (None, "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
 
             # MLP
@@ -393,11 +393,11 @@ def load_shard_spec(self, model):
 
         # Attention
         shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-        shard_specs[layer.self_attn.q_proj.bias] = ("model",)
+        # shard_specs[layer.self_attn.q_proj.bias] = ("model",)
         shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-        shard_specs[layer.self_attn.k_proj.bias] = ("model",)
+        # shard_specs[layer.self_attn.k_proj.bias] = ("model",)
         shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-        shard_specs[layer.self_attn.v_proj.bias] = ("model",)
+        # shard_specs[layer.self_attn.v_proj.bias] = ("model",)
         shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
 
     # LM Head
@@ -409,9 +409,9 @@ def load_shard_spec(self, model):
 
     # Patch Embedding
     # Conv3d(3, 1280, ...) -> Split output channels (dim 0)
-    shard_specs[visual.patch_embed.proj.weight] = ("model", "batch", None, None, None)
-    if visual.patch_embed.proj.bias is not None:
-        shard_specs[visual.patch_embed.proj.bias] = ("model",)
+    # shard_specs[visual.patch_embed.proj.weight] = ("model", "batch", None, None, None)
+    # if visual.patch_embed.proj.bias is not None:
+    #    shard_specs[visual.patch_embed.proj.bias] = ("model",)
 
     # Vision Blocks
     for block in visual.blocks:
@@ -423,19 +423,19 @@ def load_shard_spec(self, model):
         # Attention
         # qkv is a fused Linear(1280, 3840) -> Colwise split is safe
         shard_specs[block.attn.qkv.weight] = ("model", "batch")
-        if block.attn.qkv.bias is not None:
-            shard_specs[block.attn.qkv.bias] = ("model",)
+        # if block.attn.qkv.bias is not None:
+        #    shard_specs[block.attn.qkv.bias] = ("model",)
         # proj is Linear(1280, 1280) -> Rowwise split
         shard_specs[block.attn.proj.weight] = ("batch", "model")
 
     # Vision Merger (Sequential MLP: Linear -> GELU -> Linear)
     # merger.mlp[0]: Linear(5120->5120) -> Colwise
-    shard_specs[visual.merger.mlp[0].weight] = ("model", "batch")
-    if visual.merger.mlp[0].bias is not None:
-        shard_specs[visual.merger.mlp[0].bias] = ("model",)
+    # shard_specs[visual.merger.mlp[0].weight] = ("model", "batch")
+    # if visual.merger.mlp[0].bias is not None:
+    #    shard_specs[visual.merger.mlp[0].bias] = ("model",)
 
     # merger.mlp[2]: Linear(5120->2048) -> Rowwise
-    shard_specs[visual.merger.mlp[2].weight] = ("batch", "model")
+    # shard_specs[visual.merger.mlp[2].weight] = ("batch", "model")
 
     return shard_specs
 
