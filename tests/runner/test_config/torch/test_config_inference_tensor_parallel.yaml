@@ -73,7 +73,7 @@ test_config:
 
   qwen_3/causal_lm/pytorch-14b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP #https://github.com/tenstorrent/tt-xla/issues/3044
 
   qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
