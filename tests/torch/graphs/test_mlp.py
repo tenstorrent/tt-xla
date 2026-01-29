@@ -18,6 +18,8 @@ from transformers.models.llama.modeling_llama import LlamaMLP
 from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
+from transformers.models.glm4_moe.modeling_glm import Glm4MoeMLP
+from transformers.models.glm4_moe.modeling_glm import Glm4MoeMoe
 
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.falcon.pytorch.loader import (
@@ -59,6 +61,12 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelVariant as Qwen3ModelVariant,
 )
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelLoader as GLMModelLoader,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelVariant as GLMModelVariant,
+)
 
 MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
@@ -68,6 +76,7 @@ MODEL_LOADER_MAP = {
     "mistral": MistralModelLoader,
     "falcon": FalconModelLoader,
     "gpt_oss": GPTOSSModelLoader,
+    "glm": GLMModelLoader,
 }
 
 AVAILABLE_VARIANT_MAP = {
@@ -115,6 +124,7 @@ AVAILABLE_VARIANT_MAP = {
         "tiiuae/falcon-7b-instruct",
     ],
     "gpt_oss": ["gpt_oss_20b", "gpt_oss_120b"],
+    "glm": ["GLM-4.7", "GLM-4.5", "GLM-4.5-Air"],
 }
 
 
@@ -526,3 +536,67 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
+
+
+
+"""GLM MLP test"""
+
+
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("glm").items(),
+    ids=[str(k) for k in get_available_variants("glm").keys()],
+)
+@pytest.mark.parametrize("mlp_type", ["mlp", "moe"])
+def test_glm_mlp(seq_len, variant, variant_config, arch, mlp_type):
+    xr.set_device_type("TT")
+
+    loader = GLMModelLoader(variant=variant)
+    config = loader.load_config()
+    if mlp_type == "mlp":
+        mlp = Glm4MoeMLP(config).to(torch.bfloat16)
+    elif mlp_type == "moe":
+        mlp = Glm4MoeMoe(config).to(torch.bfloat16)
+
+    batch_size = 1
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (1, num_devices)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(mlp, args, kwargs):
+            shard_specs = {}
+            
+            if hasattr(mlp, "experts"):
+                for expert in mlp.experts:
+                    shard_specs[expert.gate_proj.weight] = ("model", None)
+                    shard_specs[expert.up_proj.weight] = ("model", None)
+                    shard_specs[expert.down_proj.weight] = (None, "model")
+            else:
+                shard_specs[mlp.gate_proj.weight] = ("model", None)
+                shard_specs[mlp.up_proj.weight] = ("model", None)
+                shard_specs[mlp.down_proj.weight] = (None, "model")
+
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+

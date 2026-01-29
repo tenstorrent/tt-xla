@@ -31,6 +31,7 @@ from transformers.models.mistral.modeling_mistral import MistralAttention
 from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.xlm_roberta.modeling_xlm_roberta import XLMRobertaSelfAttention
+from transformers.models.glm4_moe.modeling_glm import Glm4MoeAttention
 
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
@@ -72,6 +73,12 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelVariant as Qwen3ModelVariant,
 )
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelLoader as GLMModelLoader,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelVariant as GLMModelVariant,
+)
 
 MODEL_LOADER_MAP = {
     "llama": LlamaModelLoader,
@@ -82,6 +89,7 @@ MODEL_LOADER_MAP = {
     "gemma": GemmaModelLoader,
     "mistral": MistralModelLoader,
     "gpt_oss": GPTOSSModelLoader,
+    "glm": GLMModelLoader,
 }
 
 AVAILABLE_VARIANT_MAP = {
@@ -123,6 +131,7 @@ AVAILABLE_VARIANT_MAP = {
         "ministral_8b_instruct",
     ],
     "gpt_oss": ["gpt_oss_20b", "gpt_oss_120b"],
+    "glm": ["GLM-4.7", "GLM-4.5", "GLM-4.5-Air"],
 }
 
 
@@ -2421,6 +2430,112 @@ def test_gpt_oss_attention(variant, variant_config, arch):
         ],
         framework=Framework.TORCH,
         comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""GLM attention tests"""
+
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("glm").items(),
+    ids=[str(k) for k in get_available_variants("glm").keys()],
+)
+def test_glm_attention(variant, variant_config, seq_len, arch):
+    xr.set_device_type("TT")
+
+    def sdpa(
+        attention_module,
+        query_states,
+        key_states,
+        value_states,
+        attention_mask,
+        dropout,
+        scaling,
+    ):
+        attention_interface: Callable = eager_attention_forward
+        if attention_module.config._attn_implementation != "eager":
+            attention_interface = ALL_ATTENTION_FUNCTIONS[
+                attention_module.config._attn_implementation
+            ]
+
+        attn_output, _ = attention_interface(
+            attention_module,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout=dropout,
+            scaling=scaling,
+        )
+        return attn_output
+
+    loader = GLMModelLoader(variant=variant)
+    config = loader.load_config()
+    config._attn_implementation = "sdpa"
+    attention = Glm4MoeAttention(config, layer_idx=0).to(torch.bfloat16)
+
+    batch_size = 1
+
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+    head_dim = config.head_dim
+
+    dropout = 0.0
+    scaling = attention.scaling
+
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+
+        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
+            mesh_shape = (1, num_devices)
+        else:
+            batch_size = 2
+            mesh_shape = (2, num_devices // 2)
+
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(sdpa, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
+            shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
+            shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
+            shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    query_states = torch.randn(
+        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    key_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    value_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    run_graph_test(
+        sdpa,
+        [
+            attention,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout,
+            scaling,
+        ],
+        framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
