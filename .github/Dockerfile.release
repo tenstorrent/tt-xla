@@ -47,8 +47,7 @@ RUN apt-get clean && \
 ENV VLLM_TARGET_DEVICE="empty"
 
 COPY *.whl /tmp/
-RUN pip install --no-cache-dir /tmp/pjrt_plugin_tt*.whl && \
-    pip install --no-cache-dir /tmp/vllm_tt*.whl && \
+RUN pip install --no-cache-dir /tmp/*.whl && \
     rm -rf /tmp/*.whl
 
 CMD ["/bin/bash"]
