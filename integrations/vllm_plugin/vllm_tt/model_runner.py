@@ -1146,6 +1146,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     logits, self.mesh, (None, None, None)
                 )
 
+            # Need to remove hack that forces greedy in sample_from_logits. https://github.com/tenstorrent/tt-xla/issues/3026
+            if not tpu_sampling_metadata.all_greedy:
+                logger.warning_once(
+                    "Sampler not supported currently, using greedy sampling. Issue #3026"
+                )
+
             selected_token_ids = self.sample_from_logits_func(
                 logits, tpu_sampling_metadata
             )
