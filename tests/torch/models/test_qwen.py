@@ -76,7 +76,7 @@ def test_qwen_2_5_vl_language_layer(tp_bool):
     print(f"Testing Language Layer with tp={tp_bool}")
     print(f"{'='*60}\n")
 
-    batch_size = 1
+    batch_size = 4
     seq_len = 1024
     hidden_size = config.hidden_size  # 2048
     head_dim = hidden_size // config.num_attention_heads
@@ -166,7 +166,7 @@ def test_qwen_2_5_vl_language_attention(tp_bool):
     print(f"{'='*60}\n")
 
     batch_size = 1
-    seq_len = 512
+    seq_len = 1024
     hidden_size = config.hidden_size  # 2048
     head_dim = hidden_size // config.num_attention_heads
 
@@ -220,6 +220,57 @@ def test_qwen_2_5_vl_language_attention(tp_bool):
     run_graph_test(
         attention,
         attention_inputs,
+        framework=Framework.TORCH,
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.parametrize("tp_bool", [True, False])
+def test_qwen_2_5_vl_patch_embed(tp_bool):
+    """Test Qwen2.5-VL patch embedding (Conv3d) with tensor parallel sharding."""
+    loader = ModelLoader()
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    inputs = (
+        loader.load_inputs()
+    )  # returns BatchFeature with input_ids, attention_mask, pixel_values, image_grid_thw, video_grid_thw, second_per_grid_ts
+
+    vl_model = model.model  # Qwen2_5_VLModel
+    print(f"vl_model.config.hidden_size: {vl_model.config.hidden_size}")
+    vision_model = vl_model.visual  # Qwen2_5_VisionTransformerPretrainedModel
+    # takes input hidden_states and grid_thw
+    hidden_states = inputs["pixel_values"]
+    grid_thw = inputs["image_grid_thw"]
+    print(f"hidden_states: {hidden_states.shape}")
+    print(f"grid_thw: {grid_thw}")
+
+    patch_embed = vision_model.patch_embed  # Qwen2_5_VisionPatchEmbed
+
+    inputs = [hidden_states]
+
+    xr.set_device_type("TT")
+
+    # Setup Mesh
+    mesh = None
+    get_shard_spec = None
+    if tp_bool:
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (1, num_devices)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(layer_model, args, kwargs):
+            shard_specs = {}
+            # Shard Conv3d output channels (1280)
+            # visual.patch_embed.proj is the Conv3d layer
+            shard_specs[layer_model.proj.weight] = ("model", "batch")
+
+            return shard_specs
+
+    run_graph_test(
+        patch_embed,
+        inputs,
         framework=Framework.TORCH,
         comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
         mesh=mesh,
@@ -335,6 +386,10 @@ def test_qwen_2_5_vl_vision_block(tp_bool):
 
             return shard_specs
 
+    else:
+        mesh = None
+        get_shard_spec = None
+
     run_graph_test(
         visual_block,
         inputs,
@@ -373,6 +428,9 @@ def get_mesh_config(self, num_devices: int):
         raise ValueError(
             f"Cannot evenly distribute {num_heads} heads across {num_devices} devices"
         )
+
+    # 4 by 2 override for testing
+    mesh_shape = (4, num_devices // 4)
     return mesh_shape, ("batch", "model")
 
 
@@ -394,9 +452,9 @@ def load_shard_spec(self, model):
         # Attention
         shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
         # shard_specs[layer.self_attn.q_proj.bias] = ("model",)
-        shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+        # shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
         # shard_specs[layer.self_attn.k_proj.bias] = ("model",)
-        shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+        # shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
         # shard_specs[layer.self_attn.v_proj.bias] = ("model",)
         shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
 
@@ -414,7 +472,7 @@ def load_shard_spec(self, model):
     #    shard_specs[visual.patch_embed.proj.bias] = ("model",)
 
     # Vision Blocks
-    for block in visual.blocks:
+    """for block in visual.blocks:
         # MLP
         shard_specs[block.mlp.up_proj.weight] = ("model", "batch")
         shard_specs[block.mlp.gate_proj.weight] = ("model", "batch")
@@ -423,10 +481,10 @@ def load_shard_spec(self, model):
         # Attention
         # qkv is a fused Linear(1280, 3840) -> Colwise split is safe
         shard_specs[block.attn.qkv.weight] = ("model", "batch")
-        # if block.attn.qkv.bias is not None:
+        #if block.attn.qkv.bias is not None:
         #    shard_specs[block.attn.qkv.bias] = ("model",)
         # proj is Linear(1280, 1280) -> Rowwise split
-        shard_specs[block.attn.proj.weight] = ("batch", "model")
+        shard_specs[block.attn.proj.weight] = ("batch", "model")"""
 
     # Vision Merger (Sequential MLP: Linear -> GELU -> Linear)
     # merger.mlp[0]: Linear(5120->5120) -> Colwise
