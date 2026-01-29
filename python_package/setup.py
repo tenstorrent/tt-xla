@@ -464,40 +464,7 @@ def _deduplicate_shared_objects(root: Path) -> None:
     for so_file in sorted(
         root.rglob("*.so*"), key=lambda p: p.relative_to(root).as_posix()
     ):
-        if so_file.is_symlink():
-            try:
-                link_target = os.readlink(so_file)
-            except OSError:
-                continue
-
-            target_path = (so_file.parent / link_target).resolve()
-            if not target_path.exists() or not target_path.is_file():
-                continue
-            if ".so." not in target_path.name:
-                continue
-
-            try:
-                rel_symlink = so_file.relative_to(root)
-                rel_target = target_path.relative_to(root)
-            except ValueError:
-                continue
-            # Exclude files in tt-metal/runtime/sfpi/compiler/lib/
-            if rel_target.parts[:5] == (
-                "tt-metal",
-                "runtime",
-                "sfpi",
-                "compiler",
-                "lib",
-            ):
-                continue
-            print(
-                f"Materializing shared library symlink: {rel_symlink} -> {rel_target}"
-            )
-            so_file.unlink()
-            target_path.rename(so_file)
-            continue
-
-        if not so_file.is_file():
+        if so_file.is_symlink() or not so_file.is_file():
             continue
 
         checksum = _sha256_file(so_file)
