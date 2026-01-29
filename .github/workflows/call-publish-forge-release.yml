@@ -58,7 +58,7 @@ jobs:
           pip install wheel
           # maybe will output wrong arch suffix (takes it from os it's built on)
           python ./.github/scripts/forge-wheel-setup.py bdist_wheel --dist-dir ./
-          ll *.whl
+          ls -lah *.whl
 
       - name: Publish wheels to PyPI
         shell: bash
