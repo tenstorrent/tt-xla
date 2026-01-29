@@ -14,8 +14,6 @@ from model_pt import CLIPVisionEncoderAndResamplerPT, get_input
 from model_ttnn_unwrapped import CLIPVisionEncoderAndResamplerTTNN  # Unwrapped version
 from tracy import signpost
 
-_CONST_EVAL_CACHE = {}
-
 
 def main():
     """
@@ -46,7 +44,7 @@ def main():
 
     # Load TTNN model
     model_ttnn = CLIPVisionEncoderAndResamplerTTNN(
-        mesh_device, model_torch.state_dict(), _CONST_EVAL_CACHE
+        mesh_device, model_torch.state_dict()
     )
 
     # Run ttnn model
