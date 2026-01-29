@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
+// SPDX-FileCopyrightText: © 2026 Tenstorrent AI ULC
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -9,7 +9,6 @@
 // https://llvm.org/LICENSE.txt
 
 // c++ standard library includes
-#include <atomic>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -17,14 +16,8 @@
 #include <unordered_set>
 #include <vector>
 
-// PJRT C API includes
-#include "tt/runtime/types.h"
-
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
-
-// tt-xla includes
-#include "api/event_instance.h"
 
 #ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_TENSOR_H_
 #define TT_XLA_PJRT_IMPLEMENTATION_INC_API_TENSOR_H_
@@ -96,6 +89,10 @@ public: // Constructors needs to be public for std::shared_ptr.
   const tt::runtime::Tensor &runtime_tensor() const { return m_runtime_tensor; }
 
   uint64_t uid() const noexcept { return m_uid; }
+
+  bool has_shard(const BufferInstance *shard) const noexcept {
+    return std::find(m_shards.begin(), m_shards.end(), shard) != m_shards.end();
+  }
 
   void remove_shard(const BufferInstance *shard) noexcept;
 
@@ -185,6 +182,7 @@ public:
              BufferInstance *shard = nullptr) noexcept {
 
     assert(!!tensor == !!shard && "Both must be nullptr or have a value.");
+    assert(!tensor || tensor->has_shard(shard));
 
     if (m_shard != nullptr)
       get()->remove_shard(m_shard);

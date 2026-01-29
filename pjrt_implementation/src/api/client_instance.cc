@@ -365,16 +365,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   return tt_pjrt_status::kSuccess;
 }
 
-void ClientInstance::registerBuffer(BufferInstance *buffer) {
-  std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
-  m_tracked_buffers.insert(buffer);
-}
-
-void ClientInstance::unregisterBuffer(BufferInstance *buffer) {
-  std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
-  m_tracked_buffers.erase(buffer);
-}
-
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
     const std::vector<uint32_t> &target_mesh_shape) {
 

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
+// SPDX-FileCopyrightText: © 2026 Tenstorrent AI ULC
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -18,19 +18,12 @@
 #include <utility>
 #include <vector>
 
-// PJRT C API includes
-#include "tt/runtime/types.h"
-
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
+#include "tt/runtime/types.h"
 
 // tt-xla includes
 #include "api/buffer_instance.h"
-#include "api/client_instance.h"
-#include "api/device_instance.h"
-#include "api/error_instance.h"
-#include "api/memory_instance.h"
-#include "utils/data_type_utils.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
@@ -162,7 +155,7 @@ PjrtTensor::~PjrtTensor() { TensorPool::erase(this); }
 void PjrtTensor::move_to_host() noexcept {
 
   std::vector<tt::runtime::Tensor> tensors =
-      tt::runtime::toHost(runtime_tensor(), /*untilize=*/true);
+      tt::runtime::toHost(m_runtime_tensor, /*untilize=*/true);
 
   assert(tensors.size() == m_shards.size());
   m_runtime_tensor = std::move(tensors[0]);
@@ -211,14 +204,14 @@ tt::runtime::Tensor PjrtTensor::rtt_from_strategy(
 std::vector<tt::runtime::Tensor>
 PjrtTensor::rtts_from_shards(const std::vector<BufferInstance *> &shards) {
 
-  std::vector<tt::runtime::Tensor> tenzors;
-  tenzors.reserve(shards.size());
+  std::vector<tt::runtime::Tensor> tensors;
+  tensors.reserve(shards.size());
 
   for (const BufferInstance *shard : shards) {
-    tenzors.emplace_back(rtt_from_shard(shard));
+    tensors.emplace_back(rtt_from_shard(shard));
   }
 
-  return tenzors;
+  return tensors;
 }
 
 bool PjrtTensor::shards_shared_tensor(
@@ -247,10 +240,10 @@ uint64_t PjrtTensor::nextUID() {
 
 // Removes shard from shards (by setting shard to nullptr).
 //
-// Note: this one is needed because torch xla (still not sure why) can delete
-// single tensor shard (buffer instance), while preserving other shards. Problem
-// might be with our tensor sharding implementation and this needs further
-// investigation.
+// TODO(acolic): this one is needed because torch xla can delete single tensor
+// shard (buffer instance), while preserving other shards. Problem might be with
+// our tensor sharding implementation and this needs further investigation.
+// https://github.com/tenstorrent/tt-xla/issues/3034.
 void PjrtTensor::remove_shard(const BufferInstance *shard) noexcept {
 
   auto it = std::find(m_shards.begin(), m_shards.end(), shard);
@@ -280,7 +273,7 @@ void PjrtTensorPool::clear() {
   m_tensors.clear();
 }
 
-// Moves all tenors to host.
+// Moves all tensors to host.
 //
 // Note: since moving to host can modify pool (insert new pjrt tensors), we must
 // copy tensor pointers to another container before copying, to avoid iterator

@@ -106,8 +106,7 @@ public:
   // expected data type when copying to host, possibly leading to a different
   // size. This function will calculate the converted runtime tensor size to be
   // tensor_volume * expected_host_data_type_element_size
-  static size_t getConvertedRuntimeTensorSize(const tt::runtime::Tensor &tensor,
-                                              PJRT_Buffer_Type data_type);
+  size_t tensorSize();
 
   // Returns a string representation of the buffer's shape in the format
   // [d1,d2,d3,...].

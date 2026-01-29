@@ -109,14 +109,13 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Memory = internal::onBufferMemory;
 }
 
-size_t
-BufferInstance::getConvertedRuntimeTensorSize(const tt::runtime::Tensor &tensor,
-                                              PJRT_Buffer_Type data_type) {
-  std::uint32_t tensor_volume = tt::runtime::getTensorVolume(tensor);
-  std::uint32_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
-      data_type_utils::convertPJRTToRuntimeDataType(data_type));
-  std::uint32_t runtime_tensor_size = tensor_volume * dtype_element_size;
-  return static_cast<size_t>(runtime_tensor_size);
+size_t BufferInstance::tensorSize() {
+  size_t tensor_volume = tt::runtime::getTensorVolume(runtimeTensor());
+
+  size_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
+      data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
+
+  return tensor_volume * dtype_element_size;
 }
 
 std::string BufferInstance::toShapeStr() const {
@@ -234,6 +233,8 @@ void BufferInstance::copyFromHost(
 
 void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
+  assert(src_buffer->pjrtTensor() && "Source buffer has no data.");
+
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
           src_buffer->m_data_type);
@@ -300,8 +301,7 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
-  assert(m_pjrt_tensor &&
-         "Trying to copy from buffer without an associated tensor");
+  assert(m_pjrt_tensor && "Copy from buffer without an associated tensor.");
 
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
@@ -320,13 +320,21 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
   m_copy_to_host_thread = std::make_unique<std::thread>([=, e = event.get()] {
-    const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
+    try {
+      const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
 
-    m_pjrt_tensor->move_to_host();
-    tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
-                        rt_data_type);
+      m_pjrt_tensor->move_to_host();
 
-    e->markAsReady(tt_pjrt_status::kSuccess);
+      assert(tensorSize() <= host_buffer_size && "Host buffer is too small.");
+      tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
+                          rt_data_type);
+
+      e->markAsReady(tt_pjrt_status::kSuccess);
+
+    } catch (const std::exception &error) {
+      DLOG_F(ERROR, "Copy to host buffer failed with error: %s", error.what());
+      e->markAsReady(tt_pjrt_status::kInternal);
+    }
   });
 
   // responsible for calling `PJRT_Event_Destroy` on the event.
@@ -468,9 +476,7 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
            "args->dst is nullptr to query the required size. This will give "
            "an overestimated tile-aligned physical tensor size instead of a "
            "logical size. TODO @jameszianxu");
-    args->dst_size = BufferInstance::getConvertedRuntimeTensorSize(
-        buffer->runtimeTensor(), buffer->getDataType());
-
+    args->dst_size = buffer->tensorSize();
     return nullptr;
   }
 
