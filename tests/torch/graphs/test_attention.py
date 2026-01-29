@@ -18,6 +18,7 @@ from torch_xla.distributed.spmd import Mesh
 from transformers.cache_utils import StaticCache
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.models.gemma.modeling_gemma import GemmaAttention
+from transformers.models.glm4_moe.modeling_glm import Glm4MoeAttention
 from transformers.models.gpt_oss.modeling_gpt_oss import (
     ALL_ATTENTION_FUNCTIONS,
     eager_attention_forward,
@@ -31,7 +32,6 @@ from transformers.models.mistral.modeling_mistral import MistralAttention
 from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.xlm_roberta.modeling_xlm_roberta import XLMRobertaSelfAttention
-from transformers.models.glm4_moe.modeling_glm import Glm4MoeAttention
 
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
@@ -45,6 +45,12 @@ from third_party.tt_forge_models.gemma.pytorch.loader import (
 )
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelVariant as GemmaModelVariant,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelLoader as GLMModelLoader,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelVariant as GLMModelVariant,
 )
 from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
     ModelLoader as GPTOSSModelLoader,
@@ -72,12 +78,6 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
 )
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelVariant as Qwen3ModelVariant,
-)
-from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
-    ModelLoader as GLMModelLoader,
-)
-from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
-    ModelVariant as GLMModelVariant,
 )
 
 MODEL_LOADER_MAP = {
@@ -2436,6 +2436,7 @@ def test_gpt_oss_attention(variant, variant_config, arch):
 
 
 """GLM attention tests"""
+
 
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])

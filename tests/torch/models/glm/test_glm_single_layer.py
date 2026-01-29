@@ -11,10 +11,12 @@ from infra import run_graph_test
 from infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 from infra.utilities import Framework
 from torch_xla.distributed.spmd import Mesh
-
-from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import ModelLoader, ModelVariant
-
 from transformers import AutoModelForCausalLM
+
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelLoader,
+    ModelVariant,
+)
 
 # Modified load model function to load only one layer
 '''
@@ -42,7 +44,7 @@ def load_model(self, dtype_override=None, num_layers=None, config=None):
         self.model = model
         self.config = model.config
         return model
-    
+
     # Load the model with dtype override if specified
     model_kwargs = {}
     if dtype_override is not None:
@@ -61,6 +63,7 @@ def load_model(self, dtype_override=None, num_layers=None, config=None):
     return model
 '''
 
+
 @pytest.mark.parametrize("tp_bool", [True, False])
 def test_glm_single_layer(tp_bool):
     """Test GLM single layer with tensor parallel sharding."""
@@ -68,8 +71,8 @@ def test_glm_single_layer(tp_bool):
     loader = ModelLoader(variant=ModelVariant.GLM_4_5)
     config = loader.load_config()
     config.num_hidden_layers = 1
-    #model = loader.load_model(dtype_override=torch.bfloat16, config=config)
-    #print(f"Model: {model}")
+    # model = loader.load_model(dtype_override=torch.bfloat16, config=config)
+    # print(f"Model: {model}")
     model = AutoModelForCausalLM.from_config(config=config, torch_dtype=torch.bfloat16)
     print(f"Model: {model}")
 
@@ -118,7 +121,7 @@ def test_glm_single_layer(tp_bool):
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.bias] = ("model",)
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-            
+
             print(f"Shard specs: {shard_specs}")
             return shard_specs
 
@@ -153,7 +156,8 @@ def test_glm_single_layer(tp_bool):
         shard_spec_fn=get_shard_spec,
     )
 
-'''
+
+"""
 Model: Glm4MoeForCausalLM(
   (model): Glm4MoeModel(
     (embed_tokens): Embedding(151552, 5120, padding_idx=151329)
@@ -181,4 +185,4 @@ Model: Glm4MoeForCausalLM(
     (rotary_emb): Glm4MoeRotaryEmbedding()
   )
   (lm_head): Linear(in_features=5120, out_features=151552, bias=False)
-)'''
+)"""

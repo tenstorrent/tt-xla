@@ -14,12 +14,11 @@ from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers.models.falcon.modeling_falcon import FalconMLP
 from transformers.models.gemma.modeling_gemma import GemmaMLP
+from transformers.models.glm4_moe.modeling_glm import Glm4MoeMLP, Glm4MoeMoe
 from transformers.models.llama.modeling_llama import LlamaMLP
 from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
-from transformers.models.glm4_moe.modeling_glm import Glm4MoeMLP
-from transformers.models.glm4_moe.modeling_glm import Glm4MoeMoe
 
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.falcon.pytorch.loader import (
@@ -33,6 +32,12 @@ from third_party.tt_forge_models.gemma.pytorch.loader import (
 )
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelVariant as GemmaModelVariant,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelLoader as GLMModelLoader,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelVariant as GLMModelVariant,
 )
 from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
     ModelLoader as GPTOSSModelLoader,
@@ -60,12 +65,6 @@ from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
 )
 from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
     ModelVariant as Qwen3ModelVariant,
-)
-from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
-    ModelLoader as GLMModelLoader,
-)
-from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
-    ModelVariant as GLMModelVariant,
 )
 
 MODEL_LOADER_MAP = {
@@ -538,7 +537,6 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
     )
 
 
-
 """GLM MLP test"""
 
 
@@ -575,7 +573,7 @@ def test_glm_mlp(seq_len, variant, variant_config, arch, mlp_type):
 
         def get_shard_spec(mlp, args, kwargs):
             shard_specs = {}
-            
+
             if hasattr(mlp, "experts"):
                 for expert in mlp.experts:
                     shard_specs[expert.gate_proj.weight] = ("model", None)
@@ -599,4 +597,3 @@ def test_glm_mlp(seq_len, variant, variant_config, arch, mlp_type):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
-
