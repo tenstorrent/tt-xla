@@ -17,13 +17,15 @@ import ttnn
 from model_pt import CLIPVisionEncoderAndResamplerPT
 
 
-def load_weights_from_pytorch(config_path="tensor_load_config.json", device=None):
+def load_weights_from_pytorch(
+    state_dict, device, config_path="tensor_load_config.json"
+):
     """
     Load weights from PyTorch model and convert to TTNN format.
 
     Args:
+        state_dict: PyTorch state_dict
         config_path: Path to tensor_load_config.json
-        device: TTNN device for on-device tensors (optional)
 
     Returns:
         Dictionary mapping weight names to TTNN tensors
@@ -31,19 +33,6 @@ def load_weights_from_pytorch(config_path="tensor_load_config.json", device=None
     # Load config
     with open(config_path) as f:
         config = json.load(f)
-
-    # Load PyTorch model
-    print("Loading PyTorch model from HuggingFace...")
-    model = CLIPVisionEncoderAndResamplerPT()
-
-    # Build state dict including parameters and buffers
-    state_dict = {}
-    for name, param in model.named_parameters():
-        state_dict[name] = param.detach()
-    for name, buf in model.named_buffers():
-        state_dict[name] = buf.detach()
-
-    print(f"Loaded {len(state_dict)} tensors from PyTorch model")
 
     # Convert each weight to TTNN format
     weights = {}
