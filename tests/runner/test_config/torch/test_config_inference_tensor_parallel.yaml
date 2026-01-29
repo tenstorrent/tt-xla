@@ -175,12 +175,6 @@ test_config:
     reason: "Needs bringup on galaxy"
     bringup_status: FAILED_RUNTIME
 
-  phi4/causal_lm/pytorch-microsoft/phi-4-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on n300-llmbox 14B param"
-    bringup_status: FAILED_RUNTIME
-
   qwen_2/causal_lm/pytorch-qwq_32b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
