@@ -78,6 +78,8 @@ jobs:
         id: build-docker
         run: |
           set -eo pipefail
+          sudo apt-get update
+          sudo apt-get install -y -qq skopeo
 
           project="tt-forge"
           commit_tag="${{ github.sha }}"
