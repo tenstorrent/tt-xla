@@ -7,7 +7,6 @@ import json
 
 import torch
 import ttnn
-import utils
 from consteval import run_const_evals
 from models.common.lightweightmodule import LightweightModule
 
@@ -26,9 +25,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
     def __init__(self, device, torch_weights):
         self.device = device
         self.weights = load_weights_from_pytorch(torch_weights, device)
-        self.weights = run_const_evals(self.weights)
-
-    # ============ Forward ============
+        # Apply const-eval functions to weights
+        self.weights = run_const_evals(self.weights, device)
 
     def forward(self, pixel_values):
         """
@@ -111,7 +109,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
             weight_tensor=self.weights[
                 "image_encoder.vision_model.embeddings.patch_embedding.weight"
             ],
-            device=utils.DeviceGetter.get_device((1, 1)),
+            device=self.device,
             in_channels=3,
             out_channels=1280,
             batch_size=1,
