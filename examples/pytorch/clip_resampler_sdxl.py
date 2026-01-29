@@ -176,7 +176,68 @@ def run_codegen():
     print(f"Code generated to {EXPORT_PATH}")
 
 
+def get_shape_str(tensor_or_tuple):
+    """Get shape string from a tensor or tuple of tensors."""
+    if tensor_or_tuple is None:
+        return "None"
+    if isinstance(tensor_or_tuple, torch.Tensor):
+        return str(list(tensor_or_tuple.shape))
+    if isinstance(tensor_or_tuple, (tuple, list)):
+        shapes = []
+        for t in tensor_or_tuple:
+            if isinstance(t, torch.Tensor):
+                shapes.append(str(list(t.shape)))
+            elif t is None:
+                shapes.append("None")
+            else:
+                shapes.append(type(t).__name__)
+        return f"({', '.join(shapes)})"
+    return type(tensor_or_tuple).__name__
+
+
+def print_module_structure():
+    """Print the hierarchical structure of the model's modules with output shapes."""
+    clip_resampler = get_model()
+    input_data = get_input()
+
+    # Collect shapes via hooks (keyed by module name)
+    shapes = {}
+
+    def make_hook(name):
+        def hook(module, input, output):
+            shapes[name] = get_shape_str(output)
+
+        return hook
+
+    # Register hooks on all modules
+    handles = []
+    for name, module in clip_resampler.named_modules():
+        handle = module.register_forward_hook(make_hook(name))
+        handles.append(handle)
+
+    # Run forward pass to capture shapes
+    with torch.no_grad():
+        clip_resampler(input_data["pixel_values"])
+
+    # Remove hooks
+    for handle in handles:
+        handle.remove()
+
+    # Print in hierarchical order (named_modules order)
+    print("\n" + "=" * 100)
+    print("MODEL STRUCTURE (with output shapes)")
+    print("=" * 100)
+    for name, module in clip_resampler.named_modules():
+        depth = name.count(".") if name else 0
+        indent = "  " * depth
+        module_name = name.split(".")[-1] if name else "(root)"
+        shape = shapes.get(name, "?")
+        print(f"{indent}{module_name}: {module.__class__.__name__} -> {shape}")
+    print("=" * 100 + "\n")
+
+
 def main():
+    print_module_structure()
     run_codegen()
     return
 
