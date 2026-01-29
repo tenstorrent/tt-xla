@@ -15,7 +15,7 @@ PROJECT=$1
 COMMIT_TAG=$2
 
 # todo(vvukoman): change REPO to "tenstorrent" when done to avoid end-user changes
-REPO=tenstorrent/$PROJECT
+REPO=tenstorrent/tt-xla
 IMAGE_NAME=ghcr.io/$REPO/$PROJECT-slim
 
 build_and_push() {
