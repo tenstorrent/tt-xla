@@ -25,7 +25,9 @@ def test_opt_generation():
     }
     llm = vllm.LLM(**llm_args)
 
-    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
+    output_text = (
+        llm.generate(prompts, sampling_params, use_tqdm=False)[0].outputs[0].text
+    )
     print(f"prompt: {prompts[0]}, output: {output_text}")
 
 
@@ -50,7 +52,7 @@ def test_opt_generation_multibatch():
     }
 
     llm = vllm.LLM(**llm_args)
-    output = llm.generate(prompts, sampling_params)
+    output = llm.generate(prompts, sampling_params, use_tqdm=False)
     output_text1 = output[0].outputs[0].text
     output_text2 = output[1].outputs[0].text
     print(f"prompt: {prompts[0]}, output: {output_text1}")
