@@ -9,7 +9,6 @@
         "cacheVariables": {
           "CMAKE_BUILD_TYPE": "Debug",
           "CMAKE_C_COMPILER": "clang-17",
-          "ENABLE_TRACY": "ON",
           "CMAKE_CXX_COMPILER": "clang++-17",
           "CMAKE_C_COMPILER_LAUNCHER": "ccache",
           "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
@@ -19,7 +18,6 @@
           "TT_RUNTIME_DEBUG": "ON",
           "TT_RUNTIME_ENABLE_PERF_TRACE": "ON",
           "TTMLIR_BUILD_TYPE": "Debug",
-          "TTMLIR_ENABLE_RUNTIME_TESTS": "ON",
           "TTMLIR_ENABLE_RUNTIME": "ON",
           "TTMLIR_ENABLE_OPMODEL": "ON",
           "TTMLIR_ENABLE_BINDINGS_PYTHON": "ON",
@@ -41,7 +39,6 @@
           "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
           "CMAKE_EXPORT_COMPILE_COMMANDS": "YES",
           "TTMLIR_BUILD_TYPE": "Release",
-          "TTMLIR_ENABLE_RUNTIME_TESTS": "ON",
           "TTMLIR_ENABLE_RUNTIME": "ON",
           "TTMLIR_ENABLE_BINDINGS_PYTHON": "ON",
           "TT_RUNTIME_DEBUG": "OFF",
