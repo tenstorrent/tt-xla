@@ -56,9 +56,9 @@ def test_sampling_has_diversity_when_temp_positive(llm):
     texts = [o.text for o in outputs]
 
     d = diversity(texts)
-    print("\nDiversity:", d)
+    print(f"[TESTOUT test_sampling_has_diversity_when_temp_positive] Diversity: {d}")
     for i, t in enumerate(texts):
-        print(f"{i}: {t!r}")
+        print(f"[TESTOUT test_sampling_has_diversity_when_temp_positive] {i}: {t!r}")
 
     assert d >= 2, "Expected sampling to produce >=2 unique outputs"
 
@@ -74,7 +74,7 @@ def test_temperature(llm, prompt):
         params = vllm.SamplingParams(temperature=temp, max_tokens=16)
         output = llm.generate(prompt, params)[0].outputs[0].text
         outputs.append(output)
-        print(f"temp={temp}: {output[:50]}...")
+        print(f"[TESTOUT test_temperature] temp={temp}: {output[:50]}...")
 
     # Greedy (temp=0) should be deterministic
     params_greedy = vllm.SamplingParams(temperature=0.0, max_tokens=16)
@@ -96,7 +96,7 @@ def test_top_p(llm, prompt):
         params = vllm.SamplingParams(temperature=0.8, top_p=top_p, max_tokens=16)
         output = llm.generate(prompt, params)[0].outputs[0].text
         outputs.append(output)
-        print(f"top_p={top_p}: {output[:50]}...")
+        print(f"[TESTOUT test_top_p] top_p={top_p}: {output[:50]}...")
 
     assert all(len(o) > 0 for o in outputs), "All outputs should be non-empty"
 
@@ -112,7 +112,7 @@ def test_top_k(llm, prompt):
         params = vllm.SamplingParams(temperature=0.8, top_k=top_k, max_tokens=16)
         output = llm.generate(prompt, params)[0].outputs[0].text
         outputs.append(output)
-        print(f"top_k={top_k}: {output[:50]}...")
+        print(f"[TESTOUT test_top_k] top_k={top_k}: {output[:50]}...")
 
     assert all(len(o) > 0 for o in outputs), "All outputs should be non-empty"
 
@@ -128,7 +128,7 @@ def test_min_p(llm, prompt):
         params = vllm.SamplingParams(temperature=0.8, min_p=min_p, max_tokens=16)
         output = llm.generate(prompt, params)[0].outputs[0].text
         outputs.append(output)
-        print(f"min_p={min_p}: {output[:50]}...")
+        print(f"[TESTOUT test_min_p] min_p={min_p}: {output[:50]}...")
 
     assert all(len(o) > 0 for o in outputs), "All outputs should be non-empty"
 
@@ -146,7 +146,9 @@ def test_presence_penalty(llm, prompt):
         )
         output = llm.generate(prompt, params)[0].outputs[0].text
         outputs.append(output)
-        print(f"presence_penalty={penalty}: {output[:50]}...")
+        print(
+            f"[TESTOUT test_presence_penalty] presence_penalty={penalty}: {output[:50]}..."
+        )
 
     assert all(len(o) > 0 for o in outputs), "All outputs should be non-empty"
 
@@ -164,7 +166,9 @@ def test_frequency_penalty(llm, prompt):
         )
         output = llm.generate(prompt, params)[0].outputs[0].text
         outputs.append(output)
-        print(f"frequency_penalty={penalty}: {output[:50]}...")
+        print(
+            f"[TESTOUT test_frequency_penalty] frequency_penalty={penalty}: {output[:50]}..."
+        )
 
     assert all(len(o) > 0 for o in outputs), "All outputs should be non-empty"
 
@@ -182,7 +186,9 @@ def test_repetition_penalty(llm, prompt):
         )
         output = llm.generate(prompt, params)[0].outputs[0].text
         outputs.append(output)
-        print(f"repetition_penalty={penalty}: {output[:50]}...")
+        print(
+            f"[TESTOUT test_repetition_penalty] repetition_penalty={penalty}: {output[:50]}..."
+        )
 
     assert all(len(o) > 0 for o in outputs), "All outputs should be non-empty"
 
@@ -201,7 +207,7 @@ def test_combined_sampling(llm, prompt):
     for name, config in configs:
         params = vllm.SamplingParams(max_tokens=16, **config)
         output = llm.generate(prompt, params)[0].outputs[0].text
-        print(f"{name}: {output[:50]}...")
+        print(f"[TESTOUT test_combined_sampling] {name}: {output[:50]}...")
         assert len(output) > 0, f"{name} should produce output"
 
 
@@ -218,7 +224,7 @@ def test_stop_sequences(llm, prompt):
     for stop, desc in stop_configs:
         params = vllm.SamplingParams(temperature=0.8, stop=stop, max_tokens=32)
         output = llm.generate(prompt, params)[0].outputs[0].text
-        print(f"{desc}: {output[:50]}...")
+        print(f"[TESTOUT test_stop_sequences] {desc}: {output[:50]}...")
         assert len(output) > 0, f"{desc} should produce output"
 
 
@@ -260,7 +266,7 @@ def test_output_length_controls(llm, prompt):
         token_count = len(output.split())  # Rough token count
 
         print(
-            f"{desc} (max={config.get('max_tokens')}): {token_count} tokens, {output[:40]}..."
+            f"[TESTOUT test_output_length_controls] {desc} (max={config.get('max_tokens')}): {token_count} tokens, {output[:40]}..."
         )
         assert len(output) > 0, f"{desc} should produce output"
 
@@ -275,7 +281,7 @@ def test_greedy_determinism(llm, prompt):
     for i in range(3):
         output = llm.generate(prompt, params)[0].outputs[0].text
         outputs.append(output)
-        print(f"Run {i+1}: {output}")
+        print(f"[TESTOUT test_greedy_determinism] Run {i+1}: {output}")
 
     # All greedy outputs should be identical
     assert (
@@ -299,5 +305,7 @@ def test_parameter_boundary_values(llm, prompt):
 
     for i, params in enumerate(test_cases):
         output = llm.generate(prompt, params)[0].outputs[0].text
-        print(f"Test {i+1}: {str(params)[:60]}... -> {output[:40]}...")
+        print(
+            f"[TESTOUT test_parameter_boundary_values] Test {i+1}: {str(params)[:60]}... -> {output[:40]}..."
+        )
         assert len(output) > 0, f"Boundary test {i+1} should produce output"
