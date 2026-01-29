@@ -26,6 +26,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
         )
+
         v0_ttnn_to_layout_287 = ttnn.to_layout(
             pixel_values,
             ttnn.Layout.TILE,
