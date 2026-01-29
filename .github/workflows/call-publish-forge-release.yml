@@ -29,9 +29,6 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-tags: true
-          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -112,7 +109,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
+          if git ls-remote --tags origin "refs/tags/$tag" | grep -q "$tag"; then
+            echo "Remote tag $tag already exists"
+          elif git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
             echo "Tag $tag already exists"
           else
             git tag -a "$tag" -m "Release $tag" "$commit"
