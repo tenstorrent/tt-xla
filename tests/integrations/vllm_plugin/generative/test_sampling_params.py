@@ -41,9 +41,6 @@ def diversity(texts):
 
 @pytest.mark.push
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    reason="Sampling params currently ignored (greedy forced) - https://github.com/tenstorrent/tt-xla/issues/3026"
-)
 def test_sampling_has_diversity_when_temp_positive(llm):
     params = vllm.SamplingParams(
         temperature=1.0,
@@ -52,7 +49,7 @@ def test_sampling_has_diversity_when_temp_positive(llm):
         max_tokens=16,
     )
     # IMPORTANT: llm must allow max_num_seqs >= n
-    outputs = llm.generate(BRANCHY_PROMPT, params)[0].outputs
+    outputs = llm.generate(BRANCHY_PROMPT, params, use_tqdm=False)[0].outputs
     texts = [o.text for o in outputs]
 
     d = diversity(texts)
@@ -72,13 +69,15 @@ def test_temperature(llm, prompt):
 
     for temp in temperatures:
         params = vllm.SamplingParams(temperature=temp, max_tokens=16)
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         outputs.append(output)
         print(f"[TESTOUT test_temperature] temp={temp}: {output[:50]}...")
 
     # Greedy (temp=0) should be deterministic
     params_greedy = vllm.SamplingParams(temperature=0.0, max_tokens=16)
-    output_greedy_2 = llm.generate(prompt, params_greedy)[0].outputs[0].text
+    output_greedy_2 = (
+        llm.generate(prompt, params_greedy, use_tqdm=False)[0].outputs[0].text
+    )
     assert outputs[0] == output_greedy_2, "Greedy sampling should be deterministic"
 
     # All outputs should be non-empty
@@ -94,7 +93,7 @@ def test_top_p(llm, prompt):
 
     for top_p in top_p_values:
         params = vllm.SamplingParams(temperature=0.8, top_p=top_p, max_tokens=16)
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         outputs.append(output)
         print(f"[TESTOUT test_top_p] top_p={top_p}: {output[:50]}...")
 
@@ -110,7 +109,7 @@ def test_top_k(llm, prompt):
 
     for top_k in top_k_values:
         params = vllm.SamplingParams(temperature=0.8, top_k=top_k, max_tokens=16)
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         outputs.append(output)
         print(f"[TESTOUT test_top_k] top_k={top_k}: {output[:50]}...")
 
@@ -126,7 +125,7 @@ def test_min_p(llm, prompt):
 
     for min_p in min_p_values:
         params = vllm.SamplingParams(temperature=0.8, min_p=min_p, max_tokens=16)
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         outputs.append(output)
         print(f"[TESTOUT test_min_p] min_p={min_p}: {output[:50]}...")
 
@@ -144,7 +143,7 @@ def test_presence_penalty(llm, prompt):
         params = vllm.SamplingParams(
             temperature=0.8, presence_penalty=penalty, max_tokens=16
         )
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         outputs.append(output)
         print(
             f"[TESTOUT test_presence_penalty] presence_penalty={penalty}: {output[:50]}..."
@@ -164,7 +163,7 @@ def test_frequency_penalty(llm, prompt):
         params = vllm.SamplingParams(
             temperature=0.8, frequency_penalty=penalty, max_tokens=16
         )
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         outputs.append(output)
         print(
             f"[TESTOUT test_frequency_penalty] frequency_penalty={penalty}: {output[:50]}..."
@@ -184,7 +183,7 @@ def test_repetition_penalty(llm, prompt):
         params = vllm.SamplingParams(
             temperature=0.8, repetition_penalty=penalty, max_tokens=16
         )
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         outputs.append(output)
         print(
             f"[TESTOUT test_repetition_penalty] repetition_penalty={penalty}: {output[:50]}..."
@@ -206,7 +205,7 @@ def test_combined_sampling(llm, prompt):
 
     for name, config in configs:
         params = vllm.SamplingParams(max_tokens=16, **config)
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         print(f"[TESTOUT test_combined_sampling] {name}: {output[:50]}...")
         assert len(output) > 0, f"{name} should produce output"
 
@@ -223,7 +222,7 @@ def test_stop_sequences(llm, prompt):
 
     for stop, desc in stop_configs:
         params = vllm.SamplingParams(temperature=0.8, stop=stop, max_tokens=32)
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         print(f"[TESTOUT test_stop_sequences] {desc}: {output[:50]}...")
         assert len(output) > 0, f"{desc} should produce output"
 
@@ -236,7 +235,7 @@ def test_logprobs(llm, prompt):
 
     for logprobs in logprobs_values:
         params = vllm.SamplingParams(temperature=0.8, logprobs=logprobs, max_tokens=8)
-        result = llm.generate(prompt, params)[0].outputs[0]
+        result = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
 
         print(
             f"logprobs={logprobs}: {result.text[:30]}... has_logprobs={result.logprobs is not None}"
@@ -262,7 +261,7 @@ def test_output_length_controls(llm, prompt):
 
     for config, desc in configs:
         params = vllm.SamplingParams(temperature=0.0, **config)
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         token_count = len(output.split())  # Rough token count
 
         print(
@@ -279,7 +278,7 @@ def test_greedy_determinism(llm, prompt):
 
     outputs = []
     for i in range(3):
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         outputs.append(output)
         print(f"[TESTOUT test_greedy_determinism] Run {i+1}: {output}")
 
@@ -304,7 +303,7 @@ def test_parameter_boundary_values(llm, prompt):
     ]
 
     for i, params in enumerate(test_cases):
-        output = llm.generate(prompt, params)[0].outputs[0].text
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
         print(
             f"[TESTOUT test_parameter_boundary_values] Test {i+1}: {str(params)[:60]}... -> {output[:40]}..."
         )
