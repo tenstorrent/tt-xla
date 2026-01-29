@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from typing import Tuple
+from typing import Iterable, Tuple
 
 import torch
 import torch.export
@@ -10,7 +10,10 @@ import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
-from torch.export.graph_signature import InputKind, OutputKind
+from torch.export.graph_signature import InputKind, OutputKind, ExportGraphSignature
+from functorch.compile import aot_module_simplified, aot_function, aot_module
+from torch._dynamo.backends.common import AotAutograd
+from torch._subclasses.fake_tensor import FakeTensor
 
 from .decompositions import populate_decompositions
 from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
@@ -33,6 +36,12 @@ def torch_pass_pipeline(
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
+
+    # Check if we're dealing with FakeTensors (AOT tracing phase)
+    if any(isinstance(inp, FakeTensor) for inp in example_inputs):
+        from torch.export.graph_signature import ExportGraphSignature
+        dummy_signature = ExportGraphSignature(input_specs=[], output_specs=[])
+        return gm, dummy_signature, []
 
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
@@ -103,19 +112,12 @@ class XLAExecutor:
         # We need xla debug to be enabled in order for torch-xla to inject metadata
         self.inject_metadata = os.environ.get("XLA_HLO_DEBUG", "0") == "1" and node_info
 
-        # Collect all devices this model will use. This device list is used to
-        # signal to torch xla which devices are involved in computing the output
-        # tensors, so that we may cut the graph on the output tensors correctly.
-        self.devices = set()
-        for _, tensor in module.state_dict().items():
-            self.devices.add(tensor.device.type)
-        self.devices = list(self.devices)
-
         # Whether to enable the legacy compile flow.
         # The following group of fields will only be used if the experimental flow is enabled.
         self.legacy_compile_enabled = legacy_compile_enabled
         self.params_and_consts = None
         self.compiled_graph = None
+        self.devices = None  # Initialize devices to avoid AttributeError
 
     # Extract the param and consts from the exported program.
     def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
@@ -158,6 +160,9 @@ class XLAExecutor:
         return total_args
 
     def _call_experimental_compile(self, *args):
+        if any(isinstance(a, FakeTensor) for a in args):
+            return self.module(*args)
+    
         if self.compiled_graph is None:
             # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
@@ -179,6 +184,16 @@ class XLAExecutor:
 
         full_args = self.params_and_consts + args
         return self.compiled_graph(*full_args)
+    
+    def _flatten_tensors(self, x):
+        if isinstance(x, torch.Tensor):
+            return [x]
+        if isinstance(x, Iterable):
+            out = []
+            for e in x:
+                out.extend(self._flatten_tensors(e))
+            return out
+        return []
 
     def __call__(self, *args):
         if not self.legacy_compile_enabled:
@@ -201,6 +216,14 @@ class XLAExecutor:
         if gm_has_functional_output_kind:
             # This tells torch-xla to cut the graph at only what is required to
             # compute all tensors in the `output` list.
+            flat_out = self._flatten_tensors(output)
+            if self.devices is None:
+                devs = set()
+                for t in flat_out:
+                    if isinstance(t, torch.Tensor) and hasattr(t, "device"):
+                        if t.device.type == "xla":
+                            devs.add(t.device)
+                self.devices = list(devs)
             torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
         else:
             # Some graphs have side effects not included in graph output.
@@ -215,9 +238,6 @@ class XLAExecutor:
 @register_backend(name="tt")
 def xla_backend(gm, example_inputs, options=None):
     """TT backend for torch.compile."""
-    module, graph_signature, node_info = torch_pass_pipeline(
-        gm, example_inputs, options
-    )
     legacy_compile_enabled = False
     if options:
         if "tt_experimental_compile" in options:
@@ -228,4 +248,19 @@ def xla_backend(gm, example_inputs, options=None):
             legacy_compile_enabled = not bool(options["tt_experimental_compile"])
         if "tt_legacy_compile" in options:
             legacy_compile_enabled = bool(options["tt_legacy_compile"])
-    return XLAExecutor(module, graph_signature, node_info, legacy_compile_enabled)
+
+
+    def compiler(sub_gm, sub_inputs):
+        compiled_graph, sub_sig, sub_node_info = torch_pass_pipeline(
+            sub_gm, sub_inputs, options
+        )
+        return XLAExecutor(
+            compiled_graph,
+            sub_sig,
+            sub_node_info,
+            legacy_compile_enabled=legacy_compile_enabled,
+        )
+
+    # Use AotAutograd which properly handles graph modules
+    aot_instance = AotAutograd(fw_compiler=compiler, bw_compiler=compiler)
+    return aot_instance(gm, example_inputs) 
