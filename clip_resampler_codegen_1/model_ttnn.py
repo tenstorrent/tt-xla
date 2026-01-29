@@ -378,11 +378,11 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
 
         # Split into Q, K, V (each 1280)
-        # Order in fused weight: V, K, Q (based on consteval ordering)
+        # Order in fused weight: Q, K, V (based on consteval concat order)
         q = ttnn.slice(
             x,
-            [0, 0, 2560],
-            [1, 257, 3840],
+            [0, 0, 0],
+            [1, 257, 1280],
             [1, 1, 1],
             memory_config=ttnn.DRAM_MEMORY_CONFIG,
         )
@@ -395,8 +395,8 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v = ttnn.slice(
             x,
-            [0, 0, 0],
-            [1, 257, 1280],
+            [0, 0, 2560],
+            [1, 257, 3840],
             [1, 1, 1],
             memory_config=ttnn.DRAM_MEMORY_CONFIG,
         )
@@ -441,11 +441,10 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
 
         # Scaled Dot-Product Attention
-        # Original generated code uses (V, K, Q) argument order - match it exactly
         attn_output = ttnn.transformer.scaled_dot_product_attention(
-            v,
-            k,
             q,
+            k,
+            v,
             attn_mask=None,
             is_causal=False,
             scale=0.11180340498685837,  # 1/sqrt(80)
