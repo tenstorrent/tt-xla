@@ -14,6 +14,7 @@ inside a torch.compile region.
 from __future__ import annotations
 
 import argparse
+import logging
 from io import BytesIO
 from typing import Tuple
 
@@ -22,6 +23,8 @@ import torch
 import torch_xla
 from PIL import Image
 from torchvision import models
+
+torch._logging.set_logs(all=logging.DEBUG)
 
 DEFAULT_IMAGE_URL = "http://images.cocodataset.org/val2017/000000039769.jpg"
 
@@ -56,7 +59,6 @@ def _load_swin_s_model_and_inputs(
 
 
 def _train_step(model: torch.nn.Module, x: torch.Tensor) -> torch.Tensor:
-    model.train()
     out = model(x)
     loss = out.float().mean()
     loss.backward()
@@ -68,13 +70,11 @@ def main() -> None:
 
     model, inputs = _load_swin_s_model_and_inputs(image_url=DEFAULT_IMAGE_URL)
 
-    device = torch_xla.device()
+    device = "cpu"  # torch_xla.device()
     model = model.to(device)
     inputs = inputs.to(device)
 
-    print(f"torch={torch.__version__} device={device} backend=openxla")
-
-    compiled_step = torch.compile(_train_step, backend="openxla")
+    compiled_step = torch.compile(_train_step, backend="inductor")
 
     loss = compiled_step(model, inputs)
     print(f"Loss: {loss.item():.6f}")
