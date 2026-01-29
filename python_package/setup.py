@@ -368,6 +368,7 @@ class CMakeBuildPy(build_py):
             "hw/**/*",
             "hostdevcommon/api/hostdevcommon/**/*",
             "impl/dispatch/kernels/**/*",
+            "impl/dispatch/kernels/*",
             "include/**/*",
             "kernels/**/*",
             "third_party/tt_llk/**/*",
