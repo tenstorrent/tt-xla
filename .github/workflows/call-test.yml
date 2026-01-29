@@ -343,7 +343,7 @@ jobs:
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
-          uv pip uninstall -y vllm transformers
+          uv pip uninstall vllm transformers
           uv pip install -r $(pwd)/venv/requirements-dev.txt
         fi
 
