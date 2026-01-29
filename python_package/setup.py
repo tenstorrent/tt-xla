@@ -409,7 +409,7 @@ def _remove_bloat_files(dir_path: Path, patterns: list[str]) -> None:
     if dir_path.exists() and dir_path.is_dir():
         for file in dir_path.rglob("*"):
             if file.is_file() and file.name in patterns:
-                print(f"Removing excluded file: {file.relative_to(dir_path)}")
+                print(f"Removing excluded file: {file}")
                 file.unlink()
 
 
@@ -419,7 +419,7 @@ def _remove_bloat_leave_patterns(dir_path: Path, leave_patterns: list[str]) -> N
             if file.is_file() and all(
                 not file.match(pattern) for pattern in leave_patterns
             ):
-                print(f"Removing excluded file: {file.relative_to(dir_path)}")
+                print(f"Removing excluded file: {file}")
                 file.unlink()
 
 
@@ -477,12 +477,19 @@ def _deduplicate_shared_objects(root: Path) -> None:
                 continue
 
             try:
-                target_path.relative_to(root)
+                rel_symlink = so_file.relative_to(root)
+                rel_target = target_path.relative_to(root)
             except ValueError:
                 continue
-
-            rel_symlink = so_file.relative_to(root)
-            rel_target = target_path.relative_to(root)
+            # Exclude files in tt-metal/runtime/sfpi/compiler/lib/
+            if rel_target.parts[:5] == (
+                "tt-metal",
+                "runtime",
+                "sfpi",
+                "compiler",
+                "lib",
+            ):
+                continue
             print(
                 f"Materializing shared library symlink: {rel_symlink} -> {rel_target}"
             )
