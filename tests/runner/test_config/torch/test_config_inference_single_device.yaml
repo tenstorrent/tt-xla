@@ -1039,28 +1039,22 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7x-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Function path mismatch for /usr/local/lib/python3.11/dist-packages/torch/_tensor.py:39 between simple and ast modes - https://github.com/tenstorrent/tt-xla/issues/2525"
-    bringup_status: FAILED_FE_COMPILATION
+    status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7-single_device-inference:
     status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7-w6-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+    status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7-e6-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+    status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7-d6-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+    status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7-e6e-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+    status: EXPECTED_PASSING
 
   yolox/pytorch-yolox_nano-single_device-inference:
     status: EXPECTED_PASSING
