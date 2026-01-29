@@ -10,10 +10,8 @@ import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
-from torch.export.graph_signature import InputKind, OutputKind, ExportGraphSignature
-from functorch.compile import aot_module_simplified, aot_function, aot_module
-from torch._dynamo.backends.common import AotAutograd
-from torch._subclasses.fake_tensor import FakeTensor
+from torch.export.graph_signature import InputKind, OutputKind
+from functorch.compile import aot_module_simplified
 
 from .decompositions import populate_decompositions
 from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
@@ -36,12 +34,6 @@ def torch_pass_pipeline(
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
-
-    # Check if we're dealing with FakeTensors (AOT tracing phase)
-    if any(isinstance(inp, FakeTensor) for inp in example_inputs):
-        from torch.export.graph_signature import ExportGraphSignature
-        dummy_signature = ExportGraphSignature(input_specs=[], output_specs=[])
-        return gm, dummy_signature, []
 
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
@@ -104,20 +96,21 @@ class XLAExecutor:
         signature: torch.export.ExportGraphSignature,
         node_info: list[str],
         legacy_compile_enabled: bool,
+        options: dict[str, bool] | None = None,
     ):
         self.module = module
         self.signature = signature
         self.node_info = node_info
+        self.options = options
         # Inject metadata if xla debug is enabled and node_info is not empty
         # We need xla debug to be enabled in order for torch-xla to inject metadata
         self.inject_metadata = os.environ.get("XLA_HLO_DEBUG", "0") == "1" and node_info
 
         # Whether to enable the legacy compile flow.
-        # The following group of fields will only be used if the experimental flow is enabled.
         self.legacy_compile_enabled = legacy_compile_enabled
         self.params_and_consts = None
         self.compiled_graph = None
-        self.devices = None  # Initialize devices to avoid AttributeError
+        self.devices = None
 
     # Extract the param and consts from the exported program.
     def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
@@ -159,32 +152,49 @@ class XLAExecutor:
 
         return total_args
 
+    def _compile_fx_graph(self, gm, args, run_decompositions=True):
+        """Compile a graph module for XLA execution."""
+        if run_decompositions:
+            compiled_graph, _, _ = torch_pass_pipeline(gm, args, self.options)
+        else:
+            # Backward graph: run fusion and composite ops only, skip decompositions
+            if self.options is None or self.options.get("tt_enable_torch_fx_fusion_pass", True):
+                gm = run_fusion_passes(gm)
+            if self.options is None or self.options.get("tt_enable_composite_ops", True):
+                handle_composite_ops(gm)
+            gm.recompile()
+            compiled_graph = gm
+
+        return bridge.extract_compiled_graph(compiled_graph, args)
+
+    def _make_lazy_compiler(self, run_decompositions):
+        """Create a lazy compiler that defers compilation until real tensors arrive."""
+        def compiler(gm, example_inputs):
+            compiled_fn = None
+
+            def wrapper(*args):
+                nonlocal compiled_fn
+                if compiled_fn is None:
+                    compiled_fn = self._compile_fx_graph(gm, args, run_decompositions)
+                return compiled_fn(*args)
+
+            return wrapper
+        return compiler
+
     def _call_experimental_compile(self, *args):
-        if any(isinstance(a, FakeTensor) for a in args):
-            return self.module(*args)
-    
         if self.compiled_graph is None:
-            # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
-            # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
-            program = torch.export.export(self.module, tuple(args), strict=False)
-
-            # Note(sgligorijevic): Has to be ran here and not in the pipeline because otherwise the export above blows up. This is hacky.
-            program = replace_cpu_device_with_xla(program)
-
-            # Collect the params and constants from the exported program.
-            self.params_and_consts = self._build_params_and_consts(program)
-
-            # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
-            # This helps us avoid tracing the graph on the subsequent model execution. On the next
-            # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
-            # without any tracing.
-            self.compiled_graph = bridge.extract_compiled_graph(
-                program.graph_module, self.params_and_consts + args
+            # Use AOT Autograd to handle forward/backward separation.
+            # Forward: full pipeline with decompositions
+            # Backward: fusion + composite ops only (decompositions break backward ops)
+            self.compiled_graph = aot_module_simplified(
+                self.module,
+                args,
+                fw_compiler=self._make_lazy_compiler(run_decompositions=True),
+                bw_compiler=self._make_lazy_compiler(run_decompositions=False),
             )
 
-        full_args = self.params_and_consts + args
-        return self.compiled_graph(*full_args)
-    
+        return self.compiled_graph(*args)
+
     def _flatten_tensors(self, x):
         if isinstance(x, torch.Tensor):
             return [x]
@@ -222,7 +232,7 @@ class XLAExecutor:
                 for t in flat_out:
                     if isinstance(t, torch.Tensor) and hasattr(t, "device"):
                         if t.device.type == "xla":
-                            devs.add(t.device)
+                            devs.add(str(t.device))
                 self.devices = list(devs)
             torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
         else:
@@ -249,18 +259,26 @@ def xla_backend(gm, example_inputs, options=None):
         if "tt_legacy_compile" in options:
             legacy_compile_enabled = bool(options["tt_legacy_compile"])
 
-
-    def compiler(sub_gm, sub_inputs):
-        compiled_graph, sub_sig, sub_node_info = torch_pass_pipeline(
-            sub_gm, sub_inputs, options
-        )
+    if not legacy_compile_enabled:
+        # For experimental compile (AOT Autograd), pass the raw graph module.
+        # The pass pipeline will run inside the AOT compiler with real tensors.
+        from torch.export.graph_signature import ExportGraphSignature
+        dummy_signature = ExportGraphSignature(input_specs=[], output_specs=[])
         return XLAExecutor(
-            compiled_graph,
-            sub_sig,
-            sub_node_info,
-            legacy_compile_enabled=legacy_compile_enabled,
+            gm,
+            dummy_signature,
+            [],
+            legacy_compile_enabled=False,
+            options=options,
         )
 
-    # Use AotAutograd which properly handles graph modules
-    aot_instance = AotAutograd(fw_compiler=compiler, bw_compiler=compiler)
-    return aot_instance(gm, example_inputs) 
+    # Legacy compile: run pass pipeline upfront
+    compiled_graph, sub_sig, sub_node_info = torch_pass_pipeline(
+        gm, example_inputs, options
+    )
+    return XLAExecutor(
+        compiled_graph,
+        sub_sig,
+        sub_node_info,
+        legacy_compile_enabled=True,
+    )
