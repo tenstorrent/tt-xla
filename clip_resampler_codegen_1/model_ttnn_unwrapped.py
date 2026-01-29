@@ -11,10 +11,10 @@ from models.common.lightweightmodule import LightweightModule
 
 
 class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
-    def __init__(self, device, torch_weights, cache):
+    def __init__(self, device, torch_weights):
         self.device = device
         self.weights = load_weights_from_pytorch(torch_weights, device)
-        self.cer = run_const_evals(self.weights, cache)
+        self.weights = run_const_evals(self.weights)
 
     def forward(self, pixel_values):
         # Move input to device
@@ -52,7 +52,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v0_ttnn_conv2d_0 = ttnn.conv2d(
             input_tensor=v0_ttnn_reshape_192,
-            weight_tensor=self.cer["utils_constEvalFuncWrapper_66_0"],
+            weight_tensor=self.weights[
+                "image_encoder.vision_model.embeddings.patch_embedding.weight"
+            ],
             device=v0_utils_DeviceGetter_get_device_162,
             in_channels=3,
             out_channels=1280,
@@ -103,7 +105,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
             ),
         )
         v0_util_create_list_386 = [
-            self.cer["utils_constEvalFuncWrapper_142_0"],
+            self.weights["image_encoder.vision_model.embeddings.class_embedding"],
             v0_ttnn_reshape_194,
         ]
         v0_ttnn_concat_62 = ttnn.concat(
@@ -115,7 +117,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v0_ttnn_add_0 = ttnn.add(
             v0_ttnn_concat_62,
-            self.cer["utils_constEvalFuncWrapper_88_0"],
+            self.weights["utils_constEvalFuncWrapper_88_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -167,7 +169,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v3_ttnn_matmul_1 = ttnn.matmul(
             v3_ttnn_reshape_195,
-            self.cer["utils_constEvalFuncWrapper_70_0"],
+            self.weights["utils_constEvalFuncWrapper_70_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -179,7 +181,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v3_ttnn_add_1 = ttnn.add(
             v3_ttnn_matmul_1,
-            self.cer["utils_constEvalFuncWrapper_47_0"],
+            self.weights["utils_constEvalFuncWrapper_47_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -338,7 +340,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v3_ttnn_add_2 = ttnn.add(
             v3_ttnn_matmul_2,
-            self.cer["utils_constEvalFuncWrapper_124_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.0.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -390,7 +394,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v5_ttnn_add_4 = ttnn.add(
             v5_ttnn_matmul_3,
-            self.cer["utils_constEvalFuncWrapper_42_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.0.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -424,7 +428,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v5_ttnn_add_5 = ttnn.add(
             v5_ttnn_matmul_4,
-            self.cer["utils_constEvalFuncWrapper_73_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.0.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -464,7 +468,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v7_ttnn_matmul_5 = ttnn.matmul(
             v7_ttnn_reshape_202,
-            self.cer["utils_constEvalFuncWrapper_157_0"],
+            self.weights["utils_constEvalFuncWrapper_157_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -476,7 +480,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v7_ttnn_add_7 = ttnn.add(
             v7_ttnn_matmul_5,
-            self.cer["utils_constEvalFuncWrapper_62_0"],
+            self.weights["utils_constEvalFuncWrapper_62_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -635,7 +639,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v7_ttnn_add_8 = ttnn.add(
             v7_ttnn_matmul_6,
-            self.cer["utils_constEvalFuncWrapper_55_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.1.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -687,7 +693,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v9_ttnn_add_10 = ttnn.add(
             v9_ttnn_matmul_7,
-            self.cer["utils_constEvalFuncWrapper_13_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.1.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -721,7 +727,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v9_ttnn_add_11 = ttnn.add(
             v9_ttnn_matmul_8,
-            self.cer["utils_constEvalFuncWrapper_21_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.1.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -761,7 +767,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v11_ttnn_matmul_9 = ttnn.matmul(
             v11_ttnn_reshape_209,
-            self.cer["utils_constEvalFuncWrapper_25_0"],
+            self.weights["utils_constEvalFuncWrapper_25_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -773,7 +779,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v11_ttnn_add_13 = ttnn.add(
             v11_ttnn_matmul_9,
-            self.cer["utils_constEvalFuncWrapper_80_0"],
+            self.weights["utils_constEvalFuncWrapper_80_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -932,7 +938,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v11_ttnn_add_14 = ttnn.add(
             v11_ttnn_matmul_10,
-            self.cer["utils_constEvalFuncWrapper_122_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.2.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -984,7 +992,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v13_ttnn_add_16 = ttnn.add(
             v13_ttnn_matmul_11,
-            self.cer["utils_constEvalFuncWrapper_81_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.2.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1018,7 +1026,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v13_ttnn_add_17 = ttnn.add(
             v13_ttnn_matmul_12,
-            self.cer["utils_constEvalFuncWrapper_146_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.2.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1058,7 +1066,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v15_ttnn_matmul_13 = ttnn.matmul(
             v15_ttnn_reshape_216,
-            self.cer["utils_constEvalFuncWrapper_26_0"],
+            self.weights["utils_constEvalFuncWrapper_26_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1070,7 +1078,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v15_ttnn_add_19 = ttnn.add(
             v15_ttnn_matmul_13,
-            self.cer["utils_constEvalFuncWrapper_90_0"],
+            self.weights["utils_constEvalFuncWrapper_90_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1229,7 +1237,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v15_ttnn_add_20 = ttnn.add(
             v15_ttnn_matmul_14,
-            self.cer["utils_constEvalFuncWrapper_132_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.3.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1281,7 +1291,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v17_ttnn_add_22 = ttnn.add(
             v17_ttnn_matmul_15,
-            self.cer["utils_constEvalFuncWrapper_145_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.3.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1315,7 +1325,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v17_ttnn_add_23 = ttnn.add(
             v17_ttnn_matmul_16,
-            self.cer["utils_constEvalFuncWrapper_10_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.3.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1355,7 +1365,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v19_ttnn_matmul_17 = ttnn.matmul(
             v19_ttnn_reshape_223,
-            self.cer["utils_constEvalFuncWrapper_127_0"],
+            self.weights["utils_constEvalFuncWrapper_127_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1367,7 +1377,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v19_ttnn_add_25 = ttnn.add(
             v19_ttnn_matmul_17,
-            self.cer["utils_constEvalFuncWrapper_43_0"],
+            self.weights["utils_constEvalFuncWrapper_43_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1526,7 +1536,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v19_ttnn_add_26 = ttnn.add(
             v19_ttnn_matmul_18,
-            self.cer["utils_constEvalFuncWrapper_97_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.4.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1578,7 +1590,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v21_ttnn_add_28 = ttnn.add(
             v21_ttnn_matmul_19,
-            self.cer["utils_constEvalFuncWrapper_150_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.4.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1612,7 +1624,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v21_ttnn_add_29 = ttnn.add(
             v21_ttnn_matmul_20,
-            self.cer["utils_constEvalFuncWrapper_149_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.4.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1652,7 +1664,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v23_ttnn_matmul_21 = ttnn.matmul(
             v23_ttnn_reshape_230,
-            self.cer["utils_constEvalFuncWrapper_96_0"],
+            self.weights["utils_constEvalFuncWrapper_96_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1664,7 +1676,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v23_ttnn_add_31 = ttnn.add(
             v23_ttnn_matmul_21,
-            self.cer["utils_constEvalFuncWrapper_158_0"],
+            self.weights["utils_constEvalFuncWrapper_158_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1823,7 +1835,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v23_ttnn_add_32 = ttnn.add(
             v23_ttnn_matmul_22,
-            self.cer["utils_constEvalFuncWrapper_69_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.5.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1875,7 +1889,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v25_ttnn_add_34 = ttnn.add(
             v25_ttnn_matmul_23,
-            self.cer["utils_constEvalFuncWrapper_91_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.5.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1909,7 +1923,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v25_ttnn_add_35 = ttnn.add(
             v25_ttnn_matmul_24,
-            self.cer["utils_constEvalFuncWrapper_106_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.5.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -1949,7 +1963,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v27_ttnn_matmul_25 = ttnn.matmul(
             v27_ttnn_reshape_237,
-            self.cer["utils_constEvalFuncWrapper_128_0"],
+            self.weights["utils_constEvalFuncWrapper_128_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -1961,7 +1975,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v27_ttnn_add_37 = ttnn.add(
             v27_ttnn_matmul_25,
-            self.cer["utils_constEvalFuncWrapper_99_0"],
+            self.weights["utils_constEvalFuncWrapper_99_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2120,7 +2134,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v27_ttnn_add_38 = ttnn.add(
             v27_ttnn_matmul_26,
-            self.cer["utils_constEvalFuncWrapper_46_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.6.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2172,7 +2188,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v29_ttnn_add_40 = ttnn.add(
             v29_ttnn_matmul_27,
-            self.cer["utils_constEvalFuncWrapper_53_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.6.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2206,7 +2222,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v29_ttnn_add_41 = ttnn.add(
             v29_ttnn_matmul_28,
-            self.cer["utils_constEvalFuncWrapper_103_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.6.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2246,7 +2262,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v31_ttnn_matmul_29 = ttnn.matmul(
             v31_ttnn_reshape_244,
-            self.cer["utils_constEvalFuncWrapper_49_0"],
+            self.weights["utils_constEvalFuncWrapper_49_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2258,7 +2274,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v31_ttnn_add_43 = ttnn.add(
             v31_ttnn_matmul_29,
-            self.cer["utils_constEvalFuncWrapper_84_0"],
+            self.weights["utils_constEvalFuncWrapper_84_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2417,7 +2433,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v31_ttnn_add_44 = ttnn.add(
             v31_ttnn_matmul_30,
-            self.cer["utils_constEvalFuncWrapper_120_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.7.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2469,7 +2487,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v33_ttnn_add_46 = ttnn.add(
             v33_ttnn_matmul_31,
-            self.cer["utils_constEvalFuncWrapper_27_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.7.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2503,7 +2521,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v33_ttnn_add_47 = ttnn.add(
             v33_ttnn_matmul_32,
-            self.cer["utils_constEvalFuncWrapper_153_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.7.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2543,7 +2561,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v35_ttnn_matmul_33 = ttnn.matmul(
             v35_ttnn_reshape_251,
-            self.cer["utils_constEvalFuncWrapper_29_0"],
+            self.weights["utils_constEvalFuncWrapper_29_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2555,7 +2573,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v35_ttnn_add_49 = ttnn.add(
             v35_ttnn_matmul_33,
-            self.cer["utils_constEvalFuncWrapper_40_0"],
+            self.weights["utils_constEvalFuncWrapper_40_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2714,7 +2732,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v35_ttnn_add_50 = ttnn.add(
             v35_ttnn_matmul_34,
-            self.cer["utils_constEvalFuncWrapper_74_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.8.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2766,7 +2786,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v37_ttnn_add_52 = ttnn.add(
             v37_ttnn_matmul_35,
-            self.cer["utils_constEvalFuncWrapper_24_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.8.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2800,7 +2820,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v37_ttnn_add_53 = ttnn.add(
             v37_ttnn_matmul_36,
-            self.cer["utils_constEvalFuncWrapper_93_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.8.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -2840,7 +2860,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v39_ttnn_matmul_37 = ttnn.matmul(
             v39_ttnn_reshape_258,
-            self.cer["utils_constEvalFuncWrapper_119_0"],
+            self.weights["utils_constEvalFuncWrapper_119_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -2852,7 +2872,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v39_ttnn_add_55 = ttnn.add(
             v39_ttnn_matmul_37,
-            self.cer["utils_constEvalFuncWrapper_133_0"],
+            self.weights["utils_constEvalFuncWrapper_133_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3011,7 +3031,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v39_ttnn_add_56 = ttnn.add(
             v39_ttnn_matmul_38,
-            self.cer["utils_constEvalFuncWrapper_113_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.9.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3063,7 +3085,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v41_ttnn_add_58 = ttnn.add(
             v41_ttnn_matmul_39,
-            self.cer["utils_constEvalFuncWrapper_155_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.9.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3097,7 +3119,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v41_ttnn_add_59 = ttnn.add(
             v41_ttnn_matmul_40,
-            self.cer["utils_constEvalFuncWrapper_2_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.9.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3137,7 +3159,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v43_ttnn_matmul_41 = ttnn.matmul(
             v43_ttnn_reshape_265,
-            self.cer["utils_constEvalFuncWrapper_152_0"],
+            self.weights["utils_constEvalFuncWrapper_152_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3149,7 +3171,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v43_ttnn_add_61 = ttnn.add(
             v43_ttnn_matmul_41,
-            self.cer["utils_constEvalFuncWrapper_71_0"],
+            self.weights["utils_constEvalFuncWrapper_71_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3308,7 +3330,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v43_ttnn_add_62 = ttnn.add(
             v43_ttnn_matmul_42,
-            self.cer["utils_constEvalFuncWrapper_64_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.10.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3360,7 +3384,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v45_ttnn_add_64 = ttnn.add(
             v45_ttnn_matmul_43,
-            self.cer["utils_constEvalFuncWrapper_95_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.10.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3394,7 +3418,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v45_ttnn_add_65 = ttnn.add(
             v45_ttnn_matmul_44,
-            self.cer["utils_constEvalFuncWrapper_85_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.10.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3434,7 +3458,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v47_ttnn_matmul_45 = ttnn.matmul(
             v47_ttnn_reshape_272,
-            self.cer["utils_constEvalFuncWrapper_67_0"],
+            self.weights["utils_constEvalFuncWrapper_67_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3446,7 +3470,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v47_ttnn_add_67 = ttnn.add(
             v47_ttnn_matmul_45,
-            self.cer["utils_constEvalFuncWrapper_116_0"],
+            self.weights["utils_constEvalFuncWrapper_116_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3605,7 +3629,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v47_ttnn_add_68 = ttnn.add(
             v47_ttnn_matmul_46,
-            self.cer["utils_constEvalFuncWrapper_140_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.11.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3657,7 +3683,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v49_ttnn_add_70 = ttnn.add(
             v49_ttnn_matmul_47,
-            self.cer["utils_constEvalFuncWrapper_156_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.11.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3691,7 +3717,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v49_ttnn_add_71 = ttnn.add(
             v49_ttnn_matmul_48,
-            self.cer["utils_constEvalFuncWrapper_151_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.11.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3731,7 +3757,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v51_ttnn_matmul_49 = ttnn.matmul(
             v51_ttnn_reshape_279,
-            self.cer["utils_constEvalFuncWrapper_87_0"],
+            self.weights["utils_constEvalFuncWrapper_87_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -3743,7 +3769,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v51_ttnn_add_73 = ttnn.add(
             v51_ttnn_matmul_49,
-            self.cer["utils_constEvalFuncWrapper_136_0"],
+            self.weights["utils_constEvalFuncWrapper_136_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3902,7 +3928,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v51_ttnn_add_74 = ttnn.add(
             v51_ttnn_matmul_50,
-            self.cer["utils_constEvalFuncWrapper_68_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.12.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3954,7 +3982,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v53_ttnn_add_76 = ttnn.add(
             v53_ttnn_matmul_51,
-            self.cer["utils_constEvalFuncWrapper_5_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.12.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -3988,7 +4016,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v53_ttnn_add_77 = ttnn.add(
             v53_ttnn_matmul_52,
-            self.cer["utils_constEvalFuncWrapper_15_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.12.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4028,7 +4056,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v55_ttnn_matmul_53 = ttnn.matmul(
             v55_ttnn_reshape_286,
-            self.cer["utils_constEvalFuncWrapper_102_0"],
+            self.weights["utils_constEvalFuncWrapper_102_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4040,7 +4068,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v55_ttnn_add_79 = ttnn.add(
             v55_ttnn_matmul_53,
-            self.cer["utils_constEvalFuncWrapper_1_0"],
+            self.weights["utils_constEvalFuncWrapper_1_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4199,7 +4227,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v55_ttnn_add_80 = ttnn.add(
             v55_ttnn_matmul_54,
-            self.cer["utils_constEvalFuncWrapper_126_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.13.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4251,7 +4281,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v57_ttnn_add_82 = ttnn.add(
             v57_ttnn_matmul_55,
-            self.cer["utils_constEvalFuncWrapper_92_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.13.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4285,7 +4315,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v57_ttnn_add_83 = ttnn.add(
             v57_ttnn_matmul_56,
-            self.cer["utils_constEvalFuncWrapper_109_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.13.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4325,7 +4355,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v59_ttnn_matmul_57 = ttnn.matmul(
             v59_ttnn_reshape_293,
-            self.cer["utils_constEvalFuncWrapper_86_0"],
+            self.weights["utils_constEvalFuncWrapper_86_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4337,7 +4367,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v59_ttnn_add_85 = ttnn.add(
             v59_ttnn_matmul_57,
-            self.cer["utils_constEvalFuncWrapper_101_0"],
+            self.weights["utils_constEvalFuncWrapper_101_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4496,7 +4526,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v59_ttnn_add_86 = ttnn.add(
             v59_ttnn_matmul_58,
-            self.cer["utils_constEvalFuncWrapper_11_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.14.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4548,7 +4580,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v61_ttnn_add_88 = ttnn.add(
             v61_ttnn_matmul_59,
-            self.cer["utils_constEvalFuncWrapper_141_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.14.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4582,7 +4614,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v61_ttnn_add_89 = ttnn.add(
             v61_ttnn_matmul_60,
-            self.cer["utils_constEvalFuncWrapper_18_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.14.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4622,7 +4654,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v63_ttnn_matmul_61 = ttnn.matmul(
             v63_ttnn_reshape_300,
-            self.cer["utils_constEvalFuncWrapper_23_0"],
+            self.weights["utils_constEvalFuncWrapper_23_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4634,7 +4666,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v63_ttnn_add_91 = ttnn.add(
             v63_ttnn_matmul_61,
-            self.cer["utils_constEvalFuncWrapper_72_0"],
+            self.weights["utils_constEvalFuncWrapper_72_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4793,7 +4825,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v63_ttnn_add_92 = ttnn.add(
             v63_ttnn_matmul_62,
-            self.cer["utils_constEvalFuncWrapper_114_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.15.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4845,7 +4879,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v65_ttnn_add_94 = ttnn.add(
             v65_ttnn_matmul_63,
-            self.cer["utils_constEvalFuncWrapper_154_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.15.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4879,7 +4913,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v65_ttnn_add_95 = ttnn.add(
             v65_ttnn_matmul_64,
-            self.cer["utils_constEvalFuncWrapper_83_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.15.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -4919,7 +4953,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v67_ttnn_matmul_65 = ttnn.matmul(
             v67_ttnn_reshape_307,
-            self.cer["utils_constEvalFuncWrapper_89_0"],
+            self.weights["utils_constEvalFuncWrapper_89_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -4931,7 +4965,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v67_ttnn_add_97 = ttnn.add(
             v67_ttnn_matmul_65,
-            self.cer["utils_constEvalFuncWrapper_118_0"],
+            self.weights["utils_constEvalFuncWrapper_118_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5090,7 +5124,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v67_ttnn_add_98 = ttnn.add(
             v67_ttnn_matmul_66,
-            self.cer["utils_constEvalFuncWrapper_63_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.16.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5142,7 +5178,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v69_ttnn_add_100 = ttnn.add(
             v69_ttnn_matmul_67,
-            self.cer["utils_constEvalFuncWrapper_130_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.16.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5176,7 +5212,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v69_ttnn_add_101 = ttnn.add(
             v69_ttnn_matmul_68,
-            self.cer["utils_constEvalFuncWrapper_104_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.16.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5216,7 +5252,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v71_ttnn_matmul_69 = ttnn.matmul(
             v71_ttnn_reshape_314,
-            self.cer["utils_constEvalFuncWrapper_34_0"],
+            self.weights["utils_constEvalFuncWrapper_34_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5228,7 +5264,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v71_ttnn_add_103 = ttnn.add(
             v71_ttnn_matmul_69,
-            self.cer["utils_constEvalFuncWrapper_17_0"],
+            self.weights["utils_constEvalFuncWrapper_17_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5387,7 +5423,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v71_ttnn_add_104 = ttnn.add(
             v71_ttnn_matmul_70,
-            self.cer["utils_constEvalFuncWrapper_7_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.17.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5439,7 +5477,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v73_ttnn_add_106 = ttnn.add(
             v73_ttnn_matmul_71,
-            self.cer["utils_constEvalFuncWrapper_108_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.17.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5473,7 +5511,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v73_ttnn_add_107 = ttnn.add(
             v73_ttnn_matmul_72,
-            self.cer["utils_constEvalFuncWrapper_19_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.17.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5513,7 +5551,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v75_ttnn_matmul_73 = ttnn.matmul(
             v75_ttnn_reshape_321,
-            self.cer["utils_constEvalFuncWrapper_112_0"],
+            self.weights["utils_constEvalFuncWrapper_112_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5525,7 +5563,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v75_ttnn_add_109 = ttnn.add(
             v75_ttnn_matmul_73,
-            self.cer["utils_constEvalFuncWrapper_134_0"],
+            self.weights["utils_constEvalFuncWrapper_134_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5684,7 +5722,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v75_ttnn_add_110 = ttnn.add(
             v75_ttnn_matmul_74,
-            self.cer["utils_constEvalFuncWrapper_100_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.18.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5736,7 +5776,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v77_ttnn_add_112 = ttnn.add(
             v77_ttnn_matmul_75,
-            self.cer["utils_constEvalFuncWrapper_94_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.18.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5770,7 +5810,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v77_ttnn_add_113 = ttnn.add(
             v77_ttnn_matmul_76,
-            self.cer["utils_constEvalFuncWrapper_147_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.18.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5810,7 +5850,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v79_ttnn_matmul_77 = ttnn.matmul(
             v79_ttnn_reshape_328,
-            self.cer["utils_constEvalFuncWrapper_12_0"],
+            self.weights["utils_constEvalFuncWrapper_12_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -5822,7 +5862,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v79_ttnn_add_115 = ttnn.add(
             v79_ttnn_matmul_77,
-            self.cer["utils_constEvalFuncWrapper_50_0"],
+            self.weights["utils_constEvalFuncWrapper_50_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -5981,7 +6021,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v79_ttnn_add_116 = ttnn.add(
             v79_ttnn_matmul_78,
-            self.cer["utils_constEvalFuncWrapper_52_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.19.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6033,7 +6075,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v81_ttnn_add_118 = ttnn.add(
             v81_ttnn_matmul_79,
-            self.cer["utils_constEvalFuncWrapper_44_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.19.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6067,7 +6109,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v81_ttnn_add_119 = ttnn.add(
             v81_ttnn_matmul_80,
-            self.cer["utils_constEvalFuncWrapper_28_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.19.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6107,7 +6149,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v83_ttnn_matmul_81 = ttnn.matmul(
             v83_ttnn_reshape_335,
-            self.cer["utils_constEvalFuncWrapper_65_0"],
+            self.weights["utils_constEvalFuncWrapper_65_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6119,7 +6161,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v83_ttnn_add_121 = ttnn.add(
             v83_ttnn_matmul_81,
-            self.cer["utils_constEvalFuncWrapper_60_0"],
+            self.weights["utils_constEvalFuncWrapper_60_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6278,7 +6320,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v83_ttnn_add_122 = ttnn.add(
             v83_ttnn_matmul_82,
-            self.cer["utils_constEvalFuncWrapper_78_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.20.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6330,7 +6374,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v85_ttnn_add_124 = ttnn.add(
             v85_ttnn_matmul_83,
-            self.cer["utils_constEvalFuncWrapper_107_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.20.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6364,7 +6408,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v85_ttnn_add_125 = ttnn.add(
             v85_ttnn_matmul_84,
-            self.cer["utils_constEvalFuncWrapper_82_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.20.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6404,7 +6448,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v87_ttnn_matmul_85 = ttnn.matmul(
             v87_ttnn_reshape_342,
-            self.cer["utils_constEvalFuncWrapper_37_0"],
+            self.weights["utils_constEvalFuncWrapper_37_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6416,7 +6460,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v87_ttnn_add_127 = ttnn.add(
             v87_ttnn_matmul_85,
-            self.cer["utils_constEvalFuncWrapper_111_0"],
+            self.weights["utils_constEvalFuncWrapper_111_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6575,7 +6619,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v87_ttnn_add_128 = ttnn.add(
             v87_ttnn_matmul_86,
-            self.cer["utils_constEvalFuncWrapper_20_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.21.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6627,7 +6673,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v89_ttnn_add_130 = ttnn.add(
             v89_ttnn_matmul_87,
-            self.cer["utils_constEvalFuncWrapper_110_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.21.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6661,7 +6707,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v89_ttnn_add_131 = ttnn.add(
             v89_ttnn_matmul_88,
-            self.cer["utils_constEvalFuncWrapper_160_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.21.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6701,7 +6747,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v91_ttnn_matmul_89 = ttnn.matmul(
             v91_ttnn_reshape_349,
-            self.cer["utils_constEvalFuncWrapper_148_0"],
+            self.weights["utils_constEvalFuncWrapper_148_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -6713,7 +6759,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v91_ttnn_add_133 = ttnn.add(
             v91_ttnn_matmul_89,
-            self.cer["utils_constEvalFuncWrapper_57_0"],
+            self.weights["utils_constEvalFuncWrapper_57_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6872,7 +6918,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v91_ttnn_add_134 = ttnn.add(
             v91_ttnn_matmul_90,
-            self.cer["utils_constEvalFuncWrapper_33_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.22.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6924,7 +6972,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v93_ttnn_add_136 = ttnn.add(
             v93_ttnn_matmul_91,
-            self.cer["utils_constEvalFuncWrapper_4_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.22.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6958,7 +7006,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v93_ttnn_add_137 = ttnn.add(
             v93_ttnn_matmul_92,
-            self.cer["utils_constEvalFuncWrapper_125_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.22.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -6998,7 +7046,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v95_ttnn_matmul_93 = ttnn.matmul(
             v95_ttnn_reshape_356,
-            self.cer["utils_constEvalFuncWrapper_36_0"],
+            self.weights["utils_constEvalFuncWrapper_36_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7010,7 +7058,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v95_ttnn_add_139 = ttnn.add(
             v95_ttnn_matmul_93,
-            self.cer["utils_constEvalFuncWrapper_32_0"],
+            self.weights["utils_constEvalFuncWrapper_32_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7169,7 +7217,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v95_ttnn_add_140 = ttnn.add(
             v95_ttnn_matmul_94,
-            self.cer["utils_constEvalFuncWrapper_51_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.23.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7221,7 +7271,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v97_ttnn_add_142 = ttnn.add(
             v97_ttnn_matmul_95,
-            self.cer["utils_constEvalFuncWrapper_0_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.23.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7255,7 +7305,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v97_ttnn_add_143 = ttnn.add(
             v97_ttnn_matmul_96,
-            self.cer["utils_constEvalFuncWrapper_22_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.23.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7295,7 +7345,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v99_ttnn_matmul_97 = ttnn.matmul(
             v99_ttnn_reshape_363,
-            self.cer["utils_constEvalFuncWrapper_76_0"],
+            self.weights["utils_constEvalFuncWrapper_76_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7307,7 +7357,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v99_ttnn_add_145 = ttnn.add(
             v99_ttnn_matmul_97,
-            self.cer["utils_constEvalFuncWrapper_59_0"],
+            self.weights["utils_constEvalFuncWrapper_59_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7466,7 +7516,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v99_ttnn_add_146 = ttnn.add(
             v99_ttnn_matmul_98,
-            self.cer["utils_constEvalFuncWrapper_143_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.24.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7518,7 +7570,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v101_ttnn_add_148 = ttnn.add(
             v101_ttnn_matmul_99,
-            self.cer["utils_constEvalFuncWrapper_139_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.24.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7552,7 +7604,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v101_ttnn_add_149 = ttnn.add(
             v101_ttnn_matmul_100,
-            self.cer["utils_constEvalFuncWrapper_144_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.24.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7592,7 +7644,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v103_ttnn_matmul_101 = ttnn.matmul(
             v103_ttnn_reshape_370,
-            self.cer["utils_constEvalFuncWrapper_61_0"],
+            self.weights["utils_constEvalFuncWrapper_61_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7604,7 +7656,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v103_ttnn_add_151 = ttnn.add(
             v103_ttnn_matmul_101,
-            self.cer["utils_constEvalFuncWrapper_58_0"],
+            self.weights["utils_constEvalFuncWrapper_58_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7763,7 +7815,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v103_ttnn_add_152 = ttnn.add(
             v103_ttnn_matmul_102,
-            self.cer["utils_constEvalFuncWrapper_31_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.25.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7815,7 +7869,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v105_ttnn_add_154 = ttnn.add(
             v105_ttnn_matmul_103,
-            self.cer["utils_constEvalFuncWrapper_117_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.25.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7849,7 +7903,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v105_ttnn_add_155 = ttnn.add(
             v105_ttnn_matmul_104,
-            self.cer["utils_constEvalFuncWrapper_39_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.25.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -7889,7 +7943,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v107_ttnn_matmul_105 = ttnn.matmul(
             v107_ttnn_reshape_377,
-            self.cer["utils_constEvalFuncWrapper_9_0"],
+            self.weights["utils_constEvalFuncWrapper_9_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -7901,7 +7955,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v107_ttnn_add_157 = ttnn.add(
             v107_ttnn_matmul_105,
-            self.cer["utils_constEvalFuncWrapper_77_0"],
+            self.weights["utils_constEvalFuncWrapper_77_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8060,7 +8114,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v107_ttnn_add_158 = ttnn.add(
             v107_ttnn_matmul_106,
-            self.cer["utils_constEvalFuncWrapper_105_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.26.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8112,7 +8168,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v109_ttnn_add_160 = ttnn.add(
             v109_ttnn_matmul_107,
-            self.cer["utils_constEvalFuncWrapper_98_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.26.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8146,7 +8202,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v109_ttnn_add_161 = ttnn.add(
             v109_ttnn_matmul_108,
-            self.cer["utils_constEvalFuncWrapper_123_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.26.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8186,7 +8242,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v111_ttnn_matmul_109 = ttnn.matmul(
             v111_ttnn_reshape_384,
-            self.cer["utils_constEvalFuncWrapper_159_0"],
+            self.weights["utils_constEvalFuncWrapper_159_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8198,7 +8254,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v111_ttnn_add_163 = ttnn.add(
             v111_ttnn_matmul_109,
-            self.cer["utils_constEvalFuncWrapper_41_0"],
+            self.weights["utils_constEvalFuncWrapper_41_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8357,7 +8413,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v111_ttnn_add_164 = ttnn.add(
             v111_ttnn_matmul_110,
-            self.cer["utils_constEvalFuncWrapper_8_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.27.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8409,7 +8467,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v113_ttnn_add_166 = ttnn.add(
             v113_ttnn_matmul_111,
-            self.cer["utils_constEvalFuncWrapper_115_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.27.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8443,7 +8501,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v113_ttnn_add_167 = ttnn.add(
             v113_ttnn_matmul_112,
-            self.cer["utils_constEvalFuncWrapper_129_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.27.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8483,7 +8541,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v115_ttnn_matmul_113 = ttnn.matmul(
             v115_ttnn_reshape_391,
-            self.cer["utils_constEvalFuncWrapper_3_0"],
+            self.weights["utils_constEvalFuncWrapper_3_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8495,7 +8553,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v115_ttnn_add_169 = ttnn.add(
             v115_ttnn_matmul_113,
-            self.cer["utils_constEvalFuncWrapper_16_0"],
+            self.weights["utils_constEvalFuncWrapper_16_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8654,7 +8712,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v115_ttnn_add_170 = ttnn.add(
             v115_ttnn_matmul_114,
-            self.cer["utils_constEvalFuncWrapper_121_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.28.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8706,7 +8766,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v117_ttnn_add_172 = ttnn.add(
             v117_ttnn_matmul_115,
-            self.cer["utils_constEvalFuncWrapper_14_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.28.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8740,7 +8800,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v117_ttnn_add_173 = ttnn.add(
             v117_ttnn_matmul_116,
-            self.cer["utils_constEvalFuncWrapper_56_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.28.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8780,7 +8840,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v119_ttnn_matmul_117 = ttnn.matmul(
             v119_ttnn_reshape_398,
-            self.cer["utils_constEvalFuncWrapper_75_0"],
+            self.weights["utils_constEvalFuncWrapper_75_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -8792,7 +8852,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v119_ttnn_add_175 = ttnn.add(
             v119_ttnn_matmul_117,
-            self.cer["utils_constEvalFuncWrapper_45_0"],
+            self.weights["utils_constEvalFuncWrapper_45_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -8951,7 +9011,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v119_ttnn_add_176 = ttnn.add(
             v119_ttnn_matmul_118,
-            self.cer["utils_constEvalFuncWrapper_79_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.29.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9003,7 +9065,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v121_ttnn_add_178 = ttnn.add(
             v121_ttnn_matmul_119,
-            self.cer["utils_constEvalFuncWrapper_38_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.29.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9037,7 +9099,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v121_ttnn_add_179 = ttnn.add(
             v121_ttnn_matmul_120,
-            self.cer["utils_constEvalFuncWrapper_35_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.29.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9077,7 +9139,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v123_ttnn_matmul_121 = ttnn.matmul(
             v123_ttnn_reshape_405,
-            self.cer["utils_constEvalFuncWrapper_138_0"],
+            self.weights["utils_constEvalFuncWrapper_138_0"],
             transpose_a=False,
             transpose_b=True,
             memory_config=ttnn.MemoryConfig(
@@ -9089,7 +9151,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v123_ttnn_add_181 = ttnn.add(
             v123_ttnn_matmul_121,
-            self.cer["utils_constEvalFuncWrapper_131_0"],
+            self.weights["utils_constEvalFuncWrapper_131_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9248,7 +9310,9 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v123_ttnn_add_182 = ttnn.add(
             v123_ttnn_matmul_122,
-            self.cer["utils_constEvalFuncWrapper_48_0"],
+            self.weights[
+                "image_encoder.vision_model.encoder.layers.30.self_attn.out_proj.bias"
+            ],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9300,7 +9364,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v125_ttnn_add_184 = ttnn.add(
             v125_ttnn_matmul_123,
-            self.cer["utils_constEvalFuncWrapper_135_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.30.mlp.fc1.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9334,7 +9398,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v125_ttnn_add_185 = ttnn.add(
             v125_ttnn_matmul_124,
-            self.cer["utils_constEvalFuncWrapper_54_0"],
+            self.weights["image_encoder.vision_model.encoder.layers.30.mlp.fc2.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9371,7 +9435,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v127_ttnn_add_187 = ttnn.add(
             v127_ttnn_matmul_125,
-            self.cer["utils_constEvalFuncWrapper_137_0"],
+            self.weights["resampler.proj_in.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9452,7 +9516,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v128_util_create_list_387 = [
             v128_ttnn_reshape_416,
-            self.cer["utils_constEvalFuncWrapper_30_0"],
+            self.weights["utils_constEvalFuncWrapper_30_0"],
         ]
         v128_ttnn_concat_63 = ttnn.concat(
             v128_util_create_list_387,
@@ -9559,7 +9623,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v129_ttnn_transformer_scaled_dot_product_attention_31 = (
             ttnn.transformer.scaled_dot_product_attention(
-                self.cer["utils_constEvalFuncWrapper_30_1"],
+                self.weights["utils_constEvalFuncWrapper_30_1"],
                 v129_ttnn_typecast_6,
                 v129_ttnn_typecast_5,
                 attn_mask=None,
@@ -9605,7 +9669,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v129_ttnn_divide_0 = ttnn.divide(
             v129_ttnn_reshape_420,
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
+            self.weights["utils_constEvalFuncWrapperZeroArg_0_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -9897,7 +9961,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v134_ttnn_divide_1 = ttnn.divide(
             v134_ttnn_reshape_429,
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
+            self.weights["utils_constEvalFuncWrapperZeroArg_0_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10189,7 +10253,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v139_ttnn_divide_2 = ttnn.divide(
             v139_ttnn_reshape_438,
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
+            self.weights["utils_constEvalFuncWrapperZeroArg_0_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10481,7 +10545,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v144_ttnn_divide_3 = ttnn.divide(
             v144_ttnn_reshape_447,
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
+            self.weights["utils_constEvalFuncWrapperZeroArg_0_0"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
@@ -10571,7 +10635,7 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
         )
         v150_ttnn_add_196 = ttnn.add(
             v150_ttnn_matmul_149,
-            self.cer["utils_constEvalFuncWrapper_6_0"],
+            self.weights["resampler.proj_out.bias"],
             dtype=ttnn.DataType.BFLOAT16,
             memory_config=ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
