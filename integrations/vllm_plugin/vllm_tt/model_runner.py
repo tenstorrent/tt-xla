@@ -1146,6 +1146,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     logits, self.mesh, (None, None, None)
                 )
 
+            # Debug - print sampling metadata on first token (prefill phase)
+            if start_index == 0 and scheduler_output.total_num_scheduled_tokens > 1:
+                print(
+                    f"KCM: tpu_sampling_metadata: {tpu_sampling_metadata}", flush=True
+                )
+
             selected_token_ids = self.sample_from_logits_func(
                 logits, tpu_sampling_metadata
             )
