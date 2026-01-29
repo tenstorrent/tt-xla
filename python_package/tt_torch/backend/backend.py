@@ -317,5 +317,56 @@ def _build_boxed_executor(
 #         )
 
 
-aotautograd_backend = aot_autograd(fw_compiler=_build_boxed_executor)
-register_backend(name="tt", compiler_fn=aotautograd_backend)
+# aotautograd_backend = aot_autograd(fw_compiler=_build_boxed_executor)
+# register_backend(name="tt", compiler_fn=aotautograd_backend)
+
+
+from functools import partial
+
+
+def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Rewrite call_module nodes targeting AdaptiveAvgPool2d with output_size=(1, 1)
+    to use torch.mean instead. This avoids issues with AOTAutograd tracing.
+    """
+    graph = gm.graph
+    modified = False
+
+    for node in list(graph.nodes):
+        if node.op == "call_module" and isinstance(node.target, str):
+            target_module = gm.get_submodule(node.target)
+            if isinstance(target_module, torch.nn.AdaptiveAvgPool2d):
+                output_size = target_module.output_size
+                # Check if this is global average pooling (output_size is 1 or (1, 1))
+                if output_size == 1 or output_size == (1, 1) or output_size == [1, 1]:
+                    # Replace with mean over spatial dimensions
+                    with graph.inserting_after(node):
+                        # node.args[0] is the input tensor
+                        mean_node = graph.call_function(
+                            torch.mean,
+                            args=(node.args[0],),
+                            kwargs={"dim": [-2, -1], "keepdim": True},
+                        )
+                        node.replace_all_uses_with(mean_node)
+                        graph.erase_node(node)
+                        modified = True
+
+    if modified:
+        gm.recompile()
+
+    return gm
+
+
+@register_backend(name="tt")
+def tt_backend(
+    gm: torch.fx.GraphModule,
+    example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool] | None = None,
+):
+    # Rewrite AdaptiveAvgPool2d(1) to mean before AOTAutograd tracing
+    gm = rewrite_adaptive_avgpool_to_mean(gm)
+
+    fw_compiler = partial(_build_boxed_executor, options=options)
+
+    aotautograd = aot_autograd(fw_compiler=fw_compiler)
+    return aotautograd(gm, example_inputs)
