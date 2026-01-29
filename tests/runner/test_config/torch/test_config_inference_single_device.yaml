@@ -1984,11 +1984,11 @@ test_config:
 
   centernet/pytorch-resnet18_coco-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
+    # reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
 
   centernet/pytorch-resnet101_coco-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
+    # reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
 
   centernet/pytorch-dla1x_coco-single_device-inference:
     status: EXPECTED_PASSING
