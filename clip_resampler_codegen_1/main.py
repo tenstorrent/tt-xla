@@ -7,13 +7,7 @@ import torch
 import ttnn
 import utils
 from model_pt import CLIPVisionEncoderAndResamplerPT, get_input
-
-# from model_ttnn import CLIPVisionEncoderAndResamplerTTNN
-from model_ttnn_refactored import (  # Refactored version
-    CLIPVisionEncoderAndResamplerTTNN,
-)
-
-# from model_ttnn_unwrapped import CLIPVisionEncoderAndResamplerTTNN  # Unwrapped version
+from model_ttnn import CLIPVisionEncoderAndResamplerTTNN
 from tracy import signpost
 
 

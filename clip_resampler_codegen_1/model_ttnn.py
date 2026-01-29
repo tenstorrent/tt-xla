@@ -51,39 +51,28 @@ def load_weights_from_pytorch(
 
     # Convert each weight to TTNN format
     weights = {}
-    special_count = 0
     converted_count = 0
 
-    for i in range(len(config)):
-        key = f"arg{i}"
-        cfg = config[key]
-        weight_name = cfg.get("weight_name", "")
+    for weight_name, cfg in config.items():
         layout_str = cfg.get("layout", "TILE")
         dtype_str = cfg.get("dtype", "BFLOAT16")
         on_device = cfg.get("on_device", False)
 
         # Handle special entries
-        if weight_name == "__INPUT__":
-            # This is a placeholder for runtime input
-            weights[weight_name] = None
-            special_count += 1
-            continue
-
         if weight_name == "__POSITION_IDS__":
             # Generate position IDs tensor
             pos_ids = _create_position_ids()
             weights[weight_name] = pos_ids
-            special_count += 1
             continue
 
         # Get PyTorch tensor
         if weight_name not in state_dict:
             raise ValueError(f"Weight '{weight_name}' not found in PyTorch model")
 
-        pt_tensor = state_dict[weight_name]
+        torch_tensor = state_dict[weight_name]
 
         # Convert to TTNN
-        ttnn_tensor = ttnn.from_torch(pt_tensor)
+        ttnn_tensor = ttnn.from_torch(torch_tensor)
 
         # Apply layout
         layout = ttnn.Layout.TILE if layout_str == "TILE" else ttnn.Layout.ROW_MAJOR
@@ -102,7 +91,7 @@ def load_weights_from_pytorch(
         weights[weight_name] = ttnn_tensor
         converted_count += 1
 
-    print(f"Converted {converted_count} weights, {special_count} special entries")
+    print(f"Converted {converted_count} weights")
     return weights
 
 
