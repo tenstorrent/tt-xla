@@ -1,303 +1,139 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""TTNN model wrapper for CLIP Vision Encoder + IP-Adapter Resampler (Refactored)."""
+"""TTNN model refactored with modular structure matching PyTorch."""
 
 import ttnn
 import utils
-
-# Import generated encoder layer classes
-from clip_encoder_layers_generated import (
-    CLIPEncoderLayerTTNN_0,
-    CLIPEncoderLayerTTNN_1,
-    CLIPEncoderLayerTTNN_2,
-    CLIPEncoderLayerTTNN_3,
-    CLIPEncoderLayerTTNN_4,
-    CLIPEncoderLayerTTNN_5,
-    CLIPEncoderLayerTTNN_6,
-    CLIPEncoderLayerTTNN_7,
-    CLIPEncoderLayerTTNN_8,
-    CLIPEncoderLayerTTNN_9,
-    CLIPEncoderLayerTTNN_10,
-    CLIPEncoderLayerTTNN_11,
-    CLIPEncoderLayerTTNN_12,
-    CLIPEncoderLayerTTNN_13,
-    CLIPEncoderLayerTTNN_14,
-    CLIPEncoderLayerTTNN_15,
-    CLIPEncoderLayerTTNN_16,
-    CLIPEncoderLayerTTNN_17,
-    CLIPEncoderLayerTTNN_18,
-    CLIPEncoderLayerTTNN_19,
-    CLIPEncoderLayerTTNN_20,
-    CLIPEncoderLayerTTNN_21,
-    CLIPEncoderLayerTTNN_22,
-    CLIPEncoderLayerTTNN_23,
-    CLIPEncoderLayerTTNN_24,
-    CLIPEncoderLayerTTNN_25,
-    CLIPEncoderLayerTTNN_26,
-    CLIPEncoderLayerTTNN_27,
-    CLIPEncoderLayerTTNN_28,
-    CLIPEncoderLayerTTNN_29,
-    CLIPEncoderLayerTTNN_30,
-)
 from consteval import run_const_evals
+from load_weights_from_pytorch import load_weights_from_pytorch
 from models.common.lightweightmodule import LightweightModule
-
-# List of layer classes for easy iteration
-ENCODER_LAYER_CLASSES = [
-    CLIPEncoderLayerTTNN_0,
-    CLIPEncoderLayerTTNN_1,
-    CLIPEncoderLayerTTNN_2,
-    CLIPEncoderLayerTTNN_3,
-    CLIPEncoderLayerTTNN_4,
-    CLIPEncoderLayerTTNN_5,
-    CLIPEncoderLayerTTNN_6,
-    CLIPEncoderLayerTTNN_7,
-    CLIPEncoderLayerTTNN_8,
-    CLIPEncoderLayerTTNN_9,
-    CLIPEncoderLayerTTNN_10,
-    CLIPEncoderLayerTTNN_11,
-    CLIPEncoderLayerTTNN_12,
-    CLIPEncoderLayerTTNN_13,
-    CLIPEncoderLayerTTNN_14,
-    CLIPEncoderLayerTTNN_15,
-    CLIPEncoderLayerTTNN_16,
-    CLIPEncoderLayerTTNN_17,
-    CLIPEncoderLayerTTNN_18,
-    CLIPEncoderLayerTTNN_19,
-    CLIPEncoderLayerTTNN_20,
-    CLIPEncoderLayerTTNN_21,
-    CLIPEncoderLayerTTNN_22,
-    CLIPEncoderLayerTTNN_23,
-    CLIPEncoderLayerTTNN_24,
-    CLIPEncoderLayerTTNN_25,
-    CLIPEncoderLayerTTNN_26,
-    CLIPEncoderLayerTTNN_27,
-    CLIPEncoderLayerTTNN_28,
-    CLIPEncoderLayerTTNN_29,
-    CLIPEncoderLayerTTNN_30,
-]
 
 
 class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
-    def __init__(self, weights, cache, device):
+    """
+    CLIP Vision Encoder + IP-Adapter Plus Resampler in TTNN.
+
+    Architecture:
+        - Vision Embeddings (patch embedding + class token + position embedding)
+        - Pre-LayerNorm
+        - 31 Encoder Layers (layer_norm1 -> self_attn -> add -> layer_norm2 -> mlp -> add)
+        - Resampler (proj_in -> 4 attention blocks -> proj_out -> norm_out)
+    """
+
+    def __init__(self, device, torch_weights):
         self.device = device
-        self.weights = weights
-        self.cer = run_const_evals(weights, cache)
+        self.weights = load_weights_from_pytorch(torch_weights, device)
+        self.weights = run_const_evals(self.weights)
 
-        # Create encoder layers
-        self.encoder_layers = [
-            LayerClass(weights, self.cer) for LayerClass in ENCODER_LAYER_CLASSES
-        ]
+        # Build mappings for fused QKV weights
+        self._build_weight_mappings()
 
-    def forward(self, pixel_values):
-        # Move input to device
-        assert pixel_values.device() is None, "pixel_values must be on host"
-        pixel_values = ttnn.to_device(
-            pixel_values,
-            self.device,
-            ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+    def _build_weight_mappings(self):
+        """Build mappings from layer index to fused QKV weight keys."""
+        # fmt: off
+        # Fused QKV weight keys (from _three_weight_concat_dim0 in consteval)
+        self.qkv_weight_keys = {
+            0: "utils_constEvalFuncWrapper_70_0",
+            1: "utils_constEvalFuncWrapper_157_0",
+            2: "utils_constEvalFuncWrapper_25_0",
+            3: "utils_constEvalFuncWrapper_26_0",
+            4: "utils_constEvalFuncWrapper_127_0",
+            5: "utils_constEvalFuncWrapper_96_0",
+            6: "utils_constEvalFuncWrapper_128_0",
+            7: "utils_constEvalFuncWrapper_49_0",
+            8: "utils_constEvalFuncWrapper_29_0",
+            9: "utils_constEvalFuncWrapper_119_0",
+            10: "utils_constEvalFuncWrapper_152_0",
+            11: "utils_constEvalFuncWrapper_67_0",
+            12: "utils_constEvalFuncWrapper_87_0",
+            13: "utils_constEvalFuncWrapper_102_0",
+            14: "utils_constEvalFuncWrapper_86_0",
+            15: "utils_constEvalFuncWrapper_23_0",
+            16: "utils_constEvalFuncWrapper_89_0",
+            17: "utils_constEvalFuncWrapper_34_0",
+            18: "utils_constEvalFuncWrapper_112_0",
+            19: "utils_constEvalFuncWrapper_12_0",
+            20: "utils_constEvalFuncWrapper_65_0",
+            21: "utils_constEvalFuncWrapper_37_0",
+            22: "utils_constEvalFuncWrapper_148_0",
+            23: "utils_constEvalFuncWrapper_36_0",
+            24: "utils_constEvalFuncWrapper_76_0",
+            25: "utils_constEvalFuncWrapper_61_0",
+            26: "utils_constEvalFuncWrapper_9_0",
+            27: "utils_constEvalFuncWrapper_159_0",
+            28: "utils_constEvalFuncWrapper_3_0",
+            29: "utils_constEvalFuncWrapper_75_0",
+            30: "utils_constEvalFuncWrapper_138_0",
+        }
+
+        # Fused QKV bias keys (from _three_weight_reshape_repeat_concat_dim2 in consteval)
+        self.qkv_bias_keys = {
+            0: "utils_constEvalFuncWrapper_47_0",
+            1: "utils_constEvalFuncWrapper_62_0",
+            2: "utils_constEvalFuncWrapper_80_0",
+            3: "utils_constEvalFuncWrapper_90_0",
+            4: "utils_constEvalFuncWrapper_43_0",
+            5: "utils_constEvalFuncWrapper_158_0",
+            6: "utils_constEvalFuncWrapper_99_0",
+            7: "utils_constEvalFuncWrapper_84_0",
+            8: "utils_constEvalFuncWrapper_40_0",
+            9: "utils_constEvalFuncWrapper_133_0",
+            10: "utils_constEvalFuncWrapper_71_0",
+            11: "utils_constEvalFuncWrapper_116_0",
+            12: "utils_constEvalFuncWrapper_136_0",
+            13: "utils_constEvalFuncWrapper_1_0",
+            14: "utils_constEvalFuncWrapper_101_0",
+            15: "utils_constEvalFuncWrapper_72_0",
+            16: "utils_constEvalFuncWrapper_118_0",
+            17: "utils_constEvalFuncWrapper_17_0",
+            18: "utils_constEvalFuncWrapper_134_0",
+            19: "utils_constEvalFuncWrapper_50_0",
+            20: "utils_constEvalFuncWrapper_60_0",
+            21: "utils_constEvalFuncWrapper_111_0",
+            22: "utils_constEvalFuncWrapper_57_0",
+            23: "utils_constEvalFuncWrapper_32_0",
+            24: "utils_constEvalFuncWrapper_59_0",
+            25: "utils_constEvalFuncWrapper_58_0",
+            26: "utils_constEvalFuncWrapper_77_0",
+            27: "utils_constEvalFuncWrapper_41_0",
+            28: "utils_constEvalFuncWrapper_16_0",
+            29: "utils_constEvalFuncWrapper_45_0",
+            30: "utils_constEvalFuncWrapper_131_0",
+        }
+        # fmt: on
+
+    def _dram_memory_config(self):
+        """Standard DRAM interleaved memory config."""
+        return ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         )
 
-        # Vision Embeddings
-        embeddings = self.CLIPVisionEmbeddings_0_0(
-            pixel_values,
-            self.cer["utils_constEvalFuncWrapper_142_0"],
-            self.cer["utils_constEvalFuncWrapper_88_0"],
-            self.cer["utils_constEvalFuncWrapper_66_0"],
+    # ============ Vision Embeddings ============
+
+    def _vision_embeddings(self, pixel_values):
+        """
+        CLIPVisionEmbeddings: patch_embedding (Conv2d) + class_embedding + position_embedding.
+
+        Input: [1, 3, 224, 224] -> Output: [1, 257, 1280]
+        """
+        mem_config = self._dram_memory_config()
+
+        # Permute NCHW -> NHWC for conv2d
+        x = ttnn.permute(
+            pixel_values, [0, 2, 3, 1], memory_config=mem_config, pad_value=0.0
         )
 
-        # Pre-LayerNorm
-        hidden_states = self.LayerNorm_1_0(
-            self.weights["image_encoder.vision_model.pre_layrnorm.bias"],
-            self.weights["image_encoder.vision_model.pre_layrnorm.weight"],
-            embeddings,
-        )
+        # Reshape for conv2d: [1, 224, 224, 3] -> [1, 1, 50176, 3]
+        x = ttnn.reshape(x, [1, 1, 50176, 3], memory_config=mem_config)
 
-        # Encoder layers (31 layers, 0-30)
-        residual = hidden_states
-        for layer in self.encoder_layers:
-            residual, hidden_states = layer(hidden_states, residual)
-
-        # After last layer, hidden_states is None, residual contains the output
-        encoder_output = residual
-
-        # Continue with IP-Adapter resampler
-        # Linear projection (proj_in equivalent)
-        Linear_127_0_0 = self.Linear_127_0(
-            self.cer["utils_constEvalFuncWrapper_137_0"],
-            self.weights["resampler.proj_in.weight"],
-            encoder_output,
-        )
-
-        # IP-Adapter blocks (keeping original method calls for now)
-        v_285, v_286, v_287, v_288 = self.IPAdapterPlusImageProjectionBlock_128_0(
-            self.cer["utils_constEvalFuncWrapper_30_0"],
-            self.weights["resampler.layers.2.ln0.weight"],
-            self.weights["resampler.layers.3.ln0.weight"],
-            Linear_127_0_0,
-            self.weights["resampler.layers.1.ln0.weight"],
-            self.weights["resampler.layers.3.ln0.bias"],
-            self.weights["resampler.layers.0.ln0.weight"],
-            self.weights["resampler.layers.1.ln0.bias"],
-            self.weights["resampler.layers.0.ln0.bias"],
-            self.weights["resampler.layers.2.ln0.bias"],
-        )
-        Attention_129_0_0 = self.Attention_129_0(
-            v_286,
-            self.weights["resampler.layers.0.attn.to_out.0.weight"],
-            self.weights["resampler.layers.0.attn.to_k.weight"],
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
-            self.weights["resampler.layers.0.attn.to_v.weight"],
-            self.cer["utils_constEvalFuncWrapper_30_1"],
-        )
-        v_289, v_290 = self.IPAdapterPlusImageProjectionBlock_130_0(
-            self.weights["resampler.layers.0.ff.0.weight"],
-            Attention_129_0_0,
-            self.weights["resampler.latents"],
-            self.weights["resampler.layers.0.ff.0.bias"],
-        )
-        Linear_131_0_0 = self.Linear_131_0(
-            self.weights["resampler.layers.0.ff.1.net.0.proj.weight"], v_290
-        )
-        Linear_132_0_0 = self.Linear_132_0(
-            self.weights["resampler.layers.0.ff.1.net.2.weight"], Linear_131_0_0
-        )
-        v_291, v_292, v_293 = self.IPAdapterPlusImageProjectionBlock_133_0(
-            v_289,
-            Linear_132_0_0,
-            self.weights["resampler.layers.1.ln1.weight"],
-            self.weights["resampler.layers.1.ln1.bias"],
-            v_288,
-        )
-        Attention_134_0_0 = self.Attention_134_0(
-            self.weights["resampler.layers.1.attn.to_q.weight"],
-            self.weights["resampler.layers.1.attn.to_k.weight"],
-            self.weights["resampler.layers.1.attn.to_out.0.weight"],
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
-            self.weights["resampler.layers.1.attn.to_v.weight"],
-            v_292,
-            v_293,
-        )
-        v_294, v_295 = self.IPAdapterPlusImageProjectionBlock_135_0(
-            v_291,
-            self.weights["resampler.layers.1.ff.0.weight"],
-            Attention_134_0_0,
-            self.weights["resampler.layers.1.ff.0.bias"],
-        )
-        Linear_136_0_0 = self.Linear_136_0(
-            self.weights["resampler.layers.1.ff.1.net.0.proj.weight"], v_295
-        )
-        Linear_137_0_0 = self.Linear_137_0(
-            Linear_136_0_0, self.weights["resampler.layers.1.ff.1.net.2.weight"]
-        )
-        v_296, v_297, v_298 = self.IPAdapterPlusImageProjectionBlock_138_0(
-            v_285,
-            self.weights["resampler.layers.2.ln1.weight"],
-            v_294,
-            Linear_137_0_0,
-            self.weights["resampler.layers.2.ln1.bias"],
-        )
-        Attention_139_0_0 = self.Attention_139_0(
-            self.weights["resampler.layers.2.attn.to_k.weight"],
-            self.weights["resampler.layers.2.attn.to_v.weight"],
-            self.weights["resampler.layers.2.attn.to_q.weight"],
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
-            self.weights["resampler.layers.2.attn.to_out.0.weight"],
-            v_296,
-            v_298,
-        )
-        v_299, v_300 = self.IPAdapterPlusImageProjectionBlock_140_0(
-            self.weights["resampler.layers.2.ff.0.bias"],
-            Attention_139_0_0,
-            v_297,
-            self.weights["resampler.layers.2.ff.0.weight"],
-        )
-        Linear_141_0_0 = self.Linear_141_0(
-            self.weights["resampler.layers.2.ff.1.net.0.proj.weight"], v_300
-        )
-        Linear_142_0_0 = self.Linear_142_0(
-            Linear_141_0_0, self.weights["resampler.layers.2.ff.1.net.2.weight"]
-        )
-        v_301, v_302, v_303 = self.IPAdapterPlusImageProjectionBlock_143_0(
-            Linear_142_0_0,
-            v_287,
-            self.weights["resampler.layers.3.ln1.bias"],
-            self.weights["resampler.layers.3.ln1.weight"],
-            v_299,
-        )
-        Attention_144_0_0 = self.Attention_144_0(
-            self.weights["resampler.layers.3.attn.to_k.weight"],
-            self.weights["resampler.layers.3.attn.to_q.weight"],
-            self.cer["utils_constEvalFuncWrapperZeroArg_0_0"],
-            self.weights["resampler.layers.3.attn.to_v.weight"],
-            self.weights["resampler.layers.3.attn.to_out.0.weight"],
-            v_301,
-            v_302,
-        )
-        v_304, v_305 = self.IPAdapterPlusImageProjectionBlock_145_0(
-            self.weights["resampler.layers.3.ff.0.bias"],
-            self.weights["resampler.layers.3.ff.0.weight"],
-            Attention_144_0_0,
-            v_303,
-        )
-        v_306, v_307 = self.Linear_147_0(
-            v_304, self.weights["resampler.layers.3.ff.1.net.0.proj.weight"]
-        )
-        self.Linear_150_0(v_307)
-        Linear_146_0_0 = self.Linear_146_0(v_305)
-        IPAdapterPlusImageProjectionBlock_148_0_0 = (
-            self.IPAdapterPlusImageProjectionBlock_148_0(
-                Linear_146_0_0,
-                v_306,
-                self.weights["resampler.layers.3.ff.1.net.2.weight"],
-            )
-        )
-        IPAdapterPlusImageProjection_149_0_0 = self.IPAdapterPlusImageProjection_149_0(
-            v_305,
-            self.weights["resampler.norm_out.weight"],
-            self.cer["utils_constEvalFuncWrapper_6_0"],
-            IPAdapterPlusImageProjectionBlock_148_0_0,
-            self.weights["resampler.proj_out.weight"],
-            self.weights["resampler.norm_out.bias"],
-        )
-        self.IPAdapterPlusImageProjectionBlock_151_0(v_306)
-        util_create_list_385 = [IPAdapterPlusImageProjection_149_0_0]
-        return util_create_list_385
-
-    # Keep existing helper methods for embeddings, layernorm, and IP-adapter
-    # (These will be copied from the original model_ttnn.py)
-    def CLIPVisionEmbeddings_0_0(self, input_0, input_1, input_2, input_3):
-        ttnn_to_layout_287 = ttnn.to_layout(
-            input_0,
-            ttnn.Layout.TILE,
-            None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        utils_DeviceGetter_get_device_162 = utils.DeviceGetter.get_device((1, 1))
-        ttnn_permute_3 = ttnn.permute(
-            ttnn_to_layout_287,
-            [0, 2, 3, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_reshape_192 = ttnn.reshape(
-            ttnn_permute_3,
-            [1, 1, 50176, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_conv2d_0 = ttnn.conv2d(
-            input_tensor=ttnn_reshape_192,
-            weight_tensor=input_3,
-            device=utils_DeviceGetter_get_device_162,
+        # Patch embedding Conv2d: kernel=14x14, stride=14
+        x = ttnn.conv2d(
+            input_tensor=x,
+            weight_tensor=self.weights[
+                "image_encoder.vision_model.embeddings.patch_embedding.weight"
+            ],
+            device=utils.DeviceGetter.get_device((1, 1)),
             in_channels=3,
             out_channels=1280,
             batch_size=1,
@@ -320,1366 +156,828 @@ class CLIPVisionEncoderAndResamplerTTNN(LightweightModule):
             slice_config=ttnn.Conv2dSliceConfig(
                 slice_type=ttnn.Conv2dL1Full, num_slices=0
             ),
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            memory_config=mem_config,
         )
-        ttnn_reshape_193 = ttnn.reshape(
-            ttnn_conv2d_0,
-            [1, 16, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_4 = ttnn.permute(
-            ttnn_reshape_193,
-            [0, 3, 1, 2],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_reshape_194 = ttnn.reshape(
-            ttnn_permute_4,
-            [1, 1280, 256],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        util_create_list_386 = [input_1, ttnn_reshape_194]
-        ttnn_concat_62 = ttnn.concat(
-            util_create_list_386,
-            2,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_add_0 = ttnn.add(
-            ttnn_concat_62,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_5 = ttnn.permute(
-            ttnn_add_0,
-            [0, 2, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        return ttnn_permute_5
 
-    def LayerNorm_1_0(self, input_0, input_1, input_2):
-        ttnn_layer_norm_1 = ttnn.layer_norm(
-            input_2,
+        # Reshape: [1, 1, 256, 1280] -> [1, 16, 16, 1280]
+        x = ttnn.reshape(x, [1, 16, 16, 1280], memory_config=mem_config)
+
+        # Permute to NCHW: [1, 16, 16, 1280] -> [1, 1280, 16, 16]
+        x = ttnn.permute(x, [0, 3, 1, 2], memory_config=mem_config, pad_value=0.0)
+
+        # Reshape: [1, 1280, 16, 16] -> [1, 1280, 256]
+        x = ttnn.reshape(x, [1, 1280, 256], memory_config=mem_config)
+
+        # Concat with class embedding on dim 2: [1, 1280, 256] + [1, 1280, 1] -> [1, 1280, 257]
+        class_embedding = self.weights[
+            "image_encoder.vision_model.embeddings.class_embedding"
+        ]
+        x = ttnn.concat([class_embedding, x], 2, memory_config=mem_config)
+
+        # Add position embedding (shape [1, 1280, 257])
+        position_embedding = self.weights["utils_constEvalFuncWrapper_88_0"]
+        x = ttnn.add(
+            x,
+            position_embedding,
+            dtype=ttnn.DataType.BFLOAT16,
+            memory_config=mem_config,
+        )
+
+        # Permute: [1, 1280, 257] -> [1, 257, 1280]
+        x = ttnn.permute(x, [0, 2, 1], memory_config=mem_config, pad_value=0.0)
+
+        return x
+
+    def _pre_layernorm(self, x):
+        """vision_model.pre_layrnorm: LayerNorm before encoder."""
+        mem_config = self._dram_memory_config()
+        return ttnn.layer_norm(
+            x,
             epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_0,
+            weight=self.weights["image_encoder.vision_model.pre_layrnorm.weight"],
+            bias=self.weights["image_encoder.vision_model.pre_layrnorm.bias"],
             residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            memory_config=mem_config,
             program_config=None,
         )
-        return ttnn_layer_norm_1
 
-    def Linear_127_0(self, input_0, input_1, input_2):
-        ttnn_matmul_125 = ttnn.matmul(
-            input_2,
-            input_1,
+    # ============ Encoder Layer ============
+
+    def _encoder_layer(self, hidden_states, layer_idx: int):
+        """
+        CLIPEncoderLayer: Pre-norm transformer block.
+
+        Structure:
+            residual = hidden_states
+            hidden_states = layer_norm1(hidden_states)
+            hidden_states = self_attn(hidden_states)
+            hidden_states = residual + hidden_states
+
+            residual = hidden_states
+            hidden_states = layer_norm2(hidden_states)
+            hidden_states = mlp(hidden_states)
+            hidden_states = residual + hidden_states
+
+        Args:
+            hidden_states: Input tensor [1, 257, 1280]
+            layer_idx: Layer index (0-30)
+
+        Returns:
+            Output tensor [1, 257, 1280]
+        """
+        mem_config = self._dram_memory_config()
+
+        # First residual block: LayerNorm1 -> Self-Attention -> Add
+        residual = hidden_states
+        hidden_states = self._layer_norm(hidden_states, layer_idx, "layer_norm1")
+        hidden_states = self._clip_attention(hidden_states, layer_idx)
+        hidden_states = ttnn.add(
+            residual,
+            hidden_states,
+            dtype=ttnn.DataType.BFLOAT16,
+            memory_config=mem_config,
+        )
+
+        # Second residual block: LayerNorm2 -> MLP -> Add
+        residual = hidden_states
+        hidden_states = self._layer_norm(hidden_states, layer_idx, "layer_norm2")
+        hidden_states = self._clip_mlp(hidden_states, layer_idx)
+        hidden_states = ttnn.add(
+            residual,
+            hidden_states,
+            dtype=ttnn.DataType.BFLOAT16,
+            memory_config=mem_config,
+        )
+
+        return hidden_states
+
+    def _layer_norm(self, x, layer_idx: int, which: str):
+        """LayerNorm for encoder layer with dynamic weight lookup."""
+        mem_config = self._dram_memory_config()
+        weight_key = (
+            f"image_encoder.vision_model.encoder.layers.{layer_idx}.{which}.weight"
+        )
+        bias_key = f"image_encoder.vision_model.encoder.layers.{layer_idx}.{which}.bias"
+
+        return ttnn.layer_norm(
+            x,
+            epsilon=9.9999997473787516e-06,
+            weight=self.weights[weight_key],
+            bias=self.weights[bias_key],
+            residual_input_tensor=None,
+            memory_config=mem_config,
+            program_config=None,
+        )
+
+    def _clip_attention(self, hidden_states, layer_idx: int):
+        """
+        CLIPAttention: Multi-head self-attention.
+
+        Uses fused QKV weights from consteval.
+        - 16 attention heads
+        - Head dimension: 80
+        - Scale: 1/sqrt(80) = 0.11180340498685837
+
+        Args:
+            hidden_states: [1, 257, 1280]
+            layer_idx: Layer index (0-30)
+
+        Returns:
+            Output tensor [1, 257, 1280]
+        """
+        mem_config = self._dram_memory_config()
+
+        # Reshape to 2D for matmul: [1, 257, 1280] -> [257, 1280]
+        x = ttnn.reshape(hidden_states, [257, 1280], memory_config=mem_config)
+
+        # Fused QKV projection: [257, 1280] @ [3840, 1280]^T -> [257, 3840]
+        qkv_weight = self.weights[self.qkv_weight_keys[layer_idx]]
+        qkv_bias = self.weights[self.qkv_bias_keys[layer_idx]]
+
+        x = ttnn.matmul(
+            x,
+            qkv_weight,
             transpose_a=False,
             transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            memory_config=mem_config,
             dtype=None,
             program_config=None,
             activation=None,
         )
-        ttnn_add_187 = ttnn.add(
-            ttnn_matmul_125,
-            input_0,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+        x = ttnn.add(
+            x, qkv_bias, dtype=ttnn.DataType.BFLOAT16, memory_config=mem_config
         )
-        return ttnn_add_187
 
-    def IPAdapterPlusImageProjectionBlock_128_0(
-        self,
-        input_0,
-        input_1,
-        input_2,
-        input_3,
-        input_4,
-        input_5,
-        input_6,
-        input_7,
-        input_8,
-        input_9,
-    ):
-        ttnn_layer_norm_64 = ttnn.layer_norm(
-            input_3,
+        # Split into Q, K, V (each 1280)
+        # Order in fused weight: V, K, Q (based on consteval ordering)
+        q = ttnn.slice(
+            x, [0, 0, 2560], [1, 257, 3840], [1, 1, 1], memory_config=mem_config
+        )
+        k = ttnn.slice(
+            x, [0, 0, 1280], [1, 257, 2560], [1, 1, 1], memory_config=mem_config
+        )
+        v = ttnn.slice(
+            x, [0, 0, 0], [1, 257, 1280], [1, 1, 1], memory_config=mem_config
+        )
+
+        # Reshape for multi-head attention: [257, 1280] -> [1, 257, 16, 80]
+        q = ttnn.reshape(q, [1, 257, 16, 80], memory_config=mem_config)
+        k = ttnn.reshape(k, [1, 257, 16, 80], memory_config=mem_config)
+        v = ttnn.reshape(v, [1, 257, 16, 80], memory_config=mem_config)
+
+        # Permute to [batch, heads, seq, head_dim]: [1, 257, 16, 80] -> [1, 16, 257, 80]
+        q = ttnn.permute(q, [0, 2, 1, 3], memory_config=mem_config, pad_value=0.0)
+        k = ttnn.permute(k, [0, 2, 1, 3], memory_config=mem_config, pad_value=0.0)
+        v = ttnn.permute(v, [0, 2, 1, 3], memory_config=mem_config, pad_value=0.0)
+
+        # Pad head_dim from 80 to 96 for efficient SDPA
+        q = ttnn.pad(
+            q,
+            [[0, 0], [0, 0], [0, 0], [0, 16]],
+            0.0,
+            use_multicore=True,
+            memory_config=mem_config,
+        )
+        k = ttnn.pad(
+            k,
+            [[0, 0], [0, 0], [0, 0], [0, 16]],
+            0.0,
+            use_multicore=True,
+            memory_config=mem_config,
+        )
+        v = ttnn.pad(
+            v,
+            [[0, 0], [0, 0], [0, 0], [0, 16]],
+            0.0,
+            use_multicore=True,
+            memory_config=mem_config,
+        )
+
+        # Scaled Dot-Product Attention
+        # Original generated code uses (V, K, Q) argument order - match it exactly
+        attn_output = ttnn.transformer.scaled_dot_product_attention(
+            v,
+            k,
+            q,
+            attn_mask=None,
+            is_causal=False,
+            scale=0.11180340498685837,  # 1/sqrt(80)
+            sliding_window_size=None,
+            memory_config=mem_config,
+        )
+
+        # Remove padding: [1, 16, 257, 96] -> [1, 16, 257, 80]
+        attn_output = ttnn.slice(
+            attn_output,
+            [0, 0, 0, 0],
+            [1, 16, 257, 80],
+            [1, 1, 1, 1],
+            memory_config=mem_config,
+        )
+
+        # Permute back: [1, 16, 257, 80] -> [1, 257, 16, 80]
+        attn_output = ttnn.permute(
+            attn_output, [0, 2, 1, 3], memory_config=mem_config, pad_value=0.0
+        )
+
+        # Reshape: [1, 257, 16, 80] -> [257, 1280]
+        attn_output = ttnn.reshape(attn_output, [257, 1280], memory_config=mem_config)
+
+        # Output projection
+        out_proj_weight = self.weights[
+            f"image_encoder.vision_model.encoder.layers.{layer_idx}.self_attn.out_proj.weight"
+        ]
+        out_proj_bias = self.weights[
+            f"image_encoder.vision_model.encoder.layers.{layer_idx}.self_attn.out_proj.bias"
+        ]
+
+        attn_output = ttnn.matmul(
+            attn_output,
+            out_proj_weight,
+            transpose_a=False,
+            transpose_b=True,
+            memory_config=mem_config,
+            dtype=None,
+            program_config=None,
+            activation=None,
+        )
+        attn_output = ttnn.add(
+            attn_output,
+            out_proj_bias,
+            dtype=ttnn.DataType.BFLOAT16,
+            memory_config=mem_config,
+        )
+
+        return attn_output
+
+    def _clip_mlp(self, hidden_states, layer_idx: int):
+        """
+        CLIPMLP: Two-layer MLP with GELU activation.
+
+        Structure: fc1 (1280 -> 5120) -> GELU -> fc2 (5120 -> 1280)
+
+        Args:
+            hidden_states: Input tensor (either [1, 257, 1280] or [257, 1280])
+            layer_idx: Layer index (0-30)
+
+        Returns:
+            Output tensor [257, 1280]
+        """
+        mem_config = self._dram_memory_config()
+
+        # Reshape to 2D if needed
+        x = ttnn.reshape(hidden_states, [257, 1280], memory_config=mem_config)
+
+        # FC1: [257, 1280] -> [257, 5120]
+        fc1_weight = self.weights[
+            f"image_encoder.vision_model.encoder.layers.{layer_idx}.mlp.fc1.weight"
+        ]
+        fc1_bias = self.weights[
+            f"image_encoder.vision_model.encoder.layers.{layer_idx}.mlp.fc1.bias"
+        ]
+
+        x = ttnn.matmul(
+            x,
+            fc1_weight,
+            transpose_a=False,
+            transpose_b=True,
+            memory_config=mem_config,
+            dtype=None,
+            program_config=None,
+            activation=None,
+        )
+        x = ttnn.add(
+            x, fc1_bias, dtype=ttnn.DataType.BFLOAT16, memory_config=mem_config
+        )
+
+        # GELU activation
+        x = ttnn.gelu(x, fast_and_approximate_mode=False, memory_config=mem_config)
+
+        # Ensure correct shape for fc2
+        x = ttnn.reshape(x, [257, 5120], memory_config=mem_config)
+
+        # FC2: [257, 5120] -> [257, 1280]
+        fc2_weight = self.weights[
+            f"image_encoder.vision_model.encoder.layers.{layer_idx}.mlp.fc2.weight"
+        ]
+        fc2_bias = self.weights[
+            f"image_encoder.vision_model.encoder.layers.{layer_idx}.mlp.fc2.bias"
+        ]
+
+        x = ttnn.matmul(
+            x,
+            fc2_weight,
+            transpose_a=False,
+            transpose_b=True,
+            memory_config=mem_config,
+            dtype=None,
+            program_config=None,
+            activation=None,
+        )
+        x = ttnn.add(
+            x, fc2_bias, dtype=ttnn.DataType.BFLOAT16, memory_config=mem_config
+        )
+
+        return x
+
+    # ============ Resampler ============
+
+    def _resampler_proj_in(self, x):
+        """Resampler input projection: Linear 1280 -> 1280."""
+        mem_config = self._dram_memory_config()
+
+        # Reshape to 2D: [1, 257, 1280] -> [257, 1280]
+        x = ttnn.reshape(x, [257, 1280], memory_config=mem_config)
+
+        x = ttnn.matmul(
+            x,
+            self.weights["resampler.proj_in.weight"],
+            transpose_a=False,
+            transpose_b=True,
+            memory_config=mem_config,
+            dtype=None,
+            program_config=None,
+            activation=None,
+        )
+        x = ttnn.add(
+            x,
+            self.weights["resampler.proj_in.bias"],
+            dtype=ttnn.DataType.BFLOAT16,
+            memory_config=mem_config,
+        )
+
+        return x
+
+    def _resampler_block(self, latents, encoder_hidden_states, block_idx: int):
+        """
+        IPAdapterPlusImageProjectionBlock: Cross-attention block.
+
+        Structure:
+            encoder_hidden_states = ln0(encoder_hidden_states)
+            latents = ln1(latents)
+            encoder_hidden_states = concat([encoder_hidden_states, latents], dim=-2)
+            latents = attn(latents, encoder_hidden_states) + residual
+            latents = ff(latents) + latents
+
+        For block 0, latents come from precomputed consteval (learned latents with ln1 and to_q applied).
+        For blocks 1-3, latents come from the previous block output.
+
+        Args:
+            latents: For block 0, this is the projected encoder hidden states.
+                     For blocks 1-3, this is the previous block's output.
+            encoder_hidden_states: The projected encoder output [257, 1280]
+            block_idx: Block index (0-3)
+
+        Returns:
+            Updated latents tensor
+        """
+        if block_idx == 0:
+            # Block 0 uses precomputed latents (ln1 + to_q already applied)
+            return self._resampler_block_0(encoder_hidden_states)
+        else:
+            # Blocks 1-3 use the output from the previous block
+            return self._resampler_block_n(latents, encoder_hidden_states, block_idx)
+
+    def _resampler_block_0(self, encoder_hidden_states):
+        """
+        First resampler block - uses precomputed latents.
+
+        The learned latents have already had ln1 and to_q applied in consteval.
+        Q = utils_constEvalFuncWrapper_30_1 (already reshaped and permuted)
+        """
+        mem_config = self._dram_memory_config()
+
+        # ln0 on encoder hidden states
+        x_ln0 = ttnn.layer_norm(
+            encoder_hidden_states,
             epsilon=9.9999997473787516e-06,
-            weight=input_4,
-            bias=input_7,
+            weight=self.weights["resampler.layers.0.ln0.weight"],
+            bias=self.weights["resampler.layers.0.ln0.bias"],
             residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            memory_config=mem_config,
             program_config=None,
         )
-        ttnn_layer_norm_65 = ttnn.layer_norm(
-            input_3,
-            epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_9,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_layer_norm_66 = ttnn.layer_norm(
-            input_3,
-            epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_5,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_layer_norm_67 = ttnn.layer_norm(
-            input_3,
-            epsilon=9.9999997473787516e-06,
-            weight=input_6,
-            bias=input_8,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_reshape_413 = ttnn.reshape(
-            ttnn_layer_norm_64,
-            [257, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_414 = ttnn.reshape(
-            ttnn_layer_norm_65,
-            [257, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_415 = ttnn.reshape(
-            ttnn_layer_norm_66,
-            [257, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_416 = ttnn.reshape(
-            ttnn_layer_norm_67,
-            [257, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        util_create_list_387 = [ttnn_reshape_416, input_0]
-        ttnn_concat_63 = ttnn.concat(
-            util_create_list_387,
+
+        # Reshape for concatenation
+        x_ln0 = ttnn.reshape(x_ln0, [257, 1280], memory_config=mem_config)
+
+        # Precomputed: latents with ln1 applied, ready for concat
+        # utils_constEvalFuncWrapper_30_0 is the ln1(latents) output [16, 1280]
+        # Concat encoder hidden states with latents
+        concat_input = ttnn.concat(
+            [x_ln0, self.weights["utils_constEvalFuncWrapper_30_0"]],
             0,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            memory_config=mem_config,
         )
-        return ttnn_reshape_414, ttnn_concat_63, ttnn_reshape_415, ttnn_reshape_413
 
-    def Attention_129_0(self, input_0, input_1, input_2, input_3, input_4, input_5):
-        ttnn_matmul_126 = ttnn.matmul(
-            input_0,
-            input_2,
+        # Compute K and V from concatenated input
+        k = ttnn.matmul(
+            concat_input,
+            self.weights["resampler.layers.0.attn.to_k.weight"],
             transpose_a=False,
             transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            memory_config=mem_config,
             dtype=None,
             program_config=None,
             activation=None,
         )
-        ttnn_matmul_127 = ttnn.matmul(
-            input_0,
-            input_4,
+        v = ttnn.matmul(
+            concat_input,
+            self.weights["resampler.layers.0.attn.to_v.weight"],
             transpose_a=False,
             transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            memory_config=mem_config,
             dtype=None,
             program_config=None,
             activation=None,
         )
-        ttnn_typecast_3 = ttnn.typecast(
-            ttnn_matmul_126,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_4 = ttnn.typecast(
-            ttnn_matmul_127,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_417 = ttnn.reshape(
-            ttnn_typecast_3,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_418 = ttnn.reshape(
-            ttnn_typecast_4,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_130 = ttnn.permute(
-            ttnn_reshape_417,
-            [0, 2, 3, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_131 = ttnn.permute(
-            ttnn_reshape_418,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_132 = ttnn.permute(
-            ttnn_permute_130,
-            [0, 1, 3, 2],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_5 = ttnn.typecast(
-            ttnn_permute_131,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_6 = ttnn.typecast(
-            ttnn_permute_132,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_transformer_scaled_dot_product_attention_31 = (
-            ttnn.transformer.scaled_dot_product_attention(
-                input_5,
-                ttnn_typecast_6,
-                ttnn_typecast_5,
-                attn_mask=None,
-                is_causal=False,
-                scale=0.35355338454246521,
-                sliding_window_size=None,
-                memory_config=ttnn.MemoryConfig(
-                    ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-                ),
-            )
-        )
-        ttnn_transformer_concatenate_heads_0 = ttnn.transformer.concatenate_heads(
-            ttnn_transformer_scaled_dot_product_attention_31,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_419 = ttnn.reshape(
-            ttnn_transformer_concatenate_heads_0,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_128 = ttnn.matmul(
-            ttnn_reshape_419,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_420 = ttnn.reshape(
-            ttnn_matmul_128,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_divide_0 = ttnn.divide(
-            ttnn_reshape_420,
-            input_3,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_divide_0
 
-    def IPAdapterPlusImageProjectionBlock_130_0(
-        self, input_0, input_1, input_2, input_3
-    ):
-        ttnn_add_188 = ttnn.add(
-            input_1,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+        # Typecast K and V to FLOAT32 before reshape (matching original)
+        k = ttnn.typecast(k, ttnn.DataType.FLOAT32, memory_config=mem_config)
+        v = ttnn.typecast(v, ttnn.DataType.FLOAT32, memory_config=mem_config)
+
+        # Reshape for multi-head attention: [273, 1280] -> [1, 273, 20, 64]
+        # Resampler has 20 heads with head_dim=64
+        k = ttnn.reshape(
+            k, [1, 273, 20, 64], memory_config=mem_config
+        )  # 257 + 16 = 273
+        v = ttnn.reshape(v, [1, 273, 20, 64], memory_config=mem_config)
+
+        # K permutation: [0, 2, 3, 1] then [0, 1, 3, 2] = transpose K for attention
+        k = ttnn.permute(k, [0, 2, 3, 1], memory_config=mem_config, pad_value=0.0)
+        k = ttnn.permute(k, [0, 1, 3, 2], memory_config=mem_config, pad_value=0.0)
+
+        # V permutation: [0, 2, 1, 3]
+        v = ttnn.permute(v, [0, 2, 1, 3], memory_config=mem_config, pad_value=0.0)
+
+        # Typecast K and V back to BFLOAT16
+        k = ttnn.typecast(k, ttnn.DataType.BFLOAT16, memory_config=mem_config)
+        v = ttnn.typecast(v, ttnn.DataType.BFLOAT16, memory_config=mem_config)
+
+        # Q is precomputed: utils_constEvalFuncWrapper_30_1 is to_q(ln1(latents)) with reshape and permute
+        q = self.weights["utils_constEvalFuncWrapper_30_1"]
+
+        # Scaled Dot-Product Attention
+        # Scale = 1/sqrt(8) = 0.35355338454246521 (not 1/sqrt(64))
+        attn_output = ttnn.transformer.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=None,
+            is_causal=False,
+            scale=0.35355338454246521,
+            sliding_window_size=None,
+            memory_config=mem_config,
         )
-        ttnn_layer_norm_68 = ttnn.layer_norm(
-            ttnn_add_188,
+
+        # Use concatenate_heads to merge attention heads
+        attn_output = ttnn.transformer.concatenate_heads(
+            attn_output, memory_config=mem_config
+        )
+
+        # Reshape: [1, 16, 1280] -> [16, 1280]
+        attn_output = ttnn.reshape(attn_output, [16, 1280], memory_config=mem_config)
+
+        # Output projection (no bias in resampler attention)
+        attn_output = ttnn.matmul(
+            attn_output,
+            self.weights["resampler.layers.0.attn.to_out.0.weight"],
+            transpose_a=False,
+            transpose_b=True,
+            memory_config=mem_config,
+            dtype=None,
+            program_config=None,
+            activation=None,
+        )
+
+        # Reshape back to [1, 16, 1280] for division
+        attn_output = ttnn.reshape(attn_output, [1, 16, 1280], memory_config=mem_config)
+
+        # Divide by ones tensor (matches original - may be for numerical precision)
+        attn_output = ttnn.divide(
+            attn_output,
+            self.weights["utils_constEvalFuncWrapperZeroArg_0_0"],
+            dtype=ttnn.DataType.BFLOAT16,
+            memory_config=mem_config,
+        )
+
+        # Add residual: use resampler.latents (the learned queries)
+        attn_output = ttnn.add(
+            attn_output,
+            self.weights["resampler.latents"],
+            dtype=ttnn.DataType.BFLOAT16,
+            memory_config=mem_config,
+        )
+
+        # Feedforward
+        latents = self._resampler_feedforward(attn_output, 0)
+
+        return latents
+
+    def _resampler_block_n(self, latents, encoder_hidden_states, block_idx: int):
+        """Resampler blocks 1-3."""
+        mem_config = self._dram_memory_config()
+
+        # ln0 on encoder hidden states (same input for all blocks)
+        x_ln0 = ttnn.layer_norm(
+            encoder_hidden_states,
             epsilon=9.9999997473787516e-06,
-            weight=input_0,
-            bias=input_3,
+            weight=self.weights[f"resampler.layers.{block_idx}.ln0.weight"],
+            bias=self.weights[f"resampler.layers.{block_idx}.ln0.bias"],
             residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            memory_config=mem_config,
             program_config=None,
         )
-        return ttnn_add_188, ttnn_layer_norm_68
 
-    def Linear_131_0(self, input_0, input_1):
-        ttnn_reshape_421 = ttnn.reshape(
-            input_1,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+        # ln1 on latents
+        x_ln1 = ttnn.layer_norm(
+            latents,
+            epsilon=9.9999997473787516e-06,
+            weight=self.weights[f"resampler.layers.{block_idx}.ln1.weight"],
+            bias=self.weights[f"resampler.layers.{block_idx}.ln1.bias"],
+            residual_input_tensor=None,
+            memory_config=mem_config,
+            program_config=None,
         )
-        ttnn_matmul_129 = ttnn.matmul(
-            ttnn_reshape_421,
-            input_0,
+
+        # Reshape for concatenation
+        x_ln0 = ttnn.reshape(x_ln0, [257, 1280], memory_config=mem_config)
+        x_ln1_reshaped = ttnn.reshape(x_ln1, [16, 1280], memory_config=mem_config)
+
+        # Concat encoder hidden states with latents
+        concat_input = ttnn.concat([x_ln0, x_ln1_reshaped], 0, memory_config=mem_config)
+
+        # Compute Q from ln1(latents) - reshaped to [16, 1280]
+        q = ttnn.matmul(
+            x_ln1_reshaped,
+            self.weights[f"resampler.layers.{block_idx}.attn.to_q.weight"],
             transpose_a=False,
             transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            memory_config=mem_config,
+            dtype=None,
+            program_config=None,
+            activation=None,
+        )
+
+        # Compute K and V from concatenated input
+        k = ttnn.matmul(
+            concat_input,
+            self.weights[f"resampler.layers.{block_idx}.attn.to_k.weight"],
+            transpose_a=False,
+            transpose_b=True,
+            memory_config=mem_config,
+            dtype=None,
+            program_config=None,
+            activation=None,
+        )
+        v = ttnn.matmul(
+            concat_input,
+            self.weights[f"resampler.layers.{block_idx}.attn.to_v.weight"],
+            transpose_a=False,
+            transpose_b=True,
+            memory_config=mem_config,
+            dtype=None,
+            program_config=None,
+            activation=None,
+        )
+
+        # Typecast Q, K, V to FLOAT32 before reshape
+        q = ttnn.typecast(q, ttnn.DataType.FLOAT32, memory_config=mem_config)
+        k = ttnn.typecast(k, ttnn.DataType.FLOAT32, memory_config=mem_config)
+        v = ttnn.typecast(v, ttnn.DataType.FLOAT32, memory_config=mem_config)
+
+        # Reshape for multi-head attention
+        q = ttnn.reshape(q, [1, 16, 20, 64], memory_config=mem_config)
+        k = ttnn.reshape(k, [1, 273, 20, 64], memory_config=mem_config)
+        v = ttnn.reshape(v, [1, 273, 20, 64], memory_config=mem_config)
+
+        # Q permutation: [0, 2, 1, 3]
+        q = ttnn.permute(q, [0, 2, 1, 3], memory_config=mem_config, pad_value=0.0)
+
+        # V permutation: [0, 2, 1, 3]
+        v = ttnn.permute(v, [0, 2, 1, 3], memory_config=mem_config, pad_value=0.0)
+
+        # K permutation: [0, 2, 3, 1] then [0, 1, 3, 2]
+        k = ttnn.permute(k, [0, 2, 3, 1], memory_config=mem_config, pad_value=0.0)
+        k = ttnn.permute(k, [0, 1, 3, 2], memory_config=mem_config, pad_value=0.0)
+
+        # Typecast Q, K, V back to BFLOAT16
+        q = ttnn.typecast(q, ttnn.DataType.BFLOAT16, memory_config=mem_config)
+        k = ttnn.typecast(k, ttnn.DataType.BFLOAT16, memory_config=mem_config)
+        v = ttnn.typecast(v, ttnn.DataType.BFLOAT16, memory_config=mem_config)
+
+        # SDPA with scale = 0.125 (approximately 1/8)
+        attn_output = ttnn.transformer.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=None,
+            is_causal=False,
+            scale=0.1249999925494194,
+            sliding_window_size=None,
+            memory_config=mem_config,
+        )
+
+        # Use concatenate_heads to merge attention heads
+        attn_output = ttnn.transformer.concatenate_heads(
+            attn_output, memory_config=mem_config
+        )
+
+        # Reshape: [1, 16, 1280] -> [16, 1280]
+        attn_output = ttnn.reshape(attn_output, [16, 1280], memory_config=mem_config)
+
+        # Output projection
+        attn_output = ttnn.matmul(
+            attn_output,
+            self.weights[f"resampler.layers.{block_idx}.attn.to_out.0.weight"],
+            transpose_a=False,
+            transpose_b=True,
+            memory_config=mem_config,
+            dtype=None,
+            program_config=None,
+            activation=None,
+        )
+
+        # Reshape back to [1, 16, 1280] for division
+        attn_output = ttnn.reshape(attn_output, [1, 16, 1280], memory_config=mem_config)
+
+        # Divide by ones tensor (matches original)
+        attn_output = ttnn.divide(
+            attn_output,
+            self.weights["utils_constEvalFuncWrapperZeroArg_0_0"],
+            dtype=ttnn.DataType.BFLOAT16,
+            memory_config=mem_config,
+        )
+
+        # Add residual (latents is already [1, 16, 1280])
+        attn_output = ttnn.add(
+            attn_output, latents, dtype=ttnn.DataType.BFLOAT16, memory_config=mem_config
+        )
+
+        # Feedforward
+        latents = self._resampler_feedforward(attn_output, block_idx)
+
+        return latents
+
+    def _resampler_feedforward(self, x, block_idx: int):
+        """
+        Resampler feedforward: LayerNorm -> Linear -> GELU -> Linear.
+
+        Input shape: [1, 16, 1280]
+        Output shape: [1, 16, 1280]
+
+        Structure:
+            residual = x  # [1, 16, 1280]
+            x = ff_ln(x)  # [1, 16, 1280]
+            x = reshape(x, [16, 1280])
+            x = ff_proj(x, activation="gelu")  # [16, 5120]
+            x = ff_out(x)  # [16, 1280]
+            x = reshape(x, [1, 16, 1280])
+            x = x + residual
+        """
+        mem_config = self._dram_memory_config()
+        residual = x  # [1, 16, 1280]
+
+        # LayerNorm on [1, 16, 1280]
+        x = ttnn.layer_norm(
+            x,
+            epsilon=9.9999997473787516e-06,
+            weight=self.weights[f"resampler.layers.{block_idx}.ff.0.weight"],
+            bias=self.weights[f"resampler.layers.{block_idx}.ff.0.bias"],
+            residual_input_tensor=None,
+            memory_config=mem_config,
+            program_config=None,
+        )
+
+        # Reshape to [16, 1280] for matmul
+        x = ttnn.reshape(x, [16, 1280], memory_config=mem_config)
+
+        # First linear with GELU activation: [16, 1280] -> [16, 5120]
+        x = ttnn.matmul(
+            x,
+            self.weights[f"resampler.layers.{block_idx}.ff.1.net.0.proj.weight"],
+            transpose_a=False,
+            transpose_b=True,
+            memory_config=mem_config,
             dtype=None,
             program_config=None,
             activation="gelu",
         )
-        return ttnn_matmul_129
 
-    def Linear_132_0(self, input_0, input_1):
-        ttnn_matmul_130 = ttnn.matmul(
-            input_1,
-            input_0,
+        # Second linear: [16, 5120] -> [16, 1280]
+        x = ttnn.matmul(
+            x,
+            self.weights[f"resampler.layers.{block_idx}.ff.1.net.2.weight"],
             transpose_a=False,
             transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            memory_config=mem_config,
             dtype=None,
             program_config=None,
             activation=None,
         )
-        ttnn_reshape_422 = ttnn.reshape(
-            ttnn_matmul_130,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_reshape_422
 
-    def IPAdapterPlusImageProjectionBlock_133_0(
-        self, input_0, input_1, input_2, input_3, input_4
-    ):
-        ttnn_add_189 = ttnn.add(
-            input_1,
-            input_0,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+        # Reshape back to [1, 16, 1280]
+        x = ttnn.reshape(x, [1, 16, 1280], memory_config=mem_config)
+
+        # Add residual
+        x = ttnn.add(
+            x, residual, dtype=ttnn.DataType.BFLOAT16, memory_config=mem_config
         )
-        ttnn_layer_norm_69 = ttnn.layer_norm(
-            ttnn_add_189,
+
+        return x
+
+    def _resampler_proj_out(self, x):
+        """Resampler output projection: Linear 1280 -> 2048."""
+        mem_config = self._dram_memory_config()
+
+        x = ttnn.matmul(
+            x,
+            self.weights["resampler.proj_out.weight"],
+            transpose_a=False,
+            transpose_b=True,
+            memory_config=mem_config,
+            dtype=None,
+            program_config=None,
+            activation=None,
+        )
+        x = ttnn.add(
+            x,
+            self.weights["resampler.proj_out.bias"],
+            dtype=ttnn.DataType.BFLOAT16,
+            memory_config=mem_config,
+        )
+
+        return x
+
+    def _resampler_norm_out(self, x):
+        """Resampler final LayerNorm."""
+        mem_config = self._dram_memory_config()
+
+        return ttnn.layer_norm(
+            x,
             epsilon=9.9999997473787516e-06,
-            weight=input_2,
-            bias=input_3,
+            weight=self.weights["resampler.norm_out.weight"],
+            bias=self.weights["resampler.norm_out.bias"],
             residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
+            memory_config=mem_config,
             program_config=None,
         )
-        ttnn_reshape_423 = ttnn.reshape(
-            ttnn_layer_norm_69,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        util_create_list_388 = [input_4, ttnn_reshape_423]
-        ttnn_concat_64 = ttnn.concat(
-            util_create_list_388,
-            0,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_add_189, ttnn_concat_64, ttnn_layer_norm_69
 
-    def Attention_134_0(
-        self, input_0, input_1, input_2, input_3, input_4, input_5, input_6
-    ):
-        ttnn_reshape_424 = ttnn.reshape(
-            input_6,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_131 = ttnn.matmul(
-            ttnn_reshape_424,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_matmul_132 = ttnn.matmul(
-            input_5,
-            input_4,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_7 = ttnn.typecast(
-            ttnn_matmul_131,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_133 = ttnn.matmul(
-            input_5,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_8 = ttnn.typecast(
-            ttnn_matmul_132,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_425 = ttnn.reshape(
-            ttnn_typecast_7,
-            [1, 16, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_9 = ttnn.typecast(
-            ttnn_matmul_133,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_426 = ttnn.reshape(
-            ttnn_typecast_8,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_427 = ttnn.reshape(
-            ttnn_typecast_9,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_133 = ttnn.permute(
-            ttnn_reshape_425,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_134 = ttnn.permute(
-            ttnn_reshape_426,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_135 = ttnn.permute(
-            ttnn_reshape_427,
-            [0, 2, 3, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_10 = ttnn.typecast(
-            ttnn_permute_133,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_11 = ttnn.typecast(
-            ttnn_permute_134,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_136 = ttnn.permute(
-            ttnn_permute_135,
-            [0, 1, 3, 2],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_12 = ttnn.typecast(
-            ttnn_permute_136,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_transformer_scaled_dot_product_attention_32 = (
-            ttnn.transformer.scaled_dot_product_attention(
-                ttnn_typecast_10,
-                ttnn_typecast_12,
-                ttnn_typecast_11,
-                attn_mask=None,
-                is_causal=False,
-                scale=0.1249999925494194,
-                sliding_window_size=None,
-                memory_config=ttnn.MemoryConfig(
-                    ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-                ),
-            )
-        )
-        ttnn_transformer_concatenate_heads_1 = ttnn.transformer.concatenate_heads(
-            ttnn_transformer_scaled_dot_product_attention_32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_428 = ttnn.reshape(
-            ttnn_transformer_concatenate_heads_1,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_134 = ttnn.matmul(
-            ttnn_reshape_428,
-            input_2,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_429 = ttnn.reshape(
-            ttnn_matmul_134,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_divide_1 = ttnn.divide(
-            ttnn_reshape_429,
-            input_3,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_divide_1
+    # ============ Forward ============
 
-    def IPAdapterPlusImageProjectionBlock_135_0(
-        self, input_0, input_1, input_2, input_3
-    ):
-        ttnn_add_190 = ttnn.add(
-            input_2,
-            input_0,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_70 = ttnn.layer_norm(
-            ttnn_add_190,
-            epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_3,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        return ttnn_add_190, ttnn_layer_norm_70
+    def forward(self, pixel_values):
+        """
+        Forward pass through CLIP Vision Encoder + IP-Adapter Resampler.
 
-    def Linear_136_0(self, input_0, input_1):
-        ttnn_reshape_430 = ttnn.reshape(
-            input_1,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_135 = ttnn.matmul(
-            ttnn_reshape_430,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation="gelu",
-        )
-        return ttnn_matmul_135
+        Args:
+            pixel_values: Input image tensor [1, 3, 224, 224] on host
 
-    def Linear_137_0(self, input_0, input_1):
-        ttnn_matmul_136 = ttnn.matmul(
-            input_0,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_431 = ttnn.reshape(
-            ttnn_matmul_136,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
+        Returns:
+            List containing output tensor [1, 16, 2048]
+        """
+        # Move input to device
+        assert pixel_values.device() is None, "pixel_values must be on host"
+        pixel_values = ttnn.to_device(
+            pixel_values,
+            self.device,
+            ttnn.MemoryConfig(
                 ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
             ),
         )
-        return ttnn_reshape_431
+        pixel_values = ttnn.to_layout(
+            pixel_values,
+            ttnn.Layout.TILE,
+            None,
+            memory_config=self._dram_memory_config(),
+        )
 
-    def IPAdapterPlusImageProjectionBlock_138_0(
-        self, input_0, input_1, input_2, input_3, input_4
-    ):
-        ttnn_add_191 = ttnn.add(
-            input_3,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_71 = ttnn.layer_norm(
-            ttnn_add_191,
-            epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_4,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_reshape_432 = ttnn.reshape(
-            ttnn_layer_norm_71,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        util_create_list_389 = [input_0, ttnn_reshape_432]
-        ttnn_concat_65 = ttnn.concat(
-            util_create_list_389,
-            0,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_layer_norm_71, ttnn_add_191, ttnn_concat_65
+        # Vision Embeddings: patch embedding + class token + position embedding
+        x = self._vision_embeddings(pixel_values)
 
-    def Attention_139_0(
-        self, input_0, input_1, input_2, input_3, input_4, input_5, input_6
-    ):
-        ttnn_reshape_433 = ttnn.reshape(
-            input_5,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_137 = ttnn.matmul(
-            ttnn_reshape_433,
-            input_2,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_matmul_138 = ttnn.matmul(
-            input_6,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_13 = ttnn.typecast(
-            ttnn_matmul_137,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_139 = ttnn.matmul(
-            input_6,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_14 = ttnn.typecast(
-            ttnn_matmul_138,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_434 = ttnn.reshape(
-            ttnn_typecast_13,
-            [1, 16, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_15 = ttnn.typecast(
-            ttnn_matmul_139,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_435 = ttnn.reshape(
-            ttnn_typecast_14,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_436 = ttnn.reshape(
-            ttnn_typecast_15,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_137 = ttnn.permute(
-            ttnn_reshape_434,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_138 = ttnn.permute(
-            ttnn_reshape_435,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_139 = ttnn.permute(
-            ttnn_reshape_436,
-            [0, 2, 3, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_16 = ttnn.typecast(
-            ttnn_permute_137,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_17 = ttnn.typecast(
-            ttnn_permute_138,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_140 = ttnn.permute(
-            ttnn_permute_139,
-            [0, 1, 3, 2],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_18 = ttnn.typecast(
-            ttnn_permute_140,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_transformer_scaled_dot_product_attention_33 = (
-            ttnn.transformer.scaled_dot_product_attention(
-                ttnn_typecast_16,
-                ttnn_typecast_18,
-                ttnn_typecast_17,
-                attn_mask=None,
-                is_causal=False,
-                scale=0.1249999925494194,
-                sliding_window_size=None,
-                memory_config=ttnn.MemoryConfig(
-                    ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-                ),
-            )
-        )
-        ttnn_transformer_concatenate_heads_2 = ttnn.transformer.concatenate_heads(
-            ttnn_transformer_scaled_dot_product_attention_33,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_437 = ttnn.reshape(
-            ttnn_transformer_concatenate_heads_2,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_140 = ttnn.matmul(
-            ttnn_reshape_437,
-            input_4,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_438 = ttnn.reshape(
-            ttnn_matmul_140,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_divide_2 = ttnn.divide(
-            ttnn_reshape_438,
-            input_3,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_divide_2
+        # Pre-LayerNorm
+        x = self._pre_layernorm(x)
 
-    def IPAdapterPlusImageProjectionBlock_140_0(
-        self, input_0, input_1, input_2, input_3
-    ):
-        ttnn_add_192 = ttnn.add(
-            input_1,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_72 = ttnn.layer_norm(
-            ttnn_add_192,
-            epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_0,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        return ttnn_add_192, ttnn_layer_norm_72
+        # Encoder Layers (31 layers, indices 0-30)
+        for layer_idx in range(31):
+            x = self._encoder_layer(x, layer_idx)
 
-    def Linear_141_0(self, input_0, input_1):
-        ttnn_reshape_439 = ttnn.reshape(
-            input_1,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_141 = ttnn.matmul(
-            ttnn_reshape_439,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation="gelu",
-        )
-        return ttnn_matmul_141
+        # Use output from final encoder layer (layer 30)
+        # Note: Original TTNN code uses final layer output, not penultimate
+        patches = x
 
-    def Linear_142_0(self, input_0, input_1):
-        ttnn_matmul_142 = ttnn.matmul(
-            input_0,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_440 = ttnn.reshape(
-            ttnn_matmul_142,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_reshape_440
+        # Resampler: proj_in -> 4 attention blocks -> proj_out -> norm_out
+        encoder_hidden_states = self._resampler_proj_in(patches)
 
-    def IPAdapterPlusImageProjectionBlock_143_0(
-        self, input_0, input_1, input_2, input_3, input_4
-    ):
-        ttnn_add_193 = ttnn.add(
-            input_0,
-            input_4,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_73 = ttnn.layer_norm(
-            ttnn_add_193,
-            epsilon=9.9999997473787516e-06,
-            weight=input_3,
-            bias=input_2,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        ttnn_reshape_441 = ttnn.reshape(
-            ttnn_layer_norm_73,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        util_create_list_390 = [input_1, ttnn_reshape_441]
-        ttnn_concat_66 = ttnn.concat(
-            util_create_list_390,
-            0,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_layer_norm_73, ttnn_concat_66, ttnn_add_193
+        # All resampler blocks operate on the same encoder_hidden_states
+        # Block 0 uses precomputed latents
+        latents = self._resampler_block(None, encoder_hidden_states, 0)
 
-    def Attention_144_0(
-        self, input_0, input_1, input_2, input_3, input_4, input_5, input_6
-    ):
-        ttnn_reshape_442 = ttnn.reshape(
-            input_5,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_143 = ttnn.matmul(
-            ttnn_reshape_442,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_matmul_144 = ttnn.matmul(
-            input_6,
-            input_3,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_19 = ttnn.typecast(
-            ttnn_matmul_143,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_145 = ttnn.matmul(
-            input_6,
-            input_0,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_typecast_20 = ttnn.typecast(
-            ttnn_matmul_144,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_443 = ttnn.reshape(
-            ttnn_typecast_19,
-            [1, 16, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_21 = ttnn.typecast(
-            ttnn_matmul_145,
-            ttnn.DataType.FLOAT32,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_444 = ttnn.reshape(
-            ttnn_typecast_20,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_445 = ttnn.reshape(
-            ttnn_typecast_21,
-            [1, 273, 20, 64],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_141 = ttnn.permute(
-            ttnn_reshape_443,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_142 = ttnn.permute(
-            ttnn_reshape_444,
-            [0, 2, 1, 3],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_permute_143 = ttnn.permute(
-            ttnn_reshape_445,
-            [0, 2, 3, 1],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_22 = ttnn.typecast(
-            ttnn_permute_141,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_typecast_23 = ttnn.typecast(
-            ttnn_permute_142,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_permute_144 = ttnn.permute(
-            ttnn_permute_143,
-            [0, 1, 3, 2],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            pad_value=0.0,
-        )
-        ttnn_typecast_24 = ttnn.typecast(
-            ttnn_permute_144,
-            ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_transformer_scaled_dot_product_attention_34 = (
-            ttnn.transformer.scaled_dot_product_attention(
-                ttnn_typecast_22,
-                ttnn_typecast_24,
-                ttnn_typecast_23,
-                attn_mask=None,
-                is_causal=False,
-                scale=0.1249999925494194,
-                sliding_window_size=None,
-                memory_config=ttnn.MemoryConfig(
-                    ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-                ),
-            )
-        )
-        ttnn_transformer_concatenate_heads_3 = ttnn.transformer.concatenate_heads(
-            ttnn_transformer_scaled_dot_product_attention_34,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_reshape_446 = ttnn.reshape(
-            ttnn_transformer_concatenate_heads_3,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_146 = ttnn.matmul(
-            ttnn_reshape_446,
-            input_4,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_reshape_447 = ttnn.reshape(
-            ttnn_matmul_146,
-            [1, 16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_divide_3 = ttnn.divide(
-            ttnn_reshape_447,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_divide_3
+        # Blocks 1-3 use output from previous block
+        for block_idx in range(1, 4):
+            latents = self._resampler_block(latents, encoder_hidden_states, block_idx)
 
-    def IPAdapterPlusImageProjectionBlock_145_0(
-        self, input_0, input_1, input_2, input_3
-    ):
-        ttnn_add_194 = ttnn.add(
-            input_2,
-            input_3,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_74 = ttnn.layer_norm(
-            ttnn_add_194,
-            epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_0,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        return ttnn_layer_norm_74, ttnn_add_194
+        # Output projection and final norm
+        output = self._resampler_proj_out(latents)
+        output = self._resampler_norm_out(output)
 
-    def Linear_146_0(self, input):
-        ttnn_reshape_448 = ttnn.reshape(
-            input,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_reshape_448
-
-    def Linear_147_0(self, input_0, input_1):
-        ttnn_reshape_449 = ttnn.reshape(
-            input_0,
-            [16, 1280],
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_matmul_147 = ttnn.matmul(
-            ttnn_reshape_449,
-            input_1,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation="gelu",
-        )
-        return ttnn_matmul_147, ttnn_reshape_449
-
-    def IPAdapterPlusImageProjectionBlock_148_0(self, input_0, input_1, input_2):
-        ttnn_matmul_148 = ttnn.matmul(
-            input_1,
-            input_2,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_add_195 = ttnn.add(
-            ttnn_matmul_148,
-            input_0,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        return ttnn_add_195
-
-    def IPAdapterPlusImageProjection_149_0(
-        self, input_0, input_1, input_2, input_3, input_4, input_5
-    ):
-        ttnn_matmul_149 = ttnn.matmul(
-            input_3,
-            input_4,
-            transpose_a=False,
-            transpose_b=True,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            dtype=None,
-            program_config=None,
-            activation=None,
-        )
-        ttnn_add_196 = ttnn.add(
-            ttnn_matmul_149,
-            input_2,
-            dtype=ttnn.DataType.BFLOAT16,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-        )
-        ttnn_layer_norm_75 = ttnn.layer_norm(
-            ttnn_add_196,
-            epsilon=9.9999997473787516e-06,
-            weight=input_1,
-            bias=input_5,
-            residual_input_tensor=None,
-            memory_config=ttnn.MemoryConfig(
-                ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-            ),
-            program_config=None,
-        )
-        return ttnn_layer_norm_75
-
-    def Linear_150_0(self, input):
-        return
-
-    def IPAdapterPlusImageProjectionBlock_151_0(self, input):
-        return
+        return [output]
