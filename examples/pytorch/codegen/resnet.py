@@ -4,40 +4,42 @@
 
 ### Demonstrates codegen for ResNet-50 from HuggingFace
 
+import shutil
+from pathlib import Path
+
 import torch
-import torch.nn as nn
-import torch_xla
-import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from transformers import ResNetForImageClassification
 from tt_torch import codegen_py
 
-# Set up XLA runtime for TT backend
-xr.set_device_type("TT")
 
-# Load ResNet-50 from HuggingFace
-model = ResNetForImageClassification.from_pretrained("microsoft/resnet-50")
-model.eval()
+def main():
+    # Set up XLA runtime for TT backend
+    xr.set_device_type("TT")
 
-# Any compile options you could specify when executing the model normally can also be used with codegen.
-extra_options = {
-    # Optimization level (0, 1, or 2) that controls multiple optimization passes.
-    # See documentation for details on what each level enables:
-    # https://docs.tenstorrent.com/tt-xla/performance.html#optimization-levels-breakdown
-    # Level 0 (default): All optimizations disabled
-    # Level 1: Basic optimizations (optimizer + Conv2d fusion)
-    # Level 2: Advanced optimizations (optimizer + memory layout + Conv2d fusion)
-    "optimization_level": 2,
-    # Experimental feature tries to pack generated code as it was originally written,
-    # making it more readable.
-    "codegen_try_recover_structure": False,  # experimental feature
-}
+    # Load ResNet-50 from HuggingFace
+    model = ResNetForImageClassification.from_pretrained("microsoft/resnet-50")
+    model.eval()
+    x = torch.randn(1, 3, 224, 224)
 
-activation_tensor = torch.randn(1, 3, 224, 224)
+    codegen_py(model, x, export_path="resnet50_codegen")
 
-codegen_py(
-    model,
-    activation_tensor,
-    export_path="resnet50_codegen",
-    compiler_options=extra_options,
-)
+
+def test_resnet_codegen():
+    """Test that codegen for ResNet-50 creates the expected output folder."""
+    output_dir = Path("resnet50_codegen")
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    try:
+        main()
+        assert (
+            output_dir.exists()
+        ), f"Expected output folder '{output_dir}' was not created"
+        assert output_dir.is_dir(), f"'{output_dir}' exists but is not a directory"
+    finally:
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+
+
+if __name__ == "__main__":
+    main()

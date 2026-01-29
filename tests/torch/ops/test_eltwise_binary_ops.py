@@ -132,9 +132,6 @@ def test_bitwise_right_shift():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.xfail(
-    reason="PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99. https://github.com/tenstorrent/tt-xla/issues/379"
-)
 def test_div():
     class Div(torch.nn.Module):
         def forward(self, x, y):
@@ -147,9 +144,6 @@ def test_div():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.xfail(
-    reason="PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99. https://github.com/tenstorrent/tt-xla/issues/379"
-)
 def test_divide():
     class Divide(torch.nn.Module):
         def forward(self, x, y):
@@ -291,9 +285,6 @@ def test_subtract():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.xfail(
-    reason="PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99. https://github.com/tenstorrent/tt-xla/issues/379"
-)
 def test_true_divide():
     class TrueDivide(torch.nn.Module):
         def forward(self, x, y):

@@ -694,13 +694,19 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   mamba/pytorch-mamba-370m-hf-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   mamba/pytorch-mamba-790m-hf-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   mamba/pytorch-mamba-1.4b-hf-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   roberta/masked_lm/pytorch-xlm_base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -1191,7 +1197,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
   ghostnet/pytorch-ghostnet_100-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   ghostnet/pytorch-ghostnet_100.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -1200,19 +1208,29 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   monodepth2/pytorch-mono_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -1243,52 +1261,84 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   efficientnet/pytorch-efficientnet_b0-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-efficientnet_b1-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-efficientnet_b2-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-efficientnet_b3-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-efficientnet_b4-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-efficientnet_b5-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-efficientnet_b6-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-efficientnet_b7-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-timm_efficientnet_b0-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-timm_efficientnet_b4-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   mobilenetv1/pytorch-mobilenet_v1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -1338,16 +1388,24 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   xception/pytorch-xception41-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   xception/pytorch-xception65-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   xception/pytorch-xception71-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   xception/pytorch-xception71.tf_in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   regnet/pytorch-regnet_y_040-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -1451,7 +1509,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
   mamba/pytorch-mamba-2.8b-hf-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   qwen_2_5_coder/pytorch-1_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL

@@ -1,8 +1,10 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import argparse
 import time
 from enum import Enum
+from pathlib import Path
 from typing import Optional
 
 import torch
@@ -352,12 +354,72 @@ def save_image(image: torch.Tensor, filepath: str = "output.png"):
     image_pil.save(filepath)
 
 
-if __name__ == "__main__":
-    import argparse
+def prompt_to_filename(prompt: str) -> str:
+    """Convert prompt to filename: lowercase, underscores for spaces."""
+    filename = prompt.lower().replace(" ", "_")
+    filename = "".join(c if c.isalnum() or c == "_" else "_" for c in filename)
+    return filename + ".png"
 
+
+def run_sdxl_pipeline(output_path: str = "output.png", num_inference_steps: int = 5):
+    """Run SDXL pipeline and save output image."""
+    torch_xla.set_custom_compile_options({"optimization_level": 1})
+
+    config = SDXLConfig(width=512, height=512, device="cpu")
+    pipeline = SDXLPipeline(config=config)
+    pipeline.setup(warmup=False)
+
+    img = pipeline.generate(
+        prompt="a photo of a cat",
+        negative_prompt="",
+        do_cfg=True,
+        cfg_scale=7.5,
+        num_inference_steps=num_inference_steps,
+        seed=42,
+    )
+
+    save_image(img, output_path)
+    return output_path
+
+
+def test_sdxl_pipeline():
+    """Test SDXL pipeline generates valid output image."""
+    xr.set_device_type("TT")
+
+    output_path = "test_sdxl_output.png"
+    output_file = Path(output_path)
+    if output_file.exists():
+        output_file.unlink()
+
+    try:
+        run_sdxl_pipeline(output_path=output_path, num_inference_steps=5)
+
+        assert output_file.exists(), f"Output image {output_path} was not created"
+
+        with Image.open(output_path) as img:
+            width, height = img.size
+            assert width == 512, f"Expected width 512, got {width}"
+            assert height == 512, f"Expected height 512, got {height}"
+
+        print(f"Output image created with resolution {width}x{height}")
+
+    finally:
+        if output_file.exists():
+            output_file.unlink()
+            print(f"Cleaned up {output_path}")
+
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", type=str, default="a photo of a cat")
     parser.add_argument("--negative_prompt", type=str, default="")
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        default=False,
+        help="Generate images by inputting prompts interactively",
+    )
+    parser.add_argument("--resolution", type=int, default=512, choices=[512, 1024])
     parser.add_argument("--optimization_level", type=int, default=1)
     parser.add_argument("--do_cfg", type=bool, default=True)
     parser.add_argument("--cfg_scale", type=float, default=7.5)
@@ -379,10 +441,14 @@ if __name__ == "__main__":
     torch_xla.set_custom_compile_options(
         {"optimization_level": args.optimization_level}
     )
-    # only 512x512 is supported for now
+    if args.resolution == 1024:
+        print(
+            "Note: 1024x1024 resolution currently only works on p100 and p150 TT devices."
+        )
+
     config = SDXLConfig(
-        width=512,
-        height=512,
+        width=args.resolution,
+        height=args.resolution,
         device="cpu",
         vae_on_tt=args.vae_on_tt,
         clip_on_tt=args.clip_on_tt,
@@ -390,16 +456,31 @@ if __name__ == "__main__":
     pipeline = SDXLPipeline(config=config)
     pipeline.setup(warmup=True)
 
-    start_time = time.time()
-    img = pipeline.generate(
-        prompt=args.prompt,
-        negative_prompt=args.negative_prompt,
-        do_cfg=True,
-        cfg_scale=args.cfg_scale,
-        num_inference_steps=args.num_inference_steps,
-        seed=args.seed,
-    )
+    while True:
+        if args.interactive:
+            user_input = input("\nEnter prompt (or 'q' to quit): ")
+            if user_input.lower() == "q":
+                print("Exiting interactive mode.")
+                break
+            prompt = user_input
+            output_path = prompt_to_filename(prompt)
+        else:
+            prompt = args.prompt
+            output_path = args.output_path
 
-    end_time = time.time()
-    print(f"Warm inference time taken: {end_time - start_time} seconds")
-    save_image(img, args.output_path)
+        start_time = time.time()
+        img = pipeline.generate(
+            prompt=prompt,
+            negative_prompt=args.negative_prompt,
+            do_cfg=True,
+            cfg_scale=args.cfg_scale,
+            num_inference_steps=args.num_inference_steps,
+            seed=args.seed,
+        )
+        end_time = time.time()
+        print(f"Inference time taken: {end_time - start_time} seconds")
+        save_image(img, output_path)
+        print(f"Image saved to: {output_path}")
+
+        if not args.interactive:
+            break

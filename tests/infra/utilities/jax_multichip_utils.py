@@ -62,7 +62,7 @@ def make_flax_linen_parameters_partition_specs_on_cpu(
             shard_map(
                 model.init,
                 cpu_mesh,
-                in_specs=(None, inputs_specs),
+                in_specs=(None, *inputs_specs),
                 out_specs=PartitionSpec(),
             ),
             jax.random.PRNGKey(21),
@@ -74,6 +74,7 @@ def make_flax_linen_parameters_partition_specs_on_cpu(
 def make_easydel_parameters_partition_specs(
     model_state: PyTree,
     partition_rules: Tuple[Tuple[str, PartitionSpec], ...],
+    axis_name="X",
 ) -> PyTree:
     """
     Creates partition specs for EasyDel/NNX model parameters based on partition rules.
@@ -81,6 +82,7 @@ def make_easydel_parameters_partition_specs(
     Args:
         model_state: The NNX model state (from nnx.split(model)[1])
         partition_rules: Tuple of (regex_pattern, PartitionSpec) pairs
+        axis_name: The name of the mesh axis to map 'tp' to (e.g., "X")
 
     Returns:
         PyTree of partition specs matching the model_state structure
@@ -109,6 +111,47 @@ def make_easydel_parameters_partition_specs(
             for key in path
         )
 
+    def map_tp_to_mesh_axis(spec: PartitionSpec) -> PartitionSpec:
+        """Partition rules are taken from EasyDeL, which defines them in a specific form (e.g. (('fsdp', 'sp'), 'tp')).
+        For our use case, we only care about the 'tp' axis, which we want to map to a specific mesh axis (e.g. 'X').
+        All other axes ('fsdp', 'sp', etc.) are treated as replicated and replaced with None.
+
+        Examples:
+        - PartitionSpec(('fsdp', 'sp'), 'tp') → PartitionSpec(None, 'X')
+        - PartitionSpec('tp', ('fsdp', 'sp')) → PartitionSpec('X', None)
+        - PartitionSpec(('fsdp', 'sp')) → PartitionSpec(None)
+        - PartitionSpec('tp') → PartitionSpec('X')
+        """
+
+        if spec is None:
+            return spec
+
+        def map_single_axis(axis):
+            """Map a single axis specification to the target mesh axis name.
+
+            Args:
+                axis: Can be None, a string (e.g., 'tp'), or a tuple of strings (e.g., ('fsdp', 'tp'))
+
+            Returns:
+                The target axis_name if 'tp' is found in the axis, None otherwise
+            """
+            if axis is None:
+                return None
+            if isinstance(axis, tuple):
+                # Check if 'tp' is in compound axis like ('fsdp', 'tp')
+                return axis_name if "tp" in axis else None
+            if isinstance(axis, str):
+                return axis_name if axis == "tp" else None
+            return None
+
+        # Apply mapping to each dimension in partition spec
+        if hasattr(spec, "__iter__") and not isinstance(spec, str):
+            mapped_axes = [map_single_axis(axis) for axis in spec]
+            return PartitionSpec(*mapped_axes)
+        else:
+            mapped = map_single_axis(spec)
+            return PartitionSpec(mapped) if mapped is not None else PartitionSpec()
+
     def get_partition_spec_for_param(param_path: str) -> PartitionSpec:
         """Match param path against partition rules and return appropriate spec.
 
@@ -117,8 +160,9 @@ def make_easydel_parameters_partition_specs(
         The first matching pattern will be used.
         """
         for pattern, spec in partition_rules:
-            if re.match(pattern, param_path):
-                return spec
+            if re.search(pattern, param_path):
+                mapped_spec = map_tp_to_mesh_axis(spec)
+                return mapped_spec
         # Default to replicated if no match
         return PartitionSpec()
 
@@ -146,6 +190,6 @@ def initialize_flax_linen_parameters_on_cpu(
 ):
     """Initializes Flax linen model parameters on CPU."""
     init_fn = shard_map(
-        model.init, cpu_mesh, in_specs=(None, inputs_specs), out_specs=params_specs
+        model.init, cpu_mesh, in_specs=(None, *inputs_specs), out_specs=params_specs
     )
     return init_fn(jax.random.PRNGKey(rng_seed), cpu_inputs)

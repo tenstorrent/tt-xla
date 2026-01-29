@@ -5,10 +5,9 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "7486d8889de293f2f83d8a9e713e1b1387b8079d")
+    set(TT_MLIR_VERSION "aef48b01b8dd14ddfe046a88760fc2a84093e3a5")
 endif()
 
-set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
@@ -29,37 +28,6 @@ if (TOOLCHAIN STREQUAL "ON")
 else()
     include(ExternalProject)
     add_subdirectory(pjrt_c_api)
-
-    # ----- protobuf -----
-
-    include(FetchContent)
-
-    FetchContent_Declare(
-        protobuf
-        GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
-        GIT_TAG ${PROTOBUF_VERSION}
-        GIT_SHALLOW ON
-    )
-
-    # match options from metal
-    set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    set(protobuf_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-
-    # Use full compiler paths when the toolchain entry is just a bare name.
-    if(NOT IS_ABSOLUTE "${CMAKE_C_COMPILER}")
-        find_program(_resolved_clang NAMES clang-20 clang-19 clang-18 clang-17 clang REQUIRED)
-        set(CMAKE_C_COMPILER "${_resolved_clang}" CACHE FILEPATH "" FORCE)
-        message(STATUS "Resolved C compiler to ${CMAKE_C_COMPILER}")
-    endif()
-    if(NOT IS_ABSOLUTE "${CMAKE_CXX_COMPILER}")
-        find_program(_resolved_clangxx NAMES clang++-20 clang++-19 clang++-18 clang++-17 clang++ REQUIRED)
-        set(CMAKE_CXX_COMPILER "${_resolved_clangxx}" CACHE FILEPATH "" FORCE)
-        message(STATUS "Resolved CXX compiler to ${CMAKE_CXX_COMPILER}")
-    endif()
-
-    FetchContent_MakeAvailable(protobuf)
 
     # ----- tt-mlir -----
 

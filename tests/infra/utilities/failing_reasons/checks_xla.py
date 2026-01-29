@@ -7,7 +7,7 @@
 from enum import Enum
 from typing import Optional
 
-from .utils import ExceptionCheck, FailingReason, M
+from .utils import ME, ExceptionCheck, FailingReason, M
 
 
 class ComponentChecker(Enum):
@@ -558,6 +558,11 @@ class FailingReasons(Enum):
                         ),
                     ),
                 ],
+                summary=[
+                    ME.regex(
+                        "(TT_THROW: Statically allocated circular buffers on core range)"
+                    ),
+                ],
             ),
             # Circular buffers exceed L1 size
             ExceptionCheck(
@@ -565,11 +570,21 @@ class FailingReasons(Enum):
                     M.contains("circular buffers"),
                     M.contains("beyond max L1 size"),
                 ],
+                summary=[
+                    ME.regex(
+                        "(TT_THROW: Statically allocated circular buffers on core range)"
+                    ),
+                ],
             ),
             ExceptionCheck(
                 stdout=[
                     M.contains("circular buffers"),
                     M.contains("beyond max L1 size"),
+                ],
+                summary=[
+                    ME.regex(
+                        "(TT_THROW: Statically allocated circular buffers on core range)"
+                    ),
                 ],
             ),
             # Out of Memory: Not enough space to allocate
@@ -577,10 +592,20 @@ class FailingReasons(Enum):
                 stdout=[
                     M.contains("Out of Memory: Not enough space to allocate"),
                 ],
+                summary=[
+                    ME.regex(
+                        "(TT_THROW: Statically allocated circular buffers on core range)"
+                    ),
+                ],
             ),
             ExceptionCheck(
                 stderr=[
                     M.contains("Out of Memory: Not enough space to allocate"),
+                ],
+                summary=[
+                    ME.regex(
+                        "(TT_THROW: Statically allocated circular buffers on core range)"
+                    ),
                 ],
             ),
             # Fallback: classify OOM when message is a StatusOr INTERNAL:13 error
@@ -588,6 +613,15 @@ class FailingReasons(Enum):
                 message=[
                     M.contains("Bad StatusOr access"),
                     M.contains("Error code: 13"),
+                ],
+                summary=[
+                    ME.regex("(Bad StatusOr access: INTERNAL: Error code: 13)"),
+                    # ME.regex(
+                    #     "(# Only run the actual model test if not marked for skip)"
+                    # ),
+                    # ME.regex(
+                    #     "(# function in finally block will always be called and handles the pytest.skip.)"
+                    # ),
                 ],
             ),
         ],

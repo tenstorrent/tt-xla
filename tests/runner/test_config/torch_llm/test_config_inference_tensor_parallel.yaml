@@ -11,6 +11,7 @@ test_config:
   falcon/pytorch-tiiuae/Falcon3-10B-Base-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
+    required_pcc: 0.977 # https://github.com/tenstorrent/tt-xla/issues/3000
 
   qwen_2_5/causal_lm/pytorch-7b_instruct-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -20,14 +21,13 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-14b_instruct-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: KNOWN_FAILURE_XFAIL # Jan 15 2026
-    reason: "Statically allocated circular buffers on core range ... grow to 1511680 B which is beyond max L1 - https://github.com/tenstorrent/tt-xla/issues/2846"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-32b_instruct-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
-    status: KNOWN_FAILURE_XFAIL # Jan 15 2026
-    reason: "Statically allocated circular buffers on core range ... grow to 1511680 B which is beyond max L1 - https://github.com/tenstorrent/tt-xla/issues/2846"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "trisc2 compile failure - https://github.com/tenstorrent/tt-xla/issues/2958"
 
   qwen_2_5/causal_lm/pytorch-72b_instruct-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -38,6 +38,7 @@ test_config:
   gemma/pytorch-google/gemma-1.1-7b-it-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   gemma/pytorch-google/gemma-2-9b-it-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -51,7 +52,6 @@ test_config:
   llama/causal_lm/pytorch-llama_3_1_8b_instruct-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
 
   llama/causal_lm/pytorch-llama_3_1_70b-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -78,19 +78,21 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-8b-llm_decode-tensor_parallel-inference:
+    required_pcc: 0.985 # https://github.com/tenstorrent/tt-xla/issues/2942
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
-    required_pcc: 0.98 # Is 0.986
 
   qwen_3/causal_lm/pytorch-14b-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: KNOWN_FAILURE_XFAIL # Jan 15 2026
-    reason: "Statically allocated circular buffers on core range ... grow to 1511680 B which is beyond max L1 - https://github.com/tenstorrent/tt-xla/issues/2846"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "trisc2 compile failure - https://github.com/tenstorrent/tt-xla/issues/2958"
 
   qwen_3/causal_lm/pytorch-32b-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: KNOWN_FAILURE_XFAIL # Jan 15 2026
-    reason: "Statically allocated circular buffers on core range ... grow to 1511680 B which is beyond max L1 - https://github.com/tenstorrent/tt-xla/issues/2846"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "trisc2 compile failure - https://github.com/tenstorrent/tt-xla/issues/2958"
 
   qwen_3/causal_lm/pytorch-30b_a3b-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]

@@ -7,11 +7,13 @@
 import jax.numpy as jnp
 import pytest
 import torch
-from infra.comparators import AtolConfig, ComparisonConfig, PccConfig
+from infra.evaluators import AtolConfig, ComparisonConfig, PccConfig
 
-from tests.infra.comparators.comparator import Comparator
-from tests.infra.comparators.jax_comparator import JaxComparator
-from tests.infra.comparators.torch_comparator import TorchComparator
+from tests.infra.evaluators import (
+    Evaluator,
+    JaxComparisonEvaluator,
+    TorchComparisonEvaluator,
+)
 
 
 # Fixture to provide framework-specific test data
@@ -25,13 +27,13 @@ def framework_setup(request):
         def create_tensor(data):
             return torch.tensor(data, dtype=torch.float32)
 
-        comparator_class = TorchComparator
+        comparator_class = TorchComparisonEvaluator
     else:  # jax
 
         def create_tensor(data):
             return jnp.array(data, dtype=jnp.float32)
 
-        comparator_class = JaxComparator
+        comparator_class = JaxComparisonEvaluator
 
     return {
         "framework": framework,
@@ -62,7 +64,7 @@ def test_fail_atol_triggers_assertion_by_default(framework_setup):
 
     # Should raise AssertionError because assert_on_failure=True by default
     with pytest.raises(AssertionError, match="Atol comparison failed"):
-        comparator.compare(device_output, golden_output)
+        comparator.evaluate(device_output, golden_output)
 
 
 @pytest.mark.push
@@ -90,7 +92,7 @@ def test_fail_pcc_triggers_assertion_by_default(framework_setup):
 
     # Should raise AssertionError because assert_on_failure=True by default
     with pytest.raises(AssertionError, match="PCC comparison failed"):
-        comparator.compare(device_output, golden_output)
+        comparator.evaluate(device_output, golden_output)
 
 
 def test_pass_atol_no_assertion(framework_setup):
@@ -111,7 +113,7 @@ def test_pass_atol_no_assertion(framework_setup):
     golden_output = create_tensor([1.0, 2.0, 3.5])  # 0.5 difference is within 1.0
 
     # Should not raise - comparison passes
-    result = comparator.compare(device_output, golden_output)
+    result = comparator.evaluate(device_output, golden_output)
     assert result.passed is True
     assert result.atol is not None
     assert result.atol <= 1.0
@@ -136,7 +138,7 @@ def test_pass_pcc_no_assertion(framework_setup):
     golden_output = create_tensor([1.0, 2.0, 3.0, 4.0])
 
     # Should not raise - comparison passes
-    result = comparator.compare(device_output, golden_output)
+    result = comparator.evaluate(device_output, golden_output)
     assert result.passed is True
     assert result.pcc is not None
     assert result.pcc >= 0.99
@@ -162,7 +164,7 @@ def test_fail_atol_with_assert_on_failure_false_no_assertion(framework_setup):
     golden_output = create_tensor([1.0, 2.0, 3.5])  # 0.5 difference exceeds 1e-6
 
     # Should NOT raise AssertionError because assert_on_failure=False
-    result = comparator.compare(device_output, golden_output)
+    result = comparator.evaluate(device_output, golden_output)
 
     # But the result should still indicate failure
     assert result.passed is False
@@ -195,7 +197,7 @@ def test_fail_pcc_with_assert_on_failure_false_no_assertion(framework_setup):
     )  # Scrambled order breaks correlation
 
     # Should NOT raise AssertionError because assert_on_failure=False
-    result = comparator.compare(device_output, golden_output)
+    result = comparator.evaluate(device_output, golden_output)
 
     # But the result should still indicate failure
     assert result.passed is False
@@ -228,14 +230,14 @@ def test_manual_assertion_after_assert_on_failure_false_still_fails(framework_se
     )  # Scrambled order breaks correlation and has large ATOL
 
     # Should NOT raise during compare because assert_on_failure=False
-    result = comparator.compare(device_output, golden_output)
+    result = comparator.evaluate(device_output, golden_output)
 
     # Verify the result indicates failure
     assert result.passed is False
 
     # But manually calling _assert_on_results should still raise
-    with pytest.raises(AssertionError, match="Comparison result 0 failed"):
-        Comparator._assert_on_results(result)
+    with pytest.raises(AssertionError, match="Evaluation result 0 failed"):
+        Evaluator._assert_on_results(result)
 
 
 @pytest.mark.push
@@ -256,18 +258,18 @@ def test_manual_assertion_on_tuple_of_results(framework_setup):
     # Create first comparison that passes
     device_output_1 = create_tensor([1.0, 2.0, 3.0])
     golden_output_1 = create_tensor([1.0, 2.0, 3.0])
-    result_1 = comparator.compare(device_output_1, golden_output_1)
+    result_1 = comparator.evaluate(device_output_1, golden_output_1)
     assert result_1.passed is True
 
     # Create second comparison that fails
     device_output_2 = create_tensor([1.0, 2.0, 3.0])
     golden_output_2 = create_tensor([1.0, 2.0, 3.5])
-    result_2 = comparator.compare(device_output_2, golden_output_2)
+    result_2 = comparator.evaluate(device_output_2, golden_output_2)
     assert result_2.passed is False
 
     # Manually calling assert on tuple should raise because result_2 failed
-    with pytest.raises(AssertionError, match="Comparison result 1 failed"):
-        Comparator._assert_on_results((result_1, result_2))
+    with pytest.raises(AssertionError, match="Evaluation result 1 failed"):
+        Evaluator._assert_on_results((result_1, result_2))
 
 
 @pytest.mark.push
@@ -292,7 +294,7 @@ def test_multiple_failures_combined_error_message(framework_setup):
         [5.0, 1.0, 4.0, 2.0, 3.0]
     )  # Scrambled order breaks correlation
 
-    result = comparator.compare(device_output, golden_output)
+    result = comparator.evaluate(device_output, golden_output)
 
     # Verify both failures are in the error message
     assert result.passed is False
@@ -321,7 +323,7 @@ def test_all_checks_pass_no_error_message(framework_setup):
     device_output = create_tensor([1.0, 2.0, 3.0, 4.0])
     golden_output = create_tensor([1.0, 2.0, 3.0, 4.0])
 
-    result = comparator.compare(device_output, golden_output)
+    result = comparator.evaluate(device_output, golden_output)
 
     # Verify success with no error message
     assert result.passed is True
@@ -350,7 +352,7 @@ def test_invalid_atol_triggers_assertion(framework_setup, invalid_value):
 
     # Should raise AssertionError because ATOL will be invalid
     with pytest.raises(AssertionError, match="Atol comparison failed"):
-        comparator.compare(device_output, golden_output)
+        comparator.evaluate(device_output, golden_output)
 
 
 @pytest.mark.push
@@ -375,4 +377,4 @@ def test_invalid_pcc_triggers_assertion(framework_setup, invalid_value):
 
     # Should raise AssertionError because PCC will be invalid
     with pytest.raises(AssertionError, match="PCC comparison failed"):
-        comparator.compare(device_output, golden_output)
+        comparator.evaluate(device_output, golden_output)

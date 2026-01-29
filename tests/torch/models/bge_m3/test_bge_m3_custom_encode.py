@@ -16,7 +16,7 @@ import torch
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, Framework, RunMode
-from infra.comparators.torch_comparator import TorchComparator
+from infra.evaluators import TorchComparisonEvaluator
 from torch.utils._pytree import tree_map
 from utils import BringupStatus, Category, incorrect_result
 
@@ -174,8 +174,8 @@ def bge_m3_encode():
     tt_torch_output = tree_map(convert_to_torch, tt_output["pre_processed_outputs"])
     comparison_config = ComparisonConfig()
     comparison_config.pcc.required_pcc = 0.97  # TODO: Investigate low PCC on bh devices https://github.com/tenstorrent/tt-xla/issues/1461
-    comparator = TorchComparator(comparison_config)
-    comparator.compare(tt_torch_output, golden_torch_output)
+    comparator = TorchComparisonEvaluator(comparison_config)
+    comparator.evaluate(tt_torch_output, golden_torch_output)
 
     # Return results for further analysis if needed.
     return {
@@ -195,12 +195,7 @@ def bge_m3_encode():
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.941021203994751. Required: pcc=0.97"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_bge_m3_custom_encode():
     """Run BGE-M3 encode on TT device and validate PCC outputs are finite and bounded."""

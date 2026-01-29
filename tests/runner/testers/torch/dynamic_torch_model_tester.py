@@ -9,7 +9,7 @@ from typing import Any
 
 import torch
 import torch_xla.runtime as xr
-from infra.comparators import ComparisonConfig
+from infra.evaluators import ComparisonConfig
 from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
@@ -109,6 +109,9 @@ class DynamicTorchModelTester(TorchModelTester):
         Returns:
             Mesh object if loader supports mesh configuration, None otherwise
         """
+        if self.parallelism == Parallelism.SINGLE_DEVICE:
+            return None
+
         num_devices = xr.global_runtime_device_count()
         if self.parallelism == Parallelism.DATA_PARALLEL:
             mesh_shape, mesh_names = (1, num_devices), ("model", "data")

@@ -28,6 +28,8 @@ on:
           - 'n300'
           - 'p150'
           - 'n300-llmbox'
+          - 'llmbox-1'
+          - 'llmbox-2'
       shared_runners:
         description: 'Run test on the CIv2 runner'
         required: false

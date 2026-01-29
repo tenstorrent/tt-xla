@@ -142,17 +142,20 @@ private:
   tt_pjrt_status
   createVHLOModule(const std::string_view &code,
                    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                   const std::optional<std::string> &export_path);
+                   const std::optional<std::string> &export_path,
+                   const std::string &model_name = "");
 
   // Converts VHLO module to StableHLO module.
   tt_pjrt_status
   convertFromVHLOToSHLO(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                        const std::optional<std::string> &export_path);
+                        const std::optional<std::string> &export_path,
+                        const std::string &model_name = "");
 
   // Runs frontend specific SHLO pipeline on the MLIR module.
   tt_pjrt_status
   runFrontendSHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                          const std::optional<std::string> &export_path);
+                          const std::optional<std::string> &export_path,
+                          const std::string &model_name = "");
 
   // Collects the information about output types.
   static std::vector<PJRT_Buffer_Type>
@@ -176,13 +179,15 @@ private:
   // Runs compiler StableHLO pipeline on the MLIR module.
   tt_pjrt_status
   runCompilerStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                               const std::optional<std::string> &export_path);
+                               const std::optional<std::string> &export_path,
+                               const std::string &model_name = "");
 
   // Converts StableHLO module to TTIR module.
   tt_pjrt_status
   convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                         std::string &ttir_code,
-                        const std::optional<std::string> &export_path);
+                        const std::optional<std::string> &export_path,
+                        const std::string &model_name = "");
 
   // Collects the information about the mesh shape the module is intended to run
   // on.
@@ -234,9 +239,11 @@ private:
 
   // Prints module to console for debug purposes.
   // If export_path is set, also dumps the IR to disk with the given stage name.
+  // Optional model_name is prepended to the filename.
   static void printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                           const std::optional<std::string> &export_path,
-                          const std::string &stage_name);
+                          const std::string &stage_name,
+                          const std::string &model_name = "");
 
   // Enables IR printing between passes with VERBOSE or higher logger level.
   static void enableVerboseIRPrinting(mlir::PassManager &pm);
@@ -344,6 +351,11 @@ private:
 
   // tt-alchemist library handler.
   TTAlchemistHandler m_tt_alchemist_handler;
+
+  // Graph counter to track graph number within a run.
+  // Resets when export_model_name changes (new test run).
+  int m_graph_counter = 0;
+  std::string m_last_model_name;
 };
 
 } // namespace tt::pjrt::module_builder

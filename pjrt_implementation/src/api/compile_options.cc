@@ -25,6 +25,11 @@ CompileOptions CompileOptions::parse(
       internal::parseBoolOption(compile_options,
                                 "experimental_enable_weight_bfp8_conversion")
           .value_or(options.experimental_enable_weight_bfp8_conversion);
+  options.math_fidelity =
+      internal::parseStringOption(compile_options, "math_fidelity");
+
+  options.fp32_dest_acc_en =
+      internal::parseBoolOption(compile_options, "fp32_dest_acc_en");
   options.experimental_enable_fusing_conv2d_with_multiply_pattern =
       internal::parseBoolOption(
           compile_options,
@@ -60,6 +65,9 @@ CompileOptions CompileOptions::parse(
           .value_or("");
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
+  options.export_model_name =
+      internal::parseStringOption(compile_options, "export_model_name")
+          .value_or("");
 
   if (!options.export_path.has_value() &&
       options.backend != BackendRuntime::TTNNFlatbuffer) {

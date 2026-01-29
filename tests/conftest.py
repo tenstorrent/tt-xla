@@ -488,7 +488,13 @@ def clear_torchxla_computation_cache():
     This helps avoid consteval-associated DRAM leaks as described in https://github.com/tenstorrent/tt-xla/issues/1940
     """
     yield
-    xr.clear_computation_cache()
+    try:
+        xr.clear_computation_cache()
+    except Exception as e:
+        logger.warning(f"Failed to clear TorchXLA computation cache: {e}")
+        logger.warning(
+            "This is expected if the test throws an exception, https://github.com/tenstorrent/tt-xla/issues/2814"
+        )
 
 
 class TeeCaptureResult:

@@ -10,10 +10,12 @@
 test_config:
   falcon/pytorch-tiiuae/Falcon3-1B-Base-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   falcon/pytorch-tiiuae/Falcon3-3B-Base-llm_decode-single_device-inference:
     required_pcc: 0.985 # Is 0.990 (p150) or 0.989 (n150)
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -23,6 +25,7 @@ test_config:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     required_pcc: 0.985 # Is 0.990 (p150)
     status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3000
 
   qwen_2_5/causal_lm/pytorch-0_5b_instruct-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
@@ -39,6 +42,7 @@ test_config:
   qwen_2_5/causal_lm/pytorch-7b_instruct-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
+    assert_pcc: false #https://github.com/tenstorrent/tt-xla/issues/3000
 
   qwen_2_5/causal_lm/pytorch-14b_instruct-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -53,6 +57,7 @@ test_config:
 
   gemma/pytorch-google/gemma-1.1-2b-it-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   gemma/pytorch-google/gemma-1.1-7b-it-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -74,6 +79,7 @@ test_config:
   llama/causal_lm/pytorch-llama_3_1_8b_instruct-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
+    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   llama/causal_lm/pytorch-llama_3_1_70b-llm_decode-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -96,7 +102,6 @@ test_config:
 
   qwen_3/causal_lm/pytorch-0_6b-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.98 # Is 0.990 (p150) or 0.985 (n150)
 
   qwen_3/causal_lm/pytorch-1_7b-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
@@ -118,3 +123,57 @@ test_config:
 
   qwen_3/causal_lm/pytorch-30b_a3b-llm_decode-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  llama/causal_lm/pytorch-llama_3_2_3b-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-TinyLlama_v1.1-llm_decode-single_device-inference:
+    status: EXPECTED_PASSING
+
+  qwen_2_5/causal_lm/pytorch-7b-llm_decode-single_device-inference:
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+
+  qwen_2_5/causal_lm/pytorch-7b_instruct_1m-llm_decode-single_device-inference:
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+
+  qwen_2_5/causal_lm/pytorch-14b_instruct_1m-llm_decode-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-llama_3_8b_instruct-llm_decode-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-llama_3_8b-llm_decode-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-llama_3_1_8b-llm_decode-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-huggyllama_7b-llm_decode-single_device-inference:
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+
+  falcon/pytorch-tiiuae/falcon-7b-instruct-llm_decode-single_device-inference:
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"

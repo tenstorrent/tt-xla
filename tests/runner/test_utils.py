@@ -13,18 +13,19 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, List
+from typing import Any, List, Optional
 
 import numpy as np
 import pytest
 import torch
+import torch_xla
+import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
 from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
 
-from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
@@ -134,6 +135,9 @@ class ModelTestConfig:
         self.bringup_status = self._resolve("bringup_status", default=None)
 
         self.failing_reason = self._resolve("failing_reason", default=None)
+        self.failing_reason_summary = self._resolve(
+            "failing_reason_summary", default=None
+        )
 
         # Optional list of pytest markers to apply (e.g. ["push", "nightly"]) - normalized to list[str]
         self.markers = self._normalize_markers(self._resolve("markers", default=[]))
@@ -251,7 +255,7 @@ def update_test_metadata_for_exception(
         message = repr(exc)
 
     # Find failing reason by raised exception
-    failing_reason = FailingReasonsFinder.find_reason_by_exception(
+    exception_reason = FailingReasonsFinder.find_reason_by_exception(
         exc, stdout=stdout, stderr=stderr
     )
 
@@ -279,7 +283,8 @@ def update_test_metadata_for_exception(
     runtime_reason = detailed_error if detailed_error else message
 
     setattr(test_metadata, "runtime_reason", runtime_reason)
-    setattr(test_metadata, "failing_reason", failing_reason)
+    setattr(test_metadata, "failing_reason", exception_reason.failing_reasons)
+    setattr(test_metadata, "failing_reason_summary", exception_reason.summary)
 
 
 # This is needed for combination of pytest-forked and using ruamel.yaml
@@ -530,6 +535,7 @@ def record_model_test_properties(
     reason = ""
     arch = getattr(test_metadata, "arch", None)
     failing_reason = getattr(test_metadata, "failing_reason", None)
+    failing_reason_summary = getattr(test_metadata, "failing_reason_summary", None)
     config_bringup_status = getattr(test_metadata, "bringup_status", None)
 
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
@@ -600,12 +606,14 @@ def record_model_test_properties(
                 "name": failing_reason.name,
                 "description": failing_reason.value.description,
                 "component": failing_reason.value.component_checker_description,
+                "summary": failing_reason_summary,
             }
             if failing_reason
             else {
                 "name": None,
                 "description": None,
                 "component": None,
+                "summary": None,
             }
         ),
         "parallelism": str(parallelism),
@@ -670,12 +678,93 @@ def record_model_test_properties(
         pytest.xfail(reason)
 
 
+def get_xla_device_arch():
+    """
+    Get the XLA device architecture (wormhole, blackhole, etc.)
+
+    Returns:
+        str: Architecture name ('wormhole' or 'blackhole'), or empty string if not found
+    """
+    all_attributes = xr.global_runtime_device_attributes()
+    device_attributes = all_attributes[0]
+
+    arch_name = device_attributes["device_arch"].lower()
+
+    for arch in ["wormhole", "blackhole"]:
+        if arch in arch_name:
+            return arch
+    return ""
+
+
+def get_input_shape_info(inputs) -> tuple[int, int, tuple]:
+    """Extract batch_size, sequence_length, and input_size from input activations.
+
+    This function uses heuristics to determine shape information:
+    - If inputs is a Mapping (dict), it tries to get 'input_ids' if present,
+      otherwise uses the first value found (generally the primary input).
+    - If inputs is a Sequence (list/tuple), it uses the first element.
+    - It assumes the extracted item is a torch.Tensor.
+
+    Returns:
+        (batch_size, sequence_length, input_size)
+        For LLMs: input_size is (sequence_length,)
+        For image models: input_size is shape[1:] (e.g., (3, 224, 224))
+                         sequence_length will be -1 (not applicable)
+
+        Returns default (1, -1, (-1,)) if inputs are None, empty, or don't match expected formats.
+    """
+    if inputs is None:
+        return 1, -1, (-1,)
+
+    # Get the first tensor to extract shape
+    tensor = None
+    if isinstance(inputs, torch.Tensor):
+        tensor = inputs
+    elif isinstance(inputs, collections.abc.Mapping):
+        # Get 'input_ids' if present
+        if "input_ids" in inputs:
+            tensor = inputs["input_ids"]
+        elif len(inputs) > 0:
+            # Fallback: Get first value from the mapping
+            tensor = next(iter(inputs.values()))
+    elif isinstance(inputs, collections.abc.Sequence) and not isinstance(inputs, str):
+        if len(inputs) > 0:
+            tensor = inputs[0]
+
+    # Validate we got a tensor with a shape
+    if (
+        tensor is None
+        or not isinstance(tensor, torch.Tensor)
+        or not hasattr(tensor, "shape")
+    ):
+        return 1, -1, (-1,)
+
+    shape = tensor.shape
+    batch_size = shape[0] if len(shape) > 0 else 1
+
+    if len(shape) >= 2:
+        if len(shape) >= 4:
+            # Image case [batch, channels, height, width]
+            sequence_length = -1  # Not applicable for images
+            input_size = tuple(shape[1:])  # (channels, height, width)
+        else:
+            # 2D or 3D: LLM case [batch, seq_len] or [batch, seq_len, hidden_dim]
+            sequence_length = shape[1]
+            input_size = (sequence_length,)
+    else:
+        # other formats
+        sequence_length = -1
+        input_size = (-1,)
+
+    return batch_size, sequence_length, input_size
+
+
 def create_measurement(
     step_name: str,
     measurement_name: str,
-    step_warm_up_num_iterations: int = 1,
-    iteration: int = 1,
-    value: float = 0.0,
+    value: float = -1.0,
+    step_warm_up_num_iterations: int = -1,
+    iteration: int = -1,
     target: float = -1.0,
 ) -> dict[str, Any]:
     """Create a single perf measurement dictionary."""
@@ -697,7 +786,19 @@ def create_benchmark_result(
     model_type: str = "generic",
     training: bool = False,
     model_info: str = "",
+    model_rawname: str = "",
+    model_group: str = "",
+    parallelism: str = "",
+    device_arch: str = "",
+    run_mode: str = "",
     device_name: str = "",
+    batch_size: int = 1,
+    input_size: tuple = (1, 1),
+    num_layers: int = 0,
+    total_time: float = -1,
+    total_samples: int = 0,
+    input_sequence_length: Optional[int] = -1,
+    data_format: str = "bfloat16",
 ) -> dict[str, Any]:
     """
     Create a benchmark result dictionary and write it to a JSON file.
@@ -708,54 +809,71 @@ def create_benchmark_result(
         report_perf_<model_name>_<perf_id>.json
     """
 
-    # Extract e2e stats from the passed measurements list
     metric_list = []
 
+    # Extract e2e stats from the passed measurements list
+    # First add standard measurements
+    metric_list.append(
+        create_measurement("e2e_perf", "total_samples", total_samples),
+    )
+    metric_list.append(
+        create_measurement("e2e_perf", "total_time", total_time),
+    )
+
+    # extract e2e perf stats and add measurements
     if measurements and len(measurements) > 0:
-        # extract e2e perf stats and create measurements using them
         perf_stats = measurements[0]
-        warmup_iters = perf_stats["warmup_iters"]
-        perf_iters = perf_stats["perf_iters"]
-        metric_list.append(
-            create_measurement(
-                "e2e_perf",
-                "total_time",
-                warmup_iters,
-                perf_iters,
-                perf_stats["total_time"],
-            )
-        )
+        warmup_iters_count = perf_stats["warmup_iters_count"]
+        perf_iters_count = perf_stats["perf_iters_count"]
         metric_list.append(
             create_measurement(
                 "e2e_perf",
                 "avg_time",
-                warmup_iters,
-                perf_iters,
                 perf_stats["avg_time"],
+                warmup_iters_count,
             )
         )
+        for iteration, perf_time in enumerate(perf_stats["perf_times"], start=1):
+            metric_list.append(
+                create_measurement(
+                    "e2e_perf",
+                    f"perf_time_{iteration}",
+                    perf_time,
+                    warmup_iters_count,
+                    iteration,
+                )
+            )
 
     config = {
-        "model_size": "small",
         "model_info": model_info,
+        "model_group": model_group,
+        "parallelism": parallelism,
+        "run_mode": run_mode,
+    }
+
+    device_info = {
+        "device_name": device_name,
+        "device_arch": device_arch,
     }
 
     benchmark_results = {
         "model": full_model_name,
         "model_type": model_type,
-        "run_type": f"{'_'.join(full_model_name.split())}_{device_name}",
+        "run_type": f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}",
         "config": config,
         "measurements": metric_list,
-        "device_info": {
-            "device_name": device_name,
-        },
+        "device_info": device_info,
+        "num_layers": num_layers,
+        "batch_size": batch_size,
+        "precision": data_format,
+        "input_sequence_length": input_sequence_length,
         "training": training,
         "project": "tt-xla",
     }
 
     # Add metadata required for collect_data parser
     benchmark_results["project"] = "tt-xla"
-    benchmark_results["model_rawname"] = full_model_name
+    benchmark_results["model_rawname"] = model_rawname
 
     # print benchmark results to console if there are measurements
     if len(benchmark_results["measurements"]) > 0:

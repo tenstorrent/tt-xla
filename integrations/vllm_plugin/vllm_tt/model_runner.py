@@ -18,6 +18,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
+from tt_torch.sharding import sharding_constraint_tensor
 from vllm.attention import Attention
 from vllm.attention.backends.abstract import AttentionType
 from vllm.attention.layers.chunked_local_attention import ChunkedLocalAttention
@@ -31,6 +32,7 @@ from vllm.config import (
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
 from vllm.forward_context import get_forward_context, set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
+from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
 from vllm.model_executor.model_loader.tpu import TPUModelLoader
@@ -86,7 +88,7 @@ from .attention import (
 )
 from .logger import tt_init_logger
 from .platform import TTConfig
-from .utils import shard_model
+from .vllm_utils import shard_model
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -1119,7 +1121,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
             tpu_sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
-                self.input_batch, padded_num_reqs, self.device
+                self.input_batch,
+                padded_num_reqs,
+                self.device,
             )
             if scheduler_output.grammar_bitmask is not None:
                 (
@@ -1130,6 +1134,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logits = self.structured_decode(
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
+
+            if (
+                self.use_spmd
+                and self.model.lm_head is not None
+                and isinstance(self.model.lm_head, ParallelLMHead)
+            ):
+                # Apply sharding constraint to logits for SPMD case.
+                # This will replicate the logits.
+                logits = sharding_constraint_tensor(
+                    logits, self.mesh, (None, None, None)
+                )
+
             selected_token_ids = self.sample_from_logits_func(
                 logits, tpu_sampling_metadata
             )
@@ -1348,6 +1364,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.model = model
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = TPUSampler()
+        logger.info(f"Compiled model: \n{self.model}")
 
     def reload_weights(self) -> None:
         assert (
@@ -1509,13 +1526,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         hsize = self.model_config.get_hidden_size()
         for num_tokens in self.num_tokens_paddings:
             dummy_hidden = torch.zeros(
-                (num_tokens, hsize), device=self.device, dtype=self._hidden_states_dtype
-            )
+                (num_tokens, hsize), dtype=self._hidden_states_dtype
+            ).to(self.device)
             for num_reqs in self.num_reqs_paddings:
                 indices = torch.zeros(num_reqs, dtype=torch.int32)
                 indices = indices.to(self.device)
+                logger.info(
+                    "  -- num_tokens: %d, hsize: %d, num_seqs: %d",
+                    num_tokens,
+                    hsize,
+                    num_reqs,
+                )
                 self.select_hidden_states(dummy_hidden, indices)
-                logger.info("  -- num_tokens: %d, num_seqs: %d", num_tokens, num_reqs)
                 # Requests can't be more than tokens. But do compile for the
                 # next bigger value in case num_tokens uses bucketed padding.
                 if num_reqs >= min(num_tokens, self.max_num_reqs):
@@ -1531,12 +1553,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         start = time.perf_counter()
         hsize = self.model_config.get_hidden_size()
         for num_reqs in self.num_reqs_paddings:
+            logger.info("  -- num_seqs: %d, hsize: %d", num_reqs, hsize)
             dummy_hidden = torch.zeros(
                 (num_reqs, hsize), dtype=self._hidden_states_dtype
             )
             dummy_hidden = dummy_hidden.to(self.device)
             self.compute_logits(dummy_hidden)
-            logger.info("  -- num_seqs: %d", num_reqs)
+
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
@@ -1547,6 +1570,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compiling structured_decoding with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
+            logger.info("  -- num_seqs: %d, vocab_size: %d", num_reqs, self.vocab_size)
             dummy_logits = torch.zeros(
                 (num_reqs, self.vocab_size),
                 dtype=self._hidden_states_dtype,
@@ -1566,7 +1590,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 dummy_logits,
                 arange,
             )
-            logger.info("  -- num_seqs: %d", num_reqs)
+
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
@@ -1577,11 +1601,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compiling sample_from_logits with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
+            logger.info("  -- num_seqs: %d, vocab_size: %d", num_reqs, self.vocab_size)
             dummy_logits = torch.zeros(
                 (num_reqs, self.vocab_size),
-                device=self.device,
                 dtype=self._hidden_states_dtype,
-            )
+            ).to(self.device)
             # The first dimension of dummy_logits cannot be mark_dynamic
             # because some operations in the sampler require it to be static.
             for all_greedy in [False, True]:
@@ -1597,7 +1621,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.lora_config, np.array([num_reqs], dtype=np.int32)
                 ):
                     self.sample_from_logits_func(dummy_logits, sampling_metadata)
-            logger.info("  -- num_seqs: %d", num_reqs)
+
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
@@ -1608,6 +1632,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compiling gather_logprobs with different input shapes.")
         start = time.perf_counter()
         for num_reqs in self.num_reqs_paddings:
+            logger.info("  -- num_seqs: %d, vocab_size: %d", num_reqs, self.vocab_size)
             dummy_logits = torch.zeros(
                 (num_reqs, self.vocab_size),
                 dtype=self._hidden_states_dtype,
@@ -1618,7 +1643,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.lora_config, np.array([num_reqs], dtype=np.int32)
             ):
                 self.gather_logprobs(dummy_logits, dummy_tokens)
-            logger.info("  -- num_seqs: %d", num_reqs)
+
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)

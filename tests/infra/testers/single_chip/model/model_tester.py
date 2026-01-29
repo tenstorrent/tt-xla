@@ -10,10 +10,9 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Callable, Optional, Tuple
 
-from infra.comparators import ComparisonConfig, ComparisonResult
+from infra.evaluators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
-from loguru import logger
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
@@ -54,7 +53,11 @@ class ModelTester(BaseTester, ABC):
         )
         self._perf_measurements: list[dict[str, float]] = []
 
-        super().__init__(comparison_config, framework)
+        super().__init__(
+            evaluator_type="comparison",
+            comparison_config=comparison_config,
+            framework=framework,
+        )
         self._initialize_components()
 
     def _initialize_components(self) -> None:
@@ -171,27 +174,30 @@ class ModelTester(BaseTester, ABC):
         return (self._compare(tt_res, cpu_res),)
 
     def _test_e2e_perf(self) -> dict[str, float]:
-        warmup_iters = 3
-        perf_iters = 2
+        warmup_iters_count = 3
+        perf_iters_count = 2
 
         # warmup runs
-        for _ in range(warmup_iters):
+        for _ in range(warmup_iters_count):
             _ = self._run_on_tt_device(self._workload)
 
         # e2e perf
-        tt_start = time.perf_counter()
-        for _ in range(perf_iters):
+        perf_times = []
+        for _ in range(perf_iters_count):
+            iter_start = time.perf_counter()
             tt_res = self._run_on_tt_device(self._workload)
-        tt_end = time.perf_counter()
-        tt_total_time = tt_end - tt_start
+            iter_end = time.perf_counter()
+            perf_times.append(iter_end - iter_start)
 
-        avg_time = tt_total_time / perf_iters
+        tt_total_time = sum(perf_times)
+        avg_time = tt_total_time / perf_iters_count
 
         perf_stats = {
-            "warmup_iters": warmup_iters,
-            "perf_iters": perf_iters,
+            "warmup_iters_count": warmup_iters_count,
+            "perf_iters_count": perf_iters_count,
             "total_time": tt_total_time,
             "avg_time": avg_time,
+            "perf_times": perf_times,
         }
 
         return perf_stats
@@ -206,7 +212,7 @@ class ModelTester(BaseTester, ABC):
 
     def _compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
         """Compares device with golden output and returns the result."""
-        return self._comparator.compare(device_out, golden_out)
+        return self._evaluator.evaluate(device_out, golden_out)
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         """
