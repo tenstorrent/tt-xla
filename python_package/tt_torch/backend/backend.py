@@ -11,6 +11,7 @@ import torch_xla.core.dynamo_bridge as bridge
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
+from ttxla_tools.logging import logger
 
 from .decompositions import populate_decompositions
 from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
@@ -144,8 +145,8 @@ class XLAExecutor:
                 arg = state[spec.target]  # Handles: PARAMETER, BUFFER
             if arg.device.type != "xla":
                 if spec.kind != InputKind.CONSTANT_TENSOR:
-                    print(
-                        f"Found an argument on non-XLA device which was not a lifted constant: {spec.target}.\n"
+                    logger.warning(
+                        f"Found an argument on non-XLA device which was not a lifted constant: {spec.target}. "
                         "Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA."
                     )
                 arg = arg.to(
