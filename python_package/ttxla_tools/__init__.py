@@ -2,4 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from .logging import logger
 from .serialization import parse_executable

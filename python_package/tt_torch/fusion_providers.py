@@ -14,6 +14,7 @@ from typing import Any, Callable, List, Type
 import torch
 from torch import Tensor
 from torch.fx.subgraph_rewriter import replace_pattern_with_filters
+from ttxla_tools.logging import logger
 
 
 class FusionProvider(ABC):
@@ -156,10 +157,9 @@ class RMSNormFusionProvider(FusionProvider):
                     f"Available meta keys: {list(gn.meta.keys())}"
                 )
             if value.size()[-1] > UPPER_BOUND:
-                # TODO: enable logging once https://github.com/tenstorrent/tt-xla/issues/2961 is resolved
-                # print(
-                #     f"[Fusion] Skipping RMSNorm fusion for weight node with size {value.size()[-1]} because it is greater than the upper bound of {UPPER_BOUND}"
-                # )
+                logger.debug(
+                    f"[Fusion] Skipping RMSNorm fusion for weight node with size {value.size()[-1]} because it is greater than the upper bound of {UPPER_BOUND}"
+                )
                 return False
 
         return True
