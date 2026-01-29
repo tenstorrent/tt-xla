@@ -48,30 +48,6 @@
           "TTMLIR_ENABLE_STABLEHLO": "ON"
         },
         "cmakeExecutable": "sea_cmake"
-      },
-      {
-        "name": "explorer-wo-runtime",
-        "displayName": "Build explorer without runtime",
-        "generator": "Ninja",
-        "binaryDir": "${sourceDir}/build",
-        "cacheVariables": {
-          "CMAKE_BUILD_TYPE": "Release",
-          "CMAKE_C_COMPILER": "clang-17",
-          "CMAKE_CXX_COMPILER": "clang++-17",
-          "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-          "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-          "CMAKE_EXPORT_COMPILE_COMMANDS": "YES",
-          "TTMLIR_ENABLE_RUNTIME_TESTS": "OFF",
-          "TTMLIR_ENABLE_RUNTIME": "OFF",
-          "TTMLIR_ENABLE_BINDINGS_PYTHON": "ON",
-          "TT_RUNTIME_DEBUG": "OFF",
-          "TTMLIR_ENABLE_STABLEHLO": "ON",
-          "TTMLIR_ENABLE_EXPLORER": "ON"
-        },
-        "cmakeExecutable": "sea_cmake"
       }
-
-
     ]
 }
-  
