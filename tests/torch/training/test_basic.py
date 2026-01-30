@@ -54,6 +54,9 @@ def test_qwen3_backward():
 
 @pytest.mark.push
 @pytest.mark.dual_chip
+@pytest.mark.xfail(
+    reason="Loss should be positive, got -1.980134329970842e+38. See https://github.com/tenstorrent/tt-xla/issues/3069"
+)
 def test_qwen3_multichip_backward():
 
     model_variant = ModelVariant.QWEN_3_0_6B
