@@ -13,6 +13,7 @@
 // c++ standard library includes
 #include <cstddef>
 #include <filesystem>
+#include <map>
 #include <optional>
 
 // tt-mlir includes
@@ -119,13 +120,20 @@ static tt_pjrt_status launchDistributedRuntime() {
     return tt_pjrt_status::kInternal;
   }
 
+  const char *plm_rsh_agent = std::getenv("TTXLA_PLM_RSH_AGENT");
+  std::map<std::string, std::string> mca_options = {
+      {"btl", "self,tcp"}, {"btl_tcp_if_include", "cnx1"}};
+  if (plm_rsh_agent) {
+    mca_options["plm_rsh_agent"] = plm_rsh_agent;
+  }
+
   tt::runtime::DistributedOptions distributed_options;
   distributed_options.mode = tt::runtime::DistributedMode::MultiProcess;
   distributed_options.workerPath = distributed_worker_path;
   distributed_options.multiProcessArgs =
       tt::runtime::MultiProcessArgs::create(rank_binding_path)
           .withAllowRunAsRoot(true)
-          .withMcaOptions({{"btl", "self,tcp"}, {"btl_tcp_if_include", "cnx1"}, {"plm_rsh_agent", "'ssh -A -l jameszianxu'"}})
+          .withMcaOptions(mca_options)
           .withControllerHostname(controller_host_name)
           .withHosts(hosts_list_vec);
 
