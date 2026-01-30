@@ -25,39 +25,14 @@ from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-DEFAULT_PROMPTS = [
-    "I like taking walks in the",
-    "My name is",
-    "My favorite color is",
-    "Cheese is an excellent",
-    "While ham sandwiches are great, I prefer",
-    "My bicycle is broken, and",
-    "The best way to start my day is with",
-    "I love to",
-    "I am not a fan of",
-    "Toronto has an explosive restaurant scene. There are many different cuisines to",
-    "My favorite season is",
-    "My least favorite season is",
-    "Bison meat is not",
-    "If you forget to wear your shoes when you go hiking,",
-    "My right elbow is in pain, and",
-    "To make a grilled cheese, start by",
-    "The internal combustion engine",
-    "The first person to walk on the moon was",
-    "The ocean is home to many",
-    "I",
-    "Calculus is a branch of mathematics that",
-    "The most common type of cloud is",
-    "A matrix dot product is",
-    "The 300 Spartans were",
-    "Napoleon Bonaparte was born in",
-    "The quick brown fox jumps over the lazy dog. And then he",
-    "The original title of the book 'The Great Gatsby' was",
-    "I forgot to tie my shoelaces",
-    "Playing video games",
-    "The sun is",
-    "My car's transmission is",
-    "My keyboard is in a language I don't understand! What",
+DEFAULT_CHAT_MESSAGES = [
+    [
+        {
+            "role": "system",
+            "content": "You are ChatGPT, a large language model trained by OpenAI.",
+        },
+        {"role": "user", "content": "Explain quantum mechanics clearly and concisely."},
+    ],
 ]
 
 
@@ -71,7 +46,9 @@ def gpt_oss_20b(interactive: bool = False):
     # check_transformers_version()
 
     # Set up config variables.
-    max_cache_len: int = 128
+    # Increased cache length to accommodate chat template overhead (~100 tokens)
+    # and still allow reasonable generation length
+    max_cache_len: int = 200  # Increased from 128
     model_name: str = "openai/gpt-oss-20b"
 
     # TODO: always need spmd?
@@ -89,20 +66,32 @@ def gpt_oss_20b(interactive: bool = False):
     # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_name)
 
+    # Debug: Check what attention implementation is actually being used
+    print(f"Model config._attn_implementation: {model.config._attn_implementation}")
+
     while True:
         if interactive:
-            user_prompt = input("Enter your prompt or quit() to exit: ")
+            user_input = input("Enter your prompt or quit() to exit: ")
             batch_size: int = 1
-            if user_prompt.lower() == "quit()":
+            if user_input.lower() == "quit()":
                 break
-            user_prompt = [user_prompt]
+            # Format as chat messages
+            user_messages = [
+                [
+                    {
+                        "role": "system",
+                        "content": "You are ChatGPT, a large language model trained by OpenAI.",
+                    },
+                    {"role": "user", "content": user_input},
+                ]
+            ]
         else:
-            batch_size: int = 32
-            user_prompt = DEFAULT_PROMPTS[:batch_size]
+            batch_size: int = 1  # Reduced from 32 to avoid OOM
+            user_messages = DEFAULT_CHAT_MESSAGES[:batch_size]
 
         # Construct inputs, including static cache
         input_args = construct_inputs(
-            user_prompt, tokenizer, model.config, batch_size, max_cache_len
+            user_messages, tokenizer, model.config, batch_size, max_cache_len
         )
 
         # Limit maximum generation count to fit within preallocated static cache
@@ -127,7 +116,7 @@ def gpt_oss_20b(interactive: bool = False):
             mesh,
             is_spmd,
             max_tokens_to_generate,
-            user_prompt,
+            user_messages,
             interactive,
         )
 
@@ -198,7 +187,7 @@ def setup_model_and_tokenizer(
         config=config,
         low_cpu_mem_usage=True,
         trust_remote_code=True,
-        attn_implementation="eager",
+        # attn_implementation="eager",  # Removed - use default like Llama
     )
     model = model.eval()
 
@@ -209,7 +198,7 @@ def setup_model_and_tokenizer(
 
 
 def construct_inputs(
-    input_prompt: str,
+    chat_messages: List[List[dict]],
     tokenizer: PreTrainedTokenizer,
     model_config: PretrainedConfig,
     batch_size: int,
@@ -219,7 +208,7 @@ def construct_inputs(
     Construct inputs including static cache.
 
     Args:
-        input_prompt: Input text prompt
+        chat_messages: List of chat message lists, where each chat message list contains dicts with 'role' and 'content' keys
         tokenizer: Tokenizer instance
         model_config: Model configuration
         batch_size: Batch size
@@ -228,10 +217,24 @@ def construct_inputs(
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
+    # Apply chat template to each message list
+    formatted_prompts = []
+    for messages in chat_messages:
+        # Apply chat template - this formats messages in harmony response format
+        formatted_prompt = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,  # Add prompt for model to generate response
+        )
+        formatted_prompts.append(formatted_prompt)
+
+    # Tokenize the formatted prompts
+    # Note: Chat templates can produce 80-100+ tokens due to harmony format overhead
+    # We need enough space for: system message + user message + template markers
     inputs = tokenizer(
-        input_prompt,
+        formatted_prompts,
         return_tensors="pt",
-        max_length=32,
+        max_length=100,  # Increased from 32 to accommodate chat template
         padding="max_length",
         padding_side="left",
         return_attention_mask=True,
@@ -258,13 +261,35 @@ def construct_inputs(
     )
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
-    # Attention mask is needed to ignore padding tokens in left-padded batches. The mask should match max_cache_len
-    # to prevent recompilation or implicit padding by transformers, which can cause degenerate output.
+    # Create 4D attention mask to bypass get_mask_sizes() and prevent recompilations
+    # 4D mask triggers early exit in masking_utils.py:709, avoiding cumulative_length access
+    # Shape: (batch_size, num_heads=1, query_length, key_value_length)
     prompt_len = inputs.input_ids.shape[1]
-    full_attention_mask = torch.ones(
-        (batch_size, max_cache_len), dtype=inputs.attention_mask.dtype
+
+    # Initialize 4D mask: (batch, 1, query_len, kv_len)
+    # Use float dtype with 0.0 = can attend, -inf = masked out
+    full_attention_mask = torch.zeros(
+        (batch_size, 1, prompt_len, max_cache_len), dtype=torch.float32
     )
-    full_attention_mask[:, :prompt_len] = inputs.attention_mask
+
+    # For each batch element, mask out padding positions
+    for i in range(batch_size):
+        # Count valid (non-padding) tokens in this sequence
+        # inputs.attention_mask is 1 for valid tokens, 0 for padding
+        valid_token_count = inputs.attention_mask[i].sum().item()
+
+        # Allow attending to valid token positions
+        # valid tokens are at the END for left-padded sequences
+        valid_start_pos = prompt_len - valid_token_count
+
+        # Set attention to 0.0 (can attend) for valid positions
+        # Set to -inf (cannot attend) for padding positions
+        full_attention_mask[i, 0, :, valid_start_pos:prompt_len] = 0.0
+        full_attention_mask[i, 0, :, :valid_start_pos] = float("-inf")  # Mask padding
+        # TODO: should be 0 instead of -inf?
+        full_attention_mask[i, 0, :, prompt_len:] = float(
+            "-inf"
+        )  # Mask future cache positions
 
     input_args = {
         "input_ids": inputs.input_ids,
@@ -277,7 +302,8 @@ def construct_inputs(
 
     #   Debug prints
     print("\n=== DEBUG: construct_inputs ===")
-    print(f"Input prompt: '{input_prompt}'")
+    print(f"Chat messages: {chat_messages}")
+    print(f"Formatted prompts: {formatted_prompts}")
     print(f"Input IDs shape: {inputs.input_ids.shape}")
     print(f"Input IDs: {inputs.input_ids}")
     print(f"Input attention mask shape: {inputs.attention_mask.shape}")
@@ -378,7 +404,7 @@ def run_generate(
     mesh: Mesh = None,
     is_spmd: bool = True,
     max_tokens_to_generate: int = 128,
-    input_prompt: List[str] = [""],
+    chat_messages: List[List[dict]] = [[]],
     is_interactive: bool = False,
 ):
     """
@@ -392,6 +418,8 @@ def run_generate(
         mesh: Device mesh for SPMD operations (optional)
         is_spmd: Whether SPMD mode is enabled
         max_tokens_to_generate: Maximum number of tokens to generate
+        chat_messages: List of chat message lists for each user in the batch
+        is_interactive: Whether in interactive mode
     """
     num_users = input_args["input_ids"].shape[0]
     output_tokens: List[List[str]] = [[] for _ in range(num_users)]
@@ -400,7 +428,17 @@ def run_generate(
             if step == 0:
                 print("RUNNING PREFILL")
                 if is_interactive:
-                    print(f"Result: {input_prompt[0]}", end="", flush=True)
+                    # Extract user message content from the first chat in batch
+                    user_content = next(
+                        (
+                            msg["content"]
+                            for msg in chat_messages[0]
+                            if msg["role"] == "user"
+                        ),
+                        "",
+                    )
+                    print(f"User: {user_content}")
+                    print(f"Assistant: ", end="", flush=True)
 
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
@@ -427,7 +465,13 @@ def run_generate(
     print()
     if not is_interactive:
         for i in range(num_users):
-            print(f"Result for user {i}: {input_prompt[i]}{''.join(output_tokens[i])}")
+            # Extract user message content
+            user_content = next(
+                (msg["content"] for msg in chat_messages[i] if msg["role"] == "user"),
+                "",
+            )
+            print(f"User {i}: {user_content}")
+            print(f"Assistant: {''.join(output_tokens[i])}")
             print()
 
 
