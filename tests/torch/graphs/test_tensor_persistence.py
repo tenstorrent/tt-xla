@@ -808,7 +808,7 @@ def test_simple_sharded_addition():
 
     # Verify correctness using comparator
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
-    comparator = TorchComparator(comparison_config)
+    comparator = TorchComparisonEvaluator(comparison_config)
     comparator.compare(output.cpu(), expected_output)
 
     print(output)
