@@ -2064,7 +2064,7 @@ test_config:
 
   ssr/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B, but bank size is only 1364704 B - https://github.com/tenstorrent/tt-xla/issues/1923"
+    # reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B, but bank size is only 1364704 B - https://github.com/tenstorrent/tt-xla/issues/1923"
 
   bge_m3/pytorch-base-single_device-inference:
     status: EXCLUDE_MODEL  # This model has a hand written test, don't run via test_models.py
