@@ -441,9 +441,6 @@ setup(
         )
     ],
     include_package_data=True,
-    package_data={
-        "ttnn": ["_original/_ttnn.so"],
-    },
     install_requires=config.requirements,
     license="Apache-2.0",
     long_description_content_type="text/markdown",
