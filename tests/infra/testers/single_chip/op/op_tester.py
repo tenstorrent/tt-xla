@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import re
 import time
+from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 import torch
@@ -30,6 +31,8 @@ from jax._src.typing import DTypeLike
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from ...base_tester import BaseTester
+
+FILECHECK_DIR = Path(__file__).parent.parent.parent.parent.parent / "filecheck"
 
 
 class OpTester(BaseTester):
@@ -57,10 +60,14 @@ class OpTester(BaseTester):
             framework=framework,
         )
 
-    def test(self, workload: Workload) -> None:
+    def test(self, workload: Workload, request=None) -> None:
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
+        filecheck_marker = (
+            request.node.get_closest_marker("filecheck") if request else None
+        )
+
         cpu_workload = workload
         if self._framework == Framework.JAX:
             compile_jax_workload_for_cpu(cpu_workload)
@@ -70,12 +77,59 @@ class OpTester(BaseTester):
 
         tt_workload = workload
         self._compile_for_tt_device(tt_workload)
+        if filecheck_marker:
+            clean_name = sanitize_test_name(request.node.name)
+            output_prefix = f"output_artifact/{clean_name}"
+            self.serialize_on_device(tt_workload, output_prefix)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
         self._evaluator.evaluate(tt_res, cpu_res)
 
+        if filecheck_marker and filecheck_marker.args:
+            pattern_files = filecheck_marker.args[0]
+            self._run_filecheck(pattern_files, test_id=request.node.name)
+
         if self._enable_perf_measurement:
             self._test_e2e_perf(tt_workload)
+
+    def _run_filecheck(self, pattern_files: str, test_id: str) -> None:
+        self.validate_filecheck_mark(
+            pattern_files, test_id=test_id, where="pytest mark"
+        )
+
+        from tests.infra.utilities.filecheck_utils import (
+            run_filecheck,
+            validate_filecheck_results,
+        )
+
+        filecheck_results = run_filecheck(
+            test_node_name=test_id,
+            irs_filepath="output_artifact",
+            pattern_files=pattern_files,
+        )
+        validate_filecheck_results(filecheck_results)
+
+    def validate_filecheck_mark(
+        self, pattern_files, *, test_id: str, where: str
+    ) -> None:
+        if not pattern_files:
+            return
+        if not isinstance(pattern_files, list):
+            print(
+                f"WARNING: 'filecheck' mark should pass a list in {where}. Found: {type(pattern_files).__name__}"
+            )
+            return
+        for pattern_file in pattern_files:
+            if not isinstance(pattern_file, str):
+                print(
+                    f"WARNING: filecheck entry should be a string in {where}. Found: {type(pattern_file).__name__}"
+                )
+                continue
+            pattern_path = FILECHECK_DIR / pattern_file
+            if not pattern_path.exists():
+                print(
+                    f"WARNING: filecheck pattern file not found: {pattern_path}\n         Referenced in test '{test_id}'"
+                )
 
     def _test_e2e_perf(self, workload: Workload) -> None:
         warmup_iters_count = 3
@@ -134,6 +188,7 @@ class OpTester(BaseTester):
         minval: float = 0.0,
         maxval: float = 1.0,
         dtype: str | DTypeLike | torch.dtype = "float32",
+        request=None,
     ) -> None:
         """
         Tests `f` by running it with random inputs in range [`minval`, `maxval`) on
@@ -150,7 +205,7 @@ class OpTester(BaseTester):
             for shape in input_shapes
         ]
         workload = Workload(framework=self._framework, executable=f, args=inputs)
-        self.test(workload)
+        self.test(workload, request=request)
 
     def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
         """
@@ -181,6 +236,7 @@ def run_op_test(
     compiler_config: CompilerConfig = None,
     mesh: Optional[Mesh] = None,
     shard_spec_fn: Optional[Callable] = None,
+    request=None,
 ) -> None:
     """
     Tests `op` with `inputs` by running it on TT device and CPU and comparing the
@@ -195,7 +251,7 @@ def run_op_test(
         )
     else:
         workload = Workload(framework, executable=op, args=inputs)
-    tester.test(workload)
+    tester.test(workload, request=request)
 
 
 def serialize_op(
@@ -276,6 +332,7 @@ def run_op_test_with_random_inputs(
     framework: Framework = Framework.JAX,
     compiler_config: CompilerConfig = None,
     torch_options: dict = None,
+    request=None,
 ) -> None:
     """
     Tests `op` with random inputs in range [`minval`, `maxval`) by running it on
@@ -289,4 +346,6 @@ def run_op_test_with_random_inputs(
         compiler_config=compiler_config,
         torch_options=torch_options,
     )
-    tester.test_with_random_inputs(op, input_shapes, minval, maxval, dtype)
+    tester.test_with_random_inputs(
+        op, input_shapes, minval, maxval, dtype, request=request
+    )

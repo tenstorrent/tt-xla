@@ -11,9 +11,16 @@ import torch
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra import Framework, run_op_test
+from infra import (
+    Framework,
+    run_graph_test,
+    run_graph_test_with_random_inputs,
+    run_op_test,
+    run_op_test_with_random_inputs,
+)
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.evaluators import TorchComparisonEvaluator
+from infra.utilities import sanitize_test_name
 from infra.workloads import TorchWorkload
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.serialization import parse_compiled_artifacts_from_cache_to_disk
@@ -475,3 +482,100 @@ def test_spmd_sharding_constraints(request):
         pattern_files=pattern_files,
     )
     validate_filecheck_results(filecheck_results)
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.filecheck(["add.ttnn.mlir"])
+@pytest.mark.parametrize("random_inputs", [True, False])
+@pytest.mark.parametrize("test_infra", ["op", "graph"])
+def test_op_graph_filecheck(test_infra, random_inputs, request):
+    class Add(torch.nn.Module):
+        def forward(self, x, y):
+            return x + y
+
+    add = Add()
+
+    if test_infra == "op":
+        if random_inputs:
+            run_op_test_with_random_inputs(
+                add,
+                [(32, 32), (32, 32)],
+                framework=Framework.TORCH,
+                request=request,
+            )
+        else:
+            run_op_test(
+                add,
+                [torch.randn(32, 32), torch.randn(32, 32)],
+                framework=Framework.TORCH,
+                request=request,
+            )
+    else:
+        if random_inputs:
+            run_graph_test_with_random_inputs(
+                add,
+                [(32, 32), (32, 32)],
+                framework=Framework.TORCH,
+                request=request,
+            )
+        else:
+            run_graph_test(
+                add,
+                [torch.randn(32, 32), torch.randn(32, 32)],
+                framework=Framework.TORCH,
+                request=request,
+            )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.filecheck(["add.ttnn.mlir"])
+def test_model_filecheck(request):
+    from typing import Any, Dict, Sequence
+
+    from infra import ComparisonConfig, Model, RunMode, TorchModelTester
+
+    from tests.infra.testers.compiler_config import CompilerConfig
+    from third_party.tt_forge_models.resnet.pytorch import ModelLoader, ModelVariant
+
+    class ResnetTester(TorchModelTester):
+        """Tester for resnet model."""
+
+        def __init__(
+            self,
+            variant_name: str,
+            comparison_config: ComparisonConfig = ComparisonConfig(),
+            run_mode: RunMode = RunMode.INFERENCE,
+            compiler_config: CompilerConfig = None,
+            dtype_override=None,
+        ) -> None:
+            self._model_loader = ModelLoader(variant_name)
+            super().__init__(
+                comparison_config,
+                run_mode,
+                compiler_config,
+                dtype_override=dtype_override,
+            )
+
+        # @override
+        def _get_model(self) -> Model:
+            return self._model_loader.load_model()
+
+        # @override
+        def _get_input_activations(self) -> Dict | Sequence[Any]:
+            return self._model_loader.load_inputs()
+
+    tester = ResnetTester(
+        ModelVariant.RESNET_50_HF,
+        comparison_config=ComparisonConfig(),
+        run_mode=RunMode.INFERENCE,
+        compiler_config=None,
+        dtype_override=None,
+    )
+    tester.test()
+
+    clean_name = sanitize_test_name(request.node.name)
+    output_prefix = f"output_artifact/{clean_name}"
+
+    tester.serialize_on_device(output_prefix)
