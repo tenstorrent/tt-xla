@@ -4,6 +4,7 @@
 import os
 import shutil
 from pathlib import Path
+from typing import Any, Dict, Sequence
 
 import numpy as np
 import pytest
@@ -26,9 +27,10 @@ from torch_xla.distributed.spmd import Mesh
 from tt_torch.serialization import parse_compiled_artifacts_from_cache_to_disk
 from tt_torch.sharding import sharding_constraint_hook
 
-from tests.infra import RunMode, TorchModelTester
+from tests.infra import ComparisonConfig, Model, RunMode, TorchModelTester
 from tests.infra.connectors.torch_device_connector import TorchDeviceConnector
 from tests.infra.evaluators.evaluation_config import AtolConfig, ComparisonConfig
+from tests.infra.testers.compiler_config import CompilerConfig
 from tests.infra.testers.single_chip.op.op_tester import OpTester
 from tests.infra.utilities import sanitize_test_name
 from tests.infra.utilities.filecheck_utils import (
@@ -532,25 +534,28 @@ def test_op_graph_filecheck(test_infra, random_inputs, request):
 @pytest.mark.single_device
 @pytest.mark.filecheck(["add.ttnn.mlir"])
 def test_model_filecheck(request):
-    from typing import Any, Dict, Sequence
+    class SimpleLinearModel(torch.nn.Module):
+        """Lightweight fake model for testing filecheck infrastructure."""
 
-    from infra import ComparisonConfig, Model, RunMode, TorchModelTester
+        def __init__(self):
+            super().__init__()
+            self.linear = torch.nn.Linear(32, 32, bias=False, dtype=torch.bfloat16)
 
-    from tests.infra.testers.compiler_config import CompilerConfig
-    from third_party.tt_forge_models.resnet.pytorch import ModelLoader, ModelVariant
+        def forward(self, x):
+            return self.linear(x) + x
 
-    class ResnetTester(TorchModelTester):
-        """Tester for resnet model."""
+    class SimpleLinearModelTester(TorchModelTester):
+        """Tester for simple linear model."""
 
         def __init__(
             self,
-            variant_name: str,
             comparison_config: ComparisonConfig = ComparisonConfig(),
             run_mode: RunMode = RunMode.INFERENCE,
             compiler_config: CompilerConfig = None,
             dtype_override=None,
         ) -> None:
-            self._model_loader = ModelLoader(variant_name)
+            self._model_instance = SimpleLinearModel()
+            self._inputs = [torch.randn(32, 32, dtype=torch.bfloat16)]
             super().__init__(
                 comparison_config,
                 run_mode,
@@ -558,24 +563,16 @@ def test_model_filecheck(request):
                 dtype_override=dtype_override,
             )
 
-        # @override
         def _get_model(self) -> Model:
-            return self._model_loader.load_model()
+            return self._model_instance
 
-        # @override
         def _get_input_activations(self) -> Dict | Sequence[Any]:
-            return self._model_loader.load_inputs()
+            return self._inputs
 
-    tester = ResnetTester(
-        ModelVariant.RESNET_50_HF,
+    tester = SimpleLinearModelTester(
         comparison_config=ComparisonConfig(),
         run_mode=RunMode.INFERENCE,
         compiler_config=None,
         dtype_override=None,
     )
-    tester.test()
-
-    clean_name = sanitize_test_name(request.node.name)
-    output_prefix = f"output_artifact/{clean_name}"
-
-    tester.serialize_on_device(output_prefix)
+    tester.test(request=request)
