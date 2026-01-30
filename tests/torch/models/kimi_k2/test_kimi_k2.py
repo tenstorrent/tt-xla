@@ -375,7 +375,7 @@ def test_kimi_k2_layer():
     layer = layer.to(torch.bfloat16)
 
     max_cache_len = 512
-    batch_size = 512
+    batch_size = 256
     seq_len = 1
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
