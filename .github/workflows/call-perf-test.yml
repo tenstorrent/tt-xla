@@ -231,7 +231,7 @@ jobs:
         ttrt perf flatbuffers --ignore-version || echo "ttrt perf failed, continuing..."
 
         echo "Write device perf to report"
-        python3 ./tests/benchmark/device_perf.py ttrt-artifacts ${{ steps.strings.outputs.perf_report_json_file }} || echo "device_perf.py failed, continuing..."
+        python3 ./tests/benchmark/scripts/device_perf.py ttrt-artifacts ${{ steps.strings.outputs.perf_report_json_file }} || echo "device_perf.py failed, continuing..."
 
         echo "Copy device perf CSVs"
         mkdir -p ${{ steps.strings.outputs.perf_report_path }}/device_perf
@@ -265,7 +265,7 @@ jobs:
         JOB_ID_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${{ steps.strings.outputs.job_id }}"
 
         if [ -f "$PERF_REPORT_FILE" ]; then
-          python3 tests/benchmark/extend_result_config.py "$PERF_REPORT_FILE" \
+          python3 tests/benchmark/scripts/extend_result_config.py "$PERF_REPORT_FILE" \
             ${TTIR_URL:+--ttir-url "$TTIR_URL"} \
             ${TTNN_URL:+--ttnn-url "$TTNN_URL"} \
             ${DEVICE_PERF_URL:+--device-perf-url "$DEVICE_PERF_URL"} \
