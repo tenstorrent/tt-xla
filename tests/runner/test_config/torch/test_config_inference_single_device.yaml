@@ -1368,11 +1368,9 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-bn_vgg19-single_device-inference:
-    required_pcc: 0.96 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   vgg/pytorch-timm_vgg19_bn-single_device-inference:
-    required_pcc: 0.95  # https://github.com/tenstorrent/tt-xla/issues/1242 , https://github.com/tenstorrent/tt-xla/issues/2803
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg11-single_device-inference:
@@ -1388,7 +1386,6 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg19_bn-single_device-inference:
-    required_pcc: 0.96 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   vgg/pytorch-hf_vgg19-single_device-inference:
