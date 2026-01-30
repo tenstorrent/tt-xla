@@ -34,6 +34,13 @@ def torch_pass_pipeline(
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
 
+    # Extract the mapping from mangled FX names to original fully qualified names.
+    # This is set by torch.compile/dynamo and contains clean names like
+    # "encoder_layer.self_attn.k_proj.weight" for each parameter.
+    flat_name_to_original_fqn = {}
+    if hasattr(gm, "meta") and "dynamo_flat_name_to_original_fqn" in gm.meta:
+        flat_name_to_original_fqn = gm.meta["dynamo_flat_name_to_original_fqn"]
+
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
     enable_fusion_passes = options is None or options.get(
@@ -63,7 +70,7 @@ def torch_pass_pipeline(
 
     compiled_graph = program.module()
     compiled_graph = insert_argument_type_markers(
-        compiled_graph, program.graph_signature
+        compiled_graph, program.graph_signature, flat_name_to_original_fqn
     )
     compiled_graph = bypass_dtype_promotion_and_redundant_cast(
         compiled_graph, example_inputs

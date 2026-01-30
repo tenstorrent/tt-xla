@@ -62,8 +62,22 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
 
 
 def insert_argument_type_markers(
-    gm: torch.fx.GraphModule, graph_signature
+    gm: torch.fx.GraphModule,
+    graph_signature,
+    flat_name_to_original_fqn: dict = None,
 ) -> torch.fx.GraphModule:
+    """
+    Insert argument type markers into the graph to annotate parameters, buffers, and inputs.
+
+    Args:
+        gm: The GraphModule to transform
+        graph_signature: The export graph signature containing input/output specs
+        flat_name_to_original_fqn: Optional mapping from mangled FX names to original
+            fully qualified names (from gm.meta['dynamo_flat_name_to_original_fqn']).
+            If provided, the original clean names will be used in the IR.
+    """
+    if flat_name_to_original_fqn is None:
+        flat_name_to_original_fqn = {}
 
     input_nodes = gm.graph.find_nodes(op="get_attr") + gm.graph.find_nodes(
         op="placeholder"
@@ -121,12 +135,20 @@ def insert_argument_type_markers(
         else:
             continue
 
+        # Try to get the original clean name from the dynamo mapping.
+        # The mapping uses underscore-separated names (e.g., "L__self___encoder_layer_mlp_fc1_weight")
+        # but input_node.target may have dots (e.g., "L__self___encoder_layer_mlp_fc1.weight").
+        # Try both the target with dots replaced by underscores and the original target.
+        mangled_name = input_node.target if input_node.target else input_node.name
+        lookup_key = str(mangled_name).replace(".", "_")
+        clean_name = flat_name_to_original_fqn.get(lookup_key, mangled_name)
+
         with gm.graph.inserting_after(input_node):
             new_input = gm.graph.create_node(
                 "call_function",
                 torch.ops.tt.mark_argument_attributes,
                 args=(input_node,),
-                kwargs={"argument_type": argument_type, "name": input_node.name},
+                kwargs={"argument_type": argument_type, "name": clean_name},
             )
 
         for user in users:
