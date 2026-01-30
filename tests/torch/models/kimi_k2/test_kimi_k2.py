@@ -322,9 +322,9 @@ def test_kimi_k2_attention_decode():
 
 
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (2, 4)
+    mesh_shape = (8, 4)
     device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+    mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
 
     position_ids = torch.arange(seq_len)
     static_cache = MLACache(
@@ -374,20 +374,37 @@ def test_kimi_k2_layer():
     layer = DeepseekV3DecoderLayer(config, layer_idx=0)
     layer = layer.to(torch.bfloat16)
 
-    batch_size = 1
-    seq_len = 32
+    max_cache_len = 1024
+    batch_size = 512
+    seq_len = 1
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask = torch.rand(batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16)
+
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (8, 4)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
+
+    position_ids = torch.arange(seq_len)
+    static_cache = MLACache(
+        config=config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+    past_key_states = static_cache
 
     device = torch_xla.device()
     layer = layer.to(device)
 
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (2, 4)
+    mesh_shape = (8, 4)
     device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+    mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
 
     hidden_states = hidden_states.to(device)
     attention_mask = attention_mask.to(device)
@@ -396,7 +413,7 @@ def test_kimi_k2_layer():
     def get_shard_spec(layer, args, kwargs):
         shard_specs = {}
 
-        shard_specs[args[0]] = (None, None, "batch")
+        shard_specs[args[0]] = ("model", None, "batch")
         
         # Main attention weights, TP across model and batch dimensions
         shard_specs[layer.self_attn.q_b_proj.weight] = ("model", None)
@@ -420,7 +437,7 @@ def test_kimi_k2_layer():
 
     run_graph_test(
         layer,
-        [hidden_states, attention_mask],
+        [hidden_states, attention_mask, position_ids, past_key_states],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
