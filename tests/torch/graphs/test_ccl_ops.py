@@ -47,14 +47,18 @@ def test_all_reduce(shard_dim):
     t = torch.ones(256, 512)
     t = t.to(torch_xla.device())
 
+    # llmbox will have 1x8 or 8x1 mesh
+    # n300 will have 1x2 or 2x1 mesh
+    num_devices = xr.global_runtime_device_count()
+
     if shard_dim == 0:
         # Shard on batch dimension (dim 0)
-        mesh = create_device_mesh((2, 1), ("batch", "model"))
+        mesh = create_device_mesh((num_devices, 1), ("batch", "model"))
         xs.mark_sharding(t, mesh, ("batch", None))
         groups = [[0, 1]]
     else:
         # Shard on model dimension (dim 1)
-        mesh = create_device_mesh((1, 2), ("batch", "model"))
+        mesh = create_device_mesh((1, num_devices), ("batch", "model"))
         xs.mark_sharding(t, mesh, (None, "model"))
         groups = [[0, 1]]
 
@@ -91,14 +95,18 @@ def test_all_gather(shard_dim):
 
     t = t.to(torch_xla.device())
 
+    # llmbox will have 1x8 or 8x1 mesh
+    # n300 will have 1x2 or 2x1 mesh
+    num_devices = xr.global_runtime_device_count()
+
     if shard_dim == 0:
-        mesh = create_device_mesh((2, 1), ("batch", "model"))
+        mesh = create_device_mesh((num_devices, 1), ("batch", "model"))
         # 2 devices along the “batch” axis, 1 along “model”.
         xs.mark_sharding(t, mesh, ("batch", None))
         groups = [[0, 1]]
         gather_dim = 0
     else:
-        mesh = create_device_mesh((1, 2), ("batch", "model"))
+        mesh = create_device_mesh((1, num_devices), ("batch", "model"))
         xs.mark_sharding(t, mesh, (None, "model"))
         groups = [[0, 1]]
         gather_dim = 1
