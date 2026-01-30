@@ -365,8 +365,13 @@ class TorchDynamicLoader(DynamicLoader):
             return self.loader.load_model(dtype_override=torch.bfloat16)
         return self.loader.load_model()
 
-    def load_inputs(self, run_phase=None) -> Any:
+    def load_inputs(self, run_phase=None, seq_len=None, batch_size=None) -> Any:
         """Load input activations from the loader with dtype override support for bfloat16.
+
+        Args:
+            run_phase: Optional RunPhase to select decode/prefill input loading.
+            seq_len: Optional sequence length for prefill inputs.
+            batch_size: Optional batch size for prefill inputs.
 
         Returns:
             Input tensors that can be fed to the model, using bfloat16 if supported
@@ -385,6 +390,21 @@ class TorchDynamicLoader(DynamicLoader):
             if "dtype_override" in decode_sig.parameters:
                 return self.loader.load_inputs_decode(dtype_override=torch.bfloat16)
             return self.loader.load_inputs_decode()
+
+        if run_phase == RunPhase.LLM_PREFILL:
+            assert hasattr(
+                self.loader, "load_inputs_prefill"
+            ), f"{type(self.loader).__name__} missing load_inputs_prefill for run_phase={run_phase}"
+
+            prefill_sig = inspect.signature(self.loader.load_inputs_prefill)
+            kwargs = {}
+            if "dtype_override" in prefill_sig.parameters:
+                kwargs["dtype_override"] = torch.bfloat16
+            if "seq_len" in prefill_sig.parameters and seq_len is not None:
+                kwargs["seq_len"] = seq_len
+            if "batch_size" in prefill_sig.parameters and batch_size is not None:
+                kwargs["batch_size"] = batch_size
+            return self.loader.load_inputs_prefill(**kwargs)
 
         # Default path
         if "dtype_override" in sig.parameters:

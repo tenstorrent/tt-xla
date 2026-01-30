@@ -119,6 +119,7 @@ def _run_model_test_impl(
                         comparison_config=test_metadata.to_comparison_config(),
                         compiler_config=compiler_config,
                         parallelism=parallelism,
+                        test_metadata=test_metadata,
                     )
                 elif framework == Framework.JAX:
                     if (
@@ -355,6 +356,14 @@ def test_all_models_jax(
 # LLM Specific tests for decode and prefill phases. Separate test to avoid impacting
 # original test names in test_all_models_torch and no need for collection-time deselection logic.
 
+# Sequence lengths for prefill testing (None = decode phase uses default)
+PREFILL_SEQ_LENS = [128, 1024, 2048, 4096, 8192]
+LLM_SEQ_LENS = [None] + PREFILL_SEQ_LENS
+
+# Batch sizes for prefill testing (None = decode phase uses default)
+PREFILL_BATCH_SIZES = [1, 2]
+LLM_BATCH_SIZES = [None] + PREFILL_BATCH_SIZES
+
 # Build list of (test_entry, run_phase) pairs based on loader capabilities
 _llm_test_params = []
 for entry in test_entries_torch:
@@ -363,6 +372,22 @@ for entry in test_entries_torch:
         _llm_test_params.append((entry, RunPhase.LLM_DECODE))
     if hasattr(ModelLoader, "load_inputs_prefill"):
         _llm_test_params.append((entry, RunPhase.LLM_PREFILL))
+
+
+def _generate_llm_test_id(param_tuple):
+    """Generate test ID for LLM tests."""
+    entry, phase = param_tuple
+    return f"{DynamicLoader.generate_test_id(entry, MODELS_ROOT_TORCH)}-{phase.value}"
+
+
+def _generate_sequence_length_id(sequence_length):
+    """Generate test ID component for sequence_length."""
+    return f"seq{sequence_length}" if sequence_length is not None else "seqDefault"
+
+
+def _generate_batch_size_id(batch_size):
+    """Generate test ID component for batch_size."""
+    return f"batch{batch_size}" if batch_size is not None else "batchDefault"
 
 
 @pytest.mark.model_test
@@ -389,13 +414,17 @@ for entry in test_entries_torch:
         ),
     ],
 )
+@pytest.mark.parametrize("batch_size", LLM_BATCH_SIZES, ids=_generate_batch_size_id)
+@pytest.mark.parametrize("sequence_length", LLM_SEQ_LENS, ids=_generate_sequence_length_id)
 @pytest.mark.parametrize(
     "test_entry_and_phase",
     _llm_test_params,
-    ids=lambda p: f"{DynamicLoader.generate_test_id(p[0], MODELS_ROOT_TORCH)}-{p[1].value}",
+    ids=_generate_llm_test_id,
 )
 def test_llms_torch(
     test_entry_and_phase,
+    sequence_length,
+    batch_size,
     run_mode,
     parallelism,
     record_property,
@@ -406,6 +435,20 @@ def test_llms_torch(
 ):
     """PyTorch LLM model test (decode/prefill phases) - delegates to shared implementation."""
     test_entry, run_phase = test_entry_and_phase
+
+    # Skip invalid combinations: decode needs sequence_length=None and batch_size=None
+    if run_phase == RunPhase.LLM_DECODE:
+        if sequence_length is not None:
+            pytest.skip("Decode phase doesn't use sequence_length parametrization")
+        if batch_size is not None:
+            pytest.skip("Decode phase doesn't use batch_size parametrization")
+
+    # Skip invalid combinations: prefill needs sequence_length!=None and batch_size!=None
+    if run_phase == RunPhase.LLM_PREFILL:
+        if sequence_length is None:
+            pytest.skip("Prefill phase requires a sequence_length")
+        if batch_size is None:
+            pytest.skip("Prefill phase requires a batch_size")
 
     # Add phase-specific marker for filtering
     if run_phase == RunPhase.LLM_DECODE:

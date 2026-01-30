@@ -35,6 +35,7 @@ class DynamicTorchModelTester(TorchModelTester):
         compiler_config: CompilerConfig = None,
         parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
         run_phase: RunPhase = RunPhase.DEFAULT,
+        test_metadata=None,
     ) -> None:
         """Initialize DynamicTorchModelTester.
 
@@ -43,6 +44,8 @@ class DynamicTorchModelTester(TorchModelTester):
             loader: Loader object that implements load_model and load_inputs methods
             comparison_config: Optional comparison configuration for result validation
             parallelism: Parallelism mode for model execution
+            run_phase: Optional run phase (DEFAULT, LLM_DECODE, LLM_PREFILL)
+            test_metadata: Optional ModelTestConfig with seq_len/batch_size for prefill
         """
         # Create TorchDynamicLoader instance
         self.dynamic_loader = TorchDynamicLoader(loader)
@@ -50,6 +53,8 @@ class DynamicTorchModelTester(TorchModelTester):
         self.parallelism = parallelism
         # Store phase hint for input loading
         self.run_phase = run_phase
+        # Store test metadata for seq_len/batch_size access
+        self._test_metadata = test_metadata
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
@@ -74,7 +79,15 @@ class DynamicTorchModelTester(TorchModelTester):
         Returns:
             Input tensors loaded from the loader
         """
-        inputs = self.dynamic_loader.load_inputs(run_phase=self.run_phase)
+        # Extract seq_len and batch_size from test_metadata if available
+        seq_len = getattr(self._test_metadata, "seq_len", None) if self._test_metadata else None
+        batch_size = getattr(self._test_metadata, "batch_size", None) if self._test_metadata else None
+
+        inputs = self.dynamic_loader.load_inputs(
+            run_phase=self.run_phase,
+            seq_len=seq_len,
+            batch_size=batch_size,
+        )
 
         if self.parallelism == Parallelism.DATA_PARALLEL:
             num_devices = xr.global_runtime_device_count()
