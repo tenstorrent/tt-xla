@@ -25,6 +25,78 @@ from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
+
+def patch_gpt_oss_attention_sinks():
+    """
+    Monkey-patch GPT-OSS eager_attention_forward to use repeat instead of expand.
+
+    The expand operation creates a view that doesn't work correctly with torch.compile.
+    Using repeat explicitly copies the data, which is more compatible with tracing.
+    """
+    import torch.nn.functional as F
+    from torch import nn
+    from transformers.models.gpt_oss.modeling_gpt_oss import repeat_kv
+
+    def patched_eager_attention_forward(
+        module: nn.Module,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        attention_mask: torch.Tensor | None,
+        scaling: float,
+        dropout: float = 0.0,
+        **kwargs,
+    ):
+        key_states = repeat_kv(key, module.num_key_value_groups)
+        value_states = repeat_kv(value, module.num_key_value_groups)
+        attn_weights = torch.matmul(query, key_states.transpose(2, 3)) * scaling
+        if attention_mask is not None:
+            causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
+            attn_weights = attn_weights + causal_mask
+
+        # Create sinks tensor with explicit operations for torch.compile compatibility
+        # Get dimensions from query tensor
+        batch_size, num_heads, query_len, _ = query.shape
+
+        print(f"DEBUG: query.shape = {query.shape}")
+        print(f"DEBUG: extracted query_len = {query_len}")
+
+        # Create a tensor of ones with the target shape, then multiply by sinks values
+        # This avoids expand/repeat/broadcast_to which don't trace well
+        sinks_ones = torch.ones(
+            batch_size, num_heads, query_len, 1, dtype=query.dtype, device=query.device
+        )
+        print(f"DEBUG: sinks_ones.shape after torch.ones = {sinks_ones.shape}")
+
+        # Multiply by the sink values (shape: num_heads -> 1, num_heads, 1, 1)
+        sink_values = module.sinks.reshape(1, -1, 1, 1)
+        print(f"DEBUG: sink_values.shape = {sink_values.shape}")
+
+        sinks = sinks_ones * sink_values
+        print(f"DEBUG: sinks.shape after multiplication = {sinks.shape}")
+        print(f"DEBUG: attn_weights.shape = {attn_weights.shape}")
+
+        combined_logits = torch.cat([attn_weights, sinks], dim=-1)
+
+        combined_logits = (
+            combined_logits - combined_logits.max(dim=-1, keepdim=True).values
+        )
+        probs = F.softmax(combined_logits, dim=-1, dtype=combined_logits.dtype)
+        scores = probs[..., :-1]
+        attn_weights = nn.functional.dropout(
+            scores, p=dropout, training=module.training
+        )
+        attn_output = torch.matmul(attn_weights, value_states)
+        attn_output = attn_output.transpose(1, 2).contiguous()
+        return attn_output, attn_weights
+
+    # Apply the patch
+    import transformers.models.gpt_oss.modeling_gpt_oss as gpt_oss_modeling
+
+    gpt_oss_modeling.eager_attention_forward = patched_eager_attention_forward
+    print("Applied GPT-OSS attention sinks patch (expand -> repeat)")
+
+
 DEFAULT_PROMPTS = [
     "I like taking walks in the",
     "My name is",
@@ -86,8 +158,14 @@ def gpt_oss_20b(interactive: bool = False):
     device: torch.device = torch_xla.device()
     mesh: Mesh = create_device_mesh()
 
+    # Apply GPT-OSS attention sinks patch for torch.compile compatibility
+    patch_gpt_oss_attention_sinks()
+
     # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_name)
+
+    # Debug: Check what attention implementation is actually being used
+    print(f"Model config._attn_implementation: {model.config._attn_implementation}")
 
     while True:
         if interactive:
@@ -97,7 +175,7 @@ def gpt_oss_20b(interactive: bool = False):
                 break
             user_prompt = [user_prompt]
         else:
-            batch_size: int = 32
+            batch_size: int = 1  # Reduced from 32 to avoid OOM
             user_prompt = DEFAULT_PROMPTS[:batch_size]
 
         # Construct inputs, including static cache
@@ -198,7 +276,7 @@ def setup_model_and_tokenizer(
         config=config,
         low_cpu_mem_usage=True,
         trust_remote_code=True,
-        attn_implementation="eager",
+        # attn_implementation="eager",  # Removed - use default like Llama
     )
     model = model.eval()
 
@@ -258,13 +336,35 @@ def construct_inputs(
     )
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
-    # Attention mask is needed to ignore padding tokens in left-padded batches. The mask should match max_cache_len
-    # to prevent recompilation or implicit padding by transformers, which can cause degenerate output.
+    # Create 4D attention mask to bypass get_mask_sizes() and prevent recompilations
+    # 4D mask triggers early exit in masking_utils.py:709, avoiding cumulative_length access
+    # Shape: (batch_size, num_heads=1, query_length, key_value_length)
     prompt_len = inputs.input_ids.shape[1]
-    full_attention_mask = torch.ones(
-        (batch_size, max_cache_len), dtype=inputs.attention_mask.dtype
+
+    # Initialize 4D mask: (batch, 1, query_len, kv_len)
+    # Use float dtype with 0.0 = can attend, -inf = masked out
+    full_attention_mask = torch.zeros(
+        (batch_size, 1, prompt_len, max_cache_len), dtype=torch.float32
     )
-    full_attention_mask[:, :prompt_len] = inputs.attention_mask
+
+    # For each batch element, mask out padding positions
+    for i in range(batch_size):
+        # Count valid (non-padding) tokens in this sequence
+        # inputs.attention_mask is 1 for valid tokens, 0 for padding
+        valid_token_count = inputs.attention_mask[i].sum().item()
+
+        # Allow attending to valid token positions
+        # valid tokens are at the END for left-padded sequences
+        valid_start_pos = prompt_len - valid_token_count
+
+        # Set attention to 0.0 (can attend) for valid positions
+        # Set to -inf (cannot attend) for padding positions
+        full_attention_mask[i, 0, :, valid_start_pos:prompt_len] = 0.0
+        full_attention_mask[i, 0, :, :valid_start_pos] = float("-inf")  # Mask padding
+        # TODO: should be 0 instead of -inf?
+        full_attention_mask[i, 0, :, prompt_len:] = float(
+            "-inf"
+        )  # Mask future cache positions
 
     input_args = {
         "input_ids": inputs.input_ids,
