@@ -1643,7 +1643,7 @@ test_config:
 
   vadv2/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
+    # reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
   huggyllama/pytorch-llama_7b-single_device-inference:
     status: EXPECTED_PASSING
