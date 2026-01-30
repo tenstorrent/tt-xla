@@ -10,7 +10,7 @@ import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
 from functorch.compile import make_boxed_func
 from torch._dynamo import register_backend
-from torch._dynamo.backends.common import aot_autograd
+from torch._dynamo.backends.common import aot_autograd, fake_tensor_unsupported
 from torch._subclasses.fake_tensor import FakeTensorMode, is_fake
 from torch._subclasses.functional_tensor import mb_unwrap_functional_tensor
 from torch.export import ExportedProgram
@@ -240,6 +240,7 @@ def _build_executor(
     return fwd
 
 
+@fake_tensor_unsupported
 def _build_boxed_executor(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
@@ -358,6 +359,7 @@ def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.Graph
 
 
 @register_backend(name="tt")
+@fake_tensor_unsupported
 def tt_backend(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
