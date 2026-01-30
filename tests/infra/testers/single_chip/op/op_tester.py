@@ -29,6 +29,10 @@ from infra.workloads.torch_workload import TorchWorkload
 from jax._src.typing import DTypeLike
 
 from tests.infra.testers.compiler_config import CompilerConfig
+from tests.infra.utilities.filecheck_utils import (
+    run_filecheck,
+    validate_filecheck_results,
+)
 
 from ...base_tester import BaseTester
 
@@ -64,9 +68,6 @@ class OpTester(BaseTester):
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
-        filecheck_marker = (
-            request.node.get_closest_marker("filecheck") if request else None
-        )
 
         cpu_workload = workload
         if self._framework == Framework.JAX:
@@ -77,29 +78,32 @@ class OpTester(BaseTester):
 
         tt_workload = workload
         self._compile_for_tt_device(tt_workload)
-        if filecheck_marker:
-            clean_name = sanitize_test_name(request.node.name)
-            output_prefix = f"output_artifact/{clean_name}"
-            self.serialize_on_device(tt_workload, output_prefix)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
         self._evaluator.evaluate(tt_res, cpu_res)
 
-        if filecheck_marker and filecheck_marker.args:
-            pattern_files = filecheck_marker.args[0]
-            self._run_filecheck(pattern_files, test_id=request.node.name)
-
         if self._enable_perf_measurement:
             self._test_e2e_perf(tt_workload)
 
-    def _run_filecheck(self, pattern_files: str, test_id: str) -> None:
-        self.validate_filecheck_mark(
-            pattern_files, test_id=test_id, where="pytest mark"
-        )
+        if request:
+            filecheck_marker = request.node.get_closest_marker("filecheck")
+            serialize = (
+                True
+                if filecheck_marker or request.config.getoption("--serialize", False)
+                else False
+            )
+            if serialize:
+                clean_name = sanitize_test_name(request.node.name)
+                output_prefix = f"output_artifact/{clean_name}"
+                self.serialize_on_device(tt_workload, output_prefix)
 
-        from tests.infra.utilities.filecheck_utils import (
-            run_filecheck,
-            validate_filecheck_results,
+            if filecheck_marker and filecheck_marker.args:
+                pattern_files = filecheck_marker.args[0]
+                self._run_filecheck(pattern_files, test_id=request.node.name)
+
+    def _run_filecheck(self, pattern_files: str, test_id: str) -> None:
+        self._validate_filecheck_mark(
+            pattern_files, test_id=test_id, where="pytest mark"
         )
 
         filecheck_results = run_filecheck(
@@ -109,7 +113,7 @@ class OpTester(BaseTester):
         )
         validate_filecheck_results(filecheck_results)
 
-    def validate_filecheck_mark(
+    def _validate_filecheck_mark(
         self, pattern_files, *, test_id: str, where: str
     ) -> None:
         if not pattern_files:

@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from infra import run_op_test_with_random_inputs, serialize_op_with_random_inputs
+from infra import run_op_test_with_random_inputs
 from utils import Category
 
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -42,13 +42,9 @@ def test_add(x_shape: tuple, y_shape: tuple, format: str, request):
         compiler_config = CompilerConfig(enable_bfp8_conversion=True)
 
     run_op_test_with_random_inputs(
-        add, [x_shape, y_shape], dtype=dtype, compiler_config=compiler_config
+        add,
+        [x_shape, y_shape],
+        dtype=dtype,
+        compiler_config=compiler_config,
+        request=request,
     )
-    if request.config.getoption("--serialize", default=False):
-        serialize_op_with_random_inputs(
-            add,
-            [x_shape, y_shape],
-            test_name=request.node.name,
-            dtype=dtype,
-            compiler_config=compiler_config,
-        )
