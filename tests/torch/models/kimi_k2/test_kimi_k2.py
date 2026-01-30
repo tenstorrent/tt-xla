@@ -384,7 +384,7 @@ def test_kimi_k2_layer():
 
 
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (8, 4)
+    mesh_shape = (8, 8)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
 
