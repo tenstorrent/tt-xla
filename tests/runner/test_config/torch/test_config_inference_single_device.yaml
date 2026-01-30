@@ -2095,7 +2095,7 @@ test_config:
 
   uniad/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B"
+    # reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B"
 
   maptr/pytorch-tiny_r50_24e_av2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
