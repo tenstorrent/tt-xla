@@ -8,15 +8,29 @@ import os
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
+from pathlib import Path
 from typing import Callable, Optional, Tuple
 
 from infra.evaluators import ComparisonConfig, ComparisonResult
-from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
+from infra.utilities import (
+    Framework,
+    Mesh,
+    Model,
+    ShardSpec,
+    Tensor,
+    sanitize_test_name,
+)
 from infra.workloads import Workload
 
 from tests.infra.testers.compiler_config import CompilerConfig
+from tests.infra.utilities.filecheck_utils import (
+    run_filecheck,
+    validate_filecheck_results,
+)
 
 from ...base_tester import BaseTester
+
+FILECHECK_DIR = Path(__file__).parent.parent.parent.parent.parent / "filecheck"
 
 
 class RunMode(Enum):
@@ -148,14 +162,14 @@ class ModelTester(BaseTester, ABC):
         """
         return "__call__"
 
-    def test(self) -> Tuple[ComparisonResult, ...]:
+    def test(self, request=None) -> Tuple[ComparisonResult, ...]:
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
-            return self._test_inference()
+            return self._test_inference(request=request)
         else:
             return self._test_training()
 
-    def _test_inference(self) -> Tuple[ComparisonResult, ...]:
+    def _test_inference(self, request=None) -> Tuple[ComparisonResult, ...]:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
@@ -171,7 +185,25 @@ class ModelTester(BaseTester, ABC):
 
         tt_res = self._run_on_tt_device(self._workload)
 
-        return (self._compare(tt_res, cpu_res),)
+        result = (self._compare(tt_res, cpu_res),)
+
+        if request:
+            filecheck_marker = request.node.get_closest_marker("filecheck")
+            serialize = (
+                True
+                if filecheck_marker or request.config.getoption("--serialize", False)
+                else False
+            )
+            if serialize:
+                clean_name = sanitize_test_name(request.node.name)
+                output_prefix = f"output_artifact/{clean_name}"
+                self.serialize_on_device(output_prefix)
+
+            if filecheck_marker and filecheck_marker.args:
+                pattern_files = filecheck_marker.args[0]
+                self._run_filecheck(pattern_files, test_id=request.node.name)
+
+        return result
 
     def _test_e2e_perf(self) -> dict[str, float]:
         warmup_iters_count = 3
@@ -220,6 +252,40 @@ class ModelTester(BaseTester, ABC):
         forward results and gradients. Implementation is framework-specific.
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def _run_filecheck(self, pattern_files: str, test_id: str) -> None:
+        self._validate_filecheck_mark(
+            pattern_files, test_id=test_id, where="pytest mark"
+        )
+
+        filecheck_results = run_filecheck(
+            test_node_name=test_id,
+            irs_filepath="output_artifact",
+            pattern_files=pattern_files,
+        )
+        validate_filecheck_results(filecheck_results)
+
+    def _validate_filecheck_mark(
+        self, pattern_files, *, test_id: str, where: str
+    ) -> None:
+        if not pattern_files:
+            return
+        if not isinstance(pattern_files, list):
+            print(
+                f"WARNING: 'filecheck' mark should pass a list in {where}. Found: {type(pattern_files).__name__}"
+            )
+            return
+        for pattern_file in pattern_files:
+            if not isinstance(pattern_file, str):
+                print(
+                    f"WARNING: filecheck entry should be a string in {where}. Found: {type(pattern_file).__name__}"
+                )
+                continue
+            pattern_path = FILECHECK_DIR / pattern_file
+            if not pattern_path.exists():
+                print(
+                    f"WARNING: filecheck pattern file not found: {pattern_path}\n         Referenced in test '{test_id}'"
+                )
 
     def serialize_on_device(self, output_prefix: str) -> None:
         """
