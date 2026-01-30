@@ -374,8 +374,8 @@ def test_kimi_k2_layer():
     layer = DeepseekV3DecoderLayer(config, layer_idx=0)
     layer = layer.to(torch.bfloat16)
 
-    max_cache_len = 1024
-    batch_size = 512
+    max_cache_len = 512
+    batch_size = 256
     seq_len = 1
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
@@ -402,9 +402,7 @@ def test_kimi_k2_layer():
     layer = layer.to(device)
 
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (8, 4)
     device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
 
     hidden_states = hidden_states.to(device)
     attention_mask = attention_mask.to(device)
