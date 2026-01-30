@@ -17,7 +17,7 @@ from infra.utilities import (
     compile_torch_workload_for_tt_device,
 )
 from infra.workloads import TorchWorkload, Workload
-from loguru import logger
+from ttxla_tools.logging import logger
 
 from tests.infra.evaluators import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig

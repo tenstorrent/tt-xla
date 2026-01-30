@@ -6,7 +6,7 @@
 
 from typing import Generator, Optional
 
-from loguru import logger
+from ttxla_tools.logging import logger
 
 from .checks_xla import FailingReasons
 from .utils import ExceptionData, ExceptionReason, PyTestUtils

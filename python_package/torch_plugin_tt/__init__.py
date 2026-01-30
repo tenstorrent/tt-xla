@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from logging import Logger
 
 import torch
 import torch_xla
@@ -14,6 +13,7 @@ from pjrt_plugin_tt import (
     setup_tt_pjrt_plugin_dir,
 )
 from torch_xla.experimental.plugins import DevicePlugin
+from ttxla_tools.logging import logger
 
 
 class TTPlugin(DevicePlugin):
@@ -35,8 +35,8 @@ class TTPlugin(DevicePlugin):
         # NOTE: This variable should soon be on by-default in `torch_xla`, but for now we need it.
         os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
-        print(
-            f"WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly."
+        logger.warning(
+            "TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly."
         )
         torch_xla._XLAC._set_xla_all_numbers_special_scalars(True)
 

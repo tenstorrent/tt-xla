@@ -44,10 +44,12 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
 option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" OFF)
-option(TTMLIR_BUILD_TYPE "Build type for tt-mlir" Release)
 option(TTMLIR_ENABLE_BINDINGS_PYTHON "Enable Python bindings in tt-mlir" OFF)
 option(TTXLA_ENABLE_EXPLORER "Enable Explorer feature in tt-mlir" OFF)
 option(TTXLA_ENABLE_PJRT_TESTS "Enable PJRT tests" ON)
+
+set(TTMLIR_BUILD_TYPE "Release" CACHE STRING "Build type for tt-mlir")
+set_property(CACHE TTMLIR_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 
 if(TTXLA_ENABLE_EXPLORER)
     set(TTMLIR_ENABLE_PERF_TRACE ON)

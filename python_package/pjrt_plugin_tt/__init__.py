@@ -12,6 +12,8 @@ Both JAX and PyTorch/XLA plugins reference this package.
 import os
 from pathlib import Path
 
+from ttxla_tools.logging import logger
+
 TT_PJRT_PLUGIN_NAME = "pjrt_plugin_tt.so"
 
 
@@ -24,7 +26,7 @@ def setup_tt_pjrt_plugin_dir():
     user_override = os.getenv("TT_PJRT_PLUGIN_DIR")
     if user_override is not None:
         if Path(user_override).exists():
-            print(
+            logger.info(
                 f"Using PJRT plugin directory from environment variable: {user_override}"
             )
             return
@@ -37,7 +39,7 @@ def setup_tt_pjrt_plugin_dir():
     plugin_dir = Path(__file__).resolve().parent
     if plugin_dir.exists():
         os.environ["TT_PJRT_PLUGIN_DIR"] = str(plugin_dir)
-        print(f"Using PJRT plugin directory: {plugin_dir}")
+        logger.info(f"Using PJRT plugin directory: {plugin_dir}")
         return
 
     raise FileNotFoundError(
@@ -77,7 +79,9 @@ def setup_tt_metal_home():
     user_override = os.getenv("TT_METAL_RUNTIME_ROOT")
     if user_override is not None:
         if Path(user_override).exists():
-            print(f"Using TT-Metal path from environment variable: {user_override}")
+            logger.info(
+                f"Using TT-Metal path from environment variable: {user_override}"
+            )
             return
 
         raise FileNotFoundError(
@@ -91,12 +95,12 @@ def setup_tt_metal_home():
     # then we use the path in the source tree.
     if tt_metal_path_in_whl.exists():
         os.environ["TT_METAL_RUNTIME_ROOT"] = str(tt_metal_path_in_whl)
-        print(f"Using TT-Metal from wheel package: {tt_metal_path_in_whl}")
+        logger.info(f"Using TT-Metal from wheel package: {tt_metal_path_in_whl}")
         return
 
     if tt_metal_path_in_source.exists():
         os.environ["TT_METAL_RUNTIME_ROOT"] = str(tt_metal_path_in_source)
-        print(f"Using TT-Metal from the source tree: {tt_metal_path_in_source}")
+        logger.info(f"Using TT-Metal from the source tree: {tt_metal_path_in_source}")
         return
 
     raise FileNotFoundError(
