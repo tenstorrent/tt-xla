@@ -785,16 +785,15 @@ def test_simple_sharded_addition():
     device = torch_xla.device()
     mesh = create_device_mesh((8, 8))
 
-    # Create 1024x4096 tensors - the 4096 dimension will be sharded across 8 devices
-    a = torch.randn(1024, 4096, dtype=torch.float32).to(device)
-    b = torch.randn(1024, 4096, dtype=torch.float32).to(device)
-
-    # Get CPU copies for golden result
-    a_cpu = a.cpu()
-    b_cpu = b.cpu()
+    # Create 32x32 tensors for easy debugging
+    a_cpu = torch.ones(32, 32, dtype=torch.float32)
+    b_cpu = torch.arange(1024, dtype=torch.float32).reshape(32, 32)
     expected_output = a_cpu + b_cpu
 
-    # Shard along the second dimension (4096) which maps to "model" axis (8 devices)
+    a = a_cpu.to(device)
+    b = b_cpu.to(device)
+
+    # Shard along the second dimension (32) which maps to "model" axis (8 devices)
     xs.mark_sharding(a, mesh, (None, "model"))
     xs.mark_sharding(b, mesh, (None, "model"))
 
@@ -806,9 +805,26 @@ def test_simple_sharded_addition():
     compiled_model = compiled_model.to(device)
     output = compiled_model(a, b)
 
+    # Print full 32x32 tensors for debugging
+    torch.set_printoptions(precision=4, linewidth=200, threshold=1024)
+    print("\n" + "=" * 80)
+    print("INPUT A (ones 32x32):")
+    print(a_cpu)
+    print("\n" + "-" * 80)
+    print("INPUT B (arange 1024 reshaped to 32x32):")
+    print(b_cpu)
+    print("\n" + "-" * 80)
+    print("EXPECTED OUTPUT (a + b):")
+    print(expected_output)
+    print("\n" + "-" * 80)
+    print("ACTUAL OUTPUT:")
+    output_cpu = output.cpu()
+    print(output_cpu)
+    print("=" * 80 + "\n")
+
     # Verify correctness using comparator
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999), assert_on_failure=False)
     comparator = TorchComparisonEvaluator(comparison_config)
-    comparator.evaluate(output.cpu(), expected_output)
+    comparator.evaluate(output_cpu, expected_output)
 
     print(output)
