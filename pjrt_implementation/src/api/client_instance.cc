@@ -124,7 +124,7 @@ static tt_pjrt_status launchDistributedRuntime() {
   distributed_options.multiProcessArgs =
       tt::runtime::MultiProcessArgs::create(rank_binding_path)
           .withAllowRunAsRoot(true)
-          .withMcaOptions({{"btl", "self,tcp"}, {"btl_tcp_if_include", "enp10s0f1np1"}})
+          .withMcaOptions({{"btl", "self,tcp"}, {"btl_tcp_if_include", "cnx1"}, {"plm_rsh_agent", "'ssh -A -l jameszianxu'"}})
           .withControllerHostname(controller_host_name)
           .withHosts(hosts_list_vec);
 
