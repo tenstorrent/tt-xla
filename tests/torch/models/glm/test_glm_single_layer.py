@@ -99,34 +99,3 @@ def test_glm_single_layer(seq_len, variant, arch):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
-
-
-"""
-Model: Glm4MoeForCausalLM(
-  (model): Glm4MoeModel(
-    (embed_tokens): Embedding(151552, 5120, padding_idx=151329)
-    (layers): ModuleList(
-      (0-40): Glm4MoeDecoderLayer(
-        (self_attn): Glm4MoeAttention(
-          (q_proj): Linear(in_features=5120, out_features=12288, bias=True)
-          (k_proj): Linear(in_features=5120, out_features=1024, bias=True)
-          (v_proj): Linear(in_features=5120, out_features=1024, bias=True)
-          (o_proj): Linear(in_features=12288, out_features=5120, bias=False)
-          (q_norm): Glm4MoeRMSNorm((128,), eps=1e-05)
-          (k_norm): Glm4MoeRMSNorm((128,), eps=1e-05)
-        )
-        (mlp): Glm4MoeMLP(
-          (gate_proj): Linear(in_features=5120, out_features=12288, bias=False)
-          (up_proj): Linear(in_features=5120, out_features=12288, bias=False)
-          (down_proj): Linear(in_features=12288, out_features=5120, bias=False)
-          (act_fn): SiLUActivation()
-        )
-        (input_layernorm): Glm4MoeRMSNorm((5120,), eps=1e-05)
-        (post_attention_layernorm): Glm4MoeRMSNorm((5120,), eps=1e-05)
-      )
-    )
-    (norm): Glm4MoeRMSNorm((5120,), eps=1e-05)
-    (rotary_emb): Glm4MoeRotaryEmbedding()
-  )
-  (lm_head): Linear(in_features=5120, out_features=151552, bias=False)
-)"""
