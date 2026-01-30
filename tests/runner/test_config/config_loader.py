@@ -92,6 +92,7 @@ _ALLOWED_FIELDS = {
     "markers",
     "supported_archs",
     "batch_size",
+    "seq_len",  # Sequence length for LLM prefill tests
     # Nested arch overrides
     "arch_overrides",
     # Needed for training tests
