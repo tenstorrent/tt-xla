@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import re
+
 import torch
 from torch.export.graph_signature import InputKind, OutputKind
 from tt_torch import composite_ops
@@ -57,8 +59,59 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
 
 
 def insert_argument_type_markers(
-    gm: torch.fx.GraphModule, graph_signature
+    gm: torch.fx.GraphModule,
+    graph_signature,
+    flat_name_to_original_fqn: dict = None,
 ) -> torch.fx.GraphModule:
+
+    # FX mangles module attribute paths into flat names. The mangling rules and how
+    # _normalize handles each one:
+    #
+    # Example mangled key (from flat_name_to_original_fqn):
+    #   "getattr_getattr_L__self___resampler_layers___0___ff___1___net___2___weight"
+    #
+    # Demangled value (original state_dict key):
+    #   "resampler.layers.0.ff.1.net.2.weight"
+    #
+    # Rule 1: "getattr_" prefixes (one per __getattr__ call for nn.Sequential/ModuleList
+    #         indexing). There can be multiple: ff[1].net[2] needs two __getattr__ calls,
+    #         so the key gets "getattr_getattr_" prepended.
+    #         -> _normalize: strip ALL leading "getattr_" prefixes with a while loop.
+    #
+    # Rule 2: "L__self___" prefix means "self." (the root module reference).
+    #         -> _normalize: strip the "L__self___" prefix.
+    #
+    # Rule 3: "___N___" (triple underscores around digits) marks integer-indexed module
+    #         access like .layers[0]. -> "___0___". This is unambiguous and structurally
+    #         parseable, unlike single underscores.
+    #         -> _normalize: collapse all runs of underscores to single "_" via regex.
+    #         -> validation: cross-check that .N. appears in the demangled result.
+    #
+    # Rule 4: Remaining single "_" replaces "." (dot separator between named attributes).
+    #         This is LOSSY: "layer_norm1" in the mangled name could mean either
+    #         "layer_norm1" (literal underscore) or "layer.norm1" (dot separator).
+    #         -> _normalize: replace "." with "_" so both sides use the same separator.
+    #         -> The flat_name_to_original_fqn dictionary resolves this ambiguity.
+    def _normalize(name):
+        s = str(name)
+        # Strip all getattr_ prefixes (one per level of __getattr__ indexing)
+        while s.startswith("getattr_"):
+            s = s[len("getattr_") :]
+        # Strip the self reference prefix
+        if s.startswith("L__self___"):
+            s = s[len("L__self___") :]
+        # Replace dots with underscores (node targets use dots, dict keys use underscores)
+        s = s.replace(".", "_")
+        # Collapse runs of underscores (triple underscores around indices -> single)
+        s = re.sub(r"_+", "_", s)
+        return s
+
+    if flat_name_to_original_fqn is None:
+        flat_name_to_original_fqn = {}
+
+    normalized_fqn_lookup = {
+        _normalize(k): v for k, v in flat_name_to_original_fqn.items()
+    }
 
     input_nodes = gm.graph.find_nodes(op="get_attr") + gm.graph.find_nodes(
         op="placeholder"
@@ -116,12 +169,17 @@ def insert_argument_type_markers(
         else:
             continue
 
+        # Look up the original clean name (e.g., "classifier.6.weight") using
+        # the normalized lookup table built above.
+        mangled_name = input_node.target if input_node.target else input_node.name
+        clean_name = normalized_fqn_lookup.get(_normalize(mangled_name), mangled_name)
+
         with gm.graph.inserting_after(input_node):
             new_input = gm.graph.create_node(
                 "call_function",
                 torch.ops.tt.mark_argument_attributes,
                 args=(input_node,),
-                kwargs={"argument_type": argument_type, "name": input_node.name},
+                kwargs={"argument_type": argument_type, "name": clean_name},
             )
 
         for user in users:
@@ -134,6 +192,47 @@ def insert_argument_type_markers(
             ):
                 continue
             user.replace_input_with(input_node, new_input)
+
+    # Validate demangling results using structural knowledge of FX mangling.
+    if flat_name_to_original_fqn:
+        unresolved = []
+        mismatched = []
+        for node in gm.graph.nodes:
+            if (
+                node.op != "call_function"
+                or node.target != torch.ops.tt.mark_argument_attributes
+            ):
+                continue
+            clean = str(node.kwargs.get("name", ""))
+            arg_type = node.kwargs.get("argument_type", "")
+            if arg_type not in ("parameter", "constant"):
+                continue
+
+            # A successfully demangled name always contains dots (e.g., "layers.0.weight").
+            if "." not in clean:
+                unresolved.append(clean)
+                continue
+
+            # Cross-check: integer indices marked by ___N___ in the mangled name
+            # must appear as .N. (or .N at end) in the demangled name.
+            mangled = str(node.args[0].target) if node.args else ""
+            for match in re.finditer(r"___(\d+)___", mangled):
+                idx = match.group(1)
+                if f".{idx}." not in clean and not clean.endswith(f".{idx}"):
+                    mismatched.append((clean, mangled, idx))
+
+        if unresolved:
+            logger.debug(
+                f"Failed to demangle {len(unresolved)} argument name(s): {unresolved}"
+            )
+        if mismatched:
+            logger.debug(
+                f"Demangled names inconsistent with mangled structure for "
+                f"{len(mismatched)} argument(s): "
+                + ", ".join(
+                    f"'{c}' (from '{m}', missing index {i})" for c, m, i in mismatched
+                )
+            )
 
     return gm
 
