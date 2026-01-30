@@ -62,8 +62,17 @@ def torch_pass_pipeline(
     program = program.run_decompositions(decompositions)
 
     compiled_graph = program.module()
+    # When torch.compile traces a model, it flattens the module hierarchy and
+    # mangles parameter names (e.g., "model.layers.0.weight" becomes something
+    # like "L__self___model_layers___0___weight"). Dynamo stores a reverse
+    # mapping in GraphModule.meta so we can recover the original names. We pass
+    # this to insert_argument_type_markers so that MLIR argument names (ttir.name)
+    # match the original model's state_dict keys.
+    flat_name_to_original_fqn = compiled_graph.meta.get(
+        "dynamo_flat_name_to_original_fqn", {}
+    )
     compiled_graph = insert_argument_type_markers(
-        compiled_graph, program.graph_signature
+        compiled_graph, program.graph_signature, flat_name_to_original_fqn
     )
     compiled_graph = bypass_dtype_promotion_and_redundant_cast(
         compiled_graph, example_inputs
