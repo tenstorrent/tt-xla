@@ -787,16 +787,11 @@ class DeepseekV3Attention(nn.Module):
             compressed_kv, [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1
         )
         k_pe = k_pe.view(bsz, q_len, 1, self.qk_rope_head_dim).transpose(1, 2)
-        kv = (
-            self.kv_b_proj(self.kv_a_layernorm(compressed_kv))
-            .view(bsz, q_len, self.num_heads, self.qk_nope_head_dim + self.v_head_dim)
-            .transpose(1, 2)
-        )
 
-        k_nope, value_states = torch.split(
-            kv, [self.qk_nope_head_dim, self.v_head_dim], dim=-1
-        )
-        kv_seq_len = value_states.shape[-2]
+        kv_seq_len = past_key_value.get_max_cache_shape() if past_key_value else q_len
+        cos, sin = self.rotary_emb(k_pe, seq_len=kv_seq_len)
+        q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids)
+
         if past_key_value is not None:
             if self.layer_idx is None:
                 raise ValueError(
@@ -804,23 +799,23 @@ class DeepseekV3Attention(nn.Module):
                     "for auto-regressive decoding with k/v caching, please make sure to initialize the attention class "
                     "with a layer index."
                 )
-            kv_seq_len += past_key_value.get_usable_length(kv_seq_len, self.layer_idx)
-        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-
-        q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids)
-
-        query_states = k_pe.new_empty(bsz, self.num_heads, q_len, self.q_head_dim)
-        query_states[:, :, :, : self.qk_nope_head_dim] = q_nope
-        query_states[:, :, :, self.qk_nope_head_dim :] = q_pe
-
-        key_states = k_pe.new_empty(bsz, self.num_heads, q_len, self.q_head_dim)
-        key_states[:, :, :, : self.qk_nope_head_dim] = k_nope
-        key_states[:, :, :, self.qk_nope_head_dim :] = k_pe
-        if past_key_value is not None:
             cache_kwargs = {"sin": sin, "cos": cos}  # Specific to RoPE models
-            key_states, value_states = past_key_value.update(
-                key_states, value_states, self.layer_idx, cache_kwargs
-            )
+            compressed_kv, k_pe = past_key_value.update(compressed_kv.unsqueeze(1), k_pe, self.layer_idx, cache_kwargs)
+            compressed_kv = compressed_kv.squeeze(1)
+
+        kv = (
+            self.kv_b_proj(self.kv_a_layernorm(compressed_kv))
+            .view(bsz, kv_seq_len, self.num_heads, self.qk_nope_head_dim + self.v_head_dim)
+            .transpose(1, 2)
+        )
+
+        k_nope, value_states = torch.split(
+            kv, [self.qk_nope_head_dim, self.v_head_dim], dim=-1
+        )
+
+        query_states = torch.cat([q_nope, q_pe], dim=-1)
+        key_states = torch.cat([k_nope, k_pe.expand(-1, self.num_heads, -1, -1)], dim=-1)
+
 
         attn_weights = (
             torch.matmul(query_states, key_states.transpose(2, 3)) * self.softmax_scale
