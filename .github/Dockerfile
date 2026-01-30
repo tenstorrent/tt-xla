@@ -88,11 +88,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ENV CCACHE_COMPRESS="true"
 
 # Install requirements.txt as global Python 3.11 packages
-# RUN dnf install --refresh -y \
+RUN dnf install --refresh -y \
 #     git-lfs \
 #     patchelf \
-#     protobuf-compiler \
-    # protobuf-devel \
+    protobuf-compiler \
+    protobuf-devel
     # ffmpeg-free
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${MLIR_TAG} AS ird
