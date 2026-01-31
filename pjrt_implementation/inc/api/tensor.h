@@ -25,6 +25,36 @@
 namespace tt::pjrt {
 
 class BufferInstance;
+class PjrtTensor;
+
+// Tensor pool which holds all pjrt tensor pointers.
+//
+// Whenever tensor is constructed, it is moved into tensor pool and whenever it
+// is destructed, it is moved out.
+class PjrtTensorPool {
+public:
+  void insert(PjrtTensor *tensor);
+  void erase(PjrtTensor *tensor);
+  void clear();
+  void move_tensors_to_host();
+  bool contains(PjrtTensor *tensor);
+
+private:
+  std::mutex m_mtx;
+  std::unordered_set<PjrtTensor *> m_tensors;
+};
+
+namespace TensorPool {
+
+PjrtTensorPool &get() noexcept;
+const PjrtTensorPool &getc() noexcept;
+
+void insert(PjrtTensor *tensor);
+void erase(PjrtTensor *tensor);
+void clear();
+void move_tensors_to_host();
+
+} // namespace TensorPool
 
 // PJRT tensor class.
 //
@@ -49,10 +79,6 @@ class PjrtTensor {
   };
 
 public:
-  // Initializes tensor from provided shards. If tensor already exists with the
-  // same layout, this will behave like a simple getter. If tensor exist but
-  // with different layout, tensor is relayed and returned. Otherwise, new
-  // tensor is created.
   static PjrtTensor &
   init(const std::vector<BufferInstance *> &shards,
        const tt::runtime::Device &device,
@@ -60,14 +86,11 @@ public:
        const std::vector<std::uint32_t> &mesh_shape,
        const std::unordered_map<std::string, std::string> &strategy);
 
-  // Initializes tensor from an existing device tensor.
   static PjrtTensor &init(std::vector<BufferInstance *> shards,
                           tt::runtime::Tensor device_tensor);
 
 public: // Constructors needs to be public for std::shared_ptr.
   PjrtTensor(Private, std::vector<BufferInstance *> shards,
-             const tt::runtime::Device &device,
-             const std::optional<const tt::runtime::Layout> &layout,
              const std::vector<std::uint32_t> &mesh_shape,
              const std::unordered_map<std::string, std::string> &strategy);
 
@@ -90,12 +113,28 @@ public: // Constructors needs to be public for std::shared_ptr.
 
   uint64_t uid() const noexcept { return m_uid; }
 
+  // Returns whether shard is part of this tensor.
   bool has_shard(const BufferInstance *shard) const noexcept {
     return std::find(m_shards.begin(), m_shards.end(), shard) != m_shards.end();
   }
 
+  // Return whether runtime tensor has provided layout.
+  bool has_layout(const tt::runtime::Layout &layout) const {
+    return tt::runtime::hasLayout(m_runtime_tensor, layout);
+  };
+
+  // Changes layout of a runtime tensor.
+  void to_layout(const tt::runtime::Device &device,
+                 const tt::runtime::Layout &layout) {
+    m_runtime_tensor =
+        tt::runtime::toLayout(m_runtime_tensor, device, layout,
+                              tt::runtime::getTensorRetain(m_runtime_tensor));
+  };
+
+  // Removes shard from shards (by setting shard to nullptr).
   void remove_shard(const BufferInstance *shard) noexcept;
 
+  // Moves pjrt tensor to host.
   void move_to_host() noexcept;
 
 private:
@@ -112,44 +151,20 @@ private:
            const std::vector<std::uint32_t> &mesh_shape,
            const std::unordered_map<std::string, std::string> &strategy);
 
-  static void validate_shards(const std::vector<BufferInstance *> &shards);
-
-  static bool shards_shared_tensor(const std::vector<BufferInstance *> &shards);
+  // Returns whether all shards share the same runtime tensor.
+  static bool have_same_tensor(const std::vector<BufferInstance *> &shards);
   static PjrtTensor &from_shards(const std::vector<BufferInstance *> &shards);
-  static tt::runtime::Tensor rtt_from_shard(const BufferInstance *shard);
+  static uint64_t next_uid();
 
-  static bool has_layout(const tt::runtime::Tensor &tensor,
-                         const tt::runtime::Layout &layout) {
-    return tt::runtime::hasLayout(tensor, layout);
-  }
-
-  static void relay(tt::runtime::Tensor &tensor,
-                    const tt::runtime::Device &device,
-                    const tt::runtime::Layout &layout);
-
-  static tt::runtime::Tensor rtt_from_strategy(
+  // Either returns single or multi-device runtime tensor from shards, depending
+  // on the strategy.
+  static tt::runtime::Tensor rt_tensor_from_strategy(
       const std::vector<BufferInstance *> &shards,
-      const tt::runtime::Device &device,
-      const std::optional<const tt::runtime::Layout> &layout,
       const std::unordered_map<std::string, std::string> &strategy,
       const std::vector<std::uint32_t> &mesh_shape);
 
-  static std::vector<tt::runtime::Tensor>
-  rtts_from_shards(const std::vector<BufferInstance *> &shards);
-
-  static uint64_t nextUID();
-
-  bool has_layout(const tt::runtime::Layout &layout) const {
-    return has_layout(m_runtime_tensor, layout);
-  }
-
-  void relay(const tt::runtime::Device &device,
-             const tt::runtime::Layout &layout) {
-    relay(m_runtime_tensor, device, layout);
-  }
-
 private: // members
-  const uint64_t m_uid{nextUID()};
+  const uint64_t m_uid{next_uid()};
   std::vector<BufferInstance *> m_shards;
   tt::runtime::Tensor m_runtime_tensor;
 };
@@ -207,35 +222,6 @@ private:
   std::shared_ptr<PjrtTensor> m_tensor;
   BufferInstance *m_shard{nullptr};
 };
-
-// Tensor pool which holds all pjrt tensor pointers.
-//
-// Whenever tensor is constructed, it is moved into tensor pool and whenever it
-// is destructed, it is moved out.
-class PjrtTensorPool {
-public:
-  void insert(PjrtTensor *tensor);
-  void erase(PjrtTensor *tensor);
-  void clear();
-  void move_tensors_to_host();
-  bool contains(PjrtTensor *tensor);
-
-private:
-  std::mutex m_mtx;
-  std::unordered_set<PjrtTensor *> m_tensors;
-};
-
-namespace TensorPool {
-
-PjrtTensorPool &get() noexcept;
-const PjrtTensorPool &getc() noexcept;
-
-void insert(PjrtTensor *tensor);
-void erase(PjrtTensor *tensor);
-void clear();
-void move_tensors_to_host();
-
-} // namespace TensorPool
 
 } // namespace tt::pjrt
 
