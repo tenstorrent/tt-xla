@@ -619,6 +619,8 @@ def record_model_test_properties(
         ),
         "parallelism": str(parallelism),
         "arch": arch,
+        "seq_len": getattr(test_metadata, "seq_len", None),
+        "batch_size": getattr(test_metadata, "batch_size", None),
     }
 
     # Add model size (in billions of parameters) to tags if available

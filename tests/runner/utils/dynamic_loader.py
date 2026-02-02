@@ -387,9 +387,12 @@ class TorchDynamicLoader(DynamicLoader):
             ), f"{type(self.loader).__name__} missing load_inputs_decode for run_phase={run_phase}"
 
             decode_sig = inspect.signature(self.loader.load_inputs_decode)
+            kwargs = {}
             if "dtype_override" in decode_sig.parameters:
-                return self.loader.load_inputs_decode(dtype_override=torch.bfloat16)
-            return self.loader.load_inputs_decode()
+                kwargs["dtype_override"] = torch.bfloat16
+            if "batch_size" in decode_sig.parameters and batch_size is not None:
+                kwargs["batch_size"] = batch_size
+            return self.loader.load_inputs_decode(**kwargs)
 
         if run_phase == RunPhase.LLM_PREFILL:
             assert hasattr(
