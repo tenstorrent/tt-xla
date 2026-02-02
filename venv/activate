@@ -22,7 +22,7 @@ else
   echo "Creating virtual environment in $TTMLIR_VENV_DIR"
   python3.11 -m venv $TTMLIR_VENV_DIR
   source $TTMLIR_VENV_DIR/bin/activate
-  uv pip install --upgrade pip
+  pip install --upgrade pip
   # Requirements for third party projects are installed during their build in `CMakeLists.txt`
   pip install -r python_package/requirements.txt
   # Install dev/test requirements
