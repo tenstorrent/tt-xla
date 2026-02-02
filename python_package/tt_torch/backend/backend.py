@@ -214,19 +214,18 @@ class XLAExecutor:
 
 
 @register_backend(name="tt")
-def xla_backend(gm, example_inputs, options=None):
+def xla_backend(gm, example_inputs, options={}):
     """TT backend for torch.compile."""
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
     legacy_compile_enabled = False
-    if options:
-        if "tt_experimental_compile" in options:
-            print(
-                'Warning: Experimental compile is now the default. As such, the "tt_experimental_compile" flag is deprecated.'
-                'Honoring the flag, but please use "tt_legacy_compile" flag or no flag in the future.'
-            )
-            legacy_compile_enabled = not bool(options["tt_experimental_compile"])
-        if "tt_legacy_compile" in options:
-            legacy_compile_enabled = bool(options["tt_legacy_compile"])
+    if "tt_experimental_compile" in options:
+        logger.warning(
+            'Warning: Experimental compile is now the default. As such, the "tt_experimental_compile" flag is deprecated.'
+            'Honoring the flag, but please use "tt_legacy_compile" flag or no flag in the future.'
+        )
+        legacy_compile_enabled = not bool(options["tt_experimental_compile"])
+    if "tt_legacy_compile" in options:
+        legacy_compile_enabled = bool(options["tt_legacy_compile"])
     return XLAExecutor(module, graph_signature, node_info, legacy_compile_enabled)
