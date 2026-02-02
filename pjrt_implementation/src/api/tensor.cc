@@ -112,47 +112,25 @@ bool PjrtTensorPool::contains(PjrtTensor *tensor) {
 // ******************** Pjrt tensor **********************************
 // *******************************************************************
 
-// Initializes tensor from provided shards. If tensor already exists with the
-// same layout, this will behave like a simple getter. If tensor exist but
-// with different layout, tensor is relayed and returned. Otherwise, new
-// tensor is created.
-PjrtTensor &
-PjrtTensor::init(const std::vector<BufferInstance *> &shards,
-                 const tt::runtime::Device &device,
-                 const std::optional<const tt::runtime::Layout> &layout,
-                 const std::vector<std::uint32_t> &mesh_shape,
-                 const std::unordered_map<std::string, std::string> &strategy) {
-
-  if (have_same_tensor(shards)) {
-    return init_from_existing(shards, device, layout, mesh_shape);
-  }
-
-  return init_new(shards, device, layout, mesh_shape, strategy);
-}
-
-// Initializes tensor from an existing device tensor.
-PjrtTensor &PjrtTensor::init(std::vector<BufferInstance *> shards,
-                             tt::runtime::Tensor runtime_tensor) {
-
-  auto tensor = std::make_shared<PjrtTensor>(Private{}, std::move(shards),
-                                             std::move(runtime_tensor));
-
-  for (BufferInstance *shard : tensor->shards()) {
-    shard->setPjrtTensor(tensor);
-  }
-
-  return *tensor;
-}
-
-// Initializes PjrtTensor from an existing tensor that shards share.
-// If we have new layout, runtime tensor layout is changed.
-PjrtTensor &PjrtTensor::init_from_existing(
+// Initializes program input tensor.
+//
+// If input tensor already exists (shards share single tensor) with the same
+// layout, this will behave like a simple getter. If tensor exist but with
+// different layout, tensor layout is changed. Otherwise, new tensor is created.
+PjrtTensor &PjrtTensor::init_input_tensor(
     const std::vector<BufferInstance *> &shards,
     const tt::runtime::Device &device,
     const std::optional<const tt::runtime::Layout> &layout,
-    const std::vector<std::uint32_t> &mesh_shape) {
+    const std::vector<std::uint32_t> &mesh_shape,
+    const std::unordered_map<std::string, std::string> &strategy) {
 
-  PjrtTensor &tensor = from_shards(shards);
+  PjrtTensor &tensor = [&]() -> PjrtTensor & {
+    if (have_same_tensor(shards))
+      return from_shards(shards);
+
+    return create(shards,
+                  rt_tensor_from_strategy(shards, strategy, mesh_shape));
+  }();
 
   if (layout && !tensor.has_layout(*layout)) {
     tensor.to_layout(device, *layout);
@@ -161,19 +139,14 @@ PjrtTensor &PjrtTensor::init_from_existing(
   return tensor;
 }
 
-// Initializes new PjrtTensor for provided shards using layout and strategy.
-PjrtTensor &PjrtTensor::init_new(
-    std::vector<BufferInstance *> shards, const tt::runtime::Device &device,
-    const std::optional<const tt::runtime::Layout> &layout,
-    const std::vector<std::uint32_t> &mesh_shape,
-    const std::unordered_map<std::string, std::string> &strategy) {
+// Creates new pjrt tensor for provided shards from an existing runtime tensor.
+PjrtTensor &PjrtTensor::create(std::vector<BufferInstance *> shards,
+                               tt::runtime::Tensor rt_tensor) {
+
+  tt::runtime::setTensorRetain(rt_tensor, true);
 
   auto tensor = std::make_shared<PjrtTensor>(Private{}, std::move(shards),
-                                             mesh_shape, strategy);
-
-  if (layout && !tensor->has_layout(*layout)) {
-    tensor->to_layout(device, *layout);
-  }
+                                             std::move(rt_tensor));
 
   for (BufferInstance *shard : tensor->shards()) {
     shard->setPjrtTensor(tensor);
@@ -182,23 +155,10 @@ PjrtTensor &PjrtTensor::init_new(
   return *tensor;
 }
 
-PjrtTensor::PjrtTensor(
-    Private, std::vector<BufferInstance *> shards,
-    const std::vector<std::uint32_t> &mesh_shape,
-    const std::unordered_map<std::string, std::string> &strategy)
-    : m_shards{std::move(shards)},
-      m_runtime_tensor{
-          std::move(rt_tensor_from_strategy(m_shards, strategy, mesh_shape))} {
-
-  tt::runtime::setTensorRetain(m_runtime_tensor, true);
-  TensorPool::insert(this);
-}
-
 PjrtTensor::PjrtTensor(Private, std::vector<BufferInstance *> shards,
-                       tt::runtime::Tensor tensor)
-    : m_shards{std::move(shards)}, m_runtime_tensor{std::move(tensor)} {
+                       tt::runtime::Tensor rt_tensor)
+    : m_shards{std::move(shards)}, m_runtime_tensor{std::move(rt_tensor)} {
 
-  tt::runtime::setTensorRetain(m_runtime_tensor, true);
   TensorPool::insert(this);
 }
 
@@ -238,7 +198,7 @@ void PjrtTensor::move_to_host() noexcept {
       continue;
     }
 
-    PjrtTensor::init({m_shards[i]}, std::move(tensors[i]));
+    PjrtTensor::create({m_shards[i]}, std::move(tensors[i]));
   }
 
   m_shards.resize(1);
@@ -248,17 +208,22 @@ bool PjrtTensor::have_same_tensor(const std::vector<BufferInstance *> &shards) {
 
   return std::all_of(shards.begin(), shards.end(),
                      [&](const BufferInstance *bi) {
-                       return bi->runtimeTensor().handle ==
-                              shards.front()->runtimeTensor().handle;
+                       return bi->pjrtTensor() == shards.front()->pjrtTensor();
                      });
 }
 
+// Returns PjrtTensor from shards.
+// We are assuming that all shards have the same PjrtTensor.
+// Note that this will work for a non-sharded tensor too.
 PjrtTensor &
 PjrtTensor::from_shards(const std::vector<BufferInstance *> &shards) {
+
+  assert(have_same_tensor(shards));
   return *shards.front()->pjrtTensor();
 }
 
 uint64_t PjrtTensor::next_uid() {
+
   static std::atomic<uint64_t> uid{0};
   return uid.fetch_add(1, std::memory_order_relaxed);
 }

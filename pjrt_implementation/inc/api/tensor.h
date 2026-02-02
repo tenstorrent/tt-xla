@@ -79,21 +79,17 @@ class PjrtTensor {
   };
 
 public:
-  static PjrtTensor &
-  init(const std::vector<BufferInstance *> &shards,
-       const tt::runtime::Device &device,
-       const std::optional<const tt::runtime::Layout> &layout,
-       const std::vector<std::uint32_t> &mesh_shape,
-       const std::unordered_map<std::string, std::string> &strategy);
+  static PjrtTensor &init_input_tensor(
+      const std::vector<BufferInstance *> &shards,
+      const tt::runtime::Device &device,
+      const std::optional<const tt::runtime::Layout> &layout,
+      const std::vector<std::uint32_t> &mesh_shape,
+      const std::unordered_map<std::string, std::string> &strategy);
 
-  static PjrtTensor &init(std::vector<BufferInstance *> shards,
-                          tt::runtime::Tensor device_tensor);
+  static PjrtTensor &create(std::vector<BufferInstance *> shards,
+                            tt::runtime::Tensor device_tensor);
 
 public: // Constructors needs to be public for std::shared_ptr.
-  PjrtTensor(Private, std::vector<BufferInstance *> shards,
-             const std::vector<std::uint32_t> &mesh_shape,
-             const std::unordered_map<std::string, std::string> &strategy);
-
   PjrtTensor(Private, std::vector<BufferInstance *> shards,
              tt::runtime::Tensor tensor);
 
@@ -208,6 +204,10 @@ public:
 
   explicit operator bool() const noexcept {
     return static_cast<bool>(m_tensor);
+  }
+
+  bool operator==(const PjrtTensorRef &other) const noexcept {
+    return get() == other.get();
   }
 
   const PjrtTensor *operator->() const noexcept {

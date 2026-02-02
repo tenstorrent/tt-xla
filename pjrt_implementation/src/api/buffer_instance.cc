@@ -222,7 +222,7 @@ void BufferInstance::copyFromHost(
     m_done_with_host_buffer_event->setIndestructible();
   }
 
-  PjrtTensor::init({this}, runtime_tensor);
+  PjrtTensor::create({this}, runtime_tensor);
 
   markAsDataReady();
 
@@ -252,7 +252,7 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   src_buffer->pjrtTensor()->move_to_host();
   tt::runtime::memcpy(runtime_tensor, src_buffer->runtimeTensor());
 
-  PjrtTensor::init({this}, std::move(runtime_tensor));
+  PjrtTensor::create({this}, std::move(runtime_tensor));
 
   markAsDataReady();
 }

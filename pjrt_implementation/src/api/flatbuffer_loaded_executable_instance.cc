@@ -67,14 +67,15 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
       fillStrategyMapFromSharding(
           m_executable_image->getInputSharding(arg_index), num_devices);
+
   if (mlir::failed(strategy)) {
     DLOG_F(ERROR, "Failed to fill strategy map from sharding");
     return std::nullopt;
   }
 
-  PjrtTensor &tensor =
-      PjrtTensor::init(arg_buffers, runtime_device, expected_layout,
-                       m_executable_image->getDevicesMeshShape(), *strategy);
+  PjrtTensor &tensor = PjrtTensor::init_input_tensor(
+      arg_buffers, runtime_device, expected_layout,
+      m_executable_image->getDevicesMeshShape(), *strategy);
 
   return tensor.runtime_tensor();
 }
@@ -126,7 +127,7 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
       output_lists[device_index][output_index] = *output_buffer.release();
     }
 
-    PjrtTensor::init(shards, std::move(outputTensor));
+    PjrtTensor::create(shards, std::move(outputTensor));
   }
 }
 
