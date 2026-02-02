@@ -29,14 +29,8 @@ from infra.workloads.torch_workload import TorchWorkload
 from jax._src.typing import DTypeLike
 
 from tests.infra.testers.compiler_config import CompilerConfig
-from tests.infra.utilities.filecheck_utils import (
-    run_filecheck,
-    validate_filecheck_results,
-)
 
 from ...base_tester import BaseTester
-
-FILECHECK_DIR = Path(__file__).parent.parent.parent.parent.parent / "filecheck"
 
 
 class OpTester(BaseTester):
@@ -58,6 +52,7 @@ class OpTester(BaseTester):
             os.environ.get("ENABLE_OP_TEST_PERF_MEASUREMENT", "0") == "1"
         )
         self._perf_measurements: list[dict[str, float]] = []
+        self._workload: Optional[Workload] = None
         super().__init__(
             evaluator_type="comparison",
             comparison_config=comparison_config,
@@ -86,54 +81,7 @@ class OpTester(BaseTester):
             self._test_e2e_perf(tt_workload)
 
         if request:
-            filecheck_marker = request.node.get_closest_marker("filecheck")
-            serialize = (
-                True
-                if filecheck_marker or request.config.getoption("--serialize", False)
-                else False
-            )
-            if serialize:
-                clean_name = sanitize_test_name(request.node.name)
-                output_prefix = f"output_artifact/{clean_name}"
-                self.serialize_on_device(tt_workload, output_prefix)
-
-            if filecheck_marker and filecheck_marker.args:
-                pattern_files = filecheck_marker.args[0]
-                self._run_filecheck(pattern_files, test_id=request.node.name)
-
-    def _run_filecheck(self, pattern_files: str, test_id: str) -> None:
-        self._validate_filecheck_mark(
-            pattern_files, test_id=test_id, where="pytest mark"
-        )
-
-        filecheck_results = run_filecheck(
-            test_node_name=test_id,
-            irs_filepath="output_artifact",
-            pattern_files=pattern_files,
-        )
-        validate_filecheck_results(filecheck_results)
-
-    def _validate_filecheck_mark(
-        self, pattern_files, *, test_id: str, where: str
-    ) -> None:
-        if not pattern_files:
-            return
-        if not isinstance(pattern_files, list):
-            print(
-                f"WARNING: 'filecheck' mark should pass a list in {where}. Found: {type(pattern_files).__name__}"
-            )
-            return
-        for pattern_file in pattern_files:
-            if not isinstance(pattern_file, str):
-                print(
-                    f"WARNING: filecheck entry should be a string in {where}. Found: {type(pattern_file).__name__}"
-                )
-                continue
-            pattern_path = FILECHECK_DIR / pattern_file
-            if not pattern_path.exists():
-                print(
-                    f"WARNING: filecheck pattern file not found: {pattern_path}\n         Referenced in test '{test_id}'"
-                )
+            self.handle_filecheck_and_serialization(request, workload=tt_workload)
 
     def _test_e2e_perf(self, workload: Workload) -> None:
         warmup_iters_count = 3
@@ -211,14 +159,20 @@ class OpTester(BaseTester):
         workload = Workload(framework=self._framework, executable=f, args=inputs)
         self.test(workload, request=request)
 
-    def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
+    def serialize_on_device(self, output_prefix: str, workload=None) -> None:
         """
         Serializes a workload on TT device with proper compiler configuration.
 
         Args:
-            workload: The workload to serialize
             output_prefix: Base path and filename prefix for output files
+            workload: Optional workload to serialize (if None, uses self._workload)
         """
+        workload = workload if workload is not None else self._workload
+        if workload is None:
+            raise RuntimeError(
+                "No workload to serialize. Either pass workload or call test() first."
+            )
+
         if self._framework == Framework.JAX:
             compiler_options = self._compiler_config.to_jax_compiler_options()
         elif self._framework == Framework.TORCH:
@@ -283,7 +237,7 @@ def serialize_op(
     workload = Workload(framework=framework, executable=op, args=inputs)
 
     # Serialize workload on TT device using OpTester's method
-    tester.serialize_on_device(workload, output_prefix)
+    tester.serialize_on_device(output_prefix, workload=workload)
 
 
 def serialize_op_with_random_inputs(

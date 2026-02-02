@@ -112,3 +112,53 @@ def inference_tester(request) -> MNISTMLPTester:
 def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
     inference_tester.test()
 ```
+
+## Serialization and FileCheck
+
+### Serializing IR to Disk
+
+To serialize compilation artifacts (HLO, MLIR IRs) to disk, use the `--serialize` flag:
+
+```bash
+pytest tests/torch/test_my_test.py::test_my_model --serialize
+```
+
+Your test must pass the `request` fixture to the tester for serialization to work:
+
+```python
+def test_my_model(request):
+    tester = MyModelTester(...)
+    tester.test(request=request)  # Must pass request
+```
+
+Artifacts are written to `output_artifact/<sanitized_test_name>/`.
+
+### Running FileCheck
+
+To verify IR transformations using FileCheck patterns, add the `@pytest.mark.filecheck` decorator:
+
+```python
+@pytest.mark.filecheck(["add.ttnn.mlir", "matmul_fusion.ttir.mlir"])
+def test_my_op(request):
+    run_op_test(
+        MyOp(),
+        [torch.randn(32, 32)],
+        framework=Framework.TORCH,
+        request=request,  # Must pass request for filecheck to work
+    )
+```
+
+```python
+@pytest.mark.filecheck(["attention_pattern.ttnn.mlir"])
+def test_my_model(request):
+    tester = MyModelTester(...)
+    tester.test(request=request)  # Must pass request for filecheck to work
+```
+
+FileCheck automatically:
+- Serializes compilation artifacts to disk
+- Runs FileCheck with specified pattern files
+- Fails test if patterns don't match
+
+Pattern files are located in `tests/filecheck/`. See [tests/filecheck/filecheck.md](../../tests/filecheck/filecheck.md) for pattern file naming conventions and usage details.
+```

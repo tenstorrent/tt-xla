@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from infra.evaluators import (
@@ -15,6 +16,13 @@ from infra.evaluators import (
 )
 from infra.runners import DeviceRunner, DeviceRunnerFactory
 from infra.utilities import Framework, sanitize_test_name
+
+from tests.infra.utilities.filecheck_utils import (
+    run_filecheck,
+    validate_filecheck_results,
+)
+
+FILECHECK_DIR = Path(__file__).parent.parent.parent / "filecheck"
 
 
 class BaseTester(ABC):
@@ -93,11 +101,87 @@ class BaseTester(ABC):
         self.serialize_on_device(output_prefix)
 
     @abstractmethod
-    def serialize_on_device(self, output_prefix: str) -> None:
+    def serialize_on_device(self, output_prefix: str, workload=None) -> None:
         """
         Serializes the model workload on TT device with proper compiler configuration.
 
         Args:
             output_prefix: Base path and filename prefix for output files
+            workload: Optional workload to serialize (if None, uses self._workload)
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def handle_filecheck_and_serialization(
+        self, request, workload=None, test_id: str = None
+    ) -> None:
+        """
+        Handles filecheck marker detection, serialization, and filecheck execution.
+
+        This centralizes the common logic used by OpTester, GraphTester, and ModelTester.
+
+        Args:
+            request: pytest request fixture
+            workload: Optional workload to serialize (if None, tester uses self._workload)
+            test_id: Optional test ID override (defaults to request.node.name)
+        """
+        if not request:
+            return
+
+        test_id = test_id or request.node.name
+
+        # Check for filecheck patterns from pytest marker
+        filecheck_marker = request.node.get_closest_marker("filecheck")
+        pattern_files = (
+            filecheck_marker.args[0]
+            if filecheck_marker and filecheck_marker.args
+            else None
+        )
+
+        # Serialize if --serialize flag is set OR if pattern files are specified
+        serialize = (
+            request.config.getoption("--serialize", False) or pattern_files is not None
+        )
+        if serialize:
+            clean_name = sanitize_test_name(test_id)
+            output_prefix = f"output_artifact/{clean_name}"
+            self.serialize_on_device(output_prefix, workload=workload)
+
+        # Run filecheck if patterns are specified
+        if pattern_files:
+            self._run_filecheck(pattern_files, test_id=test_id)
+
+    def _run_filecheck(self, pattern_files: list, test_id: str) -> None:
+        """Run filecheck with validation."""
+        self._validate_filecheck_mark(
+            pattern_files, test_id=test_id, where="pytest mark"
+        )
+
+        filecheck_results = run_filecheck(
+            test_node_name=test_id,
+            irs_filepath="output_artifact",
+            pattern_files=pattern_files,
+        )
+        validate_filecheck_results(filecheck_results)
+
+    def _validate_filecheck_mark(
+        self, pattern_files, *, test_id: str, where: str
+    ) -> None:
+        """Validate filecheck marker arguments."""
+        if not pattern_files:
+            return
+        if not isinstance(pattern_files, list):
+            print(
+                f"WARNING: 'filecheck' mark should pass a list in {where}. Found: {type(pattern_files).__name__}"
+            )
+            return
+        for pattern_file in pattern_files:
+            if not isinstance(pattern_file, str):
+                print(
+                    f"WARNING: filecheck entry should be a string in {where}. Found: {type(pattern_file).__name__}"
+                )
+                continue
+            pattern_path = FILECHECK_DIR / pattern_file
+            if not pattern_path.exists():
+                print(
+                    f"WARNING: filecheck pattern file not found: {pattern_path}\n         Referenced in test '{test_id}'"
+                )
