@@ -1068,6 +1068,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         scheduler_output: "SchedulerOutput",
         intermediate_tensors: Optional[IntermediateTensors] = None,
     ) -> ModelRunnerOutput:
+        logger.info(f"execute_model")
         torch._dynamo.config.dynamic_shapes = False
         # Update cached state
         self._update_states(scheduler_output)
@@ -1106,6 +1107,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ) = self._prepare_inputs(scheduler_output, start_index)
             input_ids, inputs_embeds = self._get_model_inputs(self.input_ids, mm_embeds)
             xm.mark_step()
+            logger.info(f"input_ids shape: {input_ids.shape}")
             # Run the decoder
             with set_forward_context(
                 attn_metadata,
@@ -1118,8 +1120,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     inputs_embeds=inputs_embeds,
                 )
 
+            # logger.info(f"hidden_states:0 {hidden_states.to('cpu')}")
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
+            # logger.info(f"hidden_states:1 {hidden_states.to('cpu')}")
             logits = self.compute_logits(hidden_states)
+            # logger.info(f"hidden_states:2 {logits.to('cpu')}")
             tpu_sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 padded_num_reqs,
@@ -1149,6 +1154,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             selected_token_ids = self.sample_from_logits_func(
                 logits, tpu_sampling_metadata
             )
+            # logger.info(f"hidden_states:3 {selected_token_ids.to('cpu')}")
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
@@ -1162,6 +1168,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Remove padding on cpu and keep dynamic op outside of xla graph.
             selected_token_ids = selected_token_ids.cpu()[:num_reqs]
 
+            logger.info(f"hidden_states:4 {selected_token_ids.to('cpu')}")
             combined_selected_tokens.append(selected_token_ids)
             if tpu_sampling_metadata.logprobs:
                 combined_logprobs.append(logprobs.tolists())

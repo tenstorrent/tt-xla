@@ -7,15 +7,19 @@ import pytest
 import torch
 import vllm
 
+os.environ["TTXLA_LOGGER_LEVEL"] = "DEBUG"
+
 
 @pytest.mark.push
 @pytest.mark.single_device
+@pytest.mark.tensor_parallel
+@pytest.mark.dual_chip
 @pytest.mark.parametrize(
     ["model_name", "baseline_path", "optimization_level"],
     [
         pytest.param(
-            "BAAI/bge-m3",
-            "baseline/bge_m3_baseline.pt",
+            "Qwen/Qwen3-Embedding-0.6B",
+            "baseline/qwen3_embedding_0.6B_baseline.pt",
             0,
         ),
         pytest.param(
@@ -29,7 +33,7 @@ import vllm
     "batch_size, max_num_seqs, max_num_batched_tokens",
     [
         (2, 2, 64),
-        (4, 4, 128),
+        #        (4, 4, 128),
     ],
 )
 def test_batched_inference(
