@@ -69,6 +69,9 @@ class CompilerConfig:
     # Enables IR dumping to a specified path.
     export_path: str = ""
 
+    # When set, exported IRs are named: <stage>_<model_name>_g<N>_<timestamp>.mlir
+    export_model_name: str = ""
+
     # Enables "try to recover structure" option for TTNN IR. Tries to match the
     # structure of the original graph. This generates a more readable solution,
     # useful when generating code.
@@ -109,6 +112,9 @@ class CompilerConfig:
 
         if self.export_path != "":
             options["export_path"] = self.export_path
+
+        if self.export_model_name:
+            options["export_model_name"] = self.export_model_name
 
         if self.codegen_try_recover_structure:
             options["codegen_try_recover_structure"] = "true"
