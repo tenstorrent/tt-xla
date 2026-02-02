@@ -28,13 +28,54 @@ import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
+# def parse_harmony_output(text: str, tokenizer) -> str:
+#     """
+#     Parse harmony format output to extract the final response.
+
+#     GPT-OSS uses harmony format with channels:
+#     - analysis: internal reasoning
+#     - commentary: tool usage
+#     - final: the actual response to user
+
+#     We extract and return just the final channel content.
+#     """
+#     # The model outputs in format: <|channel|>final<|message|>actual response
+#     # We want to extract just the "actual response" part
+
+#     # Try to find the final channel message
+#     if "<|channel|>final<|message|>" in text:
+#         # Extract everything after final channel marker
+#         final_start = text.find("<|channel|>final<|message|>") + len("<|channel|>final<|message|>")
+#         final_text = text[final_start:]
+#         # Remove any end markers
+#         if "<|end|>" in final_text:
+#             final_text = final_text[:final_text.find("<|end|>")]
+#         return final_text.strip()
+
+#     # If no final channel, try to extract from analysis channel as fallback
+#     if "<|message|>" in text:
+#         # Find the last message content
+#         parts = text.split("<|message|>")
+#         if len(parts) > 1:
+#             response = parts[-1]
+#             # Clean up any end markers
+#             if "<|end|>" in response:
+#                 response = response[:response.find("<|end|>")]
+#             return response.strip()
+
+#     # If no structured format found, return the text as-is (decode with skip_special_tokens)
+#     # This shouldn't happen with proper harmony format, but provides a fallback
+#     return text
+
 
 def main():
     """Main function for GPT-OSS-20B multi-token generation inference."""
 
-    model_name = "openai/gpt-oss-20b"
-    max_tokens_to_generate = 15  # Number of tokens to generate
-    max_sequence_length = 128  # Pre-allocate sequence to avoid recompilation
+    # Use BF16 version to avoid MXFP4 quantization issues
+    # TODO: For now we use unsloth's BF16 version to get around MXFP4 quantization issue and the unintialized weights issue.
+    model_name = "unsloth/gpt-oss-20b-BF16"
+    max_tokens_to_generate = 50  # Number of tokens to generate
+    max_sequence_length = 256  # Pre-allocate sequence to avoid recompilation
 
     # Verify we have enough devices
     num_devices = xr.global_runtime_device_count()
@@ -63,10 +104,11 @@ def main():
     # Load model configuration with GPT-OSS specific settings
     print(f"Loading model: {model_name}")
     config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
-    config.quantization_config["quant_method"] = "none"
+    # No need to modify quantization_config for BF16 version
     config.use_cache = False  # Keep cache disabled as in test framework
 
     # Load model with eager attention for torch.compile compatibility
+    # Using BF16 version which has properly initialized weights
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         config=config,
@@ -97,19 +139,15 @@ def main():
     attention_mask = inputs["attention_mask"]
     original_input_length = attention_mask[0].sum().item()
 
-    # Save original input text for display
-    original_input_text = tokenizer.decode(
-        inputs["input_ids"][0, :original_input_length], skip_special_tokens=True
-    )
+    # Extract just the user's prompt for clean display
+    user_prompt = messages[0]["content"]
 
     print(f"\nInput shape (padded): {inputs['input_ids'].shape}")
     print(f"Original input length: {original_input_length}")
-    print(
-        f"Input text: {tokenizer.decode(inputs['input_ids'][0, :original_input_length])}"
-    )
+    print(f'User prompt: "{user_prompt}"')
 
     # Move model and inputs to device
-    print("\nMoving model to device...")
+    print("\nMoving model to TT device...")
     model = model.to(device)
     inputs = {k: v.to(device) for k, v in inputs.items()}
 
@@ -175,11 +213,16 @@ def main():
     print(f"\n{'='*80}")
     print("Generation Results:")
     print(f"{'='*80}")
-    full_output = original_input_text + "".join(generated_tokens)
 
-    print(f"Input: {original_input_text}")
-    print(f"Generated tokens: {''.join(generated_tokens)}")
-    print(f"Full output: {full_output}")
+    # Parse the harmony format output to extract clean response
+    raw_output = "".join(generated_tokens)
+    # parsed_output = parse_harmony_output(raw_output, tokenizer)
+
+    print(f'User prompt: "{user_prompt}"')
+    print(f"\nRaw generated tokens ({len(generated_tokens)} tokens):")
+    print(f"  {raw_output}")
+    # print(f"\nParsed response:")
+    # print(f"  {parsed_output}")
     print(f"{'='*80}\n")
 
     print(
