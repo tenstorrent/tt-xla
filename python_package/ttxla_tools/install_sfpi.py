@@ -98,9 +98,19 @@ def main():
             # Install the package using dpkg
             print("Installing SFPI package...")
             if sfpi_dist == "debian":
-                subprocess.run(["sudo", "dpkg", "-i", str(temp_pkg_path)], check=True)
+                result = subprocess.run(
+                    ["sudo", "dpkg", "-i", str(temp_pkg_path)],
+                    check=True,
+                    capture_output=False,
+                    text=True,
+                )
             elif sfpi_dist == "fedora":
-                subprocess.run(["sudo", "rpm", "-i", str(temp_pkg_path)], check=True)
+                subprocess.run(
+                    ["sudo", "rpm", "-i", str(temp_pkg_path)],
+                    check=True,
+                    capture_output=False,
+                    text=True,
+                )
             print("SFPI package installed successfully!")
 
         except urllib.error.URLError as e:
