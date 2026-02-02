@@ -362,7 +362,7 @@ LLM_SEQ_LENS = [None] + PREFILL_SEQ_LENS
 
 # Batch sizes for prefill testing (None = decode phase uses default)
 PREFILL_BATCH_SIZES = [1, 2]
-LLM_BATCH_SIZES = [None] + PREFILL_BATCH_SIZES
+LLM_BATCH_SIZES = PREFILL_BATCH_SIZES  # Same batch sizes for both decode and prefill
 
 # Build list of (test_entry, run_phase) pairs based on loader capabilities
 _llm_test_params = []
@@ -382,12 +382,12 @@ def _generate_llm_test_id(param_tuple):
 
 def _generate_sequence_length_id(sequence_length):
     """Generate test ID component for sequence_length."""
-    return f"seq{sequence_length}" if sequence_length is not None else "seqDefault"
+    return f"seq{sequence_length}" if sequence_length is not None else "seq1"
 
 
 def _generate_batch_size_id(batch_size):
     """Generate test ID component for batch_size."""
-    return f"batch{batch_size}" if batch_size is not None else "batchDefault"
+    return f"batch{batch_size}"
 
 
 @pytest.mark.model_test
@@ -436,19 +436,18 @@ def test_llms_torch(
     """PyTorch LLM model test (decode/prefill phases) - delegates to shared implementation."""
     test_entry, run_phase = test_entry_and_phase
 
-    # Skip invalid combinations: decode needs sequence_length=None and batch_size=None
+    # Skip invalid combinations: decode needs sequence_length=None (seq1), batch_size=1 for now
+    # (batch_size>1 supported by loader, but YAML entries not added yet - remove skip when ready)
     if run_phase == RunPhase.LLM_DECODE:
         if sequence_length is not None:
             pytest.skip("Decode phase doesn't use sequence_length parametrization")
-        if batch_size is not None:
-            pytest.skip("Decode phase doesn't use batch_size parametrization")
+        if batch_size != 1:
+            pytest.skip("Decode batch_size>1 not enabled yet (add YAML entries to enable)")
 
-    # Skip invalid combinations: prefill needs sequence_length!=None and batch_size!=None
+    # Skip invalid combinations: prefill needs specific sequence_length
     if run_phase == RunPhase.LLM_PREFILL:
         if sequence_length is None:
             pytest.skip("Prefill phase requires a sequence_length")
-        if batch_size is None:
-            pytest.skip("Prefill phase requires a batch_size")
 
     # Add phase-specific marker for filtering
     if run_phase == RunPhase.LLM_DECODE:
