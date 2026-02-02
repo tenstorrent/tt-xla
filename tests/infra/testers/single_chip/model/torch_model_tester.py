@@ -180,9 +180,9 @@ class TorchModelTester(ModelTester):
         with _mask_jax_accelerator():
             return super()._run_on_cpu(compiled_workload)
 
-    def _compile_for_tt_device(self, workload: Workload) -> None:
+    def _compile_for_tt_device(self, workload: Workload, options=None) -> None:
         """Compile Torch workload for TT device."""
-        compile_torch_workload_for_tt_device(workload)
+        compile_torch_workload_for_tt_device(workload=workload, torch_options=options)
 
     def _unpack_forward_output(self, output: Any) -> torch.Tensor:
         """
@@ -238,7 +238,10 @@ class TorchModelTester(ModelTester):
         self._workload.model.zero_grad()
 
         # Run forward on TT
-        self._compile_for_tt_device(self._workload)
+        compile_options = {
+            "tt_experimental_compile": False
+        }
+        self._compile_for_tt_device(self._workload, compile_options)
         tt_res = self._run_on_tt_device(self._workload)
         tt_res = self._unpack_forward_output(tt_res)
 
