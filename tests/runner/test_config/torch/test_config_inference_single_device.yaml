@@ -2669,5 +2669,4 @@ test_config:
 
   vocoder_speecht5/pytorch-hifigan-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [nightly]
     assert_pcc: false # PCC < 0.1, tracking issue https://github.com/tenstorrent/tt-xla/issues/3064
