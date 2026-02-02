@@ -1,0 +1,4 @@
+[
+  { "runs-on": "qb2-blackhole", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "qb2_test and p150 and nightly and expected_passing", "parallel-groups": 1 },
+  { "runs-on": "qb2-blackhole", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "qb2_test and n300-llmbox and nightly and tensor_parallel and expected_passing", "parallel-groups": 1 }
+]

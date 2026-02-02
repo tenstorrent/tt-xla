@@ -17,6 +17,7 @@ on:
           - 'model-test-full.json'
           - 'on-pr.json'
           - 'model-test-passing.json'
+          - 'model-test-passing-qb2-trim.json'
           - 'model-test-xfail.json'
           - 'model-test-experimental.json'
           - 'model-test-training-xfail-weekly.json'

@@ -18,7 +18,7 @@ _collected_nodeids = set()
 _collected_test_functions = set()
 
 # Allowed architecture identifiers for arch_overrides and --arch option
-ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
+ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox", "qb2-blackhole"}
 _BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 

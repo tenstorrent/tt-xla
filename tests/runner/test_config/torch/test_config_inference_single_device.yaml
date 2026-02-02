@@ -171,7 +171,7 @@ test_config:
     status: EXPECTED_PASSING
     # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
     required_pcc: 0.99
-    markers: [push, nightly]
+    markers: [push, nightly, qb2_test]
 
   mnist/image_classification/pytorch-cnn_nodropout-single_device-inference:
     status: EXPECTED_PASSING
@@ -1023,6 +1023,7 @@ test_config:
 
   llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [qb2_test]
 
   yolov6/pytorch-yolov6n-single_device-inference:
     status: EXPECTED_PASSING
@@ -1458,7 +1459,7 @@ test_config:
 
   gemma/pytorch-google/gemma-2-2b-it-single_device-inference:
     status: EXPECTED_PASSING
-    markers: ["extended", push]
+    markers: ["extended", push, qb2_test]
 
   wide_resnet/pytorch-wide_resnet50_2.timm-single_device-inference:
     status: EXPECTED_PASSING
