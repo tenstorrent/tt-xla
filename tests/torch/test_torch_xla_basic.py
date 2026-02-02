@@ -429,12 +429,8 @@ def test_spmd_sharding(axis_names, input_shape, sharding_mode):
 @pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.llmbox
+@pytest.mark.filecheck(["sharding_constraints.ttir.mlir"])
 def test_spmd_sharding_constraints(request):
-    # Clear cache directory before test to avoid multiple files from previous runs
-    cache_dir = Path(TorchDeviceConnector.get_cache_dir())
-    if cache_dir.exists():
-        shutil.rmtree(cache_dir)
-    cache_dir.mkdir(parents=True, exist_ok=True)
 
     class EmbeddingModel(torch.nn.Module):
         def __init__(self):
@@ -469,21 +465,7 @@ def test_spmd_sharding_constraints(request):
         mesh=mesh,
         shard_spec_fn=shard_spec_function,
     )
-    tester.test(workload)
-
-    # Parse IR from cache after test
-    pattern_files = ["sharding_constraints.ttir.mlir"]
-    clean_name = sanitize_test_name(request.node.name)
-    output_prefix = f"output_artifact/{clean_name}"
-    parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
-
-    # Run FileCheck
-    filecheck_results = run_filecheck(
-        test_node_name=request.node.name,
-        irs_filepath="output_artifact",
-        pattern_files=pattern_files,
-    )
-    validate_filecheck_results(filecheck_results)
+    tester.test(workload, request=request)
 
 
 @pytest.mark.nightly
