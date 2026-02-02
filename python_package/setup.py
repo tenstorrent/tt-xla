@@ -251,6 +251,9 @@ class CMakeBuildPy(build_py):
     done solely using `package_data` parameter of `setup` which expects python modules.
     """
 
+    def in_ci(self) -> bool:
+        return os.environ.get("IN_CIBW_ENV") == "ON"
+
     def run(self):
         if hasattr(self, "editable_mode") and self.editable_mode:
             # No need to built the project in editable mode.
@@ -292,10 +295,20 @@ class CMakeBuildPy(build_py):
 
         print(f"CMake arguments: {cmake_args}")
 
+        cmake_cmd = ["cmake"]
+        # Run source env/activate if in ci, otherwise onus is on dev
+        if self.in_ci():
+            cmake_cmd = [
+                "source",
+                "env/activate",
+                "&&",
+                "cmake",
+            ]
+
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
-        subprocess.check_call(["cmake", *cmake_args], cwd=REPO_DIR)
-        subprocess.check_call(["cmake", *build_command], cwd=REPO_DIR)
-        subprocess.check_call(["cmake", *install_command], cwd=REPO_DIR)
+        subprocess.check_call([*cmake_cmd, *cmake_args], cwd=REPO_DIR)
+        subprocess.check_call([*cmake_cmd, *build_command], cwd=REPO_DIR)
+        subprocess.check_call([*cmake_cmd, *install_command], cwd=REPO_DIR)
 
         self._prune_install_tree(install_dir)
 
