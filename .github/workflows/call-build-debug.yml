@@ -101,7 +101,6 @@ jobs:
             check_name: TT-XLA Unit Tests
             group_suite: true
             detailed_summary: true
-            include_passed: true
             token: ${{ github.token }}
 
       - name: Prepare code coverage report
