@@ -27,6 +27,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers.cache_utils import StaticCache
 
 # def parse_harmony_output(text: str, tokenizer) -> str:
 #     """
@@ -105,7 +106,7 @@ def main():
     print(f"Loading model: {model_name}")
     config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
     # No need to modify quantization_config for BF16 version
-    config.use_cache = False  # Keep cache disabled as in test framework
+    config.use_cache = True  # Enable cache for static cache support
 
     # Load model with eager attention for torch.compile compatibility
     # Using BF16 version which has properly initialized weights
@@ -122,6 +123,7 @@ def main():
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer.pad_token = tokenizer.eos_token
 
     # Prepare input with padding to fixed length
     messages = [{"role": "user", "content": "I like taking walks in the"}]
@@ -146,13 +148,82 @@ def main():
     print(f"Original input length: {original_input_length}")
     print(f'User prompt: "{user_prompt}"')
 
+    # Initialize static cache on CPU (will be transferred to device later)
+    batch_size = 1
+    max_cache_len = max_sequence_length
+    static_cache = StaticCache(
+        config=config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+    num_key_value_heads = config.num_key_value_heads
+    head_dim = config.head_dim
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=num_key_value_heads,
+        head_dim=head_dim,
+        dtype=torch.bfloat16,
+        device="cpu",
+    )
+
+    # Create cache position tensor
+    cache_position = torch.arange(0, original_input_length)
+
+    # Create 4D causal attention mask for static cache compatibility
+    # Shape: (batch_size, num_heads, query_length, key_value_length)
+    # Prefill phase: (1, 1, prompt_length, max_cache_size)
+    # Values: 0.0 for unmasked positions (can attend), -inf for masked positions (cannot attend)
+    # For causal masking: each query position i can only attend to positions 0..i (inclusive)
+    full_attention_mask = torch.full(
+        (batch_size, 1, original_input_length, max_cache_len),
+        float("-inf"),
+        dtype=torch.float32,
+    )
+    # Create lower triangular causal mask for valid input tokens
+    # torch.tril creates a lower triangular matrix (1s below diagonal, 0s above)
+    causal_mask = torch.tril(
+        torch.ones((original_input_length, original_input_length), dtype=torch.float32)
+    )
+    # Convert: 1 -> 0.0 (unmasked), 0 -> -inf (masked)
+    causal_mask = torch.where(causal_mask == 1, 0.0, float("-inf"))
+    full_attention_mask[0, 0, :, :original_input_length] = causal_mask
+    # Future cache positions remain masked with -inf (already initialized above)
+
+    # Slice input_ids to only include valid tokens (remove padding for prefill)
+    # For left-padded sequences, valid tokens are at the end
+    inputs["input_ids"] = inputs["input_ids"][:, -original_input_length:]
+
+    # Update inputs dict to include cache
+    inputs["past_key_values"] = static_cache
+    inputs["cache_position"] = cache_position
+    inputs["use_cache"] = True
+    inputs["attention_mask"] = full_attention_mask
+
     # Move model and inputs to device
     print("\nMoving model to TT device...")
     model = model.to(device)
-    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    # Transfer cache to device separately
+    for layer in inputs["past_key_values"].layers:
+        layer.keys = layer.keys.to(device)
+        layer.values = layer.values.to(device)
+
+    # Transfer other inputs to device
+    inputs["input_ids"] = inputs["input_ids"].to(device)
+    inputs["cache_position"] = inputs["cache_position"].to(device)
+    inputs["attention_mask"] = inputs["attention_mask"].to(device)
 
     # Mark sharding for tensor parallelism
     print("Marking model sharding...")
+
+    # Mark sharding on cache tensors
+    for layer in inputs["past_key_values"].layers:
+        xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+        xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+
+    # Mark sharding on model weights
     for layer in model.model.layers:
         # Self-attention: column-wise sharding for q,k,v; row-wise for o
         xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
@@ -172,26 +243,29 @@ def main():
     print("Compiling model with TT backend...")
     compiled_model = torch.compile(model, backend="tt")
 
-    # Run multi-token generation with pre-padded inputs
+    # Run multi-token generation with static cache
     print(f"\nRunning generation for {max_tokens_to_generate} tokens...")
-    print("Using pre-padded inputs to avoid recompilation")
+    print("Using static cache to avoid recompilation")
     generated_tokens = []
     current_pos = original_input_length
 
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
+            if step == 0:
+                print("RUNNING PREFILL")
+
             # Check we have space
             if current_pos >= max_sequence_length:
                 print("Reached maximum sequence length, stopping.")
                 break
 
-            # Run forward pass - shape stays constant [1, max_sequence_length]
+            # Run forward pass
             outputs = compiled_model(**inputs)
 
-            # Get next token from the last valid position
+            # Get next token from the last output position
             logits = outputs.logits.to("cpu")
-            next_token_id = logits[0, current_pos - 1].argmax(dim=-1)
-            next_token_text = tokenizer.decode(next_token_id)
+            next_token_id = logits[:, -1].argmax(dim=-1)
+            next_token_text = tokenizer.decode(next_token_id[0])
             generated_tokens.append(next_token_text)
 
             print(
@@ -203,9 +277,31 @@ def main():
                 print("EOS token generated, stopping early.")
                 break
 
-            # Update input_ids and attention_mask in-place (no shape change!)
-            inputs["input_ids"][0, current_pos] = next_token_id.to(device)
-            inputs["attention_mask"][0, current_pos] = 1
+            # Update inputs for next iteration
+            # For decode steps, input_ids becomes just the next token [1, 1]
+            inputs["input_ids"] = next_token_id.unsqueeze(-1).to(device)
+
+            # Update cache_position to next position
+            host_cache_pos = inputs["cache_position"].to("cpu")
+            host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
+            inputs["cache_position"] = host_cache_pos.to(device)
+
+            # Update attention mask for decode step
+            # Shape: (batch_size, num_heads, query_length, key_value_length)
+            # Decode phase: (1, 1, 1, max_cache_size)
+            # During decode, the single new query token can attend to all previous cached tokens
+            # Values: 0.0 for unmasked positions, -inf for masked positions
+            if step == 0:
+                decode_attention_mask = torch.full(
+                    (batch_size, 1, 1, max_cache_len),
+                    float("-inf"),
+                    dtype=torch.float32,
+                )
+                # Allow attending to all cached positions up to and including current position
+                decode_attention_mask[0, 0, 0, :current_pos] = 0.0
+                inputs["attention_mask"] = decode_attention_mask.to(device)
+
+            # inputs["attention_mask"][0, 0, 0, current_pos + 1] = 0.0
 
             current_pos += 1
 
