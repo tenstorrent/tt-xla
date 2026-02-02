@@ -90,6 +90,13 @@ struct CompileOptions {
   // https://github.com/tenstorrent/tt-mlir/issues/3888
   bool enable_const_eval = true;
 
+  // Enables hoisting const-eval subgraphs to CPU module.
+  //
+  // When enabled, const-eval operations are hoisted to be executed on the CPU
+  // instead of being executed on the device. CPU execution uses 32-bit
+  // precision for all operations, which can improve accuracy for some models.
+  bool enable_const_eval_on_cpu = false;
+
   // Enables transpose + matmul and transpose + linear ops fusion.
   // This controls fusing of transpose + matmul and transpose + linear ops.
   // When disabled, transpose is kept as a separate op which can be constevaled,
