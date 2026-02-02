@@ -11,12 +11,12 @@ on:
         required: true
 
 # set minimal set of deps needed
-# permissions:
+permissions:
 #   contents: write
 #   actions: write
 #   id-token: write
-#   packages: write
-#   checks: write
+  packages: write
+  checks: write
 
 jobs:
   build-image:
