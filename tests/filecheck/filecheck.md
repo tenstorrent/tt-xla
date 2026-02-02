@@ -32,8 +32,36 @@ attention_pattern.ttnn.mlir
 ```
 
 ## Usage in Tests
+To use FileCheck patterns:
 
-To use FileCheck patterns in your tests:
+### Using pytest markers
+For tests using OpTester, GraphTester or ModelTester, use the `@pytest.mark.filecheck` decorator:
+
+```python
+@pytest.mark.filecheck(["add.ttnn.mlir"])
+def test_my_op(request):
+    run_op_test(
+        MyOp(),
+        [torch.randn(32, 32)],
+        framework=Framework.TORCH,
+        request=request,  # Must pass request for filecheck to work
+    )
+```
+
+```python
+@pytest.mark.filecheck(["attention_pattern.ttnn.mlir", "matmul_fusion.ttir.mlir"])
+def test_my_model(request):
+    tester = MyModelTester(...)
+    tester.test(request=request)  # Must pass request for filecheck to work
+```
+
+The test infrastructure automatically:
+- Serializes compilation artifacts to disk
+- Runs FileCheck with the specified pattern files
+- Validates results and fails the test if patterns don't match
+
+### Manual usage
+For custom test scenarios, you can call FileCheck utilities directly:
 
 ```python
 from tests.infra.utilities.filecheck_utils import run_filecheck, validate_filecheck_results
