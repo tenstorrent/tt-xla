@@ -20,7 +20,9 @@ def main():
     """
 
     def find_name_value(content, name):
-        match = re.search(rf"^{re.escape(name)}\s*=\s*(.+)$", content, re.MULTILINE)
+        match = re.search(
+            rf"^{re.escape(name)}\s*=\s*['\"]?(.+?)['\"]?\s*$", content, re.MULTILINE
+        )
         if match:
             return match.group(1).strip()
         return None
