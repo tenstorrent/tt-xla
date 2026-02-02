@@ -153,38 +153,23 @@ def _run_model_test_impl(
                 else:
                     raise ValueError(f"Unknown framework: {framework}")
 
-                comparison_result = tester.test()
-
-                # Check if filecheck patterns are specified
+                # Check if filecheck patterns are specified from test metadata
                 pattern_files = (
                     test_metadata.filechecks
                     if hasattr(test_metadata, "filechecks")
                     else None
                 )
 
-                # Serialize if --serialize flag is set OR if pattern files are specified
-                # Serializing IR to disk is required for FileCheck
-                if (
-                    request.config.getoption("--serialize", default=False)
-                    or pattern_files
-                ):
-                    tester.serialize_compilation_artifacts(request.node.name)
+                # Run test with filecheck patterns; tester handles serialization and filecheck
+                comparison_result = tester.test(
+                    request=request, pattern_files=pattern_files
+                )
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
 
-                # Run FileCheck on generated IR files if test succeeded
-                if succeeded and pattern_files:
-                    filecheck_results = run_filecheck(
-                        test_node_name=request.node.name,
-                        irs_filepath="output_artifact",
-                        pattern_files=pattern_files,
-                    )
-
-                # Trigger assertion after comparison_result is cached, and
-                #     fallthrough to finally block on failure.
+                # Trigger assertion after comparison_result is cached
                 Evaluator._assert_on_results(comparison_result)
-                validate_filecheck_results(filecheck_results)
 
         except Exception as e:
             captured = captured_output_fixture.readouterr()
