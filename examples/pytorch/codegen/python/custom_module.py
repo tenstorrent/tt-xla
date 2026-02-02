@@ -41,7 +41,7 @@ def main():
     model = Model()
     x = torch.randn(32, 32)
 
-    codegen_py(model, x, export_path="model", compiler_options=extra_options)
+    codegen_py(model, x, export_path="model_py", compiler_options=extra_options)
 
 
 def test_codegen_creates_model_folder():

@@ -80,12 +80,12 @@ Choose your framework and run the example:
 
 **PyTorch:**
 ```bash
-python examples/pytorch/codegen/custom_module.py
+python examples/pytorch/codegen/python/custom_module.py
 ```
 
 **JAX:**
 ```bash
-python examples/jax/codegen/custom_module.py
+python examples/jax/codegen/python/custom_module.py
 ```
 
 #### What Happens During Code Generation
@@ -219,8 +219,8 @@ The generated C++ code is **fully standalone** and can be integrated into existi
 ### Learn More
 
 - **[Code Generation Guide](./getting_started_codegen.md)** - Complete reference for all options and use cases
-- **[PyTorch Example Source](../../examples/pytorch/codegen/custom_module.py)** - Full example code
-- **[JAX Example Source](../../examples/jax/codegen/custom_module.py)** - Full example code
+- **[PyTorch Example Source](../../examples/pytorch/codegen/python/custom_module.py)** - Full example code
+- **[JAX Example Source](../../examples/jax/codegen/python/custom_module.py)** - Full example code
 
 ---
 
