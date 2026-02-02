@@ -35,6 +35,7 @@ add_library(TTPJRTApi
     "plugin_attributes.cc"
     "serialized_executable_instance.cc"
     "tensor.cc"
+    "tensor_pool.cc"
 )
 
 target_include_directories(TTPJRTApi PUBLIC

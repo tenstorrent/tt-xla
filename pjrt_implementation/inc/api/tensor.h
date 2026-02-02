@@ -10,10 +10,7 @@
 
 // c++ standard library includes
 #include <memory>
-#include <mutex>
-#include <optional>
 #include <string>
-#include <unordered_set>
 #include <vector>
 
 // tt-mlir includes
@@ -25,36 +22,6 @@
 namespace tt::pjrt {
 
 class BufferInstance;
-class PjrtTensor;
-
-// Tensor pool which holds all pjrt tensor pointers.
-//
-// Whenever tensor is constructed, it is moved into tensor pool and whenever it
-// is destructed, it is moved out.
-class PjrtTensorPool {
-public:
-  void insert(PjrtTensor *tensor);
-  void erase(PjrtTensor *tensor);
-  void clear();
-  void move_tensors_to_host();
-  bool contains(PjrtTensor *tensor);
-
-private:
-  std::mutex m_mtx;
-  std::unordered_set<PjrtTensor *> m_tensors;
-};
-
-namespace TensorPool {
-
-PjrtTensorPool &get() noexcept;
-const PjrtTensorPool &getc() noexcept;
-
-void insert(PjrtTensor *tensor);
-void erase(PjrtTensor *tensor);
-void clear();
-void move_tensors_to_host();
-
-} // namespace TensorPool
 
 // PJRT tensor class.
 //
@@ -79,15 +46,20 @@ class PjrtTensor {
   };
 
 public:
-  static PjrtTensor &init_input_tensor(
+  // Initializes pjrt tensor from pjrt buffers.
+  //
+  // If tensor already exists (shards already share same tensor) tensor will be
+  // reused, and this will behave like a simple getter. Otherwise, new tensor is
+  // created based on provided strategy from executable instance.
+  static PjrtTensor &from_pjrt_buffers(
       const std::vector<BufferInstance *> &shards,
-      const tt::runtime::Device &device,
-      const std::optional<const tt::runtime::Layout> &layout,
       const std::vector<std::uint32_t> &mesh_shape,
       const std::unordered_map<std::string, std::string> &strategy);
 
-  static PjrtTensor &create(std::vector<BufferInstance *> shards,
-                            tt::runtime::Tensor device_tensor);
+  // Creates new pjrt tensor for provided shards from an existing runtime
+  // tensor.
+  static PjrtTensor &from_runtime_tensor(std::vector<BufferInstance *> shards,
+                                         tt::runtime::Tensor device_tensor);
 
 public: // Constructors needs to be public for std::shared_ptr.
   PjrtTensor(Private, std::vector<BufferInstance *> shards,
@@ -114,18 +86,9 @@ public: // Constructors needs to be public for std::shared_ptr.
     return std::find(m_shards.begin(), m_shards.end(), shard) != m_shards.end();
   }
 
-  // Return whether runtime tensor has provided layout.
-  bool has_layout(const tt::runtime::Layout &layout) const {
-    return tt::runtime::hasLayout(m_runtime_tensor, layout);
-  };
-
-  // Changes layout of a runtime tensor.
-  void to_layout(const tt::runtime::Device &device,
-                 const tt::runtime::Layout &layout) {
-    m_runtime_tensor =
-        tt::runtime::toLayout(m_runtime_tensor, device, layout,
-                              tt::runtime::getTensorRetain(m_runtime_tensor));
-  };
+  // Changes runtime tensor layout if it differs from provided layout.
+  void ensure_layout(const tt::runtime::Device &device,
+                     const tt::runtime::Layout &layout);
 
   // Removes shard from shards (by setting shard to nullptr).
   void remove_shard(const BufferInstance *shard) noexcept;
@@ -134,19 +97,6 @@ public: // Constructors needs to be public for std::shared_ptr.
   void move_to_host() noexcept;
 
 private:
-  static PjrtTensor &
-  init_from_existing(const std::vector<BufferInstance *> &shards,
-                     const tt::runtime::Device &device,
-                     const std::optional<const tt::runtime::Layout> &layout,
-                     const std::vector<std::uint32_t> &mesh_shape);
-
-  static PjrtTensor &
-  init_new(std::vector<BufferInstance *> shards,
-           const tt::runtime::Device &device,
-           const std::optional<const tt::runtime::Layout> &layout,
-           const std::vector<std::uint32_t> &mesh_shape,
-           const std::unordered_map<std::string, std::string> &strategy);
-
   // Returns whether all shards share the same runtime tensor.
   static bool have_same_tensor(const std::vector<BufferInstance *> &shards);
   static PjrtTensor &from_shards(const std::vector<BufferInstance *> &shards);
@@ -159,9 +109,14 @@ private:
       const std::unordered_map<std::string, std::string> &strategy,
       const std::vector<std::uint32_t> &mesh_shape);
 
-private: // members
+private:
+  // Tensor unique identifier. For now, used for debug only.
   const uint64_t m_uid{next_uid()};
+
+  // Tensor shards. Each shard hold pjrt tensor reference to this pjrt tensor.
   std::vector<BufferInstance *> m_shards;
+
+  // Underlying runtime tensor.
   tt::runtime::Tensor m_runtime_tensor;
 };
 
@@ -175,6 +130,16 @@ private: // members
 // this object) are only called on non-const this object.
 // This is needed because if we are calling non-const pjrt tensor method, it
 // could modify us, which we don't want.
+//
+// Example:
+// void test_function(const BufferInstance* buf) {
+//     // This will be allowed if we store std::shared_ptr<PjrtTensor> in
+//     // BufferInstance.
+//     uf->pjrtTensor()->move_to_host();
+// }
+//
+// With this simple wrapper, we have tied 'const'ness of BufferInstance and
+// PjrtTensor.
 class PjrtTensorRef {
 public:
   PjrtTensorRef() = default;
@@ -211,12 +176,24 @@ public:
   }
 
   const PjrtTensor *operator->() const noexcept {
+    assert(m_tensor && "Accessing non-existing PJRT tensor");
     return m_tensor.operator->();
   }
-  PjrtTensor *operator->() noexcept { return m_tensor.operator->(); }
 
-  const PjrtTensor &operator*() const noexcept { return *m_tensor; };
-  PjrtTensor &operator*() noexcept { return *m_tensor; };
+  PjrtTensor *operator->() noexcept {
+    assert(m_tensor && "Accessing non-existing PJRT tensor");
+    return m_tensor.operator->();
+  }
+
+  const PjrtTensor &operator*() const noexcept {
+    assert(m_tensor && "Accessing non-existing PJRT tensor");
+    return *m_tensor;
+  };
+
+  PjrtTensor &operator*() noexcept {
+    assert(m_tensor && "Accessing non-existing PJRT tensor");
+    return *m_tensor;
+  };
 
 private:
   std::shared_ptr<PjrtTensor> m_tensor;

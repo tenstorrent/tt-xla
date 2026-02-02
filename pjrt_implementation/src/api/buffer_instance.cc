@@ -222,7 +222,7 @@ void BufferInstance::copyFromHost(
     m_done_with_host_buffer_event->setIndestructible();
   }
 
-  PjrtTensor::create({this}, runtime_tensor);
+  PjrtTensor::from_runtime_tensor({this}, runtime_tensor);
 
   markAsDataReady();
 
@@ -252,7 +252,7 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   src_buffer->pjrtTensor()->move_to_host();
   tt::runtime::memcpy(runtime_tensor, src_buffer->runtimeTensor());
 
-  PjrtTensor::create({this}, std::move(runtime_tensor));
+  PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
 
   markAsDataReady();
 }
@@ -307,14 +307,14 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
 
   // TODO(acolic): Copying in a separate thread is left to match previous
-  // behavior. Check whether it is needed: it does not make much sence to
+  // behavior. Check whether it is needed: it does not make much sense to
   // create new thread for each shard, because tensors are moved once from
   // device when onHost is called on a first shard; on the other hand, there is
-  // no sence to create new thread for memcpy because framework would wait on a
+  // no sense to create new thread for memcpy because framework would wait on a
   // copy anyway, right? Also, creating std::thread for memcpy might be overhead
   // with performance loss. We must measure.
   // Also, std::thread (as all objects from std::) has a value semantic, so it
-  // does not make any sence to create std::thread as a unique_ptr.
+  // does not make any sense to create std::thread as a unique_ptr.
   joinCopyThread();
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
@@ -455,23 +455,17 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ToHostBuffer");
 
   // TODO(mrakita): The caller can specify an optional `host_layout` arg to
-  // specify the memory layout in which data should be copied. It can
-  // sometimes be tiled layout but we support only strided, which might
-  // explain accuracy issues for some models. We need to investigate and add
-  // support for both layouts.
+  // specify the memory layout in which data should be copied. It can sometimes
+  // be tiled layout but we support only strided, which might explain accuracy
+  // issues for some models. We need to investigate and add support for both
+  // layouts.
   // https://github.com/tenstorrent/tt-xla/issues/500
 
   BufferInstance *buffer = BufferInstance::unwrap(args->src);
 
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
-    // For output buffers, use the prepared tensor; for input buffers, use
-    // host tensor. Prepared tensor will always have a >= size than host
-    // tensor since it rounds up to tile size and gives physical tensor
-    // volume. There may not be an associated host runtime tensor with all
-    // buffer instances, eg. if it represents an output that never returned to
-    // host.
-    DLOG_F(WARNING,
+    DLOG_F(LOG_DEBUG,
            "Calculating required host buffer size from device tensor when "
            "args->dst is nullptr to query the required size. This will give "
            "an overestimated tile-aligned physical tensor size instead of a "
@@ -543,8 +537,7 @@ PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
 PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args) {
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsOnCpu");
 
-  // Currently all our inputs are transferred to device where computation
-  // runs.
+  // Currently all our inputs are transferred to device where computation runs.
   args->is_on_cpu = false;
 
   return nullptr;

@@ -27,6 +27,7 @@
 #include "api/executable_image.h"
 #include "api/memory_instance.h"
 #include "api/module_builder/module_builder.h"
+#include "api/tensor_pool.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
 

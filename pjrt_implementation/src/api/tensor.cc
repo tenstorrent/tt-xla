@@ -12,7 +12,6 @@
 
 // c++ standard library includes
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <unordered_map>
 #include <utility>
@@ -24,124 +23,32 @@
 
 // tt-xla includes
 #include "api/buffer_instance.h"
+#include "api/tensor_pool.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
 
-namespace TensorPool {
-
-namespace {
-
-// Global tensor pool.
-PjrtTensorPool tensor_pool;
-
-} // namespace
-
-// *******************************************************************
-// ********************* Tensor pool API *****************************
-// *******************************************************************
-
-PjrtTensorPool &get() noexcept { return tensor_pool; }
-
-void insert(PjrtTensor *tensor) { get().insert(tensor); }
-
-void erase(PjrtTensor *tensor) { get().erase(tensor); }
-
-void clear() { get().clear(); }
-
-void move_tensors_to_host() { get().move_tensors_to_host(); };
-
-bool contains(PjrtTensor *tensor) { return get().contains(tensor); }
-
-} // namespace TensorPool
-
-// *******************************************************************
-// ********************* Tensor pool impl ****************************
-// *******************************************************************
-
-// Inserts tensor into tensor pool.
-void PjrtTensorPool::insert(PjrtTensor *tensor) {
-
-  assert(!contains(tensor));
-
-  const std::scoped_lock lock{m_mtx};
-  m_tensors.insert(tensor);
-}
-
-// Erases tensor from tensor pool.
-void PjrtTensorPool::erase(PjrtTensor *tensor) {
-
-  assert(contains(tensor));
-
-  const std::scoped_lock lock{m_mtx};
-  m_tensors.erase(tensor);
-}
-
-// Removes all tensor from tensor pool.
-void PjrtTensorPool::clear() {
-
-  const std::scoped_lock lock{m_mtx};
-  m_tensors.clear();
-}
-
-// Moves all tensors to host.
+// Initializes pjrt tensor from pjrt buffers.
 //
-// Note: since moving to host can modify pool (insert new pjrt tensors), we must
-// copy tensor pointers to another container before copying, to avoid iterator
-// invalidation.
-//
-// Note: this function is not thread safe.
-void PjrtTensorPool::move_tensors_to_host() {
-
-  DLOG_F(LOG_DEBUG, "Moving tensors to host.");
-
-  std::vector<PjrtTensor *> tensors{m_tensors.begin(), m_tensors.end()};
-  for (PjrtTensor *tensor : tensors) {
-    tensor->move_to_host();
-  }
-}
-
-// Returns whether tensor is in the pool.
-bool PjrtTensorPool::contains(PjrtTensor *tensor) {
-
-  const std::scoped_lock lock{m_mtx};
-  return m_tensors.count(tensor) > 0;
-}
-
-// *******************************************************************
-// ******************** Pjrt tensor **********************************
-// *******************************************************************
-
-// Initializes program input tensor.
-//
-// If input tensor already exists (shards share single tensor) with the same
-// layout, this will behave like a simple getter. If tensor exist but with
-// different layout, tensor layout is changed. Otherwise, new tensor is created.
-PjrtTensor &PjrtTensor::init_input_tensor(
+// If tensor already exists (shards already share same tensor) tensor will be
+// reused, and this will behave like a simple getter. Otherwise, new tensor is
+// created based on provided strategy from executable instance.
+PjrtTensor &PjrtTensor::from_pjrt_buffers(
     const std::vector<BufferInstance *> &shards,
-    const tt::runtime::Device &device,
-    const std::optional<const tt::runtime::Layout> &layout,
     const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy) {
 
-  PjrtTensor &tensor = [&]() -> PjrtTensor & {
-    if (have_same_tensor(shards))
-      return from_shards(shards);
+  if (have_same_tensor(shards))
+    return from_shards(shards);
 
-    return create(shards,
-                  rt_tensor_from_strategy(shards, strategy, mesh_shape));
-  }();
-
-  if (layout && !tensor.has_layout(*layout)) {
-    tensor.to_layout(device, *layout);
-  }
-
-  return tensor;
+  return from_runtime_tensor(
+      shards, rt_tensor_from_strategy(shards, strategy, mesh_shape));
 }
 
 // Creates new pjrt tensor for provided shards from an existing runtime tensor.
-PjrtTensor &PjrtTensor::create(std::vector<BufferInstance *> shards,
-                               tt::runtime::Tensor rt_tensor) {
+PjrtTensor &
+PjrtTensor::from_runtime_tensor(std::vector<BufferInstance *> shards,
+                                tt::runtime::Tensor rt_tensor) {
 
   tt::runtime::setTensorRetain(rt_tensor, true);
 
@@ -163,6 +70,17 @@ PjrtTensor::PjrtTensor(Private, std::vector<BufferInstance *> shards,
 }
 
 PjrtTensor::~PjrtTensor() { TensorPool::erase(this); }
+
+void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
+                               const tt::runtime::Layout &layout) {
+
+  if (tt::runtime::hasLayout(m_runtime_tensor, layout))
+    return;
+
+  const bool retain = tt::runtime::getTensorRetain(m_runtime_tensor);
+  m_runtime_tensor =
+      tt::runtime::toLayout(m_runtime_tensor, device, layout, retain);
+}
 
 // Moves pjrt tensor to host.
 //
@@ -194,16 +112,17 @@ void PjrtTensor::move_to_host() noexcept {
 
   for (std::size_t i = 1; i < m_shards.size(); ++i) {
     if (m_shards[i] == nullptr) {
-      DLOG_F(WARNING, "Deleted tensor shard. Skipping PjrtTensor::init.");
+      DLOG_F(LOG_DEBUG, "Deleted tensor shard. Skipping PjrtTensor creation.");
       continue;
     }
 
-    PjrtTensor::create({m_shards[i]}, std::move(tensors[i]));
+    PjrtTensor::from_runtime_tensor({m_shards[i]}, std::move(tensors[i]));
   }
 
   m_shards.resize(1);
 }
 
+// Returns whether all shards share the same runtime tensor.
 bool PjrtTensor::have_same_tensor(const std::vector<BufferInstance *> &shards) {
 
   return std::all_of(shards.begin(), shards.end(),

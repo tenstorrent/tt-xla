@@ -61,8 +61,7 @@ private:
   // transferring them to host.
   void fillPJRTOutputLists(
       const std::vector<tt::runtime::Tensor> &output_tensors,
-      const tt::runtime::Device &device, size_t num_devices,
-      PJRT_Buffer **const *output_lists,
+      size_t num_devices, PJRT_Buffer **const *output_lists,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
   // Returns the shape of the output on the specified index.

@@ -18,7 +18,6 @@
 #include <vector>
 
 // PJRT C API includes
-#include "tt/runtime/types.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
@@ -160,12 +159,9 @@ public:
   const PjrtTensorRef &pjrtTensor() const { return m_pjrt_tensor; };
 
   const tt::runtime::Tensor &runtimeTensor() const {
-    assert(m_pjrt_tensor && "Accessing non-existing PJRT tensor");
     return m_pjrt_tensor->runtime_tensor();
   }
-
   tt::runtime::Tensor &runtimeTensor() {
-    assert(m_pjrt_tensor && "Accessing non-existing PJRT tensor");
     return m_pjrt_tensor->runtime_tensor();
   }
 

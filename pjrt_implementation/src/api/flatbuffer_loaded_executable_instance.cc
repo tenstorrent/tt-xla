@@ -73,16 +73,16 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     return std::nullopt;
   }
 
-  PjrtTensor &tensor = PjrtTensor::init_input_tensor(
-      arg_buffers, runtime_device, expected_layout,
-      m_executable_image->getDevicesMeshShape(), *strategy);
+  PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
+      arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
+
+  tensor.ensure_layout(runtime_device, expected_layout);
 
   return tensor.runtime_tensor();
 }
 
 void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
-    const std::vector<tt::runtime::Tensor> &output_tensors,
-    const tt::runtime::Device &device, size_t num_devices,
+    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
     PJRT_Buffer **const *output_lists,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
   size_t n_prog_output_tensors = output_tensors.size();
@@ -127,7 +127,7 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
       output_lists[device_index][output_index] = *output_buffer.release();
     }
 
-    PjrtTensor::create(shards, std::move(outputTensor));
+    PjrtTensor::from_runtime_tensor(shards, std::move(outputTensor));
   }
 }
 
@@ -247,8 +247,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return tt_pjrt_status::kInternal;
   }
 
-  fillPJRTOutputLists(output_tensors, *runtime_device, args->num_devices,
-                      args->output_lists, m_executable_image->getOutputTypes());
+  fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
+                      m_executable_image->getOutputTypes());
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {

@@ -172,7 +172,7 @@ void SOLoadedExecutableInstance::createDefaultOutputBuffers(
       tt::runtime::Tensor host_tensor = tt::runtime::createOwnedHostTensor(
           nullptr, output_shape, strides, element_size, runtime_data_type);
 
-      PjrtTensor::create({output_buffer.get()}, host_tensor);
+      PjrtTensor::from_runtime_tensor({output_buffer.get()}, host_tensor);
 
       output_buffer->markAsDataReady();
 
@@ -197,9 +197,8 @@ SOLoadedExecutableInstance::prepareInputTensor(
     return std::nullopt;
   }
 
-  PjrtTensor &tensor = PjrtTensor::init_input_tensor(
-      arg_buffers, runtime_device, {},
-      m_executable_image->getDevicesMeshShape(), *strategy);
+  PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
+      arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
 
   return tensor.runtime_tensor();
 }
