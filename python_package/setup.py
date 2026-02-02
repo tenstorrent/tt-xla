@@ -409,6 +409,10 @@ setup(
         "jax_plugins": ["pjrt_plugin_tt = jax_plugin_tt"],
         # Entry point used by torch xla to register the plugin automatically.
         "torch_xla.plugins": ["tt = torch_plugin_tt:TTPlugin"],
+        # Console scripts
+        "console_scripts": [
+            "tt-forge-install = ttxla_tools.install_sfpi:main",
+        ],
     },
     ext_modules=[
         Extension(
