@@ -2385,7 +2385,6 @@ test_config:
 
   ultra_fast_lane_detection_v2/pytorch-tusimple_resnet34-single_device-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.985 # PCC drop when changing inputs.
 
   faster_rcnn/pytorch-resnet50_fpn-single_device-inference:
     status: NOT_SUPPORTED_SKIP
