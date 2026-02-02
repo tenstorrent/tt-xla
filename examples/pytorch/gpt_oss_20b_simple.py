@@ -108,6 +108,15 @@ def main():
     # No need to modify quantization_config for BF16 version
     config.use_cache = True  # Enable cache for static cache support
 
+    # Increase sliding window size to avoid 128-token restriction
+    # Keep layer_types unchanged to preserve trained architecture
+    config.sliding_window = (
+        config.max_position_embeddings
+    )  # Set to max sequence length (131072)
+    print(
+        f"Modified config: sliding_window increased from 128 to {config.sliding_window} (preserving trained layer types)"
+    )
+
     # Load model with eager attention for torch.compile compatibility
     # Using BF16 version which has properly initialized weights
     model = AutoModelForCausalLM.from_pretrained(
@@ -126,7 +135,7 @@ def main():
     tokenizer.pad_token = tokenizer.eos_token
 
     # Prepare input with padding to fixed length
-    messages = [{"role": "user", "content": "I like taking walks in the"}]
+    messages = [{"role": "user", "content": "Explain quantum mechanics"}]
     inputs = tokenizer.apply_chat_template(
         messages,
         add_generation_prompt=True,
@@ -249,6 +258,14 @@ def main():
     generated_tokens = []
     current_pos = original_input_length
 
+    decode_attention_mask = torch.full(
+        (batch_size, 1, 1, max_cache_len),
+        float("-inf"),
+        dtype=torch.float32,
+    )
+    # TODO: need to mask padding?
+    decode_attention_mask = decode_attention_mask.to(device)
+
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             if step == 0:
@@ -292,14 +309,7 @@ def main():
             # During decode, the single new query token can attend to all previous cached tokens
             # Values: 0.0 for unmasked positions, -inf for masked positions
             if step == 0:
-                decode_attention_mask = torch.full(
-                    (batch_size, 1, 1, max_cache_len),
-                    float("-inf"),
-                    dtype=torch.float32,
-                )
-                # Allow attending to all cached positions up to and including current position
-                decode_attention_mask[0, 0, 0, :current_pos] = 0.0
-                inputs["attention_mask"] = decode_attention_mask.to(device)
+                inputs["attention_mask"] = decode_attention_mask
 
             # inputs["attention_mask"][0, 0, 0, current_pos + 1] = 0.0
 
