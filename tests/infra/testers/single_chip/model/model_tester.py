@@ -162,14 +162,16 @@ class ModelTester(BaseTester, ABC):
         """
         return "__call__"
 
-    def test(self, request=None) -> Tuple[ComparisonResult, ...]:
+    def test(self, request=None, pattern_files=None) -> Tuple[ComparisonResult, ...]:
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
-            return self._test_inference(request=request)
+            return self._test_inference(request=request, pattern_files=pattern_files)
         else:
             return self._test_training()
 
-    def _test_inference(self, request=None) -> Tuple[ComparisonResult, ...]:
+    def _test_inference(
+        self, request=None, pattern_files=None
+    ) -> Tuple[ComparisonResult, ...]:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
@@ -188,20 +190,30 @@ class ModelTester(BaseTester, ABC):
         result = (self._compare(tt_res, cpu_res),)
 
         if request:
+            # Check for filecheck patterns from pytest marker
             filecheck_marker = request.node.get_closest_marker("filecheck")
+            marker_pattern_files = (
+                filecheck_marker.args[0]
+                if filecheck_marker and filecheck_marker.args
+                else None
+            )
+
+            # Use passed pattern_files or marker pattern_files
+            patterns_to_check = pattern_files or marker_pattern_files
+
+            # Serialize if --serialize flag is set OR if pattern files are specified
             serialize = (
-                True
-                if filecheck_marker or request.config.getoption("--serialize", False)
-                else False
+                request.config.getoption("--serialize", False)
+                or patterns_to_check is not None
             )
             if serialize:
                 clean_name = sanitize_test_name(request.node.name)
                 output_prefix = f"output_artifact/{clean_name}"
                 self.serialize_on_device(output_prefix)
 
-            if filecheck_marker and filecheck_marker.args:
-                pattern_files = filecheck_marker.args[0]
-                self._run_filecheck(pattern_files, test_id=request.node.name)
+            # Run filecheck if patterns are specified
+            if patterns_to_check:
+                self._run_filecheck(patterns_to_check, test_id=request.node.name)
 
         return result
 
