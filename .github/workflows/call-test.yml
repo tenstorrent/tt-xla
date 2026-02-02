@@ -160,7 +160,7 @@ jobs:
 
         echo "=== Installing wheel ==="
         source venv/activate
-        uv pip install wheels/*.whl
+        pip install wheels/*.whl
 
     - name: Download and setup alchemist library
       shell: bash
@@ -331,8 +331,8 @@ jobs:
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
-          uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
-          uv pip freeze
+          $(pwd)/venv/bin/pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
+          pip freeze
         fi
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
