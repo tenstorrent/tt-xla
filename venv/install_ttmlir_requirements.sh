@@ -23,7 +23,7 @@ if [ ! -e $LLVM_REQUIREMENTS_PATH ]; then
   mkdir -p $REQUIREMENTS_CACHE_DIR
   wget -O $LLVM_REQUIREMENTS_PATH "https://github.com/llvm/llvm-project/raw/$LLVM_VERSION/mlir/python/requirements.txt" --quiet
 fi
-uv pip install -r $LLVM_REQUIREMENTS_PATH
+pip install -r $LLVM_REQUIREMENTS_PATH
 
 # Install tt-mlir requirements
-uv pip install -r ${TT_MLIR_ENV_DIR}/build-requirements.txt
+pip install -r ${TT_MLIR_ENV_DIR}/build-requirements.txt
