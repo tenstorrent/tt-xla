@@ -3,21 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-GPT-OSS-20B Inference Example for TT-XLA
+GPT-OSS-20B Multi-Token Generation Example for TT-XLA
 
-This example demonstrates how to run GPT-OSS-20B inference on Tenstorrent hardware
-using tensor parallelism across multiple devices. This follows the same pattern as
-the working test infrastructure.
+This example demonstrates how to run GPT-OSS-20B multi-token generation on Tenstorrent
+hardware using tensor parallelism across multiple devices.
 
 Requirements:
 - 4+ TT devices (GPT-OSS-20B requires multiple devices due to memory constraints)
 - TT-XLA environment activated (source venv/activate)
 
 Usage:
-    python examples/pytorch/gpt_oss_20b.py
+    python examples/pytorch/gpt_oss_20b_simple.py
 
-Note: This example performs a single forward pass for demonstration. For production
-      use cases with autoregressive generation, see the Llama example pattern.
+Note: This example generates multiple tokens autoregressively.
 """
 
 import os
@@ -32,9 +30,11 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 
 def main():
-    """Main function for GPT-OSS-20B single forward pass inference."""
+    """Main function for GPT-OSS-20B multi-token generation inference."""
 
     model_name = "openai/gpt-oss-20b"
+    max_tokens_to_generate = 15  # Number of tokens to generate
+    max_sequence_length = 128  # Pre-allocate sequence to avoid recompilation
 
     # Verify we have enough devices
     num_devices = xr.global_runtime_device_count()
@@ -64,7 +64,7 @@ def main():
     print(f"Loading model: {model_name}")
     config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
     config.quantization_config["quant_method"] = "none"
-    config.use_cache = False  # Single forward pass doesn't need cache
+    config.use_cache = False  # Keep cache disabled as in test framework
 
     # Load model with eager attention for torch.compile compatibility
     model = AutoModelForCausalLM.from_pretrained(
@@ -81,7 +81,7 @@ def main():
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    # Prepare input
+    # Prepare input with padding to fixed length
     messages = [{"role": "user", "content": "I like taking walks in the"}]
     inputs = tokenizer.apply_chat_template(
         messages,
@@ -89,10 +89,24 @@ def main():
         tokenize=True,
         return_dict=True,
         return_tensors="pt",
+        padding="max_length",
+        max_length=max_sequence_length,
     )
 
-    print(f"\nInput shape: {inputs['input_ids'].shape}")
-    print(f"Input text: {tokenizer.decode(inputs['input_ids'][0])}")
+    # Find the actual sequence length (before padding)
+    attention_mask = inputs["attention_mask"]
+    original_input_length = attention_mask[0].sum().item()
+
+    # Save original input text for display
+    original_input_text = tokenizer.decode(
+        inputs["input_ids"][0, :original_input_length], skip_special_tokens=True
+    )
+
+    print(f"\nInput shape (padded): {inputs['input_ids'].shape}")
+    print(f"Original input length: {original_input_length}")
+    print(
+        f"Input text: {tokenizer.decode(inputs['input_ids'][0, :original_input_length])}"
+    )
 
     # Move model and inputs to device
     print("\nMoving model to device...")
@@ -120,26 +134,57 @@ def main():
     print("Compiling model with TT backend...")
     compiled_model = torch.compile(model, backend="tt")
 
-    # Run inference
-    print("\nRunning inference...")
+    # Run multi-token generation with pre-padded inputs
+    print(f"\nRunning generation for {max_tokens_to_generate} tokens...")
+    print("Using pre-padded inputs to avoid recompilation")
+    generated_tokens = []
+    current_pos = original_input_length
+
     with torch.no_grad():
-        outputs = compiled_model(**inputs)
+        for step in range(max_tokens_to_generate):
+            # Check we have space
+            if current_pos >= max_sequence_length:
+                print("Reached maximum sequence length, stopping.")
+                break
 
-    # Get predictions
-    logits = outputs.logits.to("cpu")
-    next_token_id = logits[:, -1].argmax(dim=-1)
-    predicted_token = tokenizer.decode(next_token_id[0])
+            # Run forward pass - shape stays constant [1, max_sequence_length]
+            outputs = compiled_model(**inputs)
 
+            # Get next token from the last valid position
+            logits = outputs.logits.to("cpu")
+            next_token_id = logits[0, current_pos - 1].argmax(dim=-1)
+            next_token_text = tokenizer.decode(next_token_id)
+            generated_tokens.append(next_token_text)
+
+            print(
+                f"Step {step + 1}/{max_tokens_to_generate}: Generated token '{next_token_text}'"
+            )
+
+            # Check for EOS token
+            if next_token_id.item() == tokenizer.eos_token_id:
+                print("EOS token generated, stopping early.")
+                break
+
+            # Update input_ids and attention_mask in-place (no shape change!)
+            inputs["input_ids"][0, current_pos] = next_token_id.to(device)
+            inputs["attention_mask"][0, current_pos] = 1
+
+            current_pos += 1
+
+    # Print results
     print(f"\n{'='*80}")
-    print("Inference Results:")
+    print("Generation Results:")
     print(f"{'='*80}")
-    print(
-        f"Input: {tokenizer.decode(inputs['input_ids'][0].to('cpu'), skip_special_tokens=True)}"
-    )
-    print(f"Predicted next token: '{predicted_token}'")
+    full_output = original_input_text + "".join(generated_tokens)
+
+    print(f"Input: {original_input_text}")
+    print(f"Generated tokens: {''.join(generated_tokens)}")
+    print(f"Full output: {full_output}")
     print(f"{'='*80}\n")
 
-    print("✓ GPT-OSS-20B inference completed successfully!")
+    print(
+        f"✓ GPT-OSS-20B generation completed successfully! Generated {len(generated_tokens)} tokens."
+    )
 
 
 if __name__ == "__main__":
