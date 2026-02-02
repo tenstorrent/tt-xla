@@ -63,8 +63,8 @@ else()
 
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=${TTMLIR_BUILD_TYPE}
-          -DCMAKE_C_COMPILER=clang-17
-          -DCMAKE_CXX_COMPILER=clang++-17
+          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           -DTT_RUNTIME_ENABLE_TTNN=ON
           -DTTMLIR_ENABLE_STABLEHLO=ON
