@@ -2378,7 +2378,7 @@ test_config:
 
 
   owl_vit/pytorch-base_patch32-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
 
   # yolov12/pytorch-yolo12n-single_device-inference:
   #   status: EXPECTED_PASSING
