@@ -117,8 +117,8 @@ else()
         CMAKE_GENERATOR Ninja
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_C_COMPILER=clang-17
-          -DCMAKE_CXX_COMPILER=clang++-17
+          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_CXX_FLAGS=${FLAGS}
           -DCMAKE_INSTALL_PREFIX=${TTPJRT_SOURCE_DIR}/third_party/loguru/src/loguru-install
         GIT_REPOSITORY https://github.com/emilk/loguru.git
