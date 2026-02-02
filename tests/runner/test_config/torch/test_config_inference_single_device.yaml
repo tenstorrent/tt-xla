@@ -2659,3 +2659,7 @@ test_config:
         assert_pcc: false  # Actual PCC: 0.9693205147128082 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
       p150:
         assert_pcc: false  # Actual PCC: 0.9661477411303401 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+
+  vocoder_speecht5/pytorch-hifigan-single_device-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # PCC < 0.1, tracking issue https://github.com/tenstorrent/tt-xla/issues/3064
