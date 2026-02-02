@@ -97,6 +97,8 @@ def main():
 
             # Install the package using dpkg
             print("Installing SFPI package...")
+            sys.stdout.flush()
+            sys.stderr.flush()
             if sfpi_dist == "debian":
                 result = subprocess.run(
                     ["sudo", "dpkg", "-i", str(temp_pkg_path)],
