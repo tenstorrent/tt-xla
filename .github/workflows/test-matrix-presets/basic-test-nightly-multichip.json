@@ -1,0 +1,15 @@
+[
+  { "runs-on": "n300",        "name": "run_jax",                      "dir": "./tests/jax/multi_chip/n300",                              "test-mark": "nightly"},
+  { "runs-on": "n300",        "name": "torch_multichip",              "dir": "./tests/torch",                                            "test-mark": "nightly and dual_chip"  },
+  { "runs-on": "n300-llmbox", "name": "run_jax_4_devices",            "dir": "./tests/jax/multi_chip/llmbox/4_devices",                  "test-mark": "nightly", "shared-runners": "true" },
+  { "runs-on": "n300-llmbox", "name": "run_jax_8_devices",            "dir": "./tests/jax/multi_chip/llmbox/8_devices",                  "test-mark": "nightly", "shared-runners": "true" },
+  { "runs-on": "n300-llmbox", "name": "run_torch_multi_chip",         "dir": "./tests/torch",                                            "test-mark": "nightly and llmbox", "shared-runners": "true" },
+  { "runs-on": "n300",        "name": "run_vllm_n300_tests",          "dir": "./tests/integrations/vllm_plugin",                         "test-mark": "nightly and data_parallel", "shared-runners": "true" },
+  { "runs-on": "n300",        "name": "torch_multichip",              "dir": "./tests/torch",                                            "test-mark": "model_test and dual_chip" },
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip",   "dir": "./tests/runner/test_models.py::test_all_models_torch",     "test-mark": "n300-llmbox and nightly and tensor_parallel and expected_passing and not tp_2x4_mesh", "parallel-groups": 4 },
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip",   "dir": "./tests/runner/test_models.py::test_all_models_torch",     "test-mark": "n300-llmbox and nightly and tensor_parallel and expected_passing and tp_2x4_mesh", "parallel-groups": 1 },
+  { "runs-on": "n300",        "name": "run_forge_models_multichip",   "dir": "./tests/runner/test_models.py::test_all_models_torch",     "test-mark": "n300 and nightly and data_parallel and expected_passing", "parallel-groups": 1 },
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip",   "dir": "./tests/runner/test_models.py::test_all_models_jax",       "test-mark": "n300-llmbox and nightly and tensor_parallel and expected_passing", "parallel-groups": 1 },
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_llm_multichip", "dir": "./tests/runner/test_models.py::test_llms_torch",         "test-mark": "n300-llmbox and nightly and tensor_parallel and expected_passing", "parallel-groups": 1 },
+  { "runs-on": "n300-llmbox", "name": "run_forge_models_multichip",   "dir": "./tests/runner/test_models.py::test_all_models_torch",     "test-mark": "n300-llmbox and nightly and tensor_parallel and (known_failure_xfail or not_supported_skip) and not tp_2x4_mesh", "parallel-groups": 1 }
+]
