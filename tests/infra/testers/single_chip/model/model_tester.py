@@ -23,14 +23,8 @@ from infra.utilities import (
 from infra.workloads import Workload
 
 from tests.infra.testers.compiler_config import CompilerConfig
-from tests.infra.utilities.filecheck_utils import (
-    run_filecheck,
-    validate_filecheck_results,
-)
 
 from ...base_tester import BaseTester
-
-FILECHECK_DIR = Path(__file__).parent.parent.parent.parent.parent / "filecheck"
 
 
 class RunMode(Enum):
@@ -188,27 +182,7 @@ class ModelTester(BaseTester, ABC):
         result = (self._compare(tt_res, cpu_res),)
 
         if request:
-            # Check for filecheck patterns from pytest marker
-            filecheck_marker = request.node.get_closest_marker("filecheck")
-            pattern_files = (
-                filecheck_marker.args[0]
-                if filecheck_marker and filecheck_marker.args
-                else None
-            )
-
-            # Serialize if --serialize flag is set OR if pattern files are specified
-            serialize = (
-                request.config.getoption("--serialize", False)
-                or pattern_files is not None
-            )
-            if serialize:
-                clean_name = sanitize_test_name(request.node.name)
-                output_prefix = f"output_artifact/{clean_name}"
-                self.serialize_on_device(output_prefix)
-
-            # Run filecheck if patterns are specified
-            if pattern_files:
-                self._run_filecheck(pattern_files, test_id=request.node.name)
+            self.handle_filecheck_and_serialization(request, workload=self._workload)
 
         return result
 
@@ -260,46 +234,13 @@ class ModelTester(BaseTester, ABC):
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def _run_filecheck(self, pattern_files: str, test_id: str) -> None:
-        self._validate_filecheck_mark(
-            pattern_files, test_id=test_id, where="pytest mark"
-        )
-
-        filecheck_results = run_filecheck(
-            test_node_name=test_id,
-            irs_filepath="output_artifact",
-            pattern_files=pattern_files,
-        )
-        validate_filecheck_results(filecheck_results)
-
-    def _validate_filecheck_mark(
-        self, pattern_files, *, test_id: str, where: str
-    ) -> None:
-        if not pattern_files:
-            return
-        if not isinstance(pattern_files, list):
-            print(
-                f"WARNING: 'filecheck' mark should pass a list in {where}. Found: {type(pattern_files).__name__}"
-            )
-            return
-        for pattern_file in pattern_files:
-            if not isinstance(pattern_file, str):
-                print(
-                    f"WARNING: filecheck entry should be a string in {where}. Found: {type(pattern_file).__name__}"
-                )
-                continue
-            pattern_path = FILECHECK_DIR / pattern_file
-            if not pattern_path.exists():
-                print(
-                    f"WARNING: filecheck pattern file not found: {pattern_path}\n         Referenced in test '{test_id}'"
-                )
-
-    def serialize_on_device(self, output_prefix: str) -> None:
+    def serialize_on_device(self, output_prefix: str, workload=None) -> None:
         """
         Serializes the model workload on TT device with proper compiler configuration.
 
         Args:
             output_prefix: Base path and filename prefix for output files
+            workload: Optional workload parameter (ignored, uses self._workload)
         """
         if self._workload is None:
             self._initialize_workload()
