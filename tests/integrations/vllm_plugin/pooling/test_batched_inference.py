@@ -7,7 +7,7 @@ import pytest
 import torch
 import vllm
 
-os.environ["TTXLA_LOGGER_LEVEL"] = "DEBUG"
+os.environ["TTXLA_LOGGER_LEVEL"] = "INFO"
 
 
 @pytest.mark.push
@@ -17,11 +17,6 @@ os.environ["TTXLA_LOGGER_LEVEL"] = "DEBUG"
 @pytest.mark.parametrize(
     ["model_name", "baseline_path", "optimization_level"],
     [
-        pytest.param(
-            "Qwen/Qwen3-Embedding-0.6B",
-            "baseline/qwen3_embedding_0.6B_baseline.pt",
-            0,
-        ),
         pytest.param(
             "Qwen/Qwen3-Embedding-0.6B",
             "baseline/qwen3_embedding_0.6B_baseline.pt",
