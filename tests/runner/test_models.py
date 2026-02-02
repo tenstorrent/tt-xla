@@ -153,17 +153,14 @@ def _run_model_test_impl(
                 else:
                     raise ValueError(f"Unknown framework: {framework}")
 
-                # Check if filecheck patterns are specified from test metadata
-                pattern_files = (
-                    test_metadata.filechecks
-                    if hasattr(test_metadata, "filechecks")
-                    else None
-                )
+                # Add filecheck marker dynamically if patterns are specified in test metadata
+                if hasattr(test_metadata, "filechecks") and test_metadata.filechecks:
+                    request.node.add_marker(
+                        pytest.mark.filecheck(test_metadata.filechecks)
+                    )
 
-                # Run test with filecheck patterns; tester handles serialization and filecheck
-                comparison_result = tester.test(
-                    request=request, pattern_files=pattern_files
-                )
+                # Run test; tester handles serialization and filecheck via pytest marker
+                comparison_result = tester.test(request=request)
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)

@@ -162,16 +162,14 @@ class ModelTester(BaseTester, ABC):
         """
         return "__call__"
 
-    def test(self, request=None, pattern_files=None) -> Tuple[ComparisonResult, ...]:
+    def test(self, request=None) -> Tuple[ComparisonResult, ...]:
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
-            return self._test_inference(request=request, pattern_files=pattern_files)
+            return self._test_inference(request=request)
         else:
             return self._test_training()
 
-    def _test_inference(
-        self, request=None, pattern_files=None
-    ) -> Tuple[ComparisonResult, ...]:
+    def _test_inference(self, request=None) -> Tuple[ComparisonResult, ...]:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
@@ -192,19 +190,16 @@ class ModelTester(BaseTester, ABC):
         if request:
             # Check for filecheck patterns from pytest marker
             filecheck_marker = request.node.get_closest_marker("filecheck")
-            marker_pattern_files = (
+            pattern_files = (
                 filecheck_marker.args[0]
                 if filecheck_marker and filecheck_marker.args
                 else None
             )
 
-            # Use passed pattern_files or marker pattern_files
-            patterns_to_check = pattern_files or marker_pattern_files
-
             # Serialize if --serialize flag is set OR if pattern files are specified
             serialize = (
                 request.config.getoption("--serialize", False)
-                or patterns_to_check is not None
+                or pattern_files is not None
             )
             if serialize:
                 clean_name = sanitize_test_name(request.node.name)
@@ -212,8 +207,8 @@ class ModelTester(BaseTester, ABC):
                 self.serialize_on_device(output_prefix)
 
             # Run filecheck if patterns are specified
-            if patterns_to_check:
-                self._run_filecheck(patterns_to_check, test_id=request.node.name)
+            if pattern_files:
+                self._run_filecheck(pattern_files, test_id=request.node.name)
 
         return result
 
