@@ -163,6 +163,14 @@ jobs:
                 exit 1
             fi
 
+      - name: Test tt-forge-install
+        if: inputs.build_type == 'release'
+        shell: bash
+        run: |
+            source venv/activate
+            pip install ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
+            tt-forge-install
+
       - name: Upload the wheel
         id: upload-wheel
         uses: actions/upload-artifact@v4
