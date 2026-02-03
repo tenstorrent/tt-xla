@@ -2605,3 +2605,11 @@ test_config:
         n150:
           status: KNOWN_FAILURE_XFAIL
           reason: "Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B"
+
+  gemma3/multimodal/pytorch-google/gemma-3-4b-it-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+
+  gemma3/multimodal/pytorch-google/gemma-3-12b-it-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING

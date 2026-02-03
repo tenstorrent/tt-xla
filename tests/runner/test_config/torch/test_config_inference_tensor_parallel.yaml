@@ -194,3 +194,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on n300-llmbox"
     bringup_status: FAILED_RUNTIME
+
+  gemma3/multimodal/pytorch-google/gemma-3-27b-it-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
