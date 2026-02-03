@@ -164,9 +164,6 @@ class XLAExecutor:
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
             program = torch.export.export(self.module, tuple(args), strict=False)
 
-            # Note(sgligorijevic): Has to be ran here and not in the pipeline because otherwise the export above blows up. This is hacky.
-            program = replace_cpu_device_with_xla(program)
-
             # Collect the params and constants from the exported program.
             self.params_and_consts = self._build_params_and_consts(program)
 
