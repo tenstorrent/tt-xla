@@ -73,14 +73,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ENV CMAKE_CXX_COMPILER=clang++
 
 # Install ccache for build caching and set up compiler wrappers
-# RUN dnf install --refresh -y ccache \
-#     && mkdir -p /usr/lib/ccache \
-#     && ln -sf /usr/bin/ccache /usr/lib/ccache/gcc \
-#     && ln -sf /usr/bin/ccache /usr/lib/ccache/g++ \
-#     && ln -sf /usr/bin/ccache /usr/lib/ccache/cc \
-#     && ln -sf /usr/bin/ccache /usr/lib/ccache/c++ \
-#     && ln -sf /usr/bin/ccache /usr/lib/ccache/clang \
-#     && ln -sf /usr/bin/ccache /usr/lib/ccache/clang++
+RUN dnf install --refresh -y ccache \
+    && mkdir -p /usr/lib/ccache \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/gcc \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/g++ \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/cc \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/c++ \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/clang \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/clang++
 
 # ENV PATH="/usr/lib/ccache:${PATH}"
 # ENV CCACHE_DIR="/root/.ccache"
