@@ -309,9 +309,9 @@ class CMakeBuildPy(build_py):
         print(f"CMake arguments: {[*cmake_cmd, *cmake_args]}")
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
-        self.spawn([*cmake_cmd, *cmake_args], cwd=REPO_DIR)
-        self.spawn([*cmake_cmd, *build_command], cwd=REPO_DIR)
-        self.spawn([*cmake_cmd, *install_command], cwd=REPO_DIR)
+        self.spawn([*cmake_cmd, *cmake_args])
+        self.spawn([*cmake_cmd, *build_command])
+        self.spawn([*cmake_cmd, *install_command])
 
         self._prune_install_tree(install_dir)
 
