@@ -298,7 +298,7 @@ class CMakeBuildPy(build_py):
         if self.in_ci():
             cmake_cmd = [
                 "cd",
-                REPO_DIR,
+                str(REPO_DIR),
                 "&&",
                 "source",
                 "env/activate",
