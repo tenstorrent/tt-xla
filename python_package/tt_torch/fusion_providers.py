@@ -200,12 +200,26 @@ class RotaryEmbFusionProvider(FusionProvider):
         dtype,
     ) -> Tensor:
         x_float = x.float()
-        x_view = x_float.view(x_d0, x_d1, x_d2, x_d3, x_d4)
-        x_complex = torch.view_as_complex(x_view)
+        x_pairs = x_float.view(x_d0, x_d1, x_d2, x_d3, x_d4)
+
         freqs_view = freqs_cis.view(f_d0, f_d1, f_d2, f_d3)
-        mul = x_complex.mul(freqs_view)
-        real = torch.view_as_real(mul)
-        flat = real.flatten(3)
+        freqs_ri = torch.view_as_real(freqs_view)
+        cos = torch.ops.aten.select.int(freqs_ri, -1, 0)
+        sin = torch.ops.aten.select.int(freqs_ri, -1, 1)
+
+        x1 = torch.ops.aten.select.int(x_pairs, -1, 0)
+        x2 = torch.ops.aten.select.int(x_pairs, -1, 1)
+
+        x1_cos = torch.mul(x1, cos)
+        x2_sin = torch.mul(x2, sin)
+        out_real = torch.sub(x1_cos, x2_sin)
+
+        x1_sin = torch.mul(x1, sin)
+        x2_cos = torch.mul(x2, cos)
+        out_imag = torch.add(x1_sin, x2_cos)
+
+        out = torch.stack([out_real, out_imag], dim=-1)
+        flat = out.flatten(3)
         return flat.to(dtype)
 
     @staticmethod
@@ -223,17 +237,18 @@ class RotaryEmbFusionProvider(FusionProvider):
         f_d3,
         dtype,
     ) -> Tensor:
-        freqs_real = torch.view_as_real(freqs_cis)
-        cos = freqs_real[..., 0]
-        sin = freqs_real[..., 1]
-
-        cos = cos.unsqueeze(0).unsqueeze(2)
-        sin = sin.unsqueeze(0).unsqueeze(2)
-
-        x_float = x.to(torch.float32)
+        # This is where you'd put your fused kernel call.
+        # For now it's a 1:1 functional replacement.
+        x_float = x.float()
         x_pairs = x_float.view(x_d0, x_d1, x_d2, x_d3, x_d4)
-        x1 = x_pairs[..., 0]
-        x2 = x_pairs[..., 1]
+
+        freqs_view = freqs_cis.view(f_d0, f_d1, f_d2, f_d3)
+        freqs_ri = torch.view_as_real(freqs_view)
+        cos = torch.ops.aten.select.int(freqs_ri, -1, 0)
+        sin = torch.ops.aten.select.int(freqs_ri, -1, 1)
+
+        x1 = torch.ops.aten.select.int(x_pairs, -1, 0)
+        x2 = torch.ops.aten.select.int(x_pairs, -1, 1)
 
         out_real = x1 * cos - x2 * sin
         out_imag = x1 * sin + x2 * cos
@@ -247,9 +262,5 @@ class RotaryEmbFusionProvider(FusionProvider):
             if pn.target == "view" and pn.name == "view":
                 shape = gn.args[1:]
                 if shape[-1] != 2:
-                    return False
-            if pn.target == "view" and pn.name == "view_1":
-                shape = gn.args[1:]
-                if len(shape) != 4:
                     return False
         return True

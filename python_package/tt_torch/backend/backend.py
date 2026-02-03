@@ -25,6 +25,106 @@ from .passes import (
 )
 
 
+def decompose_complex_ops(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Rewrites the pattern:
+        x_complex = view_as_complex(x_real_pairs)   # x_real_pairs has [..., 2] last dim
+        result = x_complex.mul(freqs_cis)           # freqs_cis is complex input
+        out = view_as_real(result)                  # back to [..., 2]
+
+    Into:
+        freqs_real_imag = view_as_real(freqs_cis)   # [..., 2] — the ONLY view_as_real that survives
+        cos = freqs_real_imag[..., 0]
+        sin = freqs_real_imag[..., 1]
+        x1 = x_real_pairs[..., 0]
+        x2 = x_real_pairs[..., 1]
+        out_real = x1 * cos - x2 * sin
+        out_imag = x1 * sin + x2 * cos
+        out = stack([out_real, out_imag], dim=-1)   # same shape as original view_as_real output
+    """
+    for node in gm.graph.nodes:
+        # Anchor: find view_as_real(mul_node)
+        if not (node.op == "call_function" and node.target == torch.view_as_real):
+            continue
+
+        mul_node = node.args[0]
+        # mul_node must be a call_method mul
+        if not (mul_node.op == "call_method" and mul_node.target == "mul"):
+            continue
+
+        lhs, rhs = mul_node.args[0], mul_node.args[1]
+
+        # Figure out which side is view_as_complex (the x side)
+        # and which side is the complex freqs input
+        if (
+            isinstance(lhs, torch.fx.Node)
+            and lhs.op == "call_function"
+            and lhs.target == torch.view_as_complex
+        ):
+            vac_node = lhs  # view_as_complex node
+            freqs_node = rhs  # the complex freqs_cis (possibly after a .view())
+        elif (
+            isinstance(rhs, torch.fx.Node)
+            and rhs.op == "call_function"
+            and rhs.target == torch.view_as_complex
+        ):
+            vac_node = rhs
+            freqs_node = lhs
+        else:
+            continue
+
+        # x_pairs is the input to view_as_complex — shape [..., 2], already real
+        x_pairs = vac_node.args[0]
+
+        with gm.graph.inserting_before(node):
+            # Decompose freqs_cis into real and imag via view_as_real
+            # This is the only complex op that survives, and it's on the input —
+            # the compiler can constant-fold it since freqs_cis is a known value.
+            freqs_ri = gm.graph.call_function(
+                torch.view_as_real, args=(freqs_node,)
+            )  # [..., 2]
+
+            # Extract cos (real) and sin (imag)
+            cos = gm.graph.call_function(
+                torch.ops.aten.select.int, args=(freqs_ri, -1, 0)
+            )
+            sin = gm.graph.call_function(
+                torch.ops.aten.select.int, args=(freqs_ri, -1, 1)
+            )
+
+            # Extract x1 (even) and x2 (odd) from the interleaved pairs
+            x1 = gm.graph.call_function(
+                torch.ops.aten.select.int, args=(x_pairs, -1, 0)
+            )
+            x2 = gm.graph.call_function(
+                torch.ops.aten.select.int, args=(x_pairs, -1, 1)
+            )
+
+            # Complex multiply in real arithmetic:
+            # out_real = x1 * cos - x2 * sin
+            x1_cos = gm.graph.call_function(torch.mul, args=(x1, cos))
+            x2_sin = gm.graph.call_function(torch.mul, args=(x2, sin))
+            out_real = gm.graph.call_function(torch.sub, args=(x1_cos, x2_sin))
+
+            # out_imag = x1 * sin + x2 * cos
+            x1_sin = gm.graph.call_function(torch.mul, args=(x1, sin))
+            x2_cos = gm.graph.call_function(torch.mul, args=(x2, cos))
+            out_imag = gm.graph.call_function(torch.add, args=(x1_sin, x2_cos))
+
+            # Stack back to [..., 2] — same shape as the original view_as_real output
+            out = gm.graph.call_function(
+                torch.stack, args=([out_real, out_imag],), kwargs={"dim": -1}
+            )
+
+        # Replace all uses of the view_as_real node with our new output
+        node.replace_all_uses_with(out)
+
+    gm.graph.eliminate_dead_code()
+    gm.graph.lint()
+    gm.recompile()
+    return gm
+
+
 # This function runs a series of passes on a torch GraphModule.
 # The passes here may be necessary (depending on the model) to
 # convert a GraphModule into a form which tt-mlir can compile/execute.
@@ -33,6 +133,8 @@ def torch_pass_pipeline(
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
+    breakpoint()
+    gm = decompose_complex_ops(gm)
 
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
