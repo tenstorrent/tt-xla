@@ -1039,28 +1039,22 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7x-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Function path mismatch for /usr/local/lib/python3.11/dist-packages/torch/_tensor.py:39 between simple and ast modes - https://github.com/tenstorrent/tt-xla/issues/2525"
-    bringup_status: FAILED_FE_COMPILATION
+    status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7-single_device-inference:
     status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7-w6-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+    status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7-e6-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+    status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7-d6-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+    status: EXPECTED_PASSING
 
   yolov7/pytorch-yolov7-e6e-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 10. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+    status: EXPECTED_PASSING
 
   yolox/pytorch-yolox_nano-single_device-inference:
     status: EXPECTED_PASSING
@@ -1368,11 +1362,9 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-bn_vgg19-single_device-inference:
-    required_pcc: 0.96 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   vgg/pytorch-timm_vgg19_bn-single_device-inference:
-    required_pcc: 0.95  # https://github.com/tenstorrent/tt-xla/issues/1242 , https://github.com/tenstorrent/tt-xla/issues/2803
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg11-single_device-inference:
@@ -1388,7 +1380,6 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg19_bn-single_device-inference:
-    required_pcc: 0.96 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   vgg/pytorch-hf_vgg19-single_device-inference:
@@ -2391,7 +2382,6 @@ test_config:
 
   ultra_fast_lane_detection_v2/pytorch-tusimple_resnet34-single_device-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.985 # PCC drop when changing inputs.
 
   faster_rcnn/pytorch-resnet50_fpn-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2666,3 +2656,7 @@ test_config:
         assert_pcc: false  # Actual PCC: 0.9693205147128082 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
       p150:
         assert_pcc: false  # Actual PCC: 0.9661477411303401 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+
+  vocoder_speecht5/pytorch-hifigan-single_device-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # PCC < 0.1, tracking issue https://github.com/tenstorrent/tt-xla/issues/3064

@@ -34,6 +34,12 @@ class TTConfig:
     # will essentially end up storing the entire model on device once per graph. This can easily lead to OOM errors.
     # There is an issue tracking this in tt-mlir: https://github.com/tenstorrent/tt-mlir/issues/3888
     enable_const_eval: bool = True
+
+    # Enables hoisting const-eval subgraphs to CPU module. When enabled, const-eval
+    # operations are hoisted to be executed on the CPU instead of being executed
+    # on the device.
+    enable_const_eval_on_cpu: bool = False
+
     min_context_len: int = 128
     batch_size: int = 1
     enable_precompile_all: bool = True
@@ -57,6 +63,7 @@ class TTConfig:
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
+            "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
             "experimental_enable_weight_bfp8_conversion": self.experimental_enable_weight_bfp8_conversion,
         }

@@ -63,11 +63,19 @@ class CompilerConfig:
     # some models until https://github.com/tenstorrent/tt-mlir/pull/6198 lands.
     experimental_enable_permute_matmul_fusion: bool = True
 
+    # Enables hoisting const-eval subgraphs to CPU module. When enabled, const-eval
+    # operations are hoisted to be executed on the CPU instead of being executed
+    # on the device.
+    enable_const_eval_on_cpu: bool = False
+
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
     # Enables IR dumping to a specified path.
     export_path: str = ""
+
+    # When set, exported IRs are named: <stage>_<model_name>_g<N>_<timestamp>.mlir
+    export_model_name: str = ""
 
     # Enables "try to recover structure" option for TTNN IR. Tries to match the
     # structure of the original graph. This generates a more readable solution,
@@ -104,11 +112,17 @@ class CompilerConfig:
         if not self.experimental_enable_permute_matmul_fusion:
             options["experimental_enable_permute_matmul_fusion"] = "false"
 
+        if self.enable_const_eval_on_cpu:
+            options["enable_const_eval_on_cpu"] = "true"
+
         if self.enable_trace:
             options["enable_trace"] = "true"
 
         if self.export_path != "":
             options["export_path"] = self.export_path
+
+        if self.export_model_name:
+            options["export_model_name"] = self.export_model_name
 
         if self.codegen_try_recover_structure:
             options["codegen_try_recover_structure"] = "true"
