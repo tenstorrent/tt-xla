@@ -39,6 +39,9 @@ def codegen_py(
     args = [arg.to(device) for arg in args if isinstance(arg, torch.Tensor)]
     kwargs = {k: v.to(device) for k, v in kwargs.items() if isinstance(v, torch.Tensor)}
     output = model(*args, **kwargs)
+    # Wait for all device operations to complete before returning
+    # This ensures codegen files are fully written
+    xm.wait_device_ops()
     return None
 
 
@@ -63,4 +66,7 @@ def codegen_cpp(
     args = [arg.to(device) for arg in args if isinstance(arg, torch.Tensor)]
     kwargs = {k: v.to(device) for k, v in kwargs.items() if isinstance(v, torch.Tensor)}
     output = model(*args, **kwargs)
+    # Wait for all device operations to complete before returning
+    # This ensures codegen files are fully written
+    xm.wait_device_ops()
     return None
