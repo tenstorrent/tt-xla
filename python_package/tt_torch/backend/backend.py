@@ -198,7 +198,7 @@ class XLAExecutor:
         if gm_has_functional_output_kind:
             # This tells torch-xla to cut the graph at only what is required to
             # compute all tensors in the `output` list.
-            torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
+            torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=True)
         else:
             # Some graphs have side effects not included in graph output.
             # In these cases we must call sync() to force materialization of non-user-output
