@@ -154,7 +154,7 @@ jobs:
         run: |
             source venv/activate
             #Inspect the wheel build type on wheel file without installing the wheel
-            pip install wheel-inspect
+            uv pip install wheel-inspect
             wheel_summary=$(wheel2json ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl | jq -r '.dist_info.metadata.summary')
             match=$(echo "$wheel_summary" | grep -oP "build-type=${{ inputs.build_type }}" || true)
             echo "Wheel summary: $wheel_summary"

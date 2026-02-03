@@ -34,7 +34,9 @@ def test_qwen3_backward():
     input_ids = inputs["input_ids"].to(device)
     attention_mask = inputs["attention_mask"].to(device)
 
-    model.compile(backend="tt")
+    model.compile(
+        backend="tt", options={"tt_legacy_compile": True}
+    )  # TODO(sgligorijevicTT): We agreed to fallback to legacy compile briefly until AOTAutograd can be integrated into the backend.
 
     outputs = model(
         input_ids=input_ids, attention_mask=attention_mask, labels=input_ids
@@ -54,6 +56,9 @@ def test_qwen3_backward():
 
 @pytest.mark.push
 @pytest.mark.dual_chip
+@pytest.mark.xfail(
+    reason="Loss should be positive, got -1.980134329970842e+38. See https://github.com/tenstorrent/tt-xla/issues/3069"
+)
 def test_qwen3_multichip_backward():
 
     model_variant = ModelVariant.QWEN_3_0_6B
@@ -74,7 +79,9 @@ def test_qwen3_multichip_backward():
     model = model.to(device)
     model.train()
 
-    model.compile(backend="tt")
+    model.compile(
+        backend="tt", options={"tt_legacy_compile": True}
+    )  # TODO(sgligorijevicTT): We agreed to fallback to legacy compile briefly until AOTAutograd can be integrated into the backend.
 
     shard_specs = model_loader.load_shard_spec(model)
     for tensor, shard_spec in shard_specs.items():

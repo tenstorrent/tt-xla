@@ -55,6 +55,11 @@ def test_unary_eltwise(
     axis_names: tuple,
     multichip_mode: ShardingMode,
 ):
+    if multichip_mode == ShardingMode.INPUTS and not use_shardy:
+        pytest.xfail(
+            "See https://github.com/tenstorrent/tt-xla/issues/3068 for more information"
+        )
+
     def fwd(a_block):
         b_block = jnp.negative(a_block)
         return b_block

@@ -71,7 +71,11 @@ class SetupConfig:
         requirements_path = THIS_DIR / "requirements.txt"
 
         with requirements_path.open() as f:
-            reqs = f.read().splitlines()
+            reqs = [
+                line
+                for line in f.read().splitlines()
+                if not line.strip().startswith("--extra-index-url")
+            ]
 
         return reqs
 
