@@ -113,6 +113,7 @@ class ModelTestConfig:
         self.data = data or {}
         self.arch = arch
         self.nodeid = nodeid
+        self.arch_override_fallback = None  # Set if qb2-blackhole uses fallback arch
 
         # For marking tests as expected passing, known failures, etc
         self.status = self._resolve("status", default=ModelTestStatus.UNSPECIFIED)
@@ -167,10 +168,12 @@ class ModelTestConfig:
         if self.arch == "qb2-blackhole":
             for fallback_arch in ["p150", "n300", "n300-llmbox"]:
                 if fallback_arch in overrides and key in overrides[fallback_arch]:
-                    print(
-                        f"WARNING: [qb2-blackhole hack] {self.nodeid}: "
-                        f"Using '{fallback_arch}' arch_overrides for qb2-blackhole"
-                    )
+                    if self.arch_override_fallback is None:
+                        self.arch_override_fallback = fallback_arch
+                        print(
+                            f"WARNING: [qb2-blackhole hack] {self.nodeid}: "
+                            f"Using '{fallback_arch}' arch_overrides for qb2-blackhole"
+                        )
                     return overrides[fallback_arch][key]
 
         return self.data.get(key, default)
@@ -633,6 +636,11 @@ def record_model_test_properties(
         "parallelism": str(parallelism),
         "arch": arch,
     }
+
+    # Add arch_override_fallback if a fallback was used (qb2-blackhole hack)
+    arch_override_fallback = getattr(test_metadata, "arch_override_fallback", None)
+    if arch_override_fallback is not None:
+        tags["arch_override_fallback"] = arch_override_fallback
 
     # Add model size (in billions of parameters) to tags if available
     if model_size is not None:
