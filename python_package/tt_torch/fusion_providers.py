@@ -73,31 +73,21 @@ class FusionProvider(ABC):
         return [self.match_filter]
 
     def replace_pattern(self, gm: torch.fx.GraphModule) -> int:
-        # Print what's actually in the graph before matching
-        print(f"\n=== {self.name} === Attempting pattern match ===")
-        print("Graph nodes:")
-        for node in gm.graph.nodes:
-            print(
-                f"  {node.op:20s} {node.name:40s} target={node.target} args={node.args} kwargs={node.kwargs}"
-            )
+        """
+        Replace a pattern in the graph.
 
-        # Print what the pattern traces to
-        pattern_gm = torch.fx.symbolic_trace(self.pattern)
+        Args:
+            gm: The GraphModule to transform
 
-        print("\nPattern nodes:")
-        for node in pattern_gm.graph.nodes:
-            print(
-                f"  {node.op:20s} {node.name:40s} target={node.target} args={node.args} kwargs={node.kwargs}"
-            )
-
+        Returns:
+            Number of replacements made
+        """
         replaced = replace_pattern_with_filters(
             gm,
             self.pattern,
             self.replacement,
             match_filters=self.get_match_filters(),
         )
-        print(f"\n=== {self.name} === Replacements: {len(replaced)} ===\n")
-
         return len(replaced)
 
 
@@ -172,95 +162,4 @@ class RMSNormFusionProvider(FusionProvider):
                 )
                 return False
 
-        return True
-
-
-class RotaryEmbFusionProvider(FusionProvider):
-
-    @property
-    def name(self) -> str:
-        return "rotary_emb_fusion"
-
-    @staticmethod
-    def pattern(
-        x: Tensor,
-        freqs_cis: Tensor,
-        # x.view() shape args (5 dims)
-        x_d0,
-        x_d1,
-        x_d2,
-        x_d3,
-        x_d4,
-        # freqs_cis.view() shape args (4 dims)
-        f_d0,
-        f_d1,
-        f_d2,
-        f_d3,
-        # output dtype
-        dtype,
-    ) -> Tensor:
-        x_float = x.float()
-        x_pairs = x_float.view(x_d0, x_d1, x_d2, x_d3, x_d4)
-
-        freqs_view = freqs_cis.view(f_d0, f_d1, f_d2, f_d3)
-        freqs_ri = torch.view_as_real(freqs_view)
-        cos = torch.ops.aten.select.int(freqs_ri, -1, 0)
-        sin = torch.ops.aten.select.int(freqs_ri, -1, 1)
-
-        x1 = torch.ops.aten.select.int(x_pairs, -1, 0)
-        x2 = torch.ops.aten.select.int(x_pairs, -1, 1)
-
-        x1_cos = torch.mul(x1, cos)
-        x2_sin = torch.mul(x2, sin)
-        out_real = torch.sub(x1_cos, x2_sin)
-
-        x1_sin = torch.mul(x1, sin)
-        x2_cos = torch.mul(x2, cos)
-        out_imag = torch.add(x1_sin, x2_cos)
-
-        out = torch.stack([out_real, out_imag], dim=-1)
-        flat = out.flatten(3)
-        return flat.to(dtype)
-
-    @staticmethod
-    def replacement(
-        x: Tensor,
-        freqs_cis: Tensor,
-        x_d0,
-        x_d1,
-        x_d2,
-        x_d3,
-        x_d4,
-        f_d0,
-        f_d1,
-        f_d2,
-        f_d3,
-        dtype,
-    ) -> Tensor:
-        # This is where you'd put your fused kernel call.
-        # For now it's a 1:1 functional replacement.
-        x_float = x.float()
-        x_pairs = x_float.view(x_d0, x_d1, x_d2, x_d3, x_d4)
-
-        freqs_view = freqs_cis.view(f_d0, f_d1, f_d2, f_d3)
-        freqs_ri = torch.view_as_real(freqs_view)
-        cos = torch.ops.aten.select.int(freqs_ri, -1, 0)
-        sin = torch.ops.aten.select.int(freqs_ri, -1, 1)
-
-        x1 = torch.ops.aten.select.int(x_pairs, -1, 0)
-        x2 = torch.ops.aten.select.int(x_pairs, -1, 1)
-
-        out_real = x1 * cos - x2 * sin
-        out_imag = x1 * sin + x2 * cos
-
-        out = torch.stack([out_real, out_imag], dim=-1).flatten(3)
-        return out.to(dtype)
-
-    @staticmethod
-    def match_filter(match, gm: torch.fx.Graph, subgraph: torch.fx.Graph) -> bool:
-        for pn, gn in match.nodes_map.items():
-            if pn.target == "view" and pn.name == "view":
-                shape = gn.args[1:]
-                if shape[-1] != 2:
-                    return False
         return True
