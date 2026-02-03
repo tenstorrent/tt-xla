@@ -21,6 +21,7 @@ permissions:
   actions: write
   packages: write
   attestations: write
+  checks: write
 
 jobs:
   build-image:
