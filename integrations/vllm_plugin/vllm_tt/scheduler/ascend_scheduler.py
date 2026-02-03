@@ -92,7 +92,6 @@ class AscendScheduler(Scheduler):
 
         # Schedule prefill requests first (unless decode is forced).
         req_index = 0
-        prefill_scheduled = 0
         while self.waiting and token_budget > 0 and self._forced_mode != 0:
             if len(self.running) == self.max_num_running_reqs:
                 break
@@ -271,10 +270,6 @@ class AscendScheduler(Scheduler):
             # Count the number of prefix cached tokens.
             if request.num_cached_tokens < 0:
                 request.num_cached_tokens = num_computed_tokens
-            # TODO(sshon): Handle prefill scheduling for multi user at same request.
-            prefill_scheduled += 1
-            if prefill_scheduled >= 1:
-                break
 
         # Put back any skipped requests at the head of the waiting queue
         if skipped_waiting_requests:
