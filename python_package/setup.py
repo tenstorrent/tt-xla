@@ -301,9 +301,6 @@ class CMakeBuildPy(build_py):
         # Run source env/activate if in ci, otherwise onus is on dev
         if self.in_ci():
             cmake_cmd = [
-                "cd",
-                str(REPO_DIR),
-                "&&",
                 "source",
                 "venv/activate",
                 "&&",
@@ -313,9 +310,13 @@ class CMakeBuildPy(build_py):
         print(f"CMake arguments: {[*cmake_cmd, *cmake_args]}")
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
-        self.spawn([*cmake_cmd, *cmake_args])
-        self.spawn([*cmake_cmd, *build_command])
-        self.spawn([*cmake_cmd, *install_command])
+        subprocess.run([*cmake_cmd, *cmake_args], check=True, shell=True, cwd=REPO_DIR)
+        subprocess.run(
+            [*cmake_cmd, *build_command], check=True, shell=True, cwd=REPO_DIR
+        )
+        subprocess.run(
+            [*cmake_cmd, *install_command], check=True, shell=True, cwd=REPO_DIR
+        )
 
         self._prune_install_tree(install_dir)
 
