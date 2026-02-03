@@ -10,6 +10,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
+from sys import stderr, stdout
 
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_py import build_py
@@ -311,14 +312,34 @@ class CMakeBuildPy(build_py):
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
         print("Setting up CMake project...")
-        subprocess.run([*cmake_cmd, *cmake_args], check=True, shell=True, cwd=REPO_DIR)
-        print("Building project...")
+        stdout.flush()
+        stderr.flush()
         subprocess.run(
-            [*cmake_cmd, *build_command], check=True, shell=True, cwd=REPO_DIR
+            " ".join([*cmake_cmd, *cmake_args]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
+        )
+        print("Building project...")
+        stdout.flush()
+        stderr.flush()
+        subprocess.run(
+            " ".join([*cmake_cmd, *build_command]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
         )
         print("Installing project...")
+        stdout.flush()
+        stderr.flush()
         subprocess.run(
-            [*cmake_cmd, *install_command], check=True, shell=True, cwd=REPO_DIR
+            " ".join([*cmake_cmd, *install_command]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
         )
 
         self._prune_install_tree(install_dir)
