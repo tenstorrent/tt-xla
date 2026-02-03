@@ -21,7 +21,6 @@ from .passes import (
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
-    replace_cpu_device_with_xla,
     run_fusion_passes,
 )
 
