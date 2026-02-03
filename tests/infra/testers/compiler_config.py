@@ -66,7 +66,7 @@ class CompilerConfig:
     # Enables hoisting const-eval subgraphs to CPU module. When enabled, const-eval
     # operations are hoisted to be executed on the CPU instead of being executed
     # on the device.
-    enable_const_eval_on_cpu: bool = False
+    enable_const_eval_on_cpu: bool = True
 
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False

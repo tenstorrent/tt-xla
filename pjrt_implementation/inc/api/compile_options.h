@@ -95,7 +95,7 @@ struct CompileOptions {
   // When enabled, const-eval operations are hoisted to be executed on the CPU
   // instead of being executed on the device. CPU execution uses 32-bit
   // precision for all operations, which can improve accuracy for some models.
-  bool enable_const_eval_on_cpu = false;
+  bool enable_const_eval_on_cpu = true;
 
   // Enables transpose + matmul and transpose + linear ops fusion.
   // This controls fusing of transpose + matmul and transpose + linear ops.
