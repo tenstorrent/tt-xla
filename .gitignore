@@ -37,3 +37,7 @@ bindist/
 
 # Bisect artifacts
 .bisect-run/
+
+# Collected IRs
+collected_irs/
+generated/
