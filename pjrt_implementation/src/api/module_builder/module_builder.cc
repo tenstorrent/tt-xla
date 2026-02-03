@@ -936,6 +936,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.enableTrace = compile_options.enable_trace;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
+  options.enableCPUHoistedConstEval = compile_options.enable_const_eval_on_cpu;
   options.ttnnPerfMetricsEnabled = compile_options.ttnn_perf_metrics_enabled;
 
   // Auto-number performance metrics output file if enabled
@@ -1309,14 +1310,11 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
   // Alchemist specific options are passed here.
   // Other options are ingested during TTIR->TTNN conversion.
   std::string should_load = compile_options.export_tensors ? "true" : "false";
-  std::string try_recover_structure =
-      compile_options.codegen_try_recover_structure ? "true" : "false";
+
   std::string pipeline_options = "load-input-tensors-from-disk=" + should_load +
                                  " "
-                                 "tensor-load-directory='./tensors'" +
-                                 " "
-                                 "try-recover-structure=" +
-                                 try_recover_structure;
+                                 "tensor-load-directory='./tensors'";
+
   bool result;
 
   if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
@@ -1328,6 +1326,9 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
     // standalone is currently marked as unsupported, and setting it only
     // results in copying of one extra blank file. As per offline discussion
     // with mlir-core, we should set local to true for Python.
+    std::string try_recover_structure =
+        compile_options.codegen_try_recover_structure ? "true" : "false";
+    pipeline_options += " try-recover-structure=" + try_recover_structure;
     is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
         instance, input_file.c_str(), folder.c_str(), is_local,
