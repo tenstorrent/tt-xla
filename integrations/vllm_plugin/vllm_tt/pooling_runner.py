@@ -87,6 +87,7 @@ from .logger import tt_init_logger
 from .platform import TTConfig
 from .pooling_input_batch import CachedRequestState, InputBatch
 from .vllm_utils import shard_model
+from .model_loader import TTModelLoader
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -305,6 +306,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Setup for parallel execution.
         if self.enable_tensor_parallel or self.enable_data_parallel:
             mesh_shape = (self.num_devices, 1)
+            mesh_shape = (2, 4)
             device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
 
@@ -1154,6 +1156,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         scheduler_output: "SchedulerOutput",
         intermediate_tensors: Optional[IntermediateTensors] = None,
     ) -> ModelRunnerOutput:
+        logger.info(f"execute_model")
         torch._dynamo.config.dynamic_shapes = False
         # Update cached state
         self._update_states(scheduler_output)
@@ -1205,6 +1208,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     inputs_embeds=inputs_embeds,
                 )
                 hidden_states = hidden_states.to("cpu")
+            logger.info(f"hidden_states: {hidden_states.shape} -- {hidden_states}")
 
             # Split along batch dimension and remove the extra dimension
             hidden_states_list = [
@@ -1304,7 +1308,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ):
             try:
                 if self.enable_tensor_parallel:
-                    tpu_loader = TPUModelLoader(
+                    tpu_loader = TTModelLoader(
                         load_config=self.vllm_config.load_config
                     )
                     model = tpu_loader.load_model(
@@ -1312,7 +1316,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         model_config=self.vllm_config.model_config,
                         mesh=self.mesh,
                     ).eval()
-                    shard_model(model, self.mesh)
+                    #shard_model(model, self.mesh)
                 else:
                     model_loader = get_model_loader(self.load_config)
                     logger.info("Loading model from scratch...")
@@ -1470,6 +1474,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        return
         self._precompile_backbone()
         return
 
