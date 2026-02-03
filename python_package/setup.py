@@ -310,10 +310,13 @@ class CMakeBuildPy(build_py):
         print(f"CMake arguments: {[*cmake_cmd, *cmake_args]}")
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
+        print("Setting up CMake project...")
         subprocess.run([*cmake_cmd, *cmake_args], check=True, shell=True, cwd=REPO_DIR)
+        print("Building project...")
         subprocess.run(
             [*cmake_cmd, *build_command], check=True, shell=True, cwd=REPO_DIR
         )
+        print("Installing project...")
         subprocess.run(
             [*cmake_cmd, *install_command], check=True, shell=True, cwd=REPO_DIR
         )
