@@ -26,125 +26,23 @@ from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 
-def patch_gpt_oss_attention_sinks():
-    """
-    Monkey-patch GPT-OSS eager_attention_forward to use repeat instead of expand.
+DEFAULT_PROMPT = "Explain quantum mechanics"
 
-    The expand operation creates a view that doesn't work correctly with torch.compile.
-    Using repeat explicitly copies the data, which is more compatible with tracing.
-    """
-    import torch.nn.functional as F
-    from torch import nn
-    from transformers.models.gpt_oss.modeling_gpt_oss import repeat_kv
-
-    def patched_eager_attention_forward(
-        module: nn.Module,
-        query: torch.Tensor,
-        key: torch.Tensor,
-        value: torch.Tensor,
-        attention_mask: torch.Tensor | None,
-        scaling: float,
-        dropout: float = 0.0,
-        **kwargs,
-    ):
-        key_states = repeat_kv(key, module.num_key_value_groups)
-        value_states = repeat_kv(value, module.num_key_value_groups)
-        attn_weights = torch.matmul(query, key_states.transpose(2, 3)) * scaling
-        if attention_mask is not None:
-            causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
-            attn_weights = attn_weights + causal_mask
-
-        # Create sinks tensor with explicit operations for torch.compile compatibility
-        # Get dimensions from query tensor
-        batch_size, num_heads, query_len, _ = query.shape
-
-        print(f"DEBUG: query.shape = {query.shape}")
-        print(f"DEBUG: extracted query_len = {query_len}")
-
-        # Create a tensor of ones with the target shape, then multiply by sinks values
-        # This avoids expand/repeat/broadcast_to which don't trace well
-        sinks_ones = torch.ones(
-            batch_size, num_heads, query_len, 1, dtype=query.dtype, device=query.device
-        )
-        print(f"DEBUG: sinks_ones.shape after torch.ones = {sinks_ones.shape}")
-
-        # Multiply by the sink values (shape: num_heads -> 1, num_heads, 1, 1)
-        sink_values = module.sinks.reshape(1, -1, 1, 1)
-        print(f"DEBUG: sink_values.shape = {sink_values.shape}")
-
-        sinks = sinks_ones * sink_values
-        print(f"DEBUG: sinks.shape after multiplication = {sinks.shape}")
-        print(f"DEBUG: attn_weights.shape = {attn_weights.shape}")
-
-        combined_logits = torch.cat([attn_weights, sinks], dim=-1)
-
-        combined_logits = (
-            combined_logits - combined_logits.max(dim=-1, keepdim=True).values
-        )
-        probs = F.softmax(combined_logits, dim=-1, dtype=combined_logits.dtype)
-        scores = probs[..., :-1]
-        attn_weights = nn.functional.dropout(
-            scores, p=dropout, training=module.training
-        )
-        attn_output = torch.matmul(attn_weights, value_states)
-        attn_output = attn_output.transpose(1, 2).contiguous()
-        return attn_output, attn_weights
-
-    # Apply the patch
-    import transformers.models.gpt_oss.modeling_gpt_oss as gpt_oss_modeling
-
-    gpt_oss_modeling.eager_attention_forward = patched_eager_attention_forward
-    print("Applied GPT-OSS attention sinks patch (expand -> repeat)")
-
-
-DEFAULT_PROMPTS = [
-    "I like taking walks in the",
-    "My name is",
-    "My favorite color is",
-    "Cheese is an excellent",
-    "While ham sandwiches are great, I prefer",
-    "My bicycle is broken, and",
-    "The best way to start my day is with",
-    "I love to",
-    "I am not a fan of",
-    "Toronto has an explosive restaurant scene. There are many different cuisines to",
-    "My favorite season is",
-    "My least favorite season is",
-    "Bison meat is not",
-    "If you forget to wear your shoes when you go hiking,",
-    "My right elbow is in pain, and",
-    "To make a grilled cheese, start by",
-    "The internal combustion engine",
-    "The first person to walk on the moon was",
-    "The ocean is home to many",
-    "I",
-    "Calculus is a branch of mathematics that",
-    "The most common type of cloud is",
-    "A matrix dot product is",
-    "The 300 Spartans were",
-    "Napoleon Bonaparte was born in",
-    "The quick brown fox jumps over the lazy dog. And then he",
-    "The original title of the book 'The Great Gatsby' was",
-    "I forgot to tie my shoelaces",
-    "Playing video games",
-    "The sun is",
-    "My car's transmission is",
-    "My keyboard is in a language I don't understand! What",
-]
-
+MAX_SEQUENCE_LENGTH = 32
 
 # --------------------------------
 # GPT-OSS 20B Generation Loop Example
 # --------------------------------
 def gpt_oss_20b(interactive: bool = False):
 
-    # TODO: no need to check version?
-    # Check transformers version
-    # check_transformers_version()
+    # TODO: check transformers version?
 
     # Set up config variables.
     max_cache_len: int = 128
-    model_name: str = "openai/gpt-oss-20b"
+    # TODO: For now we use unsloth's BF16 version to get around MXFP4 quantization issue and the unintialized weights issue.
+    # We should try the openai/gpt-oss-20b dequantized version
+    # model_name: str = "openai/gpt-oss-20b"
+    model_name: str = "unsloth/gpt-oss-20b-BF16"
 
     # TODO: always need spmd?
     # Determine if SPMD mode should be enabled, if more than 1 device is available.
@@ -158,9 +56,6 @@ def gpt_oss_20b(interactive: bool = False):
     device: torch.device = torch_xla.device()
     mesh: Mesh = create_device_mesh()
 
-    # Apply GPT-OSS attention sinks patch for torch.compile compatibility
-    patch_gpt_oss_attention_sinks()
-
     # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_name)
 
@@ -173,10 +68,11 @@ def gpt_oss_20b(interactive: bool = False):
             batch_size: int = 1
             if user_prompt.lower() == "quit()":
                 break
-            user_prompt = [user_prompt]
+            # user_prompt = [user_prompt]
         else:
             batch_size: int = 1  # Reduced from 32 to avoid OOM
-            user_prompt = DEFAULT_PROMPTS[:batch_size]
+            # user_prompt = DEFAULT_PROMPTS[:batch_size]
+            user_prompt = DEFAULT_PROMPT
 
         # Construct inputs, including static cache
         input_args = construct_inputs(
@@ -251,9 +147,14 @@ def load_config(model_name: str) -> PretrainedConfig:
     """
     config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
 
-    config.quantization_config["quant_method"] = "none"
-    # TODO: unnecessary?
     config.use_cache = True
+
+    # TODO: Currently disabling sliding window to avoid recompilation
+    # config.sliding_window = None
+    config.layer_types = [
+        "full_attention"
+    ] * config.num_hidden_layers
+
     return config
 
 
@@ -276,7 +177,7 @@ def setup_model_and_tokenizer(
         config=config,
         low_cpu_mem_usage=True,
         trust_remote_code=True,
-        # attn_implementation="eager",  # Removed - use default like Llama
+        attn_implementation="eager",
     )
     model = model.eval()
 
@@ -306,13 +207,17 @@ def construct_inputs(
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
-    inputs = tokenizer(
-        input_prompt,
+
+    messages = [{"role": "user", "content": input_prompt}]
+
+    inputs = tokenizer.apply_chat_template(
+        messages,
+        add_generation_prompt=True,
+        tokenize=True,
+        return_dict=True,
         return_tensors="pt",
-        max_length=32,
         padding="max_length",
-        padding_side="left",
-        return_attention_mask=True,
+        max_length=MAX_SEQUENCE_LENGTH,
     )
 
     # Static cache should be initialized on CPU and separately transferred to device
@@ -325,7 +230,6 @@ def construct_inputs(
         dtype=torch.bfloat16,
     )
     num_key_value_heads = model_config.num_key_value_heads
-    # head_dim = model_config.hidden_size // model_config.num_attention_heads
     head_dim = model_config.head_dim
     static_cache.early_initialization(
         batch_size=batch_size,
@@ -334,43 +238,31 @@ def construct_inputs(
         dtype=torch.bfloat16,
         device="cpu",
     )
+
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
-    # Create 4D attention mask to bypass get_mask_sizes() and prevent recompilations
-    # 4D mask triggers early exit in masking_utils.py:709, avoiding cumulative_length access
-    # Shape: (batch_size, num_heads=1, query_length, key_value_length)
-    prompt_len = inputs.input_ids.shape[1]
 
-    # Initialize 4D mask: (batch, 1, query_len, kv_len)
-    # Use float dtype with 0.0 = can attend, -inf = masked out
-    full_attention_mask = torch.zeros(
-        (batch_size, 1, prompt_len, max_cache_len), dtype=torch.float32
+    # Create 4D causal attention mask for static cache compatibility
+    # Shape: (batch_size, num_heads, query_length, key_value_length)
+    # Prefill phase: (1, 1, prompt_length, max_cache_size)
+    # Values: 0.0 for unmasked positions (can attend), -inf for masked positions (cannot attend)
+    # For causal masking: each query position i can only attend to positions 0..i (inclusive)
+    original_input_length = inputs.input_ids.shape[1]
+    full_attention_mask = torch.full(
+        (batch_size, 1, original_input_length, max_cache_len),
+        float("-inf"),
+        dtype=torch.float32,
     )
-
-    # For each batch element, mask out padding positions
-    for i in range(batch_size):
-        # Count valid (non-padding) tokens in this sequence
-        # inputs.attention_mask is 1 for valid tokens, 0 for padding
-        valid_token_count = inputs.attention_mask[i].sum().item()
-
-        # Allow attending to valid token positions
-        # valid tokens are at the END for left-padded sequences
-        valid_start_pos = prompt_len - valid_token_count
-
-        # Set attention to 0.0 (can attend) for valid positions
-        # Set to -inf (cannot attend) for padding positions
-        full_attention_mask[i, 0, :, valid_start_pos:prompt_len] = 0.0
-        full_attention_mask[i, 0, :, :valid_start_pos] = float("-inf")  # Mask padding
-        # TODO: should be 0 instead of -inf?
-        full_attention_mask[i, 0, :, prompt_len:] = float(
-            "-inf"
-        )  # Mask future cache positions
+    causal_mask = torch.tril(
+        torch.ones((original_input_length, original_input_length), dtype=torch.float32)
+    )
+    causal_mask = torch.where(causal_mask == 1, 0.0, float("-inf"))
+    full_attention_mask[0, 0, :, :original_input_length] = causal_mask
 
     input_args = {
         "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
         "cache_position": cache_position,
-        # TODO: no need?
         "use_cache": True,
         "attention_mask": full_attention_mask,
     }
@@ -435,12 +327,7 @@ def mark_sharding_on_inputs_and_model(
         xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
         xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
-    # Shard model internals
     for layer in model.model.layers:
-        # xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
-        # xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", None))
-        # xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "model"))
-
         xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
@@ -495,12 +382,29 @@ def run_generate(
     """
     num_users = input_args["input_ids"].shape[0]
     output_tokens: List[List[str]] = [[] for _ in range(num_users)]
+
+    # TODO: This is out of nowhere
+    original_input_length = input_args["input_ids"].shape[1]
+    current_pos = original_input_length
+    batch_size = 1
+    max_cache_len = 128
+    decode_attention_mask = torch.full(
+        (batch_size, 1, 1, max_cache_len),
+        float("-inf"),
+        dtype=torch.float32,
+    )
+    # TODO: consider masking padding for batch > 1
+    decode_attention_mask[0, 0, 0, :current_pos] = 0.0
+    decode_attention_mask = decode_attention_mask.to(device)
+
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             if step == 0:
                 print("RUNNING PREFILL")
                 if is_interactive:
                     print(f"Result: {input_prompt[0]}", end="", flush=True)
+            else:
+                print("RUNNING DECODE")
 
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
@@ -524,33 +428,17 @@ def run_generate(
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
 
+            if step == 0:
+                input_args["attention_mask"] = decode_attention_mask
+
+            input_args["attention_mask"][0, 0, 0, current_pos] = 0.0
+            current_pos += 1
+
     print()
     if not is_interactive:
         for i in range(num_users):
             print(f"Result for user {i}: {input_prompt[i]}{''.join(output_tokens[i])}")
             print()
-
-
-# def check_transformers_version():
-#     """
-#     Check that transformers version is <= 4.52.4.
-#     Raises RuntimeError if version is incompatible.
-
-#     This is because transformers SDPA implementation changed in later versions,
-#     which causes dynamo trace to fail.
-
-#     See https://github.com/tenstorrent/tt-xla/issues/1020
-#     """
-#     import packaging.version
-
-#     current_version = packaging.version.parse(transformers.__version__)
-#     max_version = packaging.version.parse("4.57.1")
-
-#     if current_version > max_version:
-#         raise RuntimeError(
-#             f"Transformers version {transformers.__version__} is not supported. "
-#             f"Please use version <= 4.57.1"
-#         )
 
 
 if __name__ == "__main__":
