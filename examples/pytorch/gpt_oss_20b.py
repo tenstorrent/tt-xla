@@ -39,8 +39,7 @@ def gpt_oss_20b(interactive: bool = False):
 
     # Set up config variables.
     max_cache_len: int = 128
-    # TODO: For now we use unsloth's BF16 version to get around MXFP4 quantization issue and the unintialized weights issue.
-    # We should try the openai/gpt-oss-20b dequantized version
+    # TODO: For now we use unsloth's BF16 version to get around MXFP4 quantization issue and the unintialized weights issue
     # model_name: str = "openai/gpt-oss-20b"
     model_name: str = "unsloth/gpt-oss-20b-BF16"
 
@@ -155,6 +154,9 @@ def load_config(model_name: str) -> PretrainedConfig:
         "full_attention"
     ] * config.num_hidden_layers
 
+    # Set quantization method to "none" if using "openai/gpt-oss-20b"
+    # config.quantization_config["quant_method"] = "none"
+
     return config
 
 
@@ -242,22 +244,13 @@ def construct_inputs(
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
 
-    # Create 4D causal attention mask for static cache compatibility
-    # Shape: (batch_size, num_heads, query_length, key_value_length)
-    # Prefill phase: (1, 1, prompt_length, max_cache_size)
-    # Values: 0.0 for unmasked positions (can attend), -inf for masked positions (cannot attend)
-    # For causal masking: each query position i can only attend to positions 0..i (inclusive)
-    original_input_length = inputs.input_ids.shape[1]
-    full_attention_mask = torch.full(
-        (batch_size, 1, original_input_length, max_cache_len),
-        float("-inf"),
-        dtype=torch.float32,
+    # Attention mask is needed to ignore padding tokens in left-padded batches. The mask should match max_cache_len
+    # to prevent recompilation or implicit padding by transformers, which can cause degenerate output.
+    prompt_len = inputs.input_ids.shape[1]
+    full_attention_mask = torch.ones(
+        (batch_size, max_cache_len), dtype=inputs.attention_mask.dtype
     )
-    causal_mask = torch.tril(
-        torch.ones((original_input_length, original_input_length), dtype=torch.float32)
-    )
-    causal_mask = torch.where(causal_mask == 1, 0.0, float("-inf"))
-    full_attention_mask[0, 0, :, :original_input_length] = causal_mask
+    full_attention_mask[:, :prompt_len] = inputs.attention_mask
 
     input_args = {
         "input_ids": inputs.input_ids,
@@ -383,28 +376,12 @@ def run_generate(
     num_users = input_args["input_ids"].shape[0]
     output_tokens: List[List[str]] = [[] for _ in range(num_users)]
 
-    # TODO: This is out of nowhere
-    original_input_length = input_args["input_ids"].shape[1]
-    current_pos = original_input_length
-    batch_size = 1
-    max_cache_len = 128
-    decode_attention_mask = torch.full(
-        (batch_size, 1, 1, max_cache_len),
-        float("-inf"),
-        dtype=torch.float32,
-    )
-    # TODO: consider masking padding for batch > 1
-    decode_attention_mask[0, 0, 0, :current_pos] = 0.0
-    decode_attention_mask = decode_attention_mask.to(device)
-
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             if step == 0:
                 print("RUNNING PREFILL")
                 if is_interactive:
                     print(f"Result: {input_prompt[0]}", end="", flush=True)
-            else:
-                print("RUNNING DECODE")
 
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
@@ -427,12 +404,6 @@ def run_generate(
             host_cache_pos = input_args["cache_position"].to("cpu")
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
-
-            if step == 0:
-                input_args["attention_mask"] = decode_attention_mask
-
-            input_args["attention_mask"][0, 0, 0, current_pos] = 0.0
-            current_pos += 1
 
     print()
     if not is_interactive:
