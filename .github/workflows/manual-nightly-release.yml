@@ -8,12 +8,19 @@ on:
         type: string
         required: true
 
+# permissions:
+#   contents: write
+#   actions: write
+#   id-token: write
+#   packages: write
+#   checks: write
 permissions:
+  pages: write
+  id-token: write
   contents: write
   actions: write
-  id-token: write
   packages: write
-  checks: write
+  attestations: write
 
 jobs:
   build-image:
