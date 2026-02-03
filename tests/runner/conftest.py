@@ -119,7 +119,9 @@ def pytest_collection_modifyitems(config, items):
 
         _collected_nodeids.add(nodeid)  # Track for final validation
 
-        meta = ModelTestConfig(combined_test_config.get(nodeid), arch)
+        meta = ModelTestConfig(
+            combined_test_config.get(nodeid), arch, nodeid=item.nodeid
+        )
         item._test_meta = meta  # attach for fixture access
 
         # Uncomment this to print info for each test collected.

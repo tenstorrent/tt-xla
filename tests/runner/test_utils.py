@@ -109,9 +109,10 @@ class ModelTestStatus(Enum):
 
 
 class ModelTestConfig:
-    def __init__(self, data, arch=None):
+    def __init__(self, data, arch=None, nodeid=None):
         self.data = data or {}
         self.arch = arch
+        self.nodeid = nodeid
 
         # For marking tests as expected passing, known failures, etc
         self.status = self._resolve("status", default=ModelTestStatus.UNSPECIFIED)
@@ -159,6 +160,19 @@ class ModelTestConfig:
         overrides = self.data.get("arch_overrides", {})
         if self.arch in overrides and key in overrides[self.arch]:
             return overrides[self.arch][key]
+
+        # HACK: For qb2-blackhole, fall back to p150/n300/n300-llmbox overrides.
+        # This allows running existing p150-tagged tests on qb2-blackhole without
+        # modifying YAML files.
+        if self.arch == "qb2-blackhole":
+            for fallback_arch in ["p150", "n300", "n300-llmbox"]:
+                if fallback_arch in overrides and key in overrides[fallback_arch]:
+                    print(
+                        f"WARNING: [qb2-blackhole hack] {self.nodeid}: "
+                        f"Using '{fallback_arch}' arch_overrides for qb2-blackhole"
+                    )
+                    return overrides[fallback_arch][key]
+
         return self.data.get(key, default)
 
     def to_comparison_config(self) -> ComparisonConfig:
