@@ -199,44 +199,44 @@ def _run_model_test_impl(
 
             # prints perf benchmark results to console
             # Dumps perf benchmark results to JSON report if --perf-report-dir is given
-            if framework == Framework.TORCH and run_mode == RunMode.INFERENCE:
-                measurements = getattr(tester, "_perf_measurements", None)
-                model_config = loader.load_config()
-                batch_size, input_sequence_length, input_size = (
-                    get_input_shape_info(getattr(tester, "_input_activations", None))
-                    if tester
-                    else (1, -1)
-                )
-                create_benchmark_result(
-                    full_model_name=model_info.name,
-                    output_dir=request.config.getoption("--perf-report-dir"),
-                    perf_id=request.config.getoption("--perf-id"),
-                    measurements=measurements,
-                    model_type=str(model_info.task),
-                    training=False,
-                    model_info=model_info.name,
-                    model_rawname=f"{model_info.model}_{model_info.variant}",
-                    model_group=str(model_info.group),
-                    parallelism=str(parallelism),
-                    device_arch=get_xla_device_arch(),
-                    run_mode=str(run_mode),
-                    device_name=socket.gethostname(),
-                    batch_size=batch_size,
-                    input_size=input_size,
-                    num_layers=getattr(model_config, "num_hidden_layers", 0),
-                    total_time=(
-                        measurements[0].get("total_time", -1)
-                        if measurements and len(measurements) > 0
-                        else -1
-                    ),
-                    total_samples=(
-                        measurements[0].get("perf_iters_count", -1)
-                        if measurements and len(measurements) > 0
-                        else -1
-                    ),
-                    input_sequence_length=input_sequence_length,
-                    data_format="bfloat16",
-                )
+            # if framework == Framework.TORCH and run_mode == RunMode.INFERENCE:
+            #     measurements = getattr(tester, "_perf_measurements", None)
+            #     model_config = loader.load_config()
+            #     batch_size, input_sequence_length, input_size = (
+            #         get_input_shape_info(getattr(tester, "_input_activations", None))
+            #         if tester
+            #         else (1, -1)
+            #     )
+            #     create_benchmark_result(
+            #         full_model_name=model_info.name,
+            #         output_dir=request.config.getoption("--perf-report-dir"),
+            #         perf_id=request.config.getoption("--perf-id"),
+            #         measurements=measurements,
+            #         model_type=str(model_info.task),
+            #         training=False,
+            #         model_info=model_info.name,
+            #         model_rawname=f"{model_info.model}_{model_info.variant}",
+            #         model_group=str(model_info.group),
+            #         parallelism=str(parallelism),
+            #         device_arch=get_xla_device_arch(),
+            #         run_mode=str(run_mode),
+            #         device_name=socket.gethostname(),
+            #         batch_size=batch_size,
+            #         input_size=input_size,
+            #         num_layers=getattr(model_config, "num_hidden_layers", 0),
+            #         total_time=(
+            #             measurements[0].get("total_time", -1)
+            #             if measurements and len(measurements) > 0
+            #             else -1
+            #         ),
+            #         total_samples=(
+            #             measurements[0].get("perf_iters_count", -1)
+            #             if measurements and len(measurements) > 0
+            #             else -1
+            #         ),
+            #         input_sequence_length=input_sequence_length,
+            #         data_format="bfloat16",
+            #     )
 
 
 @pytest.mark.model_test
