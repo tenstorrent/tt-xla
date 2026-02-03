@@ -75,7 +75,9 @@ def main():
     # Use BF16 version to avoid MXFP4 quantization issues
     # TODO: For now we use unsloth's BF16 version to get around MXFP4 quantization issue and the unintialized weights issue.
     model_name = "unsloth/gpt-oss-20b-BF16"
-    max_tokens_to_generate = 50  # Number of tokens to generate
+    # TODO: if we have max_sequence_length = 100 the model runs fine
+    # likely this is the sliding window issue
+    max_tokens_to_generate = 5  # Number of tokens to generate
     max_sequence_length = 256  # Pre-allocate sequence to avoid recompilation
 
     # Verify we have enough devices
@@ -108,14 +110,22 @@ def main():
     # No need to modify quantization_config for BF16 version
     config.use_cache = True  # Enable cache for static cache support
 
-    # Increase sliding window size to avoid 128-token restriction
-    # Keep layer_types unchanged to preserve trained architecture
-    config.sliding_window = (
-        config.max_position_embeddings
-    )  # Set to max sequence length (131072)
+    # config.sliding_window = None  # Disable 128-token window restriction
+    config.layer_types = [
+        "full_attention"
+    ] * config.num_hidden_layers  # All layers use full attention
     print(
-        f"Modified config: sliding_window increased from 128 to {config.sliding_window} (preserving trained layer types)"
+        f"Modified config: sliding_window={config.sliding_window}, all {config.num_hidden_layers} layers use full_attention"
     )
+
+    # # Increase sliding window size to avoid 128-token restriction
+    # # Keep layer_types unchanged to preserve trained architecture
+    # config.sliding_window = (
+    #     config.max_position_embeddings
+    # )  # Set to max sequence length (131072)
+    # print(
+    #     f"Modified config: sliding_window increased from 128 to {config.sliding_window} (preserving trained layer types)"
+    # )
 
     # Load model with eager attention for torch.compile compatibility
     # Using BF16 version which has properly initialized weights
@@ -199,6 +209,8 @@ def main():
     causal_mask = torch.where(causal_mask == 1, 0.0, float("-inf"))
     full_attention_mask[0, 0, :, :original_input_length] = causal_mask
     # Future cache positions remain masked with -inf (already initialized above)
+    #
+    print(full_attention_mask)
 
     # Slice input_ids to only include valid tokens (remove padding for prefill)
     # For left-padded sequences, valid tokens are at the end
@@ -264,6 +276,7 @@ def main():
         dtype=torch.float32,
     )
     # TODO: need to mask padding?
+    decode_attention_mask[0, 0, 0, :current_pos] = 0.0
     decode_attention_mask = decode_attention_mask.to(device)
 
     with torch.no_grad():
@@ -311,7 +324,7 @@ def main():
             if step == 0:
                 inputs["attention_mask"] = decode_attention_mask
 
-            # inputs["attention_mask"][0, 0, 0, current_pos + 1] = 0.0
+            inputs["attention_mask"][0, 0, 0, current_pos] = 0.0
 
             current_pos += 1
 
