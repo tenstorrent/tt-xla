@@ -83,8 +83,28 @@ def _run_model_test_impl(
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
 
+    print(f"[DEBUG] sys.modules before RequirementsManager for {loader_path}:", flush=True)
+    triton_modules = {k: v for k, v in sys.modules.items() if 'triton' in k.lower()}
+    if triton_modules:
+        for mod_name, mod_obj in triton_modules.items():
+            version = getattr(mod_obj, '__version__', 'unknown')
+            location = getattr(mod_obj, '__file__', 'unknown')
+            print(f"  {mod_name}: version={version}, file={location}", flush=True)
+    else:
+        print("  No triton modules found in sys.modules", flush=True)
+
     # Ensure per-model requirements are installed, and roll back after the test
     with RequirementsManager.for_loader(loader_path):
+        
+        print(f"[DEBUG] sys.modules before RequirementsManager for {loader_path}:", flush=True)
+        triton_modules = {k: v for k, v in sys.modules.items() if 'triton' in k.lower()}
+        if triton_modules:
+            for mod_name, mod_obj in triton_modules.items():
+                version = getattr(mod_obj, '__version__', 'unknown')
+                location = getattr(mod_obj, '__file__', 'unknown')
+                print(f"  {mod_name}: version={version}, file={location}", flush=True)
+        else:
+            print("  No triton modules found in sys.modules", flush=True)
 
         # Get the model loader and model info from desired model, variant.
         loader = ModelLoader(variant=variant)
