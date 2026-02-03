@@ -77,15 +77,18 @@ class FusionProvider(ABC):
         print(f"\n=== {self.name} === Attempting pattern match ===")
         print("Graph nodes:")
         for node in gm.graph.nodes:
-            print(f"  {node.op:20s} {node.name:40s} target={node.target} args={node.args} kwargs={node.kwargs}")
-        
+            print(
+                f"  {node.op:20s} {node.name:40s} target={node.target} args={node.args} kwargs={node.kwargs}"
+            )
+
         # Print what the pattern traces to
         pattern_gm = torch.fx.symbolic_trace(self.pattern)
 
         print("\nPattern nodes:")
         for node in pattern_gm.graph.nodes:
-            print(f"  {node.op:20s} {node.name:40s} target={node.target} args={node.args} kwargs={node.kwargs}")
-        
+            print(
+                f"  {node.op:20s} {node.name:40s} target={node.target} args={node.args} kwargs={node.kwargs}"
+            )
 
         replaced = replace_pattern_with_filters(
             gm,
@@ -171,6 +174,7 @@ class RMSNormFusionProvider(FusionProvider):
 
         return True
 
+
 class RotaryEmbFusionProvider(FusionProvider):
 
     @property
@@ -182,9 +186,16 @@ class RotaryEmbFusionProvider(FusionProvider):
         x: Tensor,
         freqs_cis: Tensor,
         # x.view() shape args (5 dims)
-        x_d0, x_d1, x_d2, x_d3, x_d4,
+        x_d0,
+        x_d1,
+        x_d2,
+        x_d3,
+        x_d4,
         # freqs_cis.view() shape args (4 dims)
-        f_d0, f_d1, f_d2, f_d3,
+        f_d0,
+        f_d1,
+        f_d2,
+        f_d3,
         # output dtype
         dtype,
     ) -> Tensor:
@@ -201,8 +212,15 @@ class RotaryEmbFusionProvider(FusionProvider):
     def replacement(
         x: Tensor,
         freqs_cis: Tensor,
-        x_d0, x_d1, x_d2, x_d3, x_d4,
-        f_d0, f_d1, f_d2, f_d3,
+        x_d0,
+        x_d1,
+        x_d2,
+        x_d3,
+        x_d4,
+        f_d0,
+        f_d1,
+        f_d2,
+        f_d3,
         dtype,
     ) -> Tensor:
         freqs_real = torch.view_as_real(freqs_cis)
