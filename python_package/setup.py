@@ -301,7 +301,7 @@ class CMakeBuildPy(build_py):
                 str(REPO_DIR),
                 "&&",
                 "source",
-                "env/activate",
+                "venv/activate",
                 "&&",
                 "cmake",
             ]
