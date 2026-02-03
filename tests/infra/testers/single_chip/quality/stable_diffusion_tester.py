@@ -146,7 +146,7 @@ class StableDiffusionTester(QualityTester):
     def images(self) -> Optional[torch.Tensor]:
         return self._images
 
-    def serialize_on_device(self, output_prefix: str) -> None:
+    def serialize_on_device(self, workload=None, output_prefix: str = None) -> None:
         """
         Serialize the UNet compilation artifacts to disk.
 
@@ -154,6 +154,7 @@ class StableDiffusionTester(QualityTester):
         they are reused. Otherwise, a new pipeline is set up to generate the artifacts.
 
         Args:
+            workload: Unused for StableDiffusionTester (serialization is handled differently)
             output_prefix: Base path and filename prefix for output files
                            (creates {prefix}_ttir.mlir, {prefix}_ttnn.mlir, {prefix}.ttnn)
         """
@@ -182,4 +183,4 @@ class StableDiffusionTester(QualityTester):
         """
         clean_name = sanitize_test_name(test_name)
         output_prefix = f"output_artifact/{clean_name}"
-        self.serialize_on_device(output_prefix)
+        self.serialize_on_device(output_prefix=output_prefix)

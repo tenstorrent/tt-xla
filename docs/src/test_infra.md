@@ -120,45 +120,35 @@ def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
 To serialize compilation artifacts (HLO, MLIR IRs) to disk, use the `--serialize` flag:
 
 ```bash
-pytest tests/torch/test_my_test.py::test_my_model --serialize
+pytest path/to/test.py::test_name --serialize
 ```
 
-Your test must pass the `request` fixture to the tester for serialization to work:
+Your test must pass the `request` fixture for serialization to work:
 
+**For op/graph tests:**
 ```python
-def test_my_model(request):
-    tester = MyModelTester(...)
-    tester.test(request=request)  # Must pass request
+def test_my_op(request):
+    run_op_test(MyOp(), [torch.randn(32, 32)], request=request)
+```
+
+**For model tests:**
+```python
+def test_my_model(model_tester: MyModelTester, request):
+    model_tester.test(request=request)
 ```
 
 Artifacts are written to `output_artifact/<sanitized_test_name>/`.
 
 ### Running FileCheck
 
-To verify IR transformations using FileCheck patterns, add the `@pytest.mark.filecheck` decorator:
+To verify IR transformations, use the `@pytest.mark.filecheck` decorator:
 
 ```python
 @pytest.mark.filecheck(["add.ttnn.mlir", "matmul_fusion.ttir.mlir"])
 def test_my_op(request):
-    run_op_test(
-        MyOp(),
-        [torch.randn(32, 32)],
-        framework=Framework.TORCH,
-        request=request,  # Must pass request for filecheck to work
-    )
+    run_op_test(MyOp(), [torch.randn(32, 32)], request=request)
 ```
 
-```python
-@pytest.mark.filecheck(["attention_pattern.ttnn.mlir"])
-def test_my_model(request):
-    tester = MyModelTester(...)
-    tester.test(request=request)  # Must pass request for filecheck to work
-```
+FileCheck automatically serializes artifacts, runs pattern matching, and fails on mismatches.
 
-FileCheck automatically:
-- Serializes compilation artifacts to disk
-- Runs FileCheck with specified pattern files
-- Fails test if patterns don't match
-
-Pattern files are located in `tests/filecheck/`. See [tests/filecheck/filecheck.md](../../tests/filecheck/filecheck.md) for pattern file naming conventions and usage details.
-```
+**For pattern file syntax and conventions**, see [tests/filecheck/filecheck.md](../../tests/filecheck/filecheck.md).

@@ -7,7 +7,6 @@ from __future__ import annotations
 import os
 import re
 import time
-from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 import torch
@@ -81,7 +80,7 @@ class OpTester(BaseTester):
             self._test_e2e_perf(tt_workload)
 
         if request:
-            self.handle_filecheck_and_serialization(request, workload=tt_workload)
+            self.handle_filecheck_and_serialization(request, tt_workload)
 
     def _test_e2e_perf(self, workload: Workload) -> None:
         warmup_iters_count = 3
@@ -159,20 +158,14 @@ class OpTester(BaseTester):
         workload = Workload(framework=self._framework, executable=f, args=inputs)
         self.test(workload, request=request)
 
-    def serialize_on_device(self, output_prefix: str, workload=None) -> None:
+    def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
         """
         Serializes a workload on TT device with proper compiler configuration.
 
         Args:
+            workload: The workload to serialize
             output_prefix: Base path and filename prefix for output files
-            workload: Optional workload to serialize (if None, uses self._workload)
         """
-        workload = workload if workload is not None else self._workload
-        if workload is None:
-            raise RuntimeError(
-                "No workload to serialize. Either pass workload or call test() first."
-            )
-
         if self._framework == Framework.JAX:
             compiler_options = self._compiler_config.to_jax_compiler_options()
         elif self._framework == Framework.TORCH:
@@ -237,7 +230,7 @@ def serialize_op(
     workload = Workload(framework=framework, executable=op, args=inputs)
 
     # Serialize workload on TT device using OpTester's method
-    tester.serialize_on_device(output_prefix, workload=workload)
+    tester.serialize_on_device(workload, output_prefix)
 
 
 def serialize_op_with_random_inputs(

@@ -10,6 +10,9 @@ from utils import Category
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
+# NOTE: This test passes `request` to support serialization (--serialize).
+# Other op tests can follow this pattern. See docs/src/test_infra.md for details.
+
 
 @pytest.mark.push
 @pytest.mark.nightly

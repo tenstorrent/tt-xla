@@ -8,18 +8,10 @@ import os
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
-from pathlib import Path
 from typing import Callable, Optional, Tuple
 
 from infra.evaluators import ComparisonConfig, ComparisonResult
-from infra.utilities import (
-    Framework,
-    Mesh,
-    Model,
-    ShardSpec,
-    Tensor,
-    sanitize_test_name,
-)
+from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
 
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -179,12 +171,10 @@ class ModelTester(BaseTester, ABC):
 
         tt_res = self._run_on_tt_device(self._workload)
 
-        result = (self._compare(tt_res, cpu_res),)
-
         if request:
-            self.handle_filecheck_and_serialization(request, workload=self._workload)
+            self.handle_filecheck_and_serialization(request, self._workload)
 
-        return result
+        return (self._compare(tt_res, cpu_res),)
 
     def _test_e2e_perf(self) -> dict[str, float]:
         warmup_iters_count = 3
@@ -234,16 +224,21 @@ class ModelTester(BaseTester, ABC):
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def serialize_on_device(self, output_prefix: str, workload=None) -> None:
+    def serialize_on_device(
+        self, workload: Workload = None, output_prefix: str = None
+    ) -> None:
         """
         Serializes the model workload on TT device with proper compiler configuration.
 
         Args:
+            workload: Workload to serialize (if None, uses self._workload)
             output_prefix: Base path and filename prefix for output files
-            workload: Optional workload parameter (ignored, uses self._workload)
         """
-        if self._workload is None:
-            self._initialize_workload()
+        # Use provided workload or fall back to self._workload
+        if workload is None:
+            if self._workload is None:
+                self._initialize_workload()
+            workload = self._workload
 
         # Get compiler options based on framework
         if self._framework == Framework.JAX:
@@ -254,5 +249,5 @@ class ModelTester(BaseTester, ABC):
             raise ValueError(f"Unsupported framework: {self._framework}")
 
         self._device_runner.serialize_on_device(
-            self._workload, output_prefix, compiler_options=compiler_options
+            workload, output_prefix, compiler_options=compiler_options
         )

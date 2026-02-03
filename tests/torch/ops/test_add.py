@@ -10,6 +10,9 @@ from utils import Category
 from tests.infra.testers.compiler_config import CompilerConfig
 from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
 
+# NOTE: This test passes `request` to support serialization (--serialize).
+# Other op tests can follow this pattern. See docs/src/test_infra.md for details.
+
 
 @pytest.mark.push
 @pytest.mark.nightly

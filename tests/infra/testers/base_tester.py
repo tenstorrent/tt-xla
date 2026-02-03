@@ -101,35 +101,30 @@ class BaseTester(ABC):
         self.serialize_on_device(output_prefix)
 
     @abstractmethod
-    def serialize_on_device(self, output_prefix: str, workload=None) -> None:
+    def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
         """
         Serializes the model workload on TT device with proper compiler configuration.
 
         Args:
+            workload: Workload to serialize
             output_prefix: Base path and filename prefix for output files
-            workload: Optional workload to serialize (if None, uses self._workload)
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def handle_filecheck_and_serialization(
-        self, request, workload=None, test_id: str = None
-    ) -> None:
+    def handle_filecheck_and_serialization(self, request, workload: Workload) -> None:
         """
         Handles filecheck marker detection, serialization, and filecheck execution.
 
-        This centralizes the common logic used by OpTester, GraphTester, and ModelTester.
-
         Args:
             request: pytest request fixture
-            workload: Optional workload to serialize (if None, tester uses self._workload)
-            test_id: Optional test ID override (defaults to request.node.name)
+            workload: Workload to serialize
         """
         if not request:
             return
 
-        test_id = test_id or request.node.name
+        test_id = request.node.name
 
-        # Check for filecheck patterns from pytest marker
+        # Check for filecheck pattern files from pytest marker
         filecheck_marker = request.node.get_closest_marker("filecheck")
         pattern_files = (
             filecheck_marker.args[0]
@@ -137,16 +132,16 @@ class BaseTester(ABC):
             else None
         )
 
-        # Serialize if --serialize flag is set OR if pattern files are specified
+        # Serialize if --serialize flag is set OR if filecheck pattern files are specified
         serialize = (
             request.config.getoption("--serialize", False) or pattern_files is not None
         )
         if serialize:
             clean_name = sanitize_test_name(test_id)
             output_prefix = f"output_artifact/{clean_name}"
-            self.serialize_on_device(output_prefix, workload=workload)
+            self.serialize_on_device(workload, output_prefix)
 
-        # Run filecheck if patterns are specified
+        # Run filecheck if filecheck pattern files are specified
         if pattern_files:
             self._run_filecheck(pattern_files, test_id=test_id)
 

@@ -105,7 +105,6 @@ def _run_model_test_impl(
         succeeded = False
         comparison_result = None
         tester = None
-        filecheck_results = None
 
         try:
             # Only run the actual model test if not marked for skip. The record properties
@@ -159,13 +158,13 @@ def _run_model_test_impl(
                         pytest.mark.filecheck(test_metadata.filechecks)
                     )
 
-                # Run test; tester handles serialization and filecheck via pytest marker
                 comparison_result = tester.test(request=request)
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
 
-                # Trigger assertion after comparison_result is cached
+                # Trigger assertion after comparison_result is cached, and
+                #     fallthrough to finally block on failure.
                 Evaluator._assert_on_results(comparison_result)
 
         except Exception as e:
