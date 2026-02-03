@@ -293,8 +293,6 @@ class CMakeBuildPy(build_py):
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
 
-        print(f"CMake arguments: {cmake_args}")
-
         cmake_cmd = ["cmake"]
         # Run source env/activate if in ci, otherwise onus is on dev
         if self.in_ci():
@@ -307,6 +305,8 @@ class CMakeBuildPy(build_py):
                 "&&",
                 "cmake",
             ]
+
+        print(f"CMake arguments: {[*cmake_cmd, *cmake_args]}")
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
         self.spawn([*cmake_cmd, *cmake_args], cwd=REPO_DIR)
