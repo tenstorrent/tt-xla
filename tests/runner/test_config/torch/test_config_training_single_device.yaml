@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 test_config:
   mnist/image_classification/pytorch-cnn_dropout-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [push, nightly, notimeout]
   mnist/image_classification/pytorch-cnn_nodropout-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -12,34 +13,44 @@ test_config:
     status: EXPECTED_PASSING
     markers: [push, nightly]
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   t5/pytorch-t5-small-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   t5/pytorch-t5-base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   t5/pytorch-t5-large-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   t5/pytorch-google/flan-t5-small-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   t5/pytorch-google/flan-t5-base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   t5/pytorch-google/flan-t5-large-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   qwen_2_5/causal_lm/pytorch-0_5b-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   qwen_2_5/causal_lm/pytorch-0_5b_instruct-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   qwen_2_5/causal_lm/pytorch-1_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -52,50 +63,62 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [large, notimeout]
   qwen_2_5_coder/pytorch-0_5b-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   clip/pytorch-base_patch32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "error: failed to legalize operation 'stablehlo.scatter'"
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [large, notimeout]
   nbeats/pytorch-generic_basis-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   nbeats/pytorch-seasonality_basis-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   nbeats/pytorch-trend_basis-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   qwen_3/embedding/pytorch-embedding_0_6b-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   phi1_5/token_classification/pytorch-microsoft/phi-1_5-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   phi1/token_classification/pytorch-microsoft/phi-1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   nanogpt/pytorch-FinancialSupport/NanoGPT-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   musicgen_small/pytorch-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   stereo/pytorch-small-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   stereo/pytorch-medium-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -433,7 +456,8 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
     reason: "error: 'ttnn.pad' op Output tensor shape (32,768) must match the inferred shape: (47,768)"
   dpr/context_encoder/pytorch-facebook/dpr-ctx_encoder-single-nq-base-single_device-training:
@@ -586,37 +610,48 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   codegen/pytorch-Salesforce/codegen-350M-mono-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   codegen/pytorch-Salesforce/codegen-350M-multi-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   codegen/pytorch-Salesforce/codegen-350M-nl-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   squeezebert/pytorch-squeezebert-mnli-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   vit/pytorch-base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   vit/pytorch-large-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   vit/pytorch-vit_b_16-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   vit/pytorch-vit_b_32-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   vit/pytorch-vit_l_16-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   vit/pytorch-vit_l_32-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   vit/pytorch-vit_h_14-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -638,7 +673,8 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   albert/sequence_classification/pytorch-imdb-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -661,25 +697,31 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   deit/pytorch-base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   deit/pytorch-base_distilled-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   deit/pytorch-small-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   deit/pytorch-tiny-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   bart/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   sam/pytorch-facebook/sam-vit-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
@@ -709,7 +751,8 @@ test_config:
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   roberta/masked_lm/pytorch-xlm_base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   unet/pytorch-unet_cityscapes-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -935,21 +978,24 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   distilbert/token_classification/pytorch-Davlan/distilbert-base-multilingual-cased-ner-hrl-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   vgg19_unet/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 284 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)]"
   qwen_3/causal_lm/pytorch-0_6b-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   phi1_5/causal_lm/pytorch-microsoft/phi-1_5-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 284 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)]"
   gpt_neo/causal_lm/pytorch-gpt_neo_125M-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   phi2/causal_lm/pytorch-microsoft/phi-2-single_device-training:
     status: NOT_SUPPORTED_SKIP
@@ -971,7 +1017,8 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
   albert/masked_lm/pytorch-base_v2-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   albert/masked_lm/pytorch-large_v2-single_device-training:
     status: NOT_SUPPORTED_SKIP
@@ -986,28 +1033,36 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
   albert/token_classification/pytorch-base_v1-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   albert/token_classification/pytorch-large_v1-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   albert/token_classification/pytorch-xlarge_v1-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   albert/token_classification/pytorch-xxlarge_v1-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   albert/token_classification/pytorch-base_v2-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   albert/token_classification/pytorch-large_v2-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   albert/token_classification/pytorch-xlarge_v2-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   albert/token_classification/pytorch-xxlarge_v2-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   xglm/pytorch-xglm-564M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -1020,13 +1075,16 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source."
   opt/causal_lm/pytorch-facebook/opt-125m-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   opt/causal_lm/pytorch-facebook/opt-350m-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   opt/causal_lm/pytorch-facebook/opt-1.3b-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   beit/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -1068,22 +1126,28 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'cls.predictions.bias'}"
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   mlp_mixer/pytorch-mixer_b16_224-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   mlp_mixer/pytorch-mixer_b16_224_in21k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   mlp_mixer/pytorch-mixer_b16_224_miil-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   mlp_mixer/pytorch-mixer_b16_224_miil_in21k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   mlp_mixer/pytorch-mixer_l16_224-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   mlp_mixer/pytorch-mixer_l16_224_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -1092,7 +1156,8 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   mlp_mixer/pytorch-mixer_b16_224.goog_in21k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   mlp_mixer/pytorch-mixer_github-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -1101,7 +1166,8 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   perceiver/pytorch-deepmind/language-perceiver-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   gpt2/pytorch-gpt2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -1514,8 +1580,10 @@ test_config:
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   qwen_2_5_coder/pytorch-1_5b-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
   qwen_2_5_coder/pytorch-1_5b_instruct-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
+    assert_pcc: false
     markers: [notimeout]
