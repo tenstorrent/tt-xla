@@ -23,7 +23,6 @@ import vllm
 def test_embed_qwen3_push(
     model_name: str,
     baseline_path: str,
-    min_context_len: int,
 ):
     """
     Test the Qwen3-Embedding models embedding outputs for correctness
