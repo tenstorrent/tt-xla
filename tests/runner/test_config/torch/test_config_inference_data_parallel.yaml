@@ -95,7 +95,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
-  yolov6/pytorch-yolov6l-data_parallel-inference:
+  yolov6/object_detection/pytorch-yolov6l-data_parallel-inference:
     supported_archs: [n300]
     status: KNOWN_FAILURE_XFAIL # Failed after experimental compile  https://github.com/tenstorrent/tt-xla/issues/2994
 
@@ -354,7 +354,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov4/pytorch-base-data_parallel-inference:
+  yolov4/object_detection/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -509,7 +509,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6n-data_parallel-inference:
+  yolov6/object_detection/pytorch-yolov6n-data_parallel-inference:
     supported_archs: [n300]
     status: KNOWN_FAILURE_XFAIL # Failed after experimental compile  https://github.com/tenstorrent/tt-xla/issues/2994
 
@@ -578,7 +578,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6s-data_parallel-inference:
+  yolov6/object_detection/pytorch-yolov6s-data_parallel-inference:
     supported_archs: [n300]
     status: KNOWN_FAILURE_XFAIL # Failed after experimental compile  https://github.com/tenstorrent/tt-xla/issues/2994
 
@@ -979,7 +979,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov3/pytorch-base-data_parallel-inference:
+  yolov3/object_detection/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
@@ -1014,7 +1014,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6m-data_parallel-inference:
+  yolov6/object_detection/pytorch-yolov6m-data_parallel-inference:
     supported_archs: [n300]
     status: KNOWN_FAILURE_XFAIL # Failed after experimental compile  https://github.com/tenstorrent/tt-xla/issues/2994
 

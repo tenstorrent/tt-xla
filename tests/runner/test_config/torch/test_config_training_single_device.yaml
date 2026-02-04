@@ -220,7 +220,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Could not load libtorchcodec. Likely causes:"
-  yolox/pytorch-yolox_x-single_device-training:
+  yolox/object_detection/pytorch-yolox_x-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "EOFError: Ran out of input"
@@ -244,27 +244,27 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
-  yolox/pytorch-yolox_nano-single_device-training:
+  yolox/object_detection/pytorch-yolox_nano-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Model expects targets to be passed while in training mode"
-  yolox/pytorch-yolox_tiny-single_device-training:
+  yolox/object_detection/pytorch-yolox_tiny-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Model expects targets to be passed while in training mode"
-  yolox/pytorch-yolox_s-single_device-training:
+  yolox/object_detection/pytorch-yolox_s-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Model expects targets to be passed while in training mode"
-  yolox/pytorch-yolox_m-single_device-training:
+  yolox/object_detection/pytorch-yolox_m-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Model expects targets to be passed while in training mode"
-  yolox/pytorch-yolox_l-single_device-training:
+  yolox/object_detection/pytorch-yolox_l-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Model expects targets to be passed while in training mode"
-  yolox/pytorch-yolox_darknet-single_device-training:
+  yolox/object_detection/pytorch-yolox_darknet-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Model expects targets to be passed while in training mode"
@@ -272,15 +272,15 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
-  yolov6/pytorch-yolov6n-single_device-training:
+  yolov6/object_detection/pytorch-yolov6n-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov6/pytorch-yolov6s-single_device-training:
+  yolov6/object_detection/pytorch-yolov6s-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov6/pytorch-yolov6m-single_device-training:
+  yolov6/object_detection/pytorch-yolov6m-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -384,23 +384,23 @@ test_config:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov9/pytorch-t-single_device-training:
+  yolov9/object_detection/pytorch-t-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov9/pytorch-s-single_device-training:
+  yolov9/object_detection/pytorch-s-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov9/pytorch-m-single_device-training:
+  yolov9/object_detection/pytorch-m-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov9/pytorch-c-single_device-training:
+  yolov9/object_detection/pytorch-c-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov9/pytorch-e-single_device-training:
+  yolov9/object_detection/pytorch-e-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -456,7 +456,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Buffer must be allocated on device"
-  yolov6/pytorch-yolov6l-single_device-training:
+  yolov6/object_detection/pytorch-yolov6l-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -491,7 +491,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov3/pytorch-base-single_device-training:
+  yolov3/object_detection/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -531,7 +531,7 @@ test_config:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolov4/pytorch-base-single_device-training:
+  yolov4/object_detection/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=7,y=6) - (x=7,y=6)] grow to 2371840 B which is beyond max L1 size of 1499136 B (assert.hpp:103)"
