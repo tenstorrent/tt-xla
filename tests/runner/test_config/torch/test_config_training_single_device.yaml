@@ -3,11 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 test_config:
   mnist/image_classification/pytorch-cnn_dropout-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
     markers: [push, nightly, notimeout]
+    reason: "Fatal Python error: ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   mnist/image_classification/pytorch-cnn_nodropout-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
     markers: [push, nightly, notimeout]
+    reason: "Fatal Python error: ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   autoencoder/pytorch-linear-single_device-training:
     status: EXPECTED_PASSING
     markers: [push, nightly]
@@ -789,8 +793,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
     markers: [notimeout]
+    reason: "Fatal Python error: ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   inception/pytorch-inception_v4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]

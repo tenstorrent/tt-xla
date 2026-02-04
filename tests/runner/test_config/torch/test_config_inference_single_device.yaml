@@ -2519,9 +2519,9 @@ test_config:
     required_pcc: 0.96
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
-
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_FE_COMPILATION
+        reason: "Segmentation fault after Experimental compile on by default (#2996)"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial-single_device-inference:
     status: EXPECTED_PASSING
@@ -2592,8 +2592,9 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
         n150:
-          status: KNOWN_FAILURE_XFAIL
-          reason: "Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B"
+          status: NOT_SUPPORTED_SKIP
+          bringup_status: FAILED_FE_COMPILATION
+          reason: "Segmentation fault after Experimental compile on by default (#2996)"
 
   siglip/image_text_similarity/pytorch-base_patch16_224-single_device-inference:
     status: EXPECTED_PASSING
