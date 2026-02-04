@@ -68,7 +68,7 @@ test_config:
     required_pcc: 0.97  # PCC drop when changing input
     status: EXPECTED_PASSING
 
-  bloom/pytorch-single_device-inference:
+  bloom/causal_lm/pytorch-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -156,13 +156,13 @@ test_config:
   albert/masked_lm/pytorch-xlarge_v2-single_device-inference:
     status: EXPECTED_PASSING
 
-  alexnet/pytorch-alexnet-single_device-inference:
+  alexnet/image_classification/pytorch-alexnet-single_device-inference:
     status: EXPECTED_PASSING
 
-  alexnet/pytorch-alexnetb-single_device-inference:
+  alexnet/image_classification/pytorch-alexnetb-single_device-inference:
     status: EXPECTED_PASSING
 
-  attention_denseunet/pytorch-base-single_device-inference:
+  attention_denseunet/object_detection/pytorch-base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "TT_FATAL: Output size cannot fit input with offset during TT compile/runtime – tracked in issue https://github.com/tenstorrent/tt-xla/issues/2293"
 
@@ -176,14 +176,14 @@ test_config:
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  autoencoder/pytorch-linear-single_device-inference:
+  autoencoder/image_to_image/pytorch-linear-single_device-inference:
     status: EXPECTED_PASSING
 
   minicpm_o_2_6/pytorch-default-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "MiniCPM model has a larger test execution time, hence skipping it for now."
 
-  bart/pytorch-large-single_device-inference:
+  bart/text_classification/pytorch-large-single_device-inference:
     status: EXPECTED_PASSING
 
   bert/question_answering/pytorch-phiyodr/bert-large-finetuned-squad2-single_device-inference:
@@ -693,12 +693,12 @@ test_config:
   perceiver/pytorch-deepmind/language-perceiver-single_device-inference:
     status: EXPECTED_PASSING
 
-  beit/pytorch-base-single_device-inference:
+  beit/image_classification/pytorch-base-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # Fell to <0.3 after experimental compile
     markers: ["extended"]
 
-  beit/pytorch-large-single_device-inference:
+  beit/image_classification/pytorch-large-single_device-inference:
     status: EXPECTED_PASSING
 
   deepcogito/pytorch-v1_preview_llama_3b-single_device-inference:
@@ -1487,13 +1487,13 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  autoencoder/pytorch-conv-single_device-inference:
+  autoencoder/image_to_image/pytorch-conv-single_device-inference:
     status: EXPECTED_PASSING
 
   phi3/phi_3_5/pytorch-mini_instruct-single_device-inference:
     status: EXPECTED_PASSING
 
-  bi_lstm_crf/pytorch-default-single_device-inference:
+  bi_lstm_crf/token_classification/pytorch-default-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
 
@@ -1988,35 +1988,35 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/2990
 
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-inference:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
 
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-inference:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
 
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-single_device-inference:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
 
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-single_device-inference:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
 
-  bevformer/pytorch-BEVFormer-tiny-single_device-inference:
+  bevformer/object_detection/pytorch-BEVFormer-tiny-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
-  bevformer/pytorch-BEVFormer-small-single_device-inference:
+  bevformer/object_detection/pytorch-BEVFormer-small-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
-  bevformer/pytorch-BEVFormer-base-single_device-inference:
+  bevformer/object_detection/pytorch-BEVFormer-base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
-  bevformer/pytorch-bevformerv2-r50-t1-base-single_device-inference:
+  bevformer/object_detection/pytorch-bevformerv2-r50-t1-base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
@@ -2025,7 +2025,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
-  bevformer/pytorch-bevformerv2-r50-t1-single_device-inference:
+  bevformer/object_detection/pytorch-bevformerv2-r50-t1-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
@@ -2034,7 +2034,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
-  bevformer/pytorch-bevformerv2-r50-t2-single_device-inference:
+  bevformer/object_detection/pytorch-bevformerv2-r50-t2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
@@ -2043,7 +2043,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
-  bevformer/pytorch-bevformerv2-r50-t8-single_device-inference:
+  bevformer/object_detection/pytorch-bevformerv2-r50-t8-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
@@ -2433,19 +2433,19 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Multi chip is required"
 
-  arnold/pytorch-deathmatch_shotgun_rnn-single_device-inference:
+  arnold/atomic_ml/pytorch-deathmatch_shotgun_rnn-single_device-inference:
     status: EXPECTED_PASSING
 
-  arnold/pytorch-vizdoom_2017_track1_rnn-single_device-inference:
+  arnold/atomic_ml/pytorch-vizdoom_2017_track1_rnn-single_device-inference:
     status: EXPECTED_PASSING
 
-  arnold/pytorch-defend_the_center_ff-single_device-inference:
+  arnold/atomic_ml/pytorch-defend_the_center_ff-single_device-inference:
     status: EXPECTED_PASSING
 
-  arnold/pytorch-vizdoom_2017_track2_rnn-single_device-inference:
+  arnold/atomic_ml/pytorch-vizdoom_2017_track2_rnn-single_device-inference:
     status: EXPECTED_PASSING
 
-  arnold/pytorch-health_gathering_ff-single_device-inference:
+  arnold/atomic_ml/pytorch-health_gathering_ff-single_device-inference:
     status: EXPECTED_PASSING
 
   petr/pytorch-vovnet_gridmask_p4_800x320-single_device-inference:
@@ -2567,7 +2567,7 @@ test_config:
   monodle/pytorch-dla34-single_device-inference:
     status: EXPECTED_PASSING
 
-  alexnet/pytorch-alexnet_high_res-single_device-inference:
+  alexnet/image_classification/pytorch-alexnet_high_res-single_device-inference:
     status: EXPECTED_PASSING
 
   dinov2/image_classification/pytorch-small-single_device-inference:
