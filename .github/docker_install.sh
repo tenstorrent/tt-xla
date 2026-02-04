@@ -27,11 +27,7 @@ else
 #        g++-12 \
 fi
 
-ln -sf /usr/bin/FileCheck-17 /usr/bin/FileCheck
+# Install uv tool for managing Python packages
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
-# Now do the python requirements installation
-python3.11 -m pip install --upgrade pip --no-cache-dir
-python3.11 -m pip install --index-url https://download.pytorch.org/whl/cpu $(grep 'torch==' /tmp/requirements.txt)
-python3.11 -m pip install --index-url https://download.pytorch.org/whl/cpu $(grep 'torchvision==' /tmp/requirements-dev.txt)
-python3.11 -m pip install -r /tmp/requirements.txt --no-cache-dir
-python3.11 -m pip install -r /tmp/requirements-dev.txt --no-cache-dir
+ln -sf /usr/bin/FileCheck-17 /usr/bin/FileCheck
