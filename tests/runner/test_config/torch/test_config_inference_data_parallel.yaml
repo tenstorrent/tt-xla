@@ -532,11 +532,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  monodepth2/pytorch-mono_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv3/pytorch-mobilenet_v3_small-data_parallel-inference:
+  mobilenetv3/image_classification/pytorch-mobilenet_v3_small-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
@@ -602,7 +602,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  monodepth2/pytorch-mono_no_pt_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono_no_pt_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -705,11 +705,11 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  monodepth2/pytorch-stereo_1024x320-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-stereo_1024x320-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv3/pytorch-mobilenetv3_small_100-data_parallel-inference:
+  mobilenetv3/image_classification/pytorch-mobilenetv3_small_100-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
@@ -776,11 +776,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  monodepth2/pytorch-stereo_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-stereo_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  monodepth2/pytorch-mono+stereo_1024x320-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono+stereo_1024x320-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -865,11 +865,11 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  monodepth2/pytorch-mono+stereo_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono+stereo_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  monodepth2/pytorch-stereo_no_pt_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-stereo_no_pt_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -963,7 +963,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9619955010531175. Required: pcc=0.98."
 
-  monodepth2/pytorch-mono+stereo_no_pt_640x192-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono+stereo_no_pt_640x192-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1010,7 +1010,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  monodepth2/pytorch-mono_1024x320-data_parallel-inference:
+  monodepth2/depth_estimation/pytorch-mono_1024x320-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1018,7 +1018,7 @@ test_config:
     supported_archs: [n300]
     status: KNOWN_FAILURE_XFAIL # Failed after experimental compile  https://github.com/tenstorrent/tt-xla/issues/2994
 
-  mobilenetv3/pytorch-mobilenet_v3_large-data_parallel-inference:
+  mobilenetv3/image_classification/pytorch-mobilenet_v3_large-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -1136,7 +1136,7 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
-  mobilenetv3/pytorch-mobilenetv3_large_100-data_parallel-inference:
+  mobilenetv3/image_classification/pytorch-mobilenetv3_large_100-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 

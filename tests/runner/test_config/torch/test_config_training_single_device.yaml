@@ -64,13 +64,13 @@ test_config:
   falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
-  nbeats/pytorch-generic_basis-single_device-training:
+  nbeats/image_classification/pytorch-generic_basis-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  nbeats/pytorch-seasonality_basis-single_device-training:
+  nbeats/image_classification/pytorch-seasonality_basis-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  nbeats/pytorch-trend_basis-single_device-training:
+  nbeats/image_classification/pytorch-trend_basis-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   qwen_3/embedding/pytorch-embedding_0_6b-single_device-training:
@@ -82,7 +82,7 @@ test_config:
   phi1/token_classification/pytorch-microsoft/phi-1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  nanogpt/pytorch-FinancialSupport/NanoGPT-single_device-training:
+  nanogpt/causal_lm/pytorch-FinancialSupport/NanoGPT-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   dpr/reader/pytorch-facebook/dpr-reader-single-nq-base-single_device-training:
@@ -91,7 +91,7 @@ test_config:
   dpr/reader/pytorch-facebook/dpr-reader-multiset-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  musicgen_small/pytorch-single_device-training:
+  musicgen_small/text_to_speech/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   stereo/pytorch-small-single_device-training:
@@ -103,7 +103,7 @@ test_config:
   stereo/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  oft/pytorch-single_device-training:
+  oft/object_detection/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=3)] grow to 1518400 B which is beyond max L1 size of 1499136 B"
@@ -140,7 +140,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Only Tensors created explicitly by the user (graph leaves) support the deepcopy protocol at the moment."
-  monodle/pytorch-dla34-single_device-training:
+  monodle/object_detection/pytorch-dla34-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
@@ -184,7 +184,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AttributeError: 'NoneType' object has no attribute 'max'"
-  oft_stable_diffusion/pytorch-runwayml/stable-diffusion-v1-5-single_device-training:
+  oft_stable_diffusion/conditional_generation/pytorch-runwayml/stable-diffusion-v1-5-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AttributeError: 'NoneType' object has no attribute 'max'"
@@ -1232,32 +1232,32 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  monodepth2/pytorch-mono_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-stereo_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-stereo_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-mono+stereo_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono+stereo_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-mono_no_pt_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono_no_pt_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-stereo_no_pt_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-stereo_no_pt_640x192-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B"
-  monodepth2/pytorch-mono+stereo_no_pt_640x192-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono+stereo_no_pt_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-mono_1024x320-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono_1024x320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-stereo_1024x320-single_device-training:
+  monodepth2/depth_estimation/pytorch-stereo_1024x320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  monodepth2/pytorch-mono+stereo_1024x320-single_device-training:
+  monodepth2/depth_estimation/pytorch-mono+stereo_1024x320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   efficientnet/pytorch-efficientnet_b0-single_device-training:
@@ -1375,16 +1375,16 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  mobilenetv3/pytorch-mobilenet_v3_large-single_device-training:
+  mobilenetv3/image_classification/pytorch-mobilenet_v3_large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv3/pytorch-mobilenet_v3_small-single_device-training:
+  mobilenetv3/image_classification/pytorch-mobilenet_v3_small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv3/pytorch-mobilenetv3_large_100-single_device-training:
+  mobilenetv3/image_classification/pytorch-mobilenetv3_large_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv3/pytorch-mobilenetv3_small_100-single_device-training:
+  mobilenetv3/image_classification/pytorch-mobilenetv3_small_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   xception/pytorch-xception41-single_device-training:
