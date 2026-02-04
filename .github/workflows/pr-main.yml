@@ -81,7 +81,7 @@ jobs:
       wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_release_vllm_tt_artifact_name }}
       alchemist_artifact_name: ${{ needs.build-ttxla-release.outputs.alchemist_artifact_name }}
 
-  perf-benchmark:
+  perf-benchmark-n150:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
     needs: [ inspect-changes, build-image, build-ttxla-release ]
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
@@ -92,8 +92,23 @@ jobs:
       run_id_source: tt-xla
       ref: main
       perf_regression_check: true
-      test-filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding,test_llama_3_1_70b_tp
-      runs-on-filter: All
+      test-filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding
+      runs-on-filter: n150
+      sh-runner: false
+
+  perf-benchmark-llmbox:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
+    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    secrets: inherit
+    with:
+      project: tt-xla
+      run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
+      run_id_source: tt-xla
+      ref: main
+      perf_regression_check: true
+      test-filter: test_llama_3_1_70b_tp
+      runs-on-filter: llmbox
       sh-runner: false
 
   test_forge_models_push:
@@ -137,12 +152,13 @@ jobs:
       - test
       - test_forge_models_push
       - test_models_on_uplift
-      - perf-benchmark
+      - perf-benchmark-n150
+      - perf-benchmark-llmbox
       - build-docs
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, test, test_forge_models_push, build-docs, test_models_on_uplift, perf-benchmark
+        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, test, test_forge_models_push, build-docs, test_models_on_uplift, perf-benchmark-n150, perf-benchmark-llmbox
         jobs: ${{ toJSON(needs) }}

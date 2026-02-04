@@ -16,13 +16,19 @@ on:
         required: false
         type: string
       test_filter:
-        description: "Only run tests with name that contains"
+        description: "Filter tests based on the name property. One or more strings which are contained (case insensitive) in the name (e.g. 'resn' or 'resn,mni,yol')"
         required: false
         type: string
       sh-runner:
         description: "Run on shared runner"
         required: false
         type: boolean
+        default: true
+      skip-device-perf:
+        description: "Skip device performance measurement"
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   packages: write
@@ -44,59 +50,32 @@ jobs:
     with:
       mlir_override: ${{ inputs.mlir_override }}
       docker_image: ${{ needs.docker-build.outputs.docker-image }}
-  # set-inputs:
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   outputs:
-  #     ref: ${{ steps.set-inputs.outputs.ref }}
-  #   steps:
-  #     - id: set-inputs
-  #       run: |
-  #         if [ "${{ inputs.same_branch }}" == 'true' ]; then
-  #           echo "ref=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-  #         else
-  #           if [ -z "${{ inputs.tt_forge_branch }}" ]; then
-  #             echo "ref=main" >> $GITHUB_OUTPUT
-  #           else
-  #             echo "ref=${{ inputs.tt_forge_branch }}" >> $GITHUB_OUTPUT
-  #           fi
-  #         fi
-  # perf-benchmark:
-  #   needs: [ set-inputs, build ]
-  #   uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
-  #   secrets: inherit
-  #   with:
-  #       project: tt-xla
-  #       run_id: ${{ needs.build.outputs.artifacts_run_id }}
-  #       run_id_source: tt-xla
-  #       ref: ${{ needs.set-inputs.outputs.ref }}
-  #       test-filter: ${{ inputs.test_filter }}
-  #       sh-runner: ${{ inputs.sh-runner }}
-
-  perf-benchmark-n150:
-    needs: [ docker-build, build ]
+  set-inputs:
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.set-inputs.outputs.ref }}
+    steps:
+      - id: set-inputs
+        run: |
+          if [ "${{ inputs.same_branch }}" == 'true' ]; then
+            echo "ref=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            if [ -z "${{ inputs.tt_forge_branch }}" ]; then
+              echo "ref=main" >> $GITHUB_OUTPUT
+            else
+              echo "ref=${{ inputs.tt_forge_branch }}" >> $GITHUB_OUTPUT
+            fi
+          fi
+  perf-benchmark:
+    needs: [ set-inputs, build ]
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
     with:
-      project: tt-xla
-      run_id: ${{ needs.build.outputs.artifacts_run_id }}
-      run_id_source: tt-xla
-      ref: main
-      perf_regression_check: true
-      test-filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding
-      runs-on-filter: n150
-      sh-runner: false
-
-  perf-benchmark-llmbox:
-    needs: [ docker-build, build ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
-    secrets: inherit
-    with:
-      project: tt-xla
-      run_id: ${{ needs.build.outputs.artifacts_run_id }}
-      run_id_source: tt-xla
-      ref: main
-      perf_regression_check: true
-      test-filter: test_llama_3_1_70b_tp
-      runs-on-filter: llmbox
-      sh-runner: false
+        project: tt-xla
+        run_id: ${{ needs.build.outputs.artifacts_run_id }}
+        run_id_source: tt-xla
+        ref: ${{ needs.set-inputs.outputs.ref }}
+        test-filter: ${{ inputs.test_filter }}
+        sh-runner: ${{ inputs.sh-runner }}
+        skip-device-perf: ${{ inputs.skip-device-perf }}
