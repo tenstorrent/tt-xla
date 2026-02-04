@@ -52,6 +52,15 @@ RUN CCACHE_VERSION="4.7.4" && \
     chmod a+x /usr/local/bin/ccache && \
     rm -rf ccache.tar.xz ccache-temp
 
+# Set up compiler wrappers
+RUN mkdir -p /usr/lib/ccache \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/gcc \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/g++ \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/cc \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/c++ \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/clang \
+    && ln -sf /usr/bin/ccache /usr/lib/ccache/clang++
+
 # Build OpenMPI 5.0.7 with ULFM support from source
 ARG OMPI_TAG=v5.0.7
 ARG OMPI_PREFIX=/opt/openmpi-${OMPI_TAG}-ulfm
@@ -121,16 +130,6 @@ ENV TRACY_NO_ISA_EXTENSIONS=1
 # ENV CXX=clang++
 # ENV CMAKE_C_COMPILER=clang
 # ENV CMAKE_CXX_COMPILER=clang++
-
-# Install ccache for build caching and set up compiler wrappers
-RUN dnf install --refresh -y ccache \
-    && mkdir -p /usr/lib/ccache \
-    && ln -sf /usr/bin/ccache /usr/lib/ccache/gcc \
-    && ln -sf /usr/bin/ccache /usr/lib/ccache/g++ \
-    && ln -sf /usr/bin/ccache /usr/lib/ccache/cc \
-    && ln -sf /usr/bin/ccache /usr/lib/ccache/c++ \
-    && ln -sf /usr/bin/ccache /usr/lib/ccache/clang \
-    && ln -sf /usr/bin/ccache /usr/lib/ccache/clang++
 
 # ENV PATH="/usr/lib/ccache:${PATH}"
 # ENV CCACHE_DIR="/root/.ccache"
