@@ -84,3 +84,4 @@ jobs:
       ref: main
       perf_regression_check: true
       test-filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding,test_llama_3_1_70b_tp
+      runs-on-filter: All
