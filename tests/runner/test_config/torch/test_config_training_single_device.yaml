@@ -364,7 +364,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  yolos/pytorch-single_device-training:
+  yolos/object_detection/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -764,31 +764,31 @@ test_config:
   rcnn/pytorch-alexnet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-vovnet27s-single_device-training:
+  vovnet/image_classification/pytorch-vovnet27s-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-vovnet39-single_device-training:
+  vovnet/image_classification/pytorch-vovnet39-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-vovnet57-single_device-training:
+  vovnet/image_classification/pytorch-vovnet57-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-vovnet39_th-single_device-training:
+  vovnet/image_classification/pytorch-vovnet39_th-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-vovnet57_th-single_device-training:
+  vovnet/image_classification/pytorch-vovnet57_th-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-ese_vovnet19b_dw-single_device-training:
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-ese_vovnet39b-single_device-training:
+  vovnet/image_classification/pytorch-ese_vovnet39b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-ese_vovnet99b-single_device-training:
+  vovnet/image_classification/pytorch-ese_vovnet99b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-training:
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   inception/pytorch-inception_v4-single_device-training:
@@ -846,16 +846,16 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
-  wide_resnet/pytorch-wide_resnet50_2-single_device-training:
+  wide_resnet/image_classification/pytorch-wide_resnet50_2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  wide_resnet/pytorch-wide_resnet101_2-single_device-training:
+  wide_resnet/image_classification/pytorch-wide_resnet101_2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  wide_resnet/pytorch-wide_resnet50_2.timm-single_device-training:
+  wide_resnet/image_classification/pytorch-wide_resnet50_2.timm-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  wide_resnet/pytorch-wide_resnet101_2.timm-single_device-training:
+  wide_resnet/image_classification/pytorch-wide_resnet101_2.timm-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   alexnet/pytorch-alexnet-single_device-training:
@@ -1009,10 +1009,10 @@ test_config:
   albert/token_classification/pytorch-xxlarge_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  xglm/pytorch-xglm-564M-single_device-training:
+  xglm/causal_lm/pytorch-xglm-564M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  xglm/pytorch-xglm-1.7B-single_device-training:
+  xglm/causal_lm/pytorch-xglm-1.7B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   densenet/pytorch-densenet121_xray-single_device-training:
@@ -1387,22 +1387,22 @@ test_config:
   mobilenetv3/pytorch-mobilenetv3_small_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  xception/pytorch-xception41-single_device-training:
+  xception/image_classification/pytorch-xception41-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  xception/pytorch-xception65-single_device-training:
+  xception/image_classification/pytorch-xception65-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  xception/pytorch-xception71-single_device-training:
+  xception/image_classification/pytorch-xception71-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  xception/pytorch-xception71.tf_in1k-single_device-training:
+  xception/image_classification/pytorch-xception71.tf_in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
