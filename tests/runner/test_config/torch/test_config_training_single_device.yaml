@@ -61,7 +61,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "error: failed to legalize operation 'stablehlo.scatter'"
-  falcon/pytorch-tiiuae/Falcon3-1B-Base-single_device-training:
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-1B-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
   nbeats/pytorch-generic_basis-single_device-training:
@@ -216,7 +216,7 @@ test_config:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given"
-  whisper/pytorch-openai/whisper-large-v3-single_device-training:
+  whisper/automatic_speech_recognition/pytorch-openai/whisper-large-v3-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Could not load libtorchcodec. Likely causes:"
@@ -328,7 +328,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  bge_m3/pytorch-base-single_device-training:
+  bge_m3/encode/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -807,35 +807,35 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
-  resnet/pytorch-resnet_50_hf-single_device-training:
+  resnet/image_classification/pytorch-resnet_50_hf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet_50_hf_high_res-single_device-training:
+  resnet/image_classification/pytorch-resnet_50_hf_high_res-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is only 1073741792 B"
-  resnet/pytorch-resnet50_timm-single_device-training:
+  resnet/image_classification/pytorch-resnet50_timm-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet50_timm_high_res-single_device-training:
+  resnet/image_classification/pytorch-resnet50_timm_high_res-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet18-single_device-training:
+  resnet/image_classification/pytorch-resnet18-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet34-single_device-training:
+  resnet/image_classification/pytorch-resnet34-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet50-single_device-training:
+  resnet/image_classification/pytorch-resnet50-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet50_high_res-single_device-training:
+  resnet/image_classification/pytorch-resnet50_high_res-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet101-single_device-training:
+  resnet/image_classification/pytorch-resnet101-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  resnet/pytorch-resnet152-single_device-training:
+  resnet/image_classification/pytorch-resnet152-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   hardnet/pytorch-single_device-training:
@@ -1351,27 +1351,27 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 125829120 B DRAM buffer across 12 banks, where each bank needs to store 10485760 B"
     markers: [large]
-  whisper/pytorch-openai/whisper-tiny-single_device-training:
+  whisper/automatic_speech_recognition/pytorch-openai/whisper-tiny-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  whisper/pytorch-openai/whisper-base-single_device-training:
+  whisper/automatic_speech_recognition/pytorch-openai/whisper-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  whisper/pytorch-openai/whisper-small-single_device-training:
+  whisper/automatic_speech_recognition/pytorch-openai/whisper-small-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  whisper/pytorch-openai/whisper-medium-single_device-training:
+  whisper/automatic_speech_recognition/pytorch-openai/whisper-medium-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  whisper/pytorch-openai/whisper-large-single_device-training:
+  whisper/automatic_speech_recognition/pytorch-openai/whisper-large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
-  whisper/pytorch-openai/whisper-large-v3-turbo-single_device-training:
+  whisper/automatic_speech_recognition/pytorch-openai/whisper-large-v3-turbo-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."

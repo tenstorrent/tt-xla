@@ -4,11 +4,11 @@
 
 
 test_config:
-  falcon/pytorch-tiiuae/Falcon3-7B-Base-llm_decode-tensor_parallel-inference:
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-7B-Base-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
 
-  falcon/pytorch-tiiuae/Falcon3-10B-Base-llm_decode-tensor_parallel-inference:
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-10B-Base-llm_decode-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     required_pcc: 0.977 # https://github.com/tenstorrent/tt-xla/issues/3000

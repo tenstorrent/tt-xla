@@ -6,7 +6,7 @@ from typing import Any, Dict, Sequence
 
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
 
-from third_party.tt_forge_models.stable_diffusion_xl.pytorch import ModelLoader
+from third_party.tt_forge_models.stable_diffusion_xl.conditional_generation.pytorch import ModelLoader
 
 from .model_utils import StableDiffusionXLWrapper
 

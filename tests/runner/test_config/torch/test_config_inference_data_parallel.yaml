@@ -541,7 +541,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  resnet/pytorch-resnet50-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet50-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -606,7 +606,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnet/pytorch-resnet50_timm-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet50_timm-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
@@ -714,7 +714,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  resnet/pytorch-resnet_50_hf-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet_50_hf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
@@ -784,7 +784,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnet/pytorch-resnet101-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet101-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -873,7 +873,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnet/pytorch-resnet152-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet152-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
@@ -967,7 +967,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnet/pytorch-resnet18-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet18-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1023,7 +1023,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  resnet/pytorch-resnet34-data_parallel-inference:
+  resnet/image_classification/pytorch-resnet34-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98

@@ -8,20 +8,20 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
-  falcon/pytorch-tiiuae/Falcon3-1B-Base-llm_decode-single_device-inference:
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-1B-Base-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
-  falcon/pytorch-tiiuae/Falcon3-3B-Base-llm_decode-single_device-inference:
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-3B-Base-llm_decode-single_device-inference:
     required_pcc: 0.985 # Is 0.990 (p150) or 0.989 (n150)
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
-  falcon/pytorch-tiiuae/Falcon3-7B-Base-llm_decode-single_device-inference:
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-7B-Base-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
-  falcon/pytorch-tiiuae/Falcon3-10B-Base-llm_decode-single_device-inference:
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-10B-Base-llm_decode-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     required_pcc: 0.985 # Is 0.990 (p150)
     status: EXPECTED_PASSING
@@ -170,7 +170,7 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
 
-  falcon/pytorch-tiiuae/falcon-7b-instruct-llm_decode-single_device-inference:
+  falcon/causal_lm/pytorch-tiiuae/falcon-7b-instruct-llm_decode-single_device-inference:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING

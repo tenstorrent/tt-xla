@@ -6,7 +6,7 @@ import pytest
 from infra import RunMode
 from utils import BringupStatus, Category, failed_ttmlir_compilation
 
-from third_party.tt_forge_models.whisper.pytorch import ModelLoader, ModelVariant
+from third_party.tt_forge_models.whisper.automatic_speech_recognition.pytorch import ModelLoader, ModelVariant
 
 from .tester import WhisperTester
 

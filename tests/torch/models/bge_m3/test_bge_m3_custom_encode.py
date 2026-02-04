@@ -20,7 +20,7 @@ from infra.evaluators import TorchComparisonEvaluator
 from torch.utils._pytree import tree_map
 from utils import BringupStatus, Category, incorrect_result
 
-from third_party.tt_forge_models.bge_m3.pytorch.loader import ModelLoader, ModelVariant
+from third_party.tt_forge_models.bge_m3.encode.pytorch.loader import ModelLoader, ModelVariant
 
 VARIANT_NAME = ModelVariant.BASE
 MODEL_INFO = ModelLoader.get_model_info(VARIANT_NAME)

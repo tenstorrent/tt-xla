@@ -15,7 +15,7 @@ from utils import (
 )
 
 from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.stable_diffusion_xl.pytorch import (
+from third_party.tt_forge_models.stable_diffusion_xl.conditional_generation.pytorch import (
     ModelLoader,
     ModelVariant,
 )

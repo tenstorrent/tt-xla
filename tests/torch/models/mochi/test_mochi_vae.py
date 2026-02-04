@@ -5,7 +5,7 @@ import pytest
 from infra import RunMode
 from utils import BringupStatus, Category
 
-from third_party.tt_forge_models.mochi.pytorch import ModelLoader, ModelVariant
+from third_party.tt_forge_models.mochi.mm_video_ttt.pytorch import ModelLoader, ModelVariant
 
 from .tester import MochiVAETester
 
