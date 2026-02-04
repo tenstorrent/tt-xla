@@ -20,6 +20,7 @@ from typing import List, Optional, Type
 
 import torch
 import torch.nn as nn
+from torch.nn import functional as F
 
 
 class SparseMLP(nn.Module):
@@ -36,10 +37,11 @@ class SparseMLP(nn.Module):
       strided slices where stride == shard_factor
     """
 
-    def __init__(self, original_mlp, num_experts: int, num_experts_per_tok: int):
+    def __init__(self, original_mlp, num_experts: int, num_experts_per_tok: int, config: Optional[object] = None):
         super().__init__()
 
-        self.original_mlp = original_mlp
+        # Note: We intentionally do NOT store original_mlp to avoid memory duplication.
+        # Only store references to the components we actually need.
         self.num_experts = num_experts
         self.num_experts_per_tok = num_experts_per_tok
 
@@ -54,57 +56,39 @@ class SparseMLP(nn.Module):
         if hasattr(self.experts, "gate_up_proj"):
             # intermediate_size is half of the last dimension (interleaved)
             self.intermediate_size = self.experts.gate_up_proj.shape[-1] // 2
-
-            print(f"[SparseMLP] Using interleaved gate_up_proj layout:")
-            print(
-                f"  gate_up_proj shape: {self.experts.gate_up_proj.shape} (interleaved)"
-            )
-            print(f"  down_proj shape: {self.experts.down_proj.shape}")
-            print(f"  intermediate_size: {self.intermediate_size}")
         else:
             raise ValueError("Expected fused gate_up_proj in experts module")
+
+        # Get hidden_size from config or infer from down_proj shape
+        if config is not None and hasattr(config, "hidden_size"):
+            hidden_size = config.hidden_size
+        else:
+            # Infer from down_proj shape: [E, inter, hidden]
+            hidden_size = self.experts.down_proj.shape[-1]
 
         # GPT-OSS specific activation parameters
         self.alpha = getattr(self.experts, "alpha", 1.702)
         self.limit = getattr(self.experts, "limit", 7.0)
+        
+        # Reshape weights inplace by modifying .data (no memory duplication, no runtime reshape ops)
+        # This preserves the Parameter object while changing its shape
+        if self.experts.gate_up_proj.ndim == 3: 
+            self.experts.gate_up_proj.data = self.experts.gate_up_proj.data.unsqueeze(0)  # [E, H, inter*2] -> [1, E, H, inter*2]
+        if self.experts.down_proj.ndim == 3:
+            self.experts.down_proj.data = self.experts.down_proj.data.view(
+                1, self.num_experts, self.intermediate_size, hidden_size
+            )  # [E, inter, hidden] -> [1, E, inter, hidden]
+        self.mlp_type = "oss_sparse"
 
     def forward(self, hidden_states):
-        """
-        Forward pass using sparse_matmul for MoE computation.
-
-        Uses FUSED gate+up projection with INTERLEAVED layout:
-        - Single sparse_matmul for gate+up (fused, efficient)
-        - Split with [::2]/[1::2] strided slices (interleaved layout)
-        - TP sharding works because stride == shard_factor
-
-        The flow:
-        1. Router computes expert scores
-        2. Top-k experts are selected -> sparsity mask
-        3. Fused gate+up projection via single sparse_matmul
-        4. Split with [::2]/[1::2] (interleaved layout)
-        5. Apply activation (GPT-OSS style)
-        6. Down projection via sparse_matmul
-        7. Weight by router scores and sum
-        """
         batch_size, seq_len, hidden_size = hidden_states.shape
 
-        # Get router scores
-        router_logits = torch.nn.functional.linear(
-            hidden_states, self.router.weight, self.router.bias
-        )
-        # Convert to 4D for TTNN softmax compatibility (TTNN expects 4D tensors)
-        # [batch, seq, num_experts] -> [batch, 1, seq, num_experts]
-        router_logits_4d = router_logits.unsqueeze(1)
-        router_probs_4d = torch.softmax(router_logits_4d, dim=-1)
-        router_probs = router_probs_4d.squeeze(1)  # Back to 3D
+        # 1. Router Execution
+        # router_scores: [batch*seq, num_experts] (scattered probabilities)
+        # router_indices: [batch*seq, top_k]
+        router_scores, router_indices = self.router(hidden_states)
 
-        # Get top-k experts
-        topk_weights, topk_indices = torch.topk(
-            router_probs, k=self.num_experts_per_tok, dim=-1
-        )
-        topk_weights = topk_weights / topk_weights.sum(dim=-1, keepdim=True)
-
-        # Create sparsity mask [batch, seq, 1, num_experts]
+        # 2. Create Sparsity Mask [batch, seq, 1, num_experts]
         sparsity = torch.zeros(
             batch_size,
             seq_len,
@@ -113,109 +97,84 @@ class SparseMLP(nn.Module):
             dtype=hidden_states.dtype,
             device=hidden_states.device,
         )
-        # Scatter 1s at selected expert positions
+        
+        # Reshape indices for scatter: [batch, seq, 1, top_k]
+        topk_indices_unsqueezed = router_indices.view(batch_size, seq_len, 1, self.num_experts_per_tok)
+        
         sparsity.scatter_(
             dim=-1,
-            index=topk_indices.unsqueeze(2),
-            src=torch.ones_like(topk_indices.unsqueeze(2), dtype=hidden_states.dtype),
+            index=topk_indices_unsqueezed,
+            src=torch.ones_like(topk_indices_unsqueezed, dtype=hidden_states.dtype),
         )
 
-        # Reshape input for sparse_matmul
-        # input: [batch, seq, hidden] -> [batch, seq, 1, hidden]
-        hidden_4d = hidden_states.unsqueeze(2)
+        # 3. Reshape Input for sparse_matmul [batch, seq, 1, hidden]
+        hidden_4d = hidden_states.view(batch_size, seq_len, 1, hidden_size)
 
-        # nnz = 0 means runtime will calculate from sparsity tensor
-        # This is required for EP/TP sharding where nnz changes per device
-        nnz = 0
-
-        # === FUSED GATE+UP PROJECTION (single sparse_matmul, interleaved layout) ===
-        # gate_up_proj: [E, hidden, inter*2] (interleaved: [g0, u0, g1, u1, ...])
-        gate_up_weight = self.experts.gate_up_proj.unsqueeze(
-            0
-        )  # [1, E, hidden, inter*2]
+        # 4. Fused Gate+Up Projection
+        # gate_up_weight: [1, E, hidden, inter*2] (already reshaped in __init__)
+        
         gate_up_out = torch.ops.tt.sparse_matmul(
             hidden_4d,
-            gate_up_weight,
+            self.experts.gate_up_proj,
             sparsity,
-            nnz=nnz,
+            nnz=0, # Let runtime calculate
             is_input_a_sparse=False,
             is_input_b_sparse=True,
         )
-        # gate_up_out shape: [batch, seq, 1, E, 1, inter*2] -> [batch, seq, 1, E, inter*2]
-        gate_up_out = gate_up_out.squeeze(4)
 
-        # === SPLIT INTERLEAVED OUTPUT (before bias add to reduce memory) ===
-        # [::2] and [1::2] work with TP sharding when stride == shard_factor
-        # UpdateGlobalToLocalShapes pass handles this case specially
-        gate_out = gate_up_out[..., ::2]  # [batch, seq, 1, E, inter] - even indices
-        up_out = gate_up_out[..., 1::2]  # [batch, seq, 1, E, inter] - odd indices
+        # Output: [batch, seq, 1, E, M, inter*2] where M=1
+        # Reshape to [batch, seq, 1, E, inter*2] by squeezing M dimension
+        gate_up_out = gate_up_out.squeeze(4).view(
+            batch_size, seq_len, 1, self.num_experts, self.intermediate_size * 2
+        ) + self.experts.gate_up_proj_bias
 
-        # Add bias AFTER split to reduce const_eval memory pressure
-        # Split bias first: [E, inter*2] -> [E, inter] each
-        # This avoids materializing [1, seq, 1, E, inter*2] in const_eval
-        gate_bias = self.experts.gate_up_proj_bias[..., ::2]  # [E, inter]
-        up_bias = self.experts.gate_up_proj_bias[..., 1::2]  # [E, inter]
-        # Broadcast: [E, inter] -> [1, 1, 1, E, inter] (half the size!)
-        gate_out = gate_out + gate_bias.unsqueeze(0).unsqueeze(0).unsqueeze(0)
-        up_out = up_out + up_bias.unsqueeze(0).unsqueeze(0).unsqueeze(0)
+        # 5. Split & Activation (Interleaved Layout)
+        # Slicing works for TP because stride (2) matches shard_factor
+        gate_out = gate_up_out[..., ::2]   # Even indices
+        up_out = gate_up_out[..., 1::2]    # Odd indices
 
-        # === GPT-OSS ACTIVATION (NOT SwiGLU) ===
-        # gate = gate.clamp(max=limit)
-        # up = up.clamp(-limit, limit)
-        # glu = gate * sigmoid(gate * alpha)
-        # activated = (up + 1) * glu
         gate_out = gate_out.clamp(max=self.limit)
         up_out = up_out.clamp(-self.limit, self.limit)
         glu = gate_out * torch.sigmoid(gate_out * self.alpha)
         activated = (up_out + 1) * glu
 
-        # === DOWN PROJECTION ===
-        # activated: [batch, seq, 1, E, inter] -> reshape to [batch*seq, E, 1, inter]
+        # 6. Down Projection setup
+        # activated: [batch*seq, E, 1, inter]
         activated_reshaped = activated.view(
             batch_size * seq_len, self.num_experts, 1, self.intermediate_size
         )
-
-        # down_proj: [E, inter, hidden] -> [1, E, inter, hidden]
-        down_weight = self.experts.down_proj.unsqueeze(0)
-
-        # Create sparsity for down projection [1, 1, batch*seq, E]
+        
+        # sparsity_down: [1, 1, batch*seq, E]
         sparsity_down = sparsity.view(
-            batch_size * seq_len, 1, 1, self.num_experts
-        ).permute(1, 2, 0, 3)
+            1, 1, batch_size * seq_len, self.num_experts
+        )
 
+        # 7. Down Projection (sparse_matmul)
+        # down_weight: [1, E, inter, hidden] (already reshaped in __init__)
+        # Output: [batch*seq, E, M, hidden] where M=1
         down_out = torch.ops.tt.sparse_matmul(
             activated_reshaped,
-            down_weight,
+            self.experts.down_proj,
             sparsity_down,
             nnz=0,
-            is_input_a_sparse=True,
+            is_input_a_sparse=True, # Activations are sparse (only TopK are valid)
             is_input_b_sparse=False,
         )
 
-        # down_out: [batch*seq, E, 1, hidden] -> [batch*seq, E, hidden]
+        # Squeeze M dimension: [batch*seq, E, 1, hidden] -> [batch*seq, E, hidden]
         down_out = down_out.squeeze(2)
-        # bias: [E, hidden] -> [1, E, hidden]
-        down_out = down_out + self.experts.down_proj_bias.unsqueeze(0)
+        down_out = down_out + self.experts.down_proj_bias
 
-        # Weight by router scores and sum across experts
-        down_out = down_out.view(batch_size, seq_len, self.num_experts, hidden_size)
+        # 8. Weighted Sum & Final Output
+        # down_out: [BS, E, H]
+        # router_scores: [BS, E] -> [BS, E, 1]
+        # output: [BS, H] (Sum over Experts dim=1)
+        output = (down_out * router_scores.unsqueeze(-1)).sum(dim=1)
 
-        # Create full weight tensor [batch, seq, num_experts]
-        full_weights = torch.zeros(
-            batch_size,
-            seq_len,
-            self.num_experts,
-            dtype=hidden_states.dtype,
-            device=hidden_states.device,
-        )
-        full_weights.scatter_(dim=-1, index=topk_indices, src=topk_weights)
+        # Reshape back to [batch, seq, hidden]
+        output = output.view(batch_size, seq_len, hidden_size)
 
-        # Weighted sum
-        output = (down_out * full_weights.unsqueeze(-1)).sum(dim=2)
-
-        # Return tuple (output, router_scores) to match original MLP interface
-        # router_scores shape: [batch, seq, num_experts_per_tok]
-        return output, topk_weights
+        return output, router_scores
 
 
 def _is_moe_mlp(module: nn.Module) -> bool:
@@ -266,7 +225,7 @@ def _get_moe_config(module: nn.Module) -> Optional[tuple]:
 
 
 def enable_sparse_mlp(
-    model: nn.Module, target_classes: Optional[List[Type]] = None, verbose: bool = False
+    model: nn.Module, target_classes: Optional[List[Type]] = None, verbose: bool = False, config: Optional[object] = None
 ) -> nn.Module:
     """
     Replace MoE MLP layers in a model with SparseMLP implementations.
@@ -279,6 +238,7 @@ def enable_sparse_mlp(
         target_classes: Optional list of specific MLP classes to replace.
                        If None, auto-detects MoE MLPs.
         verbose: If True, print information about replaced layers
+        config: Optional model config for extracting MoE parameters
 
     Returns:
         The transformed model with SparseMLP layers
@@ -291,6 +251,10 @@ def enable_sparse_mlp(
         >>> model = enable_sparse_mlp(model, verbose=True)
     """
     replaced_count = 0
+    
+    # Try to get config from model if not provided
+    if config is None:
+        config = getattr(model, "config", None)
 
     def replace_mlp(parent: nn.Module, name: str, module: nn.Module):
         nonlocal replaced_count
@@ -305,17 +269,24 @@ def enable_sparse_mlp(
         if not should_replace:
             return False
 
-        # Get MoE configuration
-        config = _get_moe_config(module)
-        if config is None:
+        # Get MoE configuration from module first, then fall back to config
+        moe_config = _get_moe_config(module)
+        if moe_config is None and config is not None:
+            # Try to get from model config
+            num_experts = getattr(config, "num_local_experts", None)
+            num_experts_per_tok = getattr(config, "num_experts_per_tok", 2)
+            if num_experts is not None:
+                moe_config = (num_experts, num_experts_per_tok)
+        
+        if moe_config is None:
             if verbose:
                 print(f"[SparseMLP] Skipping {name}: could not determine MoE config")
             return False
 
-        num_experts, num_experts_per_tok = config
+        num_experts, num_experts_per_tok = moe_config
 
         # Create SparseMLP wrapper
-        sparse_mlp = SparseMLP(module, num_experts, num_experts_per_tok)
+        sparse_mlp = SparseMLP(module, num_experts, num_experts_per_tok, config)
 
         # Replace the module
         setattr(parent, name, sparse_mlp)
@@ -376,12 +347,22 @@ if _AUTO_SPARSE_MLP:
             """Patched from_pretrained that auto-enables SparseMLP for MoE models."""
             model = _original_from_pretrained(cls, *args, **kwargs)
 
+            # Get config from model
+            config = getattr(model, "config", None)
+
             # Check if this is an MoE model by looking for router/experts pattern
             has_moe = any(_is_moe_mlp(m) for _, m in model.named_modules())
 
             if has_moe:
                 print("[SparseMLP] MoE model detected, auto-enabling SparseMLP...")
-                model = enable_sparse_mlp(model, verbose=True)
+                if config:
+                    print(f"[SparseMLP] Model config: {type(config).__name__}")
+                    # Print relevant MoE config if available
+                    if hasattr(config, "num_local_experts"):
+                        print(f"[SparseMLP]   num_local_experts: {config.num_local_experts}")
+                    if hasattr(config, "num_experts_per_tok"):
+                        print(f"[SparseMLP]   num_experts_per_tok: {config.num_experts_per_tok}")
+                model = enable_sparse_mlp(model, verbose=True, config=config)
 
             return model
 

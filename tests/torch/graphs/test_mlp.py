@@ -476,10 +476,6 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
 def test_gpt_oss_mlp(variant, variant_config, mlp_type, arch):
-    if mlp_type == "sparse":
-        if arch == "llmbox":
-            pytest.skip("Sparse MLP not supported in llmbox arch yet")
-
     xr.set_device_type("TT")
 
     loader = GPTOSSModelLoader(variant=variant, num_layers=1)
@@ -502,22 +498,35 @@ def test_gpt_oss_mlp(variant, variant_config, mlp_type, arch):
     if arch == "llmbox":
         comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
+        mesh_shape = (2, 4)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(mlp, args, kwargs):
             shard_specs = {}
+            shard_specs[mlp.router.weight] = (None, "batch")
 
-            # Router weights (not sharded).
-            shard_specs[mlp.router.weight] = (None, None)
-            shard_specs[mlp.router.bias] = (None,)
+            # Both original and sparse use the same reshaped weights now
+            # Sparse: reshaped in-place to [1, E, H, inter*2] and [1, E, inter, H]
+            # Original: [E, H, inter*2] and [E, inter, H]
+            gate_up_proj = mlp.experts.gate_up_proj
+            down_proj = mlp.experts.down_proj
+            gate_up_proj_shard_spec = (None, "model", "batch", None) if mlp_type == "sparse" else ("model", "batch", None)
+            down_proj_shard_spec = (None, "model", None, "batch") if mlp_type == "sparse" else ("model", None, "batch")
 
-            # Shard experts across devices.
-            shard_specs[mlp.experts.gate_up_proj] = ("model", None, None)
+            # gate_up_proj: (E, hidden, inter*2) or (1, E, hidden, inter*2) -> EP + hidden TP
+            #   - E: "model" (4-way EP)
+            #   - hidden: "batch" (2-way, K shard -> all-reduce)
+            #   - inter: None (output replicated)
+            shard_specs[gate_up_proj] = gate_up_proj_shard_spec
             shard_specs[mlp.experts.gate_up_proj_bias] = ("model", None)
-            shard_specs[mlp.experts.down_proj] = ("model", None, None)
-            shard_specs[mlp.experts.down_proj_bias] = ("model", None)
+
+            # down_proj: (E, inter, hidden) or (1, E, inter, hidden) -> EP + hidden TP
+            #   - E: "model" (4-way EP)
+            #   - inter: None (input replicated)
+            #   - hidden: "batch" (2-way, output sharded)
+            shard_specs[down_proj] = down_proj_shard_spec
+            shard_specs[mlp.experts.down_proj_bias] = ("model", "batch")
 
             return shard_specs
 
