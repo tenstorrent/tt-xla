@@ -35,7 +35,6 @@ from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
-from vllm.model_executor.model_loader.tpu import TPUModelLoader
 from vllm.model_executor.model_loader.utils import initialize_model
 from vllm.model_executor.models.interfaces import supports_transcription
 from vllm.model_executor.models.interfaces_base import (
@@ -88,7 +87,7 @@ from .attention import (
 )
 from .logger import tt_init_logger
 from .platform import TTConfig
-from .vllm_utils import shard_model
+from .vllm_distributed_utils import shard_model
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -224,8 +223,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
 
         # SPMD Related
-        self.use_spmd = self.tt_config.enable_tensor_parallel
-        if self.use_spmd:
+        self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
+        if self.enable_tensor_parallel:
             num_devices = xr.global_runtime_device_count()
             mesh_shape = (num_devices, 1)
             device_ids = np.array(range(num_devices))
@@ -412,7 +411,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else None
         )
 
-        if not self.use_spmd:
+        if not self.enable_tensor_parallel:
             self.sample_from_logits_func = torch.compile(
                 self.sample_from_logits,
                 backend="tt",
@@ -1130,7 +1129,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
 
             if (
-                self.use_spmd
+                self.enable_tensor_parallel
                 and self.model.lm_head is not None
                 and isinstance(self.model.lm_head, ParallelLMHead)
             ):
@@ -1323,24 +1322,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return_value=xm_tp_rank,
         ):
             try:
-                if self.use_spmd:
-                    logger.info("Loading model with TPUModelLoader...")
-                    tpu_loader = TPUModelLoader(
-                        load_config=self.vllm_config.load_config
-                    )
-                    model = tpu_loader.load_model(
-                        vllm_config=self.vllm_config,
-                        model_config=self.vllm_config.model_config,
-                        mesh=self.mesh,
-                    ).eval()
+                model_loader = get_model_loader(self.load_config)
+                model = model_loader.load_model(
+                    vllm_config=self.vllm_config, model_config=self.model_config
+                ).eval()
+                model = model.to(self.device)
+
+                if self.enable_tensor_parallel:
+                    # Apply sharding constraints to the model weights.
                     shard_model(model, self.mesh)
-                else:
-                    model_loader = get_model_loader(self.load_config)
-                    logger.info("Loading model from scratch...")
-                    model = model_loader.load_model(
-                        vllm_config=self.vllm_config, model_config=self.model_config
-                    )
-                model = model.to("xla")
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -1822,7 +1812,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 assert tensor_size % kv_cache_spec.page_size_bytes == 0
                 num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
                 if isinstance(kv_cache_spec, AttentionSpec):
-                    if self.use_spmd:
+                    if self.enable_tensor_parallel:
                         num_kv_heads = kv_cache_spec.num_kv_heads
                         assert self.original_parallel_config is not None
                         tp_size = self.original_parallel_config.tensor_parallel_size
@@ -1856,7 +1846,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.kv_caches,
         )
 
-        if self.use_spmd:
+        if self.enable_tensor_parallel:
             # Shard KV Cache
             for cache in self.kv_caches:
                 assert cache.ndim == 5, "KV cache tensor must be 5D."
