@@ -54,6 +54,16 @@ RUN git clone --branch ${OMPI_TAG} --depth 1 https://github.com/open-mpi/ompi.gi
     cd .. && \
     rm -rf ompi-src
 
+# ENV needed
+ENV PATH=${OMPI_PREFIX}/bin:$PATH
+ENV LD_LIBRARY_PATH=${OMPI_PREFIX}/lib:$LD_LIBRARY_PATH
+ENV CPATH=${OMPI_PREFIX}/include
+ENV PKG_CONFIG_PATH=${OMPI_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH
+ENV CC=clang
+ENV CXX=clang++
+ENV TRACY_NO_INVARIANT_CHECK=1
+ENV TRACY_NO_ISA_EXTENSIONS=1
+
 # Install clang 17
 # RUN dnf install --refresh -y clang llvm llvm-devel llvm-toolset && \
 #     ln -s /usr/bin/clang-17 /usr/bin/clang && \
