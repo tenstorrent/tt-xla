@@ -151,7 +151,7 @@ def test_llama_step(run_mode):
     output_tokens: List[str] = []
     generated_output_logits: List[torch.Tensor] = []
 
-    model.compile(backend="tt")
+    model.compile(backend="tt",  options={"tt_legacy_compile": True})
 
     # Run model (with no gradient calculation since we only need inference).
     with torch.no_grad():
