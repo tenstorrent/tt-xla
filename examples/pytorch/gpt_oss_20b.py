@@ -4,7 +4,7 @@
 
 import argparse
 import os
-from typing import List, Optional, Any
+from typing import Any, List, Optional
 
 import numpy as np
 import torch
@@ -25,33 +25,43 @@ from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-# ================================================================================================
-# Fix StaticCache recompilation issue by forcing all layers to use full attention
-# ================================================================================================
-def disable_sliding_window_cache(config: PretrainedConfig):
-    """
-    Override config.layer_types to use full attention for all layers.
-
-    This eliminates StaticSlidingWindowLayer's cumulative_length tracking that causes
-    torch.compile recompilations, while maintaining correct behavior since the cache
-    never fills (full attention layers limit sequence length to max_cache_len anyway).
-
-    Args:
-        config: Model configuration to modify
-
-    Returns:
-        The modified config
-    """
-    config.layer_types = ["full_attention"] * config.num_hidden_layers
-    print(f"✓ Set all {config.num_hidden_layers} layers to use full_attention (no sliding window)")
-    return config
-
-
-
-
-DEFAULT_PROMPT = "Explain quantum mechanics"
+DEFAULT_PROMPTS = [
+    "I like taking walks in the",
+    "My name is",
+    "My favorite color is",
+    "Cheese is an excellent",
+    "While ham sandwiches are great, I prefer",
+    "My bicycle is broken, and",
+    "The best way to start my day is with",
+    "I love to",
+    "I am not a fan of",
+    "Toronto has an explosive restaurant scene. There are many different cuisines to",
+    "My favorite season is",
+    "My least favorite season is",
+    "Bison meat is not",
+    "If you forget to wear your shoes when you go hiking,",
+    "My right elbow is in pain, and",
+    "To make a grilled cheese, start by",
+    "The internal combustion engine",
+    "The first person to walk on the moon was",
+    "The ocean is home to many",
+    "I",
+    "Calculus is a branch of mathematics that",
+    "The most common type of cloud is",
+    "A matrix dot product is",
+    "The 300 Spartans were",
+    "Napoleon Bonaparte was born in",
+    "The quick brown fox jumps over the lazy dog. And then he",
+    "The original title of the book 'The Great Gatsby' was",
+    "I forgot to tie my shoelaces",
+    "Playing video games",
+    "The sun is",
+    "My car's transmission is",
+    "My keyboard is in a language I don't understand! What",
+]
 
 MAX_SEQUENCE_LENGTH = 32
+
 
 # --------------------------------
 # GPT-OSS 20B Generation Loop Example
@@ -61,18 +71,12 @@ def gpt_oss_20b(interactive: bool = False):
     # TODO: check transformers version?
 
     # Set up config variables.
-    max_cache_len: int = 2048
-    # TODO: For now we use unsloth's BF16 version to get around MXFP4 quantization issue and the unintialized weights issue
-    # model_name: str = "openai/gpt-oss-20b"
-    model_name: str = "unsloth/gpt-oss-20b-BF16"
+    max_cache_len: int = 128
+    # TODO: keeping unsloth for now because it loads faster
+    model_name: str = "openai/gpt-oss-20b"
+    # model_name: str = "unsloth/gpt-oss-20b-BF16"
 
-    # TODO: always need spmd?
-    # Determine if SPMD mode should be enabled, if more than 1 device is available.
-    # SPMD must be turned off for llama generate on 1x1 mesh - See https://github.com/tenstorrent/tt-xla/issues/1639
-    num_devices = xr.global_runtime_device_count()
-    is_spmd: bool = num_devices > 1
-    if is_spmd:
-        setup_spmd()
+    setup_spmd()
 
     # Connect the device and create an xla mesh.
     device: torch.device = torch_xla.device()
@@ -81,20 +85,16 @@ def gpt_oss_20b(interactive: bool = False):
     # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_name)
 
-    # Debug: Check what attention implementation is actually being used
-    print(f"Model config._attn_implementation: {model.config._attn_implementation}")
-
     while True:
         if interactive:
             user_prompt = input("Enter your prompt or quit() to exit: ")
             batch_size: int = 1
             if user_prompt.lower() == "quit()":
                 break
-            # user_prompt = [user_prompt]
+            user_prompt = [user_prompt]
         else:
-            batch_size: int = 1  # Reduced from 32 to avoid OOM
-            # user_prompt = DEFAULT_PROMPTS[:batch_size]
-            user_prompt = DEFAULT_PROMPT
+            batch_size: int = 32
+            user_prompt = DEFAULT_PROMPTS[:batch_size]
 
         # Construct inputs, including static cache
         input_args = construct_inputs(
@@ -107,12 +107,8 @@ def gpt_oss_20b(interactive: bool = False):
         # Transfer model and inputs to device
         model, input_args = transfer_to_device(model, input_args, device)
 
-        # Mark sharding on inputs and model internals if SPMD is enabled
-        if is_spmd:
-            mark_sharding_on_inputs_and_model(model, input_args, mesh)
-
-        # Enable recompilation logging to debug why every token triggers recompilation
-        os.environ["TORCH_LOGS"] = "recompiles"
+        # Mark sharding on inputs and model internals
+        mark_sharding_on_inputs_and_model(model, input_args, mesh)
 
         # Compile model
         compiled_model = torch.compile(model, backend="tt")
@@ -124,7 +120,6 @@ def gpt_oss_20b(interactive: bool = False):
             tokenizer,
             device,
             mesh,
-            is_spmd,
             max_tokens_to_generate,
             user_prompt,
             interactive,
@@ -138,6 +133,10 @@ def setup_spmd():
     """
     Initializes SPMD mode in torch_xla.
     """
+
+    num_devices = xr.global_runtime_device_count()
+    if num_devices < 4:
+        raise RuntimeError(f"GPT-OSS-20B requires at least 4 devices to run")
 
     print("Setting up XLA environment...")
 
@@ -157,33 +156,18 @@ def create_device_mesh() -> Mesh:
         Mesh object for SPMD operations
     """
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (1, num_devices)
+
+    if num_devices == 32:  # Galaxy
+        mesh_shape = (8, 4)
+    elif num_devices == 8:  # llmbox
+        mesh_shape = (2, 4)
+    else:
+        raise RuntimeError(f"Gpt-oss is only supported on llmbox and galaxy")
+
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
     print(f"Created device mesh: {mesh_shape} with {num_devices} devices")
     return mesh
-
-
-def load_config(model_name: str) -> PretrainedConfig:
-    """Load and return the configuration for the gpt-oss model with this instance's variant.
-
-    Returns:
-        The configuration object for the gpt-oss model.
-    """
-    config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
-
-    config.use_cache = True
-
-    # TODO: Currently disabling sliding window to avoid recompilation
-    # config.sliding_window = None
-    # config.layer_types = [
-    #     "full_attention"
-    # ] * config.num_hidden_layers
-
-    # Set quantization method to "none" if using "openai/gpt-oss-20b"
-    # config.quantization_config["quant_method"] = "none"
-
-    return config
 
 
 def setup_model_and_tokenizer(
@@ -198,12 +182,9 @@ def setup_model_and_tokenizer(
     Returns:
         Tuple of (model, tokenizer)
     """
-    config = load_config(model_name)
-
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name,
         dtype=torch.bfloat16,
-        config=config,
         low_cpu_mem_usage=True,
         trust_remote_code=True,
         attn_implementation="eager",
@@ -217,7 +198,7 @@ def setup_model_and_tokenizer(
 
 
 def construct_inputs(
-    input_prompt: str,
+    input_prompt: List[str],
     tokenizer: PreTrainedTokenizer,
     model_config: PretrainedConfig,
     batch_size: int,
@@ -227,7 +208,7 @@ def construct_inputs(
     Construct inputs including static cache.
 
     Args:
-        input_prompt: Input text prompt
+        input_prompt: Input text prompt(s) - can be a single string or list of strings
         tokenizer: Tokenizer instance
         model_config: Model configuration
         batch_size: Batch size
@@ -237,26 +218,22 @@ def construct_inputs(
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
 
-    messages = [{"role": "user", "content": input_prompt}]
-
-    inputs = tokenizer.apply_chat_template(
-        messages,
-        add_generation_prompt=True,
-        tokenize=True,
-        return_dict=True,
+    inputs = tokenizer(
+        input_prompt,
         return_tensors="pt",
-        padding="max_length",
         max_length=MAX_SEQUENCE_LENGTH,
+        padding="max_length",
+        padding_side="left",
+        return_attention_mask=True,
     )
 
     # Disable sliding window cache to avoid torch.compile recompilations
-    model_config = disable_sliding_window_cache(model_config)
-
+    cache_config = change_config_layer_types_to_full_attention(model_config)
 
     # Static cache should be initialized on CPU and separately transferred to device
     # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
     static_cache: StaticCache = StaticCache(
-        config=model_config,
+        config=cache_config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
         device="cpu",
@@ -273,7 +250,6 @@ def construct_inputs(
     )
 
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
-
 
     # Attention mask is needed to ignore padding tokens in left-padded batches. The mask should match max_cache_len
     # to prevent recompilation or implicit padding by transformers, which can cause degenerate output.
@@ -305,6 +281,13 @@ def construct_inputs(
     print("=" * 50)
 
     return input_args
+
+
+def change_config_layer_types_to_full_attention(
+    config: PretrainedConfig,
+) -> PretrainedConfig:
+    config.layer_types = ["full_attention"] * config.num_hidden_layers
+    return config
 
 
 def transfer_to_device(
@@ -347,38 +330,36 @@ def mark_sharding_on_inputs_and_model(
         mesh: Device mesh for SPMD operations
     """
 
+    # TODO: Remove?
     for layer in input_args["past_key_values"].layers:
         xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
         xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
+    xs.mark_sharding(model.model.embed_tokens.weight, mesh, (None, "batch"))
+    xs.mark_sharding(model.model.norm.weight, mesh, ("batch",))
+    xs.mark_sharding(model.lm_head.weight, mesh, ("model", "batch"))
+
     for layer in model.model.layers:
-        xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
+        xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", "batch"))
+        xs.mark_sharding(layer.self_attn.q_proj.bias, mesh, ("model",))
+        xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", "batch"))
+        xs.mark_sharding(layer.self_attn.k_proj.bias, mesh, ("model",))
+        xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", "batch"))
+        xs.mark_sharding(layer.self_attn.v_proj.bias, mesh, ("model",))
+        xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, ("batch", "model"))
+        xs.mark_sharding(layer.self_attn.o_proj.bias, mesh, ("batch",))
+
         xs.mark_sharding(layer.self_attn.sinks, mesh, (None,))
 
-        xs.mark_sharding(layer.mlp.router.weight, mesh, (None, None))
-        xs.mark_sharding(
-            layer.mlp.experts.gate_up_proj,
-            mesh,
-            (
-                "model",
-                None,
-                None,
-            ),
-        )
+        xs.mark_sharding(layer.mlp.router.weight, mesh, (None, "batch"))
+
+        xs.mark_sharding(layer.mlp.experts.gate_up_proj, mesh, ("model", "batch", None))
         xs.mark_sharding(layer.mlp.experts.gate_up_proj_bias, mesh, ("model", None))
-        xs.mark_sharding(
-            layer.mlp.experts.down_proj,
-            mesh,
-            (
-                "model",
-                None,
-                None,
-            ),
-        )
-        xs.mark_sharding(layer.mlp.experts.down_proj_bias, mesh, ("model", None))
+        xs.mark_sharding(layer.mlp.experts.down_proj, mesh, ("model", None, "batch"))
+        xs.mark_sharding(layer.mlp.experts.down_proj_bias, mesh, ("model", "batch"))
+
+        xs.mark_sharding(layer.input_layernorm.weight, mesh, ("batch",))
+        xs.mark_sharding(layer.post_attention_layernorm.weight, mesh, ("batch",))
 
 
 def run_generate(
@@ -387,7 +368,6 @@ def run_generate(
     tokenizer: PreTrainedTokenizer,
     device: torch.device,
     mesh: Mesh = None,
-    is_spmd: bool = True,
     max_tokens_to_generate: int = 128,
     input_prompt: List[str] = [""],
     is_interactive: bool = False,
@@ -401,7 +381,6 @@ def run_generate(
         tokenizer: Tokenizer instance
         device: Device
         mesh: Device mesh for SPMD operations (optional)
-        is_spmd: Whether SPMD mode is enabled
         max_tokens_to_generate: Maximum number of tokens to generate
     """
     num_users = input_args["input_ids"].shape[0]
@@ -435,11 +414,6 @@ def run_generate(
             host_cache_pos = input_args["cache_position"].to("cpu")
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
-
-            print(
-                f"Step {step + 1}/{max_tokens_to_generate}", output_text
-            )
-
 
     print()
     if not is_interactive:
