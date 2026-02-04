@@ -57,7 +57,7 @@ test_config:
   qwen_2_5_coder/pytorch-0_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  clip/pytorch-base_patch32-single_device-training:
+  clip/image_text_similarity/pytorch-base_patch32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "error: failed to legalize operation 'stablehlo.scatter'"
@@ -120,19 +120,19 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
-  centernet/pytorch-resnet18_coco-single_device-training:
+  centernet/object_detection/pytorch-resnet18_coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
-  centernet/pytorch-resnet101_coco-single_device-training:
+  centernet/object_detection/pytorch-resnet101_coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
-  centernet/pytorch-dla1x_coco-single_device-training:
+  centernet/object_detection/pytorch-dla1x_coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
-  centernet/pytorch-dla2x_coco-single_device-training:
+  centernet/object_detection/pytorch-dla2x_coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
@@ -452,7 +452,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  centernet/pytorch-hourglass_coco-single_device-training:
+  centernet/object_detection/pytorch-hourglass_coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Buffer must be allocated on device"
@@ -573,25 +573,25 @@ test_config:
   dla/pytorch-dla169-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  densenet/pytorch-densenet121-single_device-training:
+  densenet/image_classification/pytorch-densenet121-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  densenet/pytorch-densenet161-single_device-training:
+  densenet/image_classification/pytorch-densenet161-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  densenet/pytorch-densenet169-single_device-training:
+  densenet/image_classification/pytorch-densenet169-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  densenet/pytorch-densenet201-single_device-training:
+  densenet/image_classification/pytorch-densenet201-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  codegen/pytorch-Salesforce/codegen-350M-mono-single_device-training:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-mono-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  codegen/pytorch-Salesforce/codegen-350M-multi-single_device-training:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-multi-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  codegen/pytorch-Salesforce/codegen-350M-nl-single_device-training:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-nl-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   squeezebert/pytorch-squeezebert-mnli-single_device-training:
@@ -660,16 +660,16 @@ test_config:
   swin/image_classification/pytorch-swin_v2_b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  deit/pytorch-base-single_device-training:
+  deit/image_classification/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  deit/pytorch-base_distilled-single_device-training:
+  deit/image_classification/pytorch-base_distilled-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  deit/pytorch-small-single_device-training:
+  deit/image_classification/pytorch-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  deit/pytorch-tiny-single_device-training:
+  deit/image_classification/pytorch-tiny-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   bart/pytorch-large-single_device-training:
@@ -1015,7 +1015,7 @@ test_config:
   xglm/pytorch-xglm-1.7B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  densenet/pytorch-densenet121_xray-single_device-training:
+  densenet/image_classification/pytorch-densenet121_xray-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source."
