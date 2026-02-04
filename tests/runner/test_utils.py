@@ -170,10 +170,12 @@ class ModelTestConfig:
                 if fallback_arch in overrides and key in overrides[fallback_arch]:
                     if self.arch_override_fallback is None:
                         self.arch_override_fallback = fallback_arch
-                        print(
-                            f"WARNING: [qb2-blackhole hack] {self.nodeid}: "
-                            f"Using '{fallback_arch}' arch_overrides for qb2-blackhole"
-                        )
+                        # Only show warning during test runs, not during collection
+                        if "--collect-only" not in sys.argv and "--co" not in sys.argv:
+                            print(
+                                f"WARNING: [qb2-blackhole hack] {self.nodeid}: "
+                                f"Using '{fallback_arch}' arch_overrides for qb2-blackhole"
+                            )
                     return overrides[fallback_arch][key]
 
         return self.data.get(key, default)
