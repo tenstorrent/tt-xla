@@ -924,13 +924,10 @@ def sparse_matmul(
             E = input_tensor_b.shape[1]
             N = input_tensor_b.shape[-1]
 
-            # Ensure same dtype for matmul
-            input_b_casted = input_tensor_b.to(input_tensor_a.dtype)
-
             # Expand input_a for broadcasting: [A, B, 1, 1, M, K]
             input_a_expanded = input_tensor_a.unsqueeze(2).unsqueeze(3)
             # Expand input_b for broadcasting: [1, 1, 1, E, K, N]
-            input_b_expanded = input_b_casted.unsqueeze(0)
+            input_b_expanded = input_tensor_b.unsqueeze(0)
 
             # Matmul: [A, B, 1, E, M, N]
             output = torch.matmul(input_a_expanded, input_b_expanded)
@@ -942,11 +939,9 @@ def sparse_matmul(
 
         elif is_input_a_sparse and not is_input_b_sparse:
             # [A, E, M, K] @ [1, E, K, N] -> [A, E, M, N]
-            # Ensure same dtype for matmul
-            input_b_casted = input_tensor_b.to(input_tensor_a.dtype)
-            output = torch.matmul(input_tensor_a, input_b_casted)
+            output = torch.matmul(input_tensor_a, input_tensor_b)
             # Apply sparsity mask [1, 1, A, E] -> [A, E, 1, 1]
-            mask = (sparsity > 0).to(input_tensor_a.dtype).permute(2, 3, 0, 1)
+            mask = (sparsity > 0).permute(2, 3, 0, 1)
             output = output * mask
             return output
 
