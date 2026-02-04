@@ -126,7 +126,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         )
 
     # @override
-    def _test_inference(self) -> Tuple[ComparisonResult, ...]:
+    def _test_inference(self, request=None) -> Tuple[ComparisonResult, ...]:
         """
         Tests the model by running inference on multichip TT device and on CPU and comparing the
         results.
@@ -136,6 +136,17 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
         self._compile_for_tt_device(self.tt_device_multichip_workload)
         tt_res = self._run_on_tt_device()
+
+        if request:
+            if request.config.getoption(
+                "--serialize", False
+            ) or request.node.get_closest_marker("filecheck"):
+                # Serialization requires mesh context for jax models with sharding operations, which is not currently handled.
+                import warnings
+
+                warnings.warn(
+                    "Serialization/filecheck is not yet supported through DynamicJaxMultiChipModelTester."
+                )
 
         return (self._compare(tt_res, cpu_res),)
 
