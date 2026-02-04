@@ -83,6 +83,20 @@ jobs:
       run_id_source: tt-xla
       ref: main
       perf_regression_check: true
-      test-filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding,test_llama_3_1_70b_tp
-      runs-on-filter: All
+      test-filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding
+      runs-on-filter: n150
+      sh-runner: false
+
+  perf-benchmark-llmbox:
+    needs: [ docker-build, build ]
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    secrets: inherit
+    with:
+      project: tt-xla
+      run_id: ${{ needs.build.outputs.artifacts_run_id }}
+      run_id_source: tt-xla
+      ref: main
+      perf_regression_check: true
+      test-filter: test_llama_3_1_70b_tp
+      runs-on-filter: llmbox
       sh-runner: false
