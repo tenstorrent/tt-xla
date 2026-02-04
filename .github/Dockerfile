@@ -32,7 +32,16 @@ SHELL ["/bin/bash", "-c"]
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Uninstall OpenMPI from EPEL to avoid conflicts
 RUN dnf remove -y epel-release openmpi openmpi-devel || true
+
+# Install build requirements
+RUN dnf install --refresh -y \
+#     git-lfs \
+#     patchelf \
+    protobuf-compiler \
+    protobuf-devel \
+    flex
 
 # Build OpenMPI 5.0.7 with ULFM support from source
 ARG OMPI_TAG=v5.0.7
@@ -118,14 +127,6 @@ RUN dnf install --refresh -y ccache \
 # ENV CCACHE_DIR="/root/.ccache"
 # ENV CCACHE_MAXSIZE="5G"
 # ENV CCACHE_COMPRESS="true"
-
-# Install requirements.txt as global Python 3.11 packages
-RUN dnf install --refresh -y \
-#     git-lfs \
-#     patchelf \
-    protobuf-compiler \
-    protobuf-devel
-    # ffmpeg-free
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${MLIR_TAG} AS ird
 SHELL ["/bin/bash", "-c"]
