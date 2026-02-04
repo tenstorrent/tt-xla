@@ -107,13 +107,13 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=3)] grow to 1518400 B which is beyond max L1 size of 1499136 B"
-  mlp_mixer/pytorch-mixer_b32_224-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_b32_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_l32_224-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_l32_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_s32_224-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_s32_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   stable_diffusion_unet/pytorch-base-single_device-training:
@@ -148,11 +148,11 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "TypeError: list indices must be integers or slices, not tuple"
-  mobilenetv1/pytorch-google/mobilenet_v1_0.75_192-single_device-training:
+  mobilenetv1/image_classification/pytorch-google/mobilenet_v1_0.75_192-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
-  mobilenetv1/pytorch-google/mobilenet_v1_1.0_224-single_device-training:
+  mobilenetv1/image_classification/pytorch-google/mobilenet_v1_1.0_224-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
@@ -228,7 +228,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ModuleNotFoundError: No module named 'segmentation_models_pytorch'"
-  mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-training:
+  mobilenetv2/image_classification/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ValueError: Expected more than 1 value per channel when training, got input size torch.Size([1, 256, 1, 1])"
@@ -360,7 +360,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  mgp_str_base/pytorch-single_device-training:
+  mgp_str_base/cv_image_fe/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -460,34 +460,34 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_r50_24e_bevformer-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_bevformer-single_device-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 20971520000 B DRAM buffer across 8 banks, where each bank needs to store 2621440000 B, but bank size is only 4278190016 B"
-  maptr/pytorch-tiny_r50_24e_bevformer_t4-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_bevformer_t4-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_r50_24e-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_r50_110e-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_110e-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_r50_24e_t4-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_t4-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-nano_r18_110e-single_device-training:
+  maptr/realtime_map_construction/pytorch-nano_r18_110e-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_r50_24e_bevpool-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_bevpool-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  maptr/pytorch-tiny_fusion_24e-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_fusion_24e-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -621,7 +621,7 @@ test_config:
   vit/pytorch-vit_h_14-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  maptr/pytorch-tiny_r50_24e_av2-single_device-training:
+  maptr/realtime_map_construction/pytorch-tiny_r50_24e_av2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -693,17 +693,17 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  mamba/pytorch-mamba-370m-hf-single_device-training:
+  mamba/causal_lm/pytorch-mamba-370m-hf-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  mamba/pytorch-mamba-790m-hf-single_device-training:
+  mamba/causal_lm/pytorch-mamba-790m-hf-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  mamba/pytorch-mamba-1.4b-hf-single_device-training:
+  mamba/causal_lm/pytorch-mamba-1.4b-hf-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
@@ -1070,31 +1070,31 @@ test_config:
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_b16_224-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_b16_224_in21k-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_b16_224_miil-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224_miil-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_b16_224_miil_in21k-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224_miil_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_l16_224-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_l16_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_l16_224_in21k-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_l16_224_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_s16_224-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_s16_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_b16_224.goog_in21k-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224.goog_in21k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mlp_mixer/pytorch-mixer_github-single_device-training:
+  mlp_mixer/lucidrains/pytorch-mixer_github-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   mlp_mixer/lucidrains/pytorch-base-single_device-training:
@@ -1340,10 +1340,10 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  mobilenetv1/pytorch-mobilenet_v1-single_device-training:
+  mobilenetv1/image_classification/pytorch-mobilenet_v1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-training:
+  mobilenetv1/image_classification/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   unet_for_conditional_generation/pytorch-base-single_device-training:
@@ -1471,22 +1471,22 @@ test_config:
   regnet/pytorch-regnet_x_32gf-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-mobilenet_v2-single_device-training:
+  mobilenetv2/image_classification/pytorch-mobilenet_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-single_device-training:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_0.35_96-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-single_device-training:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_0.75_160-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-single_device-training:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_1.0_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-mobilenetv2_100-single_device-training:
+  mobilenetv2/image_classification/pytorch-mobilenetv2_100-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  mobilenetv2/pytorch-mobilenet_v2_torchvision-single_device-training:
+  mobilenetv2/image_classification/pytorch-mobilenet_v2_torchvision-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   qwen_3/causal_lm/pytorch-1_7b-single_device-training:
@@ -1508,7 +1508,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
-  mamba/pytorch-mamba-2.8b-hf-single_device-training:
+  mamba/causal_lm/pytorch-mamba-2.8b-hf-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
