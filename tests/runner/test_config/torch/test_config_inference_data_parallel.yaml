@@ -19,7 +19,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b0-data_parallel-inference:
+  segformer/semantic_segmentation/pytorch-mit_b0-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -51,7 +51,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b4-data_parallel-inference:
+  segformer/semantic_segmentation/pytorch-mit_b4-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -85,7 +85,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b1-data_parallel-inference:
+  segformer/semantic_segmentation/pytorch-mit_b1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -121,7 +121,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b3-data_parallel-inference:
+  segformer/semantic_segmentation/pytorch-mit_b3-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -159,7 +159,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b5-data_parallel-inference:
+  segformer/semantic_segmentation/pytorch-mit_b5-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -209,7 +209,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b2-data_parallel-inference:
+  segformer/semantic_segmentation/pytorch-mit_b2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -333,15 +333,15 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_040-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_040-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_320-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_320-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_16gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_16gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -416,7 +416,7 @@ test_config:
   #   supported_archs: [n300]
   #   status: EXPECTED_PASSING
 
-  roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-data_parallel-inference:
+  roberta/masked_lm/pytorch-cardiffnlp/twitter-roberta-base-sentiment-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -425,15 +425,15 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  regnet/pytorch-regnet_y_160-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_160-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_800mf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_800mf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_400mf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_400mf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -492,11 +492,11 @@ test_config:
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed - https://github.com/tenstorrent/tt-xla/issues/2010"
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_3_2gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_3_2gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_8gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_8gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -556,7 +556,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9714103734933311. Required: pcc=0.98."
 
-  regnet/pytorch-regnet_y_400mf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_400mf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -620,7 +620,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext50_32x4d-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext50_32x4d-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -630,7 +630,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9550153017044067. Required: pcc=0.99."
 
-  retinanet/pytorch-retinanet_rn50fpn-data_parallel-inference:
+  retinanet/object_detection/pytorch-retinanet_rn50fpn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -660,11 +660,11 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8890893459320068. Required: pcc=0.99."
 
-  regnet/pytorch-regnet_y_080-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_080-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_8gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_8gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -730,7 +730,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  retinanet/pytorch-retinanet_rn101fpn-data_parallel-inference:
+  retinanet/object_detection/pytorch-retinanet_rn101fpn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -742,11 +742,11 @@ test_config:
     status: EXPECTED_PASSING
     reason: "Calculated: pcc=0.9272822141647339. Required: pcc=0.99."
 
-  regnet/pytorch-regnet_y_120-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_120-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_1_6gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_1_6gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -797,7 +797,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext101_32x8d-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext101_32x8d-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -806,7 +806,7 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  retinanet/pytorch-retinanet_rn152fpn-data_parallel-inference:
+  retinanet/object_detection/pytorch-retinanet_rn152fpn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -818,11 +818,11 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.5767203569412231. Required: pcc=0.99."
 
-  regnet/pytorch-regnet_y_16gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_16gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_32gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_32gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -887,7 +887,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext101_32x8d_wsl-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext101_32x8d_wsl-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -896,7 +896,7 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  retinanet/pytorch-retinanet_rn18fpn-data_parallel-inference:
+  retinanet/object_detection/pytorch-retinanet_rn18fpn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -920,17 +920,17 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9093026518821716. Required: pcc=0.99."
 
-  retinanet/pytorch-retinanet_rn34fpn-data_parallel-inference:
+  retinanet/object_detection/pytorch-retinanet_rn34fpn-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9525967836380005. Required: pcc=0.99."
 
-  regnet/pytorch-regnet_y_1_6gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_1_6gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_3_2gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_3_2gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -1028,11 +1028,11 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  regnet/pytorch-regnet_y_32gf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_y_32gf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_800mf-data_parallel-inference:
+  regnet/image_classification/pytorch-regnet_x_800mf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -1149,7 +1149,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  resnext/pytorch-resnext26_32x4d_osmr-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext26_32x4d_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1166,7 +1166,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext50_32x4d_osmr-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext50_32x4d_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1203,7 +1203,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.985
 
-  resnext/pytorch-resnext101_64x4d_osmr-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext101_64x4d_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1218,7 +1218,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
-  resnext/pytorch-resnext14_32x4d_osmr-data_parallel-inference:
+  resnext/image_classification/pytorch-resnext14_32x4d_osmr-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
