@@ -18,13 +18,7 @@ from torch_xla.distributed.spmd import Mesh
 from transformers.cache_utils import StaticCache
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.models.gemma.modeling_gemma import GemmaAttention
-from transformers.models.glm4_moe.modeling_glm4_moe import (
-    ALL_ATTENTION_FUNCTIONS as GLM_ATTN_FUNCS,
-)
 from transformers.models.glm4_moe.modeling_glm4_moe import Glm4MoeAttention
-from transformers.models.glm4_moe.modeling_glm4_moe import (
-    eager_attention_forward as glm_eager_attention_forward,
-)
 from transformers.models.gpt_oss.modeling_gpt_oss import (
     ALL_ATTENTION_FUNCTIONS,
     eager_attention_forward,
@@ -2452,97 +2446,57 @@ def test_gpt_oss_attention(variant, variant_config, arch):
     get_available_variants("glm").items(),
     ids=[str(k) for k in get_available_variants("glm").keys()],
 )
-def test_glm_attention(variant, variant_config, seq_len, arch):
+def test_glm_attention_module(variant, variant_config, seq_len, arch):
     xr.set_device_type("TT")
-
-    def sdpa(
-        attention_module,
-        query_states,
-        key_states,
-        value_states,
-        attention_mask,
-        dropout,
-        scaling,
-    ):
-        attention_interface: Callable = glm_eager_attention_forward
-        if attention_module.config._attn_implementation != "eager":
-            attention_interface = GLM_ATTN_FUNCS[
-                attention_module.config._attn_implementation
-            ]
-
-        attn_output, _ = attention_interface(
-            attention_module,
-            query_states,
-            key_states,
-            value_states,
-            attention_mask,
-            dropout=dropout,
-            scaling=scaling,
-        )
-        return attn_output
 
     loader = GLMModelLoader(variant=variant)
     config = loader.load_config()
     config._attn_implementation = "sdpa"
     attention = Glm4MoeAttention(config, layer_idx=0).to(torch.bfloat16)
 
-    batch_size = 1
-
-    num_heads = config.num_attention_heads
-    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+    batch_size = 2
     head_dim = config.head_dim
+    hidden_states = torch.randn(
+        batch_size, seq_len, config.hidden_size, dtype=torch.bfloat16
+    )
+    attention_mask = torch.ones(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    cos_sin = torch.randn(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
 
-    dropout = 0.0
-    scaling = attention.scaling
+    past_key_states = None
 
+    # Setup for tensor parallel
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
+        mesh_shape = (batch_size, num_devices // batch_size)
         device_ids = np.array(range(num_devices))
-
-        if num_heads % 8 == 0 and num_key_value_heads % 8 == 0:
-            mesh_shape = (1, num_devices)
-        else:
-            batch_size = 2
-            mesh_shape = (2, num_devices // 2)
-
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(sdpa, args, kwargs):
+        def get_shard_spec(attention, args, kwargs):
+            """Returns shard specifications for the layer's parameters."""
             shard_specs = {}
-            shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
-            shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
-            shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
-            shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
+
+            shard_specs[attention.q_proj.weight] = ("model", "batch")
+            shard_specs[attention.q_proj.bias] = ("model",)
+            shard_specs[attention.k_proj.weight] = ("model", "batch")
+            shard_specs[attention.k_proj.bias] = ("model",)
+            shard_specs[attention.v_proj.weight] = ("model", "batch")
+            shard_specs[attention.v_proj.bias] = ("model",)
+            shard_specs[attention.o_proj.weight] = ("batch", "model")
+
             return shard_specs
 
     else:
         mesh = None
         get_shard_spec = None
 
-    query_states = torch.randn(
-        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
-    key_states = torch.randn(
-        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
-    value_states = torch.randn(
-        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
-
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
 
     run_graph_test(
-        sdpa,
-        [
-            attention,
-            query_states,
-            key_states,
-            value_states,
-            attention_mask,
-            dropout,
-            scaling,
-        ],
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
         framework=Framework.TORCH,
+        comparison_config=comparison_config,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
