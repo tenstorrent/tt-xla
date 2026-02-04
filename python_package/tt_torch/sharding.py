@@ -46,6 +46,9 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec) -> str:
             dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
         else:
             dim_shardings.append("{}")
+    
+    if len(dim_shardings) < 3:
+        dim_shardings = (["{}"] * (3 - len(dim_shardings))) + dim_shardings
 
     dims_str = ", ".join(dim_shardings)
     return f"#sdy.sharding_per_value<[<@mesh, [{dims_str}]>]>"
