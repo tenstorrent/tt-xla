@@ -21,9 +21,10 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 from jax import lax
 from jax.sharding import Mesh, NamedSharding
 from jax.sharding import PartitionSpec as P
-from model.configuration_falcon3 import Falcon3Config
 from safetensors.flax import load_file
 from transformers.models.llama.configuration_llama import LlamaConfig
+
+from model.configuration_falcon3 import Falcon3Config
 
 
 def create_sinusoidal_positions(num_pos, theta, dim):

@@ -7,8 +7,9 @@ from typing import Optional, Union
 import jax
 import jax.numpy as jnp
 import torch
-from model.model_falcon3 import FlaxFalcon3ForCausalLM
 from transformers import AutoConfig, AutoTokenizer
+
+from model.model_falcon3 import FlaxFalcon3ForCausalLM
 
 
 def init_flax_model(

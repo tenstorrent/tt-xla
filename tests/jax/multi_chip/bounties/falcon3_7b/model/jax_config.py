@@ -11,6 +11,7 @@ from flax.core import freeze, unfreeze
 from flax.traverse_util import flatten_dict, unflatten_dict
 from jax.sharding import Mesh, NamedSharding
 from jax.sharding import PartitionSpec as P
+
 from model.configuration_falcon3 import Falcon3Config
 from model.model_falcon3 import FlaxFalcon3ForCausalLM
 

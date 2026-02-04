@@ -9,14 +9,15 @@ import jax.numpy as jnp
 import numpy as np
 from jax.sharding import NamedSharding
 from jax.sharding import PartitionSpec as P
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from utils.flax_utils import *
+
 from model.jax_config import (
     create_device_mesh,
     shard_params,
     with_named_sharding_constraint,
 )
 from model.model_falcon3 import FlaxFalcon3ForCausalLM
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
-from utils.flax_utils import *
 
 MODEL_NAME = "tiiuae/Falcon3-7B-Instruct"
 EXAMPLE_PROMPT = """
