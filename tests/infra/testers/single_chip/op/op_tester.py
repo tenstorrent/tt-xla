@@ -71,7 +71,6 @@ class OpTester(BaseTester):
         tt_workload = workload
         self._compile_for_tt_device(tt_workload)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
-
         self._evaluator.evaluate(tt_res, cpu_res)
 
         if self._enable_perf_measurement:
@@ -149,6 +148,10 @@ class OpTester(BaseTester):
             )
             for shape in input_shapes
         ]
+        workload = Workload(framework=self._framework, executable=f, args=inputs)
+        self.test(workload)
+
+    def test_with_saved_inputs(self, f: Callable, inputs: List) -> None:
         workload = Workload(framework=self._framework, executable=f, args=inputs)
         self.test(workload)
 
@@ -290,3 +293,16 @@ def run_op_test_with_random_inputs(
         torch_options=torch_options,
     )
     tester.test_with_random_inputs(op, input_shapes, minval, maxval, dtype)
+
+
+def run_op_test_with_saved_inputs(
+    op: Callable,
+    inputs: List,
+    comparison_config: ComparisonConfig = ComparisonConfig(),
+    framework: Framework = Framework.JAX,
+    compiler_config: CompilerConfig = None,
+) -> None:
+    if compiler_config is None:
+        compiler_config = CompilerConfig()
+    tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
+    tester.test_with_saved_inputs(op, inputs)

@@ -130,6 +130,8 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
         filtered_pccs = [pcc for pcc in flat_pccs if pcc is not None]
+        print("filtered_pccs are ",filtered_pccs)
+        print("filtered_pccs are ",len(filtered_pccs))
         pcc = min(filtered_pccs)
         return float(pcc)
 
