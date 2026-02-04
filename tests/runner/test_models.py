@@ -444,16 +444,17 @@ def test_llms_torch(
         if batch_size != 1:
             pytest.skip("Decode batch_size>1 not enabled yet (add YAML entries to enable)")
 
+        request.node.add_marker(pytest.mark.llm_decode)
+
     # Skip invalid combinations: prefill needs specific sequence_length
     if run_phase == RunPhase.LLM_PREFILL:
         if sequence_length is None:
             pytest.skip("Prefill phase requires a sequence_length")
-
-    # Add phase-specific marker for filtering
-    if run_phase == RunPhase.LLM_DECODE:
-        request.node.add_marker(pytest.mark.llm_decode)
-    elif run_phase == RunPhase.LLM_PREFILL:
+        
         request.node.add_marker(pytest.mark.llm_prefill)
+
+    test_metadata.batch_size = batch_size
+    test_metadata.seq_len = sequence_length
 
     _run_model_test_impl(
         test_entry=test_entry,
