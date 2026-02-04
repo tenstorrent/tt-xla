@@ -292,7 +292,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2003264 B which is beyond max L1 size of 1499136 B"
-  fpn/pytorch-resnet50_fpn_v2-single_device-training:
+  fpn/image_classification/pytorch-resnet50_fpn_v2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -523,7 +523,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  detr3d/pytorch-single_device-training:
+  detr3d/object_detection/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1330944 B"
@@ -543,34 +543,34 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  dla/pytorch-dla34-single_device-training:
+  dla/image_classification/pytorch-dla34-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla46_c-single_device-training:
+  dla/image_classification/pytorch-dla46_c-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla46x_c-single_device-training:
+  dla/image_classification/pytorch-dla46x_c-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla60-single_device-training:
+  dla/image_classification/pytorch-dla60-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla60x-single_device-training:
+  dla/image_classification/pytorch-dla60x-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla60x_c-single_device-training:
+  dla/image_classification/pytorch-dla60x_c-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla102-single_device-training:
+  dla/image_classification/pytorch-dla102-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla102x-single_device-training:
+  dla/image_classification/pytorch-dla102x-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla102x2-single_device-training:
+  dla/image_classification/pytorch-dla102x2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla169-single_device-training:
+  dla/image_classification/pytorch-dla169-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   densenet/pytorch-densenet121-single_device-training:
@@ -800,7 +800,7 @@ test_config:
   inception/pytorch-inceptionv4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-dla34.in1k-single_device-training:
+  dla/image_classification/pytorch-dla34.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   googlenet/pytorch-googlenet-single_device-training:
@@ -1043,23 +1043,23 @@ test_config:
   perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  d_fine/pytorch-nano-single_device-training:
+  d_fine/object_detection/pytorch-nano-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  d_fine/pytorch-small-single_device-training:
+  d_fine/object_detection/pytorch-small-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  d_fine/pytorch-medium-single_device-training:
+  d_fine/object_detection/pytorch-medium-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  d_fine/pytorch-large-single_device-training:
+  d_fine/object_detection/pytorch-large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  d_fine/pytorch-xlarge-single_device-training:
+  d_fine/object_detection/pytorch-xlarge-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -1207,27 +1207,27 @@ test_config:
   ghostnet/pytorch-ghostnetv2_100.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-training:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite0.in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-training:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite1.in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-training:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite2.in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-training:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite3.in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-training:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite4.in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
@@ -1260,82 +1260,82 @@ test_config:
   monodepth2/pytorch-mono+stereo_1024x320-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b0-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b0-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b1-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b1-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b2-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b3-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b3-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b4-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b4-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b5-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b5-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b6-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b6-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-efficientnet_b7-single_device-training:
+  efficientnet/image_classification/pytorch-efficientnet_b7-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-timm_efficientnet_b0-single_device-training:
+  efficientnet/image_classification/pytorch-timm_efficientnet_b0-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-timm_efficientnet_b4-single_device-training:
+  efficientnet/image_classification/pytorch-timm_efficientnet_b4-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-training:
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"

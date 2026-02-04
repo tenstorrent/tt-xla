@@ -143,7 +143,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  fuyu/pytorch-adept/fuyu-8b-data_parallel-inference:
+  fuyu/question_answering/pytorch-adept/fuyu-8b-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -325,11 +325,11 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  dla/pytorch-dla60-data_parallel-inference:
+  dla/image_classification/pytorch-dla60-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla102x-data_parallel-inference:
+  dla/image_classification/pytorch-dla102x-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -364,15 +364,15 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  fpn/pytorch-resnet50_fpn_v2-data_parallel-inference:
+  fpn/image_classification/pytorch-resnet50_fpn_v2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla60x-data_parallel-inference:
+  dla/image_classification/pytorch-dla60x-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla102x2-data_parallel-inference:
+  dla/image_classification/pytorch-dla102x2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -381,7 +381,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  dla/pytorch-dla60x_c-data_parallel-inference:
+  dla/image_classification/pytorch-dla60x_c-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -389,7 +389,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla34-data_parallel-inference:
+  dla/image_classification/pytorch-dla34-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -404,7 +404,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9714103734933311. Required: pcc=0.98."
 
-  dla/pytorch-dla34.in1k-data_parallel-inference:
+  dla/image_classification/pytorch-dla34.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -455,7 +455,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  dla/pytorch-dla46_c-data_parallel-inference:
+  dla/image_classification/pytorch-dla46_c-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -478,15 +478,15 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla46x_c-data_parallel-inference:
+  dla/image_classification/pytorch-dla46x_c-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla102-data_parallel-inference:
+  dla/image_classification/pytorch-dla102-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla169-data_parallel-inference:
+  dla/image_classification/pytorch-dla169-data_parallel-inference:
     supported_archs: [n300]
     required_pcc: 0.98  # PCC comparison failed with pcc=0.9898209571838379 in n150 and pcc=0.9885705709457397 in p150.
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed - https://github.com/tenstorrent/tt-xla/issues/2010"
@@ -528,7 +528,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-data_parallel-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite0.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -546,7 +546,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet/pytorch-efficientnet_b6-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b6-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -597,7 +597,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-data_parallel-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite1.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -611,12 +611,12 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  efficientnet/pytorch-efficientnet_b0-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b0-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet/pytorch-efficientnet_b7-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b7-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -700,7 +700,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-data_parallel-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite2.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -720,12 +720,12 @@ test_config:
     required_pcc: 0.96
     bringup_status: INCORRECT_RESULT # Single device required_pcc: 0.98
 
-  efficientnet/pytorch-efficientnet_b1-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-data_parallel-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -772,7 +772,7 @@ test_config:
   #   supported_archs: [n300]
   #   status: EXPECTED_PASSING
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-data_parallel-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite3.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -789,11 +789,11 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet/pytorch-efficientnet_b2-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-data_parallel-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -860,7 +860,7 @@ test_config:
   #   supported_archs: [n300]
   #   status: EXPECTED_PASSING
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-data_parallel-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite4.in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -878,12 +878,12 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  efficientnet/pytorch-efficientnet_b3-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b3-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-data_parallel-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -971,11 +971,11 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-efficientnet_b4-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b4-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-data_parallel-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -988,7 +988,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-efficientnet_b5-data_parallel-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b5-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1041,7 +1041,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-timm_efficientnet_b0-data_parallel-inference:
+  efficientnet/image_classification/pytorch-timm_efficientnet_b0-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
