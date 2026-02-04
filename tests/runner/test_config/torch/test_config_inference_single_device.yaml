@@ -113,6 +113,10 @@ test_config:
   yolov4/pytorch-base-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror"
 
   t5/pytorch-google/flan-t5-small-single_device-inference:
     status: EXPECTED_PASSING
@@ -641,6 +645,10 @@ test_config:
   yoloworld/pytorch-small_640-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2727
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror"
 
   yoloworld/pytorch-small_1280-single_device-inference:
     status: EXPECTED_PASSING
@@ -1315,6 +1323,10 @@ test_config:
     required_pcc: 0.98
     status: EXPECTED_PASSING
     markers: [push, nightly]
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror"
 
   yolov9/pytorch-s-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
@@ -1982,6 +1994,10 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.04067724570631981. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505"
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror"
 
   centernet/pytorch-resnet18_coco-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2211,6 +2227,10 @@ test_config:
   transfuser/pytorch-single_device-inference:
     assert_pcc: false # PCC is -0.715
     status: EXPECTED_PASSING
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror"
 
   issac_groot/pytorch-GR00T_n1.5-3b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2386,6 +2406,10 @@ test_config:
 
   ultra_fast_lane_detection/pytorch-tusimple_resnet18-single_device-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror"
 
   ultra_fast_lane_detection/pytorch-culane_resnet18-single_device-inference:
     status: EXPECTED_PASSING

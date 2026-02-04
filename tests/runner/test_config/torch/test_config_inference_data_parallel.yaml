@@ -358,6 +358,10 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror"
 
   xception/pytorch-xception71-data_parallel-inference:
     supported_archs: [n300]
@@ -914,6 +918,10 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.25450941920280457. Required: pcc=0.99."
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror"
 
   openpose/v2/pytorch-data_parallel-inference:
     supported_archs: [n300]
