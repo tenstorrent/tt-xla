@@ -4,7 +4,7 @@
 
 import argparse
 import os
-from typing import List
+from typing import List, Optional, Any
 
 import numpy as np
 import torch
@@ -25,6 +25,29 @@ from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
+# ================================================================================================
+# Fix StaticCache recompilation issue by forcing all layers to use full attention
+# ================================================================================================
+def disable_sliding_window_cache(config: PretrainedConfig):
+    """
+    Override config.layer_types to use full attention for all layers.
+
+    This eliminates StaticSlidingWindowLayer's cumulative_length tracking that causes
+    torch.compile recompilations, while maintaining correct behavior since the cache
+    never fills (full attention layers limit sequence length to max_cache_len anyway).
+
+    Args:
+        config: Model configuration to modify
+
+    Returns:
+        The modified config
+    """
+    config.layer_types = ["full_attention"] * config.num_hidden_layers
+    print(f"✓ Set all {config.num_hidden_layers} layers to use full_attention (no sliding window)")
+    return config
+
+
+
 
 DEFAULT_PROMPT = "Explain quantum mechanics"
 
@@ -38,7 +61,7 @@ def gpt_oss_20b(interactive: bool = False):
     # TODO: check transformers version?
 
     # Set up config variables.
-    max_cache_len: int = 128
+    max_cache_len: int = 2048
     # TODO: For now we use unsloth's BF16 version to get around MXFP4 quantization issue and the unintialized weights issue
     # model_name: str = "openai/gpt-oss-20b"
     model_name: str = "unsloth/gpt-oss-20b-BF16"
@@ -87,6 +110,9 @@ def gpt_oss_20b(interactive: bool = False):
         # Mark sharding on inputs and model internals if SPMD is enabled
         if is_spmd:
             mark_sharding_on_inputs_and_model(model, input_args, mesh)
+
+        # Enable recompilation logging to debug why every token triggers recompilation
+        os.environ["TORCH_LOGS"] = "recompiles"
 
         # Compile model
         compiled_model = torch.compile(model, backend="tt")
@@ -150,9 +176,9 @@ def load_config(model_name: str) -> PretrainedConfig:
 
     # TODO: Currently disabling sliding window to avoid recompilation
     # config.sliding_window = None
-    config.layer_types = [
-        "full_attention"
-    ] * config.num_hidden_layers
+    # config.layer_types = [
+    #     "full_attention"
+    # ] * config.num_hidden_layers
 
     # Set quantization method to "none" if using "openai/gpt-oss-20b"
     # config.quantization_config["quant_method"] = "none"
@@ -173,6 +199,7 @@ def setup_model_and_tokenizer(
         Tuple of (model, tokenizer)
     """
     config = load_config(model_name)
+
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name,
         dtype=torch.bfloat16,
@@ -221,6 +248,10 @@ def construct_inputs(
         padding="max_length",
         max_length=MAX_SEQUENCE_LENGTH,
     )
+
+    # Disable sliding window cache to avoid torch.compile recompilations
+    model_config = disable_sliding_window_cache(model_config)
+
 
     # Static cache should be initialized on CPU and separately transferred to device
     # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
@@ -404,6 +435,11 @@ def run_generate(
             host_cache_pos = input_args["cache_position"].to("cpu")
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
+
+            print(
+                f"Step {step + 1}/{max_tokens_to_generate}", output_text
+            )
+
 
     print()
     if not is_interactive:
