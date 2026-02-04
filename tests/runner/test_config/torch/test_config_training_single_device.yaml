@@ -192,7 +192,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AttributeError: 'NoneType' object has no attribute 'max'"
-  gliner/pytorch-urchade/gliner_multi-v2.1-single_device-training:
+  gliner/token_classification/pytorch-urchade/gliner_multi-v2.1-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AttributeError: 'NoneType' object has no attribute 'max'"
@@ -240,7 +240,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
-  gliner/pytorch-urchade/gliner_largev2-single_device-training:
+  gliner/token_classification/pytorch-urchade/gliner_largev2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
@@ -268,7 +268,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Model expects targets to be passed while in training mode"
-  hippynn/pytorch-Hippynn-single_device-training:
+  hippynn/atomic_ml/pytorch-Hippynn-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
@@ -737,7 +737,7 @@ test_config:
   opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  gpt2/pytorch-gpt2_sequence_classification-single_device-training:
+  gpt2/causal_lm/pytorch-gpt2_sequence_classification-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   resnext/pytorch-resnext50_32x4d-single_device-training:
@@ -791,19 +791,19 @@ test_config:
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  inception/pytorch-inception_v4-single_device-training:
+  inception/image_classification/pytorch-inception_v4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  inception/pytorch-inception_v4.tf_in1k-single_device-training:
+  inception/image_classification/pytorch-inception_v4.tf_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  inception/pytorch-inceptionv4-single_device-training:
+  inception/image_classification/pytorch-inceptionv4-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   dla/pytorch-dla34.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  googlenet/pytorch-googlenet-single_device-training:
+  googlenet/image_classification/pytorch-googlenet-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
@@ -838,7 +838,7 @@ test_config:
   resnet/pytorch-resnet152-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hardnet/pytorch-single_device-training:
+  hardnet/image_classification/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "RuntimeError: TT_FATAL conv2d"
@@ -1103,70 +1103,70 @@ test_config:
   perceiver/pytorch-deepmind/language-perceiver-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  gpt2/pytorch-gpt2-single_device-training:
+  gpt2/causal_lm/pytorch-gpt2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   openpose/v2/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18_small-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18_small_v2-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w30-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w30-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w32-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w40-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w40-single_device-training:
     status: NOT_SUPPORTED_SKIP
     reason: "SEGFAULT"
-  hrnet/pytorch-hrnet_w44-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w44-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w48-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w48-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w64-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w64-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18.ms_aug_in1k-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18.ms_aug_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v1_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnet_w18_small_v2_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v2_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w18_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w18_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w30_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w30_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w32_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w32_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w40_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w40_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w44_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w44_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w48_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w48_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hrnet/pytorch-hrnetv2_w64_osmr-single_device-training:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w64_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  glpn_kitti/pytorch-single_device-training:
+  glpn_kitti/depth_estimation/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   albert/masked_lm/pytorch-large_v1-single_device-training:
@@ -1196,15 +1196,15 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
-  ghostnet/pytorch-ghostnet_100-single_device-training:
+  ghostnet/image_classification/pytorch-ghostnet_100-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  ghostnet/pytorch-ghostnet_100.in1k-single_device-training:
+  ghostnet/image_classification/pytorch-ghostnet_100.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  ghostnet/pytorch-ghostnetv2_100.in1k-single_device-training:
+  ghostnet/image_classification/pytorch-ghostnetv2_100.in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-training:
