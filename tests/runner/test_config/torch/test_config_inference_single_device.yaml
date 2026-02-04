@@ -483,49 +483,49 @@ test_config:
   swin/image_classification/pytorch-swin_v2_b-single_device-inference:
     status: EXPECTED_PASSING
 
-  unet/pytorch-carvana_unet-single_device-inference:
+  unet/semantic_segmentation/pytorch-carvana_unet-single_device-inference:
     status: EXPECTED_PASSING
 
-  unet/pytorch-carvana_unet_480x640-single_device-inference:
+  unet/semantic_segmentation/pytorch-carvana_unet_480x640-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2537856 B L1_SMALL buffer across 72 banks, where each bank needs to store 35248 B, but bank size is only 65536 B"
 
-  vgg/pytorch-torchvision_vgg11_bn-single_device-inference:
+  vgg/image_classification/pytorch-torchvision_vgg11_bn-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-vgg11-single_device-inference:
+  vgg/image_classification/pytorch-vgg11-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg13_bn-single_device-inference:
+  vgg/image_classification/pytorch-torchvision_vgg13_bn-single_device-inference:
     required_pcc: 0.985 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
-  vgg/pytorch-vgg13-single_device-inference:
+  vgg/image_classification/pytorch-vgg13-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg16_bn-single_device-inference:
+  vgg/image_classification/pytorch-torchvision_vgg16_bn-single_device-inference:
     required_pcc: 0.975  # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
-  vgg/pytorch-vgg16-single_device-inference:
+  vgg/image_classification/pytorch-vgg16-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-vgg19_bn-single_device-inference:
+  vgg/image_classification/pytorch-vgg19_bn-single_device-inference:
     required_pcc: 0.96 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
-  vgg/pytorch-vgg19-single_device-inference:
+  vgg/image_classification/pytorch-vgg19-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.975  # Decreased after https://github.com/tenstorrent/tt-forge-models/pull/87
 
-  vit/pytorch-base-single_device-inference:
+  vit/image_classification/pytorch-base-single_device-inference:
     status: EXPECTED_PASSING
     filechecks:
       - concatenate_heads.ttnn.mlir
       - split_query_key_value_and_split_heads.ttnn.mlir
     markers: [push, nightly]
 
-  vit/pytorch-large-single_device-inference:
+  vit/image_classification/pytorch-large-single_device-inference:
     status: EXPECTED_PASSING
 
   xception/pytorch-xception41-single_device-inference:
@@ -1111,18 +1111,18 @@ test_config:
   swin/masked_image_modeling/pytorch-microsoft/swinv2-tiny-patch4-window8-256-single_device-inference:
     status: EXPECTED_PASSING
 
-  vit/pytorch-vit_b_16-single_device-inference:
+  vit/image_classification/pytorch-vit_b_16-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended"]
 
-  vit/pytorch-vit_h_14-single_device-inference:
+  vit/image_classification/pytorch-vit_h_14-single_device-inference:
     required_pcc: 0.985 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
-  vit/pytorch-vit_l_16-single_device-inference:
+  vit/image_classification/pytorch-vit_l_16-single_device-inference:
     status: EXPECTED_PASSING
 
-  vit/pytorch-vit_l_32-single_device-inference:
+  vit/image_classification/pytorch-vit_l_32-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2460 http://github.com/tenstorrent/tt-xla/issues/1402
     status: EXPECTED_PASSING
 
@@ -1163,7 +1163,7 @@ test_config:
     status: EXPECTED_PASSING
     markers: ["extended"]
 
-  vit/pytorch-vit_b_32-single_device-inference:
+  vit/image_classification/pytorch-vit_b_32-single_device-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
 
@@ -1240,7 +1240,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
 
-  unet_for_conditional_generation/pytorch-base-single_device-inference:
+  unet_for_conditional_generation/conditional_generation/pytorch-base-single_device-inference:
     status: EXPECTED_PASSING
 
   mlp_mixer/pytorch-mixer_github-single_device-inference:
@@ -1324,7 +1324,7 @@ test_config:
     status: EXPECTED_PASSING
 
 
-  unet/pytorch-unet_cityscapes-single_device-inference:
+  unet/semantic_segmentation/pytorch-unet_cityscapes-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
@@ -1361,28 +1361,28 @@ test_config:
   efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-bn_vgg19-single_device-inference:
+  vgg/image_classification/pytorch-bn_vgg19-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-timm_vgg19_bn-single_device-inference:
+  vgg/image_classification/pytorch-timm_vgg19_bn-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg11-single_device-inference:
+  vgg/image_classification/pytorch-torchvision_vgg11-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg13-single_device-inference:
+  vgg/image_classification/pytorch-torchvision_vgg13-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg16-single_device-inference:
+  vgg/image_classification/pytorch-torchvision_vgg16-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg19-single_device-inference:
+  vgg/image_classification/pytorch-torchvision_vgg19-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-torchvision_vgg19_bn-single_device-inference:
+  vgg/image_classification/pytorch-torchvision_vgg19_bn-single_device-inference:
     status: EXPECTED_PASSING
 
-  vgg/pytorch-hf_vgg19-single_device-inference:
+  vgg/image_classification/pytorch-hf_vgg19-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
@@ -1455,7 +1455,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2368, https://github.com/tenstorrent/tt-xla/issues/2457
 
-  vgg/pytorch-bn_vgg19b-single_device-inference:
+  vgg/image_classification/pytorch-bn_vgg19b-single_device-inference:
     required_pcc: 0.96
     status: EXPECTED_PASSING
 
@@ -1632,7 +1632,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353"
 
-  vadv2/pytorch-single_device-inference:
+  vadv2/object_detection/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
@@ -2083,7 +2083,7 @@ test_config:
   whisper/pytorch-openai/whisper-large-v3-turbo-single_device-inference:
     status: EXCLUDE_MODEL
 
-  uniad/pytorch-single_device-inference:
+  uniad/object_detection/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B"
 
@@ -2233,7 +2233,7 @@ test_config:
   # yolov12/pytorch-yolo12x-single_device-inference:
   #   status: EXPECTED_PASSING
 
-  vgg19_unet/pytorch-single_device-inference:
+  vgg19_unet/semantic_segmentation/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2162688 B L1_SMALL buffer across 64 banks, where each bank needs to store 33792 B, but bank size is only 32768 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
@@ -2241,7 +2241,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 61079552 B L1 buffer across 64 banks, where each bank needs to store 954368 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
-  unet/pytorch-smp_unet_resnet101-single_device-inference:
+  unet/semantic_segmentation/pytorch-smp_unet_resnet101-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
 
   sam/pytorch-facebook/sam-vit-large-single_device-inference:
@@ -2373,13 +2373,13 @@ test_config:
   # yolov12/pytorch-yolo12n-single_device-inference:
   #   status: EXPECTED_PASSING
 
-  ultra_fast_lane_detection/pytorch-tusimple_resnet18-single_device-inference:
+  ultra_fast_lane_detection/semantic_segmentation/pytorch-tusimple_resnet18-single_device-inference:
     status: EXPECTED_PASSING
 
-  ultra_fast_lane_detection/pytorch-culane_resnet18-single_device-inference:
+  ultra_fast_lane_detection/semantic_segmentation/pytorch-culane_resnet18-single_device-inference:
     status: EXPECTED_PASSING
 
-  ultra_fast_lane_detection_v2/pytorch-tusimple_resnet34-single_device-inference:
+  ultra_fast_lane_detection_v2/semantic_segmentation/pytorch-tusimple_resnet34-single_device-inference:
     status: EXPECTED_PASSING
 
   faster_rcnn/pytorch-resnet50_fpn-single_device-inference:
@@ -2504,10 +2504,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 5760 B L1_SMALL buffer across 36 banks, where each bank needs to store 160 B, but bank size is only 65536 B"
 
-  unet/pytorch-torchhub_brain_unet-single_device-inference:
+  unet/semantic_segmentation/pytorch-torchhub_brain_unet-single_device-inference:
     status: EXPECTED_PASSING
 
-  ultra_fast_lane_detection/pytorch-tusimple_resnet34-single_device-inference:
+  ultra_fast_lane_detection/semantic_segmentation/pytorch-tusimple_resnet34-single_device-inference:
     status: EXPECTED_PASSING
 
   dense_unet_3d/pytorch-base-single_device-inference:
@@ -2656,6 +2656,6 @@ test_config:
       p150:
         assert_pcc: false  # Actual PCC: 0.9661477411303401 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
-  vocoder_speecht5/pytorch-hifigan-single_device-inference:
+  vocoder_speecht5/text_to_speech/pytorch-hifigan-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # PCC < 0.1, tracking issue https://github.com/tenstorrent/tt-xla/issues/3064

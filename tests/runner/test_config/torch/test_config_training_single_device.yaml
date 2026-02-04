@@ -136,7 +136,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
-  vadv2/pytorch-single_device-training:
+  vadv2/object_detection/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Only Tensors created explicitly by the user (graph leaves) support the deepcopy protocol at the moment."
@@ -144,7 +144,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
-  uniad/pytorch-single_device-training:
+  uniad/object_detection/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "TypeError: list indices must be integers or slices, not tuple"
@@ -224,7 +224,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "EOFError: Ran out of input"
-  unet/pytorch-smp_unet_resnet101-single_device-training:
+  unet/semantic_segmentation/pytorch-smp_unet_resnet101-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ModuleNotFoundError: No module named 'segmentation_models_pytorch'"
@@ -600,25 +600,25 @@ test_config:
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-base-single_device-training:
+  vit/image_classification/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-large-single_device-training:
+  vit/image_classification/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-vit_b_16-single_device-training:
+  vit/image_classification/pytorch-vit_b_16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-vit_b_32-single_device-training:
+  vit/image_classification/pytorch-vit_b_32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-vit_l_16-single_device-training:
+  vit/image_classification/pytorch-vit_l_16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-vit_l_32-single_device-training:
+  vit/image_classification/pytorch-vit_l_32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vit/pytorch-vit_h_14-single_device-training:
+  vit/image_classification/pytorch-vit_h_14-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   maptr/pytorch-tiny_r50_24e_av2-single_device-training:
@@ -711,7 +711,7 @@ test_config:
   roberta/masked_lm/pytorch-xlm_base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  unet/pytorch-unet_cityscapes-single_device-training:
+  unet/semantic_segmentation/pytorch-unet_cityscapes-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   vilt/masked_lm/pytorch-mlm-single_device-training:
@@ -867,62 +867,62 @@ test_config:
   autoencoder/pytorch-conv-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-vgg11-single_device-training:
+  vgg/image_classification/pytorch-vgg11-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-vgg13-single_device-training:
+  vgg/image_classification/pytorch-vgg13-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-vgg16-single_device-training:
+  vgg/image_classification/pytorch-vgg16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "RuntimeError: TT_FATAL conv2d"
-  vgg/pytorch-vgg19-single_device-training:
+  vgg/image_classification/pytorch-vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-bn_vgg19-single_device-training:
+  vgg/image_classification/pytorch-bn_vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-bn_vgg19b-single_device-training:
+  vgg/image_classification/pytorch-bn_vgg19b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-vgg19_bn-single_device-training:
+  vgg/image_classification/pytorch-vgg19_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-timm_vgg19_bn-single_device-training:
+  vgg/image_classification/pytorch-timm_vgg19_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg11-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg11-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg11_bn-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg11_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg13-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg13-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg13_bn-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg13_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg16-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg16_bn-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg16_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg19-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-torchvision_vgg19_bn-single_device-training:
+  vgg/image_classification/pytorch-torchvision_vgg19_bn-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg/pytorch-hf_vgg19-single_device-training:
+  vgg/image_classification/pytorch-hf_vgg19-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  unet/pytorch-torchhub_brain_unet-single_device-training:
+  unet/semantic_segmentation/pytorch-torchhub_brain_unet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  unet/pytorch-carvana_unet-single_device-training:
+  unet/semantic_segmentation/pytorch-carvana_unet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   distilbert/masked_lm/pytorch-distilbert-base-cased-single_device-training:
@@ -937,7 +937,7 @@ test_config:
   distilbert/token_classification/pytorch-Davlan/distilbert-base-multilingual-cased-ner-hrl-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  vgg19_unet/pytorch-single_device-training:
+  vgg19_unet/semantic_segmentation/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 284 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)]"
@@ -1346,7 +1346,7 @@ test_config:
   mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  unet_for_conditional_generation/pytorch-base-single_device-training:
+  unet_for_conditional_generation/conditional_generation/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 125829120 B DRAM buffer across 12 banks, where each bank needs to store 10485760 B"
