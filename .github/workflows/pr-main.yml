@@ -81,7 +81,7 @@ jobs:
       wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_release_vllm_tt_artifact_name }}
       alchemist_artifact_name: ${{ needs.build-ttxla-release.outputs.alchemist_artifact_name }}
 
-  perf-benchmark-n150:
+  perf-benchmark:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
     needs: [ inspect-changes, build-image, build-ttxla-release ]
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
