@@ -18,11 +18,11 @@ test_config:
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   falcon/pytorch-tiiuae/Falcon3-7B-Base-llm_decode-single_device-inference:
-    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    supported_archs: ["p150", "qb2-blackhole"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
   falcon/pytorch-tiiuae/Falcon3-10B-Base-llm_decode-single_device-inference:
-    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    supported_archs: ["p150", "qb2-blackhole"] # Runs as tensor_parallel for wormhole.
     required_pcc: 0.98 # Is 0.984(p150)
     status: EXPECTED_PASSING
 
@@ -39,11 +39,11 @@ test_config:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845 - original test also has low pcc
 
   qwen_2_5/causal_lm/pytorch-7b_instruct-llm_decode-single_device-inference:
-    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    supported_archs: ["p150", "qb2-blackhole"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-14b_instruct-llm_decode-single_device-inference:
-    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    supported_archs: ["p150", "qb2-blackhole"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
 
@@ -58,7 +58,7 @@ test_config:
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   gemma/pytorch-google/gemma-1.1-7b-it-llm_decode-single_device-inference:
-    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    supported_archs: ["p150", "qb2-blackhole"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
 
@@ -67,7 +67,7 @@ test_config:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
 
   gemma/pytorch-google/gemma-2-9b-it-llm_decode-single_device-inference:
-    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    supported_archs: ["p150", "qb2-blackhole"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
 
@@ -75,7 +75,7 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/causal_lm/pytorch-llama_3_1_8b_instruct-llm_decode-single_device-inference:
-    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    supported_archs: ["p150", "qb2-blackhole"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
@@ -108,12 +108,12 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-8b-llm_decode-single_device-inference:
-    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    supported_archs: ["p150", "qb2-blackhole"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
 
   qwen_3/causal_lm/pytorch-14b-llm_decode-single_device-inference:
-    supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
+    supported_archs: ["p150", "qb2-blackhole"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-32b-llm_decode-single_device-inference:
@@ -132,6 +132,8 @@ test_config:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
+      qb2-blackhole:
+        status: EXPECTED_PASSING
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -140,29 +142,33 @@ test_config:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
+      qb2-blackhole:
+        status: EXPECTED_PASSING
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
 
   qwen_2_5/causal_lm/pytorch-14b_instruct_1m-llm_decode-single_device-inference:
-    supported_archs: ["p150"]
+    supported_archs: ["p150", "qb2-blackhole"]
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-llama_3_8b_instruct-llm_decode-single_device-inference:
-    supported_archs: ["p150"]
+    supported_archs: ["p150", "qb2-blackhole"]
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-llama_3_8b-llm_decode-single_device-inference:
-    supported_archs: ["p150"]
+    supported_archs: ["p150", "qb2-blackhole"]
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-llama_3_1_8b-llm_decode-single_device-inference:
-    supported_archs: ["p150"]
+    supported_archs: ["p150", "qb2-blackhole"]
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-huggyllama_7b-llm_decode-single_device-inference:
     arch_overrides:
       p150:
+        status: EXPECTED_PASSING
+      qb2-blackhole:
         status: EXPECTED_PASSING
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -171,6 +177,8 @@ test_config:
   falcon/pytorch-tiiuae/falcon-7b-instruct-llm_decode-single_device-inference:
     arch_overrides:
       p150:
+        status: EXPECTED_PASSING
+      qb2-blackhole:
         status: EXPECTED_PASSING
       n150:
         status: NOT_SUPPORTED_SKIP
