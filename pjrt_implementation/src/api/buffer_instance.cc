@@ -233,7 +233,7 @@ void BufferInstance::copyFromHost(
 
 void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
-  assert(src_buffer->pjrtTensor() && "Source buffer has no data.");
+  assert(src_buffer->getPjrtTensor() && "Source buffer has no data.");
 
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
@@ -249,7 +249,7 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
       /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
 
-  src_buffer->pjrtTensor()->move_to_host();
+  src_buffer->getPjrtTensor()->move_to_host();
   tt::runtime::memcpy(runtime_tensor, src_buffer->runtimeTensor());
 
   PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));

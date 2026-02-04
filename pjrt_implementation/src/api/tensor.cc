@@ -64,7 +64,8 @@ PjrtTensor::from_runtime_tensor(std::vector<BufferInstance *> shards,
 
 PjrtTensor::PjrtTensor(Private, std::vector<BufferInstance *> shards,
                        tt::runtime::Tensor rt_tensor)
-    : m_shards{std::move(shards)}, m_runtime_tensor{std::move(rt_tensor)} {
+    : m_uid{next_uid()}, m_shards{std::move(shards)},
+      m_runtime_tensor{std::move(rt_tensor)} {
 
   TensorPool::insert(this);
 }
@@ -125,10 +126,10 @@ void PjrtTensor::move_to_host() noexcept {
 // Returns whether all shards share the same runtime tensor.
 bool PjrtTensor::have_same_tensor(const std::vector<BufferInstance *> &shards) {
 
-  return std::all_of(shards.begin(), shards.end(),
-                     [&](const BufferInstance *bi) {
-                       return bi->pjrtTensor() == shards.front()->pjrtTensor();
-                     });
+  return std::all_of(
+      shards.begin(), shards.end(), [&](const BufferInstance *bi) {
+        return bi->getPjrtTensor() == shards.front()->getPjrtTensor();
+      });
 }
 
 // Returns PjrtTensor from shards.
@@ -138,7 +139,7 @@ PjrtTensor &
 PjrtTensor::from_shards(const std::vector<BufferInstance *> &shards) {
 
   assert(have_same_tensor(shards));
-  return *shards.front()->pjrtTensor();
+  return *shards.front()->getPjrtTensor();
 }
 
 uint64_t PjrtTensor::next_uid() {

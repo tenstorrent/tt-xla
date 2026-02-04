@@ -56,7 +56,7 @@ TEST_F(BufferInstanceUnitTests, createInputBufferInstance_successCase) {
   EXPECT_EQ(m_buffer->getNumberOfDimensions(), DEFAULT_NUM_DIMS);
   EXPECT_EQ(m_buffer->getDevice(), m_device.get());
   EXPECT_EQ(m_buffer->getMemory(), m_default_memory.get());
-  EXPECT_FALSE(m_buffer->pjrtTensor());
+  EXPECT_FALSE(m_buffer->getPjrtTensor());
   EXPECT_FALSE(m_buffer->isDataDeleted());
   EXPECT_FALSE(m_buffer->toShapeStr().empty());
 }

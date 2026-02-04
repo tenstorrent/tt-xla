@@ -40,7 +40,8 @@ class BufferInstance;
 // This abstraction gives us control over host and device tensors and hides
 // complexity behind simple APIs.
 class PjrtTensor {
-  // Prevents direct construction. Use PjrtTensor::init instead.
+  // Prevents direct construction. Use static functions below for
+  // initialization.
   struct Private {
     explicit Private() = default;
   };
@@ -111,7 +112,7 @@ private:
 
 private:
   // Tensor unique identifier. For now, used for debug only.
-  const uint64_t m_uid{next_uid()};
+  const uint64_t m_uid;
 
   // Tensor shards. Each shard hold pjrt tensor reference to this pjrt tensor.
   std::vector<BufferInstance *> m_shards;
@@ -135,7 +136,7 @@ private:
 // void test_function(const BufferInstance* buf) {
 //     // This will be allowed if we store std::shared_ptr<PjrtTensor> in
 //     // BufferInstance.
-//     uf->pjrtTensor()->move_to_host();
+//     buf->pjrtTensor()->move_to_host();
 // }
 //
 // With this simple wrapper, we have tied 'const'ness of BufferInstance and

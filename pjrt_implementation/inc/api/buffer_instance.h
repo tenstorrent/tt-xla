@@ -155,8 +155,8 @@ public:
     m_pjrt_tensor.reset(std::move(pjrt_tensor), this);
   }
 
-  PjrtTensorRef &pjrtTensor() { return m_pjrt_tensor; };
-  const PjrtTensorRef &pjrtTensor() const { return m_pjrt_tensor; };
+  PjrtTensorRef &getPjrtTensor() { return m_pjrt_tensor; };
+  const PjrtTensorRef &getPjrtTensor() const { return m_pjrt_tensor; };
 
   const tt::runtime::Tensor &runtimeTensor() const {
     return m_pjrt_tensor->runtime_tensor();
