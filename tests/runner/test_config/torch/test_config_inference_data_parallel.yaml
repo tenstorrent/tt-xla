@@ -55,7 +55,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  beit/pytorch-large-data_parallel-inference:
+  beit/image_classification/pytorch-large-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -107,7 +107,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  autoencoder/pytorch-linear-data_parallel-inference:
+  autoencoder/image_to_image/pytorch-linear-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -125,7 +125,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  beit/pytorch-base-data_parallel-inference:
+  beit/image_classification/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -249,7 +249,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  alexnet/pytorch-alexnetb-data_parallel-inference:
+  alexnet/image_classification/pytorch-alexnetb-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -316,7 +316,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  alexnet/pytorch-alexnet-data_parallel-inference:
+  alexnet/image_classification/pytorch-alexnet-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -812,7 +812,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9571177363395691. Required: pcc=0.99."
 
-  autoencoder/pytorch-conv-data_parallel-inference:
+  autoencoder/image_to_image/pytorch-conv-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING

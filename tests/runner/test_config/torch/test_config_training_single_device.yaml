@@ -8,7 +8,7 @@ test_config:
   mnist/image_classification/pytorch-cnn_nodropout-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [push, nightly, notimeout]
-  autoencoder/pytorch-linear-single_device-training:
+  autoencoder/image_to_image/pytorch-linear-single_device-training:
     status: EXPECTED_PASSING
     markers: [push, nightly]
   qwen_1_5/causal_lm/pytorch-0_5b-single_device-training:
@@ -176,7 +176,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: targets should not be none when in training mode"
-  bi_lstm_crf/pytorch-default-single_device-training:
+  bi_lstm_crf/token_classification/pytorch-default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
@@ -507,19 +507,19 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-training:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2396480 B which is beyond max L1 size of 1499136 B (assert.hpp:103)"
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-training:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-single_device-training:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-single_device-training:
+  bevdepth/object_detection/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
@@ -672,7 +672,7 @@ test_config:
   deit/pytorch-tiny-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  bart/pytorch-large-single_device-training:
+  bart/text_classification/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-training:
@@ -858,13 +858,13 @@ test_config:
   wide_resnet/pytorch-wide_resnet101_2.timm-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  alexnet/pytorch-alexnet-single_device-training:
+  alexnet/image_classification/pytorch-alexnet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  alexnet/pytorch-alexnetb-single_device-training:
+  alexnet/image_classification/pytorch-alexnetb-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  autoencoder/pytorch-conv-single_device-training:
+  autoencoder/image_to_image/pytorch-conv-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   vgg/pytorch-vgg11-single_device-training:
@@ -1028,10 +1028,10 @@ test_config:
   opt/causal_lm/pytorch-facebook/opt-1.3b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  beit/pytorch-base-single_device-training:
+  beit/image_classification/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  beit/pytorch-large-single_device-training:
+  beit/image_classification/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   phi1/causal_lm/pytorch-microsoft/phi-1-single_device-training:
