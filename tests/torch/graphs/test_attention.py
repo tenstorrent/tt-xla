@@ -18,6 +18,13 @@ from torch_xla.distributed.spmd import Mesh
 from transformers.cache_utils import StaticCache
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.models.gemma.modeling_gemma import GemmaAttention
+from transformers.models.glm4_moe.modeling_glm4_moe import (
+    ALL_ATTENTION_FUNCTIONS as GLM_ATTN_FUNCS,
+)
+from transformers.models.glm4_moe.modeling_glm4_moe import Glm4MoeAttention
+from transformers.models.glm4_moe.modeling_glm4_moe import (
+    eager_attention_forward as glm_eager_attention_forward,
+)
 from transformers.models.gpt_oss.modeling_gpt_oss import (
     ALL_ATTENTION_FUNCTIONS,
     eager_attention_forward,
@@ -26,11 +33,6 @@ from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
     LlamaAttention,
     eager_attention_forward,
-)
-from transformers.models.glm4_moe.modeling_glm4_moe import (
-    Glm4MoeAttention,
-    ALL_ATTENTION_FUNCTIONS as GLM_ATTN_FUNCS,
-    eager_attention_forward as glm_eager_attention_forward,
 )
 from transformers.models.mistral.modeling_mistral import MistralAttention
 from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
