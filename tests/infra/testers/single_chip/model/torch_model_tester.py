@@ -238,7 +238,7 @@ class TorchModelTester(ModelTester):
         self._workload.model.zero_grad()
 
         # Run forward on TT
-        compile_options = {"tt_experimental_compile": False}
+        compile_options = {"tt_experimental_compile": False, "tt_enable_torch_fx_fusion_pass": False}
         self._compile_for_tt_device(self._workload, compile_options)
         tt_res = self._run_on_tt_device(self._workload)
         tt_res = self._unpack_forward_output(tt_res)
