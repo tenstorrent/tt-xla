@@ -142,6 +142,7 @@ def test_kimi_k2_attention_decode():
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
 
     position_ids = torch.arange(seq_len)
+    cache_positions = torch.randint(0, max_cache_len, (batch_size,), dtype=torch.long)
     static_cache = MLACache(
         config=config,
         max_batch_size=batch_size,
@@ -171,7 +172,15 @@ def test_kimi_k2_attention_decode():
 
     run_graph_test(
         attention,
-        [hidden_states, attention_mask, position_ids, past_key_states],
+        [
+            hidden_states,
+            attention_mask,
+            position_ids,
+            past_key_states,
+            False,
+            True,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -202,7 +211,7 @@ def test_kimi_k2_layer():
     attention_mask = torch.rand(
         batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
     )
-
+    cache_positions = torch.randint(0, max_cache_len, (batch_size,), dtype=torch.long)
     num_devices = xr.global_runtime_device_count()
     mesh_shape = (2, 4)
     device_ids = np.array(range(num_devices))
@@ -255,7 +264,15 @@ def test_kimi_k2_layer():
 
     run_graph_test(
         layer,
-        [hidden_states, attention_mask, position_ids, past_key_states],
+        [
+            hidden_states,
+            attention_mask,
+            position_ids,
+            past_key_states,
+            False,
+            True,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
