@@ -136,11 +136,12 @@ jobs:
       - test
       - test_forge_models_push
       - test_models_on_uplift
+      - perf-benchmark
       - build-docs
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, test, test_forge_models_push, build-docs, test_models_on_uplift
+        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, test, test_forge_models_push, build-docs, test_models_on_uplift, perf-benchmark
         jobs: ${{ toJSON(needs) }}
