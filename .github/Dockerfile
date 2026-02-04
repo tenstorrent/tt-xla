@@ -45,11 +45,11 @@ RUN dnf install --refresh -y \
 
 # Install ccache latest version from GitHub releases
 RUN CCACHE_VERSION="4.7.4" && \
-    wget -qO ccache.tar.xz https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/ccache-$CCACHE_VERSION-linux-x86_64.tar.xz \
-    mkdir ccache-temp \
-    tar xf ccache.tar.xz --strip-components=1 -C ccache-temp \
-    mv ccache-temp/ccache /usr/local/bin \
-    chmod a+x /usr/local/bin/ccache \
+    wget -qO ccache.tar.xz https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/ccache-$CCACHE_VERSION-linux-x86_64.tar.xz && \
+    mkdir ccache-temp && \
+    tar xf ccache.tar.xz --strip-components=1 -C ccache-temp && \
+    mv ccache-temp/ccache /usr/local/bin && \
+    chmod a+x /usr/local/bin/ccache && \
     rm -rf ccache.tar.xz ccache-temp
 
 # Build OpenMPI 5.0.7 with ULFM support from source
