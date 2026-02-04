@@ -113,6 +113,10 @@ test_config:
   yolov4/pytorch-base-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror on QB2-Blackhole CI - https://github.com/tenstorrent/tt-xla/issues/3171"
 
   t5/pytorch-google/flan-t5-small-single_device-inference:
     status: EXPECTED_PASSING
@@ -332,6 +336,9 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Statically allocated circular buffers in program 260 clash with L1 buffers on core range [(x=0,y=0) - (x=12,y=9)] - https://github.com/tenstorrent/tt-xla/issues/2368"
+      qb2-blackhole:
         status: KNOWN_FAILURE_XFAIL
         reason: "Statically allocated circular buffers in program 260 clash with L1 buffers on core range [(x=0,y=0) - (x=12,y=9)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
@@ -557,6 +564,8 @@ test_config:
     arch_overrides:
       p150:
         required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2433
+      qb2-blackhole:
+        required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2433
 
   mlp_mixer/lucidrains/pytorch-base-single_device-inference:
     status: EXPECTED_PASSING
@@ -599,6 +608,8 @@ test_config:
     arch_overrides:
       p150:
         required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
+      qb2-blackhole:
+        required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
       n150:
         assert_pcc: false # n150 : https://github.com/tenstorrent/tt-xla/issues/2433, large decrese with change torch==2.9.0
 
@@ -606,6 +617,8 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
+        required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
+      qb2-blackhole:
         required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
       n150:
         assert_pcc: false # n150 : https://github.com/tenstorrent/tt-xla/issues/2433, large decrese with change torch==2.9.0
@@ -641,6 +654,10 @@ test_config:
   yoloworld/pytorch-small_640-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2727
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror on QB2-Blackhole CI - https://github.com/tenstorrent/tt-xla/issues/3171"
 
   yoloworld/pytorch-small_1280-single_device-inference:
     status: EXPECTED_PASSING
@@ -670,6 +687,8 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
+        required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2433
+      qb2-blackhole:
         required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2433
 
   opt/qa/pytorch-facebook/opt-350m-single_device-inference:
@@ -719,6 +738,8 @@ test_config:
       n150:
         required_pcc: 0.98 # tt-torch has this at 0.99
       p150:
+        required_pcc: 0.97 # tt-torch has this at 0.99
+      qb2-blackhole:
         required_pcc: 0.97 # tt-torch has this at 0.99
 
   albert/masked_lm/pytorch-base_v1-single_device-inference:
@@ -997,11 +1018,15 @@ test_config:
         required_pcc: 0.96 # AssertionError: PCC comparison failed. Calculated: pcc=0.9509297013282776. Required: pcc=0.96. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750 // tt-torch has this at 0.97
       p150:
         required_pcc: 0.95
+      qb2-blackhole:
+        required_pcc: 0.95
 
   qwen_2_5/causal_lm/pytorch-0_5b-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
+        required_pcc: 0.97  # https://github.com/tenstorrent/tt-torch/issues/1192
+      qb2-blackhole:
         required_pcc: 0.97  # https://github.com/tenstorrent/tt-torch/issues/1192
       n150:
         assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2433
@@ -1223,6 +1248,8 @@ test_config:
     arch_overrides:
       p150:
         assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2368
+      qb2-blackhole:
+        assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2368
 
   regnet/pytorch-regnet_x_8gf-single_device-inference:
     status: EXPECTED_PASSING
@@ -1314,6 +1341,10 @@ test_config:
     required_pcc: 0.98
     status: EXPECTED_PASSING
     markers: [push, nightly]
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror on QB2-Blackhole CI - https://github.com/tenstorrent/tt-xla/issues/3171"
 
   yolov9/pytorch-s-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
@@ -1334,6 +1365,8 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
+        assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2181
+      qb2-blackhole:
         assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2181
 
   ghostnet/pytorch-ghostnetv2_100.in1k-single_device-inference:
@@ -1512,6 +1545,10 @@ test_config:
         assert_pcc: false
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9095736145973206. Required: pcc=0.99"
+      qb2-blackhole:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9095736145973206. Required: pcc=0.99"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip" # (flux.1-schnell is 12B param model)
@@ -1520,6 +1557,8 @@ test_config:
   flux/pytorch-dev-single_device-inference:
     arch_overrides:
       p150:
+        status: EXPECTED_PASSING
+      qb2-blackhole:
         status: EXPECTED_PASSING
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1576,6 +1615,9 @@ test_config:
       p150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Out of Memory: Not enough space to allocate 52428800 B DRAM buffer across 12 banks, where each bank needs to store 4370432 B, but bank size is only 1073741792 B"
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 52428800 B DRAM buffer across 12 banks, where each bank needs to store 4370432 B, but bank size is only 1073741792 B"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Running the test CRASHED with signal 9 https://github.com/tenstorrent/tt-xla/issues/2254"
@@ -1605,7 +1647,8 @@ test_config:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
-
+      qb2-blackhole:
+        status: EXPECTED_PASSING
       n150:
         status: KNOWN_FAILURE_XFAIL
         reason: "RuntimeError: Out of Memory: Not enough space to allocate 49971200 B L1 buffer across 64 banks"
@@ -1661,6 +1704,9 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
       p150:
+        status: EXPECTED_PASSING
+        assert_pcc: false # Calculated: pcc=0.9130426049232483. Change to torch==2.9.0
+      qb2-blackhole:
         status: EXPECTED_PASSING
         assert_pcc: false # Calculated: pcc=0.9130426049232483. Change to torch==2.9.0
 
@@ -1721,6 +1767,9 @@ test_config:
       p150:
         status: EXPECTED_PASSING
         assert_pcc: false # Calculated: pcc=0.9396957755088806. Change to torch==2.9.0
+      qb2-blackhole:
+        status: EXPECTED_PASSING
+        assert_pcc: false # Calculated: pcc=0.9396957755088806. Change to torch==2.9.0
 
   llama/sequence_classification/pytorch-llama_3_1_70b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1759,6 +1808,10 @@ test_config:
         assert_pcc: false
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1472"
+      qb2-blackhole:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1472"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1775,6 +1828,8 @@ test_config:
   mistral/pytorch-7b-single_device-inference:
     arch_overrides:
       p150:
+        status: EXPECTED_PASSING
+      qb2-blackhole:
         status: EXPECTED_PASSING
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1793,7 +1848,8 @@ test_config:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
-
+      qb2-blackhole:
+        status: EXPECTED_PASSING
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1802,6 +1858,10 @@ test_config:
   qwen_2_5/causal_lm/pytorch-14b-single_device-inference:
     arch_overrides:
       p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      qb2-blackhole:
         assert_pcc: false
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
@@ -1820,6 +1880,10 @@ test_config:
         assert_pcc: false
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7706121206283569. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      qb2-blackhole:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7706121206283569. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1834,6 +1898,10 @@ test_config:
         assert_pcc: false
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      qb2-blackhole:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1842,6 +1910,10 @@ test_config:
   qwen_2_5/causal_lm/pytorch-7b_instruct-single_device-inference:
     arch_overrides:
       p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7253174185752869. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      qb2-blackhole:
         assert_pcc: false
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7253174185752869. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
@@ -1856,6 +1928,10 @@ test_config:
         assert_pcc: false
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8598132729530334. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      qb2-blackhole:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8598132729530334. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1864,6 +1940,10 @@ test_config:
   qwen_2_5/causal_lm/pytorch-math_7b-single_device-inference:
     arch_overrides:
       p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      qb2-blackhole:
         assert_pcc: false
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
@@ -1881,6 +1961,10 @@ test_config:
         assert_pcc: false
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      qb2-blackhole:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1889,6 +1973,10 @@ test_config:
   qwen_2_5_coder/pytorch-7b_instruct-single_device-inference:
     arch_overrides:
       p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.964358925819397. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
+      qb2-blackhole:
         assert_pcc: false
         status: EXPECTED_PASSING
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.964358925819397. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
@@ -1981,6 +2069,10 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.04067724570631981. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505"
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror on QB2-Blackhole CI - https://github.com/tenstorrent/tt-xla/issues/3171"
 
   centernet/pytorch-resnet18_coco-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2034,12 +2126,20 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
+      qb2-blackhole:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_RUNTIME
+        reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
   bevformer/pytorch-bevformerv2-r50-t1-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
       p150:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_RUNTIME
+        reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
+      qb2-blackhole:
         status: NOT_SUPPORTED_SKIP
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
@@ -2052,12 +2152,20 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
+      qb2-blackhole:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_RUNTIME
+        reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
   bevformer/pytorch-bevformerv2-r50-t8-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
       p150:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_RUNTIME
+        reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
+      qb2-blackhole:
         status: NOT_SUPPORTED_SKIP
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
@@ -2210,6 +2318,10 @@ test_config:
   transfuser/pytorch-single_device-inference:
     assert_pcc: false # PCC is -0.715
     status: EXPECTED_PASSING
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror on QB2-Blackhole CI - https://github.com/tenstorrent/tt-xla/issues/3171"
 
   issac_groot/pytorch-GR00T_n1.5-3b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2353,6 +2465,8 @@ test_config:
         required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
       p150:
         required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
+      qb2-blackhole:
+        required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-swin_base_coco-single_device-inference:
     status: EXPECTED_PASSING
@@ -2385,6 +2499,10 @@ test_config:
 
   ultra_fast_lane_detection/pytorch-tusimple_resnet18-single_device-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      qb2-blackhole:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Missing s3 bucket mirror on QB2-Blackhole CI - https://github.com/tenstorrent/tt-xla/issues/3171"
 
   ultra_fast_lane_detection/pytorch-culane_resnet18-single_device-inference:
     status: EXPECTED_PASSING
@@ -2617,11 +2735,15 @@ test_config:
     arch_overrides:
       p150:
         required_pcc: 0.98  # Actual PCC: 0.9847531158203227 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+      qb2-blackhole:
+        required_pcc: 0.98  # Actual PCC: 0.9847531158203227 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
   siglip/image_text_similarity/pytorch-base_patch16_512-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
+        required_pcc: 0.98  # Actual PCC: 0.9867153999500852 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+      qb2-blackhole:
         required_pcc: 0.98  # Actual PCC: 0.9867153999500852 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
   siglip/image_text_similarity/pytorch-base_patch16_256_multilingual-single_device-inference:
@@ -2634,6 +2756,8 @@ test_config:
         required_pcc: 0.98  # Actual PCC: 0.986684763880969 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
       p150:
         required_pcc: 0.98  # Actual PCC: 0.9873568504978747 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+      qb2-blackhole:
+        required_pcc: 0.98  # Actual PCC: 0.9873568504978747 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
   siglip/image_text_similarity/pytorch-large_patch16_384-single_device-inference:
     status: EXPECTED_PASSING
@@ -2641,6 +2765,8 @@ test_config:
       n150:
         required_pcc: 0.98  # Actual PCC: 0.9893993879478543 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
       p150:
+        assert_pcc: false  # Actual PCC: 0.9799736818706198 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+      qb2-blackhole:
         assert_pcc: false  # Actual PCC: 0.9799736818706198 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
   siglip/image_text_similarity/pytorch-so400m_patch14_224-single_device-inference:
@@ -2650,6 +2776,8 @@ test_config:
         assert_pcc: false  # Actual PCC: 0.9590273983037481 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
       p150:
         assert_pcc: false  # Actual PCC: 0.9558645998697567 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+      qb2-blackhole:
+        assert_pcc: false  # Actual PCC: 0.9558645998697567 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
   siglip/image_text_similarity/pytorch-so400m_patch14_384-single_device-inference:
     status: EXPECTED_PASSING
@@ -2658,6 +2786,8 @@ test_config:
         assert_pcc: false  # Actual PCC: 0.9579560773278014 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
       p150:
         assert_pcc: false  # Actual PCC: 0.9555685660373453 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+      qb2-blackhole:
+        assert_pcc: false  # Actual PCC: 0.9555685660373453 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
   siglip/image_text_similarity/pytorch-so400m_patch16_256_i18n-single_device-inference:
     status: EXPECTED_PASSING
@@ -2665,4 +2795,6 @@ test_config:
       n150:
         assert_pcc: false  # Actual PCC: 0.9693205147128082 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
       p150:
+        assert_pcc: false  # Actual PCC: 0.9661477411303401 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
+      qb2-blackhole:
         assert_pcc: false  # Actual PCC: 0.9661477411303401 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation

@@ -134,6 +134,8 @@ test_config:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
+      qb2-blackhole:
+        status: EXPECTED_PASSING
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -141,6 +143,8 @@ test_config:
   qwen_2_5/causal_lm/pytorch-7b_instruct_1m-llm_decode-single_device-inference:
     arch_overrides:
       p150:
+        status: EXPECTED_PASSING
+      qb2-blackhole:
         status: EXPECTED_PASSING
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -166,6 +170,8 @@ test_config:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
+      qb2-blackhole:
+        status: EXPECTED_PASSING
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -173,6 +179,8 @@ test_config:
   falcon/pytorch-tiiuae/falcon-7b-instruct-llm_decode-single_device-inference:
     arch_overrides:
       p150:
+        status: EXPECTED_PASSING
+      qb2-blackhole:
         status: EXPECTED_PASSING
       n150:
         status: NOT_SUPPORTED_SKIP
