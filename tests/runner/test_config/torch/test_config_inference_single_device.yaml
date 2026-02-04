@@ -92,7 +92,6 @@ test_config:
     markers: ["extended"]
 
   openpose/v2/pytorch-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-xxlarge_v2-single_device-inference:
@@ -1975,12 +1974,11 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.04067724570631981. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505"
 
   centernet/pytorch-resnet18_coco-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
+    status: EXPECTED_PASSING
 
   centernet/pytorch-resnet101_coco-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3043
+    status: EXPECTED_PASSING
 
   centernet/pytorch-dla1x_coco-single_device-inference:
     status: EXPECTED_PASSING
