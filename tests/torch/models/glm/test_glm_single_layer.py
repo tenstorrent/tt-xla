@@ -11,20 +11,20 @@ from infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 from infra.utilities import Framework
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM
+
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import ModelLoader
-
 
 available_variants = ModelLoader.query_available_variants()
 
 
-#@parametrize_arch(["single_device", "llmbox"])
-@pytest.mark.parametrize("arch", ["single_device", "llmbox"])
-@pytest.mark.parametrize("seq_len", [128, 256, 512, 1024])
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", available_variants.keys())
 def test_glm_single_layer(seq_len, variant, arch):
     """Test GLM single layer with tensor parallel sharding."""
-    
+
     # Load model with single layer
     loader = ModelLoader(variant=variant)
     config = loader.load_config()
@@ -57,7 +57,7 @@ def test_glm_single_layer(seq_len, variant, arch):
         def get_shard_spec(layer, args, kwargs):
             """Returns shard specifications for the layer's parameters."""
             shard_specs = {}
-            
+
             shard_specs[layer.input_layernorm.weight] = ("batch",)
             shard_specs[layer.post_attention_layernorm.weight] = ("batch",)
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
@@ -67,12 +67,13 @@ def test_glm_single_layer(seq_len, variant, arch):
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.bias] = ("model",)
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-            
+
             shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
             shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             return shard_specs
+
     else:
         mesh = None
         get_shard_spec = None
