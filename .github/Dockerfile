@@ -92,7 +92,8 @@ RUN dnf install --refresh -y \
 #     git-lfs \
 #     patchelf \
     protobuf-compiler \
-    protobuf-devel
+    protobuf-devel \
+    openmpi openmpi-devel
     # ffmpeg-free
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${MLIR_TAG} AS ird
