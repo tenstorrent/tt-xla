@@ -304,7 +304,7 @@ def test_llama_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.tensor([max_cache_len - 1], dtype=torch.long)
+    cache_positions = torch.randint(0, max_cache_len, (batch_size,), dtype=torch.long)
 
     run_graph_test(
         attention,
@@ -737,7 +737,7 @@ def test_qwen3_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.tensor([max_cache_len - 1], dtype=torch.long)
+    cache_positions = torch.randint(0, max_cache_len, (batch_size,), dtype=torch.long)
 
     run_graph_test(
         attention,
@@ -1400,7 +1400,7 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.tensor([max_cache_len - 1], dtype=torch.long)
+    cache_positions = torch.randint(0, max_cache_len, (batch_size,), dtype=torch.long)
 
     run_graph_test(
         attention,
@@ -1794,7 +1794,7 @@ def test_gemma_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.tensor([max_cache_len - 1], dtype=torch.long)
+    cache_positions = torch.randint(0, max_cache_len, (batch_size,), dtype=torch.long)
 
     run_graph_test(
         attention,
@@ -2075,7 +2075,7 @@ def test_mistral_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.tensor([max_cache_len - 1], dtype=torch.long)
+    cache_positions = torch.randint(0, max_cache_len, (batch_size,), dtype=torch.long)
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
