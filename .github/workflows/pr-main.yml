@@ -94,6 +94,7 @@ jobs:
       perf_regression_check: true
       test-filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding,test_llama_3_1_70b_tp
       runs-on-filter: All
+      sh-runner: false
 
   test_forge_models_push:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
