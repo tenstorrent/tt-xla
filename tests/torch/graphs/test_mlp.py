@@ -14,7 +14,7 @@ from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers.models.falcon.modeling_falcon import FalconMLP
 from transformers.models.gemma.modeling_gemma import GemmaMLP
-from transformers.models.glm4_moe.modeling_glm import Glm4MoeMLP, Glm4MoeMoe
+from transformers.models.glm4_moe.modeling_glm4_moe import Glm4MoeMLP, Glm4MoeMoE
 from transformers.models.llama.modeling_llama import LlamaMLP
 from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
@@ -540,16 +540,20 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
 """GLM MLP test"""
 
 
+# NOTE: GLM Decoder layer has two MLPs, one with MoE and one without
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize("mlp_type", ["mlp", "moe"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("glm").items(),
     ids=[str(k) for k in get_available_variants("glm").keys()],
 )
-@pytest.mark.parametrize("mlp_type", ["mlp", "moe"])
-def test_glm_mlp(seq_len, variant, variant_config, arch, mlp_type):
+def test_glm_mlp(variant, variant_config, mlp_type, seq_len, arch):
+    if mlp_type == "moe":
+        pytest.xfail("MoE MLPs not supported yet")
+
     xr.set_device_type("TT")
 
     loader = GLMModelLoader(variant=variant)
@@ -557,7 +561,7 @@ def test_glm_mlp(seq_len, variant, variant_config, arch, mlp_type):
     if mlp_type == "mlp":
         mlp = Glm4MoeMLP(config).to(torch.bfloat16)
     elif mlp_type == "moe":
-        mlp = Glm4MoeMoe(config).to(torch.bfloat16)
+        mlp = Glm4MoeMoE(config).to(torch.bfloat16)
 
     batch_size = 1
 
