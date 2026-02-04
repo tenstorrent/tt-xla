@@ -35,7 +35,7 @@ def test_glm_single_layer(seq_len, variant, arch):
     layer = model.model.layers[0]
 
     # Create inputs
-    batch_size = 1
+    batch_size = 2
     head_dim = model.config.head_dim
     hidden_states = torch.randn(
         batch_size, seq_len, model.config.hidden_size, dtype=torch.bfloat16
@@ -50,7 +50,7 @@ def test_glm_single_layer(seq_len, variant, arch):
     # Setup for tensor parallel
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
+        mesh_shape = (batch_size, num_devices // batch_size)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 

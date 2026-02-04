@@ -563,15 +563,14 @@ def test_glm_mlp(variant, variant_config, mlp_type, seq_len, arch):
     elif mlp_type == "moe":
         mlp = Glm4MoeMoE(config).to(torch.bfloat16)
 
-    batch_size = 1
-
+    batch_size = 2
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
+        mesh_shape = (batch_size, num_devices // batch_size)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
