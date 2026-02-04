@@ -113,13 +113,13 @@ test_config:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  t5/pytorch-google/flan-t5-small-single_device-inference:
+  t5/causal_lm/pytorch-google/flan-t5-small-single_device-inference:
     status: EXPECTED_PASSING
 
-  t5/pytorch-google/flan-t5-base-single_device-inference:
+  t5/causal_lm/pytorch-google/flan-t5-base-single_device-inference:
     status: EXPECTED_PASSING
 
-  t5/pytorch-google/flan-t5-large-single_device-inference:
+  t5/causal_lm/pytorch-google/flan-t5-large-single_device-inference:
     status: EXPECTED_PASSING
 
   musicgen_small/pytorch-single_device-inference:
@@ -461,7 +461,7 @@ test_config:
   segformer/pytorch-mit_b5-single_device-inference:
     status: EXPECTED_PASSING
 
-  squeezebert/pytorch-squeezebert-mnli-single_device-inference:
+  squeezebert/text_classification/pytorch-squeezebert-mnli-single_device-inference:
     status: KNOWN_FAILURE_XFAIL  # Affected by change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
 
@@ -766,7 +766,7 @@ test_config:
     reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
     bringup_status: FAILED_RUNTIME
 
-  t5/pytorch-t5-small-single_device-inference:
+  t5/causal_lm/pytorch-t5-small-single_device-inference:
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-large_v2-single_device-inference:
@@ -814,7 +814,7 @@ test_config:
   # yolov8/pytorch-yolov8n-single_device-inference:
   #   status: EXPECTED_PASSING
 
-  stereo/pytorch-small-single_device-inference:
+  stereo/text_to_speech/pytorch-small-single_device-inference:
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-xlarge_v2-single_device-inference:
@@ -822,13 +822,13 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.872334097539835. Required: pcc=0.99"
 
-  t5/pytorch-t5-base-single_device-inference:
+  t5/causal_lm/pytorch-t5-base-single_device-inference:
     status: EXPECTED_PASSING
 
-  t5/pytorch-t5-large-single_device-inference:
+  t5/causal_lm/pytorch-t5-large-single_device-inference:
     status: EXPECTED_PASSING
 
-  stereo/pytorch-medium-single_device-inference:
+  stereo/text_to_speech/pytorch-medium-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3149577673900601. Required: pcc=0.99"
@@ -860,7 +860,7 @@ test_config:
   monodepth2/pytorch-mono+stereo_1024x320-single_device-inference:
     status: EXPECTED_PASSING
 
-  stereo/pytorch-large-single_device-inference:
+  stereo/text_to_speech/pytorch-large-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=-0.43084077321771863. Required: pcc=0.99"
@@ -1232,10 +1232,10 @@ test_config:
   fpn/pytorch-resnet50_fpn_v2-single_device-inference:
     status: EXPECTED_PASSING
 
-  ssd300_resnet50/pytorch-base-single_device-inference:
+  ssd300_resnet50/object_detection/pytorch-base-single_device-inference:
     status: EXPECTED_PASSING
 
-  stable_diffusion_unet/pytorch-base-single_device-inference:
+  stable_diffusion_unet/mm_image_ttt/pytorch-base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
@@ -1601,7 +1601,7 @@ test_config:
         status: KNOWN_FAILURE_XFAIL
         reason: "RuntimeError: Out of Memory: Not enough space to allocate 49971200 B L1 buffer across 64 banks"
 
-  stable_diffusion_1_4/pytorch-base-single_device-inference:
+  stable_diffusion_1_4/mm_image_ttt/pytorch-base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hangs or takes forever to run - not known to be compile clean anyways."
     bringup_status: FAILED_FE_COMPILATION
@@ -2052,7 +2052,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
         reason: "Buffer must be allocated on device - https://github.com/tenstorrent/tt-xla/issues/2439"
 
-  ssr/pytorch-single_device-inference:
+  ssr/object_detection/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B, but bank size is only 1364704 B - https://github.com/tenstorrent/tt-xla/issues/1923"
 
@@ -2197,7 +2197,7 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Multi chip is required"
 
-  transfuser/pytorch-single_device-inference:
+  transfuser/object_detection/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Input tensor data type for ttnn.sort must be BFLOAT16 or UINT16, got DataType::FLOAT32 (https://github.com/tenstorrent/tt-xla/issues/3089)"
 
@@ -2316,7 +2316,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
 
-  ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-inference:
+  ssdlite320_mobilenetv3/object_detection/pytorch-ssdlite320_mobilenet_v3_large-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Can't convert shape rank  - https://github.com/tenstorrent/tt-xla/issues/2456"
@@ -2326,7 +2326,7 @@ test_config:
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=6)] grow to 22732608 B which is beyond max L1 size of 1499136 B"
     bringup_status: FAILED_RUNTIME
 
-  ssd300_vgg16/pytorch-ssd300_vgg16-single_device-inference:
+  ssd300_vgg16/object_detection/pytorch-ssd300_vgg16-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/2456"

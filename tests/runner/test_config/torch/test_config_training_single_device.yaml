@@ -17,22 +17,22 @@ test_config:
   qwen_1_5/causal_lm/pytorch-0_5b_chat-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-t5-small-single_device-training:
+  t5/causal_lm/pytorch-t5-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-t5-base-single_device-training:
+  t5/causal_lm/pytorch-t5-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-t5-large-single_device-training:
+  t5/causal_lm/pytorch-t5-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-google/flan-t5-small-single_device-training:
+  t5/causal_lm/pytorch-google/flan-t5-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-google/flan-t5-base-single_device-training:
+  t5/causal_lm/pytorch-google/flan-t5-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  t5/pytorch-google/flan-t5-large-single_device-training:
+  t5/causal_lm/pytorch-google/flan-t5-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   qwen_2_5/causal_lm/pytorch-0_5b-single_device-training:
@@ -94,13 +94,13 @@ test_config:
   musicgen_small/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  stereo/pytorch-small-single_device-training:
+  stereo/text_to_speech/pytorch-small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  stereo/pytorch-medium-single_device-training:
+  stereo/text_to_speech/pytorch-medium-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  stereo/pytorch-large-single_device-training:
+  stereo/text_to_speech/pytorch-large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   oft/pytorch-single_device-training:
@@ -116,7 +116,7 @@ test_config:
   mlp_mixer/pytorch-mixer_s32_224-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  stable_diffusion_unet/pytorch-base-single_device-training:
+  stable_diffusion_unet/mm_image_ttt/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
@@ -164,7 +164,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "ImportError: kornia"
-  ssdlite320_mobilenetv3/pytorch-ssdlite320_mobilenet_v3_large-single_device-training:
+  ssdlite320_mobilenetv3/object_detection/pytorch-ssdlite320_mobilenet_v3_large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: targets should not be none when in training mode"
@@ -172,7 +172,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Cannot find callable resnext101_64x4d in hubconf"
-  ssd300_vgg16/pytorch-ssd300_vgg16-single_device-training:
+  ssd300_vgg16/object_detection/pytorch-ssd300_vgg16-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: targets should not be none when in training mode"
@@ -180,7 +180,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
-  ssd300_resnet50/pytorch-base-single_device-training:
+  ssd300_resnet50/object_detection/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "AttributeError: 'NoneType' object has no attribute 'max'"
@@ -236,7 +236,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
-  stable_diffusion_1_4/pytorch-base-single_device-training:
+  stable_diffusion_1_4/mm_image_ttt/pytorch-base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
@@ -495,7 +495,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  transfuser/pytorch-single_device-training:
+  transfuser/object_detection/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "'func.call' op incorrect number of operands for callee"
@@ -594,7 +594,7 @@ test_config:
   codegen/pytorch-Salesforce/codegen-350M-nl-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  squeezebert/pytorch-squeezebert-mnli-single_device-training:
+  squeezebert/text_classification/pytorch-squeezebert-mnli-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   distilbert/sequence_classification/pytorch-distilbert-base-uncased-finetuned-sst-2-english-single_device-training:
