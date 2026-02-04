@@ -320,7 +320,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  xception/pytorch-xception65-data_parallel-inference:
+  xception/image_classification/pytorch-xception65-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -359,7 +359,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  xception/pytorch-xception71-data_parallel-inference:
+  xception/image_classification/pytorch-xception71-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -376,7 +376,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  xception/pytorch-xception71.tf_in1k-data_parallel-inference:
+  xception/image_classification/pytorch-xception71.tf_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -398,7 +398,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  wide_resnet/pytorch-wide_resnet101_2.timm-data_parallel-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet101_2.timm-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -420,7 +420,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  wide_resnet/pytorch-wide_resnet50_2-data_parallel-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet50_2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -468,13 +468,13 @@ test_config:
   #   status: EXPECTED_PASSING
   #   required_pcc: 0.98
 
-  wide_resnet/pytorch-wide_resnet50_2.timm-data_parallel-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet50_2.timm-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     assert_pcc: false
     reason: "PCC comparison failed.  Calculated: pcc=0.97700434923172. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/2368"
 
-  xception/pytorch-xception41-data_parallel-inference:
+  xception/image_classification/pytorch-xception41-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -519,7 +519,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.956895405489452. Required: pcc=0.98."
 
-  vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-data_parallel-inference:
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw.ra_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -550,7 +550,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  wide_resnet/pytorch-wide_resnet101_2-data_parallel-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet101_2-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -586,7 +586,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vovnet/pytorch-ese_vovnet39b-data_parallel-inference:
+  vovnet/image_classification/pytorch-ese_vovnet39b-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -636,19 +636,19 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.956940770149231. Required: pcc=0.99."
 
-  vovnet/pytorch-vovnet57_th-data_parallel-inference:
+  vovnet/image_classification/pytorch-vovnet57_th-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: KNOWN_FAILURE_XFAIL
     reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
-  yolos/pytorch-data_parallel-inference:
+  yolos/object_detection/pytorch-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.968181848526001. Required: pcc=0.99."
 
-  vovnet/pytorch-ese_vovnet99b-data_parallel-inference:
+  vovnet/image_classification/pytorch-ese_vovnet99b-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     assert_pcc: false
@@ -902,7 +902,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9567028880119324. Required: pcc=0.99."
 
-  vovnet/pytorch-vovnet39_th-data_parallel-inference:
+  vovnet/image_classification/pytorch-vovnet39_th-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: KNOWN_FAILURE_XFAIL
@@ -1037,7 +1037,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  vovnet/pytorch-ese_vovnet19b_dw-data_parallel-inference:
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1183,7 +1183,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  vovnet/pytorch-vovnet27s-data_parallel-inference:
+  vovnet/image_classification/pytorch-vovnet27s-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1192,7 +1192,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  vovnet/pytorch-vovnet39-data_parallel-inference:
+  vovnet/image_classification/pytorch-vovnet39-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -1212,7 +1212,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  vovnet/pytorch-vovnet57-data_parallel-inference:
+  vovnet/image_classification/pytorch-vovnet57-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: KNOWN_FAILURE_XFAIL

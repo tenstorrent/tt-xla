@@ -23,15 +23,15 @@ test_config:
     assert_pcc: false  # 0.749 on BH / 0.76 on WH
     status: EXPECTED_PASSING
 
-  vovnet/pytorch-vovnet27s-single_device-inference:
+  vovnet/image_classification/pytorch-vovnet27s-single_device-inference:
     status: EXPECTED_PASSING
 
-  vovnet/pytorch-vovnet39_th-single_device-inference:
+  vovnet/image_classification/pytorch-vovnet39_th-single_device-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: KNOWN_FAILURE_XFAIL
     reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
-  vovnet/pytorch-vovnet57_th-single_device-inference:
+  vovnet/image_classification/pytorch-vovnet57_th-single_device-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
     status: KNOWN_FAILURE_XFAIL
     reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
@@ -60,11 +60,11 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 18766 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
 
-  wide_resnet/pytorch-wide_resnet50_2-single_device-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet50_2-single_device-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
 
-  wide_resnet/pytorch-wide_resnet101_2-single_device-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet101_2-single_device-inference:
     required_pcc: 0.97  # PCC drop when changing input
     status: EXPECTED_PASSING
 
@@ -75,10 +75,10 @@ test_config:
         assert_pcc: false
         reason: "PCC comparison failed. Calculated: pcc=0.9799284338951111. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1828"
 
-  xglm/pytorch-xglm-564M-single_device-inference:
+  xglm/causal_lm/pytorch-xglm-564M-single_device-inference:
     status: EXPECTED_PASSING
 
-  xglm/pytorch-xglm-1.7B-single_device-inference:
+  xglm/causal_lm/pytorch-xglm-1.7B-single_device-inference:
     required_pcc: 0.97 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected; also https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
@@ -528,18 +528,18 @@ test_config:
   vit/pytorch-large-single_device-inference:
     status: EXPECTED_PASSING
 
-  xception/pytorch-xception41-single_device-inference:
+  xception/image_classification/pytorch-xception41-single_device-inference:
     status: EXPECTED_PASSING
 
-  xception/pytorch-xception65-single_device-inference:
+  xception/image_classification/pytorch-xception65-single_device-inference:
     required_pcc: 0.98 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
-  xception/pytorch-xception71-single_device-inference:
+  xception/image_classification/pytorch-xception71-single_device-inference:
     required_pcc: 0.98 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
-  xception/pytorch-xception71.tf_in1k-single_device-inference:
+  xception/image_classification/pytorch-xception71.tf_in1k-single_device-inference:
     required_pcc: 0.98 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
@@ -755,7 +755,7 @@ test_config:
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolos/pytorch-single_device-inference:
+  yolos/object_detection/pytorch-single_device-inference:
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1168 https://github.com/tenstorrent/tt-xla/issues/2759
     assert_pcc: false # PCC: 0.9592 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
     status: EXPECTED_PASSING
@@ -1255,15 +1255,15 @@ test_config:
   googlenet/pytorch-googlenet-single_device-inference:
     status: EXPECTED_PASSING
 
-  vovnet/pytorch-ese_vovnet19b_dw-single_device-inference:
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended"]
 
-  vovnet/pytorch-ese_vovnet39b-single_device-inference:
+  vovnet/image_classification/pytorch-ese_vovnet39b-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98 # p150 : https://github.com/tenstorrent/tt-xla/issues/2201 n150 : https://github.com/tenstorrent/tt-xla/issues/2438
 
-  vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-inference:
+  vovnet/image_classification/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-inference:
     status: EXPECTED_PASSING
 
   resnext/pytorch-resnext50_32x4d-single_device-inference:
@@ -1333,7 +1333,7 @@ test_config:
   ghostnet/pytorch-ghostnetv2_100.in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  wide_resnet/pytorch-wide_resnet101_2.timm-single_device-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet101_2.timm-single_device-inference:
     required_pcc: 0.97  # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
@@ -1436,22 +1436,22 @@ test_config:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9895844459533691. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  vovnet/pytorch-vovnet39-single_device-inference:
+  vovnet/image_classification/pytorch-vovnet39-single_device-inference:
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2201 https://github.com/tenstorrent/tt-xla/issues/2524
     status: EXPECTED_PASSING
 
-  vovnet/pytorch-vovnet57-single_device-inference:
+  vovnet/image_classification/pytorch-vovnet57-single_device-inference:
     required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2201 https://github.com/tenstorrent/tt-xla/issues/2524
     status: EXPECTED_PASSING
 
-  vovnet/pytorch-ese_vovnet99b-single_device-inference:
+  vovnet/image_classification/pytorch-ese_vovnet99b-single_device-inference:
     status: EXPECTED_PASSING
 
   gemma/pytorch-google/gemma-2-2b-it-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended", push]
 
-  wide_resnet/pytorch-wide_resnet50_2.timm-single_device-inference:
+  wide_resnet/image_classification/pytorch-wide_resnet50_2.timm-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2368, https://github.com/tenstorrent/tt-xla/issues/2457
 
@@ -2351,18 +2351,18 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2237
 
-  yolos_small/pytorch-small-single_device-inference:
+  yolos_small/object_detection/pytorch-small-single_device-inference:
     required_pcc: 0.965
     status: EXPECTED_PASSING
 
-  yolos_small/pytorch-small_dwr-single_device-inference:
+  yolos_small/object_detection/pytorch-small_dwr-single_device-inference:
     required_pcc: 0.96
     status: EXPECTED_PASSING
 
-  yolos_small/pytorch-small_300-single_device-inference:
+  yolos_small/object_detection/pytorch-small_300-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolop/pytorch-yolop-single_device-inference:
+  yolop/object_detection/pytorch-yolop-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 12. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
@@ -2560,7 +2560,7 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
-  wan/pytorch-wan2.2-ti2v-5b-single_device-inference:
+  wan/mm_image_ttt/pytorch-wan2.2-ti2v-5b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Wan2.2 model requires a lot of memeory and takes a lot of time to load hence skipping it for now."
 
