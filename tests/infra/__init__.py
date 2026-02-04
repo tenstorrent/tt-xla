@@ -23,8 +23,6 @@ from .testers import (
     run_op_test_with_random_inputs,
     serialize_jax_multichip_op,
     serialize_jax_multichip_op_with_random_inputs,
-    serialize_op,
-    serialize_op_with_random_inputs,
 )
 from .utilities import (
     Framework,
