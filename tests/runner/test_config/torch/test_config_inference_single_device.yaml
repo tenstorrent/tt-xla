@@ -36,7 +36,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
 
-  hardnet/pytorch-single_device-inference:
+  hardnet/image_classification/pytorch-single_device-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -334,42 +334,42 @@ test_config:
         status: KNOWN_FAILURE_XFAIL
         reason: "Statically allocated circular buffers in program 260 clash with L1 buffers on core range [(x=0,y=0) - (x=12,y=9)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
-  ghostnet/pytorch-ghostnet_100-single_device-inference:
+  ghostnet/image_classification/pytorch-ghostnet_100-single_device-inference:
     status: EXPECTED_PASSING
 
-  ghostnet/pytorch-ghostnet_100.in1k-single_device-inference:
+  ghostnet/image_classification/pytorch-ghostnet_100.in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended"]
 
-  hrnet/pytorch-hrnet_w18.ms_aug_in1k-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18.ms_aug_in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18_small-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small-single_device-inference:
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18_small_v2_osmr-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v2_osmr-single_device-inference:
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w30-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w30-single_device-inference:
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w32-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w32-single_device-inference:
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w40-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w40-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.987054169178009. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w44-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w44-single_device-inference:
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w48-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w48-single_device-inference:
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w64-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w64-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.988092303276062. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -978,11 +978,11 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  inception/pytorch-inception_v4-single_device-inference:
+  inception/image_classification/pytorch-inception_v4-single_device-inference:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9682327508926392. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  inception/pytorch-inception_v4.tf_in1k-single_device-inference:
+  inception/image_classification/pytorch-inception_v4.tf_in1k-single_device-inference:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9682327508926392. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -1176,7 +1176,7 @@ test_config:
   resnext/pytorch-resnext101_64x4d_osmr-single_device-inference:
     status: EXPECTED_PASSING
 
-  inception/pytorch-inceptionv4-single_device-inference:
+  inception/image_classification/pytorch-inceptionv4-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
@@ -1252,7 +1252,7 @@ test_config:
   dla/pytorch-dla34.in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  googlenet/pytorch-googlenet-single_device-inference:
+  googlenet/image_classification/pytorch-googlenet-single_device-inference:
     status: EXPECTED_PASSING
 
   vovnet/pytorch-ese_vovnet19b_dw-single_device-inference:
@@ -1298,10 +1298,10 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "Url for dataset is not reachable - https://github.com/tenstorrent/tt-xla/issues/2507"
 
-  gpt2/pytorch-gpt2-single_device-inference:
+  gpt2/causal_lm/pytorch-gpt2-single_device-inference:
     status: EXPECTED_PASSING
 
-  gpt2/pytorch-gpt2_sequence_classification-single_device-inference:
+  gpt2/causal_lm/pytorch-gpt2_sequence_classification-single_device-inference:
     status: EXPECTED_PASSING
 
   yolov9/pytorch-t-single_device-inference:
@@ -1330,7 +1330,7 @@ test_config:
       p150:
         assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2181
 
-  ghostnet/pytorch-ghostnetv2_100.in1k-single_device-inference:
+  ghostnet/image_classification/pytorch-ghostnetv2_100.in1k-single_device-inference:
     status: EXPECTED_PASSING
 
   wide_resnet/pytorch-wide_resnet101_2.timm-single_device-inference:
@@ -1415,24 +1415,24 @@ test_config:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9885184168815613. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18_small_v2-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v2-single_device-inference:
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnet_w18_small_v1_osmr-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnet_w18_small_v1_osmr-single_device-inference:
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnetv2_w18_osmr-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w18_osmr-single_device-inference:
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnetv2_w30_osmr-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w30_osmr-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9887874722480774. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnetv2_w32_osmr-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w32_osmr-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.985
 
-  hrnet/pytorch-hrnetv2_w40_osmr-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w40_osmr-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9895844459533691. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -1473,7 +1473,7 @@ test_config:
     required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9867953658103943. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1916
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-hrnetv2_w44_osmr-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w44_osmr-single_device-inference:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9663628935813904. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -1517,7 +1517,7 @@ test_config:
         reason: "Too large for single chip" # (flux.1-dev is 12B param model)
         bringup_status: FAILED_RUNTIME
 
-  gliner/pytorch-urchade/gliner_multi-v2.1-single_device-inference:
+  gliner/token_classification/pytorch-urchade/gliner_multi-v2.1-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "TypeError: GLiNER.compile() got an unexpected keyword argument 'backend'"
 
@@ -1592,7 +1592,7 @@ test_config:
   phi3/seq_cls/pytorch-microsoft/Phi-3-mini-4k-instruct-single_device-inference:
     status: EXPECTED_PASSING
 
-  glpn_kitti/pytorch-single_device-inference:
+  glpn_kitti/depth_estimation/pytorch-single_device-inference:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -1636,7 +1636,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
-  huggyllama/pytorch-llama_7b-single_device-inference:
+  huggyllama/causal_lm/pytorch-llama_7b-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -1964,7 +1964,7 @@ test_config:
     reason: "d_fine xlarge hangs forever, removing all of them."
     bringup_status: FAILED_RUNTIME
 
-  hrnet/pytorch-hrnetv2_w48_osmr-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w48_osmr-single_device-inference:
     required_pcc: 0.985  # https://github.com/tenstorrent/tt-xla/issues/1491
     status: EXPECTED_PASSING
 
@@ -2123,7 +2123,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "AssertionError: SparseSequential encountered by torch._dynamo"
 
-  hrnet/pytorch-hrnetv2_w64_osmr-single_device-inference:
+  hrnet/keypoint_detection/pytorch-hrnetv2_w64_osmr-single_device-inference:
     required_pcc: 0.96
     status: EXPECTED_PASSING
 
@@ -2304,11 +2304,11 @@ test_config:
   stable_diffusion/pytorch-stable-diffusion-3.5-large-turbo-single_device-inference:
     status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
-  gliner/pytorch-urchade/gliner_largev2-single_device-inference:
+  gliner/token_classification/pytorch-urchade/gliner_largev2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
 
-  hippynn/pytorch-Hippynn-single_device-inference:
+  hippynn/atomic_ml/pytorch-Hippynn-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
 
