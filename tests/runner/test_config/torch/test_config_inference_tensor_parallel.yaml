@@ -131,7 +131,7 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  qwen_2_5_coder/pytorch-32b_instruct-tensor_parallel-inference:
+  qwen_2_5_coder/causal_lm/pytorch-32b_instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 

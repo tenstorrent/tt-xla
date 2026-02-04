@@ -54,7 +54,7 @@ test_config:
   llama/causal_lm/pytorch-llama_3_2_1b_instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
-  qwen_2_5_coder/pytorch-0_5b-single_device-training:
+  qwen_2_5_coder/causal_lm/pytorch-0_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   clip/pytorch-base_patch32-single_device-training:
@@ -288,7 +288,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
-  pointpillars/pytorch-pointpillars-single_device-training:
+  pointpillars/object_detection/pytorch-pointpillars-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2003264 B which is beyond max L1 size of 1499136 B"
@@ -761,7 +761,7 @@ test_config:
   resnext/pytorch-resnext101_64x4d_osmr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  rcnn/pytorch-alexnet-single_device-training:
+  rcnn/object_detection/pytorch-alexnet-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   vovnet/pytorch-vovnet27s-single_device-training:
@@ -842,7 +842,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "RuntimeError: TT_FATAL conv2d"
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-training:
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-conv-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
@@ -1037,10 +1037,10 @@ test_config:
   phi1/causal_lm/pytorch-microsoft/phi-1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-training:
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-learned-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-single_device-training:
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-fourier-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   d_fine/pytorch-nano-single_device-training:
@@ -1100,7 +1100,7 @@ test_config:
   mlp_mixer/lucidrains/pytorch-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  perceiver/pytorch-deepmind/language-perceiver-single_device-training:
+  perceiver/masked_lm/pytorch-deepmind/language-perceiver-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   gpt2/pytorch-gpt2-single_device-training:
@@ -1513,9 +1513,9 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
-  qwen_2_5_coder/pytorch-1_5b-single_device-training:
+  qwen_2_5_coder/causal_lm/pytorch-1_5b-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  qwen_2_5_coder/pytorch-1_5b_instruct-single_device-training:
+  qwen_2_5_coder/causal_lm/pytorch-1_5b_instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]

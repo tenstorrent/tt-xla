@@ -690,7 +690,7 @@ test_config:
   opt/sequence_classification/pytorch-facebook/opt-1.3b-single_device-inference:
     status: EXPECTED_PASSING
 
-  perceiver/pytorch-deepmind/language-perceiver-single_device-inference:
+  perceiver/masked_lm/pytorch-deepmind/language-perceiver-single_device-inference:
     status: EXPECTED_PASSING
 
   beit/pytorch-base-single_device-inference:
@@ -760,7 +760,7 @@ test_config:
     assert_pcc: false # PCC: 0.9592 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
     status: EXPECTED_PASSING
 
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-conv-single_device-inference:
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-conv-single_device-inference:
     required_pcc: 0.98
     status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
     reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
@@ -777,7 +777,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-fourier-single_device-inference:
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-fourier-single_device-inference:
     required_pcc: 0.98
     assert_pcc: false  # FIXME - PCC drop to 0.96 on Aug6 due to tt-mlir/tt-xla uplift (passed locally before it)
     status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
@@ -800,7 +800,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99"
 
-  perceiverio_vision/pytorch-deepmind/vision-perceiver-learned-single_device-inference:
+  perceiverio_vision/image_classification/pytorch-deepmind/vision-perceiver-learned-single_device-inference:
     assert_pcc: false  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
     status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
     reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
@@ -895,16 +895,16 @@ test_config:
     required_pcc: 0.97
     status: EXPECTED_PASSING
 
-  qwen_2_5_vl/pytorch-72b_instruct-single_device-inference:
+  qwen_2_5_vl/conditional_generation/pytorch-72b_instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5_vl/pytorch-3b_instruct-single_device-inference:
+  qwen_2_5_vl/conditional_generation/pytorch-3b_instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
 
-  qwen_2_5_vl/pytorch-7b_instruct-single_device-inference:
+  qwen_2_5_vl/conditional_generation/pytorch-7b_instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
     arch_overrides:
@@ -930,7 +930,7 @@ test_config:
   qwen_3/causal_lm/pytorch-1_7b-single_device-inference:
     status: EXPECTED_PASSING
 
-  qwen_2_5_coder/pytorch-3b-single_device-inference:
+  qwen_2_5_coder/causal_lm/pytorch-3b-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
 
@@ -945,11 +945,11 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  qwen_2_5_coder/pytorch-3b_instruct-single_device-inference:
+  qwen_2_5_coder/causal_lm/pytorch-3b_instruct-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  qwen_2_5_coder/pytorch-1_5b-single_device-inference:
+  qwen_2_5_coder/causal_lm/pytorch-1_5b-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
 
@@ -986,11 +986,11 @@ test_config:
     required_pcc: 0.96  # AssertionError: PCC comparison failed. Calculated: pcc=0.9682327508926392. Required: pcc=0.97. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  qwen_2_5_coder/pytorch-1_5b_instruct-single_device-inference:
+  qwen_2_5_coder/causal_lm/pytorch-1_5b_instruct-single_device-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
 
-  qwen_2_5_coder/pytorch-0_5b-single_device-inference:
+  qwen_2_5_coder/causal_lm/pytorch-0_5b-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
@@ -1246,7 +1246,7 @@ test_config:
   mlp_mixer/pytorch-mixer_github-single_device-inference:
     status: EXPECTED_PASSING
 
-  rcnn/pytorch-alexnet-single_device-inference:
+  rcnn/object_detection/pytorch-alexnet-single_device-inference:
     status: EXPECTED_PASSING
 
   dla/pytorch-dla34.in1k-single_device-inference:
@@ -1863,10 +1863,10 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
-  qwen_2_5_coder/pytorch-32b_instruct-single_device-inference:
+  qwen_2_5_coder/causal_lm/pytorch-32b_instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  qwen_2_5_coder/pytorch-7b-single_device-inference:
+  qwen_2_5_coder/causal_lm/pytorch-7b-single_device-inference:
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1877,7 +1877,7 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
-  qwen_2_5_coder/pytorch-7b_instruct-single_device-inference:
+  qwen_2_5_coder/causal_lm/pytorch-7b_instruct-single_device-inference:
     arch_overrides:
       p150:
         assert_pcc: false
@@ -2131,7 +2131,7 @@ test_config:
     required_pcc: 0.98
     status: EXPECTED_PASSING
 
-  pointpillars/pytorch-pointpillars-single_device-inference:
+  pointpillars/object_detection/pytorch-pointpillars-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
 
@@ -2257,15 +2257,15 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
-  panoptic_segmentation/pytorch-resnet101_3x_coco-single_device-inference:
+  panoptic_segmentation/panoptic_segmentation/pytorch-resnet101_3x_coco-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
 
-  panoptic_segmentation/pytorch-resnet50_1x_coco-single_device-inference:
+  panoptic_segmentation/panoptic_segmentation/pytorch-resnet50_1x_coco-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
 
-  panoptic_segmentation/pytorch-resnet50_3x_coco-single_device-inference:
+  panoptic_segmentation/panoptic_segmentation/pytorch-resnet50_3x_coco-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
 
@@ -2367,7 +2367,7 @@ test_config:
     reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 12. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
 
 
-  owl_vit/pytorch-base_patch32-single_device-inference:
+  owl_vit/object_detection/pytorch-base_patch32-single_device-inference:
     status: EXPECTED_PASSING
 
   # yolov12/pytorch-yolo12n-single_device-inference:
@@ -2448,22 +2448,22 @@ test_config:
   arnold/pytorch-health_gathering_ff-single_device-inference:
     status: EXPECTED_PASSING
 
-  petr/pytorch-vovnet_gridmask_p4_800x320-single_device-inference:
+  petr/multiview_/pytorch-vovnet_gridmask_p4_800x320-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 57952512 B L1 buffer across 72 banks, where each bank needs to store 804896 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
 
-  petr/pytorch-vovnet_gridmask_p4_1600x640-single_device-inference:
+  petr/multiview_/pytorch-vovnet_gridmask_p4_1600x640-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
 
-  petr/pytorch-r50dcn_gridmask_c5-single_device-inference:
+  petr/multiview_/pytorch-r50dcn_gridmask_c5-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
 
-  petr/pytorch-r50dcn_gridmask_p4-single_device-inference:
+  petr/multiview_/pytorch-r50dcn_gridmask_p4-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
@@ -2514,7 +2514,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "RuntimeError: torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_module L__self___maxpool1(*(FakeTensor(..., device='xla:0', size=(1, 96, 16, 128, 128), dtype=torch.bfloat16),), https://github.com/tenstorrent/tt-xla/issues/2567"
 
-  openvla_oft/pytorch-openvla_oft_finetuned_libero_10-single_device-inference:
+  openvla_oft/mm_action_prediction/pytorch-openvla_oft_finetuned_libero_10-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.96
     arch_overrides:
@@ -2523,7 +2523,7 @@ test_config:
         reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
 
 
-  openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial-single_device-inference:
+  openvla_oft/mm_action_prediction/pytorch-openvla_oft_finetuned_libero_spatial-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
     arch_overrides:
@@ -2531,7 +2531,7 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Multi chip is required"
 
-  openvla_oft/pytorch-openvla_oft_finetuned_libero_goal-single_device-inference:
+  openvla_oft/mm_action_prediction/pytorch-openvla_oft_finetuned_libero_goal-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
     arch_overrides:
@@ -2539,7 +2539,7 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Multi chip is required"
 
-  openvla_oft/pytorch-openvla_oft_finetuned_libero_object-single_device-inference:
+  openvla_oft/mm_action_prediction/pytorch-openvla_oft_finetuned_libero_object-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
     arch_overrides:
@@ -2547,7 +2547,7 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Multi chip is required"
 
-  openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial_object_goal_10-single_device-inference:
+  openvla_oft/mm_action_prediction/pytorch-openvla_oft_finetuned_libero_spatial_object_goal_10-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.97
     arch_overrides:
