@@ -32,6 +32,28 @@ SHELL ["/bin/bash", "-c"]
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
+RUN dnf remove -y epel-release openmpi openmpi-devel || true
+
+# Build OpenMPI 5.0.7 with ULFM support from source
+ARG OMPI_TAG=v5.0.7
+ARG OMPI_PREFIX=/opt/openmpi-${OMPI_TAG}-ulfm
+WORKDIR /tmp
+RUN git clone --branch ${OMPI_TAG} --depth 1 https://github.com/open-mpi/ompi.git ompi-src && \
+    cd ompi-src && \
+    git submodule update --init --recursive && \
+    ./autogen.pl && \
+    ./configure \
+        --prefix=${OMPI_PREFIX} \
+        --with-ft=ulfm \
+        --enable-wrapper-rpath \
+        --enable-mpirun-prefix-by-default \
+        --disable-mca-dso \
+        --disable-dlopen && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && \
+    rm -rf ompi-src
+
 # Install clang 17
 # RUN dnf install --refresh -y clang llvm llvm-devel llvm-toolset && \
 #     ln -s /usr/bin/clang-17 /usr/bin/clang && \
@@ -92,8 +114,7 @@ RUN dnf install --refresh -y \
 #     git-lfs \
 #     patchelf \
     protobuf-compiler \
-    protobuf-devel \
-    openmpi openmpi-devel
+    protobuf-devel
     # ffmpeg-free
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${MLIR_TAG} AS ird
