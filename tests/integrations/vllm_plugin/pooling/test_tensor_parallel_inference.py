@@ -18,10 +18,6 @@ import vllm
             "intfloat/e5-mistral-7b-instruct",
             "baseline/e5_mistral_7b_instruct_baseline.pt",
         ),
-        pytest.param(
-            "Qwen/Qwen3-Embedding-4B",
-            "baseline/qwen3_embedding_4B_baseline.pt",
-        ),
     ],
 )
 def test_tensor_parallel_n300(
@@ -75,12 +71,16 @@ def test_tensor_parallel_n300(
     assert all(p >= 0.99 for p in pcc_values), f"Low PCC values: {pcc_values}"
 
 
-@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
+        pytest.param(
+            "Qwen/Qwen3-Embedding-4B",
+            "baseline/qwen3_embedding_4B_baseline.pt",
+        ),
         pytest.param(
             "Qwen/Qwen3-Embedding-8B",
             "baseline/qwen3_embedding_8B_baseline.pt",

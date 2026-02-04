@@ -8,7 +8,7 @@ import torch
 import vllm
 
 
-@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
@@ -29,7 +29,7 @@ import vllm
         ),
     ],
 )
-def test_embed_bge(model_name: str, baseline_path):
+def test_embed_sbert(model_name: str, baseline_path):
     """
     Test the sentence-Bert models' embedding outputs for correctness.
     Baseline embeddings are computed using vLLM on CPU backend.

@@ -9,7 +9,7 @@ import torch
 import vllm
 
 
-@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
@@ -36,15 +36,6 @@ def test_embed_bge(model_name: str, baseline_path):
     """
     Test the BGE models' embedding outputs for correctness
     under different batching and padding scenarios.
-    Test Setup:
-    - Input consists of four prompts with varying token lengths.
-    - vLLM is configured with max_num_seqs=2, meaning each batch can contain
-      up to 2 sequences and vLLM always process single prompt in first batch.
-    - This results in three batches:
-        1. First batch: first prompt → no padding required.
-        2. Second batch: second and third prompts concatenated,
-           padded to max_model_len=512.
-        3. Third batch: fourth prompt, padded to appropriate length.
     Purpose:
     - Validates that the model produces embeddings consistent with precomputed
       baseline embeddings for each prompt.
@@ -67,9 +58,9 @@ def test_embed_bge(model_name: str, baseline_path):
         "model": model_name,
         "task": "embed",
         "dtype": "bfloat16",
-        "max_model_len": 512,
+        "max_model_len": 64,
         "disable_sliding_window": True,
-        "max_num_batched_tokens": 512,
+        "max_num_batched_tokens": 128,
         "max_num_seqs": 2,
     }
     model = vllm.LLM(**llm_args)

@@ -8,7 +8,7 @@ import torch
 import vllm
 
 
-@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.parametrize(
     ["model_name", "baseline_path", "optimization_level"],
@@ -43,7 +43,7 @@ def test_batched_inference(
     """
     Test multi-batched inputs. Runner will create inputs of shape [batch_size x input_len]
     - BGE-m3: Model with encoder-only attention layers.
-    - Qwen3-Embedding-4B: Model with decoder-only attention layers.
+    - Qwen3-Embedding-0.6B: Model with decoder-only attention layers.
     Note:
       - max_model_len * max_num_seqs <= max_num_batched_tokens
       - max_num_reqs == batch_size
