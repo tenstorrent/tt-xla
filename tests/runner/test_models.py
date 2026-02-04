@@ -360,7 +360,7 @@ def test_all_models_jax(
 PREFILL_SEQ_LENS = [128, 1024, 2048, 4096, 8192]
 LLM_SEQ_LENS = [None] + PREFILL_SEQ_LENS
 
-# Batch sizes for prefill testing (None = decode phase uses default)
+# Batch sizes for prefill testing 
 PREFILL_BATCH_SIZES = [1, 2]
 LLM_BATCH_SIZES = PREFILL_BATCH_SIZES  # Same batch sizes for both decode and prefill
 
