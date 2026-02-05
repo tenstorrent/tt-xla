@@ -246,36 +246,36 @@ test_config:
   distilbert/token_classification/pytorch-Davlan/distilbert-base-multilingual-cased-ner-hrl-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla102-single_device-inference:
+  dla/image_classification/pytorch-dla102-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla102x2-single_device-inference:
+  dla/image_classification/pytorch-dla102x2-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla102x-single_device-inference:
+  dla/image_classification/pytorch-dla102x-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla169-single_device-inference:
+  dla/image_classification/pytorch-dla169-single_device-inference:
     required_pcc: 0.98  # PCC comparison failed with pcc=0.9898209571838379 in n150 and pcc=0.9885705709457397 in p150.
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed - https://github.com/tenstorrent/tt-xla/issues/2010"
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla34-single_device-inference:
+  dla/image_classification/pytorch-dla34-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla46_c-single_device-inference:
+  dla/image_classification/pytorch-dla46_c-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla46x_c-single_device-inference:
+  dla/image_classification/pytorch-dla46x_c-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla60-single_device-inference:
+  dla/image_classification/pytorch-dla60-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla60x_c-single_device-inference:
+  dla/image_classification/pytorch-dla60x_c-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla60x-single_device-inference:
+  dla/image_classification/pytorch-dla60x-single_device-inference:
     status: EXPECTED_PASSING
 
   dpr/question_encoder/pytorch-facebook/dpr-question_encoder-single-nq-base-single_device-inference:
@@ -298,36 +298,36 @@ test_config:
     assert_pcc: false # PCC: 0.9345 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-efficientnet_b0-single_device-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b0-single_device-inference:
     required_pcc: 0.985 # PCC droped to 0.9882324215005038
     reason: "AssertionError: Comparison result 0 failed: PCC comparison failed - https://github.com/tenstorrent/tt-xla/issues/2750"
     status: EXPECTED_PASSING
     markers: ["extended"]
 
 
-  efficientnet/pytorch-efficientnet_b1-single_device-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b1-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-efficientnet_b2-single_device-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b2-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-efficientnet_b3-single_device-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b3-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-efficientnet_b4-single_device-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b4-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-efficientnet_b5-single_device-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b5-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-efficientnet_b6-single_device-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b6-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Statically allocated circular buffers in program 162 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
-  efficientnet/pytorch-efficientnet_b7-single_device-inference:
+  efficientnet/image_classification/pytorch-efficientnet_b7-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
@@ -740,7 +740,7 @@ test_config:
   albert/sequence_classification/pytorch-imdb-single_device-inference:
     status: EXPECTED_PASSING
 
-  fuyu/pytorch-adept/fuyu-8b-single_device-inference:
+  fuyu/question_answering/pytorch-adept/fuyu-8b-single_device-inference:
     status: EXPECTED_PASSING
 
   phi1/sequence_classification/pytorch-microsoft/phi-1-single_device-inference:
@@ -1229,7 +1229,7 @@ test_config:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9864852428436279. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  fpn/pytorch-resnet50_fpn_v2-single_device-inference:
+  fpn/image_classification/pytorch-resnet50_fpn_v2-single_device-inference:
     status: EXPECTED_PASSING
 
   ssd300_resnet50/pytorch-base-single_device-inference:
@@ -1249,7 +1249,7 @@ test_config:
   rcnn/pytorch-alexnet-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-dla34.in1k-single_device-inference:
+  dla/image_classification/pytorch-dla34.in1k-single_device-inference:
     status: EXPECTED_PASSING
 
   googlenet/pytorch-googlenet-single_device-inference:
@@ -1337,28 +1337,28 @@ test_config:
     required_pcc: 0.97  # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-timm_efficientnet_b0-single_device-inference:
+  efficientnet/image_classification/pytorch-timm_efficientnet_b0-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-timm_efficientnet_b4-single_device-inference:
+  efficientnet/image_classification/pytorch-timm_efficientnet_b4-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b0_ra_in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b4_ra2_in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnet_b5_in12k_ft_in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnet_b0_aa_in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_efficientnetv2_rw_s_ra2_in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-inference:
+  efficientnet/image_classification/pytorch-hf_hub_timm_tf_efficientnetv2_s_in21k-single_device-inference:
     status: EXPECTED_PASSING
 
   vgg/pytorch-bn_vgg19-single_device-inference:
@@ -1398,20 +1398,20 @@ test_config:
   segformer/semantic_segmentation/pytorch-b4_finetuned_ade_512_512-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite0.in1k-single_device-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite0.in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite1.in1k-single_device-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite1.in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite2.in1k-single_device-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite2.in1k-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.987201988697052. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite3.in1k-single_device-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite3.in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  efficientnet_lite/pytorch-tf_efficientnet_lite4.in1k-single_device-inference:
+  efficientnet_lite/image_classification/pytorch-tf_efficientnet_lite4.in1k-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9885184168815613. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -1497,7 +1497,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
 
-  flux/pytorch-schnell-single_device-inference:
+  flux/mm_image_ttt/pytorch-schnell-single_device-inference:
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1508,7 +1508,7 @@ test_config:
         reason: "Too large for single chip" # (flux.1-schnell is 12B param model)
         bringup_status: FAILED_RUNTIME
 
-  flux/pytorch-dev-single_device-inference:
+  flux/mm_image_ttt/pytorch-dev-single_device-inference:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -1628,7 +1628,7 @@ test_config:
   gpt_neo/sequence_classification/pytorch-gpt_neo_2_7B-single_device-inference:
     status: EXPECTED_PASSING
 
-  detr3d/pytorch-single_device-inference:
+  detr3d/object_detection/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353"
 
@@ -1939,27 +1939,27 @@ test_config:
       n150:
         status: EXCLUDE_MODEL # This model is run as tensor_parallel already.
 
-  d_fine/pytorch-nano-single_device-inference:
+  d_fine/object_detection/pytorch-nano-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "d_fine nano hangs forever, removing all of them."
     bringup_status: FAILED_RUNTIME
 
-  d_fine/pytorch-small-single_device-inference:
+  d_fine/object_detection/pytorch-small-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "d_fine small hangs forever, removing all of them."
     bringup_status: FAILED_RUNTIME
 
-  d_fine/pytorch-medium-single_device-inference:
+  d_fine/object_detection/pytorch-medium-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "d_fine medium hangs forever, removing all of them."
     bringup_status: FAILED_RUNTIME
 
-  d_fine/pytorch-large-single_device-inference:
+  d_fine/object_detection/pytorch-large-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "d_fine large hangs forever, removing all of them."
     bringup_status: FAILED_RUNTIME
 
-  d_fine/pytorch-xlarge-single_device-inference:
+  d_fine/object_detection/pytorch-xlarge-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "d_fine xlarge hangs forever, removing all of them."
     bringup_status: FAILED_RUNTIME
@@ -2382,7 +2382,7 @@ test_config:
   ultra_fast_lane_detection_v2/pytorch-tusimple_resnet34-single_device-inference:
     status: EXPECTED_PASSING
 
-  faster_rcnn/pytorch-resnet50_fpn-single_device-inference:
+  faster_rcnn/object_detection/pytorch-resnet50_fpn-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 62521344 B L1 buffer across 72 banks, where each bank needs to store 868352 B, but bank size is only 1331936 B"
 
@@ -2468,39 +2468,39 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
     bringup_status: FAILED_RUNTIME
 
-  efficientdet/pytorch-d0-single_device-inference:
+  efficientdet/object_detection/pytorch-d0-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,64,8,8] vs. bf16[2]. Expected dimension 3 of shape bf16[1,64,8,8] (8) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
 
-  efficientdet/pytorch-d1-single_device-inference:
+  efficientdet/object_detection/pytorch-d1-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,88,10,10] vs. bf16[2]. Expected dimension 3 of shape bf16[1,88,10,10] (10) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
 
-  efficientdet/pytorch-d2-single_device-inference:
+  efficientdet/object_detection/pytorch-d2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,112,12,12] vs. bf16[2]. Expected dimension 3 of shape bf16[1,112,12,12] (12) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
 
-  efficientdet/pytorch-d3-single_device-inference:
+  efficientdet/object_detection/pytorch-d3-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,160,14,14] vs. bf16[2]. Expected dimension 3 of shape bf16[1,160,14,14] (14) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
 
-  efficientdet/pytorch-d4-single_device-inference:
+  efficientdet/object_detection/pytorch-d4-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,224,16,16] vs. bf16[2]. Expected dimension 3 of shape bf16[1,224,16,16] (16) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
 
-  efficientdet/pytorch-d5-single_device-inference:
+  efficientdet/object_detection/pytorch-d5-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,288,20,20] vs. bf16[2]. Expected dimension 3 of shape bf16[1,288,20,20] (20) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
 
-  efficientdet/pytorch-d6-single_device-inference:
+  efficientdet/object_detection/pytorch-d6-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 52428800 B L1 buffer across 64 banks, where each bank needs to store 819200 B, but bank size is only 1331936 B"
 
-  efficientdet/pytorch-d7-single_device-inference:
+  efficientdet/object_detection/pytorch-d7-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 33030144 B L1 buffer across 56 banks, where each bank needs to store 589824 B, but bank size is only 1331936 B"
 
-  efficientdet/pytorch-d7x-single_device-inference:
+  efficientdet/object_detection/pytorch-d7x-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 5760 B L1_SMALL buffer across 36 banks, where each bank needs to store 160 B, but bank size is only 65536 B"
 
