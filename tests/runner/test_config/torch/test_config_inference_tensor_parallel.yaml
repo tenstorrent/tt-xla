@@ -39,6 +39,9 @@ test_config:
     supported_archs: [n300-llmbox, qb2-blackhole]
     status: EXPECTED_PASSING
     required_pcc: 0.96
+    arch_overrides:
+      qb2-blackhole:
+        markers: [push]
 
   falcon/pytorch-tiiuae/falcon-7b-instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, qb2-blackhole]
@@ -54,6 +57,7 @@ test_config:
     arch_overrides:
       qb2-blackhole:
         required_pcc: 0.98
+        markers: [push]
 
   llama/causal_lm/pytorch-llama_3_8b_instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, qb2-blackhole]
@@ -63,6 +67,9 @@ test_config:
     supported_archs: [n300-llmbox, qb2-blackhole]
     status: EXPECTED_PASSING
     assert_pcc: false
+    arch_overrides:
+      qb2-blackhole:
+        markers: [push]
 
   mistral/pytorch-7b_instruct_v03-tensor_parallel-inference:
     supported_archs: [n300-llmbox, qb2-blackhole]
@@ -77,6 +84,9 @@ test_config:
   qwen_3/causal_lm/pytorch-14b-tensor_parallel-inference:
     supported_archs: [n300-llmbox, qb2-blackhole]
     status: EXPECTED_PASSING
+    arch_overrides:
+      qb2-blackhole:
+        markers: [push]
 
   qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-inference:
     supported_archs: [n300-llmbox, qb2-blackhole]
