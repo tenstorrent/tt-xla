@@ -304,9 +304,17 @@ def test_llama_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
     run_graph_test(
         attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        [
+            hidden_states,
+            position_embeddings,
+            attention_mask,
+            past_key_states,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -729,9 +737,17 @@ def test_qwen3_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
     run_graph_test(
         attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        [
+            hidden_states,
+            position_embeddings,
+            attention_mask,
+            past_key_states,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -1384,9 +1400,17 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
     run_graph_test(
         attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        [
+            hidden_states,
+            position_embeddings,
+            attention_mask,
+            past_key_states,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -1770,9 +1794,17 @@ def test_gemma_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
     run_graph_test(
         attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        [
+            hidden_states,
+            position_embeddings,
+            attention_mask,
+            past_key_states,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -2043,6 +2075,8 @@ def test_mistral_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
@@ -2063,7 +2097,13 @@ def test_mistral_attention_decode(variant, variant_config, arch):
 
     run_graph_test(
         attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        [
+            hidden_states,
+            position_embeddings,
+            attention_mask,
+            past_key_states,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
