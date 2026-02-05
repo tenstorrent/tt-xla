@@ -33,14 +33,6 @@ on:
         description: 'Release tag'
         value: ${{ jobs.publish-wheel.outputs.release-tag }}
 
-permissions:
-  pages: write
-  id-token: write
-  contents: write
-  actions: write
-  packages: write
-  attestations: write
-
 jobs:
   publish-wheel:
     name: Publish wheels to pypi
