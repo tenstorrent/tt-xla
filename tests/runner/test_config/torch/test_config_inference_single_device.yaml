@@ -413,52 +413,52 @@ test_config:
   nanogpt/pytorch-FinancialSupport/NanoGPT-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_040-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_040-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_064-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_064-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_080-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_080-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_120-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_120-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_160-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_160-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_320-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_320-single_device-inference:
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext101_32x8d-single_device-inference:
+  resnext/image_classification/pytorch-resnext101_32x8d-single_device-inference:
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext101_32x8d_wsl-single_device-inference:
+  resnext/image_classification/pytorch-resnext101_32x8d_wsl-single_device-inference:
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext50_32x4d_osmr-single_device-inference:
+  resnext/image_classification/pytorch-resnext50_32x4d_osmr-single_device-inference:
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext101_64x4d-single_device-inference:
+  resnext/image_classification/pytorch-resnext101_64x4d-single_device-inference:
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b0-single_device-inference:
+  segformer/semantic_segmentation/pytorch-mit_b0-single_device-inference:
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b1-single_device-inference:
+  segformer/semantic_segmentation/pytorch-mit_b1-single_device-inference:
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b2-single_device-inference:
+  segformer/semantic_segmentation/pytorch-mit_b2-single_device-inference:
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b3-single_device-inference:
+  segformer/semantic_segmentation/pytorch-mit_b3-single_device-inference:
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b4-single_device-inference:
+  segformer/semantic_segmentation/pytorch-mit_b4-single_device-inference:
     status: EXPECTED_PASSING
 
-  segformer/pytorch-mit_b5-single_device-inference:
+  segformer/semantic_segmentation/pytorch-mit_b5-single_device-inference:
     status: EXPECTED_PASSING
 
   squeezebert/pytorch-squeezebert-mnli-single_device-inference:
@@ -624,7 +624,7 @@ test_config:
   phi1_5/sequence_classification/pytorch-microsoft/phi-1_5-single_device-inference:
     status: EXPECTED_PASSING
 
-  roberta/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-inference:
+  roberta/masked_lm/pytorch-cardiffnlp/twitter-roberta-base-sentiment-single_device-inference:
     status: EXPECTED_PASSING
 
   bert/token_classification/pytorch-dbmdz/bert-large-cased-finetuned-conll03-english-single_device-inference:
@@ -953,7 +953,7 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  retinanet/pytorch-retinanet_rn34fpn-single_device-inference:
+  retinanet/object_detection/pytorch-retinanet_rn34fpn-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
 
@@ -962,19 +962,19 @@ test_config:
     status: EXPECTED_PASSING
     markers: [push]
 
-  retinanet/pytorch-retinanet_rn18fpn-single_device-inference:
+  retinanet/object_detection/pytorch-retinanet_rn18fpn-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  retinanet/pytorch-retinanet_rn152fpn-single_device-inference:
+  retinanet/object_detection/pytorch-retinanet_rn152fpn-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  retinanet/pytorch-retinanet_rn50fpn-single_device-inference:
+  retinanet/object_detection/pytorch-retinanet_rn50fpn-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  retinanet/pytorch-retinanet_rn101fpn-single_device-inference:
+  retinanet/object_detection/pytorch-retinanet_rn101fpn-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
 
@@ -1167,65 +1167,65 @@ test_config:
     required_pcc: 0.98
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext14_32x4d_osmr-single_device-inference:
+  resnext/image_classification/pytorch-resnext14_32x4d_osmr-single_device-inference:
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext26_32x4d_osmr-single_device-inference:
+  resnext/image_classification/pytorch-resnext26_32x4d_osmr-single_device-inference:
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext101_64x4d_osmr-single_device-inference:
+  resnext/image_classification/pytorch-resnext101_64x4d_osmr-single_device-inference:
     status: EXPECTED_PASSING
 
   inception/pytorch-inceptionv4-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  regnet/pytorch-regnet_y_400mf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_400mf-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_800mf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_800mf-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_1_6gf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_1_6gf-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_3_2gf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_3_2gf-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_8gf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_8gf-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_16gf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_16gf-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_32gf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_32gf-single_device-inference:
     required_pcc: 0.98  # https://github.com/tenstorrent/tt-mlir/issues/6461
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_400mf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_x_400mf-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_800mf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_x_800mf-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9883829355239868. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_1_6gf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_x_1_6gf-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_3_2gf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_x_3_2gf-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
         assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2368
 
-  regnet/pytorch-regnet_x_8gf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_x_8gf-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  regnet/pytorch-regnet_x_16gf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_x_16gf-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_x_32gf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_x_32gf-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9864852428436279. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -1266,7 +1266,7 @@ test_config:
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-inference:
     status: EXPECTED_PASSING
 
-  resnext/pytorch-resnext50_32x4d-single_device-inference:
+  resnext/image_classification/pytorch-resnext50_32x4d-single_device-inference:
     status: EXPECTED_PASSING
 
   deepseek/deepseek_coder/pytorch-1_3b_instruct-single_device-inference:
@@ -2135,7 +2135,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
 
-  sam/pytorch-facebook/sam-vit-base-single_device-inference:
+  sam/semantic_segmentation/pytorch-facebook/sam-vit-base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
@@ -2244,7 +2244,7 @@ test_config:
   unet/pytorch-smp_unet_resnet101-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
 
-  sam/pytorch-facebook/sam-vit-large-single_device-inference:
+  sam/semantic_segmentation/pytorch-facebook/sam-vit-large-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
 
@@ -2269,7 +2269,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "torch._inductor.exc.InductorError: DynamicOutputShapeException: aten.repeat_interleave.Tensor, issue link: https://github.com/tenstorrent/tt-xla/issues/2310"
 
-  sam/pytorch-facebook/sam-vit-huge-single_device-inference:
+  sam/semantic_segmentation/pytorch-facebook/sam-vit-huge-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
@@ -2278,7 +2278,7 @@ test_config:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2414
     status: EXPECTED_PASSING
 
-  regnet/pytorch-regnet_y_128gf-single_device-inference:
+  regnet/image_classification/pytorch-regnet_y_128gf-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2415
     status: EXPECTED_PASSING
 
@@ -2287,11 +2287,11 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9024592638015747. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
 
-  sentencizer/pytorch-xlm-roberta-base-single_device-inference:
+  sentencizer/token_classification/pytorch-xlm-roberta-base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
 
-  sentencizer/pytorch-xlm-roberta-large-single_device-inference:
+  sentencizer/token_classification/pytorch-xlm-roberta-large-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
 
@@ -2321,7 +2321,7 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "Can't convert shape rank  - https://github.com/tenstorrent/tt-xla/issues/2456"
 
-  retinanet/pytorch-retinanet_resnet50_fpn_v2-single_device-inference:
+  retinanet/object_detection/pytorch-retinanet_resnet50_fpn_v2-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=6)] grow to 22732608 B which is beyond max L1 size of 1499136 B"
     bringup_status: FAILED_RUNTIME
@@ -2402,19 +2402,19 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
 
-  rt_detr/pytorch-rtdetr-r18vd-single_device-inference:
+  rt_detr/object_detection/pytorch-rtdetr-r18vd-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 314572800 B DRAM buffer across 12 banks, where each bank needs to store 26214400 B, but bank size is only 1073741792 B"
 
-  rt_detr/pytorch-rtdetr-r34vd-single_device-inference:
+  rt_detr/object_detection/pytorch-rtdetr-r34vd-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
 
-  rt_detr/pytorch-rtdetr-r50vd-single_device-inference:
+  rt_detr/object_detection/pytorch-rtdetr-r50vd-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
 
-  rt_detr/pytorch-rtdetr-r101vd-single_device-inference:
+  rt_detr/object_detection/pytorch-rtdetr-r101vd-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
 
