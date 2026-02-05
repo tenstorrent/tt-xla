@@ -25,6 +25,7 @@ MARK_MAP = {
     "push": pytest.mark.push,
     "single_device": pytest.mark.single_device,
     "nightly": pytest.mark.nightly,
+    "vllm_sweep": pytest.mark.vllm_sweep,
 }
 
 
