@@ -233,7 +233,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  perceiver/pytorch-deepmind/language-perceiver-data_parallel-inference:
+  perceiver/masked_lm/pytorch-deepmind/language-perceiver-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -295,7 +295,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  rcnn/pytorch-alexnet-data_parallel-inference:
+  rcnn/object_detection/pytorch-alexnet-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
