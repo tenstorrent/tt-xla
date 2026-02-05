@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Inference single-device test configuration
+# Use Python enum names or values for fields below (names preferred for readability):
+#   - status: ModelTestStatus names (e.g., EXPECTED_PASSING) or values (e.g., expected_passing)
+#   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
+
+test_config:
+  mistral/pixtral/pytorch-single_device-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip" # (mistral-community/pixtral-12b is 12B param model)
+        bringup_status: FAILED_RUNTIME
