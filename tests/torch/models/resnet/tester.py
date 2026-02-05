@@ -7,7 +7,7 @@ from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
 
 from tests.infra.testers.compiler_config import CompilerConfig
-from third_party.tt_forge_models.resnet.pytorch import ModelLoader
+from third_party.tt_forge_models.resnet.image_classification.pytorch import ModelLoader
 
 
 class ResnetTester(TorchModelTester):

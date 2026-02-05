@@ -20,10 +20,10 @@ from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
 
 from tests.utils import parametrize_arch
-from third_party.tt_forge_models.falcon.pytorch.loader import (
+from third_party.tt_forge_models.falcon.causal_lm.pytorch.loader import (
     ModelLoader as FalconModelLoader,
 )
-from third_party.tt_forge_models.falcon.pytorch.loader import (
+from third_party.tt_forge_models.falcon.causal_lm.pytorch.loader import (
     ModelVariant as FalconModelVariant,
 )
 from third_party.tt_forge_models.gemma.pytorch.loader import (
@@ -32,19 +32,19 @@ from third_party.tt_forge_models.gemma.pytorch.loader import (
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelVariant as GemmaModelVariant,
 )
-from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+from third_party.tt_forge_models.gpt_oss.causal_lm.pytorch.loader import (
     ModelLoader as GPTOSSModelLoader,
 )
-from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+from third_party.tt_forge_models.gpt_oss.causal_lm.pytorch.loader import (
     ModelVariant as GPTOSSModelVariant,
 )
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
 )
-from third_party.tt_forge_models.mistral.pytorch.loader import (
+from third_party.tt_forge_models.mistral.pixtral.pytorch.loader import (
     ModelLoader as MistralModelLoader,
 )
-from third_party.tt_forge_models.mistral.pytorch.loader import (
+from third_party.tt_forge_models.mistral.pixtral.pytorch.loader import (
     ModelVariant as MistralModelVariant,
 )
 from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (

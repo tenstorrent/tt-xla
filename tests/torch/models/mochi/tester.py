@@ -9,7 +9,7 @@ from typing import Any, Dict, Sequence
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
 from infra.evaluators.evaluator import ComparisonResult
 
-from third_party.tt_forge_models.mochi.pytorch import ModelLoader
+from third_party.tt_forge_models.mochi.mm_video_ttt.pytorch import ModelLoader
 
 from .model_utils import MochiVAEWrapper, calculate_expected_output_shape
 

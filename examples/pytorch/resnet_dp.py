@@ -19,7 +19,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
 
-from third_party.tt_forge_models.resnet.pytorch import ModelLoader, ModelVariant
+from third_party.tt_forge_models.resnet.image_classification.pytorch import ModelLoader, ModelVariant
 
 
 def enable_spmd():

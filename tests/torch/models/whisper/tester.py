@@ -6,7 +6,7 @@ from typing import Any, Dict, Sequence
 
 from infra import ComparisonConfig, Model, RunMode, TorchModelTester
 
-from third_party.tt_forge_models.whisper.pytorch import ModelLoader
+from third_party.tt_forge_models.whisper.automatic_speech_recognition.pytorch import ModelLoader
 
 from .model_utils import WhisperWrapper
 

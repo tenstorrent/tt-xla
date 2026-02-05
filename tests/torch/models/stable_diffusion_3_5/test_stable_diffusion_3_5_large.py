@@ -7,7 +7,7 @@ from infra import RunMode
 from utils import BringupStatus, Category, ModelGroup
 
 from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.stable_diffusion.pytorch import (
+from third_party.tt_forge_models.stable_diffusion.conditional_generation.pytorch import (
     ModelLoader,
     ModelVariant,
 )

@@ -10,7 +10,7 @@ from utils import BringupStatus, Category
 import third_party.tt_forge_models.suryaocr.pytorch.loader as surya_loader
 from tests.runner.requirements import RequirementsManager
 from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.suryaocr.pytorch.loader import (
+from third_party.tt_forge_models.suryaocr.image_classification.pytorch.loader import (
     ModelLoader,
     ModelVariant,
 )

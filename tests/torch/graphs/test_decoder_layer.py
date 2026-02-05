@@ -31,10 +31,10 @@ from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelVariant as LlamaModelVariant,
 )
-from third_party.tt_forge_models.mistral.pytorch.loader import (
+from third_party.tt_forge_models.mistral.pixtral.pytorch.loader import (
     ModelLoader as MistralModelLoader,
 )
-from third_party.tt_forge_models.mistral.pytorch.loader import (
+from third_party.tt_forge_models.mistral.pixtral.pytorch.loader import (
     ModelVariant as MistralModelVariant,
 )
 from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (

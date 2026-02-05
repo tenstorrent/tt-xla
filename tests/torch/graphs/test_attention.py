@@ -36,7 +36,7 @@ from tests.utils import parametrize_arch
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader as BertModelLoader,
 )
-from third_party.tt_forge_models.bge_m3.pytorch.loader import (
+from third_party.tt_forge_models.bge_m3.encode.pytorch.loader import (
     ModelLoader as BgeModelLoader,
 )
 from third_party.tt_forge_models.gemma.pytorch.loader import (
@@ -45,19 +45,19 @@ from third_party.tt_forge_models.gemma.pytorch.loader import (
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelVariant as GemmaModelVariant,
 )
-from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+from third_party.tt_forge_models.gpt_oss.causal_lm.pytorch.loader import (
     ModelLoader as GPTOSSModelLoader,
 )
-from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+from third_party.tt_forge_models.gpt_oss.causal_lm.pytorch.loader import (
     ModelVariant as GPTOSSModelVariant,
 )
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
 )
-from third_party.tt_forge_models.mistral.pytorch.loader import (
+from third_party.tt_forge_models.mistral.pixtral.pytorch.loader import (
     ModelLoader as MistralModelLoader,
 )
-from third_party.tt_forge_models.mistral.pytorch.loader import (
+from third_party.tt_forge_models.mistral.pixtral.pytorch.loader import (
     ModelVariant as MistralModelVariant,
 )
 from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (

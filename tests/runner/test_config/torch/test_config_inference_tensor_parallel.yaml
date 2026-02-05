@@ -4,15 +4,15 @@
 
 
 test_config:
-  falcon/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-inference:
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-inference:
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-inference:
+  falcon/causal_lm/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
     reason: " Error: loc('compare.1209'): error: Compare operation is not supported in stablehlo-pipeline for meshes not 1x1 - https://github.com/tenstorrent/tt-mlir/issues/3497"
@@ -32,12 +32,12 @@ test_config:
     reason: "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494"
     bringup_status: FAILED_RUNTIME
 
-  gpt_oss/pytorch-gpt_oss_20b-tensor_parallel-inference:
+  gpt_oss/causal_lm/pytorch-gpt_oss_20b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  falcon/pytorch-tiiuae/falcon-7b-instruct-tensor_parallel-inference:
+  falcon/causal_lm/pytorch-tiiuae/falcon-7b-instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
@@ -58,7 +58,7 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false
 
-  mistral/pytorch-7b_instruct_v03-tensor_parallel-inference:
+  mistral/pixtral/pytorch-7b_instruct_v03-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     markers: [extended]
@@ -90,28 +90,28 @@ test_config:
     status: EXPECTED_PASSING
     markers: [extended]
 
-  mistral/pytorch-ministral_8b_instruct-tensor_parallel-inference:
+  mistral/pixtral/pytorch-ministral_8b_instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-inference:
+  mistral/pixtral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  mistral/pytorch-mistral_nemo_instruct_2407-tensor_parallel-inference:
+  mistral/pixtral/pytorch-mistral_nemo_instruct_2407-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  mistral/pytorch-mistral_large_instruct_2411-tensor_parallel-inference:
+  mistral/pixtral/pytorch-mistral_large_instruct_2411-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
     reason: "xr.global_runtime_device_count() - Expected 2 eth links from physical chip 4 to physical chip 0 - https://github.com/tenstorrent/tt-xla/issues/1975"
 
-  mistral/pytorch-devstral_small_2505-tensor_parallel-inference:
+  mistral/pixtral/pytorch-devstral_small_2505-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  mistral/pytorch-magistral_small_2506-tensor_parallel-inference:
+  mistral/pixtral/pytorch-magistral_small_2506-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 

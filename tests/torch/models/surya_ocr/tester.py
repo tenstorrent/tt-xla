@@ -16,7 +16,7 @@ class SuryaOCRTester(TorchModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
     ) -> None:
-        from third_party.tt_forge_models.suryaocr.pytorch.loader import ModelLoader
+        from third_party.tt_forge_models.suryaocr.image_classification.pytorch.loader import ModelLoader
 
         self._model_loader = ModelLoader(variant)
         super().__init__(comparison_config, run_mode)

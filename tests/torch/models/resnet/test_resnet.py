@@ -17,7 +17,7 @@ from utils import (
 
 from tests.infra.testers.compiler_config import CompilerConfig
 from tests.infra.utilities.utils import create_torch_inference_tester
-from third_party.tt_forge_models.resnet.pytorch import ModelVariant
+from third_party.tt_forge_models.resnet.image_classification.pytorch import ModelVariant
 
 from .tester import ResnetTester
 
