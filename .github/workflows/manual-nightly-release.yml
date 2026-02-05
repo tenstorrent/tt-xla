@@ -14,8 +14,6 @@ permissions:
   id-token: write
   packages: write
   checks: write
-  pages: write
-  attestations: write
 
 jobs:
   build-image:
