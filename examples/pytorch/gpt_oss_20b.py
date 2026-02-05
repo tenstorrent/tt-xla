@@ -25,7 +25,40 @@ from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-DEFAULT_PROMPTS = ["Explain quantum mechanics."]
+DEFAULT_PROMPTS = [
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+]
 
 
 # --------------------------------
@@ -58,7 +91,7 @@ def gpt_oss_20b(interactive: bool = False):
             batch_size: int = len(user_prompt)
 
         # Construct inputs, including static cache
-        input_args, formatted_prompts = construct_inputs(
+        input_args, prompts = construct_inputs(
             user_prompt, tokenizer, model.config, batch_size, max_cache_len
         )
 
@@ -82,7 +115,7 @@ def gpt_oss_20b(interactive: bool = False):
             device,
             mesh,
             max_tokens_to_generate,
-            formatted_prompts,
+            prompts,
             interactive,
         )
 
@@ -172,25 +205,17 @@ def construct_inputs(
         max_cache_len: Maximum cache length
 
     Returns:
-        Tuple of (input_args dictionary, formatted_prompts list)
+        Tuple of (input_args dictionary, input_prompt list)
     """
 
-    # Apply chat template to format prompts
-    formatted_prompts = []
-    for prompt in input_prompt:
-        messages = [{"role": "user", "content": prompt}]
-        formatted_prompt = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        formatted_prompts.append(formatted_prompt)
-
+    # Use prompts directly without chat template
     prompt_lengths = [
-        len(tokenizer.encode(p, add_special_tokens=False)) for p in formatted_prompts
+        len(tokenizer.encode(p, add_special_tokens=False)) for p in input_prompt
     ]
     max_length = max(prompt_lengths)
 
     inputs = tokenizer(
-        formatted_prompts,
+        input_prompt,
         return_tensors="pt",
         max_length=max_length,
         padding="max_length",
@@ -240,8 +265,7 @@ def construct_inputs(
 
     #   Debug prints
     print("\n=== DEBUG: construct_inputs ===")
-    print(f"Original prompts: {input_prompt}")
-    print(f"Formatted prompts (with chat template): {formatted_prompts}")
+    print(f"Prompts: {input_prompt}")
     print(f"Input IDs shape: {inputs.input_ids.shape}")
     print(f"Input IDs: {inputs.input_ids}")
     print(f"Input attention mask shape: {inputs.attention_mask.shape}")
@@ -252,7 +276,7 @@ def construct_inputs(
     print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
     print("=" * 50)
 
-    return input_args, formatted_prompts
+    return input_args, input_prompt
 
 
 def disable_sliding_window_attention(
@@ -361,7 +385,7 @@ def run_generate(
     device: torch.device,
     mesh: Mesh = None,
     max_tokens_to_generate: int = 128,
-    formatted_prompts: List[str] = [""],
+    prompts: List[str] = [""],
     is_interactive: bool = False,
 ):
     """
@@ -374,7 +398,7 @@ def run_generate(
         device: Device
         mesh: Device mesh for SPMD operations (optional)
         max_tokens_to_generate: Maximum number of tokens to generate
-        formatted_prompts: Formatted prompts with chat template applied
+        prompts: Input prompts
         is_interactive: Whether running in interactive mode
     """
     num_users = input_args["input_ids"].shape[0]
@@ -387,7 +411,7 @@ def run_generate(
                 if is_interactive:
                     print("=" * 80)
                     print("PROMPT:")
-                    print(formatted_prompts[0])
+                    print(prompts[0])
                     print("-" * 80)
                     print("GENERATED:", end="", flush=True)
 
@@ -420,7 +444,7 @@ def run_generate(
             print(f"Result for user {i}:")
             print(f"-" * 80)
             print("PROMPT:")
-            print(formatted_prompts[i])
+            print(prompts[i])
             print(f"-" * 80)
             print("GENERATED:")
             print("".join(output_tokens[i]))
