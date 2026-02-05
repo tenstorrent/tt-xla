@@ -6,7 +6,7 @@ import torch
 from infra.runners import run_on_cpu
 from infra.utilities import Framework, PyTree
 from torch.utils._pytree import tree_flatten, tree_map
-from transformers import DynamicCache, EncoderDecoderCache
+from transformers import Cache, DynamicCache, EncoderDecoderCache
 
 from .comparison_evaluator import ComparisonEvaluator
 from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig
@@ -54,9 +54,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             return tensor
 
         def convert_and_match(tensor):
-            if isinstance(tensor, DynamicCache) or isinstance(
-                tensor, EncoderDecoderCache
-            ):
+            if isinstance(tensor, Cache) and hasattr(tensor, "to_legacy_cache"):
                 # New transformers library has changed the Cache classes
                 # to contain and arrays of CacheLayers instead of an array of
                 # torch.tensors, we need to extract the torch tensors from CacheLayers
