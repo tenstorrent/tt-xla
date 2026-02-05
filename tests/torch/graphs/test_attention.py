@@ -2424,3 +2424,90 @@ def test_gpt_oss_attention(variant, variant_config, arch):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
+
+
+"""Deepseek attention tests"""
+
+
+import scipy.linalg  # for hadamard matrix
+
+from tests.torch.models.deepseek_v3_2_exp.modified_model import MLA as DeepseekMLA
+from tests.torch.models.deepseek_v3_2_exp.modified_model import (
+    ModelArgs as DeepseekModelArgs,
+)
+
+
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("seq_len", [1024])
+def test_deepseek_attention_module(seq_len, arch):
+    xr.set_device_type("TT")
+
+    # Create model args with a single layer for testing
+    args = DeepseekModelArgs(
+        n_layers=1,
+        q_lora_rank=3072,
+    )
+
+    # Generate Hadamard matrix once and register as a buffer so it moves with the model
+    hidden_size = args.index_head_dim
+
+    hadamard_matrix = torch.tensor(
+        scipy.linalg.hadamard(hidden_size), dtype=torch.bfloat16
+    ) * (hidden_size**-0.5)
+    attention = DeepseekMLA(args, hadamard_matrix).to(torch.bfloat16)
+
+    batch_size = 2
+    hidden_states = torch.randn(batch_size, seq_len, args.dim, dtype=torch.bfloat16)
+    start_pos = 0
+    # Shape: (seq_len, qk_rope_head_dim // 2)
+    # Type: complex64 (standard for RoPE)
+    freqs_cis = torch.randn(
+        seq_len, args.qk_rope_head_dim // 2, 2, dtype=torch.float32
+    )  # double check dtype
+    mask = torch.rand(batch_size, seq_len, seq_len, dtype=torch.bfloat16)
+
+    # Setup for tensor parallel
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (batch_size, num_devices // batch_size)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        # TODO: double check shard specs
+        def get_shard_spec(attention, args, kwargs):
+            """Returns shard specifications for the layer's parameters."""
+            shard_specs = {}
+
+            # Down projections (Compression) - Replicated
+            # These are standard Linear layers, so we map them to "batch" (replicated)
+            shard_specs[attention.wq_a.weight] = ("batch", "batch")
+
+            shard_specs[attention.wkv_a.weight] = ("batch", "batch")
+
+            # Up projections (Decompression to Heads) - Column Parallel
+            # Shard the output dimension (dim 0)
+            shard_specs[attention.wq_b.weight] = ("model", "batch")
+
+            shard_specs[attention.wkv_b.weight] = ("model", "batch")
+
+            # Output projection - Row Parallel
+            # Shard the input dimension (dim 1)
+            shard_specs[attention.wo.weight] = ("batch", "model")
+
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
+
+    run_graph_test(
+        attention,
+        [hidden_states, start_pos, freqs_cis, mask],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
