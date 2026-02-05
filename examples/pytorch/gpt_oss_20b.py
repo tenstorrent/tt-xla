@@ -25,42 +25,91 @@ from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-DEFAULT_PROMPTS = [
-    "I like taking walks in the",
-    "My name is",
-    "My favorite color is",
-    "Cheese is an excellent",
-    "While ham sandwiches are great, I prefer",
-    "My bicycle is broken, and",
-    "The best way to start my day is with",
-    "I love to",
-    "I am not a fan of",
-    "Toronto has an explosive restaurant scene. There are many different cuisines to",
-    "My favorite season is",
-    "My least favorite season is",
-    "Bison meat is not",
-    "If you forget to wear your shoes when you go hiking,",
-    "My right elbow is in pain, and",
-    "To make a grilled cheese, start by",
-    "The internal combustion engine",
-    "The first person to walk on the moon was",
-    "The ocean is home to many",
-    "I",
-    "Calculus is a branch of mathematics that",
-    "The most common type of cloud is",
-    "A matrix dot product is",
-    "The 300 Spartans were",
-    "Napoleon Bonaparte was born in",
-    "The quick brown fox jumps over the lazy dog. And then he",
-    "The original title of the book 'The Great Gatsby' was",
-    "I forgot to tie my shoelaces",
-    "Playing video games",
-    "The sun is",
-    "My car's transmission is",
-    "My keyboard is in a language I don't understand! What",
-]
+# DEFAULT_PROMPTS = [
+#     # Technical/Programming
+#     "Write a Python function that implements binary search:",
+#     "The difference between TCP and UDP is",
+#     "To optimize a slow database query, you should first",
+#     "In machine learning, overfitting occurs when",
 
-MAX_SEQUENCE_LENGTH = 32
+#     # Science & Mathematics
+#     "Einstein's theory of relativity fundamentally changed our understanding of",
+#     "The Pythagorean theorem states that",
+#     "Climate change is primarily driven by",
+#     "The process of photosynthesis involves",
+#     "The difference between DNA and RNA is that",
+
+#     # History & Geography
+#     "The fall of the Roman Empire can be attributed to",
+#     "During World War II, the turning point came when",
+#     "The Renaissance began in Italy because",
+#     "The capital of Australia is Canberra, which is located",
+
+#     # Literature & Arts
+#     "Shakespeare's Hamlet explores themes of",
+#     "The literary technique of foreshadowing is used to",
+#     "In Gothic architecture, flying buttresses serve to",
+
+#     # Philosophy & Critical Thinking
+#     "The trolley problem is a thought experiment that asks",
+#     "Occam's Razor principle suggests that",
+#     "The difference between correlation and causation is important because",
+
+#     # Creative Writing
+#     "The detective examined the crime scene carefully. What she found was",
+#     "In a world where time travel was possible,",
+#     "The old lighthouse keeper had a secret:",
+
+#     # Problem Solving
+#     "If you need to sort a million records efficiently, the best algorithm would be",
+#     "To debug a memory leak in production, the first step is",
+#     "When designing a scalable web application, consider",
+
+#     # General Knowledge
+#     "The human brain processes information by",
+#     "Electric vehicles differ from traditional cars in that",
+#     "The Internet works by routing packets through",
+#     "Blockchain technology is primarily used for",
+
+#     # Reasoning & Logic
+#     "If all roses are flowers, and some flowers fade quickly, then",
+#     "The main flaw in the argument 'everyone does it, so it must be okay' is",
+# ]
+
+DEFAULT_PROMPTS = [
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+]
 
 
 # --------------------------------
@@ -68,13 +117,9 @@ MAX_SEQUENCE_LENGTH = 32
 # --------------------------------
 def gpt_oss_20b(interactive: bool = False):
 
-    # TODO: check transformers version?
-
     # Set up config variables.
-    max_cache_len: int = 128
-    # TODO: keeping unsloth for now because it loads faster
+    max_cache_len: int = 256
     model_name: str = "openai/gpt-oss-20b"
-    # model_name: str = "unsloth/gpt-oss-20b-BF16"
 
     setup_spmd()
 
@@ -93,11 +138,11 @@ def gpt_oss_20b(interactive: bool = False):
                 break
             user_prompt = [user_prompt]
         else:
-            batch_size: int = 32
-            user_prompt = DEFAULT_PROMPTS[:batch_size]
+            user_prompt = DEFAULT_PROMPTS
+            batch_size: int = len(user_prompt)
 
         # Construct inputs, including static cache
-        input_args = construct_inputs(
+        input_args, formatted_prompts = construct_inputs(
             user_prompt, tokenizer, model.config, batch_size, max_cache_len
         )
 
@@ -121,7 +166,7 @@ def gpt_oss_20b(interactive: bool = False):
             device,
             mesh,
             max_tokens_to_generate,
-            user_prompt,
+            formatted_prompts,
             interactive,
         )
 
@@ -133,10 +178,6 @@ def setup_spmd():
     """
     Initializes SPMD mode in torch_xla.
     """
-
-    num_devices = xr.global_runtime_device_count()
-    if num_devices < 4:
-        raise RuntimeError(f"GPT-OSS-20B requires at least 4 devices to run")
 
     print("Setting up XLA environment...")
 
@@ -203,7 +244,7 @@ def construct_inputs(
     model_config: PretrainedConfig,
     batch_size: int,
     max_cache_len: int,
-) -> dict:
+) -> tuple[dict, List[str]]:
     """
     Construct inputs including static cache.
 
@@ -215,20 +256,34 @@ def construct_inputs(
         max_cache_len: Maximum cache length
 
     Returns:
-        Dictionary containing input_ids, past_key_values, cache_position, and use_cache
+        Tuple of (input_args dictionary, formatted_prompts list)
     """
 
+    # Apply chat template to format prompts
+    formatted_prompts = []
+    for prompt in input_prompt:
+        messages = [{"role": "user", "content": prompt}]
+        formatted_prompt = tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        formatted_prompts.append(formatted_prompt)
+
+    prompt_lengths = [
+        len(tokenizer.encode(p, add_special_tokens=False)) for p in formatted_prompts
+    ]
+    max_length = max(prompt_lengths)
+
     inputs = tokenizer(
-        input_prompt,
+        formatted_prompts,
         return_tensors="pt",
-        max_length=MAX_SEQUENCE_LENGTH,
+        max_length=max_length,
         padding="max_length",
         padding_side="left",
         return_attention_mask=True,
     )
 
-    # Disable sliding window cache to avoid torch.compile recompilations
-    cache_config = change_config_layer_types_to_full_attention(model_config)
+    # Disable sliding window cache to avoid torch.compile recompilations.
+    cache_config = disable_sliding_window_attention(model_config)
 
     # Static cache should be initialized on CPU and separately transferred to device
     # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
@@ -269,7 +324,8 @@ def construct_inputs(
 
     #   Debug prints
     print("\n=== DEBUG: construct_inputs ===")
-    print(f"Input prompt: '{input_prompt}'")
+    print(f"Original prompts: {input_prompt}")
+    print(f"Formatted prompts (with chat template): {formatted_prompts}")
     print(f"Input IDs shape: {inputs.input_ids.shape}")
     print(f"Input IDs: {inputs.input_ids}")
     print(f"Input attention mask shape: {inputs.attention_mask.shape}")
@@ -280,12 +336,33 @@ def construct_inputs(
     print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
     print("=" * 50)
 
-    return input_args
+    return input_args, formatted_prompts
 
 
-def change_config_layer_types_to_full_attention(
+def disable_sliding_window_attention(
     config: PretrainedConfig,
 ) -> PretrainedConfig:
+    """
+    Override all layer types to 'full_attention' to disable sliding window cache.
+
+    GPT-OSS-20B originally has 24 layers alternating between "sliding_attention" and
+    "full_attention". When StaticCache is initialized with sliding attention layers,
+    it creates StaticSlidingWindowLayer instances that use conditional logic and
+    Python Int (which torch.compile treats as constants). This triggers expensive
+    recompilation for every token generated.
+
+    This function offers a hacky workaround. Because this program stops token
+    generation once the cache is full, StaticSlidingWindowLayer would be essentially
+    functionally equivalent to StaticLayer. Hence by forcing all layers to be
+    "full_attention" before passing the config to create the StaticCache, we can
+    ensure the cache only has simple StaticLayer and avoid recompilation.
+
+    Args:
+        config: Model configuration with layer_types attribute
+
+    Returns:
+        Config modified to have all layers set to "full_attention"
+    """
     config.layer_types = ["full_attention"] * config.num_hidden_layers
     return config
 
@@ -330,7 +407,6 @@ def mark_sharding_on_inputs_and_model(
         mesh: Device mesh for SPMD operations
     """
 
-    # TODO: Remove?
     for layer in input_args["past_key_values"].layers:
         xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
         xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
@@ -369,7 +445,7 @@ def run_generate(
     device: torch.device,
     mesh: Mesh = None,
     max_tokens_to_generate: int = 128,
-    input_prompt: List[str] = [""],
+    formatted_prompts: List[str] = [""],
     is_interactive: bool = False,
 ):
     """
@@ -382,6 +458,8 @@ def run_generate(
         device: Device
         mesh: Device mesh for SPMD operations (optional)
         max_tokens_to_generate: Maximum number of tokens to generate
+        formatted_prompts: Formatted prompts with chat template applied
+        is_interactive: Whether running in interactive mode
     """
     num_users = input_args["input_ids"].shape[0]
     output_tokens: List[List[str]] = [[] for _ in range(num_users)]
@@ -391,7 +469,7 @@ def run_generate(
             if step == 0:
                 print("RUNNING PREFILL")
                 if is_interactive:
-                    print(f"Result: {input_prompt[0]}", end="", flush=True)
+                    print(f"Result: {formatted_prompts[0]}", end="", flush=True)
 
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
@@ -418,7 +496,9 @@ def run_generate(
     print()
     if not is_interactive:
         for i in range(num_users):
-            print(f"Result for user {i}: {input_prompt[i]}{''.join(output_tokens[i])}")
+            print(
+                f"Result for user {i}: {formatted_prompts[i]}{''.join(output_tokens[i])}"
+            )
             print()
 
 
