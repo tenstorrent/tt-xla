@@ -27,6 +27,9 @@ on:
         description: 'Built and pushed docker image'
         value: ${{ jobs.build-release-docker.outputs.docker-image-base}}
 
+permissions:
+  packages: write
+
 jobs:
   build-release-docker:
     name: Build tt-xla release Docker image
