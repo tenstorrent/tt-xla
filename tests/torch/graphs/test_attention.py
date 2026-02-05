@@ -2511,3 +2511,79 @@ def test_deepseek_attention_module(seq_len, arch):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
+
+
+"""Kimi K2 attention tests"""
+
+import os
+import sys
+
+model_dir = os.path.join(os.path.dirname(__file__), "../models/kimi_k2")
+sys.path.append(os.path.abspath(model_dir))
+
+from tests.torch.models.kimi_k2.configuration_deepseek import DeepseekV3Config
+from tests.torch.models.kimi_k2.modeling_deepseek import (
+    DeepseekV3Attention as KimiK2Attention,
+)
+
+
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("seq_len", [1024])
+def test_kimi_k2_attention_module(seq_len, arch):
+    xr.set_device_type("TT")
+
+    current_dir = os.path.dirname(__file__)
+    config_path = os.path.join(current_dir, "../models/kimi_k2/config.json")
+
+    config = DeepseekV3Config.from_json_file(config_path)
+
+    # Override for single layer testing
+    config.num_hidden_layers = 1
+    config.use_cache = False
+
+    attention = KimiK2Attention(config, layer_idx=0).to(torch.bfloat16)
+
+    batch_size = 2
+    hidden_states = torch.randn(
+        batch_size, seq_len, config.hidden_size, dtype=torch.bfloat16
+    )
+    attention_mask = torch.ones(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    position_ids = torch.randint(0, seq_len, (batch_size, seq_len), dtype=torch.long)
+
+    past_key_value = None
+
+    # Setup for tensor parallel
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (batch_size, num_devices // batch_size)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            """Returns shard specifications for the layer's parameters."""
+            shard_specs = {}
+
+            # TODO: Add layer norm shard specs too
+            shard_specs[attention.q_a_proj.weight] = ("model", "batch")
+            shard_specs[attention.q_b_proj.weight] = ("model", "batch")
+            shard_specs[attention.kv_a_proj_with_mqa.weight] = ("model", "batch")
+            shard_specs[attention.kv_b_proj.weight] = ("model", "batch")
+            shard_specs[attention.o_proj.weight] = ("batch", "model")
+
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
+
+    run_graph_test(
+        attention,
+        [hidden_states, attention_mask, position_ids, past_key_value, False, False],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
