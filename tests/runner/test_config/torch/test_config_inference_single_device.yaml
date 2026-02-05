@@ -92,7 +92,6 @@ test_config:
     markers: ["extended"]
 
   openpose/v2/pytorch-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-xxlarge_v2-single_device-inference:
@@ -696,6 +695,7 @@ test_config:
 
   beit/pytorch-base-single_device-inference:
     status: EXPECTED_PASSING
+    assert_pcc: false # Fell to <0.3 after experimental compile
     markers: ["extended"]
 
   beit/pytorch-large-single_device-inference:
@@ -1362,11 +1362,9 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-bn_vgg19-single_device-inference:
-    required_pcc: 0.96 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   vgg/pytorch-timm_vgg19_bn-single_device-inference:
-    required_pcc: 0.95  # https://github.com/tenstorrent/tt-xla/issues/1242 , https://github.com/tenstorrent/tt-xla/issues/2803
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg11-single_device-inference:
@@ -1382,7 +1380,6 @@ test_config:
     status: EXPECTED_PASSING
 
   vgg/pytorch-torchvision_vgg19_bn-single_device-inference:
-    required_pcc: 0.96 # PCC drop when changing inputs.
     status: EXPECTED_PASSING
 
   vgg/pytorch-hf_vgg19-single_device-inference:
@@ -1977,12 +1974,11 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.04067724570631981. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505"
 
   centernet/pytorch-resnet18_coco-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
+    status: EXPECTED_PASSING
 
   centernet/pytorch-resnet101_coco-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: deformable_im2col not implemented for 'BFloat16' - https://github.com/tenstorrent/tt-xla/issues/1563"
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3043
+    status: EXPECTED_PASSING
 
   centernet/pytorch-dla1x_coco-single_device-inference:
     status: EXPECTED_PASSING
@@ -2202,8 +2198,8 @@ test_config:
         reason: "Multi chip is required"
 
   transfuser/pytorch-single_device-inference:
-    assert_pcc: false # PCC is -0.715
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Input tensor data type for ttnn.sort must be BFLOAT16 or UINT16, got DataType::FLOAT32 (https://github.com/tenstorrent/tt-xla/issues/3089)"
 
   issac_groot/pytorch-GR00T_n1.5-3b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2372,7 +2368,7 @@ test_config:
 
 
   owl_vit/pytorch-base_patch32-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
 
   # yolov12/pytorch-yolo12n-single_device-inference:
   #   status: EXPECTED_PASSING
@@ -2523,9 +2519,9 @@ test_config:
     required_pcc: 0.96
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
-
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_FE_COMPILATION
+        reason: "Segmentation fault after Experimental compile on by default (#2996)"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial-single_device-inference:
     status: EXPECTED_PASSING
@@ -2596,8 +2592,9 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
         n150:
-          status: KNOWN_FAILURE_XFAIL
-          reason: "Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B"
+          status: NOT_SUPPORTED_SKIP
+          bringup_status: FAILED_FE_COMPILATION
+          reason: "Segmentation fault after Experimental compile on by default (#2996)"
 
   siglip/image_text_similarity/pytorch-base_patch16_224-single_device-inference:
     status: EXPECTED_PASSING
@@ -2624,7 +2621,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        required_pcc: 0.98  # Actual PCC: 0.986684763880969 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+        required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3106
       p150:
         required_pcc: 0.98  # Actual PCC: 0.9873568504978747 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
@@ -2632,7 +2629,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        required_pcc: 0.98  # Actual PCC: 0.9893993879478543 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+        required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3106
       p150:
         assert_pcc: false  # Actual PCC: 0.9799736818706198 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
@@ -2640,7 +2637,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        assert_pcc: false  # Actual PCC: 0.9590273983037481 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+        required_pcc: 0.95  # https://github.com/tenstorrent/tt-xla/issues/3106
       p150:
         assert_pcc: false  # Actual PCC: 0.9558645998697567 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
@@ -2648,7 +2645,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        assert_pcc: false  # Actual PCC: 0.9579560773278014 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+        required_pcc: 0.95  # https://github.com/tenstorrent/tt-xla/issues/3106
       p150:
         assert_pcc: false  # Actual PCC: 0.9555685660373453 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
@@ -2656,7 +2653,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        assert_pcc: false  # Actual PCC: 0.9693205147128082 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+        required_pcc: 0.96  # https://github.com/tenstorrent/tt-xla/issues/3106
       p150:
         assert_pcc: false  # Actual PCC: 0.9661477411303401 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
