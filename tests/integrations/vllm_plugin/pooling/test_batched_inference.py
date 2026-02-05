@@ -50,6 +50,10 @@ def test_batched_inference(
 
     - Baseline embeddings are computed using vLLM on CPU backend.
     """
+    if model_name == "Qwen/Qwen3-Embedding-0.6B" and batch_size == 2:
+        pytest.skip(
+            "Skipping due to non-deterministic failure in CI. Issue: https://github.com/tenstorrent/tt-xla/issues/3094"
+        )
 
     path = os.path.join(os.path.dirname(__file__), baseline_path)
     loaded_data = torch.load(path)
