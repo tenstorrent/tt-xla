@@ -66,7 +66,9 @@ class FailingReasonsFinder:
                     f"Multiple reasons found: {[r.failing_reasons.name if r.failing_reasons else 'None' for r in reasons]} for: {error_msg}"
                 )
             else:
-                logger.warning(f"Multiple reasons found: {[r.failing_reasons.name if r.failing_reasons else 'None' for r in reasons]}")
+                logger.warning(
+                    f"Multiple reasons found: {[r.failing_reasons.name if r.failing_reasons else 'None' for r in reasons]}"
+                )
         return reasons[0]
 
     @classmethod
