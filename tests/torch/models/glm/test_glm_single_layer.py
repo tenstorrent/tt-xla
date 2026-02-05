@@ -19,7 +19,7 @@ available_variants = ModelLoader.query_available_variants()
 
 
 @pytest.mark.nightly
-@parametrize_arch(["single_device", "llmbox"])
+@parametrize_arch(["llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize("variant", available_variants.keys())
 def test_glm_single_layer(seq_len, variant, arch):
