@@ -58,7 +58,8 @@ runs:
             ".github/workflows/push-main.yml"
             ".github/scripts/download_artifacts.py"
             ".github/scripts/summarize_junit_xmls.py"
-            "tests/runner/*" # This goes with custom logic below.
+            ".github/actions/inspect-changes/*.yml"
+            "tests/runner/**/*.yml"
           )
 
           for file in $CHANGED_FILES; do
@@ -83,18 +84,6 @@ runs:
               run_perf_tests=true
             fi
           done
-
-          # Just run forge tests if everything else is skipped but we detect changes under tests/runner/.
-          if [[ "$skip_build_and_test" == "true" ]]; then
-            for file in $CHANGED_FILES; do
-              if [[ $file == tests/runner/* ]]; then
-                echo "Detected only skippable files + tests/runner/, enabling forge-model tests."
-                skip_build_and_test=false
-                only_run_forge_models=true
-                break
-              fi
-            done
-          fi
 
           # Detect TT-MLIR dependency updates in PRs.
           if echo "$CHANGED_FILES" | grep -q "^third_party/CMakeLists.txt$"; then
