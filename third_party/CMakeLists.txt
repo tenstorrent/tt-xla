@@ -32,6 +32,10 @@ else()
     # ----- tt-mlir -----
 
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
+    execute_process(
+        COMMAND sed -i.bak "s|set(TTMETAL_LIBRARY_DIR .*|set(TTMETAL_LIBRARY_DIR \${TTMETAL_BUILD_DIR}/lib64)|" ${TTMLIR_SOURCE_DIR}/src/tt-mlir/third_party/CMakeLists.txt
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
     set(TTMLIR_LIB_DIR "${TTMLIR_SOURCE_DIR}/install")
     set(WITH_METAL_RUNTIME_ROOT_SET "")
