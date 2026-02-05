@@ -44,19 +44,19 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  clip/pytorch-base_patch16-single_device-inference:
+  clip/image_text_similarity/pytorch-base_patch16-single_device-inference:
     required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2793
     status: EXPECTED_PASSING
 
-  clip/pytorch-base_patch32-single_device-inference:
+  clip/image_text_similarity/pytorch-base_patch32-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2793
     status: EXPECTED_PASSING
 
-  clip/pytorch-large_patch14-single_device-inference:
+  clip/image_text_similarity/pytorch-large_patch14-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 13185 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
 
-  clip/pytorch-large_patch14_336-single_device-inference:
+  clip/image_text_similarity/pytorch-large_patch14_336-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 18766 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
 
@@ -192,40 +192,40 @@ test_config:
   bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-single_device-inference:
     status: EXPECTED_PASSING
 
-  codegen/pytorch-Salesforce/codegen-350M-mono-single_device-inference:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-mono-single_device-inference:
     status: EXPECTED_PASSING
 
-  codegen/pytorch-Salesforce/codegen-350M-multi-single_device-inference:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-multi-single_device-inference:
     status: EXPECTED_PASSING
 
-  codegen/pytorch-Salesforce/codegen-350M-nl-single_device-inference:
+  codegen/causal_lm/pytorch-Salesforce/codegen-350M-nl-single_device-inference:
     status: EXPECTED_PASSING
 
-  deit/pytorch-base_distilled-single_device-inference:
+  deit/image_classification/pytorch-base_distilled-single_device-inference:
     status: EXPECTED_PASSING
 
-  deit/pytorch-small-single_device-inference:
+  deit/image_classification/pytorch-small-single_device-inference:
     status: EXPECTED_PASSING
 
-  deit/pytorch-tiny-single_device-inference:
+  deit/image_classification/pytorch-tiny-single_device-inference:
     status: EXPECTED_PASSING
 
-  densenet/pytorch-densenet121-single_device-inference:
+  densenet/image_classification/pytorch-densenet121-single_device-inference:
     status: EXPECTED_PASSING
 
-  densenet/pytorch-densenet161-single_device-inference:
+  densenet/image_classification/pytorch-densenet161-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.985  # 0.990 for BH, 0.989 for WH
 
-  densenet/pytorch-densenet169-single_device-inference:
+  densenet/image_classification/pytorch-densenet169-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9880856871604919. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  densenet/pytorch-densenet201-single_device-inference:
+  densenet/image_classification/pytorch-densenet201-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9871042966842651. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  densenet/pytorch-densenet121_xray-single_device-inference:
+  densenet/image_classification/pytorch-densenet121_xray-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
 
   distilbert/question_answering/pytorch-distilbert-base-cased-distilled-squad-single_device-inference:
@@ -550,7 +550,7 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
-  deit/pytorch-base-single_device-inference:
+  deit/image_classification/pytorch-base-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98 # AssertionError: PCC comparison failed. Calculated: pcc=0.9837640523910522. Required: pcc=0.985. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     arch_overrides:
@@ -701,7 +701,7 @@ test_config:
   beit/pytorch-large-single_device-inference:
     status: EXPECTED_PASSING
 
-  deepcogito/pytorch-v1_preview_llama_3b-single_device-inference:
+  deepcogito/causal_lm/pytorch-v1_preview_llama_3b-single_device-inference:
     status: EXPECTED_PASSING
 
   segformer/semantic_segmentation/pytorch-b0_finetuned_ade_512_512-single_device-inference:
@@ -1276,7 +1276,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
 
-  deepseek/pytorch-single_device-inference:
+  deepseek/deepseek_coder/pytorch-single_device-inference:
     status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ttir.scatter does not work - https://github.com/tenstorrent/tt-xla/issues/2391"
@@ -1606,7 +1606,7 @@ test_config:
     reason: "Hangs or takes forever to run - not known to be compile clean anyways."
     bringup_status: FAILED_FE_COMPILATION
 
-  boltz2/pytorch-boltz2-single_device-inference:
+  boltz2/atomic_ml/pytorch-boltz2-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hangs or takes forever to run"
     bringup_status: FAILED_RUNTIME
@@ -1968,23 +1968,23 @@ test_config:
     required_pcc: 0.985  # https://github.com/tenstorrent/tt-xla/issues/1491
     status: EXPECTED_PASSING
 
-  centernet/pytorch-hourglass_coco-single_device-inference:
+  centernet/object_detection/pytorch-hourglass_coco-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.04067724570631981. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505"
 
-  centernet/pytorch-resnet18_coco-single_device-inference:
+  centernet/object_detection/pytorch-resnet18_coco-single_device-inference:
     status: EXPECTED_PASSING
 
-  centernet/pytorch-resnet101_coco-single_device-inference:
+  centernet/object_detection/pytorch-resnet101_coco-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3043
     status: EXPECTED_PASSING
 
-  centernet/pytorch-dla1x_coco-single_device-inference:
+  centernet/object_detection/pytorch-dla1x_coco-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2990
 
-  centernet/pytorch-dla2x_coco-single_device-inference:
+  centernet/object_detection/pytorch-dla2x_coco-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/2990
 
@@ -2386,19 +2386,19 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 62521344 B L1 buffer across 72 banks, where each bank needs to store 868352 B, but bank size is only 1331936 B"
 
-  deformable_detr/pytorch-deformable-detr-single_device-inference:
+  deformable_detr/object_detection/pytorch-deformable-detr-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
 
-  deformable_detr/pytorch-deformable-detr-single-scale-single_device-inference:
+  deformable_detr/object_detection/pytorch-deformable-detr-single-scale-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 445644800 B DRAM buffer across 12 banks, where each bank needs to store 37138432 B, but bank size is only 1073741792 B"
 
-  deformable_detr/pytorch-deformable-detr-with-box-refine-single_device-inference:
+  deformable_detr/object_detection/pytorch-deformable-detr-with-box-refine-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
 
-  deformable_detr/pytorch-deformable-detr-with-box-refine-two-stage-single_device-inference:
+  deformable_detr/object_detection/pytorch-deformable-detr-with-box-refine-two-stage-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
 
@@ -2510,7 +2510,7 @@ test_config:
   ultra_fast_lane_detection/pytorch-tusimple_resnet34-single_device-inference:
     status: EXPECTED_PASSING
 
-  dense_unet_3d/pytorch-base-single_device-inference:
+  dense_unet_3d/object_detection/pytorch-base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "RuntimeError: torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_module L__self___maxpool1(*(FakeTensor(..., device='xla:0', size=(1, 96, 16, 128, 128), dtype=torch.bfloat16),), https://github.com/tenstorrent/tt-xla/issues/2567"
 
