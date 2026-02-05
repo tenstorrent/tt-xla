@@ -2621,7 +2621,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        required_pcc: 0.98  # Actual PCC: 0.986684763880969 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+        required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3106
       p150:
         required_pcc: 0.98  # Actual PCC: 0.9873568504978747 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
@@ -2629,7 +2629,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        required_pcc: 0.98  # Actual PCC: 0.9893993879478543 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+        required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3106
       p150:
         assert_pcc: false  # Actual PCC: 0.9799736818706198 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
@@ -2637,7 +2637,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        assert_pcc: false  # Actual PCC: 0.9590273983037481 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+        required_pcc: 0.95  # https://github.com/tenstorrent/tt-xla/issues/3106
       p150:
         assert_pcc: false  # Actual PCC: 0.9558645998697567 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
@@ -2645,7 +2645,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        assert_pcc: false  # Actual PCC: 0.9579560773278014 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+        required_pcc: 0.95  # https://github.com/tenstorrent/tt-xla/issues/3106
       p150:
         assert_pcc: false  # Actual PCC: 0.9555685660373453 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
@@ -2653,7 +2653,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        assert_pcc: false  # Actual PCC: 0.9693205147128082 - https://github.com/tenstorrent/tt-xla/runs/61718821565 TODO: pending investigation
+        required_pcc: 0.96  # https://github.com/tenstorrent/tt-xla/issues/3106
       p150:
         assert_pcc: false  # Actual PCC: 0.9661477411303401 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
