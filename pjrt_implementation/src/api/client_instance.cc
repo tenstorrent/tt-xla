@@ -88,15 +88,15 @@ static tt_pjrt_status launchDistributedRuntime() {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
     return tt_pjrt_status::kInternal;
   }
-  const char *controller_host_name = std::getenv("TT_CONTROLLER_HOST_NAME");
+  const char *controller_host_name = std::getenv("TT_DISTRIBUTED_CONTROLLER_HOST_NAME");
   if (!controller_host_name) {
-    DLOG_F(ERROR, "TT_CONTROLLER_HOST_NAME environment variable is not set");
+    DLOG_F(ERROR, "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set");
     return tt_pjrt_status::kInternal;
   }
 
-  const char* hosts_list = std::getenv("TT_HOSTS_LIST");
+  const char* hosts_list = std::getenv("TT_DISTRIBUTED_HOSTS_LIST");
   if (!hosts_list) {
-    DLOG_F(ERROR, "TT_HOSTS_LIST environment variable is not set");
+    DLOG_F(ERROR, "TT_DISTRIBUTED_HOSTS_LIST environment variable is not set");
     return tt_pjrt_status::kInternal;
   }
 
@@ -119,9 +119,12 @@ static tt_pjrt_status launchDistributedRuntime() {
     return tt_pjrt_status::kInternal;
   }
 
-  const char *plm_rsh_agent = std::getenv("TTXLA_PLM_RSH_AGENT");
-  std::map<std::string, std::string> mca_options = {
-      {"btl", "self,tcp"}, {"btl_tcp_if_include", "cnx1"}};
+  const char *plm_rsh_agent = std::getenv("TT_DISTRIBUTED_PLM_RSH_AGENT");
+  const char *btl_tcp_if_include = std::getenv("TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE");
+  std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
+  if (btl_tcp_if_include) {
+    mca_options["btl_tcp_if_include"] = btl_tcp_if_include;
+  }
   if (plm_rsh_agent) {
     mca_options["plm_rsh_agent"] = plm_rsh_agent;
   }
