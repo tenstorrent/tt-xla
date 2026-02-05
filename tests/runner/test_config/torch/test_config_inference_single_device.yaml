@@ -2521,7 +2521,7 @@ test_config:
       n150:
         status: NOT_SUPPORTED_SKIP
         bringup_status: FAILED_FE_COMPILATION
-        reason: "Segmentation fault after Experimental compile on by default (#2996)"
+        reason: "Segmentation fault: https://github.com/tenstorrent/tt-xla/issues/3178"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial-single_device-inference:
     status: EXPECTED_PASSING
@@ -2591,10 +2591,10 @@ test_config:
   allam/causal_lm/pytorch-allam_7b_instruct-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
-        n150:
-          status: NOT_SUPPORTED_SKIP
-          bringup_status: FAILED_FE_COMPILATION
-          reason: "Segmentation fault after Experimental compile on by default (#2996)"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_FE_COMPILATION
+        reason: "Segmentation fault: https://github.com/tenstorrent/tt-xla/issues/3178"
 
   siglip/image_text_similarity/pytorch-base_patch16_224-single_device-inference:
     status: EXPECTED_PASSING
