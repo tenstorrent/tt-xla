@@ -21,6 +21,9 @@ runs:
   using: "composite"
   steps:
     - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
     - name: Inspect changes
       id: inspect
       shell: bash
@@ -84,6 +87,24 @@ runs:
               run_perf_tests=true
             fi
           done
+
+
+          # Just run forge tests if everything else is skipped but we detect changes under tests/runner/.
+          if [[ "$skip_build_and_test" == "true" ]]; then
+            pip install pyyaml
+            for file in $CHANGED_FILES; do
+              if [[ $file == tests/runner/**/*.yml ]]; then
+                # Get the original file content before PR changes
+                rm -f .original_file.yml
+                git fetch origin "${{ github.event.pull_request.base.sha }}"
+                git show "${{ github.event.pull_request.base.sha }}:$file" >.original_file.yml
+                res=$(python tests/runner/test_config/model_diff.py "$file" .original_file.yml)
+                if [ -z "$res" ] || [ "$res" -eq 1 ]; then
+                  only_run_forge_models=true
+                  skip_build_and_test=false
+                fi
+            done
+          fi
 
           # Detect TT-MLIR dependency updates in PRs.
           if echo "$CHANGED_FILES" | grep -q "^third_party/CMakeLists.txt$"; then
