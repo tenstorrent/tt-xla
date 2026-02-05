@@ -24,8 +24,42 @@ from transformers import (
 from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
+from transformers.utils.quantization_config import Mxfp4Config
 
-DEFAULT_PROMPTS = ["Explain quantum mechanics."]
+DEFAULT_PROMPTS = [
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+    # "Explain quantum mechanics.",
+]
 
 
 # --------------------------------
@@ -34,7 +68,7 @@ DEFAULT_PROMPTS = ["Explain quantum mechanics."]
 def gpt_oss_20b(interactive: bool = False):
 
     # Set up config variables.
-    max_cache_len: int = 256
+    max_cache_len: int = 128
     model_name: str = "openai/gpt-oss-20b"
 
     setup_spmd()
@@ -107,19 +141,15 @@ def setup_spmd():
 
 def create_device_mesh() -> Mesh:
     """
-    Create device mesh for tensor parallelism.
+    Create device mesh for tensor parallelism using 1xdevice_count pattern.
 
     Returns:
         Mesh object for SPMD operations
     """
     num_devices = xr.global_runtime_device_count()
 
-    if num_devices == 32:  # Galaxy
-        mesh_shape = (8, 4)
-    elif num_devices == 8:  # llmbox
-        mesh_shape = (2, 4)
-    else:
-        raise RuntimeError(f"Gpt-oss is only supported on llmbox and galaxy")
+    # Use 1xdevice_count pattern from tt_forge_models
+    mesh_shape = (1, num_devices)
 
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
@@ -145,6 +175,7 @@ def setup_model_and_tokenizer(
         low_cpu_mem_usage=True,
         trust_remote_code=True,
         attn_implementation="eager",
+        quantization_config=Mxfp4Config(dequantize=True),
     )
     model = model.eval()
 
@@ -323,35 +354,43 @@ def mark_sharding_on_inputs_and_model(
         mesh: Device mesh for SPMD operations
     """
 
+    # Shard cache on model axis (heads dimension)
     for layer in input_args["past_key_values"].layers:
         xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
         xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
-    xs.mark_sharding(model.model.embed_tokens.weight, mesh, (None, "batch"))
-    xs.mark_sharding(model.model.norm.weight, mesh, ("batch",))
-    xs.mark_sharding(model.lm_head.weight, mesh, ("model", "batch"))
+    # Embedding and output layers - no sharding on embeddings, shard lm_head on model axis
+    # xs.mark_sharding(model.model.embed_tokens.weight, mesh, (None, None))
+    # xs.mark_sharding(model.model.norm.weight, mesh, (None,))
+    # xs.mark_sharding(model.lm_head.weight, mesh, ("model", None))
 
     for layer in model.model.layers:
-        xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", "batch"))
-        xs.mark_sharding(layer.self_attn.q_proj.bias, mesh, ("model",))
-        xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", "batch"))
-        xs.mark_sharding(layer.self_attn.k_proj.bias, mesh, ("model",))
-        xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", "batch"))
-        xs.mark_sharding(layer.self_attn.v_proj.bias, mesh, ("model",))
-        xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, ("batch", "model"))
-        xs.mark_sharding(layer.self_attn.o_proj.bias, mesh, ("batch",))
+        # Self-attention weights - following tt_forge_models pattern
+        # q_proj, k_proj, v_proj: column-wise sharding
+        xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
+        # xs.mark_sharding(layer.self_attn.q_proj.bias, mesh, ("model",))
+        xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
+        # xs.mark_sharding(layer.self_attn.k_proj.bias, mesh, ("model",))
+        xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
+        # xs.mark_sharding(layer.self_attn.v_proj.bias, mesh, ("model",))
+        # o_proj: row-wise sharding
+        xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
+        # xs.mark_sharding(layer.self_attn.o_proj.bias, mesh, (None,))
 
         xs.mark_sharding(layer.self_attn.sinks, mesh, (None,))
 
-        xs.mark_sharding(layer.mlp.router.weight, mesh, (None, "batch"))
+        # Router is replicated across all devices
+        xs.mark_sharding(layer.mlp.router.weight, mesh, (None, None))
 
-        xs.mark_sharding(layer.mlp.experts.gate_up_proj, mesh, ("model", "batch", None))
+        # Expert weights - sharded across the expert dimension
+        xs.mark_sharding(layer.mlp.experts.gate_up_proj, mesh, ("model", None, None))
         xs.mark_sharding(layer.mlp.experts.gate_up_proj_bias, mesh, ("model", None))
-        xs.mark_sharding(layer.mlp.experts.down_proj, mesh, ("model", None, "batch"))
-        xs.mark_sharding(layer.mlp.experts.down_proj_bias, mesh, ("model", "batch"))
+        xs.mark_sharding(layer.mlp.experts.down_proj, mesh, ("model", None, None))
+        xs.mark_sharding(layer.mlp.experts.down_proj_bias, mesh, ("model", None))
 
-        xs.mark_sharding(layer.input_layernorm.weight, mesh, ("batch",))
-        xs.mark_sharding(layer.post_attention_layernorm.weight, mesh, ("batch",))
+        # Layer norms are not sharded
+        # xs.mark_sharding(layer.input_layernorm.weight, mesh, (None,))
+        # xs.mark_sharding(layer.post_attention_layernorm.weight, mesh, (None,))
 
 
 def run_generate(
