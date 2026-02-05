@@ -2521,7 +2521,9 @@ import sys
 model_dir = os.path.join(os.path.dirname(__file__), "../models/kimi_k2")
 sys.path.append(os.path.abspath(model_dir))
 
-from tests.torch.models.kimi_k2.configuration_deepseek import DeepseekV3Config
+from tests.torch.models.kimi_k2.configuration_deepseek import (
+    DeepseekV3Config as KimiK2Config,
+)
 from tests.torch.models.kimi_k2.modeling_deepseek import (
     DeepseekV3Attention as KimiK2Attention,
 )
@@ -2536,7 +2538,7 @@ def test_kimi_k2_attention_module(seq_len, arch):
     current_dir = os.path.dirname(__file__)
     config_path = os.path.join(current_dir, "../models/kimi_k2/config.json")
 
-    config = DeepseekV3Config.from_json_file(config_path)
+    config = KimiK2Config.from_json_file(config_path)
 
     # Override for single layer testing
     config.num_hidden_layers = 1
