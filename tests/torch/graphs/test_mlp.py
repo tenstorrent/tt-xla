@@ -580,6 +580,9 @@ def test_deepseek_mlp(mlp_type, seq_len, arch):
                 shard_specs[mlp.w2.weight] = (None, "model")  # inter_dim, dim
                 shard_specs[mlp.w3.weight] = ("model", None)  # dim, inter_dim
 
+            # input sharding
+            shard_specs[args[0]] = ("batch", None, "model")
+
             return shard_specs
 
     else:
@@ -652,6 +655,9 @@ def test_kimi_k2_mlp(mlp_type, seq_len, arch):
                 shard_specs[mlp.gate_proj.weight] = ("model", None)
                 shard_specs[mlp.up_proj.weight] = ("model", None)
                 shard_specs[mlp.down_proj.weight] = (None, "model")
+
+            # input sharding
+            shard_specs[args[0]] = ("batch", None, "model")
 
             return shard_specs
 
