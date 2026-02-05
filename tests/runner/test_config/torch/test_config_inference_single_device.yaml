@@ -104,12 +104,12 @@ test_config:
       n150:
         required_pcc: 0.98
 
-  yolov3/pytorch-base-single_device-inference:
+  yolov3/object_detection/pytorch-base-single_device-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
     markers: ["extended"]
 
-  yolov4/pytorch-base-single_device-inference:
+  yolov4/object_detection/pytorch-base-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -637,31 +637,31 @@ test_config:
   bert/sequence_classification/pytorch-textattack/bert-base-uncased-SST-2-single_device-inference:
     status: EXPECTED_PASSING
 
-  yoloworld/pytorch-small_640-single_device-inference:
+  yoloworld/object_detection/pytorch-small_640-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2727
 
-  yoloworld/pytorch-small_1280-single_device-inference:
+  yoloworld/object_detection/pytorch-small_1280-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2727
 
-  yoloworld/pytorch-medium_640-single_device-inference:
+  yoloworld/object_detection/pytorch-medium_640-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
 
-  yoloworld/pytorch-medium_1280-single_device-inference:
+  yoloworld/object_detection/pytorch-medium_1280-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
 
-  yoloworld/pytorch-large_640-single_device-inference:
+  yoloworld/object_detection/pytorch-large_640-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
 
-  yoloworld/pytorch-large_1280-single_device-inference:
+  yoloworld/object_detection/pytorch-large_1280-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
 
-  yoloworld/pytorch-xlarge_640-single_device-inference:
+  yoloworld/object_detection/pytorch-xlarge_640-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
 
@@ -1024,57 +1024,57 @@ test_config:
   llama/causal_lm/pytorch-llama_3_2_3b_instruct-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6n-single_device-inference:
+  yolov6/object_detection/pytorch-yolov6n-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6s-single_device-inference:
+  yolov6/object_detection/pytorch-yolov6s-single_device-inference:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9890339970588684. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6m-single_device-inference:
+  yolov6/object_detection/pytorch-yolov6m-single_device-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
 
-  yolov6/pytorch-yolov6l-single_device-inference:
+  yolov6/object_detection/pytorch-yolov6l-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolov7/pytorch-yolov7x-single_device-inference:
+  yolov7/object_detection/pytorch-yolov7x-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolov7/pytorch-yolov7-single_device-inference:
+  yolov7/object_detection/pytorch-yolov7-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolov7/pytorch-yolov7-w6-single_device-inference:
+  yolov7/object_detection/pytorch-yolov7-w6-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolov7/pytorch-yolov7-e6-single_device-inference:
+  yolov7/object_detection/pytorch-yolov7-e6-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolov7/pytorch-yolov7-d6-single_device-inference:
+  yolov7/object_detection/pytorch-yolov7-d6-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolov7/pytorch-yolov7-e6e-single_device-inference:
+  yolov7/object_detection/pytorch-yolov7-e6e-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolox/pytorch-yolox_nano-single_device-inference:
+  yolox/object_detection/pytorch-yolox_nano-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolox/pytorch-yolox_tiny-single_device-inference:
+  yolox/object_detection/pytorch-yolox_tiny-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolox/pytorch-yolox_s-single_device-inference:
+  yolox/object_detection/pytorch-yolox_s-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolox/pytorch-yolox_m-single_device-inference:
+  yolox/object_detection/pytorch-yolox_m-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolox/pytorch-yolox_l-single_device-inference:
+  yolox/object_detection/pytorch-yolox_l-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolox/pytorch-yolox_darknet-single_device-inference:
+  yolox/object_detection/pytorch-yolox_darknet-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolox/pytorch-yolox_x-single_device-inference:
+  yolox/object_detection/pytorch-yolox_x-single_device-inference:
     status: EXPECTED_PASSING
 
   mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-single_device-inference:
@@ -1304,23 +1304,23 @@ test_config:
   gpt2/pytorch-gpt2_sequence_classification-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolov9/pytorch-t-single_device-inference:
+  yolov9/object_detection/pytorch-t-single_device-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
-  yolov9/pytorch-s-single_device-inference:
+  yolov9/object_detection/pytorch-s-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
-  yolov9/pytorch-m-single_device-inference:
+  yolov9/object_detection/pytorch-m-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Trying to access XLA data for tensor with ID 2590 while an async operation is in flight: UNKNOWN_SCALAR[]') raised in repr() - https://github.com/tenstorrent/tt-xla/issues/2776"
 
-  yolov9/pytorch-c-single_device-inference:
+  yolov9/object_detection/pytorch-c-single_device-inference:
     status: EXPECTED_PASSING
 
-  yolov9/pytorch-e-single_device-inference:
+  yolov9/object_detection/pytorch-e-single_device-inference:
     status: EXPECTED_PASSING
 
 
