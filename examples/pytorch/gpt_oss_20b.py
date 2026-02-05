@@ -25,91 +25,7 @@ from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-# DEFAULT_PROMPTS = [
-#     # Technical/Programming
-#     "Write a Python function that implements binary search:",
-#     "The difference between TCP and UDP is",
-#     "To optimize a slow database query, you should first",
-#     "In machine learning, overfitting occurs when",
-
-#     # Science & Mathematics
-#     "Einstein's theory of relativity fundamentally changed our understanding of",
-#     "The Pythagorean theorem states that",
-#     "Climate change is primarily driven by",
-#     "The process of photosynthesis involves",
-#     "The difference between DNA and RNA is that",
-
-#     # History & Geography
-#     "The fall of the Roman Empire can be attributed to",
-#     "During World War II, the turning point came when",
-#     "The Renaissance began in Italy because",
-#     "The capital of Australia is Canberra, which is located",
-
-#     # Literature & Arts
-#     "Shakespeare's Hamlet explores themes of",
-#     "The literary technique of foreshadowing is used to",
-#     "In Gothic architecture, flying buttresses serve to",
-
-#     # Philosophy & Critical Thinking
-#     "The trolley problem is a thought experiment that asks",
-#     "Occam's Razor principle suggests that",
-#     "The difference between correlation and causation is important because",
-
-#     # Creative Writing
-#     "The detective examined the crime scene carefully. What she found was",
-#     "In a world where time travel was possible,",
-#     "The old lighthouse keeper had a secret:",
-
-#     # Problem Solving
-#     "If you need to sort a million records efficiently, the best algorithm would be",
-#     "To debug a memory leak in production, the first step is",
-#     "When designing a scalable web application, consider",
-
-#     # General Knowledge
-#     "The human brain processes information by",
-#     "Electric vehicles differ from traditional cars in that",
-#     "The Internet works by routing packets through",
-#     "Blockchain technology is primarily used for",
-
-#     # Reasoning & Logic
-#     "If all roses are flowers, and some flowers fade quickly, then",
-#     "The main flaw in the argument 'everyone does it, so it must be okay' is",
-# ]
-
-DEFAULT_PROMPTS = [
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-]
+DEFAULT_PROMPTS = ["Explain quantum mechanics."]
 
 
 # --------------------------------
@@ -469,7 +385,11 @@ def run_generate(
             if step == 0:
                 print("RUNNING PREFILL")
                 if is_interactive:
-                    print(f"Result: {formatted_prompts[0]}", end="", flush=True)
+                    print("=" * 80)
+                    print("PROMPT:")
+                    print(formatted_prompts[0])
+                    print("-" * 80)
+                    print("GENERATED:", end="", flush=True)
 
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
@@ -496,9 +416,15 @@ def run_generate(
     print()
     if not is_interactive:
         for i in range(num_users):
-            print(
-                f"Result for user {i}: {formatted_prompts[i]}{''.join(output_tokens[i])}"
-            )
+            print(f"=" * 80)
+            print(f"Result for user {i}:")
+            print(f"-" * 80)
+            print("PROMPT:")
+            print(formatted_prompts[i])
+            print(f"-" * 80)
+            print("GENERATED:")
+            print("".join(output_tokens[i]))
+            print(f"=" * 80)
             print()
 
 
