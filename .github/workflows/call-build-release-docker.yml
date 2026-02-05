@@ -28,7 +28,13 @@ on:
         value: ${{ jobs.build-release-docker.outputs.docker-image-base}}
 
 permissions:
+  contents: write
+  actions: write
+  id-token: write
   packages: write
+  checks: write
+  pages: write
+  attestations: write
 
 jobs:
   build-release-docker:
