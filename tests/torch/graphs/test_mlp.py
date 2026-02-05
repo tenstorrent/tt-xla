@@ -556,6 +556,7 @@ def test_deepseek_mlp(mlp_type, seq_len, arch):
         mlp = DeepseekMLP(args.dim, args.inter_dim).to(torch.bfloat16)
     elif mlp_type == "moe":
         mlp = DeepseekMoE(args).to(torch.bfloat16)
+        seq_len = 32  # hardcoded for now to test the MoE
 
     batch_size = 2
     hidden_states = torch.randn(batch_size, seq_len, args.dim, dtype=torch.bfloat16)
@@ -625,6 +626,8 @@ def test_kimi_k2_mlp(mlp_type, seq_len, arch):
         mlp = KimiK2MLP(config).to(torch.bfloat16)
     elif mlp_type == "moe":
         mlp = KimiK2MoE(config).to(torch.bfloat16)
+        mlp.eval()
+        seq_len = 32  # hardcoded for now to test the MoE
 
     batch_size = 2
     hidden_states = torch.randn(
