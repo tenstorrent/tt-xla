@@ -12,6 +12,11 @@ on:
         type: boolean
         required: true
         default: true
+      should_overwrite_release:
+        description: 'Should we overwrite an existing pypi wheel'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -65,63 +70,47 @@ jobs:
           pip install s3pypi
 
           echo "Uploading wheel to the pypi bucket"
-          echo "Fake upload of tt_forge*.whl"
+          echo "fake upload"
           # if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
           #   s3pypi upload tt_forge*.whl --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
           # else
           #   s3pypi upload tt_forge*.whl --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
           # fi
 
-      # - name: Build & push Docker image
-      #   shell: bash
-      #   id: build-docker
-      #   run: |
-      #     set -eo pipefail
-
-      #     project="tt-forge"
-      #     commit_tag="${{ github.sha }}"
-      #     version_tag="${{ inputs.release_tag }}"
-      #     latest_tag="latest"
-      #     if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
-      #       latest_tag="nightly-latest"
-      #     fi
-
-      #     .github/build-release-docker-image.sh $project $commit_tag | tee docker.log
-      #     docker_image=$(tail -n 1 docker.log)
-      #     docker_image_base=$(tail -n 2 docker.log | head -n 1)
-
-      #     echo "Pushing tags for $docker_image_base"
-      #     docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$latest_tag"
-      #     docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$version_tag"
-      #     docker push "$docker_image_base:$latest_tag"
-      #     docker push "$docker_image_base:$version_tag"
-
-      #     echo "docker_image_base=$docker_image_base" >> $GITHUB_OUTPUT
-
-      - name: Create and push tag if missing
+      - name: Build & push Docker image
         shell: bash
+        id: build-docker
         run: |
-          set -o pipefail
-          tag="${{ inputs.release_tag }}"
-          commit="${{ github.sha }}"
+          set -eo pipefail
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if git ls-remote --tags origin "refs/tags/$tag" | grep -q "$tag"; then
-            echo "Remote tag $tag already exists"
-          elif git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
-            echo "Tag $tag already exists"
-          else
-            git tag -a "$tag" -m "Release $tag" "$commit"
-            git push origin "refs/tags/$tag"
+          project="tt-forge"
+          commit_tag="${{ github.sha }}"
+          version_tag="${{ inputs.release_tag }}"
+          latest_tag="latest"
+          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
+            latest_tag="nightly-latest"
           fi
+
+          .github/build-release-docker-image.sh $project $commit_tag | tee docker.log
+          docker_image=$(tail -n 1 docker.log)
+          docker_image_base=$(tail -n 2 docker.log | head -n 1)
+
+          echo "Pushing tags for $docker_image_base"
+          # docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$latest_tag"
+          docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$version_tag"
+          # docker push "$docker_image_base:$latest_tag"
+          docker push "$docker_image_base:$version_tag"
+
+          echo "docker_image_base=$docker_image_base" >> $GITHUB_OUTPUT
 
       - name: Publish github release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release_tag }}
           generate_release_notes: true
+          token: ${{ secrets.TT_FORGE_RELEASER }}
+          repository: tenstorrent/tt-forge
+          prerelease: false
           draft: true
           body: |
             Install via pypi
