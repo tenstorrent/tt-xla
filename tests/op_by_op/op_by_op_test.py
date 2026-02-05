@@ -40,6 +40,7 @@ Command Line Arguments:
     --debug-print: Enable debug printing during operation execution (optional, default: False)
     --whitelist: Comma-separated list of ops to test (if set, only these ops are tested)
     --blacklist: Comma-separated list of ops to skip (ignored if whitelist is set)
+    --failed-ops-folder: Path to folder where MLIR modules of failed ops will be saved (optional, default: None)
 
 Note:
     - Each file should contain a MLIR module in StableHLO/TTIR/TTNN dialect
@@ -134,6 +135,7 @@ def test_op_by_op(request, whitelist, blacklist, record_property):
     compile_only = request.config.getoption("--compile-only")
     debug_print = request.config.getoption("--debug-print")
     ir_file_prefix = request.config.getoption("--ir-file-prefix")
+    failed_ops_folder = request.config.getoption("--failed-ops-folder")
 
     folder_path = Path(ir_folder)
 
@@ -185,9 +187,13 @@ def test_op_by_op(request, whitelist, blacklist, record_property):
     record_property("compile_only", compile_only)
     record_property("whitelist", whitelist if whitelist else None)
     record_property("blacklist", blacklist if blacklist else None)
+    record_property("failed_ops_folder", failed_ops_folder if failed_ops_folder else None)
 
     results = execute_extracted_ops(
-        filtered_ops, compile_only=compile_only, debug_print=debug_print
+        filtered_ops,
+        compile_only=compile_only,
+        debug_print=debug_print,
+        failed_ops_folder=failed_ops_folder,
     )
 
     for result in results:
