@@ -2474,25 +2474,15 @@ def test_deepseek_attention_module(seq_len, arch):
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        # TODO: double check shard specs
         def get_shard_spec(attention, args, kwargs):
             """Returns shard specifications for the layer's parameters."""
             shard_specs = {}
 
-            # Down projections (Compression) - Replicated
-            # These are standard Linear layers, so we map them to "batch" (replicated)
-            shard_specs[attention.wq_a.weight] = ("batch", "batch")
-
-            shard_specs[attention.wkv_a.weight] = ("batch", "batch")
-
-            # Up projections (Decompression to Heads) - Column Parallel
-            # Shard the output dimension (dim 0)
+            shard_specs[attention.wq_a.weight] = ("model", "batch")
             shard_specs[attention.wq_b.weight] = ("model", "batch")
-
+            shard_specs[attention.wkv_a.weight] = ("model", "batch")
             shard_specs[attention.wkv_b.weight] = ("model", "batch")
 
-            # Output projection - Row Parallel
-            # Shard the input dimension (dim 1)
             shard_specs[attention.wo.weight] = ("batch", "model")
 
             return shard_specs
@@ -2566,11 +2556,14 @@ def test_kimi_k2_attention_module(seq_len, arch):
             """Returns shard specifications for the layer's parameters."""
             shard_specs = {}
 
-            # TODO: Add layer norm shard specs too
-            shard_specs[attention.q_a_proj.weight] = ("model", "batch")
-            shard_specs[attention.q_b_proj.weight] = ("model", "batch")
+            if attention.q_lora_rank is None:
+                shard_specs[attention.q_proj.weight] = ("model", "batch")
+            else:
+                shard_specs[attention.q_a_proj.weight] = ("model", "batch")
+                shard_specs[attention.q_b_proj.weight] = ("model", "batch")
             shard_specs[attention.kv_a_proj_with_mqa.weight] = ("model", "batch")
             shard_specs[attention.kv_b_proj.weight] = ("model", "batch")
+
             shard_specs[attention.o_proj.weight] = ("batch", "model")
 
             return shard_specs
