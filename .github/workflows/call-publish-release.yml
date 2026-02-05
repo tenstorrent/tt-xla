@@ -72,7 +72,7 @@ jobs:
           fi
 
           echo "Pushing tags for $docker_image_base"
-          skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
+          # skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
           skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$version_tag"
 
       - name: Publish github release
