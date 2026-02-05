@@ -27,15 +27,6 @@ on:
         description: 'Built and pushed docker image'
         value: ${{ jobs.build-release-docker.outputs.docker-image-base}}
 
-permissions:
-  contents: write
-  actions: write
-  id-token: write
-  packages: write
-  checks: write
-  pages: write
-  attestations: write
-
 jobs:
   build-release-docker:
     name: Build tt-xla release Docker image
@@ -43,8 +34,6 @@ jobs:
     outputs:
       docker-image: ${{ steps.build-docker.outputs.docker-image }}
       docker-image-base: ${{ steps.build-docker.outputs.docker-image-base }}
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Fix workspace permissions issue
         run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
