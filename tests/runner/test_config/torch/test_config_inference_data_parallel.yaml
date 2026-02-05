@@ -15,7 +15,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  t5/pytorch-t5-small-data_parallel-inference:
+  t5/causal_lm/pytorch-t5-small-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -111,7 +111,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  squeezebert/pytorch-squeezebert-mnli-data_parallel-inference:
+  squeezebert/text_classification/pytorch-squeezebert-mnli-data_parallel-inference:
     supported_archs: [n300]
     status: KNOWN_FAILURE_XFAIL  # Affected by change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
     reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
@@ -350,7 +350,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  t5/pytorch-google/flan-t5-large-data_parallel-inference:
+  t5/causal_lm/pytorch-google/flan-t5-large-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -446,7 +446,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  ssd300_resnet50/pytorch-base-data_parallel-inference:
+  ssd300_resnet50/object_detection/pytorch-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -566,7 +566,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9587556719779968. Required: pcc=0.96 - https://github.com/tenstorrent/tt-xla/issues/2201"
 
-  t5/pytorch-google/flan-t5-base-data_parallel-inference:
+  t5/causal_lm/pytorch-google/flan-t5-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -678,7 +678,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.96
 
-  t5/pytorch-google/flan-t5-small-data_parallel-inference:
+  t5/causal_lm/pytorch-google/flan-t5-small-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -755,7 +755,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  t5/pytorch-t5-base-data_parallel-inference:
+  t5/causal_lm/pytorch-t5-base-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -834,7 +834,7 @@ test_config:
     bringup_status: INCORRECT_RESULT
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9898824691772461. Required: pcc=0.99 - http://github.com/tenstorrent/tt-xla/issues/1402"
 
-  t5/pytorch-t5-large-data_parallel-inference:
+  t5/causal_lm/pytorch-t5-large-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1125,7 +1125,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  stereo/pytorch-medium-data_parallel-inference:
+  stereo/text_to_speech/pytorch-medium-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
