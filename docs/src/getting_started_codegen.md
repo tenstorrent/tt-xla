@@ -249,8 +249,8 @@ You can also invoke code generation by hooking into the serialization infrastruc
 - Automated pipeline generation
 
 **Examples:**
-- PyTorch: [`examples/pytorch/custom_module.py`](../../examples/pytorch/codegen/custom_module.py
-- JAX: [`examples/jax/custom_module.py`](../../examples/jax/codegen/custom_module.py)
+- PyTorch: [`examples/pytorch/python/custom_module.py`](../../examples/pytorch/codegen/python/custom_module.py
+- JAX: [`examples/jax/python/custom_module.py`](../../examples/jax/codegen/python/custom_module.py)
 
 ---
 
