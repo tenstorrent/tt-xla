@@ -131,22 +131,20 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         Tests the model by running inference on multichip TT device and on CPU and comparing the
         results.
         """
-        self._compile_for_cpu(self.cpu_multichip_workload)
-        cpu_res = self._run_on_cpu()
-
-        self._compile_for_tt_device(self.tt_device_multichip_workload)
-        tt_res = self._run_on_tt_device()
-
         if request:
             if request.config.getoption(
                 "--serialize", False
             ) or request.node.get_closest_marker("filecheck"):
                 # Serialization requires mesh context for jax models with sharding operations, which is not currently handled.
-                import warnings
+                assert (
+                    False
+                ), "Serialization/filecheck not supported through JAX multichip model tester yet."
 
-                warnings.warn(
-                    "Serialization/filecheck is not yet supported through DynamicJaxMultiChipModelTester."
-                )
+        self._compile_for_cpu(self.cpu_multichip_workload)
+        cpu_res = self._run_on_cpu()
+
+        self._compile_for_tt_device(self.tt_device_multichip_workload)
+        tt_res = self._run_on_tt_device()
 
         return (self._compare(tt_res, cpu_res),)
 
