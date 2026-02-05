@@ -2285,9 +2285,9 @@ test_config:
     status: EXPECTED_PASSING
 
   detr/object_detection/pytorch-resnet_50-single_device-inference:
-    assert_pcc: false
+    # assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9024592638015747. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
+    # reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9024592638015747. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1776"
 
   sentencizer/pytorch-xlm-roberta-base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
