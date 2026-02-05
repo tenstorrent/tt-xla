@@ -41,7 +41,7 @@ jobs:
 
   build-release-docker:
     uses: ./.github/workflows/call-build-release-docker.yml
-    needs: [ build-ttxla ]
+    needs: [ publish-release-wheel, build-ttxla ]
     secrets: inherit
     with:
       wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
@@ -57,11 +57,11 @@ jobs:
   #   with:
   #     release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
 
-  # publish-release:
-  #   uses: ./.github/workflows/call-publish-release.yml
-  #   needs: [ build-release-docker ]
-  #   secrets: inherit
-  #   with:
-  #     release_tag: ${{ inputs.release_tag }}
-  #     docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}
-  #     is_nightly_release: true
+  publish-release:
+    uses: ./.github/workflows/call-publish-release.yml
+    needs: [ build-release-docker ]
+    secrets: inherit
+    with:
+      release_tag: ${{ inputs.release_tag }}
+      docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}
+      is_nightly_release: true
