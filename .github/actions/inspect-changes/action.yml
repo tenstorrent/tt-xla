@@ -103,6 +103,7 @@ runs:
                   only_run_forge_models=true
                   skip_build_and_test=false
                 fi
+              fi
             done
           fi
 
