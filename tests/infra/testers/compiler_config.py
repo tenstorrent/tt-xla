@@ -63,11 +63,6 @@ class CompilerConfig:
     # some models until https://github.com/tenstorrent/tt-mlir/pull/6198 lands.
     experimental_enable_permute_matmul_fusion: bool = True
 
-    # Enables hoisting const-eval subgraphs to CPU module. When enabled, const-eval
-    # operations are hoisted to be executed on the CPU instead of being executed
-    # on the device.
-    enable_const_eval_on_cpu: bool = True
-
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
@@ -111,9 +106,6 @@ class CompilerConfig:
 
         if not self.experimental_enable_permute_matmul_fusion:
             options["experimental_enable_permute_matmul_fusion"] = "false"
-
-        if self.enable_const_eval_on_cpu:
-            options["enable_const_eval_on_cpu"] = "true"
 
         if self.enable_trace:
             options["enable_trace"] = "true"
