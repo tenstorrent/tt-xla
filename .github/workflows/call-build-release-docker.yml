@@ -39,7 +39,7 @@ permissions:
 jobs:
   build-release-docker:
     name: Build tt-xla release Docker image
-    runs-on: builder
+    runs-on: ubuntu-latest
     outputs:
       docker-image: ${{ steps.build-docker.outputs.docker-image }}
       docker-image-base: ${{ steps.build-docker.outputs.docker-image-base }}
