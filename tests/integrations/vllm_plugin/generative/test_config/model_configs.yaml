@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # vLLM generative model test configurations.
-# marks: list of pytest marker names (e.g. push, single_device, nightly).
+# marks: list of pytest marker names (e.g. vllm_sweep, single_device).
 
 model_configs:
   opt-125m:  # PASSING
@@ -17,7 +17,7 @@ model_configs:
       min_context_len: 32
     prompts:
     - "Hello, my name is"
-    marks: [push, single_device]
+    marks: [vllm_sweep, single_device]
 
   opt-125m-multibatch:  # PASSING
     model: "facebook/opt-125m"
@@ -31,7 +31,7 @@ model_configs:
     prompts:
     - "Hello, my name is"
     - "Paris is the capital of"
-    marks: [push, single_device]
+    marks: [vllm_sweep, single_device]
 
   llama3-3b:  # PASSING
     model: "meta-llama/Llama-3.2-3B"
@@ -44,7 +44,7 @@ model_configs:
       min_context_len: 32
     prompts:
     - "I like taking walks in the"
-    marks: [nightly, single_device]
+    marks: [vllm_sweep, single_device]
 
   mistral-7b:  # Out of Memory
     model: "mistralai/Mistral-7B-v0.1"
@@ -57,7 +57,7 @@ model_configs:
       min_context_len: 32
     prompts:
     - "The future of AI is"
-    marks: [nightly, single_device]
+    marks: [vllm_sweep, single_device]
 
   qwen2-0.5b:  # PASSING
     model: "Qwen/Qwen2-0.5B"
@@ -70,7 +70,7 @@ model_configs:
       min_context_len: 32
     prompts:
     - "The capital of China is"
-    marks: [push, single_device]
+    marks: [vllm_sweep, single_device]
 
   gemma-2b:  # RuntimeError: Engine core initialization failed
     model: "google/gemma-2b"
@@ -83,7 +83,7 @@ model_configs:
       min_context_len: 32
     prompts:
     - "The meaning of life is"
-    marks: [push, single_device]
+    marks: [vllm_sweep, single_device]
 
   phi-2:  # PASSING
     model: "microsoft/phi-2"
@@ -96,7 +96,7 @@ model_configs:
       min_context_len: 32
     prompts:
     - "Write a poem about"
-    marks: [push, single_device]
+    marks: [vllm_sweep, single_device]
 
   falcon-7b:  # Out of Memory
     model: "tiiuae/falcon-7b"
@@ -109,7 +109,7 @@ model_configs:
       min_context_len: 32
     prompts:
     - "The best way to learn"
-    marks: [nightly, single_device]
+    marks: [vllm_sweep, single_device]
 
   qwen_2_5_causal_lm_pytorch_1_5b: # PASSING
     model: Qwen/Qwen2.5-1.5B
@@ -123,7 +123,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
 
   mamba_pytorch_mamba_790m_hf: #  ZeroDivisionError: integer division or modulo by zero
@@ -138,7 +138,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
 
   falcon_pytorch_tiiuae_falcon3_1b_base: # PASSING
@@ -153,7 +153,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   falcon_pytorch_tiiuae_falcon3_3b_base:
     model: tiiuae/Falcon3-3B-Base
@@ -167,7 +167,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   falcon_pytorch_tiiuae_falcon3_7b_base:
     model: tiiuae/Falcon3-7B-Base
@@ -181,7 +181,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   falcon_pytorch_tiiuae_falcon3_10b_base:
     model: tiiuae/Falcon3-10B-Base
@@ -195,7 +195,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   falcon_pytorch_tiiuae_falcon3_mamba_7b_base: # ZeroDivisionError: integer division or modulo by zero
     model: tiiuae/Falcon3-Mamba-7B-Base
@@ -209,7 +209,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   mamba_pytorch_mamba_1_4b_hf: # ZeroDivisionError: integer division or modulo by zero
     model: state-spaces/mamba-1.4b-hf
@@ -223,7 +223,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   mamba_pytorch_mamba_370m_hf:
     model: state-spaces/mamba-370m-hf
@@ -237,7 +237,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   nanogpt_pytorch_financialsupport_nanogpt: # Value error, No model architectures are specified
     model: FinancialSupport/NanoGPT
@@ -251,7 +251,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   mamba_pytorch_mamba_2_8b_hf:
     model: state-spaces/mamba-2.8b-hf
@@ -265,7 +265,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   mistral_pytorch_ministral_3b_instruct: # TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0) - (x=3,y=0)] grow to 1529120 B which is beyond max L1 size of 1499136 B
     model: ministral/Ministral-3b-instruct
@@ -279,7 +279,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   phi2_causal_lm_pytorch_microsoft_phi_2: # PASSING
     model: microsoft/phi-2
@@ -293,7 +293,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   phi2_causal_lm_pytorch_microsoft_phi_2_pytdml:
     model: microsoft/phi-2-pytdml
@@ -307,7 +307,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   phi1_5_causal_lm_pytorch_microsoft_phi_1_5:
     model: microsoft/phi-1_5
@@ -321,7 +321,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   opt_qa_pytorch_facebook_opt_125m: # PASSING
     model: facebook/opt-125m
@@ -335,7 +335,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   opt_qa_pytorch_facebook_opt_350m:
     model: facebook/opt-350m
@@ -349,7 +349,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   opt_causal_lm_pytorch_facebook_opt_125m: # PASSING
     model: facebook/opt-125m
@@ -363,7 +363,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   opt_causal_lm_pytorch_facebook_opt_350m:
     model: facebook/opt-350m
@@ -377,7 +377,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   deepcogito_pytorch_v1_preview_llama_3b: # PASSING
     model: deepcogito/cogito-v1-preview-llama-3B
@@ -391,7 +391,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   fuyu_pytorch_adept_fuyu_8b:
     model: adept/fuyu-8b
@@ -405,7 +405,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   phi1_causal_lm_pytorch_microsoft_phi_1:
     model: microsoft/phi-1
@@ -419,7 +419,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   opt_causal_lm_pytorch_facebook_opt_1_3b:
     model: facebook/opt-1.3b
@@ -433,7 +433,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   opt_qa_pytorch_facebook_opt_1_3b:
     model: facebook/opt-1.3b
@@ -447,7 +447,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_1_5_causal_lm_pytorch_0_5b:
     model: Qwen/Qwen1.5-0.5B
@@ -461,7 +461,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_1_5_causal_lm_pytorch_0_5b_chat:
     model: Qwen/Qwen1.5-0.5B-Chat
@@ -475,7 +475,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_3_causal_lm_pytorch_4b:
     model: Qwen/Qwen3-4B
@@ -489,7 +489,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_3_causal_lm_pytorch_1_7b:
     model: Qwen/Qwen3-1.7B
@@ -503,7 +503,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_2_5_coder_pytorch_3b:
     model: Qwen/Qwen2.5-Coder-3B
@@ -517,7 +517,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_3_causal_lm_pytorch_0_6b:
     model: Qwen/Qwen3-0.6B
@@ -531,7 +531,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_2_5_causal_lm_pytorch_3b:
     model: Qwen/Qwen2.5-3B
@@ -545,7 +545,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_2_5_causal_lm_pytorch_3b_instruct:
     model: Qwen/Qwen2.5-3B-Instruct
@@ -559,7 +559,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_2_5_coder_pytorch_3b_instruct:
     model: Qwen/Qwen2.5-Coder-3B-Instruct
@@ -573,7 +573,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_2_5_coder_pytorch_1_5b:
     model: Qwen/Qwen2.5-Coder-1.5B
@@ -587,7 +587,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_2_5_causal_lm_pytorch_1_5b_instruct:
     model: Qwen/Qwen2.5-1.5B-Instruct
@@ -601,7 +601,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_2_5_coder_pytorch_1_5b_instruct:
     model: Qwen/Qwen2.5-Coder-1.5B-Instruct
@@ -615,7 +615,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_2_5_coder_pytorch_0_5b:
     model: Qwen/Qwen2.5-Coder-0.5B
@@ -629,7 +629,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_2_5_causal_lm_pytorch_0_5b:
     model: Qwen/Qwen2.5-0.5B
@@ -643,7 +643,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   llama_causal_lm_pytorch_llama_3_2_1b:
     model: meta-llama/Llama-3.2-1B
@@ -657,7 +657,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   llama_causal_lm_pytorch_llama_3_2_3b:
     model: meta-llama/Llama-3.2-3B
@@ -671,7 +671,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   llama_causal_lm_pytorch_llama_3_2_1b_instruct:
     model: meta-llama/Llama-3.2-1B-Instruct
@@ -685,7 +685,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_2_5_causal_lm_pytorch_0_5b_instruct:
     model: Qwen/Qwen2.5-0.5B-Instruct
@@ -699,7 +699,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   llama_causal_lm_pytorch_llama_3_2_3b_instruct:
     model: meta-llama/Llama-3.2-3B-Instruct
@@ -713,7 +713,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   unet_for_conditional_generation_pytorch_base:
     model: stabilityai/stable-diffusion-xl-base-1.0
@@ -727,7 +727,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   deepseek_deepseek_coder_pytorch_1_3b_instruct:
     model: deepseek-ai/deepseek-coder-1.3b-instruct
@@ -741,7 +741,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   gemma_pytorch_google_gemma_1_1_2b_it:
     model: google/gemma-1.1-2b-it
@@ -755,7 +755,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   gpt2_pytorch_gpt2:
     model: gpt2
@@ -769,7 +769,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   gemma_pytorch_google_gemma_2_2b_it:
     model: google/gemma-2-2b-it
@@ -783,7 +783,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   gemma_pytorch_google_gemma_2b:
     model: google/gemma-2b
@@ -797,7 +797,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   phi3_phi_3_5_pytorch_mini_instruct:
     model: microsoft/Phi-3.5-mini-instruct
@@ -811,7 +811,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   gemma_pytorch_google_gemma_1_1_7b_it:
     model: google/gemma-1.1-7b-it
@@ -825,7 +825,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   phi4_causal_lm_pytorch_microsoft_phi_4:
     model: microsoft/phi-4
@@ -839,7 +839,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   phi3_causal_lm_pytorch_microsoft_phi_3_mini_128k_instruct:
     model: microsoft/Phi-3-mini-128k-instruct
@@ -853,7 +853,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   phi3_causal_lm_pytorch_microsoft_phi_3_mini_4k_instruct:
     model: microsoft/Phi-3-mini-4k-instruct
@@ -867,7 +867,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   huggyllama_pytorch_llama_7b:
     model: huggyllama/llama-7b
@@ -881,7 +881,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   llama_causal_lm_pytorch_huggyllama_7b:
     model: huggyllama/llama-7b
@@ -895,7 +895,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   llama_causal_lm_pytorch_llama_3_1_8b:
     model: meta-llama/Llama-3.1-8B
@@ -909,7 +909,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   llama_causal_lm_pytorch_llama_3_1_8b_instruct:
     model: meta-llama/Llama-3.1-8B-Instruct
@@ -923,7 +923,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   llama_causal_lm_pytorch_llama_3_8b:
     model: meta-llama/Meta-Llama-3-8B
@@ -937,7 +937,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   llama_causal_lm_pytorch_llama_3_8b_instruct:
     model: meta-llama/Meta-Llama-3-8B-Instruct
@@ -951,7 +951,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   mistral_pytorch_7b_instruct_v03:
     model: mistralai/Mistral-7B-Instruct-v0.3
@@ -965,7 +965,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_2_5_causal_lm_pytorch_14b_instruct:
     model: Qwen/Qwen2.5-14B-Instruct
@@ -979,7 +979,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_3_causal_lm_pytorch_14b:
     model: Qwen/Qwen3-14B
@@ -993,7 +993,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   qwen_3_causal_lm_pytorch_8b:
     model: Qwen/Qwen3-8B
@@ -1007,7 +1007,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   gemma_pytorch_google_gemma_2_9b_it:
     model: google/gemma-2-9b-it
@@ -1021,7 +1021,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   falcon_pytorch_tiiuae_falcon_7b_instruct:
     model: tiiuae/falcon-7b-instruct
@@ -1035,7 +1035,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   gemma_codegemma_pytorch_google_codegemma_2b:
     model: google/codegemma-2b
@@ -1049,7 +1049,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   llama_causal_lm_pytorch_tinyllama_v1_1:
     model: TinyLlama/TinyLlama_v1.1
@@ -1063,7 +1063,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   mistral_pytorch_mistral_nemo_instruct_2407:
     model: mistralai/Mistral-Nemo-Instruct-2407
@@ -1077,7 +1077,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   gemma_text_translation_pytorch_translategemma_4b_it:
     model: google/translategemma-4b-it
@@ -1091,7 +1091,7 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
   allam_causal_lm_pytorch_allam_7b_instruct:
     model: ALLaM-AI/ALLaM-7B-Instruct-preview
@@ -1105,5 +1105,5 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - push
+    - vllm_sweep
     - single_device
