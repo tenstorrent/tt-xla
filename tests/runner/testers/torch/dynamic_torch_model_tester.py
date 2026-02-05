@@ -80,8 +80,16 @@ class DynamicTorchModelTester(TorchModelTester):
             Input tensors loaded from the loader
         """
         # Extract seq_len and batch_size from test_metadata if available
-        seq_len = getattr(self._test_metadata, "seq_len", None) if self._test_metadata else None
-        batch_size = getattr(self._test_metadata, "batch_size", None) if self._test_metadata else None
+        seq_len = (
+            getattr(self._test_metadata, "seq_len", None)
+            if self._test_metadata
+            else None
+        )
+        batch_size = (
+            getattr(self._test_metadata, "batch_size", None)
+            if self._test_metadata
+            else None
+        )
 
         inputs = self.dynamic_loader.load_inputs(
             run_phase=self.run_phase,
