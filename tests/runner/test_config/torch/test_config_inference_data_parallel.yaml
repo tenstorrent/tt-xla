@@ -11,7 +11,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_s32_224-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_s32_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -47,7 +47,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_b32_224-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_b32_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -155,7 +155,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_github-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_github-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -205,7 +205,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_b16_224_miil-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224_miil-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -229,7 +229,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_s16_224-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_s16_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -270,7 +270,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mgp_str_base/pytorch-data_parallel-inference:
+  mgp_str_base/cv_image_fe/pytorch-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -299,7 +299,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_l32_224-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_l32_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -345,7 +345,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv2/pytorch-google/mobilenet_v2_1.0_224-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_1.0_224-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97
@@ -385,7 +385,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv1/pytorch-mobilenet_v1-data_parallel-inference:
+  mobilenetv1/image_classification/pytorch-mobilenet_v1-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -393,7 +393,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv1/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-data_parallel-inference:
+  mobilenetv1/image_classification/pytorch-mobilenetv1_100.ra4_e3600_r224_in1k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
@@ -437,7 +437,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv2/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-google/deeplabv3_mobilenet_v2_1.0_513-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -560,7 +560,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv2/pytorch-google/mobilenet_v2_0.35_96-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_0.35_96-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -624,7 +624,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_l16_224_in21k-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_l16_224_in21k-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -668,7 +668,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mobilenetv2/pytorch-google/mobilenet_v2_0.75_160-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-google/mobilenet_v2_0.75_160-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.96
@@ -751,7 +751,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  mobilenetv2/pytorch-mobilenet_v2-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-mobilenet_v2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -801,7 +801,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_b16_224-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -827,7 +827,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  mobilenetv2/pytorch-mobilenet_v2_torchvision-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-mobilenet_v2_torchvision-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
@@ -891,7 +891,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_b16_224_in21k-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224_in21k-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -935,7 +935,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  mobilenetv2/pytorch-mobilenetv2_100-data_parallel-inference:
+  mobilenetv2/image_classification/pytorch-mobilenetv2_100-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
@@ -1001,7 +1001,7 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
-  mlp_mixer/pytorch-mixer_b16_224_miil_in21k-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224_miil_in21k-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2433
@@ -1083,7 +1083,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mamba/pytorch-mamba-370m-hf-data_parallel-inference:
+  mamba/causal_lm/pytorch-mamba-370m-hf-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false # -0.0327 WH / 0.3821 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
     status: EXPECTED_PASSING
@@ -1104,7 +1104,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  mlp_mixer/pytorch-mixer_l16_224-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_l16_224-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -1116,7 +1116,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC decreased with inputs changes to 0.946 in BH / 0.887 in WH"
 
-  mlp_mixer/pytorch-mixer_b16_224.goog_in21k-data_parallel-inference:
+  mlp_mixer/lucidrains/pytorch-mixer_b16_224.goog_in21k-data_parallel-inference:
     supported_archs: [n300]
     assert_pcc: false
     status: EXPECTED_PASSING
@@ -1131,7 +1131,7 @@ test_config:
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.3149577673900601. Required: pcc=0.99"
 
-  mamba/pytorch-mamba-790m-hf-data_parallel-inference:
+  mamba/causal_lm/pytorch-mamba-790m-hf-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
