@@ -7,10 +7,6 @@ on:
         description: 'Release tag'
         type: string
         required: true
-      is_nightly_release:
-        description: 'Is the docker a nigthly release'
-        type: boolean
-        required: true
       docker_image_base:
         description: 'Released docker image base'
         type: string
@@ -67,11 +63,12 @@ jobs:
           version_tag="${{ inputs.release_tag }}"
 
           latest_tag="latest"
-          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
+          if [[ "$version_tag" == *dev* ]]; then
             latest_tag="nightly-latest"
           fi
 
           echo "Pushing tags for $docker_image_base"
+          echo "wanted to push this latest tag -> $latest_tag"
           # skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
           skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$version_tag"
 
