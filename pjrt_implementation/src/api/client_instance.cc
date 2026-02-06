@@ -13,6 +13,7 @@
 // c++ standard library includes
 #include <cstddef>
 #include <filesystem>
+#include <map>
 #include <optional>
 
 // tt-mlir includes
@@ -37,6 +38,12 @@ static std::string getRankBindingPath(const std::string &metal_home) {
   static std::unordered_map<std::string, std::string> rank_binding_paths = {
       {"2x4_multiprocess",
        "tests/tt_metal/distributed/config/2x4_multiprocess_rank_bindings.yaml"},
+      {"dual_bh_quietbox",
+       "tests/scale_out/4x_bh_quietbox/rank_bindings/2x4.yaml"},
+      {"dual_galaxy",
+       "tests/tt_metal/distributed/config/dual_galaxy_rank_bindings.yaml"},
+      {"quad_galaxy",
+       "tests/tt_metal/distributed/config/quad_galaxy_rank_bindings.yaml"},
   };
 
   const char *rank_binding = std::getenv("TT_DISTRIBUTED_RANK_BINDING");
@@ -85,6 +92,28 @@ static tt_pjrt_status launchDistributedRuntime() {
     DLOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
     return tt_pjrt_status::kInternal;
   }
+  const char *controller_host_name =
+      std::getenv("TT_DISTRIBUTED_CONTROLLER_HOST_NAME");
+  if (!controller_host_name) {
+    DLOG_F(
+        ERROR,
+        "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set");
+    return tt_pjrt_status::kInternal;
+  }
+
+  const char *hosts_list = std::getenv("TT_DISTRIBUTED_HOSTS_LIST");
+  if (!hosts_list) {
+    DLOG_F(ERROR, "TT_DISTRIBUTED_HOSTS_LIST environment variable is not set");
+    return tt_pjrt_status::kInternal;
+  }
+
+  std::vector<std::string> hosts_list_vec;
+  std::string host;
+  std::istringstream tokenStream(hosts_list);
+  while (std::getline(tokenStream, host, ',')) {
+    hosts_list_vec.push_back(host);
+  }
+
   tt::runtime::setMetalHome(metal_home);
 
   std::string rank_binding_path = getRankBindingPath(metal_home);
@@ -97,12 +126,26 @@ static tt_pjrt_status launchDistributedRuntime() {
     return tt_pjrt_status::kInternal;
   }
 
+  const char *plm_rsh_agent = std::getenv("TT_DISTRIBUTED_PLM_RSH_AGENT");
+  const char *btl_tcp_if_include =
+      std::getenv("TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE");
+  std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
+  if (btl_tcp_if_include) {
+    mca_options["btl_tcp_if_include"] = btl_tcp_if_include;
+  }
+  if (plm_rsh_agent) {
+    mca_options["plm_rsh_agent"] = plm_rsh_agent;
+  }
+
   tt::runtime::DistributedOptions distributed_options;
   distributed_options.mode = tt::runtime::DistributedMode::MultiProcess;
   distributed_options.workerPath = distributed_worker_path;
   distributed_options.multiProcessArgs =
       tt::runtime::MultiProcessArgs::create(rank_binding_path)
-          .withAllowRunAsRoot(true);
+          .withAllowRunAsRoot(true)
+          .withMcaOptions(mca_options)
+          .withControllerHostname(controller_host_name)
+          .withHosts(hosts_list_vec);
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
   tt::runtime::launchDistributedRuntime(distributed_options);
@@ -193,6 +236,7 @@ ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
   closeMeshDevice();
   std::remove(m_cached_system_descriptor_path.data());
+  loguru::flush();
 }
 
 PJRT_Error *ClientInstance::initialize() {
@@ -416,6 +460,7 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
 void ClientInstance::closeMeshDevice() {
   closeOptimizerSubmesh();
   closeParentMesh();
+  loguru::flush();
 }
 
 tt::runtime::Device
