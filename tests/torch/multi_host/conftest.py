@@ -92,13 +92,15 @@ def get_distributed_worker_path():
     First checks TT_DISTRIBUTED_WORKER_PATH environment variable.
     If not set, constructs path from TT_PJRT_PLUGIN_DIR or TTMLIR_TOOLCHAIN_DIR.
 
+    TT_PJRT_PLUGIN_DIR is valid for wheel build. For source build, it will be set but point to invalid path.
+    TT_MLIR_HOME is valid for source build inside activated venv, for local development.
+
     Returns:
         str: Path to the distributed worker binary
 
     Raises:
         AssertionError: If worker path is not set and cannot be constructed, or if path doesn't exist
     """
-    # Check if explicitly set
     worker_path = os.environ.get("TT_DISTRIBUTED_WORKER_PATH")
     if worker_path:
         assert os.path.exists(
@@ -106,30 +108,30 @@ def get_distributed_worker_path():
         ), f"Distributed worker file does not exist at path: {worker_path}"
         return worker_path
 
-    # Try TT_PJRT_PLUGIN_DIR first
     pjrt_plugin_dir = os.environ.get("TT_PJRT_PLUGIN_DIR")
     if pjrt_plugin_dir:
         worker_path = os.path.join(
             pjrt_plugin_dir, "bin/ttmlir/runtime/distributed/worker"
         )
-        assert os.path.exists(
-            worker_path
-        ), f"Distributed worker file does not exist at path: {worker_path}"
-        return worker_path
+        if not os.path.exists(worker_path):
+            logger.warning(
+                f"Distributed worker file does not exist at path: {worker_path}, based on TT_PJRT_PLUGIN_DIR. This may happen from a source built tt-xla."
+            )
+        else:
+            return worker_path
 
-    # Fallback to TTMLIR_TOOLCHAIN_DIR
-    toolchain_dir = os.environ.get("TTMLIR_TOOLCHAIN_DIR")
-    assert toolchain_dir, (
+    tt_mlir_home_dir = os.environ.get("TT_MLIR_HOME")
+    assert tt_mlir_home_dir, (
         "Neither TT_DISTRIBUTED_WORKER_PATH, TT_PJRT_PLUGIN_DIR, nor TTMLIR_TOOLCHAIN_DIR "
-        "environment variable is set"
+        "environment variable is set. The path to the distributed worker binary cannot be constructed."
     )
 
     worker_path = str(
-        Path(toolchain_dir) / "bin" / "ttmlir" / "runtime" / "distributed" / "worker"
+        Path(tt_mlir_home_dir) / "build" / "runtime" / "bin" / "distributed" / "worker"
     )
     assert os.path.exists(
         worker_path
-    ), f"Distributed worker file does not exist at path: {worker_path}"
+    ), f"Distributed worker file does not exist at path: {worker_path}, based on TT_MLIR_HOME."
 
     return worker_path
 
