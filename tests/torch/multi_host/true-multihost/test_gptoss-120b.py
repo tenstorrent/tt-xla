@@ -1,4 +1,4 @@
-# Based on @ddilbaz's original implementation
+# Copied from @ddilbaz's original implementation
 # The purpose of this test is to show E2E execution of 120B GPT-OSS model on dual BH QB
 # Need to merge changes from https://github.com/tenstorrent/tt-forge-models/pull/426/files
 
