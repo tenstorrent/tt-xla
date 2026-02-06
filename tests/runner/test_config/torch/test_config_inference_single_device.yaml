@@ -1533,14 +1533,14 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
 
-  mistral/pixtral/pytorch-single_device-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip" # (mistral-community/pixtral-12b is 12B param model)
-        bringup_status: FAILED_RUNTIME
+  # mistral/pixtral/pytorch-single_device-inference:
+  #   assert_pcc: false
+  #   status: EXPECTED_PASSING
+  #   arch_overrides:
+  #     n150:
+  #       status: NOT_SUPPORTED_SKIP
+  #       reason: "Too large for single chip" # (mistral-community/pixtral-12b is 12B param model)
+  #       bringup_status: FAILED_RUNTIME
 
   phi4/causal_lm/pytorch-microsoft/phi-4-single_device-inference:
     supported_archs: ["p150"] # Run as tensor_parallel for wormhole (14B param model).
@@ -2660,3 +2660,9 @@ test_config:
   vocoder_speecht5/pytorch-hifigan-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # PCC < 0.1, tracking issue https://github.com/tenstorrent/tt-xla/issues/3064
+
+
+  mistral/pixtral/pytorch-pixtral-12b-single_device-inference:
+      supported_archs: ["p150"]
+      status: EXPECTED_PASSING
+      markers: [testing]
