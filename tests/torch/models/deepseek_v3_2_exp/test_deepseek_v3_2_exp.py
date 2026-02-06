@@ -102,14 +102,14 @@ def test_deepseek_complex_rotary_emb():
 
 def test_deepseek_attention_prefill():
     xr.set_device_type("TT")
-    args = ModelArgs(n_layers=1, q_lora_rank=3072, max_batch_size=64)
+    batch_size = 64
+    seq_len = 32
+    args = ModelArgs(n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len*2)
 
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
     attention = model.layers[0].attn
 
-    batch_size = 64
-    seq_len = 32
     hidden_states = torch.randn(
         (batch_size, seq_len, args.dim), dtype=torch.bfloat16
     )
