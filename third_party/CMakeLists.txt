@@ -5,7 +5,15 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "4ee1b7aef867d535d4fe18d4c3f2aaf2fad99592")
+    # from hshah/all-slice-6505-ttir-new-metal mesh_partition path
+    # set(TT_MLIR_VERSION "08accf4e73916f4245b8a3f98722d9834a7f2d03")
+    # from hshah/all-slice-6505-ttir mesh_partition path
+    set(TT_MLIR_VERSION "05c7b9a53f9e22f205cb4421639195cf7ddfa3c2")
+    # from hshah/all-slice-6505 mesh_shard path
+    # set(TT_MLIR_VERSION "8d9eece58fd23c2d7e3b66d957459d49ecb600af")
+    # on main
+    # set(TT_MLIR_VERSION "975b80cb68a4367f71e4d94e744af7ca0ee4eff5")
+    # set(TT_MLIR_VERSION "4ee1b7aef867d535d4fe18d4c3f2aaf2fad99592")
 endif()
 
 set(PROTOBUF_VERSION "v21.12") # same version as tt-metal uses
