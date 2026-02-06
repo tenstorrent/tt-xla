@@ -51,17 +51,17 @@ jobs:
       wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
       wheel_version_override: ${{ needs.publish-release-wheel.outputs.release_tag }}
 
-  # release-tests:
-  #   uses: ./.github/workflows/call-release-tests.yml
-  #   needs: [ build-release-docker ]
-  #   secrets: inherit
-  #   with:
-  #     release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
+  release-tests:
+    uses: ./.github/workflows/call-release-tests.yml
+    needs: [ build-release-docker ]
+    secrets: inherit
+    with:
+      release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
 
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
-    # needs: [ publish-release-wheel, release-tests ]
-    needs: [ publish-release-wheel ]
+    if: always()
+    needs: [ publish-release-wheel, release-tests ]
     secrets: inherit
     with:
       release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}
