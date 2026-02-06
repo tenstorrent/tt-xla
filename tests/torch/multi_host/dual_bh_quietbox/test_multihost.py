@@ -76,3 +76,4 @@ def test_simple_distributed_addition():
     )
     comparator = TorchComparisonEvaluator(comparison_config)
     comparator.evaluate(output.cpu(), expected_output)
+    print(output)
