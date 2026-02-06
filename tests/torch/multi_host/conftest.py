@@ -29,7 +29,7 @@ class MultihostConfiguration:
             containing the rank-to-device mapping for this topology. This is used
             by the MPI runtime to assign devices to processes across hosts.
             Maps to: TT_DISTRIBUTED_RANK_BINDING
-            Examples: "quad_galaxy", "2x4_double_bhqbae"
+            Examples: "quad_galaxy", "dual_bh_quietbox"
 
         controller_host_name: The hostname of the controller/coordinator node that
             orchestrates the distributed execution. This is typically the first host
@@ -76,7 +76,7 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         btl_tcp_if_include="cnx1",
     ),
     "dual_bh_quietbox": MultihostConfiguration(
-        rank_binding="2x4_double_bhqbae",
+        rank_binding="dual_bh_quietbox",
         controller_host_name="forge-qbae-01",
         hosts_list="forge-qbae-01,forge-qbae-02",
         btl_tcp_if_include="enp10s0f1np1",
