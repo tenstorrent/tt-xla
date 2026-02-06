@@ -925,6 +925,11 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     options.computeCfgMathFidelity = math_fidelity;
   }
 
+  // By default, we disable fp32 dest accumulation for optimization level > 0.
+  if (compile_options.optimization_level > 0) {
+    options.computeCfgFp32DestAccEn = false;
+  }
+
   if (compile_options.fp32_dest_acc_en.has_value()) {
     options.computeCfgFp32DestAccEn = compile_options.fp32_dest_acc_en.value();
   }
