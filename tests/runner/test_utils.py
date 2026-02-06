@@ -129,6 +129,7 @@ class ModelTestConfig:
 
         # Misc arguments used in test
         self.batch_size = self._resolve("batch_size", default=None)
+        self.seq_len = self._resolve("seq_len", default=None)
 
         # Arguments to skip_full_eval_test() for skipping tests
         self.reason = self._resolve("reason", default=None)
@@ -618,6 +619,8 @@ def record_model_test_properties(
         ),
         "parallelism": str(parallelism),
         "arch": arch,
+        "seq_len": getattr(test_metadata, "seq_len", None),
+        "batch_size": getattr(test_metadata, "batch_size", None),
     }
 
     # Add model size (in billions of parameters) to tags if available
