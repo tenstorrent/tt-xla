@@ -16,6 +16,7 @@ import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers.utils.quantization_config import Mxfp4Config
 
 
 def test_gpt_oss_120b():
@@ -27,13 +28,14 @@ def test_gpt_oss_120b():
     device: torch.device = torch_xla.device()
     mesh: Mesh = create_device_mesh()
 
+    quantization_config = Mxfp4Config(dequantize=True)
     config = AutoConfig.from_pretrained("openai/gpt-oss-120b", trust_remote_code=True)
-    config.quantization_config["quant_method"] = "none"
     config.use_cache = False
     config.num_hidden_layers = 8
     model = AutoModelForCausalLM.from_pretrained(
         "openai/gpt-oss-120b",
         config=config,
+        quantization_config=quantization_config,
         torch_dtype=torch.bfloat16,
         low_cpu_mem_usage=True,
         trust_remote_code=True,
