@@ -164,7 +164,7 @@ test_config:
 
   attention_denseunet/pytorch-base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "TT_FATAL: Output size cannot fit input with offset during TT compile/runtime – tracked in issue https://github.com/tenstorrent/tt-xla/issues/2293"
+    # reason: "TT_FATAL: Output size cannot fit input with offset during TT compile/runtime – tracked in issue https://github.com/tenstorrent/tt-xla/issues/2293"
 
   mnist/image_classification/pytorch-cnn_dropout-single_device-inference:
     status: EXPECTED_PASSING
