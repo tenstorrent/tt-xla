@@ -162,8 +162,6 @@ def setup_distributed_env():
             )
 
         topo = TOPOLOGIES[topology]
-        remote_script = str(script_dir / topo.remote_script_name)
-
         # Variables to set
         env_vars = {
             "TT_RUNTIME_ENABLE_DISTRIBUTED": "1",
@@ -172,9 +170,13 @@ def setup_distributed_env():
             "TT_DISTRIBUTED_CONTROLLER_HOST_NAME": topo.controller_host_name,
             "TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE": topo.btl_tcp_if_include,
             "TT_DISTRIBUTED_HOSTS_LIST": topo.hosts_list,
-            "TT_DISTRIBUTED_PLM_RSH_AGENT": remote_script,
         }
 
+        # TT_DISTRIBUTED_PLM_RSH_AGENT is only needed for container to container tests
+        if topo.remote_script_name:
+            env_vars["TT_DISTRIBUTED_PLM_RSH_AGENT"] = str(
+                script_dir / topo.remote_script_name
+            )
         # Set environment variables
         for key, value in env_vars.items():
             original_values[key] = os.environ.get(key)
