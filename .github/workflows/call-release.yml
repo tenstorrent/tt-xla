@@ -22,7 +22,7 @@ on:
     outputs:
       release_tag:
         description: 'Release tag'
-        value: ${{ jobs.publish-release-wheel.outputs.release-tag }}
+        value: ${{ jobs.publish-release-wheel.outputs.release_tag }}
 
 permissions:
   contents: write
