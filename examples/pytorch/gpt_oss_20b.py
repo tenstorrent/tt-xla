@@ -273,6 +273,9 @@ def disable_sliding_window_attention(
     "full_attention" before passing the config to create the StaticCache, we can
     ensure the cache only has simple StaticLayer and avoid recompilation.
 
+    See https://github.com/tenstorrent/tt-xla/issues/3186 for progress on properly
+    running sliding window attention.
+
     Args:
         config: Model configuration with layer_types attribute
 
