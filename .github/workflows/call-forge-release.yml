@@ -7,11 +7,6 @@ on:
         description: "Release tag"
         type: string
         required: true
-      is_nightly_release:
-        description: "Is release a nigthly"
-        type: boolean
-        required: true
-        default: true
       should_overwrite_release:
         description: 'Should we overwrite an existing pypi wheel'
         type: boolean
