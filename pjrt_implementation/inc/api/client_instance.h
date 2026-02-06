@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_CLIENT_INSTANCE_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_CLIENT_INSTANCE_H_
+
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // c++ standard library includes
@@ -23,9 +26,6 @@
 #include "api/loaded_executable_instance.h"
 #include "api/memory_instance.h"
 #include "utils/status.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_CLIENT_INSTANCE_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_CLIENT_INSTANCE_H_
 
 namespace tt::pjrt {
 

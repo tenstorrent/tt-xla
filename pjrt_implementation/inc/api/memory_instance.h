@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_MEMORY_INSTANCE_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_MEMORY_INSTANCE_H_
+
 // c++ standard library includes
 #include <memory>
 #include <string>
@@ -15,9 +18,6 @@
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_MEMORY_INSTANCE_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_MEMORY_INSTANCE_H_
 
 namespace tt::pjrt {
 
