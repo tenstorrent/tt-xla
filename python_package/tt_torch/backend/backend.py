@@ -246,8 +246,9 @@ def _build_boxed_executor(
 
 def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
     """
-    Rewrite call_module nodes targeting AdaptiveAvgPool2d with output_size=(1, 1)
-    to use torch.mean instead. This avoids issues with AOTAutograd tracing.
+    Rewrite call_module nodes targeting AdaptiveAvgPool1d/2d with output_size=1/(1,1)
+    to use torch.mean instead. This avoids issues with AOTAutograd tracing
+    where as_strided_ inside adaptive pooling fails on XLA tensors.
     """
     graph = gm.graph
     modified = False
@@ -255,7 +256,19 @@ def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.Graph
     for node in list(graph.nodes):
         if node.op == "call_module" and isinstance(node.target, str):
             target_module = gm.get_submodule(node.target)
-            if isinstance(target_module, torch.nn.AdaptiveAvgPool2d):
+            if isinstance(target_module, torch.nn.AdaptiveAvgPool1d):
+                output_size = target_module.output_size
+                if output_size == 1 or output_size == (1,) or output_size == [1]:
+                    with graph.inserting_after(node):
+                        mean_node = graph.call_function(
+                            torch.mean,
+                            args=(node.args[0],),
+                            kwargs={"dim": [-1], "keepdim": True},
+                        )
+                        node.replace_all_uses_with(mean_node)
+                        graph.erase_node(node)
+                        modified = True
+            elif isinstance(target_module, torch.nn.AdaptiveAvgPool2d):
                 output_size = target_module.output_size
                 # Check if this is global average pooling (output_size is 1 or (1, 1))
                 if output_size == 1 or output_size == (1, 1) or output_size == [1, 1]:
