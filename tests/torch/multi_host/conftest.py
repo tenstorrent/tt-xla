@@ -75,6 +75,12 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         hosts_list="g05glx01,g05glx02,g05glx03,g05glx04",
         btl_tcp_if_include="cnx1",
     ),
+    "dual_galaxy": MultihostConfiguration(
+        rank_binding="dual_galaxy",
+        controller_host_name="g14glx03",
+        hosts_list="g14glx03,g14glx04",
+        btl_tcp_if_include="cnx1",
+    ),
     "dual_bh_quietbox": MultihostConfiguration(
         rank_binding="dual_bh_quietbox",
         controller_host_name="forge-qbae-01",
