@@ -19,7 +19,8 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 
 def test_gpt_oss_120b():
-
+    # By default torch_xla uses the CPU device so we have to set it to TT device.
+    xr.set_device_type("TT")
     setup_spmd()
 
     # Connect the device and create an xla mesh.
@@ -84,9 +85,10 @@ def test_gpt_oss_120b():
     print(f"Full text: {full_text}")
 
     print("GPT-OSS tensor parallel test completed successfully.")
-    
+
     # Flush logs to ensure all loguru logs are written
     import sys
+
     sys.stdout.flush()
     sys.stderr.flush()
 
@@ -189,6 +191,4 @@ def create_device_mesh() -> Mesh:
 
 
 if __name__ == "__main__":
-    # By default torch_xla uses the CPU device so we have to set it to TT device.
-    xr.set_device_type("TT")
     test_gpt_oss_120b()

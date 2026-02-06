@@ -62,8 +62,8 @@ class MultihostConfiguration:
     rank_binding: str
     controller_host_name: str
     hosts_list: str
-    remote_script_name: str = "remote_docker.sh"
     btl_tcp_if_include: str
+    remote_script_name: str = "remote_docker.sh"
 
 
 # Predefined topology configurations
