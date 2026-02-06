@@ -7,13 +7,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import sys
 
 import numpy as np
 import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra import Framework, run_graph_test
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from transformers.utils.quantization_config import Mxfp4Config
@@ -31,7 +31,6 @@ def test_gpt_oss_120b():
     quantization_config = Mxfp4Config(dequantize=True)
     config = AutoConfig.from_pretrained("openai/gpt-oss-120b", trust_remote_code=True)
     config.use_cache = False
-    config.num_hidden_layers = 8
     model = AutoModelForCausalLM.from_pretrained(
         "openai/gpt-oss-120b",
         config=config,
@@ -88,15 +87,7 @@ def test_gpt_oss_120b():
 
     print("GPT-OSS tensor parallel test completed successfully.")
 
-    # Flush logs to ensure all loguru logs are written
-    import sys
-
-    sys.stdout.flush()
-    sys.stderr.flush()
-
-    # Flush logs to ensure all loguru logs are written
-    import sys
-
+    # Flush logs to ensure result is printed
     sys.stdout.flush()
     sys.stderr.flush()
 
