@@ -163,9 +163,17 @@ private:
   tt_pjrt_status populateDevices();
   tt_pjrt_status populateMemories();
 
+  // Computes the appropriate fabric config for the given mesh shape based on
+  // the system descriptor's chip channels and coordinates. Returns FABRIC_1D_RING
+  // if all rows and columns have wraparound connections, otherwise FABRIC_1D.
+  // Returns DISABLED for single-chip configurations.
+  tt::runtime::FabricConfig
+  computeFabricConfig(const std::vector<uint32_t> &mesh_shape);
+
   // Wrapper method around `tt::runtime::openMeshDevice` that also handles
-  // setting fabric config when needed.
-  tt::runtime::Device openMeshDevice(const std::vector<uint32_t> &mesh_shape);
+  // setting fabric config.
+  tt::runtime::Device openMeshDevice(const std::vector<uint32_t> &mesh_shape,
+                                     tt::runtime::FabricConfig fabric_config);
 
   // Process index of this client. Always 0 in single-process settings.
   int m_process_index;
@@ -208,6 +216,10 @@ private:
 
   // Currently in-use mesh device.
   std::optional<tt::runtime::Device> m_parent_mesh;
+
+  // Current fabric config for the mesh device.
+  tt::runtime::FabricConfig m_current_fabric_config =
+      tt::runtime::FabricConfig::FABRIC_1D;
 
   // Optimizer submesh device (created from m_parent_mesh for optimizer passes).
   std::optional<tt::runtime::Device> m_optimizer_submesh;
