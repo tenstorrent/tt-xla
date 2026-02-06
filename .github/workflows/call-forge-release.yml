@@ -87,7 +87,7 @@ jobs:
           commit_tag="${{ github.sha }}"
           version_tag="${{ inputs.release_tag }}"
           latest_tag="latest"
-          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
+          if [[ "$version_tag" == *dev* ]]; then
             latest_tag="nightly-latest"
           fi
 
@@ -96,6 +96,7 @@ jobs:
           docker_image_base=$(tail -n 2 docker.log | head -n 1)
 
           echo "Pushing tags for $docker_image_base"
+          echo "wanted to push this latest tag -> $latest_tag"
           # docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$latest_tag"
           docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$version_tag"
           # docker push "$docker_image_base:$latest_tag"
