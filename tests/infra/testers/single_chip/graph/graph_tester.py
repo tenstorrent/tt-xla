@@ -48,6 +48,7 @@ def run_graph_test(
     mesh: Optional[Mesh] = None,
     shard_spec_fn: Optional[Callable] = None,
     torch_options: dict = None,
+    request=None,
 ) -> None:
     """
     Tests `graph` with `inputs` by running it on TT device and CPU and comparing the
@@ -60,7 +61,7 @@ def run_graph_test(
         )
     else:
         workload = Workload(framework=framework, executable=graph, args=inputs)
-    tester.test(workload)
+    tester.test(workload, request=request)
 
 
 def run_graph_test_with_random_inputs(
@@ -70,10 +71,11 @@ def run_graph_test_with_random_inputs(
     framework: Framework = Framework.JAX,
     dtype: str | DTypeLike | torch.dtype = "float32",
     torch_options: dict = None,
+    request=None,
 ) -> None:
     """
     Tests `graph` with random inputs by running it on TT device and CPU and comparing
     the results based on `comparison_config`.
     """
     tester = GraphTester(comparison_config, framework, torch_options=torch_options)
-    tester.test_with_random_inputs(graph, input_shapes, dtype=dtype)
+    tester.test_with_random_inputs(graph, input_shapes, dtype=dtype, request=request)
