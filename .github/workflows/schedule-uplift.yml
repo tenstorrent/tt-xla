@@ -83,7 +83,7 @@ jobs:
           commit-message: "Uplift ${{ env.TT_MLIR_SUBMODULE_PATH }} to ${{ env.LATEST_TT_MLIR_VERSION }} ${{ env.TODAY }}"
           title: "Uplift ${{ env.TT_MLIR_SUBMODULE_PATH }} to ${{ env.LATEST_TT_MLIR_VERSION }} ${{ env.TODAY }}"
           body: "This PR uplifts the ${{ env.TT_MLIR_SUBMODULE_PATH }} to the ${{ env.LATEST_TT_MLIR_VERSION }}"
-          labels: uplift
+          labels: uplift-mlir
           delete-branch: true
           token: ${{ secrets.GH_TOKEN }}
 

@@ -31,6 +31,7 @@ Correct usage pattern:
     nodes_info = extract_nodes_info(graph)  # Extract after finalization
 
 """
+
 import ast
 import os
 import types
@@ -206,7 +207,7 @@ def _extract_source_and_module_hierarchy_info(
     #
     # Case 2:
     # node.meta["stack_trace"].strip().split("\n")
-    # 0 = 'File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/custom_module.py", line 33, in forward'
+    # 0 = 'File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/python/custom_module.py", line 33, in forward'
     # 1 = '    return torch.sum(x**2)'
     # 2 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/python_package/tt_torch/torch_overrides.py", line 22, in __torch_function__'
     # 3 = '    return func(*args, **(kwargs or {}))'
@@ -218,7 +219,7 @@ def _extract_source_and_module_hierarchy_info(
     # ====
     #
     # Case 3:
-    # 0 = 'File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/custom_module.py", line 33, in forward'
+    # 0 = 'File "/localdev/svuckovic/_workspace/repos/tt-xla/examples/pytorch/codegen/python/custom_module.py", line 33, in forward'
     # 1 = '    return torch.sum(x**2)'
     # 2 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/python_package/tt_torch/torch_overrides.py", line 22, in __torch_function__'
     # 3 = '    return func(*args, **(kwargs or {}))'

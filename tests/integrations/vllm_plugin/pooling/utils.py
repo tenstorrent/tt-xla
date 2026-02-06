@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
@@ -8,53 +8,20 @@ import torch
 import vllm
 
 
-@pytest.mark.push
-@pytest.mark.single_device
-@pytest.mark.parametrize(
-    ["model_name", "baseline_path", "optimization_level"],
-    [
-        pytest.param(
-            "BAAI/bge-m3",
-            "baseline/bge_m3_baseline.pt",
-            0,
-        ),
-        pytest.param(
-            "Qwen/Qwen3-Embedding-0.6B",
-            "baseline/qwen3_embedding_0.6B_baseline.pt",
-            1,
-        ),
-    ],
-)
-@pytest.mark.parametrize(
-    "batch_size, max_num_seqs, max_num_batched_tokens",
-    [
-        (2, 2, 64),
-        (4, 4, 128),
-    ],
-)
-def test_batched_inference(
+def run_pooling_test(
     model_name: str,
-    baseline_path: str,
-    optimization_level: int,
-    batch_size: int,
-    max_num_seqs: int,
-    max_num_batched_tokens: int,
+    baseline_path,
+    max_model_len: int,
+    experimental_enable_weight_bfp8_conversion: bool = False,
+    enable_tensor_parallel: bool = False,
+    enable_data_parallel: bool = False,
+    min_context_len: int = 128,
+    enable_const_eval: bool = True,
+    batch_size: int = 1,
+    max_num_reqs: int = 2,
+    max_num_batched_tokens: int = 128,
+    optimization_level: int = 0,
 ):
-    """
-    Test multi-batched inputs. Runner will create inputs of shape [batch_size x input_len]
-    - BGE-m3: Model with encoder-only attention layers.
-    - Qwen3-Embedding-4B: Model with decoder-only attention layers.
-    Note:
-      - max_model_len * max_num_seqs <= max_num_batched_tokens
-      - max_num_reqs == batch_size
-
-    - Baseline embeddings are computed using vLLM on CPU backend.
-    """
-    if model_name == "Qwen/Qwen3-Embedding-0.6B" and batch_size == 2:
-        pytest.skip(
-            "Skipping due to non-deterministic failure in CI. Issue: https://github.com/tenstorrent/tt-xla/issues/3094"
-        )
-
     path = os.path.join(os.path.dirname(__file__), baseline_path)
     loaded_data = torch.load(path)
 
@@ -68,11 +35,16 @@ def test_batched_inference(
         "model": model_name,
         "task": "embed",
         "dtype": "bfloat16",
-        "max_model_len": 64,
+        "max_model_len": max_model_len,
         "disable_sliding_window": True,
         "max_num_batched_tokens": max_num_batched_tokens,
-        "max_num_seqs": max_num_seqs,
+        "max_num_seqs": max_num_reqs,
         "additional_config": {
+            "experimental_enable_weight_bfp8_conversion": experimental_enable_weight_bfp8_conversion,
+            "enable_tensor_parallel": enable_tensor_parallel,
+            "enable_data_parallel": enable_data_parallel,
+            "min_context_len": min_context_len,
+            "enable_const_eval": enable_const_eval,
             "batch_size": batch_size,
             "optimization_level": optimization_level,
         },

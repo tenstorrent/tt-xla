@@ -85,9 +85,14 @@ def training_tester() -> ResnetTester:
         pytest.param(
             "bfp8",
             0,
-            marks=pytest.mark.xfail(
-                reason="ttnn.maximum not supported for bfp8. This op should be fused to ReLU. Tracking mlir issue: https://github.com/tenstorrent/tt-mlir/issues/5329 "
-            ),
+            marks=[
+                pytest.mark.skip(
+                    reason="Never finishes execution. Tracking issue: https://github.com/tenstorrent/tt-xla/issues/3163"
+                ),
+                pytest.mark.record_test_properties(
+                    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+                ),
+            ],
         ),
         pytest.param(
             "bfloat16",
