@@ -26,25 +26,24 @@ def validate_yaml_file(yaml_file: Path, schema: dict) -> bool:
         if not data:
             print(f"Empty YAML file {yaml_file}")
             return False
-
-        # Validate against schema
-        try:
-            validate(instance=data, schema=schema)
-            return True
-        except ValidationError as e:
-            # Format the error message
-            path = " -> ".join(str(p) for p in e.path) if e.path else "root"
-            print(f"Validation error at {path}: {e.message}")
-            return False
-        except Exception as e:
-            print(f"Schema validation error: {e}")
-            return False
-
     except yaml.YAMLError as e:
         print(f"YAML parsing error: {e}")
         return False
     except Exception as e:
         print(f"Error reading file: {e}")
+        return False
+
+    # Validate against schema
+    try:
+        validate(instance=data, schema=schema)
+        return True
+    except ValidationError as e:
+        # Format the error message
+        path = " -> ".join(str(p) for p in e.path) if e.path else "root"
+        print(f"Validation error at {path}: {e.message}")
+        return False
+    except Exception as e:
+        print(f"Schema validation error: {e}")
         return False
 
 
