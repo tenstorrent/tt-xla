@@ -44,9 +44,9 @@ class MultihostConfiguration:
         remote_script_name: Name of the shell script used by MPI as the plm_rsh_agent
             to execute commands on remote hosts. This script handles SSH and docker
             exec commands to launch worker processes on each host.
-            
+
             Only necessary for container to container tests.
-            
+
             Maps to: TT_DISTRIBUTED_PLM_RSH_AGENT (via script_dir / remote_script_name)
             Default: "remote_docker.sh"
 
@@ -54,7 +54,7 @@ class MultihostConfiguration:
             layer (BTL) TCP communication between hosts. This controls which network
             interface MPI uses for inter-host data transfer.
             Maps to: TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE
-            
+
             "cnx1" for aus galaxies
             "enp10s0f1np1" for quietboxes
     """
@@ -76,7 +76,7 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
     "dual_bh_quietbox": MultihostConfiguration(
         rank_binding="2x4_double_bhqbae",
         controller_host_name="forge-bh-01",
-        hosts_list="forge-bh-01,forge-bh-02",
+        hosts_list="forge-qbae-01,forge-qbae-02",
     ),
 }
 
@@ -97,9 +97,9 @@ def get_distributed_worker_path():
     # Check if explicitly set
     worker_path = os.environ.get("TT_DISTRIBUTED_WORKER_PATH")
     if worker_path:
-        assert os.path.exists(worker_path), (
-            f"Distributed worker file does not exist at path: {worker_path}"
-        )
+        assert os.path.exists(
+            worker_path
+        ), f"Distributed worker file does not exist at path: {worker_path}"
         return worker_path
 
     # Try TT_PJRT_PLUGIN_DIR first
@@ -108,9 +108,9 @@ def get_distributed_worker_path():
         worker_path = os.path.join(
             pjrt_plugin_dir, "bin/ttmlir/runtime/distributed/worker"
         )
-        assert os.path.exists(worker_path), (
-            f"Distributed worker file does not exist at path: {worker_path}"
-        )
+        assert os.path.exists(
+            worker_path
+        ), f"Distributed worker file does not exist at path: {worker_path}"
         return worker_path
 
     # Fallback to TTMLIR_TOOLCHAIN_DIR
@@ -123,9 +123,9 @@ def get_distributed_worker_path():
     worker_path = str(
         Path(toolchain_dir) / "bin" / "ttmlir" / "runtime" / "distributed" / "worker"
     )
-    assert os.path.exists(worker_path), (
-        f"Distributed worker file does not exist at path: {worker_path}"
-    )
+    assert os.path.exists(
+        worker_path
+    ), f"Distributed worker file does not exist at path: {worker_path}"
 
     return worker_path
 
