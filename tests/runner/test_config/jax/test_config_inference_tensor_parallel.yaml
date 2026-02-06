@@ -38,14 +38,14 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/jax-0_5b-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Currently failing - https://github.com/tenstorrent/tt-xla/issues/3001. Severe PCC comparison failed: pcc=-0.011 < 0.99 required"
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    reason: "Severe PCC comparison failed: pcc=-0.011 < 0.99 required"
 
   qwen_2_5/causal_lm/jax-0_5b_instruct-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Currently failing - https://github.com/tenstorrent/tt-xla/issues/3001. Severe PCC comparison failed: pcc=-0.036 < 0.99 required"
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    reason: "Severe PCC comparison failed: pcc=-0.036 < 0.99 required"
 
   qwen_2_5/causal_lm/jax-1_5b-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -54,23 +54,23 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/jax-1_5b_instruct-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Currently failing - https://github.com/tenstorrent/tt-xla/issues/3001. Severe PCC comparison failed: pcc=-0.019 < 0.99 required"
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    reason: "Severe PCC comparison failed: pcc=-0.019 < 0.99 required"
 
   qwen_2_5/causal_lm/jax-3b-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Currently failing - https://github.com/tenstorrent/tt-xla/issues/3001. Severe PCC comparison failed: pcc=-0.0005 < 0.99 required"
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    reason: "Severe PCC comparison failed: pcc=-0.0005 < 0.99 required"
 
   qwen_2_5/causal_lm/jax-3b_instruct-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Currently failing - https://github.com/tenstorrent/tt-xla/issues/3001. Severe PCC comparison failed: pcc=-0.001 < 0.99 required"
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    reason: "Severe PCC comparison failed: pcc=-0.001 < 0.99 required"
 
   qwen_2_5/causal_lm/jax-7b-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
+    status: EXPECTED_PASSING
     reason: "Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
@@ -81,29 +81,29 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/causal_lm/jax-0_5b-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Currently failing - https://github.com/tenstorrent/tt-xla/issues/3001. Severe PCC comparison failed: pcc=0.0073 < 0.99 required"
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    reason: "Severe PCC comparison failed: pcc=0.0073 < 0.99 required"
 
   qwen_2_5_coder/causal_lm/jax-1_5b-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Currently failing - https://github.com/tenstorrent/tt-xla/issues/3001. Severe PCC comparison failed: pcc=-0.054 < 0.99 required"
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    reason: "Severe PCC comparison failed: pcc=-0.054 < 0.99 required"
 
   qwen_2_5_coder/causal_lm/jax-1_5b_instruct-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Currently failing - https://github.com/tenstorrent/tt-xla/issues/3001. Severe PCC comparison failed: pcc=-0.025 < 0.99 required"
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    reason: "Severe PCC comparison failed: pcc=-0.025 < 0.99 required"
 
   qwen_2_5_coder/causal_lm/jax-3b-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Currently failing - https://github.com/tenstorrent/tt-xla/issues/3001. Severe PCC comparison failed: pcc=0.012 < 0.99 required"
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    reason: "Severe PCC comparison failed: pcc=0.012 < 0.99 required"
 
   qwen_2_5_coder/causal_lm/jax-3b_instruct-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Currently failing - https://github.com/tenstorrent/tt-xla/issues/3001. Severe PCC comparison failed: pcc=-0.004 < 0.99 required"
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    reason: "Severe PCC comparison failed: pcc=-0.004 < 0.99 required"
 
   qwen_2_5_coder/causal_lm/jax-7b-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
