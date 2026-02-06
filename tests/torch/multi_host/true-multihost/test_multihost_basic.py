@@ -45,15 +45,11 @@ def create_device_mesh(mesh_shape) -> Mesh:
     return mesh
 
 
-@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy"])
+@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy"])
 def test_simple_distributed_addition(topology, mesh_shape):
     """
     Verifies basic distributed tensor addition across multiple hosts.
     Creates two sharded tensors, adds them, and validates correctness.
-
-    Supported topologies:
-        - dual_bh_quietbox: 2x4 mesh (8 devices)
-        - quad_galaxy: 8x16 mesh (128 devices)
     """
 
     class DistributedAdd(torch.nn.Module):
@@ -91,16 +87,12 @@ def test_simple_distributed_addition(topology, mesh_shape):
     comparator.evaluate(output.cpu(), expected_output)
 
 
-@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy"])
+@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy"])
 def test_matmul_contracting_dim_sharded(topology, mesh_shape):
     """
     Matmul A @ B with contracting dimension (K) sharded across model axis.
     Each device holds a slice of A on K and B on K; local matmuls give partial
     sums; an all-reduce is required to form the full result. Validates correctness.
-
-    Supported topologies:
-        - dual_bh_quietbox: 2x4 mesh, model_dim=4
-        - quad_galaxy: 8x16 mesh, model_dim=16
     """
 
     class MatmulContractingSharded(torch.nn.Module):
@@ -144,15 +136,11 @@ def test_matmul_contracting_dim_sharded(topology, mesh_shape):
     comparator.evaluate(output.cpu(), expected)
 
 
-@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy"])
+@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy"])
 def test_matmul_batch_sharded(topology, mesh_shape):
     """
     Matmul A @ B with A sharded on batch. Each device holds a batch slice,
     B is replicated; result is sharded on batch. No all-reduce on result.
-
-    Supported topologies:
-        - dual_bh_quietbox: 2x4 mesh, batch_dim=2
-        - quad_galaxy: 8x16 mesh, batch_dim=8
     """
 
     class MatmulBatchSharded(torch.nn.Module):
@@ -190,17 +178,13 @@ def test_matmul_batch_sharded(topology, mesh_shape):
     comparator.evaluate(output.cpu(), expected)
 
 
-@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy"])
+@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy"])
 def test_matmul_result_sharded_then_reduce(topology, mesh_shape):
     """
     Matmul where the result is sharded on the non-contracting dimension (M).
     We then reduce (sum) over the full tensor to get a scalar, which exercises
     reduce-scatter / all-reduce and validates correctness without materializing
     the full result (all-gather).
-
-    Supported topologies:
-        - dual_bh_quietbox: 2x4 mesh, model_dim=4
-        - quad_galaxy: 8x16 mesh, model_dim=16
     """
 
     class MatmulThenSum(torch.nn.Module):
