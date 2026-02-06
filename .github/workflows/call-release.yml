@@ -61,7 +61,7 @@ jobs:
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
     if: always()
-    needs: [ publish-release-wheel, release-tests ]
+    needs: [ publish-release-wheel, build-release-docker, release-tests ]
     secrets: inherit
     with:
       release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}
