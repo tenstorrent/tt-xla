@@ -18,8 +18,10 @@ import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
 from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
 from torch_xla.distributed.spmd import Mesh
+from transformers import AutoTokenizer
 
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader,
@@ -43,27 +45,35 @@ def test_llama_31_8b_tensor_parallel(topology, configure_topology, mesh_shape):
     """
     Run Llama 3.1 8B inference with tensor parallelism.
 
-    Loads model and inputs via the tt_forge_models loader, moves to device,
-    applies loader's shard spec (model weights), compiles with backend 'tt',
-    runs forward, and validates output shape.
+    Loads model and inputs via the tt_forge_models loader, runs CPU reference,
+    then runs distributed inference on TT devices with tensor parallel sharding,
+    compares results with PCC, and decodes the output tokens.
     """
-    xr.set_device_type("TT")
-    setup_spmd()
-    device = torch_xla.device()
-    mesh = create_device_mesh(mesh_shape)
-
-    # Load model and inputs (same pattern as test_models.py / DynamicTorchModelTester)
+    # Load model and inputs
     loader = ModelLoader(variant=ModelVariant.LLAMA_3_1_8B)
     model = loader.load_model(dtype_override=torch.bfloat16)
     model.eval()
     inputs = loader.load_inputs(dtype_override=torch.bfloat16)
 
+    # Run CPU reference
+    print("Running CPU reference inference...")
+    with torch.no_grad():
+        cpu_output = model(**inputs)
+    cpu_logits = loader.unpack_forward_output(cpu_output)
+    print(f"CPU logits shape: {tuple(cpu_logits.shape)}")
+
+    # Now run on TT devices with tensor parallelism
+    xr.set_device_type("TT")
+    setup_spmd()
+    device = torch_xla.device()
+    mesh = create_device_mesh(mesh_shape)
+
     # Move model and inputs to device
-    model = model.to(device)
-    inputs = {k: v.to(device) for k, v in inputs.items()}
+    model_tt = model.to(device)
+    inputs_tt = {k: v.to(device) for k, v in inputs.items()}
 
     # Apply tensor parallel sharding from loader (model weights only)
-    shard_specs = loader.load_shard_spec(model)
+    shard_specs = loader.load_shard_spec(model_tt)
     assert (
         shard_specs is not None
     ), "Llama 3.1 8B loader must provide shard specs for tensor parallel"
@@ -71,25 +81,42 @@ def test_llama_31_8b_tensor_parallel(topology, configure_topology, mesh_shape):
         xs.mark_sharding(tensor, mesh, shard_spec)
 
     # Compile and run
-    compiled_model = torch.compile(model, backend="tt")
-    compiled_model = compiled_model.to(device)
+    print(f"Running TT inference on {mesh_shape[0]}x{mesh_shape[1]} mesh...")
+    compiled_model = torch.compile(model_tt, backend="tt")
     with torch.no_grad():
-        output = compiled_model(**inputs)
+        tt_output = compiled_model(**inputs_tt)
 
-    # Unpack logits (CausalLMOutputWithPast -> logits)
-    logits = loader.unpack_forward_output(output)
-    logits_cpu = logits.cpu()
+    # Unpack logits
+    tt_logits = loader.unpack_forward_output(tt_output)
+    tt_logits_cpu = tt_logits.cpu()
+    print(f"TT logits shape: {tuple(tt_logits_cpu.shape)}")
 
-    # Basic sanity: logits shape (batch, seq_len, vocab_size)
-    assert logits_cpu.dim() == 3, f"Expected 3D logits, got {logits_cpu.dim()}"
-    batch, seq_len, vocab_size = logits_cpu.shape
-    assert batch == inputs["input_ids"].shape[0]
-    assert seq_len == inputs["input_ids"].shape[1]
-    assert vocab_size > 0
+    # Compare with CPU reference using PCC
+    comparison_config = ComparisonConfig(
+        pcc=PccConfig(required_pcc=0.99), assert_on_failure=True
+    )
+    comparator = TorchComparisonEvaluator(comparison_config)
+    comparator.evaluate(tt_logits_cpu, cpu_logits)
+    print(f"PCC validation passed for topology {topology}")
 
-    # Optional: compare against CPU reference (expensive; can be gated by a marker)
-    # For a quick run we only assert shape and that the run completed.
+    # Decode and print output tokens
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8B")
+
+    # Get the predicted token IDs (argmax over vocab dimension)
+    predicted_token_ids = tt_logits_cpu.argmax(dim=-1)
+
+    # Decode for each batch item
+    batch_size = predicted_token_ids.shape[0]
+    for batch_idx in range(batch_size):
+        input_ids = inputs["input_ids"][batch_idx].tolist()
+        input_text = tokenizer.decode(input_ids, skip_special_tokens=True)
+        print(f"\nBatch {batch_idx} input: {input_text}")
+
+        tokens = predicted_token_ids[batch_idx].tolist()
+        decoded_text = tokenizer.decode(tokens, skip_special_tokens=True)
+        print(f"Batch {batch_idx} decoded output: {decoded_text}")
+
     print(
         f"Llama 3.1 8B tensor parallel ({mesh_shape[0]}x{mesh_shape[1]} mesh): "
-        f"logits shape {tuple(logits_cpu.shape)}"
+        f"Test completed successfully"
     )
