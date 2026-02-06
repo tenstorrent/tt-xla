@@ -75,7 +75,7 @@ test_config:
 
   qwen_2_5/causal_lm/jax-7b-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
