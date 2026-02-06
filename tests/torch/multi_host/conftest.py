@@ -82,6 +82,7 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         controller_host_name="forge-qbae-01",
         hosts_list="forge-qbae-01,forge-qbae-02",
         btl_tcp_if_include="enp10s0f1np1",
+        remote_script_name=None,  # not used for dual BH quietbox since this runs on baremetal
     ),
 }
 
