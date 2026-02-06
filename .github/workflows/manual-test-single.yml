@@ -76,13 +76,13 @@ jobs:
 
   perf-benchmark-n150:
     needs: [ inspect-changes, build-image, build-ttxla-release ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/install-sfpi-on-perf-from-ttxla
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/testing-produce-data
     secrets: inherit
     with:
       project: tt-xla
       run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       run_id_source: tt-xla
-      ref: vvukoman/install-sfpi-on-perf-from-ttxla
+      ref: vvukoman/testing-produce-data
       perf_regression_check: true
       test-filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding
       runs-on-filter: n150
@@ -90,13 +90,13 @@ jobs:
 
   perf-benchmark-llmbox:
     needs: [ inspect-changes, build-image, build-ttxla-release ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/install-sfpi-on-perf-from-ttxla
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/testing-produce-data
     secrets: inherit
     with:
       project: tt-xla
       run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       run_id_source: tt-xla
-      ref: vvukoman/install-sfpi-on-perf-from-ttxla
+      ref: vvukoman/testing-produce-data
       perf_regression_check: true
       test-filter: test_llama_3_1_70b_tp
       runs-on-filter: llmbox
