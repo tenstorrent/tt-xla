@@ -6,15 +6,13 @@
 Shared utilities and fixtures for multi-host distributed tests.
 """
 
-import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
 
 import pytest
-
-logger = logging.getLogger(__name__)
+from ttxla_tools.logging import logger
 
 
 @dataclass
@@ -182,7 +180,11 @@ def setup_distributed_env():
             original_values[key] = os.environ.get(key)
             os.environ[key] = value
 
-        logger.info("setup_distributed_env: topology=%s, env: %s", topology, env_vars)
+        logger.info(
+            "setup_distributed_env: topology={}\n{}",
+            topology,
+            "\n".join([f"{k}={v}" for k, v in env_vars.items()]),
+        )
 
         return topo
 
