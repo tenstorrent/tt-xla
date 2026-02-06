@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from functools import partial
 from typing import Tuple
 
 import torch
@@ -11,8 +12,6 @@ import torch_xla.core.dynamo_bridge as bridge
 from functorch.compile import make_boxed_func
 from torch._dynamo import register_backend
 from torch._dynamo.backends.common import aot_autograd, fake_tensor_unsupported
-from torch._subclasses.fake_tensor import FakeTensorMode, is_fake
-from torch._subclasses.functional_tensor import mb_unwrap_functional_tensor
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 from ttxla_tools.logging import logger
@@ -232,12 +231,7 @@ def _build_executor(
             legacy_compile_enabled = not bool(options["tt_experimental_compile"])
         if "tt_legacy_compile" in options:
             legacy_compile_enabled = bool(options["tt_legacy_compile"])
-    executor = XLAExecutor(module, graph_signature, node_info, legacy_compile_enabled)
-
-    def fwd(*args, **kwargs):
-        return executor(*args, **(kwargs or {}))
-
-    return fwd
+    return XLAExecutor(module, graph_signature, node_info, legacy_compile_enabled)
 
 
 @fake_tensor_unsupported
@@ -248,81 +242,6 @@ def _build_boxed_executor(
 ):
     executor = _build_executor(gm, example_inputs, options)
     return make_boxed_func(executor)
-
-
-# def _has_fake_tensors(args: tuple) -> bool:
-#     for arg in args:
-#         if isinstance(arg, torch.Tensor) and is_fake(arg):
-#             return True
-#     return False
-
-
-# def _move_inputs_to_xla(args: tuple) -> tuple:
-#     device = torch.device("xla")
-#     moved_args = []
-#     for arg in args:
-#         if isinstance(arg, torch.Tensor):
-#             arg = mb_unwrap_functional_tensor(arg)
-#             if arg.device.type != "xla":
-#                 arg = arg.to(device)
-#             moved_args.append(arg)
-#         else:
-#             moved_args.append(arg)
-#     return tuple(moved_args)
-
-
-# def _tt_aot_autograd_backend(gm, example_inputs, options=None):
-#     """
-#     AOTAutograd backend for TT/XLA compilation.
-
-#     The key challenge is that AOTAutograd traces the forward with FunctionalTensor
-#     wrappers, but XLA doesn't support FunctionalTensor. To work around this,
-#     we use FakeTensorMode to create fake tensors that have the same metadata as
-#     the XLA tensors but don't actually dispatch to XLA during tracing.
-
-#     This approach works uniformly for both inference and training.
-#     """
-#     decompositions = populate_decompositions()
-
-#     def fw_compiler(model, inputs):
-#         compiled_executor = None
-
-#         def fwd(*args):
-#             nonlocal compiled_executor
-#             if _has_fake_tensors(args):
-#                 return model(*args)
-#             args = _move_inputs_to_xla(args)
-#             if compiled_executor is None:
-#                 compiled_executor = _build_executor(model, args, options)
-#             return compiled_executor(*args)
-
-#         return make_boxed_func(fwd)
-
-#     # Use FakeTensorMode to create fake inputs that don't dispatch to XLA
-#     # This allows AOTAutograd's functionalization tracing to work without
-#     # hitting XLA's FunctionalTensor incompatibility
-#     with FakeTensorMode(allow_non_fake_inputs=True) as fake_mode:
-#         fake_example_inputs = []
-#         for inp in example_inputs:
-#             if isinstance(inp, torch.Tensor):
-#                 # Create a fake tensor with the same properties but on meta device
-#                 # This prevents any actual computation during tracing
-#                 fake_inp = fake_mode.from_tensor(inp, static_shapes=True)
-#                 fake_example_inputs.append(fake_inp)
-#             else:
-#                 fake_example_inputs.append(inp)
-#         fake_example_inputs = tuple(fake_example_inputs)
-
-#         return aot_autograd(fw_compiler=fw_compiler, decompositions=decompositions)(
-#             gm, fake_example_inputs
-#         )
-
-
-# aotautograd_backend = aot_autograd(fw_compiler=_build_boxed_executor)
-# register_backend(name="tt", compiler_fn=aotautograd_backend)
-
-
-from functools import partial
 
 
 def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
