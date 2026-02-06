@@ -22,15 +22,15 @@ Before setup can happen, you must configure your hardware. You can skip this sec
 
 TT-XLA has the following system dependencies:
 * Ubuntu 22.04
-* Python 3.11
-* python3.11-venv
+* Python 3.12
+* python3.12-venv
 * Clang 17
 * GCC 12
 * Ninja
 * CMake 4.0.3
 
 ### Installing Python
-If your system already has Python installed, make sure it is Python 3.11:
+If your system already has Python installed, make sure it is Python 3.12:
 
 ```bash
 python3 --version
@@ -39,7 +39,7 @@ python3 --version
 If not, install Python:
 
 ```bash
-sudo apt install python3.11
+sudo apt install python3.12
 ```
 
 ### Installing CMake 4.0.3

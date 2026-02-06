@@ -211,7 +211,7 @@ def _extract_source_and_module_hierarchy_info(
     # 1 = '    return torch.sum(x**2)'
     # 2 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/python_package/tt_torch/torch_overrides.py", line 22, in __torch_function__'
     # 3 = '    return func(*args, **(kwargs or {}))'
-    # 4 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/venv/lib/python3.11/site-packages/torch/_tensor.py", line 39, in wrapped'
+    # 4 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/venv/lib/python3.12/site-packages/torch/_tensor.py", line 39, in wrapped'
     # 5 = '    return f(*args, **kwargs)'
     #
     # In the above case, the valid trace is the last line that starts with "File " but isn't in the torch_overrides.py file.
@@ -223,7 +223,7 @@ def _extract_source_and_module_hierarchy_info(
     # 1 = '    return torch.sum(x**2)'
     # 2 = '  File "/localdev/svuckovic/_workspace/repos/tt-xla/python_package/tt_torch/torch_overrides.py", line 22, in __torch_function__'
     # 3 = '    return func(*args, **(kwargs or {}))'
-    # 4 = '  File "/usr/local/lib/python3.11/dist-packages/torch/_tensor.py", line 39, in wrapped'
+    # 4 = '  File "/usr/local/lib/python3.12/dist-packages/torch/_tensor.py", line 39, in wrapped'
     # 5 = '    return f(*args, **kwargs)'
     #
     # ====
