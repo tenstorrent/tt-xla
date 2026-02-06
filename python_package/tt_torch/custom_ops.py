@@ -817,6 +817,349 @@ def paged_scaled_dot_product_attention_decode_fake(
     return torch.zeros_like(query)
 
 
+@torch.library.custom_op(
+    "tt::sparse_matmul", mutates_args=[], device_types=["xla", "cpu"]
+)
+def sparse_matmul(
+    input_tensor_a: torch.Tensor,
+    input_tensor_b: torch.Tensor,
+    sparsity: torch.Tensor,
+    nnz: int = None,
+    is_input_a_sparse: bool = False,
+    is_input_b_sparse: bool = True,
+) -> torch.Tensor:
+    """
+    Sparse matrix multiplication for MoE (Mixture of Experts) models.
+
+    This operation performs matrix multiplication where computation is skipped
+    for sparse (zero) blocks based on the sparsity tensor.
+
+    Args:
+        input_tensor_a: First input tensor. Shape depends on sparse mode:
+            - is_input_a_sparse=True, is_input_b_sparse=True: [1, E, M, K]
+            - is_input_a_sparse=False, is_input_b_sparse=True: [A, B, M, K]
+            - is_input_a_sparse=True, is_input_b_sparse=False: [A, E, M, K]
+        input_tensor_b: Second input tensor (expert weights). Shape:
+            - [1, E, K, N] for all modes
+        sparsity: Sparsity mask tensor (bfloat16, ROW_MAJOR). Shape depends on mode:
+            - is_input_a_sparse=True, is_input_b_sparse=True: [1, 1, 1, E]
+            - is_input_a_sparse=False, is_input_b_sparse=True: [A, B, 1, E]
+            - is_input_a_sparse=True, is_input_b_sparse=False: [1, 1, A, E]
+        nnz: Number of non-zero elements in sparsity tensor. If None, inferred at runtime.
+        is_input_a_sparse: Whether input_tensor_a is sparse.
+        is_input_b_sparse: Whether input_tensor_b is sparse.
+
+    Returns:
+        Output tensor with sparse results. Shape depends on mode:
+            - is_input_a_sparse=True, is_input_b_sparse=True: [1, E, M, N]
+            - is_input_a_sparse=False, is_input_b_sparse=True: [A, B, 1, E, M, N]
+            - is_input_a_sparse=True, is_input_b_sparse=False: [A, E, M, N]
+    """
+    device = input_tensor_a.device
+
+    if device.type == "xla":
+        frontend_attributes = {
+            "is_input_a_sparse": str(is_input_a_sparse),
+            "is_input_b_sparse": str(is_input_b_sparse),
+        }
+        if nnz is not None:
+            frontend_attributes["nnz"] = str(nnz)
+
+        # Compute output shape based on sparse mode
+        if is_input_a_sparse and is_input_b_sparse:
+            # [1, E, M, K] @ [1, E, K, N] -> [1, E, M, N]
+            output_shape = list(input_tensor_a.shape)
+            output_shape[-1] = input_tensor_b.shape[-1]
+        elif not is_input_a_sparse and is_input_b_sparse:
+            # [A, B, M, K] @ [1, E, K, N] -> [A, B, 1, E, M, N]
+            A, B, M, K = input_tensor_a.shape
+            E = input_tensor_b.shape[1]
+            N = input_tensor_b.shape[-1]
+            output_shape = [A, B, 1, E, M, N]
+        elif is_input_a_sparse and not is_input_b_sparse:
+            # [A, E, M, K] @ [1, E, K, N] -> [A, E, M, N]
+            output_shape = list(input_tensor_a.shape)
+            output_shape[-1] = input_tensor_b.shape[-1]
+        else:
+            raise ValueError(
+                "Invalid sparse mode: both is_input_a_sparse and is_input_b_sparse cannot be False"
+            )
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [input_tensor_a, input_tensor_b, sparsity],
+            "tt.sparse_matmul",
+            [output_shape],
+            [input_tensor_a.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    elif device.type == "cpu":
+        # CPU fallback: loop over experts to avoid broadcasting weights
+        # across large batch dimensions (can exceed 1TB for D=8, E=32).
+        input_b_casted = input_tensor_b.to(input_tensor_a.dtype)
+
+        if is_input_a_sparse and is_input_b_sparse:
+            # [1, E, M, K] @ [1, E, K, N] -> [1, E, M, N]
+            E = input_tensor_b.shape[1]
+            N = input_tensor_b.shape[-1]
+            M = input_tensor_a.shape[2]
+            output = torch.zeros(1, E, M, N, dtype=input_tensor_a.dtype, device=device)
+            for e in range(E):
+                if sparsity[0, 0, 0, e] > 0:
+                    output[0, e] = torch.matmul(
+                        input_tensor_a[0, e], input_b_casted[0, e]
+                    )
+            return output
+
+        elif not is_input_a_sparse and is_input_b_sparse:
+            # [A, B, M, K] @ [1, E, K, N] -> [A, B, 1, E, M, N]
+            A, B, M, K = input_tensor_a.shape
+            E = input_tensor_b.shape[1]
+            N = input_tensor_b.shape[-1]
+            output = torch.zeros(
+                A, B, 1, E, M, N, dtype=input_tensor_a.dtype, device=device
+            )
+            for e in range(E):
+                mask_e = sparsity[:, :, 0, e]  # [A, B]
+                if mask_e.any():
+                    # [A, B, M, K] @ [K, N] -> [A, B, M, N]
+                    out_e = torch.matmul(input_tensor_a, input_b_casted[0, e])
+                    output[:, :, 0, e, :, :] = out_e * mask_e.unsqueeze(-1).unsqueeze(
+                        -1
+                    )
+            return output
+
+        elif is_input_a_sparse and not is_input_b_sparse:
+            # [A, E, M, K] @ [1, E, K, N] -> [A, E, M, N]
+            A = input_tensor_a.shape[0]
+            E = input_tensor_b.shape[1]
+            M = input_tensor_a.shape[2]
+            N = input_tensor_b.shape[-1]
+            output = torch.zeros(A, E, M, N, dtype=input_tensor_a.dtype, device=device)
+            for e in range(E):
+                mask_e = sparsity[0, 0, :, e]  # [A]
+                if mask_e.any():
+                    # [A, M, K] @ [K, N] -> [A, M, N]
+                    out_e = torch.matmul(input_tensor_a[:, e], input_b_casted[0, e])
+                    output[:, e] = out_e * mask_e.unsqueeze(-1).unsqueeze(-1)
+            return output
+
+        else:
+            raise ValueError(
+                "Invalid sparse mode: both is_input_a_sparse and is_input_b_sparse cannot be False"
+            )
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@sparse_matmul.register_fake
+def sparse_matmul_fake(
+    input_tensor_a: torch.Tensor,
+    input_tensor_b: torch.Tensor,
+    sparsity: torch.Tensor,
+    nnz: int = None,
+    is_input_a_sparse: bool = False,
+    is_input_b_sparse: bool = True,
+) -> torch.Tensor:
+    """FakeTensor implementation of sparse_matmul for torch dynamo tracing."""
+    if is_input_a_sparse and is_input_b_sparse:
+        output_shape = list(input_tensor_a.shape)
+        output_shape[-1] = input_tensor_b.shape[-1]
+    elif not is_input_a_sparse and is_input_b_sparse:
+        A, B, M, K = input_tensor_a.shape
+        E = input_tensor_b.shape[1]
+        N = input_tensor_b.shape[-1]
+        output_shape = [A, B, 1, E, M, N]
+    elif is_input_a_sparse and not is_input_b_sparse:
+        output_shape = list(input_tensor_a.shape)
+        output_shape[-1] = input_tensor_b.shape[-1]
+    else:
+        raise ValueError(
+            "Invalid sparse mode: both is_input_a_sparse and is_input_b_sparse cannot be False"
+        )
+
+    return torch.zeros(
+        output_shape, dtype=input_tensor_a.dtype, device=input_tensor_a.device
+    )
+
+
+@torch.library.custom_op(
+    "tt::all_to_all_dispatch", mutates_args=[], device_types=["xla", "cpu"]
+)
+def all_to_all_dispatch(
+    input_tensor: torch.Tensor,
+    expert_indices: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Dispatch tokens to devices holding their selected experts.
+
+    Selectively routes tokens based on expert_indices and expert_mapping,
+    sending each token only to devices that hold its selected experts.
+
+    Args:
+        input_tensor: Input tokens [B, 1, S, H], bfloat16
+        expert_indices: Selected expert IDs per token [B, 1, S, K], int64
+        expert_mapping: One-hot expert-to-device mapping [1, 1, E, D], int64
+        num_devices: Number of devices along dispatch axis (D)
+        cluster_axis: Mesh axis to dispatch along (0=rows, 1=cols)
+
+    Returns:
+        dispatched_tokens: [1, B*D, S, H] sparsely populated tokens
+        expert_metadata: [1, B*D, S, K] all-gathered expert indices
+    """
+    device = input_tensor.device
+    B, _, S, H = input_tensor.shape
+    K = expert_indices.shape[-1]
+
+    if device.type == "xla":
+        BD = B * num_devices
+        output_shapes = [[1, BD, S, H], [1, BD, S, K]]
+        output_dtypes = [input_tensor.dtype, expert_indices.dtype]
+
+        frontend_attributes = {
+            "num_devices": str(num_devices),
+            "cluster_axis": str(cluster_axis),
+        }
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [input_tensor, expert_indices, expert_mapping],
+            "tt.all_to_all_dispatch",
+            output_shapes,
+            output_dtypes,
+            frontend_attributes=frontend_attributes,
+        )
+
+    elif device.type == "cpu":
+        # CPU fallback: simulate dispatch by repeating tokens D times.
+        # Shape must match fake kernel: [1, B*D, S, H] and [1, B*D, S, K].
+        # On real hardware, dispatch selectively routes tokens; on CPU we
+        # replicate so that downstream sparse_matmul sees all tokens.
+        x = input_tensor.permute(1, 0, 2, 3)  # [1, B, S, H]
+        m = expert_indices.permute(1, 0, 2, 3)  # [1, B, S, K]
+        if num_devices > 1:
+            x = x.repeat(1, num_devices, 1, 1)  # [1, B*D, S, H]
+            m = m.repeat(1, num_devices, 1, 1)  # [1, B*D, S, K]
+        return x.clone(), m.clone()
+
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@all_to_all_dispatch.register_fake
+def all_to_all_dispatch_fake(
+    input_tensor: torch.Tensor,
+    expert_indices: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    B, _, S, H = input_tensor.shape
+    K = expert_indices.shape[-1]
+    BD = B * num_devices
+
+    dispatched = torch.zeros(
+        [1, BD, S, H], dtype=input_tensor.dtype, device=input_tensor.device
+    )
+    metadata = torch.zeros(
+        [1, BD, S, K], dtype=expert_indices.dtype, device=expert_indices.device
+    )
+    return dispatched, metadata
+
+
+@torch.library.custom_op(
+    "tt::all_to_all_combine", mutates_args=[], device_types=["xla", "cpu"]
+)
+def all_to_all_combine(
+    input_tensor: torch.Tensor,
+    expert_metadata: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+    num_experts_per_tok: int = 2,
+) -> torch.Tensor:
+    """
+    Combine expert outputs back to original token positions.
+
+    Inverse of dispatch: gathers expert computation results from all devices
+    and restores tokens to their original device and order.
+
+    Args:
+        input_tensor: Expert outputs [E_local, B*D, S, H], bfloat16
+        expert_metadata: Routing metadata from dispatch [1, B*D, S, K], int64
+        expert_mapping: One-hot expert-to-device mapping [1, 1, E, D], int64
+        num_devices: Number of devices along dispatch axis (D)
+        cluster_axis: Mesh axis to combine along (0=rows, 1=cols)
+        num_experts_per_tok: Number of selected experts per token (K)
+
+    Returns:
+        combined: [K, B, S, H] expert outputs restored to original positions
+    """
+    device = input_tensor.device
+    E_local, BD, S, H = input_tensor.shape
+    K = num_experts_per_tok
+    B = BD // num_devices
+
+    if device.type == "xla":
+        output_shape = [K, B, S, H]
+
+        frontend_attributes = {
+            "num_devices": str(num_devices),
+            "cluster_axis": str(cluster_axis),
+            "num_experts_per_tok": str(K),
+        }
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [input_tensor, expert_metadata, expert_mapping],
+            "tt.all_to_all_combine",
+            [output_shape],
+            [input_tensor.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    elif device.type == "cpu":
+        # CPU fallback: dispatch repeats tokens D times, so BD = B * D.
+        # Combine reverses this by taking only the first B entries (all
+        # D copies are identical on CPU since dispatch just replicates).
+        B_local = BD // num_devices
+        metadata_indices = expert_metadata[0]  # [BD, S, K]
+        combined = torch.zeros(
+            K, B_local, S, H, dtype=input_tensor.dtype, device=device
+        )
+
+        for b in range(B_local):
+            for s in range(S):
+                for k in range(K):
+                    expert_id = metadata_indices[b, s, k].item()
+                    if 0 <= expert_id < E_local:
+                        combined[k, b, s, :] = input_tensor[expert_id, b, s, :]
+
+        return combined
+
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@all_to_all_combine.register_fake
+def all_to_all_combine_fake(
+    input_tensor: torch.Tensor,
+    expert_metadata: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+    num_experts_per_tok: int = 2,
+) -> torch.Tensor:
+    _, BD, S, H = input_tensor.shape
+    K = num_experts_per_tok
+    B = BD // num_devices
+
+    return torch.zeros(
+        [K, B, S, H], dtype=input_tensor.dtype, device=input_tensor.device
+    )
+
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 for attr in dir(torch.ops.tt):

@@ -50,6 +50,21 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec) -> str:
         elif isinstance(axis, int):
             if mesh.mesh_shape[axis] > 1:
                 dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
+            dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
+        elif isinstance(axis, (list, tuple)):
+            # Compound sharding: ("model", "batch") → single dim sharded on both axes
+            axis_refs = []
+            for ax_name in axis:
+                if isinstance(ax_name, str):
+                    try:
+                        axis_idx = mesh.axis_names.index(ax_name)
+                        axis_refs.append(f'"{_MESH_IDX_PREFIX}{axis_idx}"')
+                    except ValueError:
+                        pass
+                elif isinstance(ax_name, int):
+                    axis_refs.append(f'"{_MESH_IDX_PREFIX}{ax_name}"')
+            if axis_refs:
+                dim_shardings.append("{" + ", ".join(axis_refs) + "}")
             else:
                 dim_shardings.append("{}")
         else:
