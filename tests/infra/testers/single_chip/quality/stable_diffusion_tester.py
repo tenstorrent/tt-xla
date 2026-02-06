@@ -87,7 +87,7 @@ class StableDiffusionTester(QualityTester):
             metric_names=self._metric_names,
         )
 
-    def test(self) -> QualityResult:
+    def test(self, request=None) -> QualityResult:
         outputs = self._generate_outputs()
 
         assert self._evaluator is not None
@@ -95,6 +95,9 @@ class StableDiffusionTester(QualityTester):
 
         if self._quality_config.assert_on_failure and not self._last_result.passed:
             QualityEvaluator._assert_on_results(self._last_result)
+
+        if request:
+            self.handle_filecheck_and_serialization(request, workload=None)
 
         return self._last_result
 
@@ -174,13 +177,14 @@ class StableDiffusionTester(QualityTester):
 
         parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
 
-    def serialize_compilation_artifacts(self, test_name: str) -> None:
+    def serialize_compilation_artifacts(self, test_name: str, workload=None) -> None:
         """
         Serialize the pipeline's UNet compilation artifacts with a sanitized filename.
 
         Args:
             test_name: Test name to generate output prefix from
+            workload: Unused for StableDiffusionTester (serialization is handled differently)
         """
         clean_name = sanitize_test_name(test_name)
         output_prefix = f"output_artifact/{clean_name}"
-        self.serialize_on_device(output_prefix=output_prefix)
+        self.serialize_on_device(None, output_prefix)

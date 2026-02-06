@@ -90,7 +90,9 @@ class BaseTester(ABC):
             metric_kwargs=self._metric_kwargs,
         )
 
-    def serialize_compilation_artifacts(self, test_name: str) -> None:
+    def serialize_compilation_artifacts(
+        self, test_name: str, workload: Workload
+    ) -> None:
         """Serialize the model with the appropriate output prefix.
 
         Args:
@@ -98,7 +100,7 @@ class BaseTester(ABC):
         """
         clean_name = sanitize_test_name(test_name)
         output_prefix = f"output_artifact/{clean_name}"
-        self.serialize_on_device(output_prefix)
+        self.serialize_on_device(workload, output_prefix)
 
     @abstractmethod
     def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
@@ -138,9 +140,7 @@ class BaseTester(ABC):
 
         # Serialize workload if requested OR if pattern files are specified
         if serialize or pattern_files:
-            clean_name = sanitize_test_name(test_id)
-            output_prefix = f"output_artifact/{clean_name}"
-            self.serialize_on_device(workload, output_prefix)
+            self.serialize_compilation_artifacts(test_name=test_id, workload=workload)
 
         # Run filecheck if pattern files are specified
         if pattern_files:
