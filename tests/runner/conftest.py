@@ -18,7 +18,7 @@ _collected_nodeids = set()
 _collected_test_functions = set()
 
 # Allowed architecture identifiers for arch_overrides and --arch option
-ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
+ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox", "qb2-blackhole"}
 _BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
@@ -185,7 +185,7 @@ def pytest_collection_modifyitems(config, items):
 
         # Define default set of supported archs, which can be optionally overridden in test_config files
         # by a model (ie. n300, n300-llmbox), and are applied as markers for filtering tests on CI.
-        default_archs = ["n150", "p150"]
+        default_archs = ["n150", "p150", "qb2-blackhole"]
         archs_to_mark = getattr(meta, "supported_archs", None) or default_archs
         for arch_marker in archs_to_mark:
             # Prefer the exact string; if it contains a hyphen and pytest disallows it, also add underscore variant
