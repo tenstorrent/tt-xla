@@ -6,12 +6,15 @@
 Shared utilities and fixtures for multi-host distributed tests.
 """
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
 
 import pytest
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -72,11 +75,13 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         rank_binding="quad_galaxy",
         controller_host_name="g05glx01",
         hosts_list="g05glx01,g05glx02,g05glx03,g05glx04",
+        btl_tcp_if_include="cnx1",
     ),
     "dual_bh_quietbox": MultihostConfiguration(
         rank_binding="2x4_double_bhqbae",
         controller_host_name="forge-qbae-01",
         hosts_list="forge-qbae-01,forge-qbae-02",
+        btl_tcp_if_include="enp10s0f1np1",
     ),
 }
 
@@ -173,6 +178,8 @@ def setup_distributed_env():
         for key, value in env_vars.items():
             original_values[key] = os.environ.get(key)
             os.environ[key] = value
+
+        logger.info("setup_distributed_env: topology=%s, env: %s", topology, env_vars)
 
         return topo
 
