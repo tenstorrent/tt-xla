@@ -8,11 +8,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
-// PJRT C API includes
-#include "xla/pjrt/c/pjrt_c_api.h"
-
 #ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_BINDINGS_H_
 #define TT_XLA_PJRT_IMPLEMENTATION_INC_API_BINDINGS_H_
+
+// PJRT C API includes
+#include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt {
 

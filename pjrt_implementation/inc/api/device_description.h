@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_DESCRIPTION_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_DESCRIPTION_H_
+
 // c++ standard library includes
 #include <string>
 
@@ -16,9 +19,6 @@
 
 // tt-mlir includes
 #include "ttmlir/Target/Common/types_generated.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_DESCRIPTION_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_DESCRIPTION_H_
 
 namespace tt::pjrt {
 

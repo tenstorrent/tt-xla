@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_UTILS_DATA_TYPE_UTILS_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_UTILS_DATA_TYPE_UTILS_H_
+
 // llvm mlir includes
 #include "mlir/IR/Types.h"
 
@@ -10,9 +13,6 @@
 
 // tt-mlir includes
 #include "tt/runtime/types.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_UTILS_DATA_TYPE_UTILS_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_UTILS_DATA_TYPE_UTILS_H_
 
 namespace tt::pjrt::data_type_utils {
 
