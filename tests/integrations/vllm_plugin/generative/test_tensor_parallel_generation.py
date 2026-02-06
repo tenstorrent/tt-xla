@@ -76,7 +76,14 @@ def test_tensor_parallel_generation_llmbox_small(
     ["model_name", "enable_const_eval", "experimental_enable_weight_bfp8_conversion"],
     [
         pytest.param("Qwen/Qwen3-32B", False, False),
-        pytest.param("Qwen/Qwen2.5-32B", False, False),
+        pytest.param(
+            "Qwen/Qwen2.5-32B",
+            False,
+            False,
+            marks=pytest.mark.xfail(
+                reason="Tracking issue: https://github.com/tenstorrent/tt-xla/issues/3188"
+            ),
+        ),
         pytest.param("meta-llama/Llama-3.1-70B", True, True),
     ],
 )

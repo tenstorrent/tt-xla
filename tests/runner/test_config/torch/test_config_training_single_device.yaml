@@ -794,7 +794,7 @@ test_config:
     markers: [notimeout]
   vovnet/pytorch-ese_vovnet19b_dw.ra_in1k-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
+    bringup_status: FAILED_TTMLIR_COMPILATION
     markers: [notimeout]
     reason: "Fatal Python error: ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   inception/pytorch-inception_v4-single_device-training:
