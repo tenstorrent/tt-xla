@@ -62,7 +62,6 @@ class OpTester(BaseTester):
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
-
         cpu_workload = workload
         if self._framework == Framework.JAX:
             compile_jax_workload_for_cpu(cpu_workload)

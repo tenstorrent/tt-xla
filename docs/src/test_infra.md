@@ -117,7 +117,7 @@ def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
 
 ### Serializing IR to Disk
 
-To serialize compilation artifacts (HLO, MLIR IRs) to disk, use the `--serialize` flag:
+To serialize compilation artifacts (MLIR, TTNN IRs) to disk, use the `--serialize` flag:
 
 ```bash
 pytest path/to/test.py::test_name --serialize

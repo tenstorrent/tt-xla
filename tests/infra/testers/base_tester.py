@@ -113,7 +113,8 @@ class BaseTester(ABC):
 
     def handle_filecheck_and_serialization(self, request, workload: Workload) -> None:
         """
-        Handles filecheck marker detection, serialization, and filecheck execution.
+        Serializes workload if --serialize flag is set or filecheck patterns are specified,
+        then runs filecheck validation if patterns are provided.
 
         Args:
             request: pytest request fixture
@@ -124,6 +125,9 @@ class BaseTester(ABC):
 
         test_id = request.node.name
 
+        # Check if serialization is requested
+        serialize = request.config.getoption("--serialize", False)
+
         # Check for filecheck pattern files from pytest marker
         filecheck_marker = request.node.get_closest_marker("filecheck")
         pattern_files = (
@@ -132,16 +136,13 @@ class BaseTester(ABC):
             else None
         )
 
-        # Serialize if --serialize flag is set OR if filecheck pattern files are specified
-        serialize = (
-            request.config.getoption("--serialize", False) or pattern_files is not None
-        )
-        if serialize:
+        # Serialize workload if requested OR if pattern files are specified
+        if serialize or pattern_files:
             clean_name = sanitize_test_name(test_id)
             output_prefix = f"output_artifact/{clean_name}"
             self.serialize_on_device(workload, output_prefix)
 
-        # Run filecheck if filecheck pattern files are specified
+        # Run filecheck if pattern files are specified
         if pattern_files:
             self._run_filecheck(pattern_files, test_id=test_id)
 
