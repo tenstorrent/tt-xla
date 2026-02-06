@@ -4,6 +4,7 @@
 
 import os
 
+import numpy as np
 import pytest
 import torch
 import torch_xla
@@ -11,7 +12,13 @@ import torch_xla.runtime as xr
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
 
+from torch_xla.distributed.spmd import Mesh
+
 from tests.utils import failed_ttmlir_compilation
+from infra.evaluators import ComparisonConfig, PccConfig
+from infra import Framework, run_graph_test
+
+# from tests.torch.models.kimi_k2.utils import MLACache
 
 # This model is modified from the original deepseek_v3_2_exp model.py to:
 # 1. Use scipy.linalg.hadamard instead of fast_hadamard_transform
@@ -91,3 +98,59 @@ def test_deepseek_complex_rotary_emb():
 
     y = compiled_apply_rotary_emb(x, freqs_cis, interleaved=True)
     assert y.shape == x.shape
+
+
+def test_deepseek_attention_prefill():
+    xr.set_device_type("TT")
+    args = ModelArgs(n_layers=1, q_lora_rank=3072, max_batch_size=64)
+
+    model = ModifiedTransformer(args)
+    model = model.to(torch.bfloat16)
+    attention = model.layers[0].attn
+
+    batch_size = 64
+    seq_len = 32
+    hidden_states = torch.randn(
+        (batch_size, seq_len, args.dim), dtype=torch.bfloat16
+    )
+    # Prefill branch expects mask shape (bsz, seqlen, seqlen) for index_mask += mask
+    attention_mask = torch.zeros(
+        batch_size, seq_len, seq_len, dtype=torch.bfloat16
+    )
+
+    freqs_cis = model.freqs_cis[0:seq_len]
+
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (8, 4)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
+    
+    def get_shard_spec(attention, args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = (None, None, "batch")
+        shard_specs[attention.wq_b.weight] = ("model", None)
+        shard_specs[attention.wkv_b.weight] = ("model", None)
+        shard_specs[attention.wo.weight] = ("batch", "model")
+
+        shard_specs[attention.wq_a.weight] = (None, "batch")
+        shard_specs[attention.wkv_a.weight] = (None, "batch")
+        return shard_specs
+
+    comparison_config = ComparisonConfig(
+        pcc=PccConfig(enabled=True, required_pcc=0.95),
+    )
+    
+    run_graph_test(
+        attention,
+        [
+            hidden_states, # input tensor
+            0, # start_pos
+            freqs_cis, # freqs_cis
+            attention_mask, # attention_mask
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        comparison_config=comparison_config
+    )
