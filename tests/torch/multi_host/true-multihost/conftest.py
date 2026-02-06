@@ -18,13 +18,21 @@ import torch_xla.runtime as xr
 from tests.torch.multi_host.conftest import TOPOLOGIES
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def configure_topology(topology, setup_distributed_env):
     """
     Configure environment for the specified topology.
 
     This fixture sets up all necessary environment variables for distributed execution
     based on the topology parameter provided by test parameterization.
+
+    Tests should include both 'topology' and 'configure_topology' in their parameters.
+
+    Example:
+        @pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy"])
+        def test_foo(topology, configure_topology, mesh_shape):
+            # configure_topology will be called with the parameterized topology
+            ...
 
     Args:
         topology: Topology name from test's @pytest.mark.parametrize("topology", [...])
@@ -35,17 +43,6 @@ def configure_topology(topology, setup_distributed_env):
     """
     script_dir = Path(__file__).parent
     return setup_distributed_env(topology=topology, script_dir=script_dir)
-
-
-@pytest.fixture(scope="function", autouse=True)
-def ensure_topology_configured(configure_topology):
-    """
-    Auto-use fixture that ensures topology is configured before each test.
-
-    This makes the configure_topology fixture run automatically for all tests
-    in this directory without requiring explicit use.
-    """
-    pass
 
 
 def get_mesh_shape_for_device_count(num_devices: int) -> tuple[int, int]:
