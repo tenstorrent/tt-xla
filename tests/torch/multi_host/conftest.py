@@ -105,7 +105,7 @@ def get_distributed_worker_path():
     if worker_path:
         assert os.path.exists(
             worker_path
-        ), f"Distributed worker file does not exist at path: {worker_path}"
+        ), f"Distributed worker file does not exist at path: {worker_path} as explicitly specified in TT_DISTRIBUTED_WORKER_PATH. Please check that the path is correct."
         return worker_path
 
     pjrt_plugin_dir = os.environ.get("TT_PJRT_PLUGIN_DIR")
@@ -114,8 +114,8 @@ def get_distributed_worker_path():
             pjrt_plugin_dir, "bin/ttmlir/runtime/distributed/worker"
         )
         if not os.path.exists(worker_path):
-            logger.warning(
-                f"Distributed worker file does not exist at path: {worker_path}, based on TT_PJRT_PLUGIN_DIR. This may happen from a source built tt-xla."
+            logger.info(
+                f"Distributed worker file does not exist at path: {worker_path}, based on TT_PJRT_PLUGIN_DIR. This may happen from a source built tt-xla. Continuing to check path from TT_MLIR_HOME."
             )
         else:
             return worker_path
