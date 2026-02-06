@@ -59,7 +59,7 @@ def test_llama_31_8b_tensor_parallel(topology, configure_topology, mesh_shape):
     print("Running CPU reference inference...")
     with torch.no_grad():
         cpu_output = model(**inputs)
-    cpu_logits = loader.unpack_forward_output(cpu_output)
+    cpu_logits = cpu_output.logits
     print(f"CPU logits shape: {tuple(cpu_logits.shape)}")
 
     # Now run on TT devices with tensor parallelism
@@ -86,14 +86,14 @@ def test_llama_31_8b_tensor_parallel(topology, configure_topology, mesh_shape):
     with torch.no_grad():
         tt_output = compiled_model(**inputs_tt)
 
-    # Unpack logits
-    tt_logits = loader.unpack_forward_output(tt_output)
+    # Extract logits from CausalLMOutputWithPast
+    tt_logits = tt_output.logits
     tt_logits_cpu = tt_logits.cpu()
     print(f"TT logits shape: {tuple(tt_logits_cpu.shape)}")
 
     # Compare with CPU reference using PCC
     comparison_config = ComparisonConfig(
-        pcc=PccConfig(required_pcc=0.95), assert_on_failure=True
+        pcc=PccConfig(required_pcc=0.99), assert_on_failure=True
     )
     comparator = TorchComparisonEvaluator(comparison_config)
     comparator.evaluate(tt_logits_cpu, cpu_logits)
