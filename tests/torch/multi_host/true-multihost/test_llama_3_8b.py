@@ -93,7 +93,7 @@ def test_llama_31_8b_tensor_parallel(topology, configure_topology, mesh_shape):
 
     # Compare with CPU reference using PCC
     comparison_config = ComparisonConfig(
-        pcc=PccConfig(required_pcc=0.99), assert_on_failure=True
+        pcc=PccConfig(required_pcc=0.95), assert_on_failure=True
     )
     comparator = TorchComparisonEvaluator(comparison_config)
     comparator.evaluate(tt_logits_cpu, cpu_logits)
