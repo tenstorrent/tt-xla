@@ -63,8 +63,8 @@ else()
 
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=${TTMLIR_BUILD_TYPE}
-          -DCMAKE_C_COMPILER=clang-17
-          -DCMAKE_CXX_COMPILER=clang++-17
+          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           -DTT_RUNTIME_ENABLE_TTNN=ON
           -DTTMLIR_ENABLE_STABLEHLO=ON
@@ -75,6 +75,7 @@ else()
           -DTT_RUNTIME_ENABLE_PERF_TRACE=${TTMLIR_ENABLE_PERF_TRACE}
           -DTTMLIR_ENABLE_OPMODEL=ON
           -DTTMLIR_ENABLE_EXPLORER=${TTXLA_ENABLE_EXPLORER}
+          -DTTMLIR_ENABLE_TESTS=OFF
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON
@@ -117,8 +118,8 @@ else()
         CMAKE_GENERATOR Ninja
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_C_COMPILER=clang-17
-          -DCMAKE_CXX_COMPILER=clang++-17
+          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_CXX_FLAGS=${FLAGS}
           -DCMAKE_INSTALL_PREFIX=${TTPJRT_SOURCE_DIR}/third_party/loguru/src/loguru-install
         GIT_REPOSITORY https://github.com/emilk/loguru.git

@@ -10,6 +10,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
+from sys import stderr, stdout
 
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_py import build_py
@@ -255,6 +256,9 @@ class CMakeBuildPy(build_py):
     done solely using `package_data` parameter of `setup` which expects python modules.
     """
 
+    def in_ci(self) -> bool:
+        return os.environ.get("IN_CIBW_ENV") == "ON"
+
     def run(self):
         if hasattr(self, "editable_mode") and self.editable_mode:
             # No need to built the project in editable mode.
@@ -294,12 +298,49 @@ class CMakeBuildPy(build_py):
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
 
-        print(f"CMake arguments: {cmake_args}")
+        cmake_cmd = ["cmake"]
+        # Run source env/activate if in ci, otherwise onus is on dev
+        if self.in_ci():
+            cmake_cmd = [
+                "source",
+                "venv/activate",
+                "&&",
+                "cmake",
+            ]
+
+        print(f"CMake arguments: {[*cmake_cmd, *cmake_args]}")
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
-        subprocess.check_call(["cmake", *cmake_args], cwd=REPO_DIR)
-        subprocess.check_call(["cmake", *build_command], cwd=REPO_DIR)
-        subprocess.check_call(["cmake", *install_command], cwd=REPO_DIR)
+        print("Setting up CMake project...")
+        stdout.flush()
+        stderr.flush()
+        subprocess.run(
+            " ".join([*cmake_cmd, *cmake_args]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
+        )
+        print("Building project...")
+        stdout.flush()
+        stderr.flush()
+        subprocess.run(
+            " ".join([*cmake_cmd, *build_command]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
+        )
+        print("Installing project...")
+        stdout.flush()
+        stderr.flush()
+        subprocess.run(
+            " ".join([*cmake_cmd, *install_command]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
+        )
 
         self._prune_install_tree(install_dir)
 
