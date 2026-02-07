@@ -469,7 +469,7 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
 
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
-@pytest.mark.parametrize("mlp_type", ["original", "sparse"])
+@pytest.mark.parametrize("mlp_type", ["original", "sparse", "a2a_sparse"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gpt_oss").items(),
@@ -488,6 +488,18 @@ def test_gpt_oss_mlp(variant, variant_config, mlp_type, arch):
 
     if mlp_type == "sparse":
         tt_torch.sparse_mlp.enable_sparse_mlp(model)
+    elif mlp_type == "a2a_sparse":
+        from tt_torch.sparse_mlp import A2aSparseMLP
+
+        original_mlp = model.model.layers[0].mlp
+        model.model.layers[0].mlp = A2aSparseMLP(
+            original_mlp,
+            num_experts=config.num_local_experts,
+            num_experts_per_tok=config.num_experts_per_tok,
+            num_devices=8,
+            cluster_axis=1,
+            config=config,
+        )
 
     mlp = model.model.layers[0].mlp
 
@@ -498,33 +510,42 @@ def test_gpt_oss_mlp(variant, variant_config, mlp_type, arch):
     if arch == "llmbox":
         comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, 4)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
 
-        def get_shard_spec(mlp, args, kwargs):
-            shard_specs = {}
-            shard_specs[mlp.router.weight] = (None, "batch")
+        if mlp_type == "a2a_sparse":
+            # A2aSparseMLP: (1, 8) mesh, E sharded on "batch" axis (8-way EP)
+            mesh_shape = (1, num_devices)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
 
-            # Both original and sparse use the same reshaped weights now
-            # Sparse: reshaped in-place to [1, E, H, inter*2] and [1, E, inter, H]
-            # Original: [E, H, inter*2] and [E, inter, H]
+            def get_shard_spec(mlp, args, kwargs):
+                shard_specs = {}
+                shard_specs[mlp.router.weight] = (None, "batch")
 
-            # gate_up_proj: (E, hidden, inter*2) or (1, E, hidden, inter*2) -> EP + hidden TP
-            #   - E: "model" (4-way EP)
-            #   - hidden: "batch" (2-way, K shard -> all-reduce)
-            #   - inter: None (output replicated)
-            shard_specs[mlp.experts.gate_up_proj] = ("model", "batch", None)
-            shard_specs[mlp.experts.gate_up_proj_bias] = ("model", None)
+                # weights [E, H, inter*2], E on "batch" (8-way EP, no TP)
+                shard_specs[mlp.experts.gate_up_proj] = ("batch", None, None)
+                shard_specs[mlp.experts.gate_up_proj_bias] = ("batch", None)
+                shard_specs[mlp.experts.down_proj] = ("batch", None, None)
+                shard_specs[mlp.experts.down_proj_bias] = ("batch", None)
 
-            # down_proj: (E, inter, hidden) or (1, E, inter, hidden) -> EP + hidden TP
-            #   - E: "model" (4-way EP)
-            #   - inter: None (input replicated)
-            #   - hidden: "batch" (2-way, output sharded)
-            shard_specs[mlp.experts.down_proj] = ("model", None, "batch")
-            shard_specs[mlp.experts.down_proj_bias] = ("model", "batch")
+                return shard_specs
 
-            return shard_specs
+        else:
+            # Original/Sparse: (2, 4) mesh, EP on "model" + TP on "batch"
+            mesh_shape = (2, 4)
+            device_ids = np.array(range(num_devices))
+            mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
+
+            def get_shard_spec(mlp, args, kwargs):
+                shard_specs = {}
+                shard_specs[mlp.router.weight] = (None, "batch")
+
+                shard_specs[mlp.experts.gate_up_proj] = ("model", "batch", None)
+                shard_specs[mlp.experts.gate_up_proj_bias] = ("model", None)
+
+                shard_specs[mlp.experts.down_proj] = ("model", None, "batch")
+                shard_specs[mlp.experts.down_proj_bias] = ("model", "batch")
+
+                return shard_specs
 
     else:
         comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
@@ -539,3 +560,196 @@ def test_gpt_oss_mlp(variant, variant_config, mlp_type, arch):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
+
+
+@pytest.mark.push
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("gpt_oss").items(),
+    ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
+)
+def test_sparse_mlp_cpu_parity(variant, variant_config):
+    """Verify SparseMLP produces the same results as the original MLP on CPU."""
+    from tt_torch.sparse_mlp import SparseMLP
+
+    loader = GPTOSSModelLoader(variant=variant, num_layers=11)
+    model = loader.load_model()
+    config = loader.load_config()
+    inputs = loader.load_inputs()
+
+    batch_size = inputs["input_ids"].shape[0]
+    seq_len = inputs["input_ids"].shape[1]
+
+    original_mlp = model.model.layers[0].mlp
+    sparse_mlp = SparseMLP(
+        original_mlp,
+        num_experts=config.num_local_experts,
+        num_experts_per_tok=config.num_experts_per_tok,
+        config=config,
+    )
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+
+    with torch.no_grad():
+        original_out, original_scores = original_mlp(hidden_states)
+        sparse_out, sparse_scores = sparse_mlp(hidden_states)
+
+    def compute_pcc(x, y):
+        x_flat, y_flat = x.flatten().float(), y.flatten().float()
+        vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
+        denom = vx.norm() * vy.norm()
+        if denom == 0:
+            return 1.0 if torch.allclose(x_flat, y_flat) else 0.0
+        return float((vx @ vy) / denom)
+
+    pcc_out = compute_pcc(original_out, sparse_out)
+    pcc_scores = compute_pcc(original_scores, sparse_scores)
+
+    print(f"PCC output: {pcc_out:.6f}")
+    print(f"PCC router_scores: {pcc_scores:.6f}")
+
+    assert pcc_out > 0.99, f"Output PCC too low: {pcc_out:.6f}"
+    assert pcc_scores > 0.99, f"Router scores PCC too low: {pcc_scores:.6f}"
+
+
+@pytest.mark.nightly
+@parametrize_arch(["llmbox"])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("gpt_oss").items(),
+    ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
+)
+def test_a2a_sparse_mlp(variant, variant_config, arch):
+    """Test A2aSparseMLP with EP sharding on (1,8) mesh.
+
+    Expert weights [E, H, inter*2] are sharded on E along "batch" axis (8-way).
+    all_to_all_dispatch/combine route tokens across all 8 devices.
+    """
+    from tt_torch.sparse_mlp import A2aSparseMLP
+
+    xr.set_device_type("TT")
+
+    loader = GPTOSSModelLoader(variant=variant, num_layers=1)
+    model = loader.load_model()
+    config = loader.load_config()
+    inputs = loader.load_inputs()
+
+    batch_size = inputs["input_ids"].shape[0]
+    seq_len = inputs["input_ids"].shape[1]
+
+    original_mlp = model.model.layers[0].mlp
+
+    # E=8 experts, mesh (1, 8), dispatch across all 8 devices on "batch" axis
+    num_devices = 8
+    mlp = A2aSparseMLP(
+        original_mlp,
+        num_experts=config.num_local_experts,
+        num_experts_per_tok=config.num_experts_per_tok,
+        num_devices=num_devices,
+        cluster_axis=1,
+        config=config,
+    )
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+
+    num_devices_total = xr.global_runtime_device_count()
+    mesh_shape = (1, num_devices_total)
+    device_ids = np.array(range(num_devices_total))
+    mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
+
+    def get_shard_spec(mlp, args, kwargs):
+        shard_specs = {}
+        shard_specs[mlp.router.weight] = (None, "batch")
+
+        # EP sharding: weights [E, H, inter*2], E sharded on "batch" (8-way)
+        shard_specs[mlp.experts.gate_up_proj] = ("batch", None, None)
+        shard_specs[mlp.experts.gate_up_proj_bias] = ("batch", None)
+        shard_specs[mlp.experts.down_proj] = ("batch", None, None)
+        shard_specs[mlp.experts.down_proj_bias] = ("batch", None)
+
+        return shard_specs
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.push
+@pytest.mark.parametrize("num_devices", [1, 2, 4])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("gpt_oss").items(),
+    ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
+)
+def test_a2a_sparse_mlp_cpu_parity(variant, variant_config, num_devices):
+    """Verify A2aSparseMLP produces the same results as the original MLP on CPU.
+
+    Tests with num_devices=1 (no E0/E1 reshape) and num_devices>1 (E0/E1 reshape active).
+    On CPU, dispatch/combine are no-ops regardless of num_devices, so outputs should match.
+    """
+    from tt_torch.sparse_mlp import A2aSparseMLP
+
+    loader = GPTOSSModelLoader(variant=variant, num_layers=1)
+    model = loader.load_model()
+    config = loader.load_config()
+    inputs = loader.load_inputs()
+
+    if config.num_local_experts % num_devices != 0:
+        pytest.skip(
+            f"num_experts ({config.num_local_experts}) not divisible by num_devices ({num_devices})"
+        )
+
+    batch_size = inputs["input_ids"].shape[0]
+    seq_len = inputs["input_ids"].shape[1]
+
+    original_mlp = model.model.layers[0].mlp
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+
+    # Run original BEFORE creating A2aSparseMLP (init reshapes shared experts)
+    with torch.no_grad():
+        original_out, original_scores = original_mlp(hidden_states)
+
+    a2a_mlp = A2aSparseMLP(
+        original_mlp,
+        num_experts=config.num_local_experts,
+        num_experts_per_tok=config.num_experts_per_tok,
+        num_devices=num_devices,
+        cluster_axis=0,
+        config=config,
+    )
+
+    with torch.no_grad():
+        a2a_out, a2a_scores = a2a_mlp(hidden_states)
+
+    def compute_pcc(x, y):
+        x_flat, y_flat = x.flatten().float(), y.flatten().float()
+        vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
+        denom = vx.norm() * vy.norm()
+        if denom == 0:
+            return 1.0 if torch.allclose(x_flat, y_flat) else 0.0
+        return float((vx @ vy) / denom)
+
+    pcc_out = compute_pcc(original_out, a2a_out)
+    pcc_scores = compute_pcc(original_scores, a2a_scores)
+
+    print(
+        f"PCC output (original vs A2aSparseMLP, D={num_devices}): {pcc_out:.6f}"
+    )
+    print(f"PCC router_scores: {pcc_scores:.6f}")
+
+    assert pcc_out > 0.99, f"Output PCC too low: {pcc_out:.6f}"
+    assert pcc_scores > 0.99, f"Router scores PCC too low: {pcc_scores:.6f}"

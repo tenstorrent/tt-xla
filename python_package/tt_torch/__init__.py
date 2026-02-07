@@ -19,5 +19,5 @@ from .serialization import (
 from .sharding import sharding_constraint_hook
 
 # Sparse MLP for MoE models
-from .sparse_mlp import SparseMLP, enable_sparse_mlp
+from .sparse_mlp import A2aSparseMLP, SparseMLP, enable_sparse_mlp
 from .tools import mark_module_user_inputs
