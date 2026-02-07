@@ -31,15 +31,18 @@ namespace tt::pjrt {
 // Initializes pjrt tensor from pjrt buffers.
 //
 // If tensor already exists (shards already share same tensor) tensor will be
-// reused, and this will behave like a simple getter. Otherwise, new tensor is
-// created based on provided strategy from executable instance.
+// reused, and this will behave like a simple getter.
+// If we have strategy identity, it means that tensors are replicated, and we
+// will use first tensor from shards.
+// Otherwise, new tensor is created based on provided strategy from executable
+// instance.
 PjrtTensor &PjrtTensor::from_pjrt_buffers(
     const std::vector<BufferInstance *> &shards,
     const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy) {
 
-  if (have_same_tensor(shards))
-    return from_shards(shards);
+  if (have_same_tensor(shards) || strategy_is_identity(strategy))
+    return from_first_shard(shards);
 
   return from_runtime_tensor(
       shards, rt_tensor_from_strategy(shards, strategy, mesh_shape));
@@ -132,13 +135,10 @@ bool PjrtTensor::have_same_tensor(const std::vector<BufferInstance *> &shards) {
       });
 }
 
-// Returns PjrtTensor from shards.
-// We are assuming that all shards have the same PjrtTensor.
-// Note that this will work for a non-sharded tensor too.
+// Returns PjrtTensor from first shard.
 PjrtTensor &
-PjrtTensor::from_shards(const std::vector<BufferInstance *> &shards) {
+PjrtTensor::from_first_shard(const std::vector<BufferInstance *> &shards) {
 
-  assert(have_same_tensor(shards));
   return *shards.front()->getPjrtTensor();
 }
 
@@ -163,14 +163,14 @@ void PjrtTensor::remove_shard(const BufferInstance *shard) noexcept {
 
 // Either returns single or multi-device runtime tensor from shards, depending
 // on the strategy.
+// Strategy identity should not be used for creating new runtime tensor (tensor
+// should be reused).
 tt::runtime::Tensor PjrtTensor::rt_tensor_from_strategy(
     const std::vector<BufferInstance *> &shards,
     const std::unordered_map<std::string, std::string> &strategy,
     const std::vector<std::uint32_t> &mesh_shape) {
 
-  if (strategy.at("strategy") == "identity") {
-    return shards.front()->runtimeTensor();
-  }
+  assert(!strategy_is_identity(strategy));
 
   std::vector<tt::runtime::Tensor> tensors;
   tensors.reserve(shards.size());
