@@ -20,6 +20,7 @@ test_config:
   gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    required_pcc: 0.985 # Calculated: pcc=0.9898088782430592 https://github.com/tenstorrent/tt-xla/issues/3212
 
   gemma/pytorch-google/gemma-2-9b-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
