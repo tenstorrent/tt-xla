@@ -382,9 +382,11 @@ test_config:
 
   qwen_2_5_coder/causal_lm/jax-1_5b-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-1_5b_instruct-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-3b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
