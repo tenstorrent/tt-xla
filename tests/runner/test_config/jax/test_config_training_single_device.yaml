@@ -165,7 +165,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
 
   gpt_neo/causal_lm/jax-_1_3b-single_device-training:
-    status: KNOWN_FAILURE_XFAIL # Model too large for our runners
+    status: NOT_SUPPORTED_SKIP # Model too large for our runners https://github.com/tenstorrent/tt-xla/issues/3209
     markers: [large, nightly]
 
   gpt_neo/causal_lm/jax-_2_7b-single_device-training:

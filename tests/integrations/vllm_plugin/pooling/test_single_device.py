@@ -165,6 +165,9 @@ def test_embedding_nightly(
             "BAAI/bge-m3",
             "baseline/bge_m3_baseline.pt",
             0,
+            marks=pytest.mark.skip(
+                reason="https://github.com/tenstorrent/tt-xla/issues/3211"
+            ),
         ),
         pytest.param(
             "Qwen/Qwen3-Embedding-0.6B",
