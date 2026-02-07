@@ -100,7 +100,8 @@ public: // Constructors needs to be public for std::shared_ptr.
 private:
   // Returns whether all shards share the same runtime tensor.
   static bool have_same_tensor(const std::vector<BufferInstance *> &shards);
-  static PjrtTensor &from_shards(const std::vector<BufferInstance *> &shards);
+  static PjrtTensor &
+  from_first_shard(const std::vector<BufferInstance *> &shards);
   static uint64_t next_uid();
 
   // Either returns single or multi-device runtime tensor from shards, depending
@@ -109,6 +110,11 @@ private:
       const std::vector<BufferInstance *> &shards,
       const std::unordered_map<std::string, std::string> &strategy,
       const std::vector<std::uint32_t> &mesh_shape);
+
+  static bool strategy_is_identity(
+      const std::unordered_map<std::string, std::string> &strategy) {
+    return strategy.at("strategy") == "identity";
+  }
 
 private:
   // Tensor unique identifier. For now, used for debug only.
