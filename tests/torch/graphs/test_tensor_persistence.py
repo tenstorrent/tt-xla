@@ -599,7 +599,6 @@ def create_device_mesh(mesh_shape) -> Mesh:
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
-@pytest.mark.skip(reason="https://github.com/tenstorrent/tt-xla/issues/3210")
 def test_shared_input_across_mesh_reshape():
     """
     Test scenario: Run 2 models back to back, one on 2x4 mesh and a 1x8 mesh,
