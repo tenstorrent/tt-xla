@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import time
 
 import pytest
 import torch
@@ -203,11 +204,10 @@ def test_batched_inference(
             "Skipping due to non-deterministic failure in CI. Issue: https://github.com/tenstorrent/tt-xla/issues/3094"
         )
 
-    max_model_len = max_num_batched_tokens // max_num_seqs
     run_pooling_test(
         model_name,
         baseline_path,
-        max_model_len,
+        max_model_len=64,
         batch_size=batch_size,
         max_num_reqs=batch_size,
         max_num_batched_tokens=max_num_batched_tokens,
