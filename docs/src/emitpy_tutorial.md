@@ -93,9 +93,9 @@ python examples/jax/codegen/python/custom_module.py
 Both examples configure TT-XLA with these options:
 
 ```python
-    codegen_py(
-        forward, graphdef, state, x, export_path="model"
-    )
+codegen_py(
+    forward, graphdef, state, x, export_path="model"
+)
 ```
 
 where `forward` is the model’s forward function that TT-XLA will compile and lower to TT-NN ops. In the JAX example, it is defined as:
@@ -129,14 +129,14 @@ You should see:
 ### Step 5: Generate the optimized code
 We can specify different optimization options in order to produce the more performant code. For example, we can supply following set of options to produce the optimized code.
 ```python
-    # Any compile options you could specify when executing the model normally can also be used with codegen.
-    extra_options = {
-        "optimization_level": 0,  # Levels 0, 1, and 2 are supported
-    }
+# Any compile options you could specify when executing the model normally can also be used with codegen.
+extra_options = {
+    "optimization_level": 0,  # Levels 0, 1, and 2 are supported
+}
 
-    codegen_py(
-        forward, graphdef, state, x, export_path="model", compiler_options=extra_options
-    )
+codegen_py(
+    forward, graphdef, state, x, export_path="model", compiler_options=extra_options
+)
 ```
 
 Link to other optimizer options to be added here: [TT-XLA Optimizer Docs](./performance.md)
@@ -148,9 +148,9 @@ By default, model input and parameter tensors are exported to `export_path/tenso
 If you don't need to dump these tensors, set the `codegen_py` parameter `export_tensors=False`. The generated code will use `ttnn.ones` for input and parameter tensors instead.
 
 ```python
-    codegen_py(
-        forward, graphdef, state, x, export_path="model", export_tensors=False
-    )
+codegen_py(
+    forward, graphdef, state, x, export_path="model", export_tensors=False
+)
 
 ```
 
@@ -204,14 +204,14 @@ Try modifying operations in `main.py`:
 Want C++ instead of Python? Change the backend:
 
 ```python
-    # Any compile options you could specify when executing the model normally can also be used with codegen.
-    extra_options = {
-        # "optimization_level": 0,  # Levels 0, 1, and 2 are supported
-    }
+# Any compile options you could specify when executing the model normally can also be used with codegen.
+extra_options = {
+    # "optimization_level": 0,  # Levels 0, 1, and 2 are supported
+}
 
-    codegen_cpp(
-        forward, graphdef, state, x, export_path="model", compiler_options=extra_options
-    )
+codegen_cpp(
+    forward, graphdef, state, x, export_path="model", compiler_options=extra_options
+)
 ```
 
 The generated C++ code is **fully standalone** and can be integrated into existing C++ projects.
