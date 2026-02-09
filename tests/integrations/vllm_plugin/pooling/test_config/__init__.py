@@ -19,6 +19,18 @@ except ImportError:
 _CONFIG_DIR = Path(__file__).resolve().parent
 MODEL_CONFIGS_FILENAME = "model_configs.yaml"
 
+# Defaults for pooling model config. Only "model" is required in YAML; other keys
+# are optional overrides. "marks" also default to [single_device] when omitted.
+DEFAULT_POOLING_CONFIG = {
+    "task": "embed",
+    "dtype": "bfloat16",
+    "max_model_len": 128,
+    "max_num_batched_tokens": 128,
+    "max_num_seqs": 1,
+    "disable_sliding_window": True,
+    "prompts": ["Hello, my name is"],
+}
+
 # Map YAML mark names to pytest markers
 MARK_MAP = {
     "push": pytest.mark.push,
@@ -46,10 +58,12 @@ def _load_model_configs() -> dict:
     result = {}
     for name, cfg in raw.items():
         cfg = dict(cfg or {})
-        mark_names = cfg.pop("marks", [])
+        mark_names = cfg.pop("marks", ["single_device"])
         marks = [MARK_MAP[m] for m in mark_names if m in MARK_MAP]
-        cfg["marks"] = marks
-        result[name] = cfg
+        # Merge with defaults so only model (and overrides) need to be in YAML
+        merged = {**DEFAULT_POOLING_CONFIG, **cfg}
+        merged["marks"] = marks
+        result[name] = merged
     return result
 
 
