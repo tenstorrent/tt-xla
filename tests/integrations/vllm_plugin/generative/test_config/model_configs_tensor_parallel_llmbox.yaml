@@ -1,0 +1,265 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# vLLM generative models that OOM on single-device; run in tensor parallel on llmbox.
+# These entries are derived from model_configs.yaml models that fail with
+# "Out of Memory: Not enough space to allocate ..." on single chip.
+# marks: tensor_parallel, llmbox, nightly.
+
+model_configs:
+  mistral-7b:
+    model: "mistralai/Mistral-7B-v0.1"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "The future of AI is"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  falcon-7b:
+    model: "tiiuae/falcon-7b"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "The best way to learn"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  phi-4:
+    model: "microsoft/phi-4"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "Hello, my name is"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  llama-7b:
+    model: "huggyllama/llama-7b"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "I like taking walks in the"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  llama-3.1-8b:
+    model: "meta-llama/Llama-3.1-8B"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: true
+      min_context_len: 32
+      enable_tensor_parallel: true
+      experimental_enable_weight_bfp8_conversion: true
+    prompts:
+      - "I like taking walks in the"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  llama-3.1-8b-instruct:
+    model: "meta-llama/Llama-3.1-8B-Instruct"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: true
+      min_context_len: 32
+      enable_tensor_parallel: true
+      experimental_enable_weight_bfp8_conversion: true
+    prompts:
+      - "I like taking walks in the"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  llama-3-8b:
+    model: "meta-llama/Meta-Llama-3-8B"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: true
+      min_context_len: 32
+      enable_tensor_parallel: true
+      experimental_enable_weight_bfp8_conversion: true
+    prompts:
+      - "I like taking walks in the"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  llama-3-8b-instruct:
+    model: "meta-llama/Meta-Llama-3-8B-Instruct"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: true
+      min_context_len: 32
+      enable_tensor_parallel: true
+      experimental_enable_weight_bfp8_conversion: true
+    prompts:
+      - "I like taking walks in the"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  qwen2.5-14b-instruct:
+    model: "Qwen/Qwen2.5-14B-Instruct"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "The capital of China is"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  qwen3-14b:
+    model: "Qwen/Qwen3-14B"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "Hello, my name is"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  qwen3-8b: # PASSING
+    model: "Qwen/Qwen3-8B"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "Hello, my name is"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  falcon-7b-instruct:
+    model: "tiiuae/falcon-7b-instruct"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "The best way to learn"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  mistral-nemo-instruct-2407:
+    model: "mistralai/Mistral-Nemo-Instruct-2407"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "The future of AI is"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  allam-7b-instruct:
+    model: "ALLaM-AI/ALLaM-7B-Instruct-preview"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "Hello, my name is"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  falcon3-7b-base:
+    model: "tiiuae/Falcon3-7B-Base"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "Hello, my name is"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  falcon3-10b-base:
+    model: "tiiuae/Falcon3-10B-Base"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "Hello, my name is"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  huggyllama-llama-7b:
+    model: "huggyllama/llama-7b"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "Hello, my name is"
+    marks: [tensor_parallel, llmbox, nightly]
+
+  mistral-7b-instruct-v0.3:
+    model: "mistralai/Mistral-7B-Instruct-v0.3"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+      enable_tensor_parallel: true
+    prompts:
+      - "Hello, my name is"
+    marks: [tensor_parallel, llmbox, nightly]
