@@ -42,6 +42,68 @@ def create_composite_wrap_replacement(
     return make_fx(replacement_fn)(*example_inputs)
 
 
+def reorder_placeholders(
+    graph: torch.fx.Graph, expected_order: List[str]
+) -> torch.fx.Graph:
+    """Reorder placeholder nodes in a graph to match expected order.
+
+    This ensures that when replace_pattern_with_filters maps pattern placeholders
+    to replacement placeholders by position, they are correctly aligned.
+
+    Args:
+        graph: The graph to reorder placeholders in.
+        expected_order: List of placeholder name prefixes in desired order.
+                       e.g., ["hidden_states", "weight", "eps", "dtype"]
+
+    Returns:
+        The graph with placeholders reordered.
+    """
+    # Collect all placeholder nodes
+    placeholders = [n for n in graph.nodes if n.op == "placeholder"]
+
+    # Create mapping from name prefix to placeholder node
+    prefix_to_node = {}
+    for ph in placeholders:
+        # Handle names like "hidden_states_1" -> "hidden_states"
+        name = ph.name
+        for prefix in expected_order:
+            if name == prefix or name.startswith(prefix + "_"):
+                prefix_to_node[prefix] = ph
+                break
+
+    # Check if reordering is needed
+    current_order = [ph.name for ph in placeholders]
+    needs_reorder = False
+    for i, prefix in enumerate(expected_order):
+        if prefix in prefix_to_node:
+            node = prefix_to_node[prefix]
+            if placeholders.index(node) != i:
+                needs_reorder = True
+                break
+
+    if not needs_reorder:
+        return graph
+
+    # Reorder by moving nodes to the beginning in reverse order
+    # This preserves the relative order of non-placeholder nodes
+    first_non_placeholder = None
+    for node in graph.nodes:
+        if node.op != "placeholder":
+            first_non_placeholder = node
+            break
+
+    if first_non_placeholder is None:
+        return graph
+
+    # Move placeholders in correct order
+    for prefix in reversed(expected_order):
+        if prefix in prefix_to_node:
+            node = prefix_to_node[prefix]
+            node.prepend(first_non_placeholder)
+
+    return graph
+
+
 class FusionProvider(ABC):
     """Base class for all fusion pattern providers.
 
@@ -160,6 +222,10 @@ class RMSNormFusionProvider(FusionProvider):
     @staticmethod
     def replacement(hidden_states: Tensor, weight: Tensor, eps: float, dtype) -> Tensor:
         """Replacement function that wraps the RMS norm pattern in a StableHLO composite."""
+        # IMPORTANT: Access hidden_states BEFORE weight to ensure correct placeholder
+        # ordering when traced with make_fx. Placeholders are created in access order.
+        hidden_fp32 = hidden_states.to(torch.float32)
+
         # Get normalized_shape from weight dimensions (RMS norm normalizes over last dim)
         normalized_shape = list(weight.shape)
 
@@ -167,10 +233,6 @@ class RMSNormFusionProvider(FusionProvider):
             name="tenstorrent.rms_norm",
             attr={"epsilon": eps, "normalized_shape": normalized_shape},
         )
-
-        # Convert hidden_states to float32 before marking as input
-        # tt-mlir RMS norm expects float32 inputs
-        hidden_fp32 = hidden_states.to(torch.float32)
 
         # Mark float32 tensors as inputs
         marked_hidden, marked_weight = builder.mark_inputs(hidden_fp32, weight)
@@ -257,6 +319,14 @@ class RMSNormFusionProvider(FusionProvider):
             traced_replacement = self._create_replacement_for_shape(
                 weight_shape, hidden_shape
             )
+
+            # Ensure placeholder order matches pattern order for correct mapping
+            # Pattern order is: hidden_states, weight, eps, dtype
+            reorder_placeholders(
+                traced_replacement.graph,
+                ["hidden_states", "weight", "eps", "dtype"],
+            )
+
             return traced_replacement.graph
 
         replaced = replace_pattern_with_filters(
