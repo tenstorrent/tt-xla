@@ -1,0 +1,168 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# vLLM pooling (embedding) model test configurations.
+# Same pattern as generative: marks (e.g. vllm_sweep, single_device) applied per config.
+# Configs are used by test_pooling_models.py for config-driven parametrized tests.
+
+model_configs:
+  # vLLM sweep: one variant per pooling/embedding architecture (marks: vllm_sweep only).
+  vllm_sweep_bge_m3: # PASSING
+    model: "BAAI/bge-m3"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 512
+    max_num_batched_tokens: 512
+    max_num_seqs: 2
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+      - "The capital of France is Paris"
+    marks: [single_device]
+
+  vllm_sweep_bge_base: # PASSING
+    model: "BAAI/bge-base-en"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 64
+    max_num_batched_tokens: 128
+    max_num_seqs: 2
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+      - "The capital of France is Paris"
+    marks: [single_device]
+
+  vllm_sweep_bge_small: # PASSING
+    model: "BAAI/bge-small-en"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 64
+    max_num_batched_tokens: 128
+    max_num_seqs: 2
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+    marks: [single_device]
+
+  vllm_sweep_e5_small: # PASSING
+    model: "intfloat/e5-small-v2"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 64
+    max_num_batched_tokens: 128
+    max_num_seqs: 2
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+      - "The capital of France is Paris"
+    marks: [single_device]
+
+  vllm_sweep_e5_base: # PASSING
+    model: "intfloat/e5-base-v2"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 64
+    max_num_batched_tokens: 128
+    max_num_seqs: 2
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+    marks: [single_device]
+
+  vllm_sweep_qwen3_embedding_0_6b: # PASSING
+    model: "Qwen/Qwen3-Embedding-0.6B"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 128
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+    marks: [single_device]
+
+  vllm_sweep_qwen3_embedding_4b: # PASSING
+    model: "Qwen/Qwen3-Embedding-4B"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 128
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+    marks: [single_device]
+
+  vllm_sweep_all_minilm: # PASSING
+    model: "sentence-transformers/all-MiniLM-L6-v2"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 64
+    max_num_batched_tokens: 128
+    max_num_seqs: 2
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+    marks: [single_device]
+
+  vllm_sweep_multi_qa_minilm: # PASSING
+    model: "sentence-transformers/multi-qa-MiniLM-L6-cos-v1"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 64
+    max_num_batched_tokens: 128
+    max_num_seqs: 2
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+    marks: [single_device]
+
+  vllm_sweep_llama: # Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1055589376 B, free: 18152416 B, largest free block: 4194304 B)
+    model: "intfloat/e5-mistral-7b-instruct"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 128
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+    marks: [single_device]
+
+  vllm_sweep_gritlm: # ValueError: TT backend only supports V1.
+    model: "parasail-ai/GritLM-7B-vllm"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 128
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+    marks: [single_device]
+
+  vllm_sweep_roberta: # PASSING
+    model: "sentence-transformers/nli-roberta-base-v2"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 64
+    max_num_batched_tokens: 128
+    max_num_seqs: 2
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+    marks: [single_device]
+
+  vllm_sweep_xlm_roberta: # PASSING
+    model: "sentence-transformers/stsb-xlm-r-multilingual"
+    task: "embed"
+    dtype: "bfloat16"
+    max_model_len: 64
+    max_num_batched_tokens: 128
+    max_num_seqs: 2
+    disable_sliding_window: true
+    prompts:
+      - "Hello, my name is"
+    marks: [single_device]
