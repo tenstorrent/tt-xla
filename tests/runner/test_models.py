@@ -433,9 +433,18 @@ def test_llms_torch(
     test_entry, run_phase = test_entry_and_phase
 
     if run_phase == RunPhase.LLM_DECODE:
+        # Decode tests don't parametrize on sequence length (default is seq_len = 1).
+        if sequence_length is not None:
+            pytest.skip("Decode tests do not support sequence_length parameterization")
+        # Decode tests for now run only batch_size = 1.
+        if batch_size != 1:
+            pytest.skip("Decode tests currently only support batch_size=1")
         request.node.add_marker(pytest.mark.llm_decode)
 
     if run_phase == RunPhase.LLM_PREFILL:
+        # Sequence length should be specified for prefill tests.
+        if sequence_length is None:
+            pytest.skip("Sequence length must be specified for prefill tests")
         request.node.add_marker(pytest.mark.llm_prefill)
 
     test_metadata.batch_size = batch_size
