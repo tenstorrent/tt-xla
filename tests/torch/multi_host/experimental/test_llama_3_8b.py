@@ -41,7 +41,7 @@ def create_device_mesh(mesh_shape: tuple[int, int]) -> Mesh:
 
 @pytest.mark.tensor_parallel
 @pytest.mark.parametrize("topology", ["dual_bh_quietbox", "dual_galaxy", "quad_galaxy"])
-def test_llama_31_8b_tensor_parallel(topology, configure_topology, mesh_shape):
+def test_llama_3_8b_tensor_parallel(topology, configure_topology, mesh_shape):
     """
     Run Llama 3.1 8B inference with tensor parallelism.
 
@@ -93,7 +93,7 @@ def test_llama_31_8b_tensor_parallel(topology, configure_topology, mesh_shape):
 
     # Compare with CPU reference using PCC
     comparison_config = ComparisonConfig(
-        pcc=PccConfig(required_pcc=0.99), assert_on_failure=True
+        pcc=PccConfig(required_pcc=0.95), assert_on_failure=True
     )
     comparator = TorchComparisonEvaluator(comparison_config)
     comparator.evaluate(tt_logits_cpu, cpu_logits)

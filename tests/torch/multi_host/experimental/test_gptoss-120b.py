@@ -1,11 +1,10 @@
-# Copied from @ddilbaz's original implementation
-# The purpose of this test is to show E2E execution of 120B GPT-OSS model on dual BH QB
-# Need to merge changes from https://github.com/tenstorrent/tt-forge-models/pull/426/files
-
-
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
+# Copied from @ddilbaz's original implementation
+# The purpose of this test is to show E2E execution of 120B GPT-OSS model on dual BH QB
+
 import os
 import sys
 
