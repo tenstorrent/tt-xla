@@ -269,7 +269,7 @@ model_configs:
     - Hello, my name is
     marks:
     - single_device
-  phi2_causal_lm_pytorch_microsoft_phi_2_pytdml: # (0.04 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB).
+  phi2_causal_lm_pytorch_microsoft_phi_2_pytdml: # PASSING
     model: microsoft/phi-2-pytdml
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -281,9 +281,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  phi1_5_causal_lm_pytorch_microsoft_phi_1_5: # (0.05 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB).
+  phi1_5_causal_lm_pytorch_microsoft_phi_1_5: # PASSING
     model: microsoft/phi-1_5
     max_num_batched_tokens: 256
     max_num_seqs: 1
@@ -295,7 +294,6 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
   opt_qa_pytorch_facebook_opt_125m: # PASSING
     model: facebook/opt-125m
@@ -375,7 +373,7 @@ model_configs:
     - Hello, my name is
     marks:
     - single_device
-  phi1_causal_lm_pytorch_microsoft_phi_1: # (0.05 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)
+  phi1_causal_lm_pytorch_microsoft_phi_1: # PASSING
     model: microsoft/phi-1
     max_num_batched_tokens: 256
     max_num_seqs: 1
@@ -387,9 +385,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  opt_causal_lm_pytorch_facebook_opt_1_3b: # (0.05 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB).
+  opt_causal_lm_pytorch_facebook_opt_1_3b: # PASSING
     model: facebook/opt-1.3b
     max_num_batched_tokens: 256
     max_num_seqs: 1
@@ -401,7 +398,6 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
   opt_qa_pytorch_facebook_opt_1_3b: # PASSING
     model: facebook/opt-1.3b
@@ -793,7 +789,7 @@ model_configs:
     - Hello, my name is
     marks:
     - single_device
-  phi3_causal_lm_pytorch_microsoft_phi_3_mini_4k_instruct: # (0.06 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)
+  phi3_causal_lm_pytorch_microsoft_phi_3_mini_4k_instruct: # PASSING
     model: microsoft/Phi-3-mini-4k-instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -805,7 +801,6 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
   huggyllama_pytorch_llama_7b: # Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B (allocated: 1046447104 B, free: 27294688 B, largest free block: 7729120 B)
     model: huggyllama/llama-7b
@@ -1028,3 +1023,1301 @@ model_configs:
     - Hello, my name is
     marks:
     - single_device
+
+  # vLLM sweep: one variant per architecture from vLLM supported generative models table (marks: vllm_sweep only).
+  vllm_sweep_opt:
+    model: "facebook/opt-125m"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.001
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_llama:
+    model: "meta-llama/Llama-3.2-1B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_mistral:
+    model: "mistralai/Mistral-7B-v0.1"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.001
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "The future of AI is"
+    marks: [vllm_sweep]
+  vllm_sweep_qwen2:
+    model: "Qwen/Qwen2-0.5B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.001
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_gemma:
+    model: "google/gemma-2b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.001
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_gemma2:
+    model: "google/gemma-2-2b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_phi:
+    model: "microsoft/phi-2"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.004
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_phi3:
+    model: "microsoft/Phi-3-mini-4k-instruct"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_falcon:
+    model: "tiiuae/falcon-7b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_falcon3:
+    model: "tiiuae/Falcon3-1B-Base"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_mamba:
+    model: "state-spaces/mamba-130m-hf"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_gpt2:
+    model: "openai-community/gpt2"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_deepseek:
+    model: "deepseek-ai/deepseek-coder-1.3b-instruct"
+    max_num_batched_tokens: 256
+    max_num_seqs: 1
+    max_model_len: 256
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_qwen3:
+    model: "Qwen/Qwen3-0.6B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_qwen25:
+    model: "Qwen/Qwen2.5-0.5B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_gptneox:
+    model: "EleutherAI/pythia-70m"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_bloom:
+    model: "bigscience/bloom-560m"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_olmo:
+    model: "allenai/OLMo-1B-hf"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_granite:
+    model: "ibm-granite/granite-3.0-2b-base"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_stablelm:
+    model: "stabilityai/stablelm-base-alpha-3b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_gptj:
+    model: "EleutherAI/gpt-j-6b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_mpt:
+    model: "mosaicml/mpt-7b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_internlm:
+    model: "internlm/internlm-7b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_qwen1:
+    model: "Qwen/Qwen-7B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_starcoder2:
+    model: "bigcode/starcoder2-3b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_minicpm:
+    model: "openbmb/MiniCPM-2B-sft-bf16"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_cohere:
+    model: "CohereLabs/c4ai-command-r-v01"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_jamba:
+    model: "ai21labs/AI21-Jamba-1.5-Mini"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_nemotron:
+    model: "nvidia/Minitron-8B-Base"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_smollm3:
+    model: "HuggingFaceTB/SmolLM3-3B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_apertus:
+    model: "swiss-ai/Apertus-8B-2509"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_aquila:
+    model: "BAAI/Aquila-7B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_arcee:
+    model: "arcee-ai/AFM-4.5B-Base"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_arctic:
+    model: "Snowflake/snowflake-arctic-base"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_baichuan:
+    model: "baichuan-inc/Baichuan-7B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_bailingmoe:
+    model: "inclusionAI/Ling-lite-1.5"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_bailingmoev2:
+    model: "inclusionAI/Ling-mini-2.0"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_bamba:
+    model: "ibm-ai-platform/Bamba-9B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_chatglm:
+    model: "zai-org/chatglm2-6b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_cwm:
+    model: "facebook/cwm"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_dbrx:
+    model: "databricks/dbrx-base"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_decilm:
+    model: "nvidia/Llama-3.3-Nemotron-Super-49B-v1"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_deepseekv2:
+    model: "deepseek-ai/DeepSeek-V2"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_deepseekv3:
+    model: "deepseek-ai/DeepSeek-V3"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_dots1:
+    model: "rednote-hilab/dots.llm1.base"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_dotsocr:
+    model: "rednote-hilab/dots.ocr"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_ernie45:
+    model: "baidu/ERNIE-4.5-0.3B-PT"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_ernie45moe:
+    model: "baidu/ERNIE-4.5-21B-A3B-PT"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_exaone:
+    model: "LGAI-EXAONE/EXAONE-3.0-7.8B-Instruct"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_exaone4:
+    model: "LGAI-EXAONE/EXAONE-4.0-32B"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_fairseq2llama:
+    model: "mgleize/fairseq2-dummy-Llama-3.2-1B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_falconmamba:
+    model: "tiiuae/falcon-mamba-7b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_falconh1:
+    model: "tiiuae/Falcon-H1-34B-Base"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_flexolmo:
+    model: "allenai/FlexOlmo-7x7B-1T"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_gemma3:
+    model: "google/gemma-3-1b-it"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_gemma3n:
+    model: "google/gemma-3n-E2B-it"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_glm4:
+    model: "zai-org/glm-4-9b-chat-hf"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_glm4_0414:
+    model: "zai-org/GLM-4-32B-0414"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_glm4moe:
+    model: "zai-org/GLM-4.5"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_glm4moelite:
+    model: "zai-org/GLM-4.7-Flash"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_gptbigcode:
+    model: "bigcode/starcoder"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_gptoss:
+    model: "openai/gpt-oss-20b"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_granitemoe:
+    model: "ibm-granite/granite-3.0-1b-a400m-base"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_granitemoehybrid:
+    model: "ibm-granite/granite-4.0-tiny-preview"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_granitemoeshared:
+    model: "ibm-research/moe-7b-1b-active-shared-experts"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_gritlm:
+    model: "parasail-ai/GritLM-7B-vllm"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_hunyuan:
+    model: "tencent/Hunyuan-7B-Instruct"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_hunyuanmoe:
+    model: "tencent/Hunyuan-A13B-Instruct"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_internlm2:
+    model: "internlm/internlm2-7b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_internlm3:
+    model: "internlm/internlm3-8b-instruct"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_jais:
+    model: "inceptionai/jais-13b"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_jais2:
+    model: "inceptionai/Jais-2-8B-Chat"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_kimilinear:
+    model: "moonshotai/Kimi-Linear-48B-A3B-Base"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_lfm2:
+    model: "LiquidAI/LFM2-350M"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_lfm2moe:
+    model: "LiquidAI/LFM2-8B-A1B-preview"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_longcatflash:
+    model: "meituan-longcat/LongCat-Flash-Chat"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_mamba2:
+    model: "mistralai/Mamba-Codestral-7B-v0.1"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_mimo:
+    model: "XiaomiMiMo/MiMo-7B-RL"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_mimov2flash:
+    model: "XiaomiMiMo/MiMo-V2-Flash"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_minicpm3:
+    model: "openbmb/MiniCPM3-4B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_minimaxm2:
+    model: "MiniMaxAI/MiniMax-M2"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_mistrallarge3:
+    model: "mistralai/Mistral-Large-3-675B-Base-2512"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_mixtral:
+    model: "mistralai/Mixtral-8x7B-v0.1"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_nemotronh:
+    model: "nvidia/Nemotron-H-8B-Base-8K"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_olmo2:
+    model: "allenai/OLMo-2-0425-1B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_olmo3:
+    model: "allenai/Olmo-3-7B-Instruct"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_olmoe:
+    model: "allenai/OLMoE-1B-7B-0924"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_orion:
+    model: "OrionStarAI/Orion-14B-Base"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_ouro:
+    model: "ByteDance/Ouro-1.4B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_panguembedded:
+    model: "FreedomIntelligence/openPangu-Embedded-7B-V1.1"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_phimoe:
+    model: "microsoft/Phi-3.5-MoE-instruct"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_persimmon:
+    model: "adept/persimmon-8b-base"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_plamo2:
+    model: "pfnet/plamo-2-1b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_plamo3:
+    model: "pfnet/plamo-3-nict-2b-base"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_qwen2moe:
+    model: "Qwen/Qwen1.5-MoE-A2.7B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_qwen3moe:
+    model: "Qwen/Qwen3-30B-A3B"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_qwen3next:
+    model: "Qwen/Qwen3-Next-80B-A3B-Instruct"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_rw:
+    model: "tiiuae/falcon-40b"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_seedoss:
+    model: "ByteDance-Seed/Seed-OSS-36B-Instruct"
+    max_num_batched_tokens: 32
+    max_num_seqs: 1
+    max_model_len: 32
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_solar:
+    model: "upstage/solar-pro-preview-instruct"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_stablelmepoch:
+    model: "stabilityai/stablelm-zephyr-3b"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_step1:
+    model: "stepfun-ai/Step-Audio-EditX"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_step3p5:
+    model: "stepfun-ai/Step-3.5-Flash"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_telechat:
+    model: "chuhac/TeleChat2-35B"
+    max_num_batched_tokens: 64
+    max_num_seqs: 1
+    max_model_len: 64
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_telechat2:
+    model: "Tele-AI/TeleChat2-3B"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_teleflm:
+    model: "CofeAI/Tele-FLM"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_xverse:
+    model: "xverse/XVERSE-7B-Chat"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
+  vllm_sweep_zamba2:
+    model: "Zyphra/Zamba2-1.2B-instruct"
+    max_num_batched_tokens: 128
+    max_num_seqs: 1
+    max_model_len: 128
+    gpu_memory_utilization: 0.002
+    additional_config:
+      enable_const_eval: false
+      min_context_len: 32
+    prompts:
+    - "Hello, my name is"
+    marks: [vllm_sweep]
