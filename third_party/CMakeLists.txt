@@ -80,7 +80,6 @@ else()
         GIT_PROGRESS ON
     )
 
-
     if(TTXLA_ENABLE_EXPLORER)
         ExternalProject_Add_Step(tt-mlir build_explorer
             COMMAND env ${WITH_METAL_RUNTIME_ROOT_SET} ${CMAKE_COMMAND} --build <BINARY_DIR> -- explorer
