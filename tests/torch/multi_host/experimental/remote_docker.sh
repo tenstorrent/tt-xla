@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
 #!/bin/bash
 # Reference from metal: https://github.com/tenstorrent/tt-metal/commit/8c8b385e58a4a262dd98
 # To be used for mca option plm_rsh_agent script path
@@ -19,4 +23,4 @@ SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLeve
 ssh -A $SSH_OPTS -l ubuntu "$HOST" sudo docker exec \
   -u root \
   -e LD_LIBRARY_PATH=/opt/ttmlir-toolchain/lib:/lib/x86_64-linux-gnu \
-  jzx-host-mapped bash -c "'$REMOTE_COMMAND'"
+  ubuntu-host-mapped bash -c "'$REMOTE_COMMAND'"

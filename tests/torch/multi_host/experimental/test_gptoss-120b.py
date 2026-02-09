@@ -41,7 +41,7 @@ def test_gpt_oss_120b():
     )
     model.eval()
 
-    tokenizer = AutoTokenizer.from_pretrained("openai/gpt-oss-20b")
+    tokenizer = AutoTokenizer.from_pretrained("openai/gpt-oss-120b")
     messages = [
         {"role": "user", "content": "Who are you?"},
     ]
