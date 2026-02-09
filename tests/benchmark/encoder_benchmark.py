@@ -2,16 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Built-in modules
 import socket
 import time
 from typing import List
 
-# Third-party modules
 import torch
 import torch_xla
 import torch_xla.runtime as xr
 from utils import (
+    build_xla_export_name,
     compute_pcc,
     create_benchmark_result,
     get_benchmark_metadata,
@@ -159,6 +158,8 @@ def benchmark_encoder_torch_xla(
     load_inputs_fn,
     preprocess_fn,
     output_processor_fn,
+    display_name=None,
+    num_layers_override=None,
     required_pcc=0.97,
     enable_weight_bfp8_conversion=False,
     experimental_enable_permute_matmul_fusion=False,
@@ -210,10 +211,18 @@ def benchmark_encoder_torch_xla(
             framework_model, raw_inputs, preprocess_fn, "cpu", output_processor_fn
         )
 
+    export_model_name = build_xla_export_name(
+        model_name=display_name,
+        num_layers=num_layers_override,
+        batch_size=batch_size,
+        input_sequence_length=input_sequence_length,
+    )
+
     # Set XLA compilation options
     options = {
         "optimization_level": optimization_level,
         "export_path": MODULE_EXPORT_PATH,
+        "export_model_name": export_model_name,
         "ttnn_perf_metrics_enabled": True,
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
         "enable_trace": trace_enabled,
@@ -300,6 +309,7 @@ def benchmark_encoder_torch_xla(
         program_cache_enabled=True,
         trace_enabled=trace_enabled,
         model_info=full_model_name,
+        display_name=display_name,
         torch_xla_enabled=True,
         backend="tt",
         device_name=socket.gethostname(),
@@ -307,6 +317,7 @@ def benchmark_encoder_torch_xla(
         input_is_image=False,
         input_sequence_length=input_sequence_length,
         enable_weight_bfp8_conversion=enable_weight_bfp8_conversion,
+        device_count=xr.global_runtime_device_count(),
     )
 
     return result

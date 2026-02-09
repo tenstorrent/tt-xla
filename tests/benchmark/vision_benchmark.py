@@ -6,19 +6,16 @@
 import socket
 import time
 
-import pytest
-
-# Third-party modules
 import torch
 import torch.nn as nn
 import torch_xla
 import torch_xla.runtime as xr
 from utils import (
+    build_xla_export_name,
     compute_pcc,
     create_benchmark_result,
     get_benchmark_metadata,
     get_xla_device_arch,
-    move_to_cpu,
     print_benchmark_results,
 )
 
@@ -104,6 +101,7 @@ def benchmark_vision_torch_xla(
     ttnn_perf_metrics_output_file,
     load_inputs_fn,
     extract_output_tensor_fn,
+    display_name=None,
     required_pcc=0.97,
 ):
     """
@@ -144,10 +142,18 @@ def benchmark_vision_torch_xla(
         golden_output = framework_model(golden_input)
         golden_output = extract_output_tensor_fn(golden_output)
 
+    export_model_name = build_xla_export_name(
+        model_name=display_name,
+        num_layers=None,
+        batch_size=batch_size,
+        input_sequence_length=None,
+    )
+
     # Set XLA compilation options
     options = {
         "optimization_level": optimization_level,
         "export_path": MODULE_EXPORT_PATH,
+        "export_model_name": export_model_name,
         "ttnn_perf_metrics_enabled": True,
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
         "enable_trace": trace_enabled,
@@ -251,10 +257,12 @@ def benchmark_vision_torch_xla(
         program_cache_enabled=True,
         trace_enabled=trace_enabled,
         model_info=model_info_name,
+        display_name=display_name,
         torch_xla_enabled=True,
         backend="tt",
         device_name=socket.gethostname(),
         arch=get_xla_device_arch(),
+        device_count=xr.global_runtime_device_count(),
     )
 
     return result

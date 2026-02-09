@@ -7,11 +7,9 @@ import os
 import socket
 import sys
 import time
-from typing import List
+from typing import List, Optional
 
-# Third-party modules
 import numpy as np
-import pytest
 import torch
 import torch.nn as nn
 import torch_xla
@@ -19,12 +17,13 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import transformers
-import tt_torch
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
+from tt_torch.sharding import sharding_constraint_hook
 from utils import (
+    build_xla_export_name,
     compute_pcc,
     create_benchmark_result,
     get_benchmark_metadata,
@@ -73,6 +72,7 @@ def construct_inputs(
     model_config,
     batch_size: int,
     max_cache_len: int,
+    past_key_values: Optional[StaticCache] = None,
 ) -> dict:
     """
     Construct inputs including static cache.
@@ -103,29 +103,33 @@ def construct_inputs(
         truncation=True,
     )
 
-    # Static cache should be initialized on CPU and separately transferred to device
-    # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
-    static_cache: StaticCache = StaticCache(
-        config=model_config,
-        max_batch_size=batch_size,
-        max_cache_len=max_cache_len,
-        device="cpu",
-        dtype=torch.bfloat16,
-    )
-    if hasattr(model_config, "head_dim") and model_config.head_dim:
-        head_dim = model_config.head_dim
+    if past_key_values is None:
+        if hasattr(model_config, "head_dim") and model_config.head_dim:
+            head_dim = model_config.head_dim
+        else:
+            head_dim = model_config.hidden_size // model_config.num_attention_heads
+        num_key_value_heads = getattr(
+            model_config, "num_key_value_heads", model_config.num_attention_heads
+        )
+
+        # Static cache should be initialized on CPU and separately transferred to device
+        # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
+        static_cache: StaticCache = StaticCache(
+            config=model_config,
+            max_batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            device="cpu",
+            dtype=torch.bfloat16,
+        )
+        static_cache.early_initialization(
+            batch_size=batch_size,
+            num_heads=num_key_value_heads,
+            head_dim=head_dim,
+            dtype=torch.bfloat16,
+            device="cpu",
+        )
     else:
-        head_dim = model_config.hidden_size // model_config.num_attention_heads
-    num_key_value_heads = getattr(
-        model_config, "num_key_value_heads", model_config.num_attention_heads
-    )
-    static_cache.early_initialization(
-        batch_size=batch_size,
-        num_heads=num_key_value_heads,
-        head_dim=head_dim,
-        dtype=torch.bfloat16,
-        device="cpu",
-    )
+        static_cache = past_key_values
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
     input_args = {
@@ -163,7 +167,6 @@ def transfer_to_device(
         layer.values = layer.values.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
-
     return input_args
 
 
@@ -226,12 +229,6 @@ def generate_and_benchmark(
             host_cache_pos = input_args["cache_position"].to("cpu")
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
-            # Reapply shardings for static cache if SPMD is enabled
-            # See https://github.com/tenstorrent/tt-xla/issues/1641
-            if is_multichip:
-                for layer in input_args["past_key_values"].layers:
-                    xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-                    xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
             end = time.perf_counter_ns()
             iteration_times.append(end - start)
@@ -266,6 +263,7 @@ def check_transformers_version():
 def benchmark_llm_torch_xla(
     model_loader,
     model_variant,
+    display_name,
     optimization_level,
     trace_enabled,
     batch_size,
@@ -282,6 +280,7 @@ def benchmark_llm_torch_xla(
     shard_spec_fn,
     arch,
     required_pcc,
+    fp32_dest_acc_en=None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -361,6 +360,7 @@ def benchmark_llm_torch_xla(
 
     # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
+    full_model_name = model_loader.get_model_info(variant=model_variant).name
 
     # Construct inputs, including static cache
     input_args = construct_inputs(tokenizer, model.config, batch_size, max_cache_len)
@@ -400,16 +400,31 @@ def benchmark_llm_torch_xla(
             xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
             xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
+        # Apply sharding constraint on lm_head output to all_gather logits
+        if hasattr(model, "lm_head") and model.lm_head is not None:
+            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
+            model.lm_head.register_forward_hook(hook)
+
     # Set XLA compilation options
+    num_layers_override = getattr(model_loader, "num_layers", None)
+    export_model_name = build_xla_export_name(
+        model_name=display_name,
+        num_layers=num_layers_override,
+        batch_size=batch_size,
+        input_sequence_length=input_sequence_length,
+    )
     options = {
         "optimization_level": optimization_level,
         "enable_trace": trace_enabled,
         "export_path": MODULE_EXPORT_PATH,
+        "export_model_name": export_model_name,
         "ttnn_perf_metrics_enabled": True,
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
         "experimental_enable_weight_bfp8_conversion": enable_weight_bfp8_conversion,
         "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
     }
+    if fp32_dest_acc_en is not None:
+        options["fp32_dest_acc_en"] = fp32_dest_acc_en
 
     torch_xla.set_custom_compile_options(options)
 
@@ -434,14 +449,14 @@ def benchmark_llm_torch_xla(
     )
 
     # Reconstruct inputs for the actual benchmark run
-    input_args = construct_inputs(tokenizer, model.config, batch_size, max_cache_len)
+    input_args = construct_inputs(
+        tokenizer,
+        model.config,
+        batch_size,
+        max_cache_len,
+        past_key_values=input_args["past_key_values"],
+    )
     input_args = transfer_to_device(input_args, device)
-
-    # Re-shard KV cache tensors created in input_args
-    if is_multichip:
-        for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-            xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
     # Run benchmark once
     print(f"\nStarting benchmark...")
@@ -477,7 +492,6 @@ def benchmark_llm_torch_xla(
 
     metadata = get_benchmark_metadata()
 
-    full_model_name = model_loader.get_model_info(variant=model_variant).name
     model_type = "text-generation"
     dataset_name = "Random Data"
 
@@ -520,6 +534,10 @@ def benchmark_llm_torch_xla(
     )
     print(f"PCC verification passed with PCC={pcc_value:.6f}")
 
+    # Get device count and mesh info for metrics
+    device_count = xr.global_runtime_device_count()
+    mesh_shape = tuple(mesh.shape()) if mesh is not None else None
+
     result = create_benchmark_result(
         full_model_name=full_model_name,
         model_type=model_type,
@@ -538,12 +556,15 @@ def benchmark_llm_torch_xla(
         trace_enabled=trace_enabled,
         enable_weight_bfp8_conversion=enable_weight_bfp8_conversion,
         model_info=full_model_name,
+        display_name=display_name,
         torch_xla_enabled=True,
         backend="tt",
         device_name=socket.gethostname(),
         arch=arch or get_xla_device_arch(),
         input_is_image=False,
         input_sequence_length=input_sequence_length,
+        device_count=device_count,
+        mesh_shape=mesh_shape,
     )
 
     return result

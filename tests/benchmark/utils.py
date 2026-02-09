@@ -2,13 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
 import json
 import os
 import re
+import secrets
 import socket
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 
@@ -43,6 +45,27 @@ def get_xla_device_arch():
     return align_arch(arch_name)
 
 
+def get_device_type(arch: str, device_count: int) -> str:
+    """Determine device type string based on architecture and device count."""
+
+    if device_count == 32:
+        return "galaxy"
+    if device_count == 8:
+        return "llmbox"
+    if arch == "wormhole":
+        if device_count == 1:
+            return "n150"
+        if device_count == 2:
+            return "n300"
+    if arch == "blackhole":
+        if device_count == 1:
+            return "p150"
+        if device_count == 2:
+            return "p300"
+
+    return "unknown"
+
+
 def sanitize_filename(name: str) -> str:
     """
     Sanitize a string to be safe for use in filenames.
@@ -55,6 +78,74 @@ def sanitize_filename(name: str) -> str:
     sanitized = re.sub(r"_+", "_", sanitized)
     # Remove leading/trailing underscores and convert to lowercase
     return sanitized.strip("_").lower()
+
+
+def sanitize_model_name(value: Any) -> str:
+    text = str(value).strip()
+    text = re.sub(r"\s+", "_", text)
+    text = re.sub(r"[^a-zA-Z0-9_]+", "_", text)
+    text = re.sub(r"_+", "_", text)
+    text = text.strip("_").lower()
+    return text or "na"
+
+
+def build_xla_export_name(
+    model_name: str,
+    num_layers: Optional[Union[int, str]],
+    batch_size: int,
+    input_sequence_length: Optional[int],
+) -> str:
+    """Build a standardized export name for XLA benchmark runs."""
+    run_id = secrets.token_hex(2)
+
+    if num_layers is None or (isinstance(num_layers, int) and num_layers <= 0):
+        layers_part = None
+    else:
+        layers_part = f"{num_layers}lyr"
+
+    if not isinstance(model_name, str) and hasattr(model_name, "name"):
+        model_name = model_name.name
+    parts = [sanitize_model_name(model_name)]
+    if layers_part:
+        parts.append(layers_part)
+    parts.append(f"bs{batch_size}")
+    if input_sequence_length is not None and input_sequence_length > 0:
+        parts.append(f"isl{input_sequence_length}")
+    parts.append(f"run{run_id}")
+    return "_".join(parts)
+
+
+def resolve_display_name(request: Any = None, fallback: Optional[str] = None) -> str:
+    """Resolve a display name, optionally overriding with pytest test name."""
+    name = None
+    if (
+        request is not None
+        and hasattr(request, "node")
+        and hasattr(request.node, "name")
+    ):
+        test_name = request.node.name
+        if test_name and test_name.startswith("test_"):
+            name = test_name[5:]
+
+    if not name:
+        name = sanitize_model_name(fallback or "")
+    return name
+
+
+def create_model_loader(ModelLoader, num_layers: Optional[int] = None, *args, **kwargs):
+    """Create a model loader with optional num_layers override.
+
+    Returns None if num_layers is requested but the loader does not support it.
+    """
+    if num_layers is None:
+        return ModelLoader(*args, **kwargs)
+    params = inspect.signature(ModelLoader.__init__).parameters
+    supports_num_layers = "num_layers" in params or any(
+        param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values()
+    )
+    if not supports_num_layers:
+        return None
+    return ModelLoader(*args, num_layers=num_layers, **kwargs)
 
 
 def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
@@ -325,14 +416,16 @@ def create_benchmark_result(
     trace_enabled: bool = False,
     enable_weight_bfp8_conversion: bool = False,
     model_info: str = "",
+    display_name: str = "",
     torch_xla_enabled: bool = True,
     backend: str = "tt",
     device_name: str = "",
     galaxy: bool = False,
     arch: str = "",
-    chips: int = 1,
     input_is_image: bool = True,
     input_sequence_length: Optional[int] = -1,
+    device_count: int = 1,
+    mesh_shape: Optional[tuple] = None,
 ) -> Dict[str, Any]:
     """Create a standardized benchmark result dictionary.
 
@@ -389,6 +482,7 @@ def create_benchmark_result(
         "trace_enabled": trace_enabled,
         "enable_weight_bfp8_conversion": enable_weight_bfp8_conversion,
         "model_info": model_info,
+        "display_name": display_name,
     }
 
     if torch_xla_enabled:
@@ -423,14 +517,11 @@ def create_benchmark_result(
             "device_name": device_name,
             "galaxy": galaxy,
             "arch": arch,
-            "chips": chips,
+            "device_count": device_count,
+            "mesh_shape": mesh_shape,
+            "device_type": get_device_type(arch, device_count),
         },
     }
-
-
-# ============================================================================
-# Pooling functions for encoder models
-# ============================================================================
 
 
 def apply_mean_pooling(
