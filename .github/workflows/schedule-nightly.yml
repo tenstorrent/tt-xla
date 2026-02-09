@@ -77,7 +77,6 @@ jobs:
 
   release:
     uses: ./.github/workflows/call-release.yml
-    # needs: [ build-ttxla, nightly_tests ]
     needs: [ build-ttxla ]
     secrets: inherit
     with:
