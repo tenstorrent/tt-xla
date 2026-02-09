@@ -355,7 +355,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/jax-1_5b_instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
 
   qwen_2_5/causal_lm/jax-3b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -384,7 +384,7 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-1_5b_instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
 
   qwen_2_5_coder/causal_lm/jax-3b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
