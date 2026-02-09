@@ -48,7 +48,8 @@ ENV VLLM_TARGET_DEVICE="empty"
 
 COPY *.whl /tmp/
 RUN pip install --no-cache-dir /tmp/*.whl && \
-    tt-forge-install && \
     rm -rf /tmp/*.whl
+
+RUN tt-forge-install
 
 CMD ["/bin/bash"]
