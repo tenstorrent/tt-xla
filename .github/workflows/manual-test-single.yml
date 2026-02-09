@@ -3,16 +3,8 @@ name: Run Test Single
 
 on:
   workflow_dispatch:
-    # do we want to dispatch on custom ref/commit
-    inputs:
-      release_commit:
-        description: "Release commit"
-        type: string
-        required: true
 
-# set minimal set of deps needed
 permissions:
-#   contents: write
   actions: write
   id-token: write
   packages: write
@@ -39,7 +31,6 @@ jobs:
       wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
-      alchemist_artifact_name: ${{ needs.build-ttxla.outputs.alchemist_artifact_name }}
 
   release-tests:
     uses: ./.github/workflows/call-release-tests.yml

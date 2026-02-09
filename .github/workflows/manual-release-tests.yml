@@ -2,16 +2,8 @@ name: Manual release tests
 
 on:
   workflow_dispatch:
-    # do we want to dispatch on custom ref/commit
-    inputs:
-      release_commit:
-        description: "Release commit"
-        type: string
-        required: true
 
-# set minimal set of deps needed
 permissions:
-#   contents: write
   actions: write
   id-token: write
   packages: write
