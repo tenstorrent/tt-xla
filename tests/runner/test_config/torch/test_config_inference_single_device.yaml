@@ -2410,19 +2410,19 @@ test_config:
 
   rt_detr/pytorch-rtdetr-r18vd-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 314572800 B DRAM buffer across 12 banks, where each bank needs to store 26214400 B, but bank size is only 1073741792 B"
+    # reason: "Out of Memory: Not enough space to allocate 314572800 B DRAM buffer across 12 banks, where each bank needs to store 26214400 B, but bank size is only 1073741792 B"
 
   rt_detr/pytorch-rtdetr-r34vd-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
+    # reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
 
   rt_detr/pytorch-rtdetr-r50vd-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
+    # reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
 
   rt_detr/pytorch-rtdetr-r101vd-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
+    # reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
 
   llama/llama_3_2_vision/pytorch-llama_3_2_11b_vision-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
