@@ -57,9 +57,9 @@ def get_mesh_shape_for_device_count(num_devices: int) -> tuple[int, int]:
 
     Examples:
         8 devices -> (2, 4)   # dual_bh_quietbox
-        16 devices -> (2, 8)  # dual_galaxy
-        32 devices -> (4, 8)  # future topology
-        64 devices -> (8, 8)  # future topology
+        16 devices -> (2, 8)  # not supported yet
+        32 devices -> (4, 8)  # single_galaxy
+        64 devices -> (8, 8)  # dual_galaxy
         128 devices -> (8, 16) # quad_galaxy
     """
     if num_devices == 8:
