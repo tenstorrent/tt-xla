@@ -518,6 +518,10 @@ def record_model_test_properties(
     comparison_results: list = None,
     comparison_config=None,
     model_size: int = None,
+    batch_size: int = None,
+    input_size: tuple = None,
+    input_shape: tuple = None,
+    output_size: tuple = None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -624,6 +628,20 @@ def record_model_test_properties(
     if model_size is not None:
         tags["model_size_billions"] = model_size / 1e9
 
+    # Add input_shape (batch wrapped inside, e.g. (1, 3, 224, 224)) and output size to tags
+    if input_shape is not None:
+        tags["input_shape"] = str(input_shape)
+        tags["batch_size"] = input_shape[0] if len(input_shape) > 0 else None
+        tags["input_size"] = str(input_shape[1:]) if len(input_shape) > 1 else "()"
+    else:
+        if batch_size is not None:
+            tags["batch_size"] = batch_size
+        if input_size is not None:
+            tags["input_size"] = str(input_size)
+            tags["input_shape"] = str((batch_size,) + tuple(input_size)) if batch_size is not None else str(input_size)
+    if output_size is not None:
+        tags["output_size"] = str(output_size)
+
     # Add execution_pass if available
     execution_pass = getattr(test_metadata, "execution_pass", None)
     if execution_pass is not None:
@@ -696,8 +714,8 @@ def get_xla_device_arch():
     return ""
 
 
-def get_input_shape_info(inputs) -> tuple[int, int, tuple]:
-    """Extract batch_size, sequence_length, and input_size from input activations.
+def get_input_shape_info(inputs) -> tuple[int, int, tuple, tuple]:
+    """Extract batch_size, sequence_length, input_size, and input_shape from input activations.
 
     This function uses heuristics to determine shape information:
     - If inputs is a Mapping (dict), it tries to get 'input_ids' if present,
@@ -706,19 +724,22 @@ def get_input_shape_info(inputs) -> tuple[int, int, tuple]:
     - It assumes the extracted item is a torch.Tensor.
 
     Returns:
-        (batch_size, sequence_length, input_size)
-        For LLMs: input_size is (sequence_length,)
-        For image models: input_size is shape[1:] (e.g., (3, 224, 224))
-                         sequence_length will be -1 (not applicable)
+        (batch_size, sequence_length, input_size, input_shape)
+        - input_shape: full tensor shape including batch (e.g. (1, 3, 224, 224))
+        - input_size: shape[1:] (e.g. (3, 224, 224)); for LLMs (sequence_length,)
+        - sequence_length: -1 for image models, shape[1] for LLMs
 
-        Returns default (1, -1, (-1,)) if inputs are None, empty, or don't match expected formats.
+        Returns default (1, -1, (-1,), (1, -1)) if inputs are None, empty, or don't match.
     """
     if inputs is None:
-        return 1, -1, (-1,)
+        return 1, -1, (-1,), (1, -1)
 
-    # Get the first tensor to extract shape
+    # Get the first tensor/array to extract shape
     tensor = None
     if isinstance(inputs, torch.Tensor):
+        tensor = inputs
+    elif hasattr(inputs, "shape"):
+        # Single array (e.g. jax.Array, numpy.ndarray)
         tensor = inputs
     elif isinstance(inputs, collections.abc.Mapping):
         # Get 'input_ids' if present
@@ -731,22 +752,18 @@ def get_input_shape_info(inputs) -> tuple[int, int, tuple]:
         if len(inputs) > 0:
             tensor = inputs[0]
 
-    # Validate we got a tensor with a shape
-    if (
-        tensor is None
-        or not isinstance(tensor, torch.Tensor)
-        or not hasattr(tensor, "shape")
-    ):
-        return 1, -1, (-1,)
+    # Validate we got an array-like with a shape (torch.Tensor, jax.Array, etc.)
+    if tensor is None or not hasattr(tensor, "shape"):
+        return 1, -1, (-1,), (1, -1)
 
-    shape = tensor.shape
+    shape = tuple(tensor.shape)
     batch_size = shape[0] if len(shape) > 0 else 1
 
     if len(shape) >= 2:
         if len(shape) >= 4:
             # Image case [batch, channels, height, width]
             sequence_length = -1  # Not applicable for images
-            input_size = tuple(shape[1:])  # (channels, height, width)
+            input_size = shape[1:]  # (channels, height, width)
         else:
             # 2D or 3D: LLM case [batch, seq_len] or [batch, seq_len, hidden_dim]
             sequence_length = shape[1]
@@ -756,7 +773,43 @@ def get_input_shape_info(inputs) -> tuple[int, int, tuple]:
         sequence_length = -1
         input_size = (-1,)
 
-    return batch_size, sequence_length, input_size
+    # input_shape includes batch as first dimension (canonical for tags/reporting)
+    input_shape = shape
+    return batch_size, sequence_length, input_size, input_shape
+
+
+def get_output_shape_info(output) -> tuple[int, tuple]:
+    """Extract batch_size and output_size from model output (unpacked forward result).
+
+    Uses the same heuristics as get_input_shape_info for dict/sequence/tensor.
+    Returns (batch_size, output_size) where output_size is shape[1:] of the
+    chosen tensor, or (1, (-1,)) if output is None or invalid.
+    """
+    if output is None:
+        return 1, (-1,)
+
+    tensor = None
+    if isinstance(output, torch.Tensor):
+        tensor = output
+    elif isinstance(output, collections.abc.Mapping):
+        if "logits" in output:
+            tensor = output["logits"]
+        elif len(output) > 0:
+            tensor = next(iter(output.values()))
+    elif isinstance(output, collections.abc.Sequence) and not isinstance(output, str):
+        if len(output) > 0:
+            tensor = output[0]
+    elif hasattr(output, "shape"):
+        # Single array (e.g. jax.Array, numpy.ndarray)
+        tensor = output
+
+    if tensor is None or not hasattr(tensor, "shape"):
+        return 1, (-1,)
+
+    shape = tensor.shape
+    batch_size = shape[0] if len(shape) > 0 else 1
+    output_size = tuple(shape[1:]) if len(shape) > 1 else (-1,)
+    return batch_size, output_size
 
 
 def create_measurement(
@@ -794,6 +847,8 @@ def create_benchmark_result(
     device_name: str = "",
     batch_size: int = 1,
     input_size: tuple = (1, 1),
+    input_shape: tuple = None,
+    output_size: tuple = (-1,),
     num_layers: int = 0,
     total_time: float = -1,
     total_samples: int = 0,
@@ -856,15 +911,26 @@ def create_benchmark_result(
         "device_arch": device_arch,
     }
 
+    # Prefer input_shape (batch inside, e.g. (1, 3, 224, 224)); derive batch_size/input_size for backward compat
+    if input_shape is not None:
+        _batch_size = input_shape[0] if len(input_shape) > 0 else 1
+        _input_size = input_shape[1:] if len(input_shape) > 1 else (1, 1)
+    else:
+        _batch_size = batch_size
+        _input_size = input_size
+
     benchmark_results = {
         "model": full_model_name,
         "model_type": model_type,
-        "run_type": f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}",
+        "run_type": f"{'_'.join(full_model_name.split())}_{_batch_size}_{'_'.join([str(dim) for dim in _input_size])}_{num_layers}",
         "config": config,
         "measurements": metric_list,
         "device_info": device_info,
         "num_layers": num_layers,
-        "batch_size": batch_size,
+        "input_shape": list(input_shape) if input_shape is not None else None,
+        "batch_size": _batch_size,
+        "input_size": _input_size,
+        "output_size": output_size,
         "precision": data_format,
         "input_sequence_length": input_sequence_length,
         "training": training,

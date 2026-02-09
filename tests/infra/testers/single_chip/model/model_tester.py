@@ -162,6 +162,8 @@ class ModelTester(BaseTester, ABC):
         """
         self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
+        if hasattr(self, "_cache_output_activations"):
+            self._cache_output_activations(cpu_res)
 
         self._compile_for_tt_device(self._workload)
 

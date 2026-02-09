@@ -79,6 +79,7 @@ class TorchModelTester(ModelTester):
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
+        self._output_activations: Any = None
         self._parallelism = parallelism
         self._model_size = None
 
@@ -190,6 +191,10 @@ class TorchModelTester(ModelTester):
         In base case, we assume the output is a single tensor.
         """
         return output
+
+    def _cache_output_activations(self, output: Any) -> None:
+        """Cache unpacked forward output for reporting (e.g. input/output size)."""
+        self._output_activations = self._unpack_forward_output(output)
 
     def _extract_grads(
         self, model: torch.nn.Module

@@ -32,6 +32,7 @@ from tests.runner.test_utils import (
     find_dumped_ir_files,
     fix_venv_isolation,
     get_input_shape_info,
+    get_output_shape_info,
     get_xla_device_arch,
     record_model_test_properties,
     update_test_metadata_for_exception,
@@ -177,8 +178,16 @@ def _run_model_test_impl(
         finally:
             comparison_config = tester._comparison_config if tester else None
             model_size = None
+            input_shape = None
+            output_size = None
             if framework == Framework.TORCH and tester is not None:
                 model_size = getattr(tester, "_model_size", None)
+                _, _, _, input_shape = get_input_shape_info(
+                    getattr(tester, "_input_activations", None)
+                )
+                _, output_size = get_output_shape_info(
+                    getattr(tester, "_output_activations", None)
+                )
 
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
@@ -194,6 +203,8 @@ def _run_model_test_impl(
                 comparison_results=list(comparison_result) if comparison_result else [],
                 comparison_config=comparison_config,
                 model_size=model_size,
+                input_shape=input_shape,
+                output_size=output_size,
             )
 
             # prints perf benchmark results to console
@@ -201,10 +212,15 @@ def _run_model_test_impl(
             if framework == Framework.TORCH and run_mode == RunMode.INFERENCE:
                 measurements = getattr(tester, "_perf_measurements", None)
                 model_config = loader.load_config()
-                batch_size, input_sequence_length, input_size = (
+                batch_size, input_sequence_length, input_size, input_shape = (
                     get_input_shape_info(getattr(tester, "_input_activations", None))
                     if tester
-                    else (1, -1)
+                    else (1, -1, (-1,), (1, -1))
+                )
+                _, output_size = (
+                    get_output_shape_info(getattr(tester, "_output_activations", None))
+                    if tester
+                    else (1, (-1,))
                 )
                 create_benchmark_result(
                     full_model_name=model_info.name,
@@ -220,8 +236,8 @@ def _run_model_test_impl(
                     device_arch=get_xla_device_arch(),
                     run_mode=str(run_mode),
                     device_name=socket.gethostname(),
-                    batch_size=batch_size,
-                    input_size=input_size,
+                    input_shape=input_shape,
+                    output_size=output_size,
                     num_layers=getattr(model_config, "num_hidden_layers", 0),
                     total_time=(
                         measurements[0].get("total_time", -1)
