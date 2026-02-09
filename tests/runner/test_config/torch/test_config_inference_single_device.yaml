@@ -817,6 +817,12 @@ test_config:
   stereo/pytorch-small-single_device-inference:
     status: EXPECTED_PASSING
 
+  pocket_tts/pytorch-Pocket_tts-single_device-inference:
+    assert_pcc: false
+    status: NOT_SUPPORTED_SKIP
+    reason: "Aborted - https://github.com/tenstorrent/tt-mlir/issues/6786"
+    bringup_status: FAILED_RUNTIME
+
   albert/token_classification/pytorch-xlarge_v2-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
