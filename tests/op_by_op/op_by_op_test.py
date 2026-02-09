@@ -187,7 +187,9 @@ def test_op_by_op(request, whitelist, blacklist, record_property):
     record_property("compile_only", compile_only)
     record_property("whitelist", whitelist if whitelist else None)
     record_property("blacklist", blacklist if blacklist else None)
-    record_property("failed_ops_folder", failed_ops_folder if failed_ops_folder else None)
+    record_property(
+        "failed_ops_folder", failed_ops_folder if failed_ops_folder else None
+    )
 
     results = execute_extracted_ops(
         filtered_ops,
