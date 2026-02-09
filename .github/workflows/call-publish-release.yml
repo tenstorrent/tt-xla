@@ -79,7 +79,8 @@ jobs:
         with:
           tag_name: ${{ inputs.release_tag }}
           generate_release_notes: true
-          draft: true
+          draft: false
+          prerelease: false
           body: |
             Install via pypi
             pip install pjrt-plugin-tt==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/

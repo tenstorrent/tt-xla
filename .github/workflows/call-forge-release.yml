@@ -45,11 +45,11 @@ jobs:
         with:
           python-version: 3.11
 
-      # - name: Configure AWS Credentials
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
-      #     aws-region: ${{ secrets.AWS_REGION }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Build wheel from template
         shell: bash
@@ -64,12 +64,11 @@ jobs:
           pip install s3pypi
 
           echo "Uploading wheel to the pypi bucket"
-          echo "fake upload"
-          # if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
-          #   s3pypi upload tt_forge*.whl --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
-          # else
-          #   s3pypi upload tt_forge*.whl --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
-          # fi
+          if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
+            s3pypi upload tt_forge*.whl --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
+          else
+            s3pypi upload tt_forge*.whl --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
+          fi
 
       - name: Build & push Docker image
         shell: bash
@@ -137,11 +136,11 @@ jobs:
           generate_release_notes: true
           token: ${{ secrets.TT_FORGE_RELEASER }}
           repository: tenstorrent/tt-forge
+          draft: false
           prerelease: false
-          draft: true
           body: |
             Install via pypi
             pip install tt-forge==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
 
             Pull docker image
-            # docker pull ${{ steps.build-docker.outputs.docker_image_base }}:${{ inputs.release_tag }}
+            docker pull ${{ steps.build-docker.outputs.docker_image_base }}:${{ inputs.release_tag }}
