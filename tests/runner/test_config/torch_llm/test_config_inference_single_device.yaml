@@ -129,6 +129,12 @@ test_config:
   llama/causal_lm/pytorch-TinyLlama_v1.1-llm_decode-single_device-inference:
     status: EXPECTED_PASSING
 
+  llama/causal_lm/pytorch-llama_3_2_1b_instruct-llm_prefill-single_device-inference:
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/pytorch-llama_3_2_3b_instruct-llm_prefill-single_device-inference:
+    status: EXPECTED_PASSING
+
   qwen_2_5/causal_lm/pytorch-7b-llm_decode-single_device-inference:
     arch_overrides:
       p150:
