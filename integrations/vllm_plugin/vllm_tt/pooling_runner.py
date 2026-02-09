@@ -32,7 +32,6 @@ from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_
 from vllm.forward_context import set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.model_loader import get_model_loader
-from vllm.model_executor.model_loader.tpu import TPUModelLoader
 from vllm.model_executor.models.interfaces import supports_transcription
 from vllm.model_executor.models.interfaces_base import (
     is_pooling_model,
@@ -86,7 +85,7 @@ from .attention import (
 from .logger import tt_init_logger
 from .platform import TTConfig
 from .pooling_input_batch import CachedRequestState, InputBatch
-from .vllm_utils import shard_model
+from .vllm_distributed_utils import shard_model
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -1303,24 +1302,15 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return_value=xm_tp_rank,
         ):
             try:
-                if self.enable_tensor_parallel:
-                    tpu_loader = TPUModelLoader(
-                        load_config=self.vllm_config.load_config
-                    )
-                    model = tpu_loader.load_model(
-                        vllm_config=self.vllm_config,
-                        model_config=self.vllm_config.model_config,
-                        mesh=self.mesh,
-                    ).eval()
-                    shard_model(model, self.mesh)
-                else:
-                    model_loader = get_model_loader(self.load_config)
-                    logger.info("Loading model from scratch...")
-                    model = model_loader.load_model(
-                        vllm_config=self.vllm_config, model_config=self.model_config
-                    )
-
+                model_loader = get_model_loader(self.load_config)
+                model = model_loader.load_model(
+                    vllm_config=self.vllm_config, model_config=self.model_config
+                ).eval()
                 model = model.to(self.device)
+
+                if self.enable_tensor_parallel:
+                    # Apply sharding constraints to the model weights.
+                    shard_model(model, self.mesh)
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "

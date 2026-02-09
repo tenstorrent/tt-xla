@@ -42,7 +42,7 @@ class QualityTester(BaseTester):
         )
 
     @abstractmethod
-    def test(self) -> QualityResult:
+    def test(self, request=None) -> QualityResult:
         raise NotImplementedError("Subclasses must implement test()")
 
     @property
@@ -63,7 +63,7 @@ class QualityTester(BaseTester):
         return self._quality_config
 
     @abstractmethod
-    def serialize_on_device(self, output_prefix: str) -> None:
+    def serialize_on_device(self, workload=None, output_prefix: str = None) -> None:
         """
         Serializes the model workload on TT device with proper compiler configuration.
 

@@ -61,7 +61,4 @@ def create_inference_tester(hidden_sizes: tuple, format: str) -> MNISTMLPTester:
 )
 def test_mnist_mlp_inference(hidden_sizes: tuple, format: str, request):
     tester = create_inference_tester(hidden_sizes, format)
-    tester.test()
-
-    if request.config.getoption("--serialize", default=False):
-        tester.serialize_compilation_artifacts(request.node.name)
+    tester.test(request=request)

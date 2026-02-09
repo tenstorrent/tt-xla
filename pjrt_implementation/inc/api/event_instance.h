@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_EVENT_INSTANCE_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_EVENT_INSTANCE_H_
+
 // c++ standard library includes
 #include <condition_variable>
 #include <memory>
@@ -20,9 +23,6 @@
 
 // tt-xla includes
 #include "utils/status.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_EVENT_INSTANCE_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_EVENT_INSTANCE_H_
 
 namespace tt::pjrt {
 

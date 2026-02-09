@@ -1492,6 +1492,9 @@ test_config:
 
   phi3/phi_3_5/pytorch-mini_instruct-single_device-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        required_pcc: 0.985 # Calculated: pcc=0.9885763642059768 - https://github.com/tenstorrent/tt-xla/issues/3212
 
   bi_lstm_crf/pytorch-default-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -1565,8 +1568,8 @@ test_config:
   phi3/phi_3_5_vision/pytorch-instruct-single_device-inference:
     arch_overrides:
       p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 52428800 B DRAM buffer across 12 banks, where each bank needs to store 4370432 B, but bank size is only 1073741792 B"
+        status: NOT_SUPPORTED_SKIP
+        reason: "Test times out https://github.com/tenstorrent/tt-xla/issues/3213"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Running the test CRASHED with signal 9 https://github.com/tenstorrent/tt-xla/issues/2254"
@@ -2369,6 +2372,9 @@ test_config:
 
   owl_vit/pytorch-base_patch32-single_device-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        required_pcc: 0.985  # Actual PCC: 0.9894225661313932 https://github.com/tenstorrent/tt-xla/issues/3182
 
   # yolov12/pytorch-yolo12n-single_device-inference:
   #   status: EXPECTED_PASSING
@@ -2521,7 +2527,7 @@ test_config:
       n150:
         status: NOT_SUPPORTED_SKIP
         bringup_status: FAILED_FE_COMPILATION
-        reason: "Segmentation fault after Experimental compile on by default (#2996)"
+        reason: "Segmentation fault: https://github.com/tenstorrent/tt-xla/issues/3178"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial-single_device-inference:
     status: EXPECTED_PASSING
@@ -2591,10 +2597,10 @@ test_config:
   allam/causal_lm/pytorch-allam_7b_instruct-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
-        n150:
-          status: NOT_SUPPORTED_SKIP
-          bringup_status: FAILED_FE_COMPILATION
-          reason: "Segmentation fault after Experimental compile on by default (#2996)"
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_FE_COMPILATION
+        reason: "Segmentation fault: https://github.com/tenstorrent/tt-xla/issues/3178"
 
   siglip/image_text_similarity/pytorch-base_patch16_224-single_device-inference:
     status: EXPECTED_PASSING

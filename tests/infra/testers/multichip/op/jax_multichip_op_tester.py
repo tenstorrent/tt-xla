@@ -86,6 +86,7 @@ class JaxMultichipOpTester(BaseTester):
         sharding_mode: ShardingMode,
         minval: float = 0.0,
         maxval: float = 1.0,
+        request=None,
     ) -> None:
         """
         Tests an input executable with random inputs in range [`minval`, `maxval`) by
@@ -112,15 +113,27 @@ class JaxMultichipOpTester(BaseTester):
             out_spec=self._out_spec,
             sharding_mode=sharding_mode,
         )
-        self.test(device_workload, cpu_workload)
+        self.test(device_workload, cpu_workload, request=request)
 
     def test(
-        self, device_workload: JaxMultichipWorkload, cpu_workload: JaxMultichipWorkload
+        self,
+        device_workload: JaxMultichipWorkload,
+        cpu_workload: JaxMultichipWorkload,
+        request=None,
     ) -> None:
         """
         Runs test by running `workload` on TT device and 'cpu_workload' on the CPU and
         comparing the results.
         """
+        if request:
+            if request.config.getoption(
+                "--serialize", False
+            ) or request.node.get_closest_marker("filecheck"):
+                # Serialization requires mesh context for jax models with sharding operations, which is not currently handled.
+                assert (
+                    False
+                ), "Serialization/filecheck not supported through JAX multichip op/graph testers yet."
+
         with self._device_mesh:
             self._compile_for_tt_device(device_workload)
             device_res = self._run_on_multichip_device(device_workload)
@@ -203,6 +216,7 @@ def run_jax_multichip_op_test_with_random_inputs(
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
     compiler_config: CompilerConfig = None,
+    request=None,
 ) -> None:
     """
     Tests an input executable with random inputs in range [`minval`, `maxval`) by
@@ -220,7 +234,7 @@ def run_jax_multichip_op_test_with_random_inputs(
             compiler_config,
         )
         tester.test_with_random_inputs(
-            executable, input_shapes, sharding_mode, minval, maxval
+            executable, input_shapes, sharding_mode, minval, maxval, request=request
         )
 
 

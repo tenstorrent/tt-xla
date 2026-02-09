@@ -8,10 +8,10 @@ from infra.utilities.types import Framework
 from utils import Category
 
 from tests.infra.testers.compiler_config import CompilerConfig
-from tests.infra.testers.single_chip.op.op_tester import (
-    run_op_test_with_random_inputs,
-    serialize_op_with_random_inputs,
-)
+from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
+
+# NOTE: This test passes `request` to support serialization (--serialize).
+# Other op tests can follow this pattern. See docs/src/test_infra.md for details.
 
 
 @pytest.mark.push
@@ -50,13 +50,5 @@ def test_add(x_shape: tuple, y_shape: tuple, format: str, request):
         dtype=dtype,
         compiler_config=compiler_config,
         framework=Framework.TORCH,
+        request=request,
     )
-    if request.config.getoption("--serialize", default=False):
-        serialize_op_with_random_inputs(
-            add,
-            [x_shape, y_shape],
-            test_name=request.node.name,
-            dtype=dtype,
-            compiler_config=compiler_config,
-            framework=Framework.TORCH,
-        )

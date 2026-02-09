@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_EXECUTABLE_IMAGE_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_EXECUTABLE_IMAGE_H_
+
 // c++ standard library includes
 #include <cstddef>
 #include <memory>
@@ -21,9 +24,6 @@
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_EXECUTABLE_IMAGE_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_EXECUTABLE_IMAGE_H_
 
 // tt-xla includes
 #include "api/compile_options.h"

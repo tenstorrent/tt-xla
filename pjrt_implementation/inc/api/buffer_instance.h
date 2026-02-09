@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_BUFFER_INSTANCE_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_BUFFER_INSTANCE_H_
+
 // c++ standard library includes
 #include <atomic>
 #include <memory>
@@ -27,9 +30,6 @@
 #include "api/event_instance.h"
 #include "api/tensor.h"
 #include "utils/status.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_BUFFER_INSTANCE_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_BUFFER_INSTANCE_H_
 
 namespace tt::pjrt {
 

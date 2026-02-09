@@ -8,14 +8,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_TENSOR_POOL_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_TENSOR_POOL_H_
+
 #include "tensor.h"
 
 // c++ standard library includes
 #include <mutex>
 #include <unordered_set>
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_TENSOR_POOL_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_TENSOR_POOL_H_
 
 namespace tt::pjrt {
 
