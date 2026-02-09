@@ -239,40 +239,6 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
   return strategy;
 }
 
-// TODO: We are using std::maps with strings as that is the way it is defined in
-// the tt::runtime, instead of a more structured approach with structs and/or
-// enums. See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
-tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
-    const std::vector<BufferInstance *> &arg_buffers,
-    const std::unordered_map<std::string, std::string> &strategy) {
-  if (strategy.at("strategy") == "identity") {
-    std::optional<tt::runtime::Tensor> host_runtime_tensor =
-        arg_buffers.front()->getHostRuntimeTensor();
-    assert(
-        host_runtime_tensor.has_value() &&
-        "Host tensor should be available in the buffer instance at this point");
-    return *host_runtime_tensor;
-  }
-
-  std::vector<tt::runtime::Tensor> runtime_tensor_shards;
-  runtime_tensor_shards.reserve(arg_buffers.size());
-  for (const BufferInstance *buffer : arg_buffers) {
-    std::optional<tt::runtime::Tensor> host_runtime_tensor =
-        buffer->getHostRuntimeTensor();
-    assert(
-        host_runtime_tensor.has_value() &&
-        "Host tensor should be available in the buffer instance at this point");
-    runtime_tensor_shards.push_back(*host_runtime_tensor);
-  }
-
-  tt::runtime::Tensor tensor = tt::runtime::createMultiDeviceHostTensor(
-      runtime_tensor_shards, strategy,
-      m_executable_image->getDevicesMeshShape());
-  tt::runtime::setTensorRetain(tensor, /*retain=*/true);
-
-  return tensor;
-}
-
 namespace internal {
 
 PJRT_Error *

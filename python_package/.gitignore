@@ -2,3 +2,5 @@ build
 dist
 jax_plugins
 pjrt_plugin_tt.egg-info
+tracy/_original
+ttnn/_original

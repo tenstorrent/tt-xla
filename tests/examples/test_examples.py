@@ -20,9 +20,21 @@ XFAIL_DIRS: dict[str, str] = {
     "vllm": "vLLM examples require server setup and are not suitable for automated testing",
 }
 
+# Specific files with known issues - tests will be marked as xfail with the given reason
+XFAIL_FILES: dict[str, str] = {
+    "pytorch/gpt_oss_20b.py": "Gpt-oss example requires llmbox or galaxy",
+}
+
 
 def _get_xfail_reason(filepath: Path) -> str | None:
-    """Return xfail reason if filepath is in an xfail directory, None otherwise."""
+    """Return xfail reason if filepath is in an xfail directory or file list, None otherwise."""
+    # Check if filepath matches xfail files
+    relative_path = filepath.relative_to(EXAMPLES_DIR)
+    for xfail_file, reason in XFAIL_FILES.items():
+        if str(relative_path) == xfail_file:
+            return reason
+
+    # Check if any parent directory matches xfail directories
     for xfail_dir, reason in XFAIL_DIRS.items():
         if xfail_dir in filepath.parts:
             return reason

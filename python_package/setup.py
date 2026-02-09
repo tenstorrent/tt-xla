@@ -36,6 +36,10 @@ class SetupConfig:
         `-- __init__.py                     # imports and sets up pjrt_plugin_tt for XLA
     torch_plugin_tt                     # Thin PyTorch/XLA wrapper
         `-- __init__.py                     # imports and sets up pjrt_plugin_tt for PyTorch/XLA
+    tracy/                              # Wrapped Tracy profiler - this is a thin wrapper arount `tracy` module from tt-metal
+        `-- _original/                       # Wrapped tracy code from tt-metal
+    ttnn/                               # Wrapped TTNN module - this is a thin wrapper around `ttnn` module from tt-metal
+        `-- _original/                       # Wrapped ttnn code from tt-metal
     ```
     """
 
@@ -270,6 +274,13 @@ class CMakeBuildPy(build_py):
         print("Building project...")
         self.build_cmake_project()
 
+        # Refresh package list to include any packages that are discoverable after the build.
+        # E.g. `tracy` will show up only after the first cmake build is completed, since
+        # it is pulled in as an external project.
+        discovered_packages = find_packages()
+        self.distribution.packages = discovered_packages
+        self.packages = discovered_packages
+
         # Continue with the rest of the Python build.
         super().run()
 
@@ -309,6 +320,10 @@ class CMakeBuildPy(build_py):
             ]
 
         print(f"CMake arguments: {[*cmake_cmd, *cmake_args]}")
+
+        # Set environment variables to create a more portable build.
+        os.environ["TRACY_NO_ISA_EXTENSIONS"] = "1"
+        os.environ["TRACY_NO_INVARIANT_CHECK"] = "1"
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
         print("Setting up CMake project...")
@@ -457,6 +472,7 @@ setup(
         # Console scripts
         "console_scripts": [
             "tt-forge-install = ttxla_tools.install_sfpi:main",
+            "tracy = tracy.__main__:main",
         ],
     },
     ext_modules=[
