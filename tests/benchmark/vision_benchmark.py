@@ -97,7 +97,6 @@ def benchmark_vision_torch_xla(
     loop_count,
     input_size,
     data_format,
-    experimental_compile,
     ttnn_perf_metrics_output_file,
     load_inputs_fn,
     extract_output_tensor_fn,
@@ -120,7 +119,6 @@ def benchmark_vision_torch_xla(
         loop_count: Number of inference iterations to benchmark
         input_size: Tuple of (channels, height, width) for model inputs (channel-first format)
         data_format: torch.dtype for model precision (e.g., torch.bfloat16, torch.float32)
-        experimental_compile: Whether to use experimental compilation features
         ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
         load_inputs_fn: Function to load a single batch of preprocessed inputs.
             Signature: fn(batch_size, dtype: torch.dtype) -> Tensor
@@ -162,9 +160,7 @@ def benchmark_vision_torch_xla(
     torch_xla.set_custom_compile_options(options)
 
     # Compile model
-    framework_model.compile(
-        backend="tt", options={"tt_experimental_compile": experimental_compile}
-    )
+    framework_model.compile(backend="tt")
 
     device = torch_xla.device()
 

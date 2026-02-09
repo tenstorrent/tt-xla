@@ -153,7 +153,6 @@ def benchmark_encoder_torch_xla(
     input_sequence_length,
     loop_count,
     data_format,
-    experimental_compile,
     ttnn_perf_metrics_output_file,
     load_inputs_fn,
     preprocess_fn,
@@ -183,7 +182,6 @@ def benchmark_encoder_torch_xla(
         input_sequence_length: Maximum sequence length for tokenization
         loop_count: Number of inference iterations to benchmark
         data_format: Data precision format
-        experimental_compile: Whether to use experimental compilation features
         ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
         load_inputs_fn: Function to load raw inputs for the model.
             Signature: fn(batch_size) -> List[str]
@@ -233,9 +231,7 @@ def benchmark_encoder_torch_xla(
     torch_xla.set_custom_compile_options(options)
 
     # Compile model
-    framework_model.compile(
-        backend="tt", options={"tt_experimental_compile": experimental_compile}
-    )
+    framework_model.compile(backend="tt")
 
     device = torch_xla.device()
 

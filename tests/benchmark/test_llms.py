@@ -20,21 +20,6 @@ DEFAULT_LOOP_COUNT = 1
 DEFAULT_INPUT_SEQUENCE_LENGTH = 128
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_TASK = "text-generation"
-DEFAULT_EXPERIMENTAL_COMPILE = True
-DEFAULT_ENABLE_WEIGHT_BFP8_CONVERSION = True
-DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
-DEFAULT_REQUIRED_PCC = 0.95
-
-# Defaults for all llms
-DEFAULT_OPTIMIZATION_LEVEL = 1
-DEFAULT_MEMORY_LAYOUT_ANALYSIS = False
-DEFAULT_TRACE_ENABLED = False
-DEFAULT_BATCH_SIZE = 32
-DEFAULT_LOOP_COUNT = 1
-DEFAULT_INPUT_SEQUENCE_LENGTH = 128
-DEFAULT_DATA_FORMAT = "bfloat16"
-DEFAULT_TASK = "text-generation"
-DEFAULT_EXPERIMENTAL_COMPILE = True
 DEFAULT_ENABLE_WEIGHT_BFP8_CONVERSION = True
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
 DEFAULT_REQUIRED_PCC = 0.95
@@ -55,7 +40,6 @@ def test_llm(
     input_sequence_length=DEFAULT_INPUT_SEQUENCE_LENGTH,
     data_format=DEFAULT_DATA_FORMAT,
     task=DEFAULT_TASK,
-    experimental_compile=DEFAULT_EXPERIMENTAL_COMPILE,
     enable_weight_bfp8_conversion=DEFAULT_ENABLE_WEIGHT_BFP8_CONVERSION,
     experimental_enable_permute_matmul_fusion=DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION,
     read_logits_fn=default_read_logits_fn,
@@ -79,7 +63,6 @@ def test_llm(
         input_sequence_length: Input sequence length
         data_format: Data format
         task: Task type
-        experimental_compile: Enable experimental compile
         enable_weight_bfp8_conversion: Enable BFP8 weight conversion
         experimental_enable_permute_matmul_fusion: Enable permute matmul fusion optimization
         read_logits_fn: Function to extract logits from model output
@@ -107,7 +90,6 @@ def test_llm(
     input_sequence_length={input_sequence_length}
     data_format={data_format}
     task={task}
-    experimental_compile={experimental_compile}
     enable_weight_bfp8_conversion={enable_weight_bfp8_conversion}
     experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
     required_pcc={required_pcc}
@@ -126,7 +108,6 @@ def test_llm(
         task=task,
         data_format=data_format,
         input_sequence_length=input_sequence_length,
-        experimental_compile=experimental_compile,
         enable_weight_bfp8_conversion=enable_weight_bfp8_conversion,
         experimental_enable_permute_matmul_fusion=experimental_enable_permute_matmul_fusion,
         ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
@@ -252,12 +233,10 @@ def test_gemma_1_1_2b(output_file, num_layers, request):
     )
 
     variant = ModelVariant.GEMMA_1_1_2B_IT
-    experimental_compile = False
     test_llm(
         ModelLoaderModule=ModelLoader,
         variant=variant,
         output_file=output_file,
-        experimental_compile=experimental_compile,
         num_layers=num_layers,
         request=request,
     )
@@ -270,11 +249,9 @@ def test_gemma_2_2b(output_file, num_layers, request):
     )
 
     variant = ModelVariant.GEMMA_2_2B_IT
-    experimental_compile = False
     test_llm(
         ModelLoaderModule=ModelLoader,
         variant=variant,
-        experimental_compile=experimental_compile,
         output_file=output_file,
         num_layers=num_layers,
         request=request,

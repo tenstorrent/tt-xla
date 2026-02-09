@@ -15,7 +15,6 @@ DEFAULT_BATCH_SIZE = 1
 DEFAULT_LOOP_COUNT = 128
 DEFAULT_INPUT_SIZE = (3, 224, 224)  # (channels, height, width)
 DEFAULT_DATA_FORMAT = torch.bfloat16
-DEFAULT_EXPERIMENTAL_COMPILE = True
 DEFAULT_REQUIRED_PCC = 0.97
 
 
@@ -32,7 +31,6 @@ def test_vision(
     loop_count=DEFAULT_LOOP_COUNT,
     input_size=DEFAULT_INPUT_SIZE,
     data_format=DEFAULT_DATA_FORMAT,
-    experimental_compile=DEFAULT_EXPERIMENTAL_COMPILE,
     required_pcc=DEFAULT_REQUIRED_PCC,
 ):
     """Test vision model with the given configuration.
@@ -50,7 +48,6 @@ def test_vision(
         loop_count: Number of benchmark iterations
         input_size: Input size tuple (channels, height, width) - channel-first format
         data_format: Data format
-        experimental_compile: Enable experimental compile
         required_pcc: Required PCC threshold
     """
     resolved_display_name = resolve_display_name(
@@ -67,7 +64,6 @@ def test_vision(
     loop_count={loop_count}
     input_size={input_size}
     data_format={data_format}
-    experimental_compile={experimental_compile}
     required_pcc={required_pcc}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
     """
@@ -83,7 +79,6 @@ def test_vision(
         loop_count=loop_count,
         input_size=input_size,
         data_format=data_format,
-        experimental_compile=experimental_compile,
         ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
         load_inputs_fn=load_inputs_fn,
         extract_output_tensor_fn=extract_output_tensor_fn,

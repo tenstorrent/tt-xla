@@ -271,7 +271,6 @@ def benchmark_llm_torch_xla(
     task,
     data_format,
     input_sequence_length,
-    experimental_compile,
     enable_weight_bfp8_conversion,
     experimental_enable_permute_matmul_fusion,
     ttnn_perf_metrics_output_file,
@@ -299,7 +298,6 @@ def benchmark_llm_torch_xla(
         task: Task type
         data_format: Data precision format
         input_sequence_length: Length of input sequence for generation context
-        experimental_compile: Whether to use experimental compilation features
         enable_weight_bfp8_conversion: Whether to enable bfp8 weight conversion
         experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
         ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
@@ -429,9 +427,7 @@ def benchmark_llm_torch_xla(
     torch_xla.set_custom_compile_options(options)
 
     # Compile model
-    compiled_model = torch.compile(
-        model, backend="tt", options={"tt_experimental_compile": experimental_compile}
-    )
+    compiled_model = torch.compile(model, backend="tt")
 
     # Warmup run
     print("Warming up...")
