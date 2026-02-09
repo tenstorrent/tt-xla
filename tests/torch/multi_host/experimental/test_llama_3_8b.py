@@ -10,7 +10,7 @@ sharding, compiles with backend 'tt', and runs inference.
 
 Example:
     # Run on quad_galaxy
-    pytest -svv tests/torch/multi_host/true-multihost/test_llama_31_8b.py -k "quad_galaxy"
+    pytest -svv tests/torch/multi_host/experimental/test_llama_3_8b.py -k "quad_galaxy"
 """
 
 import pytest
