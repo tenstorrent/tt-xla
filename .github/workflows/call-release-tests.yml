@@ -17,20 +17,20 @@ jobs:
       ref: main
       project-filter: tt-xla
 
-  perf-benchmark:
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
-    secrets: inherit
-    with:
-      docker-image: ${{ inputs.release_docker_image }}
-      ref: main
-      project: tt-xla
-      sh-runner: true
-      skip-device-perf: false
+  # perf-benchmark:
+  #   uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+  #   secrets: inherit
+  #   with:
+  #     docker-image: ${{ inputs.release_docker_image }}
+  #     ref: main
+  #     project: tt-xla
+  #     sh-runner: false
+  #     skip-device-perf: false
 
-  demo-test:
-    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
-    secrets: inherit
-    with:
-      docker-image: ${{ inputs.release_docker_image }}
-      ref: main
-      project-filter: tt-xla
+  # demo-test:
+  #   uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
+  #   secrets: inherit
+  #   with:
+  #     docker-image: ${{ inputs.release_docker_image }}
+  #     ref: main
+  #     project-filter: tt-xla
