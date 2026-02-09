@@ -97,9 +97,13 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
 // If sharded tensor is already on the host, toHost won't do anything (each
 // shard will have it's own pjrt tensor).
 // If Sharded tensor is moved from the device, we need to create new pjrt tensor
-// for each shard (since they shared that same runtime tensor).
+// for each shard (since they shared the same runtime tensor on device). For
+// sharded tensor on device, toHost can retrieve single or multiple tensors so
+// we need handle those separately. Single tensor will be retrieved if device
+// tensor is created from strategy identity, and multiple tensors will be
+// retrieved for other strategies.
 //
-// So, at the end of this function, each shard will have it's own pjrt tensor.
+// At the end of this function, each shard will have it's own pjrt tensor.
 //
 // Additional note: for checking whether shard is nullptr, see comment in
 // remove_shard().
@@ -108,7 +112,7 @@ void PjrtTensor::move_to_host() noexcept {
   std::vector<tt::runtime::Tensor> tensors =
       tt::runtime::toHost(m_runtime_tensor, /*untilize=*/true);
 
-  assert(tensors.size() == m_shards.size());
+  assert(tensors.size() == m_shards.size() || tensors.size() == 1);
   m_runtime_tensor = std::move(tensors[0]);
 
   for (std::size_t i = 1; i < m_shards.size(); ++i) {
@@ -117,7 +121,9 @@ void PjrtTensor::move_to_host() noexcept {
       continue;
     }
 
-    PjrtTensor::from_runtime_tensor({m_shards[i]}, std::move(tensors[i]));
+    tt::runtime::Tensor rt_tensor =
+        tensors.size() == 1 ? m_runtime_tensor : std::move(tensors[i]);
+    PjrtTensor::from_runtime_tensor({m_shards[i]}, std::move(rt_tensor));
   }
 
   m_shards.resize(1);
