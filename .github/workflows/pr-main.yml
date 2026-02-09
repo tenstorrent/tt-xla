@@ -92,7 +92,7 @@ jobs:
       run_id_source: tt-xla
       ref: main
       perf_regression_check: true
-      test-filter: resnet,qwen_3_4b_embedding
+      test-filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding
       runs-on-filter: n150
       sh-runner: false
 
