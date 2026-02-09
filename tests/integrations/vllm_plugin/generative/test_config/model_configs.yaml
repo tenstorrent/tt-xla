@@ -17,7 +17,7 @@ model_configs:
       min_context_len: 32
     prompts:
     - "Hello, my name is"
-    marks: [vllm_sweep, single_device]
+    marks: [single_device]
 
   opt-125m-multibatch:  # PASSING
     model: "facebook/opt-125m"
@@ -31,7 +31,7 @@ model_configs:
     prompts:
     - "Hello, my name is"
     - "Paris is the capital of"
-    marks: [vllm_sweep, single_device]
+    marks: [single_device]
 
   llama3-3b:  # PASSING
     model: "meta-llama/Llama-3.2-3B"
@@ -44,20 +44,20 @@ model_configs:
       min_context_len: 32
     prompts:
     - "I like taking walks in the"
-    marks: [vllm_sweep, single_device]
+    marks: [single_device]
 
-  mistral-7b:  # Out of Memory
+  mistral-7b:  # Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1041740800 B, free: 32000992 B, largest free block: 15384576 B)
     model: "mistralai/Mistral-7B-v0.1"
-    max_num_batched_tokens: 128
+    max_num_batched_tokens: 64
     max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
+    max_model_len: 64
+    gpu_memory_utilization: 0.001
     additional_config:
       enable_const_eval: false
       min_context_len: 32
     prompts:
     - "The future of AI is"
-    marks: [vllm_sweep, single_device]
+    marks: [single_device]
 
   qwen2-0.5b:  # PASSING
     model: "Qwen/Qwen2-0.5B"
@@ -70,9 +70,9 @@ model_configs:
       min_context_len: 32
     prompts:
     - "The capital of China is"
-    marks: [vllm_sweep, single_device]
+    marks: [single_device]
 
-  gemma-2b:  # RuntimeError: Engine core initialization failed
+  gemma-2b:  # Failed -> no error message in CI
     model: "google/gemma-2b"
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -83,7 +83,7 @@ model_configs:
       min_context_len: 32
     prompts:
     - "The meaning of life is"
-    marks: [vllm_sweep, single_device]
+    marks: [single_device]
 
   phi-2:  # PASSING
     model: "microsoft/phi-2"
@@ -96,9 +96,9 @@ model_configs:
       min_context_len: 32
     prompts:
     - "Write a poem about"
-    marks: [vllm_sweep, single_device]
+    marks: [single_device]
 
-  falcon-7b:  # Out of Memory
+  falcon-7b:  # Out of Memory: Not enough space to allocate 165183488 B DRAM buffer across 12 banks, where each bank needs to store 13777408 B, but bank size is 1073741792 B (allocated: 989598720 B, free: 84143072 B, largest free block: 11322336 B) (assert.hpp:104)
     model: "tiiuae/falcon-7b"
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -109,7 +109,7 @@ model_configs:
       min_context_len: 32
     prompts:
     - "The best way to learn"
-    marks: [vllm_sweep, single_device]
+    marks: [single_device]
 
   qwen_2_5_causal_lm_pytorch_1_5b: # PASSING
     model: Qwen/Qwen2.5-1.5B
@@ -123,7 +123,6 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
 
   mamba_pytorch_mamba_790m_hf: #  ZeroDivisionError: integer division or modulo by zero
@@ -138,7 +137,6 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
 
   falcon_pytorch_tiiuae_falcon3_1b_base: # PASSING
@@ -153,9 +151,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  falcon_pytorch_tiiuae_falcon3_3b_base:
+  falcon_pytorch_tiiuae_falcon3_3b_base: # PASSING
     model: tiiuae/Falcon3-3B-Base
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -167,9 +164,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  falcon_pytorch_tiiuae_falcon3_7b_base:
+  falcon_pytorch_tiiuae_falcon3_7b_base: # TT_FATAL: Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23592960 B, but bank size is 1073741792 B (allocated: 995730432 B, free: 78011360 B, largest free block: 19355616 B)
     model: tiiuae/Falcon3-7B-Base
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -181,9 +177,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  falcon_pytorch_tiiuae_falcon3_10b_base:
+  falcon_pytorch_tiiuae_falcon3_10b_base: # TT_FATAL: Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23592960 B, but bank size is 1073741792 B (allocated: 995730432 B, free: 78011360 B, largest free block: 19355616 B)
     model: tiiuae/Falcon3-10B-Base
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -195,7 +190,6 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
   falcon_pytorch_tiiuae_falcon3_mamba_7b_base: # ZeroDivisionError: integer division or modulo by zero
     model: tiiuae/Falcon3-Mamba-7B-Base
@@ -209,7 +203,6 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
   mamba_pytorch_mamba_1_4b_hf: # ZeroDivisionError: integer division or modulo by zero
     model: state-spaces/mamba-1.4b-hf
@@ -223,9 +216,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  mamba_pytorch_mamba_370m_hf:
+  mamba_pytorch_mamba_370m_hf: # ZeroDivisionError: integer division or modulo by zero
     model: state-spaces/mamba-370m-hf
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -237,23 +229,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  nanogpt_pytorch_financialsupport_nanogpt: # Value error, No model architectures are specified
-    model: FinancialSupport/NanoGPT
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - vllm_sweep
-    - single_device
-  mamba_pytorch_mamba_2_8b_hf:
+  mamba_pytorch_mamba_2_8b_hf: # ZeroDivisionError: integer division or modulo by zero
     model: state-spaces/mamba-2.8b-hf
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -265,7 +242,6 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
   mistral_pytorch_ministral_3b_instruct: # TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0) - (x=3,y=0)] grow to 1529120 B which is beyond max L1 size of 1499136 B
     model: ministral/Ministral-3b-instruct
@@ -279,7 +255,6 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
   phi2_causal_lm_pytorch_microsoft_phi_2: # PASSING
     model: microsoft/phi-2
@@ -293,14 +268,13 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  phi2_causal_lm_pytorch_microsoft_phi_2_pytdml:
+  phi2_causal_lm_pytorch_microsoft_phi_2_pytdml: # (0.04 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB).
     model: microsoft/phi-2-pytdml
     max_num_batched_tokens: 128
     max_num_seqs: 1
     max_model_len: 128
-    gpu_memory_utilization: 0.002
+    gpu_memory_utilization: 0.004
     additional_config:
       enable_const_eval: false
       min_context_len: 32
@@ -309,12 +283,12 @@ model_configs:
     marks:
     - vllm_sweep
     - single_device
-  phi1_5_causal_lm_pytorch_microsoft_phi_1_5:
+  phi1_5_causal_lm_pytorch_microsoft_phi_1_5: # (0.05 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB).
     model: microsoft/phi-1_5
     max_num_batched_tokens: 256
     max_num_seqs: 1
     max_model_len: 256
-    gpu_memory_utilization: 0.002
+    gpu_memory_utilization: 0.005
     additional_config:
       enable_const_eval: false
       min_context_len: 32
@@ -335,9 +309,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  opt_qa_pytorch_facebook_opt_350m:
+  opt_qa_pytorch_facebook_opt_350m: # RuntimeError: a and b must have same reduction dim, but got [1, 1024] X [512, 50304].
     model: facebook/opt-350m
     max_num_batched_tokens: 32
     max_num_seqs: 1
@@ -349,7 +322,6 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
   opt_causal_lm_pytorch_facebook_opt_125m: # PASSING
     model: facebook/opt-125m
@@ -363,9 +335,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  opt_causal_lm_pytorch_facebook_opt_350m:
+  opt_causal_lm_pytorch_facebook_opt_350m: # RuntimeError: a and b must have same reduction dim, but got [1, 1024] X [512, 50304].
     model: facebook/opt-350m
     max_num_batched_tokens: 256
     max_num_seqs: 1
@@ -377,7 +348,6 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
   deepcogito_pytorch_v1_preview_llama_3b: # PASSING
     model: deepcogito/cogito-v1-preview-llama-3B
@@ -391,9 +361,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  fuyu_pytorch_adept_fuyu_8b:
+  fuyu_pytorch_adept_fuyu_8b: # torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_method view(*(FakeTensor(..., device='xla:0', size=(1, 128, 4096)), 1, 64, 64), **{}): got RuntimeError("shape '[1, 64, 64]' is invalid for input of size 524288")
     model: adept/fuyu-8b
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -405,14 +374,13 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  phi1_causal_lm_pytorch_microsoft_phi_1:
+  phi1_causal_lm_pytorch_microsoft_phi_1: # (0.05 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)
     model: microsoft/phi-1
     max_num_batched_tokens: 256
     max_num_seqs: 1
     max_model_len: 256
-    gpu_memory_utilization: 0.002
+    gpu_memory_utilization: 0.005
     additional_config:
       enable_const_eval: false
       min_context_len: 32
@@ -421,12 +389,12 @@ model_configs:
     marks:
     - vllm_sweep
     - single_device
-  opt_causal_lm_pytorch_facebook_opt_1_3b:
+  opt_causal_lm_pytorch_facebook_opt_1_3b: # (0.05 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB).
     model: facebook/opt-1.3b
     max_num_batched_tokens: 256
     max_num_seqs: 1
     max_model_len: 256
-    gpu_memory_utilization: 0.002
+    gpu_memory_utilization: 0.005
     additional_config:
       enable_const_eval: false
       min_context_len: 32
@@ -435,7 +403,7 @@ model_configs:
     marks:
     - vllm_sweep
     - single_device
-  opt_qa_pytorch_facebook_opt_1_3b:
+  opt_qa_pytorch_facebook_opt_1_3b: # PASSING
     model: facebook/opt-1.3b
     max_num_batched_tokens: 32
     max_num_seqs: 1
@@ -447,9 +415,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_1_5_causal_lm_pytorch_0_5b:
+  qwen_1_5_causal_lm_pytorch_0_5b: # PASSING
     model: Qwen/Qwen1.5-0.5B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -461,9 +428,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_1_5_causal_lm_pytorch_0_5b_chat:
+  qwen_1_5_causal_lm_pytorch_0_5b_chat: # AssertionError: The max_num_batched_tokens 256 must be larger than or equal to max_model_len (512) * max_num_seqs (1)
     model: Qwen/Qwen1.5-0.5B-Chat
     max_num_batched_tokens: 256
     max_num_seqs: 1
@@ -475,9 +441,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_3_causal_lm_pytorch_4b:
+  qwen_3_causal_lm_pytorch_4b: # PASSING
     model: Qwen/Qwen3-4B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -489,9 +454,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_3_causal_lm_pytorch_1_7b:
+  qwen_3_causal_lm_pytorch_1_7b: # PASSING
     model: Qwen/Qwen3-1.7B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -503,9 +467,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_2_5_coder_pytorch_3b:
+  qwen_2_5_coder_pytorch_3b: # PASSING
     model: Qwen/Qwen2.5-Coder-3B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -517,9 +480,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_3_causal_lm_pytorch_0_6b:
+  qwen_3_causal_lm_pytorch_0_6b: # PASSING
     model: Qwen/Qwen3-0.6B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -531,9 +493,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_2_5_causal_lm_pytorch_3b:
+  qwen_2_5_causal_lm_pytorch_3b: # PASSING
     model: Qwen/Qwen2.5-3B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -545,9 +506,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_2_5_causal_lm_pytorch_3b_instruct:
+  qwen_2_5_causal_lm_pytorch_3b_instruct: # PASSING
     model: Qwen/Qwen2.5-3B-Instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -559,9 +519,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_2_5_coder_pytorch_3b_instruct:
+  qwen_2_5_coder_pytorch_3b_instruct: # PASSING
     model: Qwen/Qwen2.5-Coder-3B-Instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -573,9 +532,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_2_5_coder_pytorch_1_5b:
+  qwen_2_5_coder_pytorch_1_5b: # PASSING
     model: Qwen/Qwen2.5-Coder-1.5B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -587,9 +545,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_2_5_causal_lm_pytorch_1_5b_instruct:
+  qwen_2_5_causal_lm_pytorch_1_5b_instruct: # PASSING
     model: Qwen/Qwen2.5-1.5B-Instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -601,9 +558,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_2_5_coder_pytorch_1_5b_instruct:
+  qwen_2_5_coder_pytorch_1_5b_instruct: # PASSING
     model: Qwen/Qwen2.5-Coder-1.5B-Instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -615,9 +571,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_2_5_coder_pytorch_0_5b:
+  qwen_2_5_coder_pytorch_0_5b: # PASSING
     model: Qwen/Qwen2.5-Coder-0.5B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -629,9 +584,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_2_5_causal_lm_pytorch_0_5b:
+  qwen_2_5_causal_lm_pytorch_0_5b: # PASSING
     model: Qwen/Qwen2.5-0.5B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -643,9 +597,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  llama_causal_lm_pytorch_llama_3_2_1b:
+  llama_causal_lm_pytorch_llama_3_2_1b: # PASSING
     model: meta-llama/Llama-3.2-1B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -657,9 +610,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  llama_causal_lm_pytorch_llama_3_2_3b:
+  llama_causal_lm_pytorch_llama_3_2_3b: # PASSING
     model: meta-llama/Llama-3.2-3B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -671,9 +623,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  llama_causal_lm_pytorch_llama_3_2_1b_instruct:
+  llama_causal_lm_pytorch_llama_3_2_1b_instruct: # PASSING
     model: meta-llama/Llama-3.2-1B-Instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -685,9 +636,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_2_5_causal_lm_pytorch_0_5b_instruct:
+  qwen_2_5_causal_lm_pytorch_0_5b_instruct: # PASSING
     model: Qwen/Qwen2.5-0.5B-Instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -699,9 +649,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  llama_causal_lm_pytorch_llama_3_2_3b_instruct:
+  llama_causal_lm_pytorch_llama_3_2_3b_instruct: # PASSING
     model: meta-llama/Llama-3.2-3B-Instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -713,9 +662,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  unet_for_conditional_generation_pytorch_base:
+  unet_for_conditional_generation_pytorch_base: # FAILED -> no error message in CI
     model: stabilityai/stable-diffusion-xl-base-1.0
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -727,9 +675,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  deepseek_deepseek_coder_pytorch_1_3b_instruct:
+  deepseek_deepseek_coder_pytorch_1_3b_instruct: # AssertionError: The max_num_batched_tokens 256 must be larger than or equal to max_model_len (2048) * max_num_seqs (1)
     model: deepseek-ai/deepseek-coder-1.3b-instruct
     max_num_batched_tokens: 256
     max_num_seqs: 1
@@ -741,9 +688,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  gemma_pytorch_google_gemma_1_1_2b_it:
+  gemma_pytorch_google_gemma_1_1_2b_it: # Failed -> no error message in CI
     model: google/gemma-1.1-2b-it
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -755,9 +701,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  gpt2_pytorch_gpt2:
+  gpt2_pytorch_gpt2: # AttributeError: 'GPT2LMHeadModel' object has no attribute 'model'
     model: gpt2
     max_num_batched_tokens: 256
     max_num_seqs: 1
@@ -769,9 +714,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  gemma_pytorch_google_gemma_2_2b_it:
+  gemma_pytorch_google_gemma_2_2b_it: # Failed -> no error message in CI
     model: google/gemma-2-2b-it
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -783,9 +727,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  gemma_pytorch_google_gemma_2b:
+  gemma_pytorch_google_gemma_2b: # Failed -> no error message in CI
     model: google/gemma-2b
     max_num_batched_tokens: 256
     max_num_seqs: 1
@@ -797,9 +740,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  phi3_phi_3_5_pytorch_mini_instruct:
+  phi3_phi_3_5_pytorch_mini_instruct: # RuntimeError: Check failed: casted->xla_shape().dimensions_size() <= 1 (2 vs. 1)
     model: microsoft/Phi-3.5-mini-instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -811,9 +753,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  gemma_pytorch_google_gemma_1_1_7b_it:
+  gemma_pytorch_google_gemma_1_1_7b_it: # Failed -> no error message in CI
     model: google/gemma-1.1-7b-it
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -825,9 +766,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  phi4_causal_lm_pytorch_microsoft_phi_4:
+  phi4_causal_lm_pytorch_microsoft_phi_4: # Out of Memory: Not enough space to allocate 367001600 B DRAM buffer across 12 banks, where each bank needs to store 30586880 B, but bank size is 1073741792 B (allocated: 1022012416 B, free: 51729376 B, largest free block: 24033280 B) (assert.hpp:104)
     model: microsoft/phi-4
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -839,9 +779,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  phi3_causal_lm_pytorch_microsoft_phi_3_mini_128k_instruct:
+  phi3_causal_lm_pytorch_microsoft_phi_3_mini_128k_instruct: # RuntimeError: Check failed: casted->xla_shape().dimensions_size() <= 1 (2 vs. 1)
     model: microsoft/Phi-3-mini-128k-instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -853,14 +792,13 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  phi3_causal_lm_pytorch_microsoft_phi_3_mini_4k_instruct:
+  phi3_causal_lm_pytorch_microsoft_phi_3_mini_4k_instruct: # (0.06 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)
     model: microsoft/Phi-3-mini-4k-instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
     max_model_len: 128
-    gpu_memory_utilization: 0.002
+    gpu_memory_utilization: 0.006
     additional_config:
       enable_const_eval: false
       min_context_len: 32
@@ -869,7 +807,7 @@ model_configs:
     marks:
     - vllm_sweep
     - single_device
-  huggyllama_pytorch_llama_7b:
+  huggyllama_pytorch_llama_7b: # Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B (allocated: 1046447104 B, free: 27294688 B, largest free block: 7729120 B)
     model: huggyllama/llama-7b
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -881,9 +819,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  llama_causal_lm_pytorch_huggyllama_7b:
+  llama_causal_lm_pytorch_huggyllama_7b: # TT_FATAL: Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B (allocated: 1046447104 B, free: 27294688 B, largest free block: 7729120 B)
     model: huggyllama/llama-7b
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -895,9 +832,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  llama_causal_lm_pytorch_llama_3_1_8b:
+  llama_causal_lm_pytorch_llama_3_1_8b: # TT_FATAL: Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1036749824 B, free: 36991968 B, largest free block: 17670112 B) (assert.hpp:104)
     model: meta-llama/Llama-3.1-8B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -909,9 +845,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  llama_causal_lm_pytorch_llama_3_1_8b_instruct:
+  llama_causal_lm_pytorch_llama_3_1_8b_instruct: # Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1036749824 B, free: 36991968 B, largest free block: 17670112 B) (assert.hpp:104)
     model: meta-llama/Llama-3.1-8B-Instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -923,9 +858,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  llama_causal_lm_pytorch_llama_3_8b:
+  llama_causal_lm_pytorch_llama_3_8b: # TT_FATAL: Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1034128384 B, free: 39613408 B, largest free block: 17674208 B) (assert.hpp:104)
     model: meta-llama/Meta-Llama-3-8B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -937,9 +871,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  llama_causal_lm_pytorch_llama_3_8b_instruct:
+  llama_causal_lm_pytorch_llama_3_8b_instruct: # Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1034128384 B, free: 39613408 B, largest free block: 17674208 B) (assert.hpp:104)
     model: meta-llama/Meta-Llama-3-8B-Instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -951,9 +884,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  mistral_pytorch_7b_instruct_v03:
+  mistral_pytorch_7b_instruct_v03: # TT_FATAL: Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1042265088 B, free: 31476704 B, largest free block: 15384576 B)
     model: mistralai/Mistral-7B-Instruct-v0.3
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -965,9 +897,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_2_5_causal_lm_pytorch_14b_instruct:
+  qwen_2_5_causal_lm_pytorch_14b_instruct: # Out of Memory: Not enough space to allocate 141557760 B DRAM buffer across 12 banks, where each bank needs to store 11796480 B, but bank size is 1073741792 B (allocated: 1026367488 B, free: 47374304 B, largest free block: 11787264 B) (assert.hpp:104)
     model: Qwen/Qwen2.5-14B-Instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -979,9 +910,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_3_causal_lm_pytorch_14b:
+  qwen_3_causal_lm_pytorch_14b: # TT_FATAL: Out of Memory: Not enough space to allocate 178257920 B DRAM buffer across 12 banks, where each bank needs to store 14856192 B, but bank size is 1073741792 B (allocated: 1037814784 B, free: 35927008 B, largest free block: 12144608 B) (assert.hpp:104)
     model: Qwen/Qwen3-14B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -993,9 +923,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  qwen_3_causal_lm_pytorch_8b:
+  qwen_3_causal_lm_pytorch_8b: #  TT_FATAL: Out of Memory: Not enough space to allocate 201326592 B DRAM buffer across 12 banks, where each bank needs to store 16777216 B, but bank size is 1073741792 B (allocated: 1021836288 B, free: 51905504 B, largest free block: 9785344 B) (assert.hpp:104)
     model: Qwen/Qwen3-8B
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -1007,9 +936,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  gemma_pytorch_google_gemma_2_9b_it:
+  gemma_pytorch_google_gemma_2_9b_it: # Failed -> no error message in CI
     model: google/gemma-2-9b-it
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -1021,9 +949,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  falcon_pytorch_tiiuae_falcon_7b_instruct:
+  falcon_pytorch_tiiuae_falcon_7b_instruct: # TT_FATAL: Out of Memory: Not enough space to allocate 165183488 B DRAM buffer across 12 banks, where each bank needs to store 13777408 B, but bank size is 1073741792 B (allocated: 989598720 B, free: 84143072 B, largest free block: 11322336 B) (assert.hpp:104)
     model: tiiuae/falcon-7b-instruct
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -1035,9 +962,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  gemma_codegemma_pytorch_google_codegemma_2b:
+  gemma_codegemma_pytorch_google_codegemma_2b: # Failed -> no error message in CI
     model: google/codegemma-2b
     max_num_batched_tokens: 256
     max_num_seqs: 1
@@ -1049,9 +975,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  llama_causal_lm_pytorch_tinyllama_v1_1:
+  llama_causal_lm_pytorch_tinyllama_v1_1: # PASSING
     model: TinyLlama/TinyLlama_v1.1
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -1063,9 +988,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  mistral_pytorch_mistral_nemo_instruct_2407:
+  mistral_pytorch_mistral_nemo_instruct_2407: # TT_FATAL: Out of Memory: Not enough space to allocate 293601280 B DRAM buffer across 12 banks, where each bank needs to store 24473600 B, but bank size is 1073741792 B (allocated: 1000166400 B, free: 73575392 B, largest free block: 18016224 B) (assert.hpp:104)
     model: mistralai/Mistral-Nemo-Instruct-2407
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -1077,9 +1001,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  gemma_text_translation_pytorch_translategemma_4b_it:
+  gemma_text_translation_pytorch_translategemma_4b_it: # Failed -> no error message in CI
     model: google/translategemma-4b-it
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -1091,9 +1014,8 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
-  allam_causal_lm_pytorch_allam_7b_instruct:
+  allam_causal_lm_pytorch_allam_7b_instruct: # TT_FATAL: Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is 1073741792 B (allocated: 1042110464 B, free: 31631328 B, largest free block: 7502848 B) (assert.hpp:104)
     model: ALLaM-AI/ALLaM-7B-Instruct-preview
     max_num_batched_tokens: 128
     max_num_seqs: 1
@@ -1105,5 +1027,4 @@ model_configs:
     prompts:
     - Hello, my name is
     marks:
-    - vllm_sweep
     - single_device
