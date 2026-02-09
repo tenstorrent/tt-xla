@@ -68,8 +68,10 @@ jobs:
           fi
 
           echo "Pushing tags for $docker_image_base"
-          echo "wanted to push this latest tag -> $latest_tag"
-          # skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
+
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
+          fi
           skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$version_tag"
 
       - name: Publish github release
