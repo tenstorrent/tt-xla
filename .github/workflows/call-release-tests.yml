@@ -24,7 +24,7 @@ jobs:
       docker-image: ${{ inputs.release_docker_image }}
       ref: main
       project: tt-xla
-      sh-runner: false
+      sh-runner: true
       skip-device-perf: false
 
   demo-test:
