@@ -127,10 +127,10 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
     program->code_size = code_size;
   } else {
     if (program->code_size < code_size) {
-      DLOG_F(ERROR,
-             "Not enough space allocated for optimized program: expected %zu "
-             "bytes, allocated %zu bytes",
-             code_size, program->code_size);
+      LOG_F(ERROR,
+            "Not enough space allocated for optimized program: expected %zu "
+            "bytes, allocated %zu bytes",
+            code_size, program->code_size);
       return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                   .release();
     }
