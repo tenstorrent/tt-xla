@@ -49,8 +49,8 @@ def torch_pass_pipeline(
     enable_composite_ops = options is None or options.get(
         "tt_enable_composite_ops", True
     )
-    if enable_composite_ops:
-        handle_composite_ops(gm)
+    # if enable_composite_ops:
+    #     handle_composite_ops(gm)
 
     decompositions = populate_decompositions()
 

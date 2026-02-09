@@ -9,12 +9,37 @@ All fusion provider classes are defined in this file.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, List, Type
+from typing import Callable, List, Type
 
 import torch
 from torch import Tensor
+from torch.fx import GraphModule
 from torch.fx.subgraph_rewriter import replace_pattern_with_filters
+from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
 from ttxla_tools.logging import logger
+
+
+def create_composite_wrap_replacement(
+    replacement_fn: Callable,
+    example_inputs: tuple,
+) -> GraphModule:
+    """Creates a pre-traced replacement GraphModule that wraps pattern in composite.
+
+    This function is needed because StableHLOCompositeBuilder.mark_inputs() doesn't
+    work with torch.fx symbolic tracing (it receives Proxy objects instead of tensors).
+    By pre-tracing with make_fx using real tensors, we produce a GraphModule that
+    can be used directly with replace_pattern_with_filters.
+
+    Args:
+        replacement_fn: The replacement function that uses StableHLOCompositeBuilder
+        example_inputs: Tuple of example inputs for tracing (must match replacement signature)
+
+    Returns:
+        A traced GraphModule
+    """
+    from torch.fx.experimental.proxy_tensor import make_fx
+
+    return make_fx(replacement_fn)(*example_inputs)
 
 
 class FusionProvider(ABC):
@@ -134,10 +159,31 @@ class RMSNormFusionProvider(FusionProvider):
 
     @staticmethod
     def replacement(hidden_states: Tensor, weight: Tensor, eps: float, dtype) -> Tensor:
-        """Replacement function for RMS norm pattern."""
-        return torch.nn.functional.rms_norm(
-            hidden_states, normalized_shape=weight.shape, weight=weight, eps=eps
+        """Replacement function that wraps the RMS norm pattern in a StableHLO composite."""
+        # Get normalized_shape from weight dimensions (RMS norm normalizes over last dim)
+        normalized_shape = list(weight.shape)
+
+        builder = StableHLOCompositeBuilder(
+            name="tenstorrent.rms_norm",
+            attr={"epsilon": eps, "normalized_shape": normalized_shape},
         )
+
+        # Convert hidden_states to float32 before marking as input
+        # tt-mlir RMS norm expects float32 inputs
+        hidden_fp32 = hidden_states.to(torch.float32)
+
+        # Mark float32 tensors as inputs
+        marked_hidden, marked_weight = builder.mark_inputs(hidden_fp32, weight)
+
+        # Execute the same operations as the pattern (input is already f32)
+        variance = marked_hidden.pow(2).mean(-1, keepdim=True)
+        variance_eps = variance.add(eps)
+        rsqrt_var = torch.rsqrt(variance_eps)
+        hidden_normalized = marked_hidden.mul(rsqrt_var)
+        hidden_cast = hidden_normalized.to(dtype)
+        result = marked_weight.mul(hidden_cast)
+
+        return builder.mark_outputs(result)
 
     @staticmethod
     def match_filter(match, gm: torch.fx.Graph, subgraph: torch.fx.Graph) -> bool:
@@ -163,3 +209,61 @@ class RMSNormFusionProvider(FusionProvider):
                 return False
 
         return True
+
+    def _create_replacement_for_shape(self, weight_shape: list, hidden_shape: list):
+        """Create a traced replacement graph with the correct weight shape.
+
+        Args:
+            weight_shape: Shape of the weight tensor from the matched pattern.
+            hidden_shape: Shape of the hidden_states tensor from the matched pattern.
+
+        Returns:
+            A traced GraphModule with the correct normalized_shape attribute.
+        """
+        example_inputs = (
+            torch.randn(*hidden_shape, dtype=torch.bfloat16),  # hidden_states
+            torch.randn(*weight_shape),  # weight with actual shape
+            1e-6,  # eps
+            torch.bfloat16,  # dtype
+        )
+        return create_composite_wrap_replacement(self.replacement, example_inputs)
+
+    def replace_pattern(self, gm: torch.fx.GraphModule) -> int:
+        """Replace the RMS norm pattern with composite-wrapped version.
+
+        Uses replacement_callback to extract actual weight shape from each match
+        and generate a correctly-shaped replacement graph.
+        """
+
+        def replacement_callback(match, original_graph, pattern_graph):
+            # Extract weight shape from matched nodes
+            weight_shape = None
+            hidden_shape = None
+            for pn, gn in match.nodes_map.items():
+                if pn.target == "weight":
+                    if (value := gn.meta.get("example_value", None)) is not None:
+                        weight_shape = list(value.shape)
+                if pn.target == "hidden_states":
+                    if (value := gn.meta.get("example_value", None)) is not None:
+                        hidden_shape = list(value.shape)
+
+            # Fallback to defaults if metadata not available
+            if weight_shape is None:
+                weight_shape = [32]
+            if hidden_shape is None:
+                hidden_shape = [1, 32, 32]
+
+            # Create replacement with correct shapes
+            traced_replacement = self._create_replacement_for_shape(
+                weight_shape, hidden_shape
+            )
+            return traced_replacement.graph
+
+        replaced = replace_pattern_with_filters(
+            gm,
+            self.pattern,
+            replacement=None,  # Use callback instead
+            match_filters=self.get_match_filters(),
+            replacement_callback=replacement_callback,
+        )
+        return len(replaced)
