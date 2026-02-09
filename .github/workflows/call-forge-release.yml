@@ -1,4 +1,4 @@
-name: Manual nightly release
+name: TT-forge release (call)
 
 on:
   workflow_call:
@@ -45,11 +45,11 @@ jobs:
         with:
           python-version: 3.11
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
-          aws-region: ${{ secrets.AWS_REGION }}
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
+      #     aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Build wheel from template
         shell: bash
