@@ -10,13 +10,13 @@ Mesh shapes are automatically determined based on device count.
 
 Example:
     # Run all tests on dual_bh_quietbox
-    pytest -svv tests/torch/multi_host/true-multihost/test_multihost_basic.py -k "dual_bh_quietbox"
+    pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k "dual_bh_quietbox"
 
     # Run all tests on quad_galaxy
-    pytest -svv tests/torch/multi_host/true-multihost/test_multihost_basic.py -k "quad_galaxy"
+    pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k "quad_galaxy"
 
     # Run specific test on all topologies
-    pytest -svv tests/torch/multi_host/true-multihost/test_multihost_basic.py::test_simple_distributed_addition
+    pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py::test_simple_distributed_addition
 """
 
 import os
