@@ -1,7 +1,6 @@
 name: On nightly
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
 
@@ -92,7 +91,6 @@ jobs:
     with:
       release_tag: ${{ needs.release.outputs.release_tag }}
 
-  # notify about nightly failures
   fail-notify:
     if: always()
     needs:
