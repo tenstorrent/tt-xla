@@ -35,6 +35,7 @@ def run_jax_multichip_graph_test_with_random_inputs(
     minval: float = 0.0,
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
+    request=None,
 ) -> None:
     """
     Tests an input executable with random inputs in range [`minval`, `maxval`) by
@@ -47,5 +48,5 @@ def run_jax_multichip_graph_test_with_random_inputs(
             in_specs, out_specs, mesh_shape, axis_names, comparison_config
         )
         tester.test_with_random_inputs(
-            executable, input_shapes, sharding_mode, minval, maxval
+            executable, input_shapes, sharding_mode, minval, maxval, request=request
         )

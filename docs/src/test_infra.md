@@ -112,3 +112,43 @@ def inference_tester(request) -> MNISTMLPTester:
 def test_mnist_mlp_inference(inference_tester: MNISTMLPTester):
     inference_tester.test()
 ```
+
+## Serialization and FileCheck
+
+### Serializing IR to Disk
+
+To serialize compilation artifacts (MLIR, TTNN IRs) to disk, use the `--serialize` flag:
+
+```bash
+pytest path/to/test.py::test_name --serialize
+```
+
+Your test must pass the `request` fixture for serialization to work:
+
+**For op/graph tests:**
+```python
+def test_my_op(request):
+    run_op_test(MyOp(), [torch.randn(32, 32)], request=request)
+```
+
+**For model tests:**
+```python
+def test_my_model(model_tester: MyModelTester, request):
+    model_tester.test(request=request)
+```
+
+Artifacts are written to `output_artifact/<sanitized_test_name>/`.
+
+### Running FileCheck
+
+To verify IR transformations, use the `@pytest.mark.filecheck` decorator:
+
+```python
+@pytest.mark.filecheck(["add.ttnn.mlir", "matmul_fusion.ttir.mlir"])
+def test_my_op(request):
+    run_op_test(MyOp(), [torch.randn(32, 32)], request=request)
+```
+
+FileCheck automatically serializes artifacts, runs pattern matching, and fails on mismatches.
+
+**For pattern file syntax and conventions**, see [tests/filecheck/filecheck.md](../../tests/filecheck/filecheck.md).

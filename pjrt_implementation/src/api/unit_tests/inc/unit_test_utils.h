@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_SRC_API_UNIT_TESTS_INC_UNIT_TEST_UTILS_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_SRC_API_UNIT_TESTS_INC_UNIT_TEST_UTILS_H_
+
 // C++ standard library headers
 #include <vector>
 
@@ -18,9 +21,6 @@
 #include "api/client_instance.h"
 #include "api/device_instance.h"
 #include "api/memory_instance.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_SRC_API_UNIT_TESTS_INC_UNIT_TEST_UTILS_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_SRC_API_UNIT_TESTS_INC_UNIT_TEST_UTILS_H_
 
 namespace tt::pjrt::tests {
 

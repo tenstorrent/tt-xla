@@ -56,12 +56,6 @@ private:
                      tt::runtime::Device device, size_t num_devices,
                      std::uint32_t program_index, size_t arg_index) override;
 
-  // Converts input tensor to desired layout. This might move it on device.
-  tt::runtime::Tensor
-  convertTensorLayout(tt::runtime::Tensor input_tensor,
-                      std::uint32_t program_index, size_t arg_index,
-                      const tt::runtime::Device &runtime_device);
-
   // Fills the output lists of the PJRT API with the outputs of tt runtime
   // execution. Creates BufferInstances with device tensors instead of
   // transferring them to host.

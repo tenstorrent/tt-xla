@@ -1,0 +1,5 @@
+[
+    { "runs-on": "n150",               "name": "run_vllm_n150_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "nightly and single_device", "shared-runners": "true" },
+    { "runs-on": "n300",               "name": "run_vllm_n300_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "nightly and data_parallel", "shared-runners": "true" },
+    { "runs-on": "n300-llmbox",        "name": "run_vllm_llmbox_tests", "dir": "./tests/integrations/vllm_plugin",        "test-mark": "nightly and tensor_parallel and llmbox", "shared-runners": "true" }
+]

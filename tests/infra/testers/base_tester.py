@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from infra.evaluators import (
@@ -15,6 +16,13 @@ from infra.evaluators import (
 )
 from infra.runners import DeviceRunner, DeviceRunnerFactory
 from infra.utilities import Framework, sanitize_test_name
+
+from tests.infra.utilities.filecheck_utils import (
+    run_filecheck,
+    validate_filecheck_results,
+)
+
+FILECHECK_DIR = Path(__file__).parent.parent.parent / "filecheck"
 
 
 class BaseTester(ABC):
@@ -82,7 +90,9 @@ class BaseTester(ABC):
             metric_kwargs=self._metric_kwargs,
         )
 
-    def serialize_compilation_artifacts(self, test_name: str) -> None:
+    def serialize_compilation_artifacts(
+        self, test_name: str, workload: Workload
+    ) -> None:
         """Serialize the model with the appropriate output prefix.
 
         Args:
@@ -90,14 +100,84 @@ class BaseTester(ABC):
         """
         clean_name = sanitize_test_name(test_name)
         output_prefix = f"output_artifact/{clean_name}"
-        self.serialize_on_device(output_prefix)
+        self.serialize_on_device(workload, output_prefix)
 
     @abstractmethod
-    def serialize_on_device(self, output_prefix: str) -> None:
+    def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
         """
         Serializes the model workload on TT device with proper compiler configuration.
 
         Args:
+            workload: Workload to serialize
             output_prefix: Base path and filename prefix for output files
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def handle_filecheck_and_serialization(self, request, workload: Workload) -> None:
+        """
+        Serializes workload if --serialize flag is set or filecheck patterns are specified,
+        then runs filecheck validation if patterns are provided.
+
+        Args:
+            request: pytest request fixture
+            workload: Workload to serialize
+        """
+        if not request:
+            return
+
+        test_id = request.node.name
+
+        # Check if serialization is requested
+        serialize = request.config.getoption("--serialize", False)
+
+        # Check for filecheck pattern files from pytest marker
+        filecheck_marker = request.node.get_closest_marker("filecheck")
+        pattern_files = (
+            filecheck_marker.args[0]
+            if filecheck_marker and filecheck_marker.args
+            else None
+        )
+
+        # Serialize workload if requested OR if pattern files are specified
+        if serialize or pattern_files:
+            self.serialize_compilation_artifacts(test_name=test_id, workload=workload)
+
+        # Run filecheck if pattern files are specified
+        if pattern_files:
+            self._run_filecheck(pattern_files, test_id=test_id)
+
+    def _run_filecheck(self, pattern_files: list, test_id: str) -> None:
+        """Run filecheck with validation."""
+        self._validate_filecheck_mark(
+            pattern_files, test_id=test_id, where="pytest mark"
+        )
+
+        filecheck_results = run_filecheck(
+            test_node_name=test_id,
+            irs_filepath="output_artifact",
+            pattern_files=pattern_files,
+        )
+        validate_filecheck_results(filecheck_results)
+
+    def _validate_filecheck_mark(
+        self, pattern_files, *, test_id: str, where: str
+    ) -> None:
+        """Validate filecheck marker arguments."""
+        if not pattern_files:
+            return
+        if not isinstance(pattern_files, list):
+            print(
+                f"WARNING: 'filecheck' mark should pass a list in {where}. Found: {type(pattern_files).__name__}"
+            )
+            return
+        for pattern_file in pattern_files:
+            if not isinstance(pattern_file, str):
+                print(
+                    f"WARNING: filecheck entry should be a string in {where}. Found: {type(pattern_file).__name__}"
+                )
+                continue
+            pattern_path = FILECHECK_DIR / pattern_file
+            if not pattern_path.exists():
+                print(
+                    f"WARNING: filecheck pattern file not found: {pattern_path}\n         Referenced in test '{test_id}'"
+                )
