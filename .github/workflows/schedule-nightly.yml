@@ -1,8 +1,6 @@
 name: On nightly
 
 on:
-  #todo(vvukoman): what happens with the release when a nigthly release is scheduled
-  # add a check we are on main for adding the latest tags
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'

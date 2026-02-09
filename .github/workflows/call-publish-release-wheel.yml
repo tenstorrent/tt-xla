@@ -16,7 +16,7 @@ on:
         type: string
         required: true
       is_nightly_release:
-        description: 'Is the wheel a nigthly release'
+        description: 'Is the wheel a nighyly release'
         type: boolean
         required: true
       should_overwrite_release:
