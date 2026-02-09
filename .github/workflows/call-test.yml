@@ -286,10 +286,8 @@ jobs:
       if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
       shell: bash
       run: |
-        source venv/activate
-        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_torch --validate-test-config
-        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_jax --validate-test-config
-        python -m pytest -vv ./tests/runner/test_models.py::test_llms_torch --validate-test-config
+        pip install pyyaml
+        python3 tests/runner/validate_test_config.py
 
     - name: Collect Tests
       id: collect-tests

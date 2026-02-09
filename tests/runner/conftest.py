@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import difflib
 import os
 
 import pytest
@@ -11,11 +10,6 @@ from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
 from tests.runner.test_config.torch_llm import test_config as torch_llm_test_config
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
-
-# Global set to track collected test node IDs
-_collected_nodeids = set()
-# Global set to track collected test function names
-_collected_test_functions = set()
 
 # Allowed architecture identifiers for arch_overrides and --arch option
 ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
@@ -52,19 +46,13 @@ def _get_model_group_from_item(item):
 
 
 def pytest_addoption(parser):
-    """Register CLI options for selecting target arch and enabling config validation."""
+    """Register CLI options for selecting target arch."""
     parser.addoption(
         "--arch",
         action="store",
         default=None,
         choices=sorted(ALLOWED_ARCHES),
         help="Target architecture (e.g., n150, p150) for which to match via arch_overrides in test_config files",
-    )
-    parser.addoption(
-        "--validate-test-config",
-        action="store_true",
-        default=False,
-        help="Fail if test_config files and collected test IDs are out of sync",
     )
 
 
@@ -94,12 +82,11 @@ def test_metadata(request) -> ModelTestConfig:
 
 
 def pytest_collection_modifyitems(config, items):
-    """During collection, attach ModelTestConfig, apply markers, and optionally clear tests when validating config.
+    """During collection, attach ModelTestConfig, apply markers.
 
     Also deselect tests explicitly marked with EXCLUDE_MODEL so they do not run.
     """
     arch = config.getoption("--arch")
-    validate_config = config.getoption("--validate-test-config")
 
     # Merge torch and jax test configs once outside the loop
     combined_test_config = torch_test_config | jax_test_config | torch_llm_test_config
@@ -110,14 +97,8 @@ def pytest_collection_modifyitems(config, items):
 
         nodeid = item.nodeid
 
-        if "::" in nodeid:
-            test_function_name = nodeid.split("::")[-1].split("[")[0]
-            _collected_test_functions.add(test_function_name)
-
         if "[" in nodeid:
             nodeid = nodeid[nodeid.index("[") + 1 : -1]
-
-        _collected_nodeids.add(nodeid)  # Track for final validation
 
         meta = ModelTestConfig(combined_test_config.get(nodeid), arch)
         item._test_meta = meta  # attach for fixture access
@@ -197,98 +178,3 @@ def pytest_collection_modifyitems(config, items):
     if deselected:
         config.hook.pytest_deselected(items=deselected)
         items[:] = [i for i in items if i not in deselected]
-
-    # If validating config, clear all items so no tests run
-    if validate_config:
-        items.clear()
-
-
-def pytest_sessionfinish(session, exitstatus):
-    """At session end, validate test_config entries and arch_overrides against collected tests."""
-    if not session.config.getoption("--validate-test-config"):
-        return  # Skip check unless explicitly requested
-
-    print("\n" + "=" * 60)
-    print("VALIDATING TEST CONFIGURATIONS")
-    print("=" * 60 + "\n")
-
-    # Determine which configs to validate based on collected test function names
-    has_torch_tests = "test_all_models_torch" in _collected_test_functions
-    has_jax_tests = "test_all_models_jax" in _collected_test_functions
-    has_torch_llm_tests = "test_llms_torch" in _collected_test_functions
-
-    # Only validate configs for the frameworks that were actually collected
-    # or default to all configs if nothing was specifically collected
-    configs_to_merge = [
-        config
-        for enabled, config in [
-            (has_torch_tests, torch_test_config),
-            (has_jax_tests, jax_test_config),
-            (has_torch_llm_tests, torch_llm_test_config),
-        ]
-        if enabled
-    ] or [torch_test_config, jax_test_config, torch_llm_test_config]
-
-    # Merge selected configs
-    combined_test_config = {}
-    for config in configs_to_merge:
-        combined_test_config |= config
-
-    # Basic validation: ensure all arch_overrides keys use allowed arches
-    invalid_arch_entries = []
-    for test_name, cfg in combined_test_config.items():
-        if not isinstance(cfg, dict):
-            continue
-        overrides = cfg.get("arch_overrides")
-        if overrides is None:
-            continue
-        if not isinstance(overrides, dict):
-            invalid_arch_entries.append((test_name, "arch_overrides is not a dict"))
-            continue
-        for arch_key in overrides.keys():
-            if arch_key not in ALLOWED_ARCHES:
-                invalid_arch_entries.append((test_name, f"unknown arch '{arch_key}'"))
-
-    if invalid_arch_entries:
-        print("ERROR: Found invalid arch_overrides entries (unknown arches):")
-        for test_name, reason in sorted(invalid_arch_entries):
-            print(f"  - {test_name}: {reason}")
-        print("\nAllowed arches:", ", ".join(sorted(ALLOWED_ARCHES)))
-        print("\n" + "=" * 60)
-        raise pytest.UsageError(
-            "test_config yaml files contain arch_overrides with unknown arches"
-        )
-    else:
-        print("All arch_overrides entries are valid")
-
-    # Validate that entries in test_config yaml files are found in the collected tests. They can diverge if
-    # model variants are renamed, removed, have import errors, etc.
-    declared_nodeids = set(combined_test_config.keys())
-    unknown = declared_nodeids - _collected_nodeids
-    unlisted = _collected_nodeids - declared_nodeids
-    print(
-        f"Found {len(unknown)} unknown tests and {len(unlisted)} unlisted tests",
-        flush=True,
-    )
-
-    # Unlisted tests are just warnings, for informational purposes.
-    if unlisted:
-        print("\nWARNING: The following tests are missing from test_config yaml files:")
-        for test_name in sorted(unlisted):
-            print(f"  - {test_name}")
-    else:
-        print("\nAll collected tests are properly defined in test_config yaml files")
-
-    # Unknown tests are tests listed that no longer exist, treat as error.
-    if unknown:
-        msg = "test_config yaml files contain entries not found in collected tests."
-        print(f"\nERROR: {msg}")
-        for test_name in sorted(unknown):
-            print(f"  - {test_name}")
-            suggestion = difflib.get_close_matches(test_name, _collected_nodeids, n=1)
-            if suggestion:
-                print(f"    Did you mean: {suggestion[0]}?")
-        print("\n" + "=" * 60)
-        raise pytest.UsageError(msg)
-    else:
-        session.exitstatus = 0
