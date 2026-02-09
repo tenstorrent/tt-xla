@@ -45,60 +45,60 @@ jobs:
         with:
           python-version: 3.11
 
-      # - name: Configure AWS Credentials
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
-      #     aws-region: ${{ secrets.AWS_REGION }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      # - name: Build wheel from template
-      #   shell: bash
-      #   run: |
-      #     export VERSION_TAG=${{ inputs.release_tag }}
-      #     pip install wheel
-      #     python ./.github/scripts/forge-wheel-setup.py bdist_wheel --dist-dir ./
+      - name: Build wheel from template
+        shell: bash
+        run: |
+          export VERSION_TAG=${{ inputs.release_tag }}
+          pip install wheel
+          python ./.github/scripts/forge-wheel-setup.py bdist_wheel --dist-dir ./
 
-      # - name: Publish wheels to PyPI
-      #   shell: bash
-      #   run: |
-      #     pip install s3pypi
+      - name: Publish wheels to PyPI
+        shell: bash
+        run: |
+          pip install s3pypi
 
-      #     echo "Uploading wheel to the pypi bucket"
-      #     echo "fake upload"
-      #     # if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
-      #     #   s3pypi upload tt_forge*.whl --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
-      #     # else
-      #     #   s3pypi upload tt_forge*.whl --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
-      #     # fi
+          echo "Uploading wheel to the pypi bucket"
+          echo "fake upload"
+          # if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
+          #   s3pypi upload tt_forge*.whl --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
+          # else
+          #   s3pypi upload tt_forge*.whl --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
+          # fi
 
-      # - name: Build & push Docker image
-      #   shell: bash
-      #   id: build-docker
-      #   run: |
-      #     set -eo pipefail
+      - name: Build & push Docker image
+        shell: bash
+        id: build-docker
+        run: |
+          set -eo pipefail
 
-      #     project="tt-forge"
-      #     commit_tag="${{ github.sha }}"
-      #     version_tag="${{ inputs.release_tag }}"
-      #     latest_tag="latest"
-      #     if [[ "$version_tag" == *dev* ]]; then
-      #       latest_tag="nightly-latest"
-      #     fi
+          project="tt-forge"
+          commit_tag="${{ github.sha }}"
+          version_tag="${{ inputs.release_tag }}"
+          latest_tag="latest"
+          if [[ "$version_tag" == *dev* ]]; then
+            latest_tag="nightly-latest"
+          fi
 
-      #     .github/build-release-docker-image.sh $project $commit_tag | tee docker.log
-      #     docker_image=$(tail -n 1 docker.log)
-      #     docker_image_base=$(tail -n 2 docker.log | head -n 1)
+          .github/build-release-docker-image.sh $project $commit_tag | tee docker.log
+          docker_image=$(tail -n 1 docker.log)
+          docker_image_base=$(tail -n 2 docker.log | head -n 1)
 
-      #     echo "Pushing tags for $docker_image_base"
-      #     docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$version_tag"
-      #     docker push "$docker_image_base:$version_tag"
+          echo "Pushing tags for $docker_image_base"
+          docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$version_tag"
+          docker push "$docker_image_base:$version_tag"
 
-      #     if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-      #       docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$latest_tag"
-      #       docker push "$docker_image_base:$latest_tag"
-      #     fi
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$latest_tag"
+            docker push "$docker_image_base:$latest_tag"
+          fi
 
-      #     echo "docker_image_base=$docker_image_base" >> $GITHUB_OUTPUT
+          echo "docker_image_base=$docker_image_base" >> $GITHUB_OUTPUT
 
       - name: Checkout repository
         uses: actions/checkout@v4
