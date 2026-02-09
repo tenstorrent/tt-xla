@@ -6,6 +6,7 @@
 #include "api/module_builder/module_builder.h"
 
 // c++ standard library includes
+#include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <chrono>
@@ -86,6 +87,14 @@ static std::string getCurrentTimeStamp() {
                 std::chrono::system_clock::now().time_since_epoch())
                 .count();
   return std::to_string(ms);
+}
+
+// Helper function to sanitize a string for use in filenames.
+// Replaces characters that are invalid in filenames (like '/') with '_'.
+static std::string sanitizeForFilename(const std::string &input) {
+  std::string result = input;
+  std::replace(result.begin(), result.end(), '/', '_');
+  return result;
 }
 
 // TTAlchemistHandler implementation
@@ -1123,7 +1132,9 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       std::filesystem::path(export_path.value()) / "irs";
   std::filesystem::create_directories(ir_dump_dir);
 
-  std::string suffix = model_name.empty() ? "" : "_" + model_name;
+  std::string sanitized_model_name = sanitizeForFilename(model_name);
+  std::string suffix =
+      sanitized_model_name.empty() ? "" : "_" + sanitized_model_name;
   std::string filename =
       stage_name + suffix + "_" + getCurrentTimeStamp() + ".mlir";
   std::filesystem::path ir_file_path = ir_dump_dir / filename;
@@ -1219,9 +1230,10 @@ ModuleBuilder::buildModuleForTTNNRuntime(
   }
 
   if (compile_options.export_path.has_value()) {
-    std::string suffix = compile_options.export_model_name.empty()
-                             ? ""
-                             : "_" + compile_options.export_model_name;
+    std::string sanitized_model_name =
+        sanitizeForFilename(compile_options.export_model_name);
+    std::string suffix =
+        sanitized_model_name.empty() ? "" : "_" + sanitized_model_name;
     std::string filename =
         "fb" + suffix + "_" + getCurrentTimeStamp() + ".ttnn";
     std::filesystem::path output_path =
