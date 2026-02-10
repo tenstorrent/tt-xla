@@ -28,6 +28,7 @@ DEFAULT_GENERATIVE_CONFIG = {
     "max_num_seqs": 1,
     "max_model_len": 128,
     "gpu_memory_utilization": 0.002,
+    "trust_remote_code": True,
     "additional_config": {
         "enable_const_eval": False,
         "min_context_len": 32,
@@ -43,6 +44,7 @@ DEFAULT_TENSOR_PARALLEL_LLMBOX_CONFIG = {
     "max_num_seqs": 1,
     "max_model_len": 32,
     "gpu_memory_utilization": 0.002,
+    "trust_remote_code": True,
     "additional_config": {
         "enable_const_eval": False,
         "min_context_len": 32,

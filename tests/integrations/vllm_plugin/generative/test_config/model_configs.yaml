@@ -17,10 +17,7 @@ model_configs:
     status: "expected_passing"
   deepseek_deepseek_coder_pytorch_1_3b_instruct:
     model: deepseek-ai/deepseek-coder-1.3b-instruct
-    max_model_len: 2048
-    max_num_batched_tokens: 256
-    status: "known_failure_xfail"
-    reason: "The max_num_batched_tokens 256 must be larger than or equal to max_model_len (2048) * max_num_seqs (1)"
+    status: "expected_passing"
   falcon-7b:
     model: tiiuae/falcon-7b
     prompts:
@@ -53,13 +50,6 @@ model_configs:
     model: adept/fuyu-8b
     status: "known_failure_xfail"
     reason: "Dynamo failed to run FX node with fake tensors"
-  gemma-2b:
-    model: google/gemma-2b
-    gpu_memory_utilization: 0.001
-    prompts:
-    - The meaning of life is
-    status: "known_failure_xfail"
-    reason: "Unknown failure"
   gemma_codegemma_pytorch_google_codegemma_2b:
     model: google/codegemma-2b
     max_model_len: 256
@@ -345,19 +335,23 @@ model_configs:
     marks: [vllm_sweep]
   vllm_sweep_aquila:
     model: BAAI/Aquila-7B
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_aquila_chat:
     model: BAAI/AquilaChat-7B
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_baichuan:
     model: baichuan-inc/Baichuan-7B
     marks: [vllm_sweep]
   vllm_sweep_bloom:
     model: bigscience/bloom-560m
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ValueError: TT backend only supports V1."
   vllm_sweep_bart:
     model: facebook/bart-base
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ValueError: TT backend only supports V1."
   vllm_sweep_chat_glm2:
     model: THUDM/chatglm2-6b
     marks: [vllm_sweep]
@@ -369,70 +363,84 @@ model_configs:
     marks: [vllm_sweep]
   vllm_sweep_dbrx:
     model: databricks/dbrx-base
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Gated huggingface model"
   vllm_sweep_decilm:
     model: Deci/DeciLM-7B
     max_model_len: 64
     max_num_batched_tokens: 64
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "AttributeError: 'DeciLMConfig' object has no attribute 'block_configs'"
   vllm_sweep_deepseek:
     model: deepseek-ai/deepseek-llm-7b-chat
-    marks: [vllm_sweep]
-  vllm_sweep_deepseekcoder:
-    model: deepseek-ai/deepseek-coder-1.3b-instruct
-    max_model_len: 256
-    max_num_batched_tokens: 256
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  # vllm_sweep_deepseekcoder:
+  #   model: deepseek-ai/deepseek-coder-1.3b-instruct
+  #   max_model_len: 256
+  #   max_num_batched_tokens: 256
+  #   gpu_memory_utilization: 0.005
+  #   marks: [vllm_sweep]
   vllm_sweep_deepseekv2:
     model: deepseek-ai/DeepSeek-V2
     max_model_len: 64
     max_num_batched_tokens: 64
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "TypeError: TTAttentionBackendImpl.__init__() got an unexpected keyword argument 'q_lora_rank'"
   vllm_sweep_deepseekv3:
     model: deepseek-ai/DeepSeek-V3
     max_model_len: 64
     max_num_batched_tokens: 64
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ValueError: TT backend only supports V1."
   vllm_sweep_exaone:
     model: LGAI-EXAONE/EXAONE-3.0-7.8B-Instruct
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Gated huggingface model"
   # vllm_sweep_falcon:
   #   model: tiiuae/falcon-7b
   #   marks: [vllm_sweep]
   # vllm_sweep_falconmamba:
   #   model: tiiuae/falcon-mamba-7b
   #   marks: [vllm_sweep]
-  vllm_sweep_gemma:
-    model: google/gemma-2b
-    gpu_memory_utilization: 0.001
-    marks: [vllm_sweep]
-  vllm_sweep_gemma2:
-    model: google/gemma-2-2b
-    marks: [vllm_sweep]
+  # vllm_sweep_gemma:
+  #   model: google/gemma-2b
+  #   gpu_memory_utilization: 0.001
+  #   marks: [vllm_sweep]
+  # vllm_sweep_gemma2:
+  #   model: google/gemma-2-2b
+  #   marks: [vllm_sweep]
   vllm_sweep_glm:
     model: THUDM/glm-4-9b-chat-hf
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_gpt2:
     model: gpt2
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ValueError: TT backend only supports V1."
   vllm_sweep_gptbigcode:
     model: bigcode/starcoder
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Gated huggingface model"
   vllm_sweep_gptj:
     model: EleutherAI/gpt-j-6b
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "'GPTJForCausalLM' object has no attribute 'model'"
   vllm_sweep_gptneox:
     model: EleutherAI/pythia-70m
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "AttributeError: 'GPTNeoXForCausalLM' object has no attribute 'model'"
   vllm_sweep_granite:
     model: ibm-granite/granite-3.0-2b-base
-    marks: [vllm_sweep]
+    status: "expected_passing"
   vllm_sweep_granitemoe:
     model: ibm-granite/granite-3.0-1b-a400m-base
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ValueError: TT backend only supports V1."
   vllm_sweep_gritlm:
     model: parasail-ai/GritLM-7B-vllm
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ZeroDivisionError: integer division or modulo by zero"
   vllm_sweep_internlm:
     model: internlm/internlm-7b
     marks: [vllm_sweep]
@@ -449,7 +457,8 @@ model_configs:
   #   marks: [vllm_sweep]
   vllm_sweep_jamba:
     model: ai21labs/AI21-Jamba-1.5-Mini
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Gated huggingface model"
   # vllm_sweep_llama:
   #   model: meta-llama/Llama-3.2-1B
   #   marks: [vllm_sweep]
@@ -470,23 +479,26 @@ model_configs:
   #   prompts:
   #   - The future of AI is
   #   marks: [vllm_sweep]
-  vllm_sweep_mixtral:
-    model: mistralai/Mixtral-8x7B-v0.1
-    max_model_len: 64
-    max_num_batched_tokens: 64
-    marks: [vllm_sweep]
+  # vllm_sweep_mixtral:
+  #   model: mistralai/Mixtral-8x7B-v0.1
+  #   max_model_len: 64
+  #   max_num_batched_tokens: 64
+  #   marks: [vllm_sweep]
   vllm_sweep_mpt:
     model: mosaicml/mpt-7b
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Gated huggingface model"
   vllm_sweep_nemotron:
     model: nvidia/Minitron-8B-Base
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ValueError: TT backend only supports V1."
   vllm_sweep_olmo:
     model: allenai/OLMo-1B-hf
-    marks: [vllm_sweep]
+    status: "expected_passing"
   vllm_sweep_olmo2:
     model: allenai/OLMo2-7B-1124
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_olmoe:
     model: allenai/OLMoE-1B-7B-0924
     marks: [vllm_sweep]
@@ -504,10 +516,11 @@ model_configs:
   #   marks: [vllm_sweep]
   vllm_sweep_phi3:
     model: microsoft/Phi-3-mini-4k-instruct
-    marks: [vllm_sweep]
-  vllm_sweep_phi4:
-    model: microsoft/phi-4
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ValueError: TT backend only supports V1."
+  # vllm_sweep_phi4:
+  #   model: microsoft/phi-4
+  #   marks: [vllm_sweep]
   vllm_sweep_phi3_small:
     model: microsoft/Phi-3-small-8k-instruct
     marks: [vllm_sweep]
@@ -516,9 +529,10 @@ model_configs:
     marks: [vllm_sweep]
   vllm_sweep_persimmon:
     model: adept/persimmon-8b-base
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ValueError: TT backend only supports V1."
   vllm_sweep_qwen:
-    model: Qwen/Qwen-0.5B
+    model: Qwen/Qwen-7B
     marks: [vllm_sweep]
   # vllm_sweep_qwen2:
   #   model: Qwen/Qwen2-0.5B
@@ -526,9 +540,12 @@ model_configs:
   #   marks: [vllm_sweep]
   vllm_sweep_qwen2moe:
     model: Qwen/Qwen1.5-MoE-A2.7B
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ValueError: TT backend only supports V1."
   vllm_sweep_stablelm:
     model: stabilityai/stablelm-3b-4e1t
+    gpu_memory_utilization: 0.004
+    reason: "(0.04 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)"
     marks: [vllm_sweep]
   vllm_sweep_starcoder2:
     model: bigcode/starcoder2-3b
@@ -538,7 +555,9 @@ model_configs:
     marks: [vllm_sweep]
   vllm_sweep_telechat:
     model: chuhac/TeleChat2-3B
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Gated huggingface model"
   vllm_sweep_xverse:
     model: xverse/XVERSE-7B-Chat
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Exception: add_prefix_space does not match declared prepend_scheme at line 78 column 3"

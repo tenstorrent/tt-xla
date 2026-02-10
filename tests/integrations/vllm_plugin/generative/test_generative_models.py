@@ -49,6 +49,7 @@ def run_generative_model_test(
         "max_num_seqs": model_config["max_num_seqs"],
         "max_model_len": model_config["max_model_len"],
         "gpu_memory_utilization": model_config["gpu_memory_utilization"],
+        "trust_remote_code": model_config.get("trust_remote_code", True),
         "additional_config": model_config["additional_config"],
     }
 
