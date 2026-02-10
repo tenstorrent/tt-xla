@@ -544,16 +544,24 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
-@pytest.mark.parametrize("mlp_type", ["mlp", "moe"])
+@pytest.mark.parametrize(
+    "mlp_type",
+    [
+        "mlp",
+        pytest.param(
+            "moe",
+            marks=pytest.mark.xfail(
+                reason="Fails on ttnn.sort as it doesnt support fp32 input types."
+            ),
+        ),
+    ],
+)
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("glm").items(),
     ids=[str(k) for k in get_available_variants("glm").keys()],
 )
 def test_glm_mlp(variant, variant_config, mlp_type, seq_len, arch):
-    if mlp_type == "moe":
-        pytest.xfail("MoE MLPs not supported yet")
-
     xr.set_device_type("TT")
 
     loader = GLMModelLoader(variant=variant)
@@ -562,6 +570,7 @@ def test_glm_mlp(variant, variant_config, mlp_type, seq_len, arch):
         mlp = Glm4MoeMLP(config).to(torch.bfloat16)
     elif mlp_type == "moe":
         mlp = Glm4MoeMoE(config).to(torch.bfloat16)
+        seq_len = 32  # hardcoded for now to test the MoE. Bigger seq_len takes longer.
 
     batch_size = 2
     hidden_states = torch.randn(
@@ -586,6 +595,9 @@ def test_glm_mlp(variant, variant_config, mlp_type, seq_len, arch):
                 shard_specs[mlp.gate_proj.weight] = ("model", None)
                 shard_specs[mlp.up_proj.weight] = ("model", None)
                 shard_specs[mlp.down_proj.weight] = (None, "model")
+
+            # input sharding
+            shard_specs[args[0]] = ("batch", None, "model")
 
             return shard_specs
 

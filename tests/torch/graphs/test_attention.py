@@ -2484,6 +2484,12 @@ def test_glm_attention_module(variant, variant_config, seq_len, arch):
             shard_specs[attention.v_proj.bias] = ("model",)
             shard_specs[attention.o_proj.weight] = ("batch", "model")
 
+            # input sharding
+            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[args[1][0]] = ("batch", None, None)
+            shard_specs[args[1][1]] = ("batch", None, None)
+            shard_specs[args[2]] = ("batch", None, None, None)
+
             return shard_specs
 
     else:
