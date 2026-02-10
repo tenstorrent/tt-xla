@@ -379,30 +379,41 @@ tt_pjrt_status cleanForXlaIngestion(
     return tt_pjrt_status::kInternal;
   }
 
-  // Extract mesh name to size map from sdy.mesh op, asserting that there is
-  // exactly one sdy.mesh op in the module.
-  llvm::SmallVector<mlir::sdy::MeshOp> meshOps;
-  module.walk([&](mlir::sdy::MeshOp op) { meshOps.push_back(op); });
-  assert(meshOps.size() == 1 && "Expected exactly one sdy.mesh op in module");
-  auto meshOp = meshOps.front();
+  // Extract out shardings and simplify the main funcop only when manual
+  // computation ops are present (shardy path). When they are not present
+  // (non-shardy path), we still need to strip sdy.mesh ops and TT dialect
+  // attributes so XLA can parse the module via
+  // PJRT_Executable_OptimizedProgram.
+  if (manualComputationOps.size() == 1) {
+    // Extract mesh name to size map from sdy.mesh op, asserting that there is
+    // exactly one sdy.mesh op in the module.
+    llvm::SmallVector<mlir::sdy::MeshOp> meshOps;
+    module.walk([&](mlir::sdy::MeshOp op) { meshOps.push_back(op); });
+    assert(meshOps.size() == 1 && "Expected exactly one sdy.mesh op in module");
+    auto meshOp = meshOps.front();
 
-  // Extract out sharding from manual computation ops
-  assert(manualComputationOps.size() == 1 &&
-         "Expected exactly one ManualComputationOp in module");
-  auto manualComputationOp = manualComputationOps.front();
-  auto outShardingResult = internal::extractSdyManualComputationOutSharding(
-      manualComputationOp, meshOp.getMeshAttr());
+    auto manualComputationOp = manualComputationOps.front();
+    auto outShardingResult = internal::extractSdyManualComputationOutSharding(
+        manualComputationOp, meshOp.getMeshAttr());
 
-  // Inject out sharding result into module as a moduleOp attr,
-  // mhlo.spmd_output_shardings format list into tuple type opSharding
-  std::string outShardingTupleString = "{";
-  llvm::raw_string_ostream os(outShardingTupleString);
-  llvm::interleave(outShardingResult, os, ",");
-  outShardingTupleString += "}";
+    // Inject out sharding result into module as a moduleOp attr,
+    // mhlo.spmd_output_shardings format list into tuple type opSharding
+    std::string outShardingTupleString = "{";
+    llvm::raw_string_ostream os(outShardingTupleString);
+    llvm::interleave(outShardingResult, os, ",");
+    outShardingTupleString += "}";
 
-  module->setAttr(
-      "mhlo.spmd_output_sharding",
-      mlir::StringAttr::get(module.getContext(), outShardingTupleString));
+    module->setAttr(
+        "mhlo.spmd_output_sharding",
+        mlir::StringAttr::get(module.getContext(), outShardingTupleString));
+
+    // Remove the sdy.manual_computation op by simplifying the main funcop
+    module.walk([&](mlir::func::FuncOp funcOp) {
+      if (funcOp.getSymName() == "main") {
+        internal::simplifyMainFuncOp(funcOp);
+      }
+    });
+  }
 
   // Remove sdy.mesh operations
   std::vector<mlir::sdy::MeshOp> meshOpsToErase;
@@ -412,13 +423,6 @@ tt_pjrt_status cleanForXlaIngestion(
   for (auto meshOpToErase : meshOpsToErase) {
     meshOpToErase.erase();
   }
-
-  // Remove the sdy.manual_computation op by simplifying the main funcop
-  module.walk([&](mlir::func::FuncOp funcOp) {
-    if (funcOp.getSymName() == "main") {
-      internal::simplifyMainFuncOp(funcOp);
-    }
-  });
 
   return tt_pjrt_status::kSuccess;
 }

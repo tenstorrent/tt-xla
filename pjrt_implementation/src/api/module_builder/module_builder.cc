@@ -238,8 +238,6 @@ ModuleBuilder::buildModule(
 
   std::string original_mlir_code(mlir_code);
 
-  std::string optimized_mlir_code(original_mlir_code);
-
   status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path,
                                  compile_options.export_model_name);
   if (!tt_pjrt_status_is_ok(status)) {
@@ -301,21 +299,23 @@ ModuleBuilder::buildModule(
     if (!tt_pjrt_status_is_ok(status)) {
       return {status, nullptr};
     }
-
-    // Sanitiation path for XLA ingestion operating on a clone of the base
-    // module
-    mlir::OwningOpRef<mlir::ModuleOp> sanitized_mlir_module =
-        mlir_module->clone();
-    status = frontend_passes::cleanForXlaIngestion(sanitized_mlir_module);
-
-    if (!tt_pjrt_status_is_ok(status)) {
-      return {status, nullptr};
-    }
-
-    optimized_mlir_code = getMlirCode(sanitized_mlir_module);
-    printModule(sanitized_mlir_module, compile_options.export_path,
-                "shlo_compiler_cleaned");
   }
+
+  // Sanitize the module for XLA ingestion operating on a clone of the base
+  // module. This is always required because the module may contain sdy dialect
+  // ops (e.g. sdy.mesh) and ttcore/ttir attributes that XLA cannot parse when
+  // it reads back the optimized program via PJRT_Executable_OptimizedProgram.
+  mlir::OwningOpRef<mlir::ModuleOp> sanitized_mlir_module =
+      mlir_module->clone();
+  status = frontend_passes::cleanForXlaIngestion(sanitized_mlir_module);
+
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
+  std::string optimized_mlir_code = getMlirCode(sanitized_mlir_module);
+  printModule(sanitized_mlir_module, compile_options.export_path,
+              "shlo_compiler_cleaned");
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
