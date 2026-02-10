@@ -73,7 +73,7 @@ def test_glm_single_layer(seq_len, variant, arch):
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             # input sharding
-            shard_specs[args[0]] = ("batch", None, None)
+            shard_specs[args[0]] = ("batch", None, "model")
             shard_specs[args[1]] = ("batch", None, None, None)
             shard_specs[args[6][0]] = ("batch", None, None)
             shard_specs[args[6][1]] = ("batch", None, None)

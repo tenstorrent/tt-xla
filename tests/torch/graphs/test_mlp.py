@@ -588,13 +588,13 @@ def test_glm_mlp(variant, variant_config, mlp_type, seq_len, arch):
 
             if hasattr(mlp, "experts"):
                 for expert in mlp.experts:
-                    shard_specs[expert.gate_proj.weight] = ("model", None)
-                    shard_specs[expert.up_proj.weight] = ("model", None)
-                    shard_specs[expert.down_proj.weight] = (None, "model")
+                    shard_specs[expert.gate_proj.weight] = ("model", "batch")
+                    shard_specs[expert.up_proj.weight] = ("model", "batch")
+                    shard_specs[expert.down_proj.weight] = ("batch", "model")
             else:
-                shard_specs[mlp.gate_proj.weight] = ("model", None)
-                shard_specs[mlp.up_proj.weight] = ("model", None)
-                shard_specs[mlp.down_proj.weight] = (None, "model")
+                shard_specs[mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[mlp.down_proj.weight] = ("batch", "model")
 
             # input sharding
             shard_specs[args[0]] = ("batch", None, "model")
