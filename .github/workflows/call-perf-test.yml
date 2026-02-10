@@ -106,6 +106,18 @@ jobs:
         echo "perf_report_path=$(pwd)/perf_reports" >> "$GITHUB_OUTPUT"
         echo "perf_report_json_file=$(pwd)/perf_reports/perf_report_$JOB_ID.json" >> "$GITHUB_OUTPUT"
 
+    - name: Install gh CLI
+      shell: bash
+      run: |
+        if ! command -v gh &> /dev/null; then
+          apt-get update -y -qq
+          apt-get install -y -qq --no-install-recommends curl
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          apt-get update -y -qq
+          apt-get install -y -qq --no-install-recommends gh
+        fi
+
     - name: Download and install wheel
       shell: bash
       run: |
