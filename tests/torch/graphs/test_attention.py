@@ -2457,7 +2457,7 @@ def test_kimi_k2_attention_module(seq_len, arch):
 
     attention = KimiK2Attention(config, layer_idx=0).to(torch.bfloat16)
 
-    batch_size = 2
+    batch_size = 4
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
@@ -2469,7 +2469,7 @@ def test_kimi_k2_attention_module(seq_len, arch):
     # Setup for tensor parallel
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (batch_size, num_devices // batch_size)
+        mesh_shape = (2, 4)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -2477,14 +2477,14 @@ def test_kimi_k2_attention_module(seq_len, arch):
             """Returns shard specifications for the layer's parameters."""
             shard_specs = {}
 
-            shard_specs[args[0]] = (None, None, "batch")
-            shard_specs[attention.q_b_proj.weight] = ("model", None)
-            shard_specs[attention.kv_b_proj.weight] = ("model", None)
+            shard_specs[args[0]] = ("model", None, "batch")
+            shard_specs[attention.q_b_proj.weight] = ("model", "batch")
+            shard_specs[attention.kv_b_proj.weight] = ("model", "batch")
             shard_specs[attention.o_proj.weight] = ("batch", "model")
 
             # Consume hidden states, TP on batch dimension
-            shard_specs[attention.q_a_proj.weight] = (None, "batch")
-            shard_specs[attention.kv_a_proj_with_mqa.weight] = (None, "batch")
+            shard_specs[attention.q_a_proj.weight] = ("model", "batch")
+            shard_specs[attention.kv_a_proj_with_mqa.weight] = ("model", "batch")
 
             return shard_specs
 
