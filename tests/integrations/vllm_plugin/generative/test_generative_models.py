@@ -69,6 +69,7 @@ def run_generative_model_test(
 
 
 # Create parametrized test from model configs (loaded from test_config YAML)
+@pytest.mark.single_device
 @pytest.mark.parametrize(
     "model_name,model_config",
     get_model_config_params(),

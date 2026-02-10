@@ -3,2321 +3,542 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # vLLM generative model test configurations.
-# marks: list of pytest marker names (e.g. vllm_sweep, single_device).
+# Defaults are applied in test_config/__init__.py (DEFAULT_GENERATIVE_CONFIG).
+# Only "model" is required. "marks" default to [single_device]; add marks only when overriding.
+# "status" defaults to "unspecified" when omitted.
 
 model_configs:
-  opt-125m:  # PASSING
-    model: "facebook/opt-125m"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.001
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
+  allam_causal_lm_pytorch_allam_7b_instruct:
+    model: ALLaM-AI/ALLaM-7B-Instruct-preview
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  deepcogito_pytorch_v1_preview_llama_3b:
+    model: deepcogito/cogito-v1-preview-llama-3B
+    status: "expected_passing"
+  deepseek_deepseek_coder_pytorch_1_3b_instruct:
+    model: deepseek-ai/deepseek-coder-1.3b-instruct
+    max_model_len: 2048
+    max_num_batched_tokens: 256
+    status: "known_failure_xfail"
+    reason: "The max_num_batched_tokens 256 must be larger than or equal to max_model_len (2048) * max_num_seqs (1)"
+  falcon-7b:
+    model: tiiuae/falcon-7b
     prompts:
-    - "Hello, my name is"
-    marks: [single_device]
-
-  opt-125m-multibatch:  # PASSING
-    model: "facebook/opt-125m"
+    - The best way to learn
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  falcon_pytorch_tiiuae_falcon3_10b_base:
+    model: tiiuae/Falcon3-10B-Base
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  falcon_pytorch_tiiuae_falcon3_1b_base:
+    model: tiiuae/Falcon3-1B-Base
+    status: "expected_passing"
+  falcon_pytorch_tiiuae_falcon3_3b_base:
+    model: tiiuae/Falcon3-3B-Base
+    status: "expected_passing"
+  falcon_pytorch_tiiuae_falcon3_7b_base:
+    model: tiiuae/Falcon3-7B-Base
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  falcon_pytorch_tiiuae_falcon3_mamba_7b_base:
+    model: tiiuae/Falcon3-Mamba-7B-Base
+    status: "known_failure_xfail"
+    reason: "ZeroDivisionError: integer division or modulo by zero"
+  falcon_pytorch_tiiuae_falcon_7b_instruct:
+    model: tiiuae/falcon-7b-instruct
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  fuyu_pytorch_adept_fuyu_8b:
+    model: adept/fuyu-8b
+    status: "known_failure_xfail"
+    reason: "Dynamo failed to run FX node with fake tensors"
+  gemma-2b:
+    model: google/gemma-2b
+    gpu_memory_utilization: 0.001
+    prompts:
+    - The meaning of life is
+    status: "known_failure_xfail"
+    reason: "Unknown failure"
+  gemma_codegemma_pytorch_google_codegemma_2b:
+    model: google/codegemma-2b
+    max_model_len: 256
+    max_num_batched_tokens: 256
+    status: "known_failure_xfail"
+    reason: "Unknown failure"
+  gemma_pytorch_google_gemma_1_1_2b_it:
+    model: google/gemma-1.1-2b-it
+    status: "known_failure_xfail"
+    reason: "Unknown failure"
+  gemma_pytorch_google_gemma_1_1_7b_it:
+    model: google/gemma-1.1-7b-it
+    status: "known_failure_xfail"
+    reason: "Unknown failure"
+  gemma_pytorch_google_gemma_2_2b_it:
+    model: google/gemma-2-2b-it
+    status: "known_failure_xfail"
+    reason: "Unknown failure"
+  gemma_pytorch_google_gemma_2_9b_it:
+    model: google/gemma-2-9b-it
+    status: "known_failure_xfail"
+    reason: "Unknown failure"
+  gemma_pytorch_google_gemma_2b:
+    model: google/gemma-2b
+    max_model_len: 256
+    max_num_batched_tokens: 256
+    status: "known_failure_xfail"
+    reason: "Unknown failure"
+  gemma_text_translation_pytorch_translategemma_4b_it:
+    model: google/translategemma-4b-it
+    status: "known_failure_xfail"
+    reason: "Unknown failure"
+  gpt2_pytorch_gpt2:
+    model: gpt2
+    max_model_len: 256
+    max_num_batched_tokens: 256
+    status: "known_failure_xfail"
+    reason: "'GPT2LMHeadModel' object has no attribute 'model'"
+  huggyllama_pytorch_llama_7b:
+    model: huggyllama/llama-7b
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  llama3-3b:
+    model: meta-llama/Llama-3.2-3B
+    prompts:
+    - I like taking walks in the
+    status: "expected_passing"
+  llama_causal_lm_pytorch_huggyllama_7b:
+    model: huggyllama/llama-7b
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  llama_causal_lm_pytorch_llama_3_1_8b:
+    model: meta-llama/Llama-3.1-8B
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  llama_causal_lm_pytorch_llama_3_1_8b_instruct:
+    model: meta-llama/Llama-3.1-8B-Instruct
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  llama_causal_lm_pytorch_llama_3_2_1b:
+    model: meta-llama/Llama-3.2-1B
+    status: "expected_passing"
+  llama_causal_lm_pytorch_llama_3_2_1b_instruct:
+    model: meta-llama/Llama-3.2-1B-Instruct
+    status: "expected_passing"
+  llama_causal_lm_pytorch_llama_3_2_3b:
+    model: meta-llama/Llama-3.2-3B
+    status: "expected_passing"
+  llama_causal_lm_pytorch_llama_3_2_3b_instruct:
+    model: meta-llama/Llama-3.2-3B-Instruct
+    status: "expected_passing"
+  llama_causal_lm_pytorch_llama_3_8b:
+    model: meta-llama/Meta-Llama-3-8B
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  llama_causal_lm_pytorch_llama_3_8b_instruct:
+    model: meta-llama/Meta-Llama-3-8B-Instruct
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  llama_causal_lm_pytorch_tinyllama_v1_1:
+    model: TinyLlama/TinyLlama_v1.1
+    status: "expected_passing"
+  mamba_pytorch_mamba_1_4b_hf:
+    model: state-spaces/mamba-1.4b-hf
+    status: "known_failure_xfail"
+    reason: "ZeroDivisionError: integer division or modulo by zero"
+  mamba_pytorch_mamba_2_8b_hf:
+    model: state-spaces/mamba-2.8b-hf
+    status: "known_failure_xfail"
+    reason: "ZeroDivisionError: integer division or modulo by zero"
+  mamba_pytorch_mamba_370m_hf:
+    model: state-spaces/mamba-370m-hf
+    status: "known_failure_xfail"
+    reason: "ZeroDivisionError: integer division or modulo by zero"
+  mamba_pytorch_mamba_790m_hf:
+    model: state-spaces/mamba-790m-hf
+    status: "known_failure_xfail"
+    reason: "ZeroDivisionError: integer division or modulo by zero"
+  mistral-7b:
+    model: mistralai/Mistral-7B-v0.1
+    gpu_memory_utilization: 0.001
+    max_model_len: 64
+    max_num_batched_tokens: 64
+    prompts:
+    - The future of AI is
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  mistral_pytorch_7b_instruct_v03:
+    model: mistralai/Mistral-7B-Instruct-v0.3
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  mistral_pytorch_ministral_3b_instruct:
+    model: ministral/Ministral-3b-instruct
+    status: "known_failure_xfail"
+    reason: "L1 Out of Memory"
+  mistral_pytorch_mistral_nemo_instruct_2407:
+    model: mistralai/Mistral-Nemo-Instruct-2407
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  opt-125m:
+    model: facebook/opt-125m
+    gpu_memory_utilization: 0.001
+    status: "expected_passing"
+  opt-125m-multibatch:
+    model: facebook/opt-125m
+    gpu_memory_utilization: 0.001
     max_num_batched_tokens: 256
     max_num_seqs: 2
-    max_model_len: 128
-    gpu_memory_utilization: 0.001
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    - "Paris is the capital of"
-    marks: [single_device]
-
-  llama3-3b:  # PASSING
-    model: "meta-llama/Llama-3.2-3B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "I like taking walks in the"
-    marks: [single_device]
-
-  mistral-7b:  # Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1041740800 B, free: 32000992 B, largest free block: 15384576 B)
-    model: "mistralai/Mistral-7B-v0.1"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.001
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "The future of AI is"
-    marks: [single_device]
-
-  qwen2-0.5b:  # PASSING
-    model: "Qwen/Qwen2-0.5B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.001
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "The capital of China is"
-    marks: [single_device]
-
-  gemma-2b:  # Failed -> no error message in CI
-    model: "google/gemma-2b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.001
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "The meaning of life is"
-    marks: [single_device]
-
-  phi-2:  # PASSING
-    model: "microsoft/phi-2"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.004
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Write a poem about"
-    marks: [single_device]
-
-  falcon-7b:  # Out of Memory: Not enough space to allocate 165183488 B DRAM buffer across 12 banks, where each bank needs to store 13777408 B, but bank size is 1073741792 B (allocated: 989598720 B, free: 84143072 B, largest free block: 11322336 B) (assert.hpp:104)
-    model: "tiiuae/falcon-7b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "The best way to learn"
-    marks: [single_device]
-
-  qwen_2_5_causal_lm_pytorch_1_5b: # PASSING
-    model: Qwen/Qwen2.5-1.5B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
     prompts:
     - Hello, my name is
-    marks:
-    - single_device
-
-  mamba_pytorch_mamba_790m_hf: #  ZeroDivisionError: integer division or modulo by zero
-    model: state-spaces/mamba-790m-hf
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-
-  falcon_pytorch_tiiuae_falcon3_1b_base: # PASSING
-    model: tiiuae/Falcon3-1B-Base
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  falcon_pytorch_tiiuae_falcon3_3b_base: # PASSING
-    model: tiiuae/Falcon3-3B-Base
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  falcon_pytorch_tiiuae_falcon3_7b_base: # TT_FATAL: Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23592960 B, but bank size is 1073741792 B (allocated: 995730432 B, free: 78011360 B, largest free block: 19355616 B)
-    model: tiiuae/Falcon3-7B-Base
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  falcon_pytorch_tiiuae_falcon3_10b_base: # TT_FATAL: Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23592960 B, but bank size is 1073741792 B (allocated: 995730432 B, free: 78011360 B, largest free block: 19355616 B)
-    model: tiiuae/Falcon3-10B-Base
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  falcon_pytorch_tiiuae_falcon3_mamba_7b_base: # ZeroDivisionError: integer division or modulo by zero
-    model: tiiuae/Falcon3-Mamba-7B-Base
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  mamba_pytorch_mamba_1_4b_hf: # ZeroDivisionError: integer division or modulo by zero
-    model: state-spaces/mamba-1.4b-hf
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  mamba_pytorch_mamba_370m_hf: # ZeroDivisionError: integer division or modulo by zero
-    model: state-spaces/mamba-370m-hf
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  mamba_pytorch_mamba_2_8b_hf: # ZeroDivisionError: integer division or modulo by zero
-    model: state-spaces/mamba-2.8b-hf
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  mistral_pytorch_ministral_3b_instruct: # TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0) - (x=3,y=0)] grow to 1529120 B which is beyond max L1 size of 1499136 B
-    model: ministral/Ministral-3b-instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  phi2_causal_lm_pytorch_microsoft_phi_2: # PASSING
+    - Paris is the capital of
+    status: "expected_passing"
+  opt_causal_lm_pytorch_facebook_opt_125m:
+    model: facebook/opt-125m
+    max_model_len: 256
+    max_num_batched_tokens: 256
+    status: "expected_passing"
+  opt_causal_lm_pytorch_facebook_opt_1_3b:
+    model: facebook/opt-1.3b
+    gpu_memory_utilization: 0.005
+    max_model_len: 256
+    max_num_batched_tokens: 256
+    status: "expected_passing"
+  opt_causal_lm_pytorch_facebook_opt_350m:
+    model: facebook/opt-350m
+    max_model_len: 256
+    max_num_batched_tokens: 256
+    status: "known_failure_xfail"
+    reason: "RuntimeError: a and b must have same reduction dim, but got [1, 1024] X [512, 50304]."
+  opt_qa_pytorch_facebook_opt_125m:
+    model: facebook/opt-125m
+    max_model_len: 32
+    max_num_batched_tokens: 32
+    status: "expected_passing"
+  opt_qa_pytorch_facebook_opt_1_3b:
+    model: facebook/opt-1.3b
+    max_model_len: 32
+    max_num_batched_tokens: 32
+    status: "expected_passing"
+  opt_qa_pytorch_facebook_opt_350m:
+    model: facebook/opt-350m
+    max_model_len: 32
+    max_num_batched_tokens: 32
+    status: "known_failure_xfail"
+    reason: "RuntimeError: a and b must have same reduction dim, but got [1, 1024] X [512, 50304]."
+  phi-2:
     model: microsoft/phi-2
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
     gpu_memory_utilization: 0.004
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
     prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  phi2_causal_lm_pytorch_microsoft_phi_2_pytdml: # PASSING
-    model: microsoft/phi-2-pytdml
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.004
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  phi1_5_causal_lm_pytorch_microsoft_phi_1_5: # PASSING
+    - Write a poem about
+    status: "expected_passing"
+  phi1_5_causal_lm_pytorch_microsoft_phi_1_5:
     model: microsoft/phi-1_5
-    max_num_batched_tokens: 256
-    max_num_seqs: 1
-    max_model_len: 256
     gpu_memory_utilization: 0.005
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  opt_qa_pytorch_facebook_opt_125m: # PASSING
-    model: facebook/opt-125m
-    max_num_batched_tokens: 32
-    max_num_seqs: 1
-    max_model_len: 32
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  opt_qa_pytorch_facebook_opt_350m: # RuntimeError: a and b must have same reduction dim, but got [1, 1024] X [512, 50304].
-    model: facebook/opt-350m
-    max_num_batched_tokens: 32
-    max_num_seqs: 1
-    max_model_len: 32
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  opt_causal_lm_pytorch_facebook_opt_125m: # PASSING
-    model: facebook/opt-125m
-    max_num_batched_tokens: 256
-    max_num_seqs: 1
     max_model_len: 256
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  opt_causal_lm_pytorch_facebook_opt_350m: # RuntimeError: a and b must have same reduction dim, but got [1, 1024] X [512, 50304].
-    model: facebook/opt-350m
     max_num_batched_tokens: 256
-    max_num_seqs: 1
-    max_model_len: 256
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  deepcogito_pytorch_v1_preview_llama_3b: # PASSING
-    model: deepcogito/cogito-v1-preview-llama-3B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  fuyu_pytorch_adept_fuyu_8b: # torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_method view(*(FakeTensor(..., device='xla:0', size=(1, 128, 4096)), 1, 64, 64), **{}): got RuntimeError("shape '[1, 64, 64]' is invalid for input of size 524288")
-    model: adept/fuyu-8b
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  phi1_causal_lm_pytorch_microsoft_phi_1: # PASSING
+    status: "expected_passing"
+  phi1_causal_lm_pytorch_microsoft_phi_1:
     model: microsoft/phi-1
-    max_num_batched_tokens: 256
-    max_num_seqs: 1
-    max_model_len: 256
     gpu_memory_utilization: 0.005
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  opt_causal_lm_pytorch_facebook_opt_1_3b: # PASSING
-    model: facebook/opt-1.3b
-    max_num_batched_tokens: 256
-    max_num_seqs: 1
     max_model_len: 256
-    gpu_memory_utilization: 0.005
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  opt_qa_pytorch_facebook_opt_1_3b: # PASSING
-    model: facebook/opt-1.3b
-    max_num_batched_tokens: 32
-    max_num_seqs: 1
-    max_model_len: 32
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_1_5_causal_lm_pytorch_0_5b: # PASSING
-    model: Qwen/Qwen1.5-0.5B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_1_5_causal_lm_pytorch_0_5b_chat: # AssertionError: The max_num_batched_tokens 256 must be larger than or equal to max_model_len (512) * max_num_seqs (1)
-    model: Qwen/Qwen1.5-0.5B-Chat
     max_num_batched_tokens: 256
-    max_num_seqs: 1
-    max_model_len: 512
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_3_causal_lm_pytorch_4b: # PASSING
-    model: Qwen/Qwen3-4B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_3_causal_lm_pytorch_1_7b: # PASSING
-    model: Qwen/Qwen3-1.7B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_2_5_coder_pytorch_3b: # PASSING
-    model: Qwen/Qwen2.5-Coder-3B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_3_causal_lm_pytorch_0_6b: # PASSING
-    model: Qwen/Qwen3-0.6B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_2_5_causal_lm_pytorch_3b: # PASSING
-    model: Qwen/Qwen2.5-3B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_2_5_causal_lm_pytorch_3b_instruct: # PASSING
-    model: Qwen/Qwen2.5-3B-Instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_2_5_coder_pytorch_3b_instruct: # PASSING
-    model: Qwen/Qwen2.5-Coder-3B-Instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_2_5_coder_pytorch_1_5b: # PASSING
-    model: Qwen/Qwen2.5-Coder-1.5B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_2_5_causal_lm_pytorch_1_5b_instruct: # PASSING
-    model: Qwen/Qwen2.5-1.5B-Instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_2_5_coder_pytorch_1_5b_instruct: # PASSING
-    model: Qwen/Qwen2.5-Coder-1.5B-Instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_2_5_coder_pytorch_0_5b: # PASSING
-    model: Qwen/Qwen2.5-Coder-0.5B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_2_5_causal_lm_pytorch_0_5b: # PASSING
-    model: Qwen/Qwen2.5-0.5B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  llama_causal_lm_pytorch_llama_3_2_1b: # PASSING
-    model: meta-llama/Llama-3.2-1B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  llama_causal_lm_pytorch_llama_3_2_3b: # PASSING
-    model: meta-llama/Llama-3.2-3B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  llama_causal_lm_pytorch_llama_3_2_1b_instruct: # PASSING
-    model: meta-llama/Llama-3.2-1B-Instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_2_5_causal_lm_pytorch_0_5b_instruct: # PASSING
-    model: Qwen/Qwen2.5-0.5B-Instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  llama_causal_lm_pytorch_llama_3_2_3b_instruct: # PASSING
-    model: meta-llama/Llama-3.2-3B-Instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  unet_for_conditional_generation_pytorch_base: # FAILED -> no error message in CI
-    model: stabilityai/stable-diffusion-xl-base-1.0
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  deepseek_deepseek_coder_pytorch_1_3b_instruct: # AssertionError: The max_num_batched_tokens 256 must be larger than or equal to max_model_len (2048) * max_num_seqs (1)
-    model: deepseek-ai/deepseek-coder-1.3b-instruct
-    max_num_batched_tokens: 256
-    max_num_seqs: 1
-    max_model_len: 2048
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  gemma_pytorch_google_gemma_1_1_2b_it: # Failed -> no error message in CI
-    model: google/gemma-1.1-2b-it
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  gpt2_pytorch_gpt2: # AttributeError: 'GPT2LMHeadModel' object has no attribute 'model'
-    model: gpt2
-    max_num_batched_tokens: 256
-    max_num_seqs: 1
-    max_model_len: 256
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  gemma_pytorch_google_gemma_2_2b_it: # Failed -> no error message in CI
-    model: google/gemma-2-2b-it
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  gemma_pytorch_google_gemma_2b: # Failed -> no error message in CI
-    model: google/gemma-2b
-    max_num_batched_tokens: 256
-    max_num_seqs: 1
-    max_model_len: 256
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  phi3_phi_3_5_pytorch_mini_instruct: # RuntimeError: Check failed: casted->xla_shape().dimensions_size() <= 1 (2 vs. 1)
-    model: microsoft/Phi-3.5-mini-instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  gemma_pytorch_google_gemma_1_1_7b_it: # Failed -> no error message in CI
-    model: google/gemma-1.1-7b-it
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  phi4_causal_lm_pytorch_microsoft_phi_4: # Out of Memory: Not enough space to allocate 367001600 B DRAM buffer across 12 banks, where each bank needs to store 30586880 B, but bank size is 1073741792 B (allocated: 1022012416 B, free: 51729376 B, largest free block: 24033280 B) (assert.hpp:104)
-    model: microsoft/phi-4
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  phi3_causal_lm_pytorch_microsoft_phi_3_mini_128k_instruct: # RuntimeError: Check failed: casted->xla_shape().dimensions_size() <= 1 (2 vs. 1)
-    model: microsoft/Phi-3-mini-128k-instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  phi3_causal_lm_pytorch_microsoft_phi_3_mini_4k_instruct: # PASSING
-    model: microsoft/Phi-3-mini-4k-instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.006
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  huggyllama_pytorch_llama_7b: # Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B (allocated: 1046447104 B, free: 27294688 B, largest free block: 7729120 B)
-    model: huggyllama/llama-7b
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  llama_causal_lm_pytorch_huggyllama_7b: # TT_FATAL: Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B (allocated: 1046447104 B, free: 27294688 B, largest free block: 7729120 B)
-    model: huggyllama/llama-7b
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  llama_causal_lm_pytorch_llama_3_1_8b: # TT_FATAL: Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1036749824 B, free: 36991968 B, largest free block: 17670112 B) (assert.hpp:104)
-    model: meta-llama/Llama-3.1-8B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  llama_causal_lm_pytorch_llama_3_1_8b_instruct: # Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1036749824 B, free: 36991968 B, largest free block: 17670112 B) (assert.hpp:104)
-    model: meta-llama/Llama-3.1-8B-Instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  llama_causal_lm_pytorch_llama_3_8b: # TT_FATAL: Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1034128384 B, free: 39613408 B, largest free block: 17674208 B) (assert.hpp:104)
-    model: meta-llama/Meta-Llama-3-8B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  llama_causal_lm_pytorch_llama_3_8b_instruct: # Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1034128384 B, free: 39613408 B, largest free block: 17674208 B) (assert.hpp:104)
-    model: meta-llama/Meta-Llama-3-8B-Instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  mistral_pytorch_7b_instruct_v03: # TT_FATAL: Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1042265088 B, free: 31476704 B, largest free block: 15384576 B)
-    model: mistralai/Mistral-7B-Instruct-v0.3
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_2_5_causal_lm_pytorch_14b_instruct: # Out of Memory: Not enough space to allocate 141557760 B DRAM buffer across 12 banks, where each bank needs to store 11796480 B, but bank size is 1073741792 B (allocated: 1026367488 B, free: 47374304 B, largest free block: 11787264 B) (assert.hpp:104)
-    model: Qwen/Qwen2.5-14B-Instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_3_causal_lm_pytorch_14b: # TT_FATAL: Out of Memory: Not enough space to allocate 178257920 B DRAM buffer across 12 banks, where each bank needs to store 14856192 B, but bank size is 1073741792 B (allocated: 1037814784 B, free: 35927008 B, largest free block: 12144608 B) (assert.hpp:104)
-    model: Qwen/Qwen3-14B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  qwen_3_causal_lm_pytorch_8b: #  TT_FATAL: Out of Memory: Not enough space to allocate 201326592 B DRAM buffer across 12 banks, where each bank needs to store 16777216 B, but bank size is 1073741792 B (allocated: 1021836288 B, free: 51905504 B, largest free block: 9785344 B) (assert.hpp:104)
-    model: Qwen/Qwen3-8B
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  gemma_pytorch_google_gemma_2_9b_it: # Failed -> no error message in CI
-    model: google/gemma-2-9b-it
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  falcon_pytorch_tiiuae_falcon_7b_instruct: # TT_FATAL: Out of Memory: Not enough space to allocate 165183488 B DRAM buffer across 12 banks, where each bank needs to store 13777408 B, but bank size is 1073741792 B (allocated: 989598720 B, free: 84143072 B, largest free block: 11322336 B) (assert.hpp:104)
-    model: tiiuae/falcon-7b-instruct
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  gemma_codegemma_pytorch_google_codegemma_2b: # Failed -> no error message in CI
-    model: google/codegemma-2b
-    max_num_batched_tokens: 256
-    max_num_seqs: 1
-    max_model_len: 256
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  llama_causal_lm_pytorch_tinyllama_v1_1: # PASSING
-    model: TinyLlama/TinyLlama_v1.1
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  mistral_pytorch_mistral_nemo_instruct_2407: # TT_FATAL: Out of Memory: Not enough space to allocate 293601280 B DRAM buffer across 12 banks, where each bank needs to store 24473600 B, but bank size is 1073741792 B (allocated: 1000166400 B, free: 73575392 B, largest free block: 18016224 B) (assert.hpp:104)
-    model: mistralai/Mistral-Nemo-Instruct-2407
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  gemma_text_translation_pytorch_translategemma_4b_it: # Failed -> no error message in CI
-    model: google/translategemma-4b-it
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-  allam_causal_lm_pytorch_allam_7b_instruct: # TT_FATAL: Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is 1073741792 B (allocated: 1042110464 B, free: 31631328 B, largest free block: 7502848 B) (assert.hpp:104)
-    model: ALLaM-AI/ALLaM-7B-Instruct-preview
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - Hello, my name is
-    marks:
-    - single_device
-
-  # vLLM sweep: one variant per architecture from vLLM supported generative models table (marks: vllm_sweep only).
-  vllm_sweep_opt:
-    model: "facebook/opt-125m"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.001
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_llama:
-    model: "meta-llama/Llama-3.2-1B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_mistral:
-    model: "mistralai/Mistral-7B-v0.1"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.001
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "The future of AI is"
-    marks: [vllm_sweep]
-  vllm_sweep_qwen2:
-    model: "Qwen/Qwen2-0.5B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.001
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_gemma:
-    model: "google/gemma-2b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.001
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_gemma2:
-    model: "google/gemma-2-2b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_phi:
-    model: "microsoft/phi-2"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
+    status: "expected_passing"
+  phi2_causal_lm_pytorch_microsoft_phi_2:
+    model: microsoft/phi-2
     gpu_memory_utilization: 0.004
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
+    status: "expected_passing"
+  phi2_causal_lm_pytorch_microsoft_phi_2_pytdml:
+    model: microsoft/phi-2-pytdml
+    gpu_memory_utilization: 0.004
+    status: "expected_passing"
+  phi3_causal_lm_pytorch_microsoft_phi_3_mini_128k_instruct:
+    model: microsoft/Phi-3-mini-128k-instruct
+    status: "known_failure_xfail"
+    reason: "RuntimeError: Check failed: casted->xla_shape().dimensions_size() <= 1 (2 vs. 1)"
+  phi3_causal_lm_pytorch_microsoft_phi_3_mini_4k_instruct:
+    model: microsoft/Phi-3-mini-4k-instruct
+    gpu_memory_utilization: 0.006
+    status: "expected_passing"
+  phi3_phi_3_5_pytorch_mini_instruct:
+    model: microsoft/Phi-3.5-mini-instruct
+    status: "known_failure_xfail"
+    reason: "RuntimeError: Check failed: casted->xla_shape().dimensions_size() <= 1 (2 vs. 1)"
+  phi4_causal_lm_pytorch_microsoft_phi_4:
+    model: microsoft/phi-4
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  qwen2-0.5b:
+    model: Qwen/Qwen2-0.5B
+    gpu_memory_utilization: 0.001
     prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_phi3:
-    model: "microsoft/Phi-3-mini-4k-instruct"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_falcon:
-    model: "tiiuae/falcon-7b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_falcon3:
-    model: "tiiuae/Falcon3-1B-Base"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_mamba:
-    model: "state-spaces/mamba-130m-hf"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_gpt2:
-    model: "openai-community/gpt2"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_deepseek:
-    model: "deepseek-ai/deepseek-coder-1.3b-instruct"
+    - The capital of China is
+    status: "expected_passing"
+  qwen_1_5_causal_lm_pytorch_0_5b:
+    model: Qwen/Qwen1.5-0.5B
+    status: "expected_passing"
+  qwen_1_5_causal_lm_pytorch_0_5b_chat:
+    model: Qwen/Qwen1.5-0.5B-Chat
+    max_model_len: 512
     max_num_batched_tokens: 256
-    max_num_seqs: 1
-    max_model_len: 256
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_qwen3:
-    model: "Qwen/Qwen3-0.6B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_qwen25:
-    model: "Qwen/Qwen2.5-0.5B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_gptneox:
-    model: "EleutherAI/pythia-70m"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_bloom:
-    model: "bigscience/bloom-560m"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_olmo:
-    model: "allenai/OLMo-1B-hf"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_granite:
-    model: "ibm-granite/granite-3.0-2b-base"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_stablelm:
-    model: "stabilityai/stablelm-base-alpha-3b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_gptj:
-    model: "EleutherAI/gpt-j-6b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_mpt:
-    model: "mosaicml/mpt-7b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_internlm:
-    model: "internlm/internlm-7b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_qwen1:
-    model: "Qwen/Qwen-7B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_starcoder2:
-    model: "bigcode/starcoder2-3b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_minicpm:
-    model: "openbmb/MiniCPM-2B-sft-bf16"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_cohere:
-    model: "CohereLabs/c4ai-command-r-v01"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_jamba:
-    model: "ai21labs/AI21-Jamba-1.5-Mini"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_nemotron:
-    model: "nvidia/Minitron-8B-Base"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_smollm3:
-    model: "HuggingFaceTB/SmolLM3-3B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_apertus:
-    model: "swiss-ai/Apertus-8B-2509"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    status: "known_failure_xfail"
+    reason: "The max_num_batched_tokens 256 must be larger than or equal to max_model_len (512) * max_num_seqs (1)"
+  qwen_2_5_causal_lm_pytorch_0_5b:
+    model: Qwen/Qwen2.5-0.5B
+    status: "expected_passing"
+  qwen_2_5_causal_lm_pytorch_0_5b_instruct:
+    model: Qwen/Qwen2.5-0.5B-Instruct
+    status: "expected_passing"
+  qwen_2_5_causal_lm_pytorch_14b_instruct:
+    model: Qwen/Qwen2.5-14B-Instruct
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  qwen_2_5_causal_lm_pytorch_1_5b:
+    model: Qwen/Qwen2.5-1.5B
+    status: "expected_passing"
+  qwen_2_5_causal_lm_pytorch_1_5b_instruct:
+    model: Qwen/Qwen2.5-1.5B-Instruct
+    status: "expected_passing"
+  qwen_2_5_causal_lm_pytorch_3b:
+    model: Qwen/Qwen2.5-3B
+    status: "expected_passing"
+  qwen_2_5_causal_lm_pytorch_3b_instruct:
+    model: Qwen/Qwen2.5-3B-Instruct
+    status: "expected_passing"
+  qwen_2_5_coder_pytorch_0_5b:
+    model: Qwen/Qwen2.5-Coder-0.5B
+    status: "expected_passing"
+  qwen_2_5_coder_pytorch_1_5b:
+    model: Qwen/Qwen2.5-Coder-1.5B
+    status: "expected_passing"
+  qwen_2_5_coder_pytorch_1_5b_instruct:
+    model: Qwen/Qwen2.5-Coder-1.5B-Instruct
+    status: "expected_passing"
+  qwen_2_5_coder_pytorch_3b:
+    model: Qwen/Qwen2.5-Coder-3B
+    status: "expected_passing"
+  qwen_2_5_coder_pytorch_3b_instruct:
+    model: Qwen/Qwen2.5-Coder-3B-Instruct
+    status: "expected_passing"
+  qwen_3_causal_lm_pytorch_0_6b:
+    model: Qwen/Qwen3-0.6B
+    status: "expected_passing"
+  qwen_3_causal_lm_pytorch_14b:
+    model: Qwen/Qwen3-14B
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  qwen_3_causal_lm_pytorch_1_7b:
+    model: Qwen/Qwen3-1.7B
+    status: "expected_passing"
+  qwen_3_causal_lm_pytorch_4b:
+    model: Qwen/Qwen3-4B
+    status: "expected_passing"
+  qwen_3_causal_lm_pytorch_8b:
+    model: Qwen/Qwen3-8B
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
+  unet_for_conditional_generation_pytorch_base:
+    model: stabilityai/stable-diffusion-xl-base-1.0
+    status: "known_failure_xfail"
+    reason: "Unknown failure"
+  vllm_sweep_arctic:
+    model: Snowflake/snowflake-arctic-base
     marks: [vllm_sweep]
   vllm_sweep_aquila:
-    model: "BAAI/Aquila-7B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: BAAI/Aquila-7B
     marks: [vllm_sweep]
-  vllm_sweep_arcee:
-    model: "arcee-ai/AFM-4.5B-Base"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_arctic:
-    model: "Snowflake/snowflake-arctic-base"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_aquila_chat:
+    model: BAAI/AquilaChat-7B
     marks: [vllm_sweep]
   vllm_sweep_baichuan:
-    model: "baichuan-inc/Baichuan-7B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: baichuan-inc/Baichuan-7B
     marks: [vllm_sweep]
-  vllm_sweep_bailingmoe:
-    model: "inclusionAI/Ling-lite-1.5"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_bloom:
+    model: bigscience/bloom-560m
     marks: [vllm_sweep]
-  vllm_sweep_bailingmoev2:
-    model: "inclusionAI/Ling-mini-2.0"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_bart:
+    model: facebook/bart-base
     marks: [vllm_sweep]
-  vllm_sweep_bamba:
-    model: "ibm-ai-platform/Bamba-9B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_chat_glm2:
+    model: THUDM/chatglm2-6b
     marks: [vllm_sweep]
-  vllm_sweep_chatglm:
-    model: "zai-org/chatglm2-6b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_chat_glm3:
+    model: THUDM/chatglm3-6b
     marks: [vllm_sweep]
-  vllm_sweep_cwm:
-    model: "facebook/cwm"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_cohere:
+    model: CohereForAI/c4ai-command-r-v01
     marks: [vllm_sweep]
   vllm_sweep_dbrx:
-    model: "databricks/dbrx-base"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: databricks/dbrx-base
     marks: [vllm_sweep]
   vllm_sweep_decilm:
-    model: "nvidia/Llama-3.3-Nemotron-Super-49B-v1"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
+    model: Deci/DeciLM-7B
     max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    max_num_batched_tokens: 64
+    marks: [vllm_sweep]
+  vllm_sweep_deepseek:
+    model: deepseek-ai/deepseek-llm-7b-chat
+    marks: [vllm_sweep]
+  vllm_sweep_deepseekcoder:
+    model: deepseek-ai/deepseek-coder-1.3b-instruct
+    max_model_len: 256
+    max_num_batched_tokens: 256
     marks: [vllm_sweep]
   vllm_sweep_deepseekv2:
-    model: "deepseek-ai/DeepSeek-V2"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
+    model: deepseek-ai/DeepSeek-V2
     max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    max_num_batched_tokens: 64
     marks: [vllm_sweep]
   vllm_sweep_deepseekv3:
-    model: "deepseek-ai/DeepSeek-V3"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
+    model: deepseek-ai/DeepSeek-V3
     max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_dots1:
-    model: "rednote-hilab/dots.llm1.base"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_dotsocr:
-    model: "rednote-hilab/dots.ocr"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_ernie45:
-    model: "baidu/ERNIE-4.5-0.3B-PT"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_ernie45moe:
-    model: "baidu/ERNIE-4.5-21B-A3B-PT"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    max_num_batched_tokens: 64
     marks: [vllm_sweep]
   vllm_sweep_exaone:
-    model: "LGAI-EXAONE/EXAONE-3.0-7.8B-Instruct"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: LGAI-EXAONE/EXAONE-3.0-7.8B-Instruct
     marks: [vllm_sweep]
-  vllm_sweep_exaone4:
-    model: "LGAI-EXAONE/EXAONE-4.0-32B"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  # vllm_sweep_falcon:
+  #   model: tiiuae/falcon-7b
+  #   marks: [vllm_sweep]
+  # vllm_sweep_falconmamba:
+  #   model: tiiuae/falcon-mamba-7b
+  #   marks: [vllm_sweep]
+  vllm_sweep_gemma:
+    model: google/gemma-2b
+    gpu_memory_utilization: 0.001
     marks: [vllm_sweep]
-  vllm_sweep_fairseq2llama:
-    model: "mgleize/fairseq2-dummy-Llama-3.2-1B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_gemma2:
+    model: google/gemma-2-2b
     marks: [vllm_sweep]
-  vllm_sweep_falconmamba:
-    model: "tiiuae/falcon-mamba-7b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_glm:
+    model: THUDM/glm-4-9b-chat-hf
     marks: [vllm_sweep]
-  vllm_sweep_falconh1:
-    model: "tiiuae/Falcon-H1-34B-Base"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_flexolmo:
-    model: "allenai/FlexOlmo-7x7B-1T"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_gemma3:
-    model: "google/gemma-3-1b-it"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_gemma3n:
-    model: "google/gemma-3n-E2B-it"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_glm4:
-    model: "zai-org/glm-4-9b-chat-hf"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_glm4_0414:
-    model: "zai-org/GLM-4-32B-0414"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_glm4moe:
-    model: "zai-org/GLM-4.5"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_glm4moelite:
-    model: "zai-org/GLM-4.7-Flash"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_gpt2:
+    model: gpt2
     marks: [vllm_sweep]
   vllm_sweep_gptbigcode:
-    model: "bigcode/starcoder"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: bigcode/starcoder
     marks: [vllm_sweep]
-  vllm_sweep_gptoss:
-    model: "openai/gpt-oss-20b"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_gptj:
+    model: EleutherAI/gpt-j-6b
+    marks: [vllm_sweep]
+  vllm_sweep_gptneox:
+    model: EleutherAI/pythia-70m
+    marks: [vllm_sweep]
+  vllm_sweep_granite:
+    model: ibm-granite/granite-3.0-2b-base
     marks: [vllm_sweep]
   vllm_sweep_granitemoe:
-    model: "ibm-granite/granite-3.0-1b-a400m-base"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_granitemoehybrid:
-    model: "ibm-granite/granite-4.0-tiny-preview"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_granitemoeshared:
-    model: "ibm-research/moe-7b-1b-active-shared-experts"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: ibm-granite/granite-3.0-1b-a400m-base
     marks: [vllm_sweep]
   vllm_sweep_gritlm:
-    model: "parasail-ai/GritLM-7B-vllm"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: parasail-ai/GritLM-7B-vllm
     marks: [vllm_sweep]
-  vllm_sweep_hunyuan:
-    model: "tencent/Hunyuan-7B-Instruct"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_hunyuanmoe:
-    model: "tencent/Hunyuan-A13B-Instruct"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_internlm:
+    model: internlm/internlm-7b
     marks: [vllm_sweep]
   vllm_sweep_internlm2:
-    model: "internlm/internlm2-7b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: internlm/internlm2-7b
     marks: [vllm_sweep]
   vllm_sweep_internlm3:
-    model: "internlm/internlm3-8b-instruct"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: internlm/internlm3-8b-instruct
     marks: [vllm_sweep]
-  vllm_sweep_jais:
-    model: "inceptionai/jais-13b"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  # vllm_sweep_jais:
+  #   model: inceptionai/jais-13b
+  #   max_model_len: 64
+  #   max_num_batched_tokens: 64
+  #   marks: [vllm_sweep]
+  vllm_sweep_jamba:
+    model: ai21labs/AI21-Jamba-1.5-Mini
     marks: [vllm_sweep]
-  vllm_sweep_jais2:
-    model: "inceptionai/Jais-2-8B-Chat"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  # vllm_sweep_llama:
+  #   model: meta-llama/Llama-3.2-1B
+  #   marks: [vllm_sweep]
+  vllm_sweep_mamba:
+    model: state-spaces/mamba-130m-hf
     marks: [vllm_sweep]
-  vllm_sweep_kimilinear:
-    model: "moonshotai/Kimi-Linear-48B-A3B-Base"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_lfm2:
-    model: "LiquidAI/LFM2-350M"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_lfm2moe:
-    model: "LiquidAI/LFM2-8B-A1B-preview"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_longcatflash:
-    model: "meituan-longcat/LongCat-Flash-Chat"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_mamba2:
-    model: "mistralai/Mamba-Codestral-7B-v0.1"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_mimo:
-    model: "XiaomiMiMo/MiMo-7B-RL"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_mimov2flash:
-    model: "XiaomiMiMo/MiMo-V2-Flash"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_minicpm:
+    model: openbmb/MiniCPM-2B-sft-bf16
     marks: [vllm_sweep]
   vllm_sweep_minicpm3:
-    model: "openbmb/MiniCPM3-4B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: openbmb/MiniCPM3-4B
     marks: [vllm_sweep]
-  vllm_sweep_minimaxm2:
-    model: "MiniMaxAI/MiniMax-M2"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_mistrallarge3:
-    model: "mistralai/Mistral-Large-3-675B-Base-2512"
-    max_num_batched_tokens: 32
-    max_num_seqs: 1
-    max_model_len: 32
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
+  # vllm_sweep_mistral:
+  #   model: mistralai/Mistral-7B-v0.1
+  #   gpu_memory_utilization: 0.001
+  #   max_model_len: 64
+  #   max_num_batched_tokens: 64
+  #   prompts:
+  #   - The future of AI is
+  #   marks: [vllm_sweep]
   vllm_sweep_mixtral:
-    model: "mistralai/Mixtral-8x7B-v0.1"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
+    model: mistralai/Mixtral-8x7B-v0.1
     max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    max_num_batched_tokens: 64
     marks: [vllm_sweep]
-  vllm_sweep_nemotronh:
-    model: "nvidia/Nemotron-H-8B-Base-8K"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_mpt:
+    model: mosaicml/mpt-7b
+    marks: [vllm_sweep]
+  vllm_sweep_nemotron:
+    model: nvidia/Minitron-8B-Base
+    marks: [vllm_sweep]
+  vllm_sweep_olmo:
+    model: allenai/OLMo-1B-hf
     marks: [vllm_sweep]
   vllm_sweep_olmo2:
-    model: "allenai/OLMo-2-0425-1B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_olmo3:
-    model: "allenai/Olmo-3-7B-Instruct"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: allenai/OLMo2-7B-1124
     marks: [vllm_sweep]
   vllm_sweep_olmoe:
-    model: "allenai/OLMoE-1B-7B-0924"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: allenai/OLMoE-1B-7B-0924
     marks: [vllm_sweep]
-  vllm_sweep_orion:
-    model: "OrionStarAI/Orion-14B-Base"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  # vllm_sweep_opt:
+  #   model: facebook/opt-125m
+  #   marks: [vllm_sweep]
+  # vllm_sweep_orion:
+  #   model: OrionStarAI/Orion-14B-Base
+  #   max_model_len: 64
+  #   max_num_batched_tokens: 64
+  #   marks: [vllm_sweep]
+  # vllm_sweep_phi:
+  #   model: microsoft/phi-2
+  #   gpu_memory_utilization: 0.004
+  #   marks: [vllm_sweep]
+  vllm_sweep_phi3:
+    model: microsoft/Phi-3-mini-4k-instruct
     marks: [vllm_sweep]
-  vllm_sweep_ouro:
-    model: "ByteDance/Ouro-1.4B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_phi4:
+    model: microsoft/phi-4
     marks: [vllm_sweep]
-  vllm_sweep_panguembedded:
-    model: "FreedomIntelligence/openPangu-Embedded-7B-V1.1"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_phi3_small:
+    model: microsoft/Phi-3-small-8k-instruct
     marks: [vllm_sweep]
   vllm_sweep_phimoe:
-    model: "microsoft/Phi-3.5-MoE-instruct"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: microsoft/Phi-3.5-MoE-instruct
     marks: [vllm_sweep]
   vllm_sweep_persimmon:
-    model: "adept/persimmon-8b-base"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: adept/persimmon-8b-base
     marks: [vllm_sweep]
-  vllm_sweep_plamo2:
-    model: "pfnet/plamo-2-1b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_qwen:
+    model: Qwen/Qwen-0.5B
     marks: [vllm_sweep]
-  vllm_sweep_plamo3:
-    model: "pfnet/plamo-3-nict-2b-base"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
+  # vllm_sweep_qwen2:
+  #   model: Qwen/Qwen2-0.5B
+  #   gpu_memory_utilization: 0.001
+  #   marks: [vllm_sweep]
   vllm_sweep_qwen2moe:
-    model: "Qwen/Qwen1.5-MoE-A2.7B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: Qwen/Qwen1.5-MoE-A2.7B
     marks: [vllm_sweep]
-  vllm_sweep_qwen3moe:
-    model: "Qwen/Qwen3-30B-A3B"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_stablelm:
+    model: stabilityai/stablelm-3b-4e1t
     marks: [vllm_sweep]
-  vllm_sweep_qwen3next:
-    model: "Qwen/Qwen3-Next-80B-A3B-Instruct"
-    max_num_batched_tokens: 32
-    max_num_seqs: 1
-    max_model_len: 32
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_rw:
-    model: "tiiuae/falcon-40b"
-    max_num_batched_tokens: 32
-    max_num_seqs: 1
-    max_model_len: 32
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_seedoss:
-    model: "ByteDance-Seed/Seed-OSS-36B-Instruct"
-    max_num_batched_tokens: 32
-    max_num_seqs: 1
-    max_model_len: 32
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+  vllm_sweep_starcoder2:
+    model: bigcode/starcoder2-3b
     marks: [vllm_sweep]
   vllm_sweep_solar:
-    model: "upstage/solar-pro-preview-instruct"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_stablelmepoch:
-    model: "stabilityai/stablelm-zephyr-3b"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_step1:
-    model: "stepfun-ai/Step-Audio-EditX"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_step3p5:
-    model: "stepfun-ai/Step-3.5-Flash"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: upstage/solar-pro-preview-instruct
     marks: [vllm_sweep]
   vllm_sweep_telechat:
-    model: "chuhac/TeleChat2-35B"
-    max_num_batched_tokens: 64
-    max_num_seqs: 1
-    max_model_len: 64
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_telechat2:
-    model: "Tele-AI/TeleChat2-3B"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_teleflm:
-    model: "CofeAI/Tele-FLM"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: chuhac/TeleChat2-3B
     marks: [vllm_sweep]
   vllm_sweep_xverse:
-    model: "xverse/XVERSE-7B-Chat"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
-    marks: [vllm_sweep]
-  vllm_sweep_zamba2:
-    model: "Zyphra/Zamba2-1.2B-instruct"
-    max_num_batched_tokens: 128
-    max_num_seqs: 1
-    max_model_len: 128
-    gpu_memory_utilization: 0.002
-    additional_config:
-      enable_const_eval: false
-      min_context_len: 32
-    prompts:
-    - "Hello, my name is"
+    model: xverse/XVERSE-7B-Chat
     marks: [vllm_sweep]

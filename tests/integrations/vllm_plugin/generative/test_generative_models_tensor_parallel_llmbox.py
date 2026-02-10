@@ -18,6 +18,8 @@ from tests.integrations.vllm_plugin.generative.test_generative_models import (
 )
 
 
+@pytest.mark.llmbox
+@pytest.mark.tensor_parallel
 @pytest.mark.parametrize(
     "model_name,model_config",
     get_model_config_params_tp_llmbox(),
