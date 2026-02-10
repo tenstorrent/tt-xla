@@ -67,12 +67,11 @@ class MLAStaticLayer(CacheLayerMixin):
             device=self.device,
         )
         
-        print(f"compressed_kv: {self.compressed_kv.shape}")
-        print(f"k_pe: {self.k_pe.shape}")
+        print(f"In early initialization, compressed_kv: {self.compressed_kv.shape} with id {hex(id(self.compressed_kv))}")
+        print(f"In early initialization, k_pe: {self.k_pe.shape} with id {hex(id(self.k_pe))}")
 
-        # Parent class expects keys and values, so we alias the compressed KV and RoPE key tensors to them
-        self.keys = self.compressed_kv
-        self.values = self.k_pe
+        # Note: keys and values are implemented as properties below that return compressed_kv and k_pe.
+        # This ensures they always point to the same objects even after device transfers.
 
         # Note: `mark_static_address` is used to tag the cache as a fixed data pointer, preventing compiled graph
         # breaks when updating the cache. However, it is not supported when tracing the graph, so we skip it in this case.
@@ -83,6 +82,26 @@ class MLAStaticLayer(CacheLayerMixin):
             torch._dynamo.mark_static_address(self.k_pe)
 
         self.is_initialized = True
+
+    @property
+    def keys(self):
+        """Return compressed_kv as keys. This ensures keys is always the same object as compressed_kv."""
+        return self.compressed_kv
+
+    @keys.setter
+    def keys(self, value):
+        """Set compressed_kv when keys is assigned. This keeps them in sync."""
+        self.compressed_kv = value
+
+    @property
+    def values(self):
+        """Return k_pe as values. This ensures values is always the same object as k_pe."""
+        return self.k_pe
+
+    @values.setter
+    def values(self, value):
+        """Set k_pe when values is assigned. This keeps them in sync."""
+        self.k_pe = value
 
     def update(
         self,
@@ -243,7 +262,7 @@ class MLACache(Cache):
 
     def to_legacy_cache(self) -> tuple[tuple[torch.Tensor]]:
         """Converts the `MLACache` instance into its equivalent in the legacy cache format."""
-        print("[james] converting to legacy cache for MLA cache")
+        print("[james] converting to legacy cache for MLA cache", flush=True)
         legacy_cache = ()
         for layer in self.layers:
             legacy_cache += (

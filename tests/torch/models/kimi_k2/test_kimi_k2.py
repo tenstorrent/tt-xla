@@ -190,7 +190,7 @@ def test_kimi_k2_attention_decode():
 
     past_key_states = static_cache
 
-    def get_shard_spec(attention, args, _kwargs):
+    def get_shard_spec(attention, args, kwargs):
         print(f"\n[SHARD SPEC FN] get_shard_spec called for test_kimi_k2_attention_decode")
         print(f"  Number of args: {len(args)}")
         for idx, arg in enumerate(args):
@@ -235,7 +235,13 @@ def test_kimi_k2_attention_decode():
                 print(f"  Tensor shape={tensor.shape}, dtype={tensor.dtype} -> spec={spec}")
             else:
                 print(f"  Tensor (no shape) -> spec={spec}")
-
+        
+        layer = args[3].layers[0]
+        print(f"layer.keys is layer.compressed_kv: {layer.keys is layer.compressed_kv}")
+        print(f"layer.values is layer.k_pe: {layer.values is layer.k_pe}")
+        print(f"id(layer.keys): {hex(id(layer.keys))}")
+        print(f"id(layer.compressed_kv): {hex(id(layer.compressed_kv))}")
+        
         return shard_specs
 
     run_graph_test(
