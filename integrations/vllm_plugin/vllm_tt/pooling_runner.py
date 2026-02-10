@@ -18,10 +18,10 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
-from vllm.attention import Attention
 from vllm.attention.backends.abstract import AttentionType
+from vllm.attention.layer import Attention, MLAAttention
 from vllm.attention.layers.chunked_local_attention import ChunkedLocalAttention
-from vllm.compilation.wrapper import TorchCompileWrapperWithCustomDispatcher
+from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
     VllmConfig,
@@ -29,10 +29,15 @@ from vllm.config import (
     update_config,
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
+from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
 from vllm.forward_context import set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
+from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
 from vllm.model_executor.model_loader import get_model_loader
-from vllm.model_executor.models.interfaces import supports_transcription
+from vllm.model_executor.models.interfaces import (
+    SupportsMultiModal,
+    supports_transcription,
+)
 from vllm.model_executor.models.interfaces_base import (
     is_pooling_model,
     is_text_generation_model,
@@ -46,13 +51,15 @@ from vllm.multimodal.inputs import (
 from vllm.multimodal.utils import group_mm_kwargs_by_modality
 from vllm.sequence import IntermediateTensors
 from vllm.tasks import GenerationTask, PoolingTask, SupportedTask
-from vllm.utils import LayerBlockType, cdiv, is_pin_memory_available, prev_power_of_2
+from vllm.utils.math_utils import cdiv, prev_power_of_2
+from vllm.utils.platform_utils import is_pin_memory_available
 from vllm.v1.kv_cache_interface import (
     AttentionSpec,
     FullAttentionSpec,
     KVCacheConfig,
     KVCacheGroupSpec,
     KVCacheSpec,
+    MLAAttentionSpec,
     SlidingWindowSpec,
 )
 from vllm.v1.outputs import (
@@ -72,6 +79,7 @@ from vllm.v1.worker.kv_connector_model_runner_mixin import (
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
 from vllm.v1.worker.utils import (
     MultiModalBudget,
+    add_kv_sharing_layers_to_kv_cache_groups,
     bind_kv_cache,
     sanity_check_mm_encoder_outputs,
 )
@@ -85,42 +93,10 @@ from .attention import (
 from .logger import tt_init_logger
 from .platform import TTConfig
 from .pooling_input_batch import CachedRequestState, InputBatch
-from .vllm_distributed_utils import shard_model
-
-
-def add_kv_sharing_layers_to_kv_cache_groups(
-    shared_kv_cache_layers: dict[str, str],
-    kv_cache_groups: list[KVCacheGroupSpec],
-    runner_only_attn_layers: Optional[set[str]] = None,
-) -> None:
-    """
-    Sets up KV cache sharing by reusing the allocated KV caches in `kv_caches`
-    for layers that do not allocate its own KV cache, based on the mapping in
-    `shared_kv_cache_layers`. Adds these layers to the corresponding KV cache
-    group, which is needed to ensure that attention metadata is assigned later.
-
-    Args:
-        shared_kv_cache_layers: Layer pairings for cross-layer KV sharing.
-            If an Attention layer `layer_name` is in the keys of this dict, it
-            means this layer will perform attention using the keys and values
-            from the KV cache of `shared_kv_cache_layers[layer_name]`.
-        kv_cache_groups: The KV cache groups of the model.
-    """
-    layer_to_kv_cache_group: dict[str, KVCacheGroupSpec] = {}
-    for kv_cache_group in kv_cache_groups:
-        for layer_name in kv_cache_group.layer_names:
-            layer_to_kv_cache_group[layer_name] = kv_cache_group
-
-    for layer_name, target_layer_name in shared_kv_cache_layers.items():
-        tgt_kv_cache_group = layer_to_kv_cache_group[target_layer_name]
-        tgt_kv_cache_group.layer_names.append(layer_name)
-
-        if runner_only_attn_layers is not None:
-            runner_only_attn_layers.add(layer_name)
-
+from .vllm_distributed_utils import replace_rmsnorm_modules, shard_model
 
 if TYPE_CHECKING:
-    from vllm.v1.core.sched.output import SchedulerOutput
+    from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
 
 logger = tt_init_logger(__name__)
 
@@ -364,12 +340,12 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Model-related.
         self.num_attn_layers = model_config.get_num_layers_by_block_type(
-            parallel_config, LayerBlockType.attention
+            parallel_config, "attention"
         )
         self.num_query_heads = model_config.get_num_attention_heads(parallel_config)
         self.num_kv_heads = model_config.get_num_kv_heads(parallel_config)
         self.head_size = model_config.get_head_size()
-        self.hidden_size = model_config.get_hidden_size()
+        self.inputs_embeds_size = model_config.get_inputs_embeds_size()
         self.vocab_size = model_config.get_vocab_size()
 
         if self.lora_config is not None:
@@ -378,7 +354,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Multi-modal data support
         self.mm_registry = MULTIMODAL_REGISTRY
         self.uses_mrope = model_config.uses_mrope
-        self.supports_mm_inputs = False
+        self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
+            model_config
+        )
         # TODO: Support M-RoPE (e.g, Qwen2-VL)
         assert not self.uses_mrope, "TPU does not support M-RoPE yet."
 
@@ -403,10 +381,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Lazy initialization
         self.model: nn.Module  # Set after load_model
         self.kv_caches: list[torch.Tensor] = []
+        # mm_hash -> encoder_output
         self.encoder_cache: dict[str, torch.Tensor] = {}
 
         # Request states.
         self.requests: dict[str, CachedRequestState] = {}
+        # NOTE(rob): num_prompt_logprobs only includes reqs
+        # that are currently in the prefill phase.
+        self.num_prompt_logprobs: dict[str, int] = {}
 
         # If there's no kv_cache_spec, we don't need KV cache block tables
         kv_cache_spec = self.get_kv_cache_spec()
@@ -421,6 +403,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             pin_memory=self.pin_memory,
             vocab_size=self.model_config.get_vocab_size(),
             block_sizes=block_sizes,
+            kernel_block_sizes=block_sizes,
             logitsprocs=build_logitsprocs(
                 self.vllm_config,
                 "cpu",
@@ -433,6 +416,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Cached torch/numpy tensor
         # The pytorch tensor and numpy array share the same buffer.
         # Sometimes the numpy op is faster so we create both.
+        # Keep a 2D CPU buffer [batch_size, max_num_tokens] for the pooling runner.
+        # `_prepare_inputs` uses batched indexing even when batch_size == 1.
         self.input_ids_cpu = torch.zeros(
             (self.batch_size, self.max_num_tokens), dtype=torch.int32, device="cpu"
         )
@@ -471,6 +456,15 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             pin_memory=self.pin_memory,
         )
         self.seq_lens_np = self.seq_lens_cpu.numpy()
+
+        # Only relevant for multimodal models
+        if self.supports_mm_inputs:
+            self.is_mm_embed_cpu = torch.zeros(
+                self.max_num_tokens,
+                dtype=torch.bool,
+                device="cpu",
+                pin_memory=self.pin_memory,
+            )
 
         # Range tensor with values [0 .. self.max_num_tokens - 1].
         # Used to initialize positions / context_lens / seq_lens
@@ -551,6 +545,29 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
         )
 
+    def reset_mm_cache(self) -> None:
+        """Clear multimodal encoder cache/budget (mirrors upstream TPUModelRunner)."""
+        if self.mm_budget:
+            self.mm_budget.reset_cache()
+
+    def reset_dynamo_cache(self):
+        """Clear Dynamo cache for compiled models (mirrors upstream TPUModelRunner)."""
+        # NOTE: We check `is_multimodal_model` instead of `supports_mm_inputs`
+        # since the compiled model object of the language backbone of a
+        # multimodal model needs to be extracted via `get_language_model`.
+        if getattr(self.model_config, "is_multimodal_model", False):
+            compiled_model = self.model.get_language_model().model
+        else:
+            compiled_model = self.model.model
+        if isinstance(compiled_model, TorchCompileWithNoGuardsWrapper):
+            logger.info("Clear dynamo cache and cached dynamo bytecode.")
+            torch._dynamo.eval_frame.remove_from_cache(
+                compiled_model.original_code_object()
+            )
+            # Reset the wrapper to re-initialize.
+            compiled_model.compiled = False
+            TorchCompileWithNoGuardsWrapper.__init__(compiled_model)
+
     def _update_states(self, scheduler_output: "SchedulerOutput") -> bool:
         """Update the cached states and the persistent batch with the scheduler
         output.
@@ -610,8 +627,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.requests[req_id] = CachedRequestState(
                 req_id=req_id,
                 prompt_token_ids=new_req_data.prompt_token_ids,
-                mm_kwargs=new_req_data.mm_kwargs,
-                mm_positions=new_req_data.mm_positions,
+                prompt_embeds=new_req_data.prompt_embeds,
+                mm_features=new_req_data.mm_features,
                 sampling_params=sampling_params,
                 pooling_params=pooling_params,
                 generator=None,
@@ -642,18 +659,16 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Update the persistent batch.
             self.input_batch.num_computed_tokens_cpu[req_index] = num_computed_tokens
+            if new_block_ids is not None:
+                self.input_batch.block_table.append_row(new_block_ids, req_index)
 
         # Add the new or resumed requests to the persistent batch.
         # The smaller empty indices are filled first.
         removed_req_indices = sorted(removed_req_indices, reverse=True)
         for req_id in req_ids_to_add:
             req_state = self.requests[req_id]
-            if removed_req_indices:
-                # Fill the empty index.
-                req_index = removed_req_indices.pop()
-            else:
-                # Append to the end.
-                req_index = None
+            # Fill the empty index or append to the end
+            req_index = removed_req_indices.pop() if removed_req_indices else None
             self.input_batch.add_request(req_state, req_index)
 
         # Condense the batched states if there are empty indices.
@@ -705,56 +720,70 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             KVCacheSpec: A dictionary mapping layer names to their KV cache
             format. Layers that do not need KV cache are not included.
         """
-        layers = get_layers_from_vllm_config(self.vllm_config, Attention)
+        layers = get_layers_from_vllm_config(self.vllm_config, AttentionLayerBase)
         block_size = self.vllm_config.cache_config.block_size
+        cache_dtype_str = self.vllm_config.cache_config.cache_dtype
         kv_cache_spec: dict[str, KVCacheSpec] = {}
         for layer_name, attn_module in layers.items():
-            if (kv_tgt_layer := attn_module.kv_sharing_target_layer_name) is not None:
-                # The layer doesn't need its own KV cache and will use that of
-                # the target layer. We skip creating a KVCacheSpec for it, so
-                # that KV cache management logic will act as this layer does
-                # not exist, and doesn't allocate KV cache for the layer. This
-                # enables the memory saving of cross-layer kv sharing, allowing
-                # a given amount of memory to accommodate longer context lengths
-                # or enable more requests to be processed simultaneously.
-                self.shared_kv_cache_layers[layer_name] = kv_tgt_layer
-                continue
+            # Classic Attention path
+            if isinstance(attn_module, Attention):
+                if (
+                    kv_tgt_layer := attn_module.kv_sharing_target_layer_name
+                ) is not None:
+                    # The layer doesn't need its own KV cache and will use that of
+                    # the target layer. We skip creating a KVCacheSpec for it, so
+                    # that KV cache management logic will act as this layer does
+                    # not exist, and doesn't allocate KV cache for the layer. This
+                    # enables the memory saving of cross-layer kv sharing, allowing
+                    # a given amount of memory to accommodate longer context lengths
+                    # or enable more requests to be processed simultaneously.
+                    self.shared_kv_cache_layers[layer_name] = kv_tgt_layer
+                    continue
 
-            if attn_module.attn_type == AttentionType.DECODER:
-                self.is_decoder_only_attn_layers = True
-                if isinstance(attn_module, ChunkedLocalAttention):
-                    logger.warning_once(
-                        "Using irope in Pallas is not supported yet, it "
-                        "will fall back to global attention for long context."
-                    )
-                if attn_module.sliding_window is not None:
-                    kv_cache_spec[layer_name] = SlidingWindowSpec(
-                        block_size=block_size,
-                        num_kv_heads=attn_module.num_kv_heads,
-                        head_size=attn_module.head_size,
-                        dtype=self.kv_cache_dtype,
-                        sliding_window=attn_module.sliding_window,
-                        use_mla=False,
-                    )
+                if attn_module.attn_type == AttentionType.DECODER:
+                    if isinstance(attn_module, ChunkedLocalAttention):
+                        logger.warning_once(
+                            "Using irope in Pallas is not supported yet, it "
+                            "will fall back to global attention for long context."
+                        )
+                    if attn_module.sliding_window is not None:
+                        kv_cache_spec[layer_name] = SlidingWindowSpec(
+                            block_size=block_size,
+                            num_kv_heads=attn_module.num_kv_heads,
+                            head_size=attn_module.head_size,
+                            dtype=self.kv_cache_dtype,
+                            sliding_window=attn_module.sliding_window,
+                        )
+                    else:
+                        kv_cache_spec[layer_name] = FullAttentionSpec(
+                            block_size=block_size,
+                            num_kv_heads=attn_module.num_kv_heads,
+                            head_size=attn_module.head_size,
+                            dtype=self.kv_cache_dtype,
+                        )
+                elif attn_module.attn_type in (
+                    AttentionType.ENCODER,
+                    AttentionType.ENCODER_ONLY,
+                ):
+                    # encoder-only attention does not need KV cache.
+                    continue
+                elif attn_module.attn_type == AttentionType.ENCODER_DECODER:
+                    raise NotImplementedError
                 else:
-                    kv_cache_spec[layer_name] = FullAttentionSpec(
-                        block_size=block_size,
-                        num_kv_heads=attn_module.num_kv_heads,
-                        head_size=attn_module.head_size,
-                        dtype=self.kv_cache_dtype,
-                        use_mla=False,
-                    )
-            elif attn_module.attn_type in (
-                AttentionType.ENCODER,
-                AttentionType.ENCODER_ONLY,
-            ):
-                # encoder-only attention does not need KV cache.
-                self.is_decoder_only_attn_layers = False
-                continue
-            elif attn_module.attn_type == AttentionType.ENCODER_DECODER:
-                raise NotImplementedError
+                    raise ValueError(f"Unknown attention type: {attn_module.attn_type}")
+            # MLAAttention path
+            elif isinstance(attn_module, MLAAttention):
+                if layer_name in kv_cache_spec:
+                    continue
+                kv_cache_spec[layer_name] = MLAAttentionSpec(
+                    block_size=block_size,
+                    num_kv_heads=1,
+                    head_size=attn_module.head_size,
+                    dtype=self.kv_cache_dtype,
+                    cache_dtype_str=cache_dtype_str,
+                )
             else:
-                raise ValueError(f"Unknown attention type: {attn_module.attn_type}")
+                continue
 
         return kv_cache_spec
 
@@ -1041,9 +1070,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             req_state = self.requests[req_id]
 
             for mm_input_id in encoder_input_ids:
-                mm_hash = req_state.mm_hashes[mm_input_id]
-                mm_kwargs.append(req_state.mm_kwargs[mm_input_id])
-                mm_hashes_pos.append((mm_hash, req_state.mm_positions[mm_input_id]))
+                mm_feature = req_state.mm_features[mm_input_id]
+                mm_hash = mm_feature.identifier
+                mm_kwargs.append(mm_feature.data)
+                mm_hashes_pos.append((mm_hash, mm_feature.mm_position))
 
         # Batch mm inputs as much as we can: if a request in the batch has
         # multiple modalities or a different modality than the previous one,
@@ -1052,11 +1082,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # in the same batch while still being able to benefit from batching
         # multimodal inputs. The proper solution should be reordering the
         # encoder outputs.
+        model = cast(SupportsMultiModal, self.model)
         encoder_outputs = []
         for _, num_items, mm_kwargs_group in group_mm_kwargs_by_modality(
             mm_kwargs,
             device=self.device,
             pin_memory=self.pin_memory,
+            merge_by_field_config=model.merge_by_field_config,
         ):
             # Run the encoder.
             # `curr_group_outputs` is either of the following:
@@ -1065,9 +1097,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # 2. A list or tuple (length: num_items) of tensors, each of shape
             # (feature_size, hidden_size) in case the feature size is dynamic
             # depending on the input multimodal items.
-            xm.mark_step()
+            torch_xla.sync(wait=False)
             curr_group_outputs = self.model.get_multimodal_embeddings(**mm_kwargs_group)
-            xm.mark_step()
+            torch_xla.sync(wait=False)
 
             sanity_check_mm_encoder_outputs(
                 curr_group_outputs,
@@ -1094,12 +1126,20 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _gather_mm_embeddings(
         self,
         scheduler_output: "SchedulerOutput",
-    ) -> list[torch.Tensor]:
-        mm_embeds: list[torch.Tensor] = []
+    ) -> tuple[list[torch.Tensor], torch.Tensor]:
+        total_num_scheduled_tokens = scheduler_output.total_num_scheduled_tokens
+        padded_total_num_scheduled_tokens = _get_padded_token_len(
+            self.num_tokens_paddings, total_num_scheduled_tokens
+        )
+        is_mm_embed = self.is_mm_embed_cpu
+        is_mm_embed[:padded_total_num_scheduled_tokens] = False
+        mm_embeds = list[torch.Tensor]()
+        req_start_idx = 0
         for req_id in self.input_batch.req_ids:
             num_scheduled_tokens = scheduler_output.num_scheduled_tokens[req_id]
             req_state = self.requests[req_id]
             num_computed_tokens = req_state.num_computed_tokens
+
             # TODO unroll loop and assume/enforce --disable_chunked_mm_input
             # NOTE (NickLucche) here we diverge from logic in other runners, as
             # we assume to only have whole mm items to process. Hence we avoid
@@ -1120,24 +1160,49 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # The encoder output is already processed and stored
                     # in the decoder's KV cache.
                     continue
+
+                start_idx = max(num_computed_tokens - start_pos, 0)
+                end_idx = min(
+                    num_computed_tokens - start_pos + num_scheduled_tokens,
+                    num_encoder_tokens,
+                )
+                assert start_idx < end_idx
+
                 mm_hash = mm_feature.identifier
                 encoder_output = self.encoder_cache.get(mm_hash, None)
                 assert encoder_output is not None, f"Encoder cache miss for {mm_hash}."
+
                 assert pos_info.is_embed is None, (
                     "Expected all positions to" " be contiguous and embeddings."
                 )
-                encoder_output = self.encoder_cache[mm_hash]
-                mm_embeds.append(encoder_output)
-        return mm_embeds
 
-    def _get_model_inputs(self, input_ids: torch.Tensor, mm_embeds: list[torch.Tensor]):
+                req_start_pos = req_start_idx + start_pos - num_computed_tokens
+                is_mm_embed[req_start_pos + start_idx : req_start_pos + end_idx] = True
+
+                # Only whole mm items are processed
+                mm_embeds.append(encoder_output)
+
+            req_start_idx += num_scheduled_tokens
+
+        is_mm_embed = is_mm_embed[:padded_total_num_scheduled_tokens].to(self.device)
+
+        return mm_embeds, is_mm_embed
+
+    def _get_model_inputs(
+        self,
+        input_ids: torch.Tensor,
+        mm_embed_inputs: Optional[tuple[list[torch.Tensor], torch.Tensor]],
+    ):
         if self.supports_mm_inputs:
+            mm_embeds, is_mm_embed = mm_embed_inputs or (None, None)
+
             # NOTE(woosuk): To unify token ids and soft tokens (vision
             # embeddings), we always use embeddings (rather than token ids)
             # as input to the multimodal model, even when the input is text.
             inputs_embeds = self.model.get_input_embeddings(
-                input_ids=input_ids,
+                input_ids,
                 multimodal_embeddings=mm_embeds,
+                is_multimodal=is_mm_embed,
             )
             return None, inputs_embeds
         else:
@@ -1163,11 +1228,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.supports_mm_inputs:
             # Run the multimodal encoder if any.
             self._execute_mm_encoder(scheduler_output)
-            mm_embeds = self._gather_mm_embeddings(scheduler_output)
+            mm_embed_inputs = self._gather_mm_embeddings(scheduler_output)
         else:
-            mm_embeds = []
+            mm_embed_inputs = None
 
-        xm.mark_step()
+        torch_xla.sync(wait=False)
         start_index = 0
         num_scheduled_tokens = scheduler_output.total_num_scheduled_tokens
         combined_pooler_outputs: list[torch.Tensor] = []
@@ -1184,8 +1249,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 num_scheduled_tokens_per_req,
                 end_index,
             ) = self._prepare_inputs(scheduler_output, start_index)
-            input_ids, inputs_embeds = self._get_model_inputs(self.input_ids, mm_embeds)
-            xm.mark_step()
+            input_ids, inputs_embeds = self._get_model_inputs(
+                self.input_ids, mm_embed_inputs
+            )
+            torch_xla.sync(wait=False)
 
             # Mark inputs for data parallel sharding.
             if self.enable_data_parallel:
@@ -1229,22 +1296,52 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if hasattr(self.model, "pooler") and callable(
                 getattr(self.model, "pooler")
             ):
-                pooling_metadata = self.input_batch.pooling_metadata
-                pooler_batch = self.model.pooler(hidden_states_list, pooling_metadata)
+                # Build pooling cursor (mirrors upstream GPUModelRunner._pool).
+                # Pooler implementations expect pooling_metadata.pooling_cursor to be set.
+                pooling_metadata = self.input_batch.pooling_metadata[
+                    start_index:end_index
+                ]
+                seq_lens_cpu = self.seq_lens_cpu[start_index:end_index]
+                pooling_metadata.build_pooling_cursor(
+                    num_scheduled_tokens_per_req.tolist(),
+                    seq_lens_cpu,
+                    device=hidden_states.device,
+                )
+
+                # Pooler expects a single [sum(tokens_i), hidden] tensor.
+                if self.batch_size > 1:
+                    # hidden_states: [batch, padded_tokens, hidden]
+                    pieces = [
+                        hidden_states[i, : int(num_scheduled_tokens_per_req[i]), :]
+                        for i in range(len(num_scheduled_tokens_per_req))
+                    ]
+                    hidden_states_for_pooler = (
+                        torch.cat(pieces, dim=0) if pieces else hidden_states[:0, :]
+                    )
+                else:
+                    chunk_num_tokens = int(sum(num_scheduled_tokens_per_req))
+                    hidden_states_for_pooler = hidden_states[0, :chunk_num_tokens, :]
+
+                # Upstream GPUModelRunner uses:
+                #   model = cast(VllmModelForPooling, self.model)
+                # This is a typing-only hint (no runtime behavior). We don't
+                # require it here because we already guard on `hasattr(model, "pooler")`.
+                pooler_batch = self.model.pooler(
+                    hidden_states=hidden_states_for_pooler,
+                    pooling_metadata=pooling_metadata,
+                )
             else:
                 # fallback: use the last token’s hidden state
                 pooler_batch = hidden_states[:, -1, :]
 
             pooler_output: list[Optional[torch.Tensor]] = []
-            seq_lens = self.seq_lens_cpu[: self.input_batch.num_reqs]
             for raw_output, seq_len, prompt_len in zip(
-                pooler_batch, seq_lens, pooling_metadata.prompt_lens
+                pooler_batch, seq_lens_cpu, pooling_metadata.prompt_lens
             ):
                 if seq_len == prompt_len:
-                    if raw_output.data.cpu() is not None:
-                        pooler_output.append(raw_output.data.cpu())
-                    else:
-                        pooler_output.append(raw_output.data.to("cpu"))
+                    pooler_output.append(
+                        raw_output.to("cpu") if raw_output is not None else None
+                    )
                 else:
                     pooler_output.append(None)
 
@@ -1262,7 +1359,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             prompt_logprobs_dict={},  # empty
             pooler_output=pooler_output,
             kv_connector_output=None,
-            spec_token_ids=None,
         )
 
         # Check there are no new graphs compiled - all the graphs should be
@@ -1306,6 +1402,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 model = model_loader.load_model(
                     vllm_config=self.vllm_config, model_config=self.model_config
                 ).eval()
+                replace_rmsnorm_modules(model)
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
@@ -1320,17 +1417,22 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     f"See the detailed error: {e}"
                 ) from e
         if self.lora_config is not None:
-            model = self.load_lora_model(
-                model,
-                self.model_config,
-                self.scheduler_config,
-                self.lora_config,
-                self.device,
-            ).eval()
+            model = self.load_lora_model(model, self.vllm_config, self.device).eval()
             replace_set_lora(model.eval())
 
         if not hasattr(self, "model"):
             self.model = model
+
+        layers = get_layers_from_vllm_config(self.vllm_config, Attention)
+        if layers:
+            self.is_decoder_only_attn_layers = any(
+                attn_module.attn_type == AttentionType.DECODER
+                for attn_module in layers.values()
+            )
+            logger.info(
+                f"Model attention type: {'decoder-only' if self.is_decoder_only_attn_layers else 'encoder-only'}"
+            )
+
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = TPUSampler()
         logger.info(f"Compiled model: \n{self.model}")
@@ -1413,11 +1515,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _set_active_loras(
         self, prompt_lora_mapping, token_lora_mapping, lora_requests
     ) -> None:
-        xm.mark_step()  # Captures input updates
+        torch_xla.sync(wait=False)  # Captures input updates
         super()._set_active_loras(
             prompt_lora_mapping, token_lora_mapping, lora_requests
         )
-        xm.mark_step()  # Captures metadata updates
+        torch_xla.sync(wait=False)  # Captures metadata updates
 
     def _precompile_backbone(self) -> None:
         torch._dynamo.config.dynamic_shapes = False
@@ -1508,11 +1610,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # Isolate encoder graph from post-processing to minimize
                     # impact of recompilation until it's fixed.
                     start = time.perf_counter()
-                    xm.mark_step()
+                    torch_xla.sync(wait=False)
                     dummy_encoder_outputs = self.model.get_multimodal_embeddings(
                         **batched_dummy_mm_inputs
                     )
-                    xm.mark_step()
+                    torch_xla.sync(wait=False)
                     xm.wait_device_ops()
                     end = time.perf_counter()
                     logger.info(
@@ -1540,7 +1642,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.num_blocks_per_most_len_req,
             )
 
-        xm.mark_step()
+        torch_xla.sync(wait=False)
         xm.wait_device_ops()
         self.encoder_cache.clear()
         gc.collect()
@@ -1585,7 +1687,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
-        return self.model.compute_logits(sample_hidden_states, None)
+        return self.model.compute_logits(sample_hidden_states)
 
     # TODO: Under SPMD mode, sample_from_logits has correctness issue.
     #       Re-enable the torch.compile once the issue is fixed in torchxla.
@@ -1666,6 +1768,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def get_input_embeddings(self, *args, **kwargs):
         return self.model.get_input_embeddings(*args, **kwargs)
 
+    # Keep API parity with upstream TPUModelRunner / TTModelRunner naming.
+    def embed_multimodal(self, *args, **kwargs):
+        return self.get_multimodal_embeddings(*args, **kwargs)
+
+    def embed_input_ids(self, *args, **kwargs):
+        return self.get_input_embeddings(*args, **kwargs)
+
     def prepare_structured_decoding_input(
         self, logits: torch.Tensor, scheduler_output: "SchedulerOutput"
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -1677,28 +1786,24 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.grammar_bitmask_cpu.zero_()
         self.require_structured_out_cpu.zero_()
 
-        # We receive the structured output bitmask from the scheduler, but the
-        # indices of the requests in the batch may not match the indices of
-        # the bitmask since the scheduler doesn't know how the tpu runner is
-        # ordering the requests in the batch. We need to match the order of
-        # bitmask with the order of requests
-        struct_out_indices: list[int] = []
-        mask_indices: list[int] = []
-        for req_id in self.input_batch.req_ids:
-            mask_index = scheduler_output.structured_output_request_ids.get(req_id)
-            if mask_index is None:
+        sorted_struct_requests = sorted(
+            scheduler_output.structured_output_request_ids.items(),
+            key=lambda item: item[1],
+        )
+        cumulative_mask_idx = 0
+        for req_id, _ in sorted_struct_requests:
+            if req_id not in self.input_batch.req_id_to_index:
                 continue
             batch_index = self.input_batch.req_id_to_index[req_id]
-            struct_out_indices.append(batch_index)
-            mask_indices.append(mask_index)
-        self.grammar_bitmask_cpu[struct_out_indices] = torch.from_numpy(
-            grammar_bitmask[mask_indices]
-        )
-        # It's not guaranteed that all requests in this batch require
-        # structured output, so create a bool tensor to represent
-        # the requests that need structured output.
-        struct_out_indices = torch.tensor(struct_out_indices, dtype=torch.long)
-        self.require_structured_out_cpu[struct_out_indices] = True
+            self.grammar_bitmask_cpu[batch_index] = torch.from_numpy(
+                grammar_bitmask[cumulative_mask_idx]
+            )
+            # It's not guaranteed that all requests in this batch require
+            # structured output, so create a bool tensor to represent
+            # the requests that need structured output.
+            self.require_structured_out_cpu[batch_index] = True
+            cumulative_mask_idx += 1
+
         return (
             self.require_structured_out_cpu[:num_reqs].to(logits.device),
             self.grammar_bitmask_cpu[:num_reqs].to(logits.device),
@@ -1715,7 +1820,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         dummy_decoder_data = self.mm_registry.get_decoder_dummy_data(
             model_config=self.model_config,
-            seq_len=self.max_num_tokens,
+            seq_len=self.max_model_len,
             mm_counts={modality: 1},
             cache=self.mm_budget.cache,
         )
@@ -1725,12 +1830,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         dummy_mm_item = dummy_mm_data[modality][0]
         dummy_mm_items = [dummy_mm_item] * max_items_per_batch
 
+        model = cast(SupportsMultiModal, self.model)
         return next(
             grouped_mm_kwargs
             for _, _, grouped_mm_kwargs in group_mm_kwargs_by_modality(
                 dummy_mm_items,
                 device=self.device,
                 pin_memory=self.pin_memory,
+                merge_by_field_config=model.merge_by_field_config,
             )
         )
 
@@ -1875,11 +1982,11 @@ def replace_set_lora(model):
         # to a tensor doesn't seem to work anymore. This might be fixed with a
         # later release of torch_xla.
         self._original_set_lora(index, lora_a, lora_b, embeddings_tensor, bias)
-        xm.mark_step()
+        torch_xla.sync(wait=False)
 
     def _tpu_reset_lora(self, index: int):
         self._original_reset_lora(index)
-        xm.mark_step()
+        torch_xla.sync(wait=False)
 
     for _, module in model.named_modules():
         if isinstance(module, BaseLayerWithLoRA):
