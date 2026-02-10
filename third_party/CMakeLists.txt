@@ -96,7 +96,7 @@ else()
 
     set_target_properties(tt-mlir PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
-    install(DIRECTORY ${TTMLIR_LIB_DIR}/ DESTINATION "${CMAKE_INSTALL_PREFIX}" USE_SOURCE_PERMISSIONS)
+    install(DIRECTORY ${TTMLIR_INSTALL_PREFIX}/ DESTINATION "${CMAKE_INSTALL_PREFIX}" USE_SOURCE_PERMISSIONS)
 
     # Expose all tt-mlir .so files as shared imported libraries.
     set(TTMLIR_LIB_DIR ${TTMLIR_LIB_DIR} PARENT_SCOPE)
@@ -117,6 +117,10 @@ else()
 
     set(FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wno-undef -Wno-unsafe-buffer-usage -Wno-disabled-macro-expansion")
 
+    set(LOGURU_INSTALL_PREFIX "${TTPJRT_SOURCE_DIR}/third_party/loguru/src/loguru-install")
+    set(LOGURU_LIB_DIR "${LOGURU_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+    set(LOGURU_LIB_DIR ${LOGURU_LIB_DIR} PARENT_SCOPE)
+
     ExternalProject_Add(
         loguru
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/loguru
@@ -126,7 +130,8 @@ else()
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_CXX_FLAGS=${FLAGS}
-          -DCMAKE_INSTALL_PREFIX=${TTPJRT_SOURCE_DIR}/third_party/loguru/src/loguru-install
+          -DCMAKE_INSTALL_PREFIX=${LOGURU_INSTALL_PREFIX}
+          -DCMAKE_INSTALL_LIBDIR=${CMAKE_INSTALL_LIBDIR}
         GIT_REPOSITORY https://github.com/emilk/loguru.git
         GIT_TAG ${LOGURU_VERSION}
         GIT_PROGRESS ON

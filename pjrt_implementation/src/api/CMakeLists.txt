@@ -55,7 +55,7 @@ PUBLIC
 )
 
 target_link_directories(TTPJRTApi PUBLIC
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib
+    ${TTMLIR_LIB_DIR}
 )
 
 set_target_properties(TTPJRTApi PROPERTIES

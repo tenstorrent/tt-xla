@@ -34,7 +34,7 @@ target_link_libraries(TTPJRTUtils PUBLIC
 )
 
 target_link_directories(TTPJRTUtils PUBLIC
-    ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
+    ${LOGURU_LIB_DIR}
 )
 
 set_target_properties(TTPJRTUtils PROPERTIES
