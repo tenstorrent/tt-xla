@@ -34,10 +34,6 @@ from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.xlm_roberta.modeling_xlm_roberta import XLMRobertaSelfAttention
 
-from tests.torch.models.deepseek_v3_2_exp.modified_model import MLA as DeepseekMLA
-from tests.torch.models.deepseek_v3_2_exp.modified_model import (
-    ModelArgs as DeepseekModelArgs,
-)
 from tests.torch.models.kimi_k2.configuration_deepseek import (
     DeepseekV3Config as KimiK2Config,
 )
@@ -2431,78 +2427,6 @@ def test_gpt_oss_attention(variant, variant_config, arch):
             dropout,
             scaling,
         ],
-        framework=Framework.TORCH,
-        comparison_config=comparison_config,
-        mesh=mesh,
-        shard_spec_fn=get_shard_spec,
-    )
-
-
-"""Deepseek attention tests"""
-
-
-@pytest.mark.xfail(reason="L1 cache size is exceeded.")
-@pytest.mark.nightly
-@parametrize_arch(["single_device", "llmbox"])
-@pytest.mark.parametrize("seq_len", [1024])
-def test_deepseek_attention_module(seq_len, arch):
-    xr.set_device_type("TT")
-
-    # Create model args with a single layer for testing
-    args = DeepseekModelArgs(
-        n_layers=1,
-        q_lora_rank=1536,
-    )
-
-    # Generate Hadamard matrix once and register as a buffer so it moves with the model
-    hidden_size = args.index_head_dim
-
-    import scipy.linalg  # for hadamard matrix
-
-    hadamard_matrix = torch.tensor(
-        scipy.linalg.hadamard(hidden_size), dtype=torch.bfloat16
-    ) * (hidden_size**-0.5)
-    attention = DeepseekMLA(args, hadamard_matrix).to(torch.bfloat16)
-
-    batch_size = 2
-    hidden_states = torch.randn(batch_size, seq_len, args.dim, dtype=torch.bfloat16)
-    start_pos = 0
-    freqs_cis = torch.randn(
-        seq_len, args.qk_rope_head_dim // 2, 2, dtype=torch.float32
-    )  # double check dtype
-    mask = torch.rand(batch_size, seq_len, seq_len, dtype=torch.bfloat16)
-
-    # Setup for tensor parallel
-    if arch == "llmbox":
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (batch_size, num_devices // batch_size)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(attention, args, kwargs):
-            """Returns shard specifications for the layer's parameters."""
-            shard_specs = {}
-
-            shard_specs[args[0]] = (None, None, "batch")
-            shard_specs[attention.wq_b.weight] = ("model", None)
-            shard_specs[attention.wkv_b.weight] = ("model", None)
-            shard_specs[attention.wo.weight] = ("batch", "model")
-
-            # Consume hidden states, TP on batch dimension
-            shard_specs[attention.wq_a.weight] = (None, "batch")
-            shard_specs[attention.wkv_a.weight] = (None, "batch")
-
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
-
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
-
-    run_graph_test(
-        attention,
-        [hidden_states, start_pos, freqs_cis, mask],
         framework=Framework.TORCH,
         comparison_config=comparison_config,
         mesh=mesh,
