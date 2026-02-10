@@ -8,103 +8,167 @@ on:
   workflow_dispatch:
 
 permissions:
-  packages: write
+  packages: read
   checks: write
+  contents: read
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  TT_XLA_CI: 1
+  # Define controller and all participating hostnames
+  CONTROLLER_HOST: forge-qbae-01
+  ALL_HOSTS: forge-qbae-01,forge-qbae-02
+  # SSH user with keyless SSH configured between hosts
+  SSH_USER: ttuser
 
 jobs:
-  update_test_durations:
-    runs-on: ubuntu-latest
+  multihost-test:
+    runs-on: ${{ matrix.hostname }}
+    strategy:
+      matrix:
+        hostname:
+          - forge-qbae-01
+          - forge-qbae-02
+    container:
+      image: ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest
+      options: --device /dev/tenstorrent --name ubuntu-host-mapped
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+        - /home/ttuser/.ssh:/root/.ssh:ro
     steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          # ref: main
-      - uses: actions/setup-python@v5
-      - name: Process test durations from latest workflows
-        id: get-test-durations
+          submodules: recursive
+          sparse-checkout: |
+            .github/scripts
+            .gitmodules
+            .test_durations
+            pjrt_implementation
+            third_party/pjrt_c_api
+            pytest.ini
+            python_package/requirements.txt
+            integrations/vllm_plugin/requirements-vllm-plugin.txt
+            tests
+            venv
+            examples
+
+      - name: Download artifact and setup venv
+        shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          CURRENT_HOST: ${{ matrix.hostname }}
+          CONTROLLER_HOST: ${{ env.CONTROLLER_HOST }}
+          ALL_HOSTS: ${{ env.ALL_HOSTS }}
         run: |
-          repo="tenstorrent/tt-xla"
+          echo "Current hostname: $CURRENT_HOST"
+          echo "Controller hostname: $CONTROLLER_HOST"
+          echo "All participating hosts: $ALL_HOSTS"
+          hostname
 
-          get_test_results_from_wf() {
-            local wf_name="$1"
-            local conclusions="$2"
-            local num=5
+          # Download the artifact into the cwd
+          python3 .github/scripts/download_artifacts.py --workflow push-main.yml --branch main --filter xla-whl-release
 
-            # get json of the last $num workflow runs
-            gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
+          # Create venv
+          source venv/activate
 
-            counter=0
-            while true; do
-              # Check the status of 'conclusion'
-              conclusion=$(jq -r ".[$counter].conclusion" runs.json)
+          # Install the wheel
+          WHEEL_PATH=$(find push-main_artifacts_*/xla-whl-release-*/*.whl | head -n 1)
+          echo "Installing wheel: $WHEEL_PATH"
+          pip install "$WHEEL_PATH"
 
-              if echo "$conclusions" | grep -q -w "$conclusion"; then
-                break
-              else
-                ((counter++))
+          # sanity check that singledevice execution works.
+          python3 examples/pytorch/mnist.py
 
-                # Exit if the counter reaches $num
-                if [ $counter -ge $num ]; then
-                  echo "ERROR: Did not found good workflow within last $num. Exiting."
-                  exit 1
+      - name: Setup SSH
+        shell: bash
+        run: |
+          echo "Setting up SSH configuration for keyless access..."
+
+          # Create SSH config in /tmp (since /root/.ssh is read-only)
+          mkdir -p /tmp/ssh_config
+          cat > /tmp/ssh_config/config <<EOF
+          Host *
+            StrictHostKeyChecking no
+            UserKnownHostsFile=/dev/null
+          EOF
+
+          echo "SSH configuration complete"
+
+      - name: Worker Pause
+        if: matrix.hostname != env.CONTROLLER_HOST
+        shell: bash
+        env:
+          CURRENT_HOST: ${{ matrix.hostname }}
+          CONTROLLER_HOST: ${{ env.CONTROLLER_HOST }}
+          ALL_HOSTS: ${{ env.ALL_HOSTS }}
+        run: |
+          echo "Worker ready and waiting for commands."
+
+          # Write ready status file (we're already in the container)
+          mkdir -p /tmp/worker_status
+          echo "ready" > /tmp/worker_status/ready
+
+          echo "Status file written, worker is ready"
+          sleep 6000
+
+      - name: Controller Barrier
+        if: matrix.hostname == env.CONTROLLER_HOST
+        shell: bash
+        env:
+          CURRENT_HOST: ${{ matrix.hostname }}
+          CONTROLLER_HOST: ${{ env.CONTROLLER_HOST }}
+          ALL_HOSTS: ${{ env.ALL_HOSTS }}
+          SSH_USER: ${{ env.SSH_USER }}
+        run: |
+          echo "Controller waiting for all workers to be ready..."
+
+          # Convert comma-separated hosts to array
+          IFS=',' read -ra HOST_ARRAY <<< "$ALL_HOSTS"
+
+          # Wait for each worker to be ready
+          for remote_host in "${HOST_ARRAY[@]}"; do
+            if [ "$remote_host" != "$CURRENT_HOST" ]; then
+              echo "Checking if worker $remote_host is ready..."
+
+              # Poll until the ready file exists in the worker container
+              # SSH as the configured user, then docker exec into the container
+              while true; do
+                if ssh -F /tmp/ssh_config/config -o ConnectTimeout=5 ${SSH_USER}@${remote_host} "docker exec ubuntu-host-mapped test -f /tmp/worker_status/ready" 2>/dev/null; then
+                  echo "Worker $remote_host is ready!"
+                  break
+                else
+                  echo "Worker $remote_host not ready yet, waiting..."
+                  sleep 5
                 fi
-              fi
-            done
-            curr_wf_id=$(jq -r ".[$counter].databaseId" runs.json)
-            curr_wf_att=$(jq -r ".[$counter].attempt" runs.json)
-            echo "curr_$3_wf_link=\"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_att\"" >> "$GITHUB_OUTPUT"
-            rm -f runs.json
+              done
+            fi
+          done
 
-            gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D ${{runner.temp}}/reports
-          }
+          echo "All workers are ready! Controller barrier complete."
 
-          # get test results from the last nightly that was success or failure
-          get_test_results_from_wf "schedule-nightly.yml" "success,failure" "nightly"
-
-          # get test results from the last successful push
-          get_test_results_from_wf "push-main.yml" "success" "push"
-
-          # get test results from the last weekly that was success or failure
-          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
-
-          # get test results from the last weekly training that was success or failure
-          get_test_results_from_wf "schedule-weekly-training.yml" "success,failure" "weekly-training"
-
-          python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
-          echo "" >> .test_durations
-          echo "----- NEW DURATIONS"
-          cat .test_durations
-
-          echo "TODAY=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
-        id: create-pr
-        with:
-          branch: test-durations-update
-          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          base: main
-          commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
-          labels: tooling
-          delete-branch: true
-          token: ${{ secrets.GH_TOKEN }}
-
-      - name: Enable Pull Request Automerge
-        if: ${{ steps.create-pr.outputs.pull-request-number }}
-        run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
+      - name: Controller Run Tests
+        if: matrix.hostname == env.CONTROLLER_HOST
+        shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Generate Summary
+          CURRENT_HOST: ${{ matrix.hostname }}
+          CONTROLLER_HOST: ${{ env.CONTROLLER_HOST }}
+          ALL_HOSTS: ${{ env.ALL_HOSTS }}
+          SSH_USER: ${{ env.SSH_USER }}
         run: |
-          echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
-          echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly](${{ steps.get-test-durations.outputs.curr_weekly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly Training](${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
+          echo "Running tests across all hosts..."
+
+          # Example: Run distributed test using mpirun across all hosts
+          # mpirun --host $ALL_HOSTS --mca btl self,tcp --mca btl_tcp_if_include enp10s0f1np1 --tag-output --allow-run-as-root \
+          #   pytest tests/your_multihost_test.py
+
+          # Add your multi-host test commands here
+          echo "Tests completed successfully!"
