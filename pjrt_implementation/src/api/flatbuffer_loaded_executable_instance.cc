@@ -69,7 +69,7 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
           m_executable_image->getInputSharding(arg_index), num_devices);
 
   if (mlir::failed(strategy)) {
-    DLOG_F(ERROR, "Failed to fill strategy map from sharding");
+    LOG_F(ERROR, "Failed to fill strategy map from sharding");
     return std::nullopt;
   }
 
@@ -189,14 +189,14 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   LOG_BRINGUP_STAGE("RUNTIME_EXECUTION_START");
 
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
-    DLOG_F(ERROR, "Device count mismatch: %zu vs %zu", args->num_devices,
-           m_executable_image->getNumDevicesToUtilize());
+    LOG_F(ERROR, "Device count mismatch: %zu vs %zu", args->num_devices,
+          m_executable_image->getNumDevicesToUtilize());
     return tt_pjrt_status::kInternal;
   }
 
   if (args->num_args != m_executable_image->getNumInputs()) {
-    DLOG_F(ERROR, "Argument count mismatch: %zu vs %zu", args->num_args,
-           m_executable_image->getNumInputs());
+    LOG_F(ERROR, "Argument count mismatch: %zu vs %zu", args->num_args,
+          m_executable_image->getNumInputs());
     return tt_pjrt_status::kInternal;
   }
 
@@ -240,10 +240,10 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   std::vector<tt::runtime::Tensor> &output_tensors = *r;
 
   if (output_tensors.size() != m_executable_image->getNumOutputs()) {
-    DLOG_F(ERROR,
-           "Runtime produced different number of output tensors (%zu) than the "
-           "compiler estimated number of outputs (%zu)",
-           output_tensors.size(), m_executable_image->getNumOutputs());
+    LOG_F(ERROR,
+          "Runtime produced different number of output tensors (%zu) than the "
+          "compiler estimated number of outputs (%zu)",
+          output_tensors.size(), m_executable_image->getNumOutputs());
     return tt_pjrt_status::kInternal;
   }
 
