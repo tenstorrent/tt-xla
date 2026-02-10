@@ -2454,7 +2454,7 @@ def test_glm_attention_module(variant, variant_config, seq_len, arch):
     config._attn_implementation = "sdpa"
     attention = Glm4MoeAttention(config, layer_idx=0).to(torch.bfloat16)
 
-    batch_size = 2
+    batch_size = 4
     head_dim = config.head_dim
     hidden_states = torch.randn(
         batch_size, seq_len, config.hidden_size, dtype=torch.bfloat16
@@ -2468,7 +2468,7 @@ def test_glm_attention_module(variant, variant_config, seq_len, arch):
     # Setup for tensor parallel
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (batch_size, num_devices // batch_size)
+        mesh_shape = (2, 4)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -2485,10 +2485,10 @@ def test_glm_attention_module(variant, variant_config, seq_len, arch):
             shard_specs[attention.o_proj.weight] = ("batch", "model")
 
             # input sharding
-            shard_specs[args[0]] = ("batch", None, "model")
-            shard_specs[args[1][0]] = ("batch", None, None)
-            shard_specs[args[1][1]] = ("batch", None, None)
-            shard_specs[args[2]] = ("batch", None, None, None)
+            shard_specs[args[0]] = ("model", None, "batch")
+            shard_specs[args[1][0]] = ("model", None, None)
+            shard_specs[args[1][1]] = ("model", None, None)
+            shard_specs[args[2]] = ("model", None, None, None)
 
             return shard_specs
 

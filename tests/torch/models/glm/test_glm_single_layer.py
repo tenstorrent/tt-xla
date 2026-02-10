@@ -35,7 +35,7 @@ def test_glm_single_layer(seq_len, variant, arch):
     layer = model.model.layers[0]
 
     # Create inputs
-    batch_size = 2
+    batch_size = 4
     head_dim = model.config.head_dim
     hidden_states = torch.randn(
         batch_size, seq_len, model.config.hidden_size, dtype=torch.bfloat16
@@ -50,7 +50,7 @@ def test_glm_single_layer(seq_len, variant, arch):
     # Setup for tensor parallel
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (batch_size, num_devices // batch_size)
+        mesh_shape = (2, 4)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -73,10 +73,10 @@ def test_glm_single_layer(seq_len, variant, arch):
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             # input sharding
-            shard_specs[args[0]] = ("batch", None, "model")
-            shard_specs[args[1]] = ("batch", None, None, None)
-            shard_specs[args[6][0]] = ("batch", None, None)
-            shard_specs[args[6][1]] = ("batch", None, None)
+            shard_specs[args[0]] = ("model", None, "batch")
+            shard_specs[args[1]] = ("model", None, None, None)
+            shard_specs[args[6][0]] = ("model", None, None)
+            shard_specs[args[6][1]] = ("model", None, None)
 
             return shard_specs
 
