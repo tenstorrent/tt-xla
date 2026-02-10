@@ -15,7 +15,6 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <vector>
 
 // PJRT C API includes
@@ -46,7 +45,7 @@ public:
   // Creates new event instance.
   static std::unique_ptr<EventInstance> createInstance();
 
-  // Destructor, handles shutting down the callbacks thread.
+  // Destructor.
   ~EventInstance();
 
   // Binds PJRT API functions implementation related to PJRT_Event structure.
@@ -67,8 +66,8 @@ public:
   // success).
   PJRT_Error *getErrorFromStatus();
 
-  // Marks event as ready with the status of the work. It will cause all
-  // callbacks in the callbacks thread to be executed, and will unlock caller's
+  // Marks event as ready with the status of the work. It will execute all
+  // callbacks synchronously on the calling thread, and will unlock caller's
   // threads awaiting on the event.
   void markAsReady(tt_pjrt_status status);
 
@@ -76,8 +75,8 @@ public:
   void await();
 
   // Invokes the callback immediately on the calling thread if the event is
-  // ready, otherwise adds it to the list so it can be executed on a separate
-  // thread once the event is ready.
+  // ready, otherwise adds it to the list so it can be executed once the event
+  // is marked as ready.
   void onReady(PJRT_Event_OnReadyCallback callback_function, void *user_arg);
 
   // See comment below for `m_indestructible`.
@@ -85,12 +84,9 @@ public:
   bool isIndestructible() const { return m_indestructible; }
 
 private:
-  // Constructor, spawns the callbacks thread. Private because we wan't events
-  // to be created via factory method.
+  // Constructor. Private because we wan't events to be created via factory
+  // method.
   EventInstance();
-
-  // Kills the callbacks thread;
-  void killTheCallbacksThread();
 
   // True if the event is marked as ready, false otherwise.
   bool m_ready;
@@ -104,9 +100,6 @@ private:
   // Condition variable signalling to the waiting threads when event is marked
   // as ready.
   std::condition_variable m_ready_condition;
-
-  // Thread waiting for event to be ready in order to execute the callbacks.
-  std::unique_ptr<std::thread> m_callbacks_thread;
 
   // Holds callbacks to be executed once the event is ready. PJRT docs don't
   // specify if only one callback can be registered per event, so we allow
