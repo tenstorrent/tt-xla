@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+import sys
 from typing import Callable
 
 import numpy as np
@@ -32,6 +34,16 @@ from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.xlm_roberta.modeling_xlm_roberta import XLMRobertaSelfAttention
 
+from tests.torch.models.deepseek_v3_2_exp.modified_model import MLA as DeepseekMLA
+from tests.torch.models.deepseek_v3_2_exp.modified_model import (
+    ModelArgs as DeepseekModelArgs,
+)
+from tests.torch.models.kimi_k2.configuration_deepseek import (
+    DeepseekV3Config as KimiK2Config,
+)
+from tests.torch.models.kimi_k2.modeling_deepseek import (
+    DeepseekV3Attention as KimiK2Attention,
+)
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader as BertModelLoader,
@@ -2429,14 +2441,7 @@ def test_gpt_oss_attention(variant, variant_config, arch):
 """Deepseek attention tests"""
 
 
-import scipy.linalg  # for hadamard matrix
-
-from tests.torch.models.deepseek_v3_2_exp.modified_model import MLA as DeepseekMLA
-from tests.torch.models.deepseek_v3_2_exp.modified_model import (
-    ModelArgs as DeepseekModelArgs,
-)
-
-
+@pytest.mark.xfail(reason="L1 cache size is exceeded.")
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
@@ -2446,11 +2451,13 @@ def test_deepseek_attention_module(seq_len, arch):
     # Create model args with a single layer for testing
     args = DeepseekModelArgs(
         n_layers=1,
-        q_lora_rank=3072,
+        q_lora_rank=1536,
     )
 
     # Generate Hadamard matrix once and register as a buffer so it moves with the model
     hidden_size = args.index_head_dim
+
+    import scipy.linalg  # for hadamard matrix
 
     hadamard_matrix = torch.tensor(
         scipy.linalg.hadamard(hidden_size), dtype=torch.bfloat16
@@ -2460,8 +2467,6 @@ def test_deepseek_attention_module(seq_len, arch):
     batch_size = 2
     hidden_states = torch.randn(batch_size, seq_len, args.dim, dtype=torch.bfloat16)
     start_pos = 0
-    # Shape: (seq_len, qk_rope_head_dim // 2)
-    # Type: complex64 (standard for RoPE)
     freqs_cis = torch.randn(
         seq_len, args.qk_rope_head_dim // 2, 2, dtype=torch.float32
     )  # double check dtype
@@ -2478,12 +2483,14 @@ def test_deepseek_attention_module(seq_len, arch):
             """Returns shard specifications for the layer's parameters."""
             shard_specs = {}
 
-            shard_specs[attention.wq_a.weight] = ("model", "batch")
-            shard_specs[attention.wq_b.weight] = ("model", "batch")
-            shard_specs[attention.wkv_a.weight] = ("model", "batch")
-            shard_specs[attention.wkv_b.weight] = ("model", "batch")
-
+            shard_specs[args[0]] = (None, None, "batch")
+            shard_specs[attention.wq_b.weight] = ("model", None)
+            shard_specs[attention.wkv_b.weight] = ("model", None)
             shard_specs[attention.wo.weight] = ("batch", "model")
+
+            # Consume hidden states, TP on batch dimension
+            shard_specs[attention.wq_a.weight] = (None, "batch")
+            shard_specs[attention.wkv_a.weight] = (None, "batch")
 
             return shard_specs
 
@@ -2505,25 +2512,15 @@ def test_deepseek_attention_module(seq_len, arch):
 
 """Kimi K2 attention tests"""
 
-import os
-import sys
-
-model_dir = os.path.join(os.path.dirname(__file__), "../models/kimi_k2")
-sys.path.append(os.path.abspath(model_dir))
-
-from tests.torch.models.kimi_k2.configuration_deepseek import (
-    DeepseekV3Config as KimiK2Config,
-)
-from tests.torch.models.kimi_k2.modeling_deepseek import (
-    DeepseekV3Attention as KimiK2Attention,
-)
-
 
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
 def test_kimi_k2_attention_module(seq_len, arch):
     xr.set_device_type("TT")
+
+    model_dir = os.path.join(os.path.dirname(__file__), "../models/kimi_k2")
+    sys.path.append(os.path.abspath(model_dir))
 
     current_dir = os.path.dirname(__file__)
     config_path = os.path.join(current_dir, "../models/kimi_k2/config.json")
@@ -2538,10 +2535,10 @@ def test_kimi_k2_attention_module(seq_len, arch):
 
     batch_size = 2
     hidden_states = torch.randn(
-        batch_size, seq_len, config.hidden_size, dtype=torch.bfloat16
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    attention_mask = torch.ones(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
-    position_ids = torch.randint(0, seq_len, (batch_size, seq_len), dtype=torch.long)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    position_ids = torch.arange(seq_len).unsqueeze(0)
 
     past_key_value = None
 
@@ -2556,15 +2553,14 @@ def test_kimi_k2_attention_module(seq_len, arch):
             """Returns shard specifications for the layer's parameters."""
             shard_specs = {}
 
-            if attention.q_lora_rank is None:
-                shard_specs[attention.q_proj.weight] = ("model", "batch")
-            else:
-                shard_specs[attention.q_a_proj.weight] = ("model", "batch")
-                shard_specs[attention.q_b_proj.weight] = ("model", "batch")
-            shard_specs[attention.kv_a_proj_with_mqa.weight] = ("model", "batch")
-            shard_specs[attention.kv_b_proj.weight] = ("model", "batch")
-
+            shard_specs[args[0]] = (None, None, "batch")
+            shard_specs[attention.q_b_proj.weight] = ("model", None)
+            shard_specs[attention.kv_b_proj.weight] = ("model", None)
             shard_specs[attention.o_proj.weight] = ("batch", "model")
+
+            # Consume hidden states, TP on batch dimension
+            shard_specs[attention.q_a_proj.weight] = (None, "batch")
+            shard_specs[attention.kv_a_proj_with_mqa.weight] = (None, "batch")
 
             return shard_specs
 

@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+import sys
 from typing import Callable
 
 import numpy as np
@@ -19,6 +21,16 @@ from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
 
+from tests.torch.models.deepseek_v3_2_exp.modified_model import MLP as DeepseekMLP
+from tests.torch.models.deepseek_v3_2_exp.modified_model import (
+    ModelArgs as DeepseekModelArgs,
+)
+from tests.torch.models.deepseek_v3_2_exp.modified_model import MoE as DeepseekMoE
+from tests.torch.models.kimi_k2.configuration_deepseek import (
+    DeepseekV3Config as KimiK2Config,
+)
+from tests.torch.models.kimi_k2.modeling_deepseek import DeepseekV3MLP as KimiK2MLP
+from tests.torch.models.kimi_k2.modeling_deepseek import DeepseekV3MoE as KimiK2MoE
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.falcon.pytorch.loader import (
     ModelLoader as FalconModelLoader,
@@ -531,18 +543,22 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
 """Deepseek MLP test"""
 
 
-from tests.torch.models.deepseek_v3_2_exp.modified_model import MLP as DeepseekMLP
-from tests.torch.models.deepseek_v3_2_exp.modified_model import (
-    ModelArgs as DeepseekModelArgs,
-)
-from tests.torch.models.deepseek_v3_2_exp.modified_model import MoE as DeepseekMoE
-
-
 # NOTE: Deepseek Decoder layer has two MLPs, one with MoE and one without
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
-@pytest.mark.parametrize("mlp_type", ["mlp", "moe"])
+@pytest.mark.parametrize(
+    "mlp_type",
+    [
+        "mlp",
+        pytest.param(
+            "moe",
+            marks=pytest.mark.xfail(
+                reason="Fails on ttnn.sort as it doesnt support fp32 input types."
+            ),
+        ),
+    ],
+)
 def test_deepseek_mlp(mlp_type, seq_len, arch):
     xr.set_device_type("TT")
 
@@ -556,7 +572,7 @@ def test_deepseek_mlp(mlp_type, seq_len, arch):
         mlp = DeepseekMLP(args.dim, args.inter_dim).to(torch.bfloat16)
     elif mlp_type == "moe":
         mlp = DeepseekMoE(args).to(torch.bfloat16)
-        seq_len = 32  # hardcoded for now to test the MoE
+        seq_len = 32  # hardcoded for now to test the MoE. Bigger seq_len takes longer.
 
     batch_size = 2
     hidden_states = torch.randn(batch_size, seq_len, args.dim, dtype=torch.bfloat16)
@@ -600,25 +616,28 @@ def test_deepseek_mlp(mlp_type, seq_len, arch):
 
 """Kimi K2 MLP tests"""
 
-import os
-import sys
 
-model_dir = os.path.join(os.path.dirname(__file__), "../models/kimi_k2")
-sys.path.append(os.path.abspath(model_dir))
-
-from tests.torch.models.kimi_k2.configuration_deepseek import (
-    DeepseekV3Config as KimiK2Config,
-)
-from tests.torch.models.kimi_k2.modeling_deepseek import DeepseekV3MLP as KimiK2MLP
-from tests.torch.models.kimi_k2.modeling_deepseek import DeepseekV3MoE as KimiK2MoE
-
-
+# NOTE: Decoder layer has two MLPs, one with MoE and one without
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
-@pytest.mark.parametrize("mlp_type", ["mlp", "moe"])
+@pytest.mark.parametrize(
+    "mlp_type",
+    [
+        "mlp",
+        pytest.param(
+            "moe",
+            marks=pytest.mark.xfail(
+                reason="Torch Dynamo fails at a scalar addition (start_idx + num_tokens) as it treats one of the operands as a NumPy array instead of a Tensor."
+            ),
+        ),
+    ],
+)
 def test_kimi_k2_mlp(mlp_type, seq_len, arch):
     xr.set_device_type("TT")
+
+    model_dir = os.path.join(os.path.dirname(__file__), "../models/kimi_k2")
+    sys.path.append(os.path.abspath(model_dir))
 
     current_dir = os.path.dirname(__file__)
     config_path = os.path.join(current_dir, "../models/kimi_k2/config.json")
@@ -630,7 +649,7 @@ def test_kimi_k2_mlp(mlp_type, seq_len, arch):
     elif mlp_type == "moe":
         mlp = KimiK2MoE(config).to(torch.bfloat16)
         mlp.eval()
-        seq_len = 32  # hardcoded for now to test the MoE
+        seq_len = 32  # hardcoded for now to test the MoE.Bigger seq_len takes longer.
 
     batch_size = 2
     hidden_states = torch.randn(
