@@ -66,6 +66,9 @@ class MLAStaticLayer(CacheLayerMixin):
             dtype=self.dtype,
             device=self.device,
         )
+        
+        print(f"compressed_kv: {self.compressed_kv.shape}")
+        print(f"k_pe: {self.k_pe.shape}")
 
         # Parent class expects keys and values, so we alias the compressed KV and RoPE key tensors to them
         self.keys = self.compressed_kv
@@ -215,8 +218,32 @@ class MLACache(Cache):
             offload_only_non_sliding=offload_only_non_sliding,
         )
 
+    def early_initialization(
+        self, batch_size: int, kv_lora_rank: int, pe_rank: int, dtype: torch.dtype, device: torch.device
+    ):
+        """
+        Initialize all the layers in advance (it's otherwise lazily initialized on the first `update` call).
+        This is useful for our `export` recipes, as `export` needs everything in advance.
+
+        Args:
+            batch_size (`int`): Batch size for initialization.
+            kv_lora_rank (`int`): Dimension of the compressed KV latent representation.
+            pe_rank (`int`): Dimension of the decoupled RoPE keys.
+            dtype (`torch.dtype`): Data type for the tensors.
+            device (`torch.device`): Device to allocate tensors on.
+        """
+        # Note that the initialization needs all dimensions (except -2), as well as device and dtype, so we use
+        # this fake tensor approach. It has size 0 on the -2 dimension, so it does not allocate any data (it only
+        # creates an empty tensor with correct shape, dtype and device), which is very efficient and practical
+        fake_compressed_kv = torch.zeros((batch_size, 1, 0, kv_lora_rank), dtype=dtype, device=device)
+        fake_k_pe = torch.zeros((batch_size, 1, 0, pe_rank), dtype=dtype, device=device)
+        # Init all layers
+        for layer in self.layers:
+            layer.lazy_initialization(fake_compressed_kv, fake_k_pe)
+
     def to_legacy_cache(self) -> tuple[tuple[torch.Tensor]]:
         """Converts the `MLACache` instance into its equivalent in the legacy cache format."""
+        print("[james] converting to legacy cache for MLA cache")
         legacy_cache = ()
         for layer in self.layers:
             legacy_cache += (

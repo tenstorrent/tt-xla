@@ -165,6 +165,8 @@ void BufferInstance::copyFromHost(
   std::uint32_t element_size =
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
+
+  DLOG_F(LOG_DEBUG, "[JAMES][BufferInstance] UID: %lu, Shape: %s", m_uid, toShapeStr().c_str());
   std::vector<std::uint32_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 

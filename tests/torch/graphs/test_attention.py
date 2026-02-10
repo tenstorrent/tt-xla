@@ -260,6 +260,10 @@ def test_llama_attention_decode(variant, variant_config, arch):
 
             def get_shard_spec(attention, args, kwargs):
                 shard_specs = {}
+                # Shard cache tensors on model dimension
+                shard_specs[args[3][0][0]] = (None, "model", None, None)  # keys
+                shard_specs[args[3][0][1]] = (None, "model", None, None)  # values
+                # Shard model weights
                 shard_specs[attention.q_proj.weight] = ("model", None)
                 shard_specs[attention.k_proj.weight] = ("model", None)
                 shard_specs[attention.v_proj.weight] = ("model", None)
@@ -277,6 +281,10 @@ def test_llama_attention_decode(variant, variant_config, arch):
                 shard_specs[args[1][0]] = ("batch", None, None)  # cos
                 shard_specs[args[1][1]] = ("batch", None, None)  # sin
                 shard_specs[args[2]] = ("batch", None, None, None)  # mask
+                # Shard cache tensors on batch and model dimensions
+                shard_specs[args[3][0][0]] = ("batch", "model", None, None)  # keys
+                shard_specs[args[3][0][1]] = ("batch", "model", None, None)  # values
+                # Shard model weights
                 shard_specs[attention.q_proj.weight] = ("model", None)
                 shard_specs[attention.k_proj.weight] = ("model", None)
                 shard_specs[attention.v_proj.weight] = ("model", None)
@@ -302,6 +310,17 @@ def test_llama_attention_decode(variant, variant_config, arch):
         device="cpu",
         dtype=torch.bfloat16,
     )
+
+    # Early initialize cache for sharding
+    # head_dim = config.hidden_size // config.num_attention_heads
+    # static_cache.early_initialization(
+    #     batch_size=batch_size,
+    #     num_heads=num_key_value_heads,
+    #     head_dim=head_dim,
+    #     dtype=torch.bfloat16,
+    #     device="cpu"
+    # )
+
     past_key_states = static_cache
 
     cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)

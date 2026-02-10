@@ -175,6 +175,12 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
+      // Instrument BufferInstance UID and shape info when putting on device in getInputRuntimeTensors
+      {
+        DLOG_F(LOG_DEBUG,
+               "getInputRuntimeTensors: Device %zu Arg %zu BufferInstance UID=%lx shape=%s",
+               device_index, arg_index, reinterpret_cast<uintptr_t>(buffer), buffer->toShapeStr().c_str());
+      }
       arg_buffers.push_back(buffer);
     }
 

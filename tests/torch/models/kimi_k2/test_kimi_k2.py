@@ -8,7 +8,6 @@ import numpy as np
 import pytest
 import torch
 import torch_xla
-import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
@@ -170,15 +169,56 @@ def test_kimi_k2_attention_decode():
         device="cpu",
         dtype=torch.bfloat16,
     )
+    
+    print("[james] early init'd static cache")
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        kv_lora_rank=512,
+        pe_rank=64,
+        dtype=torch.bfloat16,
+        device="cpu"
+    )
+
+    print(f"\n[CACHE INSTRUMENTATION] Static cache structure:")
+    print(f"  Number of layers: {len(static_cache.layers)}")
+    for layer_idx, layer in enumerate(static_cache.layers):
+        print(f"  Layer {layer_idx}:")
+        print(f"    compressed_kv: {layer.compressed_kv.shape}, dtype={layer.compressed_kv.dtype}")
+        print(f"    k_pe: {layer.k_pe.shape}, dtype={layer.k_pe.dtype}")
+        print(f"    keys (alias): {layer.keys.shape}, dtype={layer.keys.dtype}")
+        print(f"    values (alias): {layer.values.shape}, dtype={layer.values.dtype}")
+
     past_key_states = static_cache
 
-    def get_shard_spec(attention, args, kwargs):
+    def get_shard_spec(attention, args, _kwargs):
+        print(f"\n[SHARD SPEC FN] get_shard_spec called for test_kimi_k2_attention_decode")
+        print(f"  Number of args: {len(args)}")
+        for idx, arg in enumerate(args):
+            if hasattr(arg, 'shape'):
+                print(f"  args[{idx}]: shape={arg.shape}, dtype={arg.dtype}, device={arg.device}")
+            elif hasattr(arg, 'layers'):
+                print(f"  args[{idx}]: MLACache with {len(arg.layers)} layers")
+                for layer_idx, layer in enumerate(arg.layers):
+                    print(f"    Layer {layer_idx}:")
+                    print(f"      compressed_kv: shape={layer.compressed_kv.shape}, device={layer.compressed_kv.device}, id={hex(id(layer.compressed_kv))}")
+                    print(f"      k_pe: shape={layer.k_pe.shape}, device={layer.k_pe.device}, id={hex(id(layer.k_pe))}")
+                    print(f"      keys (alias): id={hex(id(layer.keys))}, same_as_compressed_kv={layer.keys is layer.compressed_kv}")
+                    print(f"      values (alias): id={hex(id(layer.values))}, same_as_k_pe={layer.values is layer.k_pe}")
+            else:
+                print(f"  args[{idx}]: {type(arg).__name__} = {arg}")
+
         shard_specs = {}
 
         shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
         shard_specs[args[1]] = ("_axis_1", None, None, None)
-        shard_specs[args[3][0][0]] = ("_axis_1", None, None, None)
-        shard_specs[args[3][0][1]] = ("_axis_1", None, None, None)
+
+        # Cache tensors - args[3] is MLACache, args[3][0] is first layer
+        print(f"\n[SHARD SPEC FN] Cache tensor details via __getitem__:")
+        print(f"  args[3][0][0] (compressed_kv): id={hex(id(args[3][0][0]))}, shape={args[3][0][0].shape}, dtype={args[3][0][0].dtype}, device={args[3][0][0].device}")
+        print(f"  args[3][0][1] (k_pe): id={hex(id(args[3][0][1]))}, shape={args[3][0][1].shape}, dtype={args[3][0][1].dtype}, device={args[3][0][1].device}")
+
+        shard_specs[args[3][0][0]] = ("_axis_1", None, None, None) # key cache (compressed_kv)
+        shard_specs[args[3][0][1]] = ("_axis_1", None, None, None) # value cache (k_pe)
 
         # Main attention weights, TP across model and batch dimensions
         shard_specs[attention.q_b_proj.weight] = ("_axis_0", None)
@@ -188,6 +228,14 @@ def test_kimi_k2_attention_decode():
         # Consume hidden states, TP on batch dimension
         shard_specs[attention.q_a_proj.weight] = (None, "_axis_0")
         shard_specs[attention.kv_a_proj_with_mqa.weight] = (None, "_axis_0")
+
+        print(f"\n[SHARD SPEC FN] Returning {len(shard_specs)} shard specs:")
+        for tensor, spec in shard_specs.items():
+            if hasattr(tensor, 'shape'):
+                print(f"  Tensor shape={tensor.shape}, dtype={tensor.dtype} -> spec={spec}")
+            else:
+                print(f"  Tensor (no shape) -> spec={spec}")
+
         return shard_specs
 
     run_graph_test(

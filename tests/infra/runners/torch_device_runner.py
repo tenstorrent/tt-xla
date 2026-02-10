@@ -5,6 +5,7 @@
 import inspect
 
 import torch
+import torch_xla
 import torch_xla.distributed.spmd as xs
 from infra.connectors import DeviceConnector
 from infra.utilities import Device, Tensor
@@ -95,8 +96,19 @@ class TorchDeviceRunner(DeviceRunner):
         args_on_device = []
         kwargs_on_device = {}
 
-        args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
-        kwargs_on_device = tree_map(lambda x: to_device(x, device), workload.kwargs)
+        print(f"\n[DEVICE MOVEMENT] Moving args to device: {device}")
+
+        def to_device_with_logging(x):
+            result = to_device(x, device)
+            if hasattr(x, 'shape') and hasattr(result, 'shape'):
+                print(f"  Tensor: id(cpu)={hex(id(x))}, id(device)={hex(id(result))}, shape={result.shape}, dtype={result.dtype}")
+            else:
+                print(f"  Object: id(cpu)={hex(id(x))}, id(device)={hex(id(result))}, type={type(result).__name__}")
+            return result
+
+        args_on_device = tree_map(to_device_with_logging, workload.args)
+        kwargs_on_device = tree_map(to_device_with_logging, workload.kwargs)
+        print(f"[DEVICE MOVEMENT] Completed\n")
 
         if workload.model is not None and hasattr(workload.model, "to"):
             workload.model = workload.model.to(device)
@@ -146,8 +158,53 @@ class TorchDeviceRunner(DeviceRunner):
         )
 
         if shard_specs is not None and is_multichip and device.type != "cpu":
-            for tensor, shard_spec in shard_specs.items():
+            print(f"\n{'='*80}")
+            print(f"[SHARD SPEC INSTRUMENTATION] Applying shard specs to {len(shard_specs)} tensors")
+            print(f"Mesh: {workload.mesh}")
+            print(f"{'='*80}")
+            for idx, (tensor, shard_spec) in enumerate(shard_specs.items(), 1):
+                # Try to identify the tensor by checking if it's a parameter
+                tensor_name = "unknown"
+                if hasattr(tensor, "_param_name"):
+                    tensor_name = tensor._param_name
+                elif workload.model is not None:
+                    # Try to find the parameter name in the model
+                    for name, param in workload.model.named_parameters():
+                        if param is tensor:
+                            tensor_name = f"model.{name}"
+                            break
+
+                # Check if it's in args or kwargs
+                if tensor_name == "unknown":
+                    try:
+                        for arg_idx, arg in enumerate(workload.args if hasattr(workload, 'args') else []):
+                            if arg is tensor:
+                                tensor_name = f"args[{arg_idx}]"
+                                break
+                    except:
+                        pass
+
+                print(f"\n[{idx}] BEFORE mark_sharding:")
+                print(f"    Tensor: {tensor_name}")
+                print(f"    Object ID: {hex(id(tensor))}")
+                print(f"    Shape: {tensor.shape}")
+                print(f"    Dtype: {tensor.dtype}")
+                print(f"    Device: {tensor.device}")
+                print(f"    Shard Spec (to apply): {shard_spec}")
+
+                # Apply sharding
+                print(f"    Calling xs.mark_sharding with device={tensor.device}")
                 xs.mark_sharding(tensor, workload.mesh, shard_spec)
+
+                # Dump the actual XLA sharding spec after applying
+                print(f"    AFTER mark_sharding:")
+                try:
+                    xla_sharding_spec = torch_xla._XLAC._get_xla_sharding_spec(tensor)
+                    print(f"    XLA Sharding Spec: {xla_sharding_spec}")
+                except Exception as e:
+                    print(f"    XLA Sharding Spec: <error getting spec: {e}>")
+
+            print(f"{'='*80}\n")
 
         # In the future, we will deprecate `workload.model` and use only
         # `workload.compiled_executable` carrying the model.
