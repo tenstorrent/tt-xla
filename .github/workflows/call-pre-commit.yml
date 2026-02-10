@@ -2,20 +2,17 @@ name: pre-commit
 
 on:
   workflow_call:
+  workflow_dispatch:
 
 jobs:
   pre-commit:
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: multihost_experimental
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.12.0
-          cache: 'pip'
-      - name: Run pre-commit
-        uses: pre-commit/action@v3.0.1
-      - uses: enarx/spdx@master
-        with:
-          licenses: Apache-2.0
+      - name: Run hello script
+        run: |
+          echo "hello"
+          hostname
+          touch hello
+          sleep 60
