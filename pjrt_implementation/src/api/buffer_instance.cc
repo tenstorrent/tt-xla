@@ -219,7 +219,7 @@ void BufferInstance::copyFromHost(
     // TODO(mrakita): This is a major hack that we currently have to do because
     // XLA PJRT client destroys event immediately after it sets callback on it.
     // https://github.com/openxla/xla/issues/25172
-    m_done_with_host_buffer_event->setIndestructible();
+    // m_done_with_host_buffer_event->setIndestructible();
   }
 
   PjrtTensor::from_runtime_tensor({this}, runtime_tensor);
