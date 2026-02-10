@@ -588,13 +588,13 @@ def test_deepseek_mlp(mlp_type, seq_len, arch):
 
             if hasattr(mlp, "experts"):
                 for expert in mlp.experts:
-                    shard_specs[expert.w1.weight] = ("model", None)  # dim, inter_dim
-                    shard_specs[expert.w2.weight] = (None, "model")  # inter_dim, dim
-                    shard_specs[expert.w3.weight] = ("model", None)  # dim, inter_dim
+                    shard_specs[expert.w1.weight] = ("model", "batch")  # dim, inter_dim
+                    shard_specs[expert.w2.weight] = ("batch", "model")  # inter_dim, dim
+                    shard_specs[expert.w3.weight] = ("model", "batch")  # dim, inter_dim
             else:
-                shard_specs[mlp.w1.weight] = ("model", None)  # dim, inter_dim
-                shard_specs[mlp.w2.weight] = (None, "model")  # inter_dim, dim
-                shard_specs[mlp.w3.weight] = ("model", None)  # dim, inter_dim
+                shard_specs[mlp.w1.weight] = ("model", "batch")  # dim, inter_dim
+                shard_specs[mlp.w2.weight] = ("batch", "model")  # inter_dim, dim
+                shard_specs[mlp.w3.weight] = ("model", "batch")  # dim, inter_dim
 
             # input sharding
             shard_specs[args[0]] = ("batch", None, "model")
