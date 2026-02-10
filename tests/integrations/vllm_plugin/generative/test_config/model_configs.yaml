@@ -332,7 +332,8 @@ model_configs:
     reason: "Unknown failure"
   vllm_sweep_arctic:
     model: Snowflake/snowflake-arctic-base
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ImportError: cannot import name 'fused_experts' from 'vllm.model_executor.layers.fused_moe'"
   vllm_sweep_aquila:
     model: BAAI/Aquila-7B
     status: "known_failure_xfail"
@@ -343,7 +344,8 @@ model_configs:
     reason: "Model is too large for single chip"
   vllm_sweep_baichuan:
     model: baichuan-inc/Baichuan-7B
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_bloom:
     model: bigscience/bloom-560m
     status: "known_failure_xfail"
@@ -354,17 +356,20 @@ model_configs:
     reason: "ValueError: TT backend only supports V1."
   vllm_sweep_chat_glm2:
     model: THUDM/chatglm2-6b
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_chat_glm3:
     model: THUDM/chatglm3-6b
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_cohere:
     model: CohereForAI/c4ai-command-r-v01
-    marks: [vllm_sweep]
-  vllm_sweep_dbrx:
-    model: databricks/dbrx-base
     status: "known_failure_xfail"
-    reason: "Gated huggingface model"
+    reason: "Unknown failure"
+  vllm_sweep_dbrx:
+    model: Undi95/dbrx-base
+    status: "known_failure_xfail"
+    reason: "Unknown failure"
   vllm_sweep_decilm:
     model: Deci/DeciLM-7B
     max_model_len: 64
@@ -396,7 +401,7 @@ model_configs:
   vllm_sweep_exaone:
     model: LGAI-EXAONE/EXAONE-3.0-7.8B-Instruct
     status: "known_failure_xfail"
-    reason: "Gated huggingface model"
+    reason: "Gated huggingface model" # Need to agree to terms to access
   # vllm_sweep_falcon:
   #   model: tiiuae/falcon-7b
   #   marks: [vllm_sweep]
@@ -418,10 +423,10 @@ model_configs:
     model: gpt2
     status: "known_failure_xfail"
     reason: "ValueError: TT backend only supports V1."
-  vllm_sweep_gptbigcode:
+  vllm_sweep_gptbigcode: # TEST NEXT locally
     model: bigcode/starcoder
     status: "known_failure_xfail"
-    reason: "Gated huggingface model"
+    reason: "Gated huggingface model" # Need to agree to terms to access
   vllm_sweep_gptj:
     model: EleutherAI/gpt-j-6b
     status: "known_failure_xfail"
@@ -443,34 +448,40 @@ model_configs:
     reason: "ZeroDivisionError: integer division or modulo by zero"
   vllm_sweep_internlm:
     model: internlm/internlm-7b
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_internlm2:
     model: internlm/internlm2-7b
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_internlm3:
     model: internlm/internlm3-8b-instruct
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   # vllm_sweep_jais:
   #   model: inceptionai/jais-13b
   #   max_model_len: 64
   #   max_num_batched_tokens: 64
   #   marks: [vllm_sweep]
-  vllm_sweep_jamba:
-    model: ai21labs/AI21-Jamba-1.5-Mini
+  vllm_sweep_jamba: # need to agree to terms to access
+    model: ai21labs/AI21-Jamba-Mini-1.5
     status: "known_failure_xfail"
-    reason: "Gated huggingface model"
+    reason: "ValueError: TT backend only supports V1."
   # vllm_sweep_llama:
   #   model: meta-llama/Llama-3.2-1B
   #   marks: [vllm_sweep]
   vllm_sweep_mamba:
     model: state-spaces/mamba-130m-hf
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ZeroDivisionError: integer division or modulo by zero"
   vllm_sweep_minicpm:
     model: openbmb/MiniCPM-2B-sft-bf16
-    marks: [vllm_sweep]
+    gpu_memory_utilization: 0.004
+    reason: "Hangs ?"
   vllm_sweep_minicpm3:
     model: openbmb/MiniCPM3-4B
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_method view(*(FakeTensor(..., device='xla:0', size=(0, 32)), 0, -1, 32), **{}): got RuntimeError('cannot reshape tensor of 0 elements into shape [0, -1, 32] because the unspecified dimension size -1 can be any value and is ambiguous')"
   # vllm_sweep_mistral:
   #   model: mistralai/Mistral-7B-v0.1
   #   gpu_memory_utilization: 0.001
@@ -501,7 +512,8 @@ model_configs:
     reason: "Model is too large for single chip"
   vllm_sweep_olmoe:
     model: allenai/OLMoE-1B-7B-0924
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "'_OpNamespace' '_moe_C' object has no attribute 'topk_softmax'"
   # vllm_sweep_opt:
   #   model: facebook/opt-125m
   #   marks: [vllm_sweep]
@@ -523,17 +535,19 @@ model_configs:
   #   marks: [vllm_sweep]
   vllm_sweep_phi3_small:
     model: microsoft/Phi-3-small-8k-instruct
-    marks: [vllm_sweep]
-  vllm_sweep_phimoe:
-    model: microsoft/Phi-3.5-MoE-instruct
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model architecture Phi3SmallForCausalLM was supported in vLLM until v0.9.2, and is not supported anymore."
+  # vllm_sweep_phimoe:
+  #   model: microsoft/Phi-3.5-MoE-instruct
+  #   marks: [vllm_sweep]
   vllm_sweep_persimmon:
     model: adept/persimmon-8b-base
     status: "known_failure_xfail"
     reason: "ValueError: TT backend only supports V1."
   vllm_sweep_qwen:
     model: Qwen/Qwen-7B
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   # vllm_sweep_qwen2:
   #   model: Qwen/Qwen2-0.5B
   #   gpu_memory_utilization: 0.001
@@ -545,14 +559,14 @@ model_configs:
   vllm_sweep_stablelm:
     model: stabilityai/stablelm-3b-4e1t
     gpu_memory_utilization: 0.004
-    reason: "(0.04 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)"
-    marks: [vllm_sweep]
+    status: "expected_passing"
   vllm_sweep_starcoder2:
     model: bigcode/starcoder2-3b
-    marks: [vllm_sweep]
+    status: "expected_passing"
   vllm_sweep_solar:
     model: upstage/solar-pro-preview-instruct
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_telechat:
     model: chuhac/TeleChat2-3B
     status: "known_failure_xfail"
