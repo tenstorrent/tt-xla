@@ -27,13 +27,15 @@ if (TOOLCHAIN STREQUAL "ON")
     )
 else()
     include(ExternalProject)
+    include(GNUInstallDirs)
     add_subdirectory(pjrt_c_api)
 
     # ----- tt-mlir -----
 
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
-    set(TTMLIR_LIB_DIR "${TTMLIR_SOURCE_DIR}/install")
+    set(TTMLIR_INSTALL_PREFIX "${TTMLIR_SOURCE_DIR}/install")
+    set(TTMLIR_LIB_DIR "${TTMLIR_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
     set(WITH_METAL_RUNTIME_ROOT_SET "")
     if(NOT DEFINED ENV{TT_METAL_RUNTIME_ROOT})
         set(WITH_METAL_RUNTIME_ROOT_SET "TT_METAL_RUNTIME_ROOT=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
@@ -71,7 +73,8 @@ else()
           -DTTMLIR_ENABLE_RUNTIME=ON
           -DTT_RUNTIME_DEBUG=${TT_RUNTIME_DEBUG}
           -DTTMLIR_ENABLE_BINDINGS_PYTHON=${TTMLIR_ENABLE_BINDINGS_PYTHON}
-          -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
+          -DCMAKE_INSTALL_PREFIX=${TTMLIR_INSTALL_PREFIX}
+          -DCMAKE_INSTALL_LIBDIR=${CMAKE_INSTALL_LIBDIR}
           -DTT_RUNTIME_ENABLE_PERF_TRACE=${TTMLIR_ENABLE_PERF_TRACE}
           -DTTMLIR_ENABLE_OPMODEL=ON
           -DTTMLIR_ENABLE_EXPLORER=${TTXLA_ENABLE_EXPLORER}
