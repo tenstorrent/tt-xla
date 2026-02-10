@@ -7,6 +7,11 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
+      docker_image:
+        description: 'Docker image to use'
+        required: false
+        type: string
+        default: 'ghcr.io/tenstorrent/tt-xla-slim:nightly-latest'
       test_filter:
         description: "Filter tests based on the name property. One or more strings which are contained (case insensitive) in the name (e.g. 'resn' or 'resn,mni,yol')"
         required: false
@@ -131,13 +136,13 @@ jobs:
         echo "Perf regression check: ${{ inputs.perf_regression_check }}" >> $GITHUB_STEP_SUMMARY
 
   run-n150-perf-benchmarks:
-    needs: [filter-tests, build, docker-build]
+    needs: [filter-tests, build]
     if: ${{ needs.filter-tests.outputs.matrix_n150_skip == 'false' }}
     secrets: inherit
     uses: ./.github/workflows/call-perf-test.yml
     with:
       matrix: ${{ needs.filter-tests.outputs.matrix_n150 }}
-      docker_image: ${{ needs.docker-build.outputs.docker-image-base }}
+      docker_image: ${{ inputs.docker_image }}
       artifact_run_id: ${{ needs.build.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build.outputs.wheel_artifact_name }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
@@ -145,13 +150,13 @@ jobs:
       sh-runner: ${{ inputs.sh-runner || false }}
 
   run-p150-perf-benchmarks:
-    needs: [filter-tests, build, docker-build]
+    needs: [filter-tests, build]
     if: ${{ needs.filter-tests.outputs.matrix_p150_skip == 'false' }}
     secrets: inherit
     uses: ./.github/workflows/call-perf-test.yml
     with:
       matrix: ${{ needs.filter-tests.outputs.matrix_p150 }}
-      docker_image: ${{ needs.docker-build.outputs.docker-image-base }}
+      docker_image: ${{ inputs.docker_image }}
       artifact_run_id: ${{ needs.build.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build.outputs.wheel_artifact_name }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
@@ -159,13 +164,13 @@ jobs:
       sh-runner: ${{ inputs.sh-runner || false }}
 
   run-llmbox-perf-benchmarks:
-    needs: [filter-tests, build, docker-build]
+    needs: [filter-tests, build]
     if: ${{ needs.filter-tests.outputs.matrix_llmbox_skip == 'false' }}
     secrets: inherit
     uses: ./.github/workflows/call-perf-test.yml
     with:
       matrix: ${{ needs.filter-tests.outputs.matrix_llmbox }}
-      docker_image: ${{ needs.docker-build.outputs.docker-image-base }}
+      docker_image: ${{ inputs.docker_image }}
       artifact_run_id: ${{ needs.build.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build.outputs.wheel_artifact_name }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
