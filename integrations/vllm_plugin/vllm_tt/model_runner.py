@@ -1354,6 +1354,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.model = model
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = TPUSampler()
+
+        # Use TPU top-k/top-p path which thresholds logits directly
+        # instead of sort+scatter. This should be more performant
+        # and avoids ttnn bitonic sort bug.
+        # See https://github.com/tenstorrent/tt-xla/issues/3253
+        self.sampler.topk_topp_sampler.forward = (
+            self.sampler.topk_topp_sampler.forward_tpu
+        )
         logger.info(f"Compiled model: \n{self.model}")
 
     def reload_weights(self) -> None:
