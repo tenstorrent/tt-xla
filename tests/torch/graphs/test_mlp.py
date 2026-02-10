@@ -651,14 +651,14 @@ def test_kimi_k2_mlp(mlp_type, seq_len, arch):
         mlp.eval()
         seq_len = 32  # hardcoded for now to test the MoE.Bigger seq_len takes longer.
 
-    batch_size = 2
+    batch_size = 4
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (batch_size, num_devices // batch_size)
+        mesh_shape = (2, 4)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -667,16 +667,16 @@ def test_kimi_k2_mlp(mlp_type, seq_len, arch):
 
             if hasattr(mlp, "experts"):
                 for expert in mlp.experts:
-                    shard_specs[expert.gate_proj.weight] = ("model", None)
-                    shard_specs[expert.up_proj.weight] = ("model", None)
-                    shard_specs[expert.down_proj.weight] = (None, "model")
+                    shard_specs[expert.gate_proj.weight] = ("model", "batch")
+                    shard_specs[expert.up_proj.weight] = ("model", "batch")
+                    shard_specs[expert.down_proj.weight] = ("batch", "model")
             else:
-                shard_specs[mlp.gate_proj.weight] = ("model", None)
-                shard_specs[mlp.up_proj.weight] = ("model", None)
-                shard_specs[mlp.down_proj.weight] = (None, "model")
+                shard_specs[mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[mlp.down_proj.weight] = ("batch", "model")
 
             # input sharding
-            shard_specs[args[0]] = ("batch", None, "model")
+            shard_specs[args[0]] = ("model", None, "batch")
 
             return shard_specs
 
