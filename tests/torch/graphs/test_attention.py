@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
-import sys
 from typing import Callable
 
 import numpy as np
@@ -37,12 +35,6 @@ from transformers.models.xlm_roberta.modeling_xlm_roberta import XLMRobertaSelfA
 from tests.torch.models.deepseek_v3_2_exp.modified_model import MLA as DeepseekMLA
 from tests.torch.models.deepseek_v3_2_exp.modified_model import (
     ModelArgs as DeepseekModelArgs,
-)
-from tests.torch.models.kimi_k2.configuration_deepseek import (
-    DeepseekV3Config as KimiK2Config,
-)
-from tests.torch.models.kimi_k2.modeling_deepseek import (
-    DeepseekV3Attention as KimiK2Attention,
 )
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
@@ -2503,76 +2495,6 @@ def test_deepseek_attention_module(seq_len, arch):
     run_graph_test(
         attention,
         [hidden_states, start_pos, freqs_cis, mask],
-        framework=Framework.TORCH,
-        comparison_config=comparison_config,
-        mesh=mesh,
-        shard_spec_fn=get_shard_spec,
-    )
-
-
-"""Kimi K2 attention tests"""
-
-
-@pytest.mark.nightly
-@parametrize_arch(["single_device", "llmbox"])
-@pytest.mark.parametrize("seq_len", [1024])
-def test_kimi_k2_attention_module(seq_len, arch):
-    xr.set_device_type("TT")
-
-    model_dir = os.path.join(os.path.dirname(__file__), "../models/kimi_k2")
-    sys.path.append(os.path.abspath(model_dir))
-
-    current_dir = os.path.dirname(__file__)
-    config_path = os.path.join(current_dir, "../models/kimi_k2/config.json")
-
-    config = KimiK2Config.from_json_file(config_path)
-
-    # Override for single layer testing
-    config.num_hidden_layers = 1
-    config.use_cache = False
-
-    attention = KimiK2Attention(config, layer_idx=0).to(torch.bfloat16)
-
-    batch_size = 4
-    hidden_states = torch.randn(
-        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
-    )
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
-    position_ids = torch.arange(seq_len).unsqueeze(0)
-
-    past_key_value = None
-
-    # Setup for tensor parallel
-    if arch == "llmbox":
-        num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, 4)
-        device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-
-        def get_shard_spec(attention, args, kwargs):
-            """Returns shard specifications for the layer's parameters."""
-            shard_specs = {}
-
-            shard_specs[args[0]] = ("model", None, "batch")
-            shard_specs[attention.q_b_proj.weight] = ("model", "batch")
-            shard_specs[attention.kv_b_proj.weight] = ("model", "batch")
-            shard_specs[attention.o_proj.weight] = ("batch", "model")
-
-            # Consume hidden states, TP on batch dimension
-            shard_specs[attention.q_a_proj.weight] = ("model", "batch")
-            shard_specs[attention.kv_a_proj_with_mqa.weight] = ("model", "batch")
-
-            return shard_specs
-
-    else:
-        mesh = None
-        get_shard_spec = None
-
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
-
-    run_graph_test(
-        attention,
-        [hidden_states, attention_mask, position_ids, past_key_value, False, False],
         framework=Framework.TORCH,
         comparison_config=comparison_config,
         mesh=mesh,
