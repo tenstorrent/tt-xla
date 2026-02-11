@@ -122,7 +122,7 @@ else()
     set(LOGURU_LIB_DIR ${LOGURU_LIB_DIR} PARENT_SCOPE)
 
     ExternalProject_Add(
-        loguru
+        loguru-external
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/loguru
         CMAKE_GENERATOR Ninja
         CMAKE_ARGS
@@ -136,5 +136,12 @@ else()
         GIT_TAG ${LOGURU_VERSION}
         GIT_PROGRESS ON
     )
+
+    # Create an imported library target for loguru
+    add_library(loguru SHARED IMPORTED GLOBAL)
+    set_target_properties(loguru PROPERTIES
+        IMPORTED_LOCATION ${LOGURU_LIB_DIR}/libloguru.so
+    )
+    add_dependencies(loguru loguru-external)
 
 endif()
