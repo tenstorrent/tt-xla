@@ -16,6 +16,7 @@ on:
           - 'model-test-push.json'
           - 'model-test-full.json'
           - 'on-pr.json'
+          - 'schedule-nightly.json'
           - 'model-test-passing.json'
           - 'model-test-xfail.json'
           - 'model-test-experimental.json'
