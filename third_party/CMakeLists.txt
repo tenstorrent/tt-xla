@@ -5,11 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-<<<<<<< HEAD
-    set(TT_MLIR_VERSION "96090c423381c82f0cfa298f86e794430db09a8a")
-=======
-    set(TT_MLIR_VERSION "sshon/wip-a2a-sparsematmul-260210")
->>>>>>> 31a9ffd9e (wip a2a sparse matmul)
+    set(TT_MLIR_VERSION "sshon/wip-260225-a2a-sparse")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")

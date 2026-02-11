@@ -1079,6 +1079,7 @@ def all_to_all_combine(
     num_devices: int = 1,
     cluster_axis: int = 0,
     num_experts_per_tok: int = 2,
+    output_shard_dim: int = 1,
 ) -> torch.Tensor:
     """
     Combine expert outputs back to original token positions.
@@ -1087,28 +1088,45 @@ def all_to_all_combine(
     and restores tokens to their original device and order.
 
     Args:
-        input_tensor: Expert outputs [E_local, B*D, S, H], bfloat16
+        input_tensor: Expert outputs, bfloat16. Shape depends on output_shard_dim:
+            - output_shard_dim=1: [E_local, B*D, S, H] (default)
+            - output_shard_dim=2: [E_local, S, B*D, H] (decode-optimized, avoids tile waste on S=1)
         expert_metadata: Routing metadata from dispatch [1, B*D, S, K], int64
         expert_mapping: One-hot expert-to-device mapping [1, 1, E, D], int64
         num_devices: Number of devices along dispatch axis (D)
         cluster_axis: Mesh axis to combine along (0=rows, 1=cols)
         num_experts_per_tok: Number of selected experts per token (K)
+        output_shard_dim: Dimension index for the BD shard dimension (1 or 2).
+            Use 2 for decode to place BD on dim -2 and avoid tile padding on S=1.
 
     Returns:
-        combined: [K, B, S, H] expert outputs restored to original positions
+        combined: Shape depends on output_shard_dim:
+            - output_shard_dim=1: [K, B, S, H]
+            - output_shard_dim=2: [K, S, B, H]
     """
     device = input_tensor.device
-    E_local, BD, S, H = input_tensor.shape
     K = num_experts_per_tok
+
+    if output_shard_dim == 1:
+        E_local, BD, S, H = input_tensor.shape
+    elif output_shard_dim == 2:
+        E_local, S, BD, H = input_tensor.shape
+    else:
+        raise ValueError(f"output_shard_dim must be 1 or 2, got {output_shard_dim}")
+
     B = BD // num_devices
 
     if device.type == "xla":
-        output_shape = [K, B, S, H]
+        if output_shard_dim == 1:
+            output_shape = [K, B, S, H]
+        else:
+            output_shape = [K, S, B, H]
 
         frontend_attributes = {
             "num_devices": str(num_devices),
             "cluster_axis": str(cluster_axis),
             "num_experts_per_tok": str(K),
+            "output_shard_dim": str(output_shard_dim),
         }
 
         return stablehlo_custom_call.stablehlo_custom_call(
@@ -1125,16 +1143,27 @@ def all_to_all_combine(
         # D copies are identical on CPU since dispatch just replicates).
         B_local = BD // num_devices
         metadata_indices = expert_metadata[0]  # [BD, S, K]
-        combined = torch.zeros(
-            K, B_local, S, H, dtype=input_tensor.dtype, device=device
-        )
 
-        for b in range(B_local):
-            for s in range(S):
-                for k in range(K):
-                    expert_id = metadata_indices[b, s, k].item()
-                    if 0 <= expert_id < E_local:
-                        combined[k, b, s, :] = input_tensor[expert_id, b, s, :]
+        if output_shard_dim == 1:
+            combined = torch.zeros(
+                K, B_local, S, H, dtype=input_tensor.dtype, device=device
+            )
+            for b in range(B_local):
+                for s in range(S):
+                    for k in range(K):
+                        expert_id = metadata_indices[b, s, k].item()
+                        if 0 <= expert_id < E_local:
+                            combined[k, b, s, :] = input_tensor[expert_id, b, s, :]
+        else:
+            combined = torch.zeros(
+                K, S, B_local, H, dtype=input_tensor.dtype, device=device
+            )
+            for b in range(B_local):
+                for s in range(S):
+                    for k in range(K):
+                        expert_id = metadata_indices[b, s, k].item()
+                        if 0 <= expert_id < E_local:
+                            combined[k, s, b, :] = input_tensor[expert_id, s, b, :]
 
         return combined
 
@@ -1150,14 +1179,22 @@ def all_to_all_combine_fake(
     num_devices: int = 1,
     cluster_axis: int = 0,
     num_experts_per_tok: int = 2,
+    output_shard_dim: int = 1,
 ) -> torch.Tensor:
-    _, BD, S, H = input_tensor.shape
     K = num_experts_per_tok
-    B = BD // num_devices
 
-    return torch.zeros(
-        [K, B, S, H], dtype=input_tensor.dtype, device=input_tensor.device
-    )
+    if output_shard_dim == 1:
+        _, BD, S, H = input_tensor.shape
+        B = BD // num_devices
+        return torch.zeros(
+            [K, B, S, H], dtype=input_tensor.dtype, device=input_tensor.device
+        )
+    else:
+        _, S, BD, H = input_tensor.shape
+        B = BD // num_devices
+        return torch.zeros(
+            [K, S, B, H], dtype=input_tensor.dtype, device=input_tensor.device
+        )
 
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow
