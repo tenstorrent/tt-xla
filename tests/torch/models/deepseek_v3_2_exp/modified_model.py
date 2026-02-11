@@ -25,6 +25,38 @@ def fp8_index(q, q_s, k, k_s):
     raise NotImplementedError("fp8_index requires tilelang with CUDA support")
 
 
+def bf16_index(q, weights, k) -> torch.Tensor:
+    """
+    Compute index scores in BF16 (no FP8, no scales needed).
+
+    Args:
+        q: [b, m, h, d] query tensor in BF16
+        weights: [b, m, 1, h] pre-computed weights
+        k: [b, n, d] key cache in BF16
+
+    Returns:
+        index_score: [b, m, n] attention scores
+    """
+    b, m, h, d = q.shape
+    n = k.shape[1]
+
+    # Reshape for batched matmul
+    q_reshaped = q.reshape(b * m, h, d)  # [b*m, h, d]
+    k_expanded = k.unsqueeze(1).expand(b, m, n, d).reshape(b * m, n, d)  # [b*m, n, d]
+
+    # Compute logits: k @ q.T -> [b*m, n, h]
+    logits = torch.bmm(k_expanded, q_reshaped.transpose(1, 2))
+
+    # Apply ReLU and multiply by weights (cast weights to logits dtype so output
+    # stays bf16; TT sort op only accepts BFLOAT16/UINT16)
+    logits = torch.relu(logits) * weights.reshape(b * m, 1, h).to(logits.dtype)
+
+    # Sum across heads
+    index_score = logits.sum(dim=-1)  # [b*m, n]
+
+    return index_score.reshape(b, m, n)
+
+
 world_size = 1
 rank = 0
 block_size = 128
@@ -223,6 +255,22 @@ class Linear(nn.Module):
             self.bias = nn.Parameter(torch.empty(out_features))
         else:
             self.register_parameter("bias", None)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        """
+        Initialize weights and bias using Kaiming uniform initialization.
+        This matches PyTorch's standard nn.Linear initialization.
+        """
+        # Initialize weights with Kaiming uniform
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+
+        # Initialize bias if it exists
+        if self.bias is not None:
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -527,8 +575,9 @@ def rotate_activation(x: torch.Tensor) -> torch.Tensor:
 
 
 class Indexer(torch.nn.Module):
-    def __init__(self, args: ModelArgs, haddamard_matrix):
+    def __init__(self, args: ModelArgs, haddamard_matrix, return_raw_scores: bool = False):
         super().__init__()
+        self.return_raw_scores = return_raw_scores
         self.dim: int = args.dim
         self.n_heads: int = args.index_n_heads
         self.n_local_heads = args.index_n_heads // world_size
@@ -553,20 +602,20 @@ class Indexer(torch.nn.Module):
                 args.max_batch_size,
                 args.max_seq_len,
                 self.head_dim,
-                dtype=torch.float8_e4m3fn,
+                dtype=torch.bfloat16,
             ),
             persistent=False,
         )
-        self.register_buffer(
-            "k_scale_cache",
-            torch.zeros(
-                args.max_batch_size,
-                args.max_seq_len,
-                self.head_dim // block_size,
-                dtype=torch.float32,
-            ),
-            persistent=False,
-        )
+        # self.register_buffer(
+        #     "k_scale_cache",
+        #     torch.zeros(
+        #         args.max_batch_size,
+        #         args.max_seq_len,
+        #         self.head_dim // block_size,
+        #         dtype=torch.float32,
+        #     ),
+        #     persistent=False,
+        # )
 
     def forward(
         self,
@@ -578,6 +627,7 @@ class Indexer(torch.nn.Module):
     ):
         bsz, seqlen, _ = x.size()
         end_pos = start_pos + seqlen
+
         q = self.wq_b(qr)
         q = q.view(bsz, seqlen, self.n_heads, self.head_dim)
         q_pe, q_nope = torch.split(
@@ -586,14 +636,18 @@ class Indexer(torch.nn.Module):
         # rope in indexer is not interleaved
         q_pe = apply_rotary_emb(q_pe, freqs_cis, False)
         q = torch.cat([q_pe, q_nope], dim=-1)
+
         k = self.wk(x)
         k = self.k_norm(k)
+
         k_pe, k_nope = torch.split(
             k, [self.rope_head_dim, self.head_dim - self.rope_head_dim], dim=-1
         )
+        k_pe_input = k_pe.unsqueeze(2)
         # rope in indexer is not interleaved
-        k_pe = apply_rotary_emb(k_pe.unsqueeze(2), freqs_cis, False).squeeze(2)
+        k_pe = apply_rotary_emb(k_pe_input, freqs_cis, False).squeeze(2)
         k = torch.cat([k_pe, k_nope], dim=-1)
+
         # q = rotate_activation(q)
         q = F.linear(
             q, self.haddamard
@@ -615,21 +669,33 @@ class Indexer(torch.nn.Module):
         bsz, seqlen, n_heads, head_dim = q.shape
         end_pos = start_pos + seqlen
 
+        self.k_cache[:bsz, start_pos:end_pos] = k
+
         # Simple dot product scoring (placeholder)
         # In full implementation, this would use fp8_index with quantized values
         weights = self.weights_proj(x.float()) * self.n_heads**-0.5
 
+        index_score = bf16_index(q, weights, self.k_cache[:bsz, :end_pos])
+
+        if mask is not None:
+            index_score += mask
+
+        # Return continuous scores for testing instead of discrete indices
+        if self.return_raw_scores:
+            return index_score
+
+        topk_indices = index_score.topk(min(self.index_topk, end_pos), dim=-1)[1]
         # Return dummy topk indices for now
         # TODO: Implement proper indexing logic for BF16 mode
-        topk_indices = torch.zeros(
-            bsz,
-            seqlen,
-            min(self.index_topk, end_pos),
-            dtype=torch.long,
-            device=x.device,
-        )
-        for i in range(min(self.index_topk, end_pos)):
-            topk_indices[:, :, i] = i
+        # topk_indices = torch.zeros(
+        #     bsz,
+        #     seqlen,
+        #     min(self.index_topk, end_pos),
+        #     dtype=torch.long,
+        #     device=x.device,
+        # )
+        # for i in range(min(self.index_topk, end_pos)):
+        #     topk_indices[:, :, i] = i
 
         return topk_indices
 
@@ -778,12 +844,12 @@ class MLA(nn.Module):
             if self.indexer is not None:
                 topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
                 index_mask = torch.full(
-                    (bsz, seqlen, seqlen), float("-inf"), device=x.device
+                    (bsz, seqlen, seqlen), float("-inf"), device=x.device, dtype=x.dtype
                 ).scatter_(-1, topk_indices, 0)
                 index_mask += mask
                 scores += index_mask.unsqueeze(2)
 
-            scores = scores.softmax(dim=-1)
+            scores = scores.softmax(dim=-1).to(x.dtype)
             x = torch.einsum("bsht,bthd->bshd", scores, v)
         else:  # MQA decode
             if self.dequant_wkv_b is None and self.wkv_b.scale is not None:
@@ -804,11 +870,11 @@ class MLA(nn.Module):
             if self.indexer is not None:
                 topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
                 index_mask = torch.full(
-                    (bsz, 1, end_pos), float("-inf"), device=x.device
+                    (bsz, 1, end_pos), float("-inf"), device=x.device, dtype=x.dtype
                 ).scatter_(-1, topk_indices, 0)
                 scores += index_mask.unsqueeze(2)
 
-            scores = scores.softmax(dim=-1)
+            scores = scores.softmax(dim=-1).to(x.dtype)
             x = torch.einsum("bsht,btc->bshc", scores, self.kv_cache[:bsz, :end_pos])
             x = torch.einsum("bshc,hdc->bshd", x, wkv_b[:, -self.v_head_dim :])
         x = self.wo(x.flatten(2))
@@ -1178,7 +1244,12 @@ class Transformer(nn.Module):
         seqlen = tokens.size(1)
         freqs_cis = self.freqs_cis[start_pos : start_pos + seqlen]
         mask = (
-            torch.full((seqlen, seqlen), float("-inf"), device=tokens.device).triu_(1)
+            torch.full(
+                (seqlen, seqlen),
+                float("-inf"),
+                device=tokens.device,
+                dtype=tokens.dtype,
+            ).triu_(1)
             if seqlen > 1
             else None
         )
