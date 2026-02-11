@@ -89,8 +89,15 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInf
     add_definitions(-DLOGURU_DEBUG_LOGGING=1)
 endif()
 
-add_subdirectory(third_party)
+# Set up library directories for third-party dependencies
+include(GNUInstallDirs)
+set(TTMLIR_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install")
+set(TTMLIR_LIB_DIR "${TTMLIR_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+set(LOGURU_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install")
+set(LOGURU_LIB_DIR "${LOGURU_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+
 add_subdirectory(pjrt_implementation/src)
+add_subdirectory(third_party)
 add_subdirectory(docs)
 add_subdirectory(python_package)
 

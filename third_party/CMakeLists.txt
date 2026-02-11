@@ -34,8 +34,6 @@ else()
 
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
-    set(TTMLIR_INSTALL_PREFIX "${TTMLIR_SOURCE_DIR}/install")
-    set(TTMLIR_LIB_DIR "${TTMLIR_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
     set(WITH_METAL_RUNTIME_ROOT_SET "")
     if(NOT DEFINED ENV{TT_METAL_RUNTIME_ROOT})
         set(WITH_METAL_RUNTIME_ROOT_SET "TT_METAL_RUNTIME_ROOT=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
@@ -99,7 +97,6 @@ else()
     install(DIRECTORY ${TTMLIR_INSTALL_PREFIX}/ DESTINATION "${CMAKE_INSTALL_PREFIX}" USE_SOURCE_PERMISSIONS)
 
     # Expose all tt-mlir .so files as shared imported libraries.
-    set(TTMLIR_LIB_DIR ${TTMLIR_LIB_DIR} PARENT_SCOPE)
     message(STATUS "Linking to TTMLIR libraries in ${TTMLIR_LIB_DIR}")
     file(GLOB TTMLIR_LIBRARIES "${TTMLIR_LIB_DIR}/*.so")
     foreach(TTMLIR_LIBRARY ${TTMLIR_LIBRARIES})
@@ -117,12 +114,8 @@ else()
 
     set(FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wno-undef -Wno-unsafe-buffer-usage -Wno-disabled-macro-expansion")
 
-    set(LOGURU_INSTALL_PREFIX "${TTPJRT_SOURCE_DIR}/third_party/loguru/src/loguru-install")
-    set(LOGURU_LIB_DIR "${LOGURU_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
-    set(LOGURU_LIB_DIR ${LOGURU_LIB_DIR} PARENT_SCOPE)
-
     ExternalProject_Add(
-        loguru-external
+        loguru
         PREFIX ${TTPJRT_SOURCE_DIR}/third_party/loguru
         CMAKE_GENERATOR Ninja
         CMAKE_ARGS
