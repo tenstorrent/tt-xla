@@ -26,6 +26,7 @@ target_include_directories(TTPJRTUtils PUBLIC
 
 add_dependencies(TTPJRTUtils
     tt-mlir
+    loguru-external
 )
 
 target_link_libraries(TTPJRTUtils PUBLIC
