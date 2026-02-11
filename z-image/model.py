@@ -33,7 +33,10 @@ def patch_rope_real_valued():
                 )
                 timestep = torch.arange(e, device=freqs.device, dtype=torch.float64)
                 freqs = torch.outer(timestep, freqs).float()
-                freqs_cis.append((freqs.cos(), freqs.sin()))
+                # Use torch.polar to match the original implementation exactly,
+                # then extract real (cos) and imag (sin) parts.
+                polar = torch.polar(torch.ones_like(freqs), freqs)
+                freqs_cis.append((polar.real, polar.imag))
             return freqs_cis
 
     # 2. Patch RopeEmbedder.__call__ to produce [all_cos | all_sin] layout
