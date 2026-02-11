@@ -360,8 +360,8 @@ void simplifyMainFuncOp(mlir::func::FuncOp funcOp) {
 } // namespace internal
 
 tt_pjrt_status cleanForXlaIngestion(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module_with_sdy_annotations) {
-  mlir::ModuleOp module = mlir_module_with_sdy_annotations.get();
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  mlir::ModuleOp module = mlir_module.get();
 
   std::vector<mlir::sdy::ManualComputationOp> manualComputationOps;
   module.walk([&](mlir::sdy::ManualComputationOp op) {
@@ -373,11 +373,16 @@ tt_pjrt_status cleanForXlaIngestion(
   });
 
   // Strip all location information (loc attributes) from the module
-  mlir::PassManager pm(mlir_module_with_sdy_annotations.get()->getName());
+  mlir::PassManager pm(mlir_module.get()->getName());
   pm.addPass(mlir::createStripDebugInfoPass());
-  if (mlir::failed(pm.run(mlir_module_with_sdy_annotations.get()))) {
+  if (mlir::failed(pm.run(mlir_module.get()))) {
     return tt_pjrt_status::kInternal;
   }
+
+  // Collect sdy.mesh ops once — used for sharding extraction (shardy path)
+  // and always erased at the end.
+  llvm::SmallVector<mlir::sdy::MeshOp> meshOps;
+  module.walk([&](mlir::sdy::MeshOp op) { meshOps.push_back(op); });
 
   // Extract out shardings and simplify the main funcop only when manual
   // computation ops are present (shardy path). When they are not present
@@ -385,10 +390,6 @@ tt_pjrt_status cleanForXlaIngestion(
   // attributes so XLA can parse the module via
   // PJRT_Executable_OptimizedProgram.
   if (manualComputationOps.size() == 1) {
-    // Extract mesh name to size map from sdy.mesh op, asserting that there is
-    // exactly one sdy.mesh op in the module.
-    llvm::SmallVector<mlir::sdy::MeshOp> meshOps;
-    module.walk([&](mlir::sdy::MeshOp op) { meshOps.push_back(op); });
     assert(meshOps.size() == 1 && "Expected exactly one sdy.mesh op in module");
     auto meshOp = meshOps.front();
 
@@ -413,15 +414,16 @@ tt_pjrt_status cleanForXlaIngestion(
         internal::simplifyMainFuncOp(funcOp);
       }
     });
+  } else if (manualComputationOps.size() > 1) {
+    LOG_F(ERROR,
+          "Expected at most one ManualComputationOp in module, found: %zu",
+          manualComputationOps.size());
+    return tt_pjrt_status::kInternal;
   }
 
   // Remove sdy.mesh operations
-  std::vector<mlir::sdy::MeshOp> meshOpsToErase;
-  module.walk([&](mlir::sdy::MeshOp meshOpToErase) {
-    meshOpsToErase.push_back(meshOpToErase);
-  });
-  for (auto meshOpToErase : meshOpsToErase) {
-    meshOpToErase.erase();
+  for (auto meshOp : meshOps) {
+    meshOp.erase();
   }
 
   return tt_pjrt_status::kSuccess;
