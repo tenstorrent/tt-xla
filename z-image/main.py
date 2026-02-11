@@ -12,6 +12,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from diffusers import ZImagePipeline
+from tt_torch import codegen_py
 
 from model import ZImageModule
 
@@ -20,7 +21,7 @@ DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 # CONFIG
 compile_options = {
     "optimization_level": 1,
-    "codegen_try_recover_structure": True,
+    "codegen_try_recover_structure": False,
 }
 EXPORT_PATH = "z_image_codegen"
 torch_xla.set_custom_compile_options(compile_options)
@@ -55,6 +56,7 @@ def get_input_latents(pipe):
 def run_on_cpu_pipeline():
     image_path = DIR / "example_cpu_pipeline.png"
 
+    print("")
     print("\tRunning CPU pipeline...")
 
     # First check if output image exists
@@ -97,6 +99,7 @@ def run_on_cpu_pipeline():
 def run_on_cpu_manual():
     image_path = DIR / "example_cpu_manual.png"
 
+    print("")
     print("\tRunning CPU manual...")
 
     # First check if output image exists
@@ -141,6 +144,8 @@ def run_on_cpu_manual():
 
 
 def run_on_tt():
+
+    print("")
     print("\tRunning on TT...")
 
     # Set up XLA runtime for TT backend
@@ -188,6 +193,102 @@ def run_on_tt():
     return image
 
 
+def run_codegen(text_encoder=True, transformer=True):
+    """Generate Python code for the Z-Image modules."""
+
+    print("")
+    print("\tGenerating codegen...")
+
+    pipe = ZImagePipeline.from_pretrained(
+        MODEL_ID,
+        torch_dtype=DTYPE,
+        low_cpu_mem_usage=False,
+    )
+    model = ZImageModule(pipe)
+    model.eval()
+
+    positive_prompt, negative_prompt = get_input_prompts()
+    latents = get_input_latents(pipe)
+
+    # --- Text encoder codegen ---
+    if text_encoder:
+        print("\t\tGenerating text encoder codegen...")
+        tokens = model.tokenizer(
+            [
+                model.tokenizer.apply_chat_template(
+                    [{"role": "user", "content": positive_prompt}],
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    enable_thinking=True,
+                )
+            ],
+            padding="max_length",
+            max_length=512,
+            truncation=True,
+            return_tensors="pt",
+        )
+        codegen_py(
+            model.text_encoder_module,
+            tokens.input_ids,
+            tokens.attention_mask.bool(),
+            export_path=EXPORT_PATH + "/text_encoder",
+            compiler_options=compile_options,
+        )
+        print("\t\tText encoder codegen done")
+
+    # --- Transformer codegen ---
+    # The transformer takes List[Tensor] args, so wrap it to accept batched tensors.
+    if transformer:
+
+        class TransformerWrapper(torch.nn.Module):
+            def __init__(self, transformer):
+                super().__init__()
+                self.transformer = transformer
+
+            def forward(self, x, t, cap_feats):
+                out_list = self.transformer(
+                    list(x.unbind(dim=0)),
+                    t,
+                    list(cap_feats.unbind(dim=0)),
+                    return_dict=False,
+                )[0]
+                return torch.stack(out_list)
+
+        print("\t\tGenerating transformer codegen...")
+        wrapper = TransformerWrapper(model.transformer)
+        wrapper.eval()
+
+        # Build sample inputs matching a single denoising step with CFG
+        with torch.no_grad():
+            prompt_embeds = model.encode_prompt(positive_prompt)
+            negative_prompt_embeds = model.encode_prompt(negative_prompt)
+
+        latents_typed = latents.to(model.transformer.dtype)
+        latent_input = latents_typed.repeat(2, 1, 1, 1).unsqueeze(2)  # [2, C, 1, H, W]
+        cap_feats_list = prompt_embeds + negative_prompt_embeds
+        # Pad to same length and stack into a batched tensor
+        max_len = max(c.shape[0] for c in cap_feats_list)
+        cap_feats_padded = torch.stack(
+            [
+                torch.nn.functional.pad(c, (0, 0, 0, max_len - c.shape[0]))
+                for c in cap_feats_list
+            ]
+        )  # [2, max_len, hidden_dim]
+        timestep = torch.tensor([0.5, 0.5], dtype=torch.float32)
+
+        codegen_py(
+            wrapper,
+            latent_input,
+            timestep,
+            cap_feats_padded,
+            export_path=EXPORT_PATH + "/transformer",
+            compiler_options=compile_options,
+        )
+        print("\t\tTransformer codegen done")
+
+    print("\tCodegen complete")
+
+
 def bitwise_compare(a, b):
     if (
         type(a) == PIL.PngImagePlugin.PngImageFile
@@ -205,6 +306,13 @@ def main():
     out_cpu = run_on_cpu_manual()
 
     print(f"Golden vs CPU: {bitwise_compare(out_golden, out_cpu)}")
+
+    run_codegen(
+        # text_encoder=True,
+        text_encoder=False,
+        transformer=True,
+        # transformer=False,
+    )
 
     out_tt = run_on_tt()
 
