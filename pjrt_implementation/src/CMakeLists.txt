@@ -38,6 +38,11 @@ target_link_libraries(TTPJRTTTDylib PUBLIC
     coverage_config
 )
 
+target_link_directories(TTPJRTTTDylib PRIVATE
+    ${TTMLIR_LIB_DIR}
+    ${LOGURU_LIB_DIR}
+)
+
 target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
 
 # Setting RPATH to a path involving $ORIGIN (resolved location of the pjrt_plugin_tt.so
