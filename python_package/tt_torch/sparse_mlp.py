@@ -387,6 +387,197 @@ class A2aSparseMLP(nn.Module):
         return output, router_scores
 
 
+class A2aSparseStackedMlp(nn.Module):
+    """
+    Sparse MLP with all-to-all dispatch/combine for multi-device expert parallelism.
+
+    Same as A2aSparseMLP but pre-deinterleaves gate_up_proj weights and biases
+    in __init__ so the forward pass uses contiguous splits ([:inter] / [inter:])
+    instead of strided slices ([::2] / [1::2]).
+    """
+
+    def __init__(
+        self,
+        original_mlp,
+        num_experts: int,
+        num_experts_per_tok: int,
+        num_devices: int = 1,
+        cluster_axis: int = -1,
+        config: Optional[object] = None,
+        flat_device_order: Optional[List[int]] = None,
+    ):
+        super().__init__()
+
+        self.num_experts = num_experts
+        self.num_experts_per_tok = num_experts_per_tok
+        self.num_devices = num_devices
+        self.cluster_axis = cluster_axis
+
+        # Copy references to original module's components
+        self.router = original_mlp.router
+        orig_experts = original_mlp.experts
+
+        if hasattr(orig_experts, "gate_up_proj"):
+            self.intermediate_size = orig_experts.gate_up_proj.shape[-1] // 2
+        else:
+            raise ValueError("Expected fused gate_up_proj in experts module")
+
+        if config is not None and hasattr(config, "hidden_size"):
+            hidden_size = config.hidden_size
+        else:
+            hidden_size = orig_experts.down_proj.shape[-1]
+
+        # GPT-OSS specific activation parameters
+        self.alpha = getattr(orig_experts, "alpha", 1.702)
+        self.limit = getattr(orig_experts, "limit", 7.0)
+
+        # New experts container — preserves layer.mlp.experts.* path for shard_specs
+        # (shard_specs is built after replacement)
+        self.experts = nn.Module()
+
+        # De-interleave gate_up_proj: [g0, u0, g1, u1, ...] -> [g0, g1, ..., u0, u1, ...]
+        # Pre-reshape to [1, E, H, inter*2] for sparse_matmul (no unsqueeze in forward)
+        orig_w = orig_experts.gate_up_proj
+        gate_w = orig_w[..., ::2].contiguous()
+        up_w = orig_w[..., 1::2].contiguous()
+        self.experts.gate_up_proj = nn.Parameter(
+            torch.cat([gate_w, up_w], dim=-1).unsqueeze(0)
+        )
+
+        orig_b = orig_experts.gate_up_proj_bias
+        gate_b = orig_b[..., ::2].contiguous()
+        up_b = orig_b[..., 1::2].contiguous()
+        self.experts.gate_up_proj_bias = nn.Parameter(
+            torch.cat([gate_b, up_b], dim=-1)
+        )
+
+        # Down proj / bias — pre-reshape to [1, E, inter, H] for sparse_matmul
+        self.experts.down_proj = nn.Parameter(
+            orig_experts.down_proj.data.view(
+                1, num_experts, self.intermediate_size, hidden_size
+            )
+        )
+        self.experts.down_proj_bias = orig_experts.down_proj_bias
+
+        # Expert-to-device mapping [1, 1, E, D]
+        mapping = build_expert_mapping(num_experts, num_devices)
+        if flat_device_order is not None:
+            permuted = torch.zeros_like(mapping)
+            for d in range(num_devices):
+                permuted[:, :, :, flat_device_order[d]] = mapping[:, :, :, d]
+            mapping = permuted
+        self.register_buffer("expert_mapping", mapping)
+
+    def forward(self, hidden_states):
+        batch_size, seq_len, hidden_size = hidden_states.shape
+        K = self.num_experts_per_tok
+
+        # 1. Router
+        router_scores, router_indices = self.router(hidden_states)
+
+        # 2. Reshape for dispatch: tt-metal expects [B, 1, S, H] format
+        x = hidden_states.view(batch_size, 1, seq_len, hidden_size)
+        expert_indices = router_indices.view(batch_size, 1, seq_len, K)
+
+        # 3. Dispatch: route tokens to devices with selected experts
+        dispatched, metadata = torch.ops.tt.all_to_all_dispatch(
+            x,
+            expert_indices,
+            self.expert_mapping,
+            num_devices=self.num_devices,
+            cluster_axis=self.cluster_axis,
+        )
+        # dispatched: [1, B*D, S, H]
+        # metadata:   [1, B*D, S, K]
+
+        BD = dispatched.shape[1]
+
+        # 4. Build sparsity mask from metadata
+        metadata_indices = metadata.view(BD, seq_len, 1, K)  # [BD, S, 1, K]
+        sparsity = torch.zeros(
+            BD,
+            seq_len,
+            1,
+            self.num_experts,
+            dtype=hidden_states.dtype,
+            device=hidden_states.device,
+        )
+        sparsity.scatter_(
+            dim=-1,
+            index=metadata_indices,
+            src=torch.ones_like(metadata_indices, dtype=hidden_states.dtype),
+        )
+
+        # 5. Gate+Up projection (stacked layout)
+        hidden_4d = dispatched.view(BD, seq_len, 1, hidden_size)
+        gate_up_out = torch.ops.tt.sparse_matmul(
+            hidden_4d,
+            self.experts.gate_up_proj,
+            sparsity,
+            nnz=0,
+            is_input_a_sparse=False,
+            is_input_b_sparse=True,
+        )
+        gate_up_out = gate_up_out.view(
+            BD, seq_len, self.num_experts, self.intermediate_size * 2
+        )
+        gate_up_out = gate_up_out + self.experts.gate_up_proj_bias
+
+        # 6. Split & Activation (contiguous stacked layout)
+        gate_up_out = gate_up_out.clamp(max=self.limit)
+        gate_out = gate_up_out[..., : self.intermediate_size]
+        up_out = gate_up_out[..., self.intermediate_size :]
+
+        # gate_out = gate_out.clamp(max=self.limit)
+        up_out = up_out.clamp(min=-self.limit)
+        glu = gate_out * torch.sigmoid(gate_out * self.alpha)
+        activated = (up_out + 1) * glu
+
+        # 7. Down projection
+        activated_reshaped = activated.view(
+            BD * seq_len, self.num_experts, 1, self.intermediate_size
+        )
+        sparsity_down = sparsity.view(1, 1, BD * seq_len, self.num_experts)
+
+        down_out = torch.ops.tt.sparse_matmul(
+            activated_reshaped,
+            self.experts.down_proj,
+            sparsity_down,
+            nnz=0,
+            is_input_a_sparse=True,
+            is_input_b_sparse=False,
+        )
+        down_out = down_out.squeeze(2)
+        down_out = down_out + self.experts.down_proj_bias
+
+        # 8. Reshape for combine: [E, BD, S, H]
+        down_out = down_out.view(BD, seq_len, self.num_experts, hidden_size)
+        down_out = down_out.permute(2, 0, 1, 3)
+
+        # 9. Combine: gather expert outputs back to original positions
+        combined = torch.ops.tt.all_to_all_combine(
+            down_out,
+            metadata,
+            self.expert_mapping,
+            num_devices=self.num_devices,
+            cluster_axis=self.cluster_axis,
+            num_experts_per_tok=K,
+        )
+        # combined: [K, B, S, H]
+
+        # 10. Weighted sum
+        topk_weights = torch.gather(
+            router_scores, dim=-1, index=router_indices
+        )
+        topk_weights = topk_weights.view(batch_size, seq_len, K)
+        topk_weights = topk_weights.permute(2, 0, 1).unsqueeze(-1)
+
+        output = (combined * topk_weights).sum(dim=0)
+        output = output.view(batch_size, seq_len, hidden_size)
+
+        return output, router_scores
+
+
 def _is_moe_mlp(module: nn.Module) -> bool:
     """Check if a module is an MoE MLP that can be replaced with SparseMLP."""
     # Check for common MoE MLP patterns
