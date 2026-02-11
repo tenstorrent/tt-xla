@@ -41,7 +41,7 @@ timm
 # torchvision 0.23.0 causes torch v2.8.0 to be installed, which isn't supported by our torch_xla whl
 torchvision==0.24.0+cpu
 torchxrayvision
-transformers==4.57.1
+transformers @ git+https://github.com/huggingface/transformers.git
 
 # vgg model
 vgg_pytorch
@@ -57,7 +57,7 @@ ase==3.24.0 # For hippynn
 hippynn==0.0.3
 pycocotools # for yolox
 
-surya-ocr==0.13.0
+surya-ocr
 peft
 bi-lstm-crf==0.2.1
 yolov5
