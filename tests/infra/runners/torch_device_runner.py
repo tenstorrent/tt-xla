@@ -15,9 +15,94 @@ from torch.utils._pytree import tree_map
 from .device_runner import DeviceRunner
 
 
+def _enumerate_to_device_objects(x, depth, result_list=None, seen=None):
+    """
+    Phase 1: Recursively find and collect all objects that have a .to() method.
+
+    Args:
+        x: The data structure or object to traverse
+        depth: Maximum recursion depth
+        result_list: Mutable list to append objects to (internal use)
+        seen: Set of id(obj) to avoid duplicate entries (internal use)
+
+    Returns:
+        List of objects that need to be moved (each has .to() and is not a type).
+    """
+    if result_list is None:
+        result_list = []
+    if seen is None:
+        seen = set()
+
+    if depth <= 0:
+        if hasattr(x, "to") and not isinstance(x, type):
+            if id(x) not in seen:
+                seen.add(id(x))
+                result_list.append(x)
+        return result_list
+
+    if x is None:
+        return result_list
+    if isinstance(x, list):
+        for item in x:
+            _enumerate_to_device_objects(item, depth - 1, result_list, seen)
+        return result_list
+    if isinstance(x, tuple):
+        for item in x:
+            _enumerate_to_device_objects(item, depth - 1, result_list, seen)
+        return result_list
+    if isinstance(x, dict):
+        for v in x.values():
+            _enumerate_to_device_objects(v, depth - 1, result_list, seen)
+        return result_list
+    if hasattr(x, "to"):
+        if not isinstance(x, type) and id(x) not in seen:
+            seen.add(id(x))
+            result_list.append(x)
+        return result_list
+    if hasattr(x, "__dict__"):
+        for attr_value in x.__dict__.values():
+            _enumerate_to_device_objects(attr_value, depth - 1, result_list, seen)
+        return result_list
+    return result_list
+
+
+def _apply_device_mapping(x, mapping, depth):
+    """
+    Replace objects that are keys of mapping (by identity) with their device version.
+
+    Traverses the same structure as to_device and builds the result with replacements.
+    """
+    if depth <= 0:
+        return mapping.get(id(x), x)
+
+    if x is None:
+        return x
+    if id(x) in mapping:
+        return mapping[id(x)]
+    if isinstance(x, list):
+        return [_apply_device_mapping(item, mapping, depth - 1) for item in x]
+    if isinstance(x, tuple):
+        return tuple(_apply_device_mapping(item, mapping, depth - 1) for item in x)
+    if isinstance(x, dict):
+        return {k: _apply_device_mapping(v, mapping, depth - 1) for k, v in x.items()}
+    if hasattr(x, "__dict__"):
+        for attr_name in x.__dict__:
+            setattr(
+                x,
+                attr_name,
+                _apply_device_mapping(getattr(x, attr_name), mapping, depth - 1),
+            )
+        return x
+    return x
+
+
 def to_device(x, device, depth=5):
     """
     Recursively move data structures and objects to the specified device.
+
+    Works in two phases:
+    1. Enumerate: find all objects with a .to() method recursively, store in a list
+    2. Move: iterate over that list and perform the move, then apply results to structure
 
     This function handles:
     - Basic Python containers (list, tuple, dict)
@@ -35,34 +120,13 @@ def to_device(x, device, depth=5):
     Returns:
         The same structure with all compatible elements moved to the device
     """
-    # Stop recursion when maximum depth is reached
-    if depth <= 0:
-        # Still try to move tensors/models at the final depth level
-        if hasattr(x, "to"):
-            return x.to(device)
-        return x
-
-    if x is None:
-        return x
-    elif isinstance(x, list):
-        return [to_device(item, device, depth - 1) for item in x]
-    elif isinstance(x, tuple):
-        return tuple(to_device(item, device, depth - 1) for item in x)
-    elif isinstance(x, dict):
-        return {k: to_device(v, device, depth - 1) for k, v in x.items()}
-    elif hasattr(x, "to"):
-        if isinstance(x, type):
-            return x
-        return x.to(device)
-    # Handle objects with attributes by recursively processing all fields.
-    # This is done in-place.
-    elif hasattr(x, "__dict__"):
-        for attr_name in x.__dict__:
-            attr_value = getattr(x, attr_name)
-            setattr(x, attr_name, to_device(attr_value, device, depth - 1))
-        return x
-    else:
-        return x
+    # Phase 1: enumerate objects to be moved
+    to_move = _enumerate_to_device_objects(x, depth)
+    # Phase 2: perform the move and build id -> device_object mapping
+    mapping = {}
+    for obj in to_move:
+        mapping[id(obj)] = obj.to(device)
+    return _apply_device_mapping(x, mapping, depth)
 
 
 class TorchDeviceRunner(DeviceRunner):
