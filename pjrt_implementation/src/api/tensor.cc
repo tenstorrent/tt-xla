@@ -175,6 +175,17 @@ tt::runtime::Tensor PjrtTensor::rt_tensor_from_strategy(
     const std::vector<std::uint32_t> &mesh_shape) {
 
   if (strategy.at("strategy") == "identity") {
+
+    const bool same = std::all_of(
+        shards.begin(), shards.end(), [&](const BufferInstance *bi) {
+          return bi->runtimeTensor().handle ==
+                 shards.front()->runtimeTensor().handle;
+        });
+
+    if (!same)
+      throw std::runtime_error{"alcolic: Creating tensors from identity with "
+                               "different runtime tensors!"};
+
     return shards.front()->runtimeTensor();
   }
 
