@@ -83,7 +83,7 @@ jobs:
       id: set-perf-benchmarks
       shell: bash
       run: |
-        result=$(python .github/workflows/filter-test-matrix.py \
+        result=$(python .github/scripts/filter-test-matrix.py \
           .github/workflows/perf-bench-matrix.json \
           tt-xla \
           ${{ inputs.test_filter && format('--test-filter "{0}"', inputs.test_filter) || '' }} \
