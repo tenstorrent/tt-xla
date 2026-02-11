@@ -1,255 +1,170 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Test vLLM sampling parameters on TT device."""
+"""Test vLLM sampling parameters across single-device and multi-chip models.
+
+Targets:
+  - single_device:  facebook/opt-125m
+  - n300 (dual-chip TP):  meta-llama/Llama-3.2-3B
+  - n300_llmbox (8-chip TP):  Qwen/Qwen3-0.6B
+
+Usage examples::
+
+    @for_targets(single_device="push", n300="push", n300_llmbox="nightly")
+    @for_targets(single_device="push", n300="push")              # skip n300_llmbox
+    @for_targets(single_device="push", n300=("push", pytest.mark.xfail(reason="...")))
+"""
+
 import pytest
+import sampling_helpers as sh
 import vllm
 
+# ---------------------------------------------------------------------------
+# for_targets: maps target id -> (fixture name, base marks)
+# ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module")
-def llm():
-    """Shared LLM instance across all tests in this module."""
-    llm_args = {
-        "model": "facebook/opt-125m",
-        "max_num_batched_tokens": 128,
-        "max_num_seqs": 1,
-        "max_model_len": 128,
-        "gpu_memory_utilization": 0.001,
-        "enable_prefix_caching": False,
-        "disable_log_stats": True,
-        "enforce_eager": True,
-        "additional_config": {
-            "enable_const_eval": False,
-            "min_context_len": 32,
-        },
-    }
-    return vllm.LLM(**llm_args)
+_TARGET_MARKS = {
+    "single_device": ("vllm_single_device", [pytest.mark.single_device]),
+    "n300": ("vllm_n300", [pytest.mark.tensor_parallel, pytest.mark.dual_chip]),
+    "n300_llmbox": (
+        "vllm_n300_llmbox",
+        [pytest.mark.tensor_parallel, pytest.mark.llmbox],
+    ),
+}
+
+
+def for_targets(**kwargs):
+    """Parametrize a test across hardware targets with per-target CI tier.
+
+    Pass ``target_id="tier"`` or ``target_id=("tier", extra_mark, ...)``
+    for xfail / skip on individual targets.
+    """
+    params = []
+    for target_id, tier_or_tuple in kwargs.items():
+        if isinstance(tier_or_tuple, tuple):
+            tier, *extra_marks = tier_or_tuple
+        else:
+            tier = tier_or_tuple
+            extra_marks = []
+
+        fixture, base_marks = _TARGET_MARKS[target_id]
+        all_marks = base_marks + [getattr(pytest.mark, tier)] + extra_marks
+        params.append(pytest.param(fixture, id=target_id, marks=all_marks))
+
+    return pytest.mark.parametrize("target_llm", params, indirect=True)
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def target_llm(request):
+    """Resolve the LLM fixture by name (used with indirect parametrize)."""
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture
 def prompt():
-    """Shared prompt for tests."""
     return ["Once upon a time, there was a"]
 
 
-def assert_diverse(outputs, min_unique=2):
-    """Assert that outputs contain at least min_unique distinct values."""
-    unique = len(set(t.strip() for t in outputs))
-    assert (
-        unique >= min_unique
-    ), f"Expected >= {min_unique} unique outputs, got {unique}: {outputs}"
+@pytest.fixture(scope="module")
+def vllm_single_device():
+    return vllm.LLM(
+        model="facebook/opt-125m",
+        max_num_batched_tokens=128,
+        max_num_seqs=1,
+        max_model_len=128,
+        gpu_memory_utilization=0.001,
+        enable_prefix_caching=False,
+        disable_log_stats=True,
+        enforce_eager=True,
+        additional_config={
+            "enable_const_eval": False,
+            "min_context_len": 32,
+        },
+    )
+
+
+@pytest.fixture(scope="module")
+def vllm_n300():
+    return vllm.LLM(
+        model="meta-llama/Llama-3.2-3B",
+        max_num_batched_tokens=128,
+        max_num_seqs=1,
+        max_model_len=128,
+        gpu_memory_utilization=0.002,
+        additional_config={
+            "enable_const_eval": False,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+        },
+    )
+
+
+@pytest.fixture(scope="module")
+def vllm_n300_llmbox():
+    return vllm.LLM(
+        model="Qwen/Qwen3-0.6B",
+        max_num_batched_tokens=128,
+        max_num_seqs=1,
+        max_model_len=128,
+        gpu_memory_utilization=0.002,
+        additional_config={
+            "enable_const_eval": False,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
-# Nightly: parametrized sweep per sampling parameter, asserting non-empty
-# outputs + diversity across each sweep.
+# Tests
 # ---------------------------------------------------------------------------
 
-SAMPLING_PARAM_SWEEPS = [
-    ("temperature", [0.5, 0.8, 1.0, 1.5]),
-    ("top_p", [0.3, 0.5, 0.8, 0.9, 1.0]),
-    ("top_k", [5, 10, 50, 100, -1]),
-    ("min_p", [0.0, 0.05, 0.1, 0.2]),
-    ("presence_penalty", [0.0, 0.5, 1.0, 2.0]),
-    ("frequency_penalty", [0.0, 0.5, 1.0, 2.0]),
-    ("repetition_penalty", [1.0, 1.2, 1.5, 2.0]),
-]
+
+@for_targets(single_device="push", n300="push", n300_llmbox="push")
+def test_greedy_determinism(target_llm, prompt):
+    sh.run_greedy_determinism(target_llm, prompt)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
+@for_targets(single_device="push", n300="push", n300_llmbox="push")
+def test_diversity(target_llm, prompt):
+    sh.run_diversity_check(target_llm, prompt)
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 @pytest.mark.parametrize(
     "param_name,values",
-    SAMPLING_PARAM_SWEEPS,
-    ids=[s[0] for s in SAMPLING_PARAM_SWEEPS],
+    sh.SAMPLING_PARAM_SWEEPS,
+    ids=[s[0] for s in sh.SAMPLING_PARAM_SWEEPS],
 )
-def test_sampling_param_sweep(llm, prompt, param_name, values):
-    """Sweep a single sampling parameter and assert diverse, non-empty outputs."""
-    outputs = []
-    for val in values:
-        kwargs = {param_name: val}
-        if param_name != "temperature":
-            kwargs["temperature"] = 0.8
-        params = vllm.SamplingParams(max_tokens=16, **kwargs)
-        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
-        outputs.append(output)
-        print(
-            f"[TESTOUT test_sampling_param_sweep] {param_name}={val}: {output[:50]}..."
-        )
-
-    assert all(len(o) > 0 for o in outputs), "All outputs should be non-empty"
-    assert_diverse(outputs)
+def test_param_sweep(target_llm, prompt, param_name, values):
+    sh.run_sampling_param_sweep(target_llm, prompt, param_name, values)
 
 
-# ---------------------------------------------------------------------------
-# Push: canary tests that catch fundamental sampling regressions on every PR.
-# ---------------------------------------------------------------------------
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_combined(target_llm, prompt):
+    sh.run_combined_sampling(target_llm, prompt)
 
 
-@pytest.mark.push
-@pytest.mark.single_device
-def test_sampling_has_diversity_when_temp_positive(llm, prompt):
-    """Test that n>1 with temperature>0 produces diverse outputs in a single call."""
-    params = vllm.SamplingParams(
-        temperature=1.0,
-        top_p=1.0,
-        n=8,
-        max_tokens=16,
-    )
-    # IMPORTANT: llm must allow max_num_seqs >= n
-    outputs = llm.generate(prompt, params, use_tqdm=False)[0].outputs
-    texts = [o.text for o in outputs]
-
-    for i, t in enumerate(texts):
-        print(f"[TESTOUT test_sampling_has_diversity_when_temp_positive] {i}: {t!r}")
-
-    assert_diverse(texts)
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_stop_sequences(target_llm, prompt):
+    sh.run_stop_sequences(target_llm, prompt)
 
 
-@pytest.mark.push
-@pytest.mark.single_device
-def test_greedy_determinism(llm, prompt):
-    """Verify greedy sampling (temperature=0) is deterministic."""
-    params = vllm.SamplingParams(temperature=0.0, max_tokens=20)
-
-    outputs = []
-    for i in range(3):
-        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
-        outputs.append(output)
-        print(f"[TESTOUT test_greedy_determinism] Run {i+1}: {output}")
-
-    assert (
-        outputs[0] == outputs[1] == outputs[2]
-    ), "Greedy sampling must be deterministic"
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_logprobs(target_llm, prompt):
+    sh.run_logprobs(target_llm, prompt)
 
 
-# ---------------------------------------------------------------------------
-# Nightly: thorough coverage of specific sampling features.
-# ---------------------------------------------------------------------------
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_output_length_controls(target_llm, prompt):
+    sh.run_output_length_controls(target_llm, prompt)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
-def test_combined_sampling(llm, prompt):
-    """Test realistic combinations of sampling parameters."""
-    configs = [
-        ("greedy", {"temperature": 0.0}),
-        ("creative", {"temperature": 1.0, "top_p": 0.9, "top_k": 50}),
-        ("conservative", {"temperature": 0.3, "top_p": 0.95, "top_k": 100}),
-        ("focused", {"temperature": 0.7, "top_p": 0.9, "min_p": 0.05}),
-    ]
-
-    outputs = []
-    for name, config in configs:
-        params = vllm.SamplingParams(max_tokens=16, **config)
-        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
-        outputs.append(output)
-        print(f"[TESTOUT test_combined_sampling] {name}: {output[:50]}...")
-        assert len(output) > 0, f"{name} should produce output"
-
-    assert_diverse(outputs)
-
-
-@pytest.mark.nightly
-@pytest.mark.single_device
-def test_stop_sequences(llm, prompt):
-    """Test early stopping with stop strings."""
-    stop_configs = [
-        (None, "no stop"),
-        (["\n"], "stop at newline"),
-        ([".", "!"], "stop at punctuation"),
-    ]
-
-    outputs = []
-    for stop, desc in stop_configs:
-        params = vllm.SamplingParams(temperature=0.8, stop=stop, max_tokens=32)
-        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
-        outputs.append(output)
-        print(f"[TESTOUT test_stop_sequences] {desc}: {output[:50]}...")
-        assert len(output) > 0, f"{desc} should produce output"
-
-        # Verify stop strings are not present in output (vLLM strips them by default)
-        if stop:
-            for s in stop:
-                assert s not in output, f"Output should not contain stop string {s!r}"
-
-    assert_diverse(outputs)
-
-
-@pytest.mark.nightly
-@pytest.mark.single_device
-def test_logprobs(llm, prompt):
-    """Test requesting log probabilities."""
-    logprobs_values = [None, 1, 5]
-
-    for logprobs in logprobs_values:
-        params = vllm.SamplingParams(temperature=0.8, logprobs=logprobs, max_tokens=8)
-        result = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
-
-        print(
-            f"[TESTOUT test_logprobs] logprobs={logprobs}: {result.text[:30]}..."
-            f" has_logprobs={result.logprobs is not None}"
-        )
-        assert len(result.text) > 0, "Should produce output"
-
-        if logprobs is not None:
-            assert (
-                result.logprobs is not None
-            ), f"Should have logprobs when logprobs={logprobs}"
-            assert len(result.logprobs) > 0, "Should have logprob entries"
-
-
-@pytest.mark.nightly
-@pytest.mark.single_device
-def test_output_length_controls(llm, prompt):
-    """Test min_tokens and max_tokens parameters."""
-    configs = [
-        ({"max_tokens": 5}, "short"),
-        ({"max_tokens": 20}, "medium"),
-        ({"min_tokens": 10, "max_tokens": 20}, "with minimum"),
-    ]
-
-    results = []
-    for config, desc in configs:
-        params = vllm.SamplingParams(temperature=0.0, **config)
-        result = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
-        n_tokens = len(result.token_ids)
-        results.append((config, desc, result, n_tokens))
-
-        print(
-            f"[TESTOUT test_output_length_controls] {desc}"
-            f" (max={config.get('max_tokens')}): {n_tokens} tokens,"
-            f" {result.text[:40]}..."
-        )
-        assert len(result.text) > 0, f"{desc} should produce output"
-        assert (
-            n_tokens <= config["max_tokens"]
-        ), f"{desc}: generated {n_tokens} tokens, exceeds max_tokens={config['max_tokens']}"
-
-    # Short output should have fewer tokens than medium
-    assert (
-        results[0][3] <= results[1][3]
-    ), f"short ({results[0][3]} tokens) should be <= medium ({results[1][3]} tokens)"
-
-
-@pytest.mark.nightly
-@pytest.mark.single_device
-def test_parameter_boundary_values(llm, prompt):
-    """Test boundary and edge case values don't crash."""
-    test_cases = [
-        vllm.SamplingParams(temperature=0.0, max_tokens=16),  # Min temperature
-        vllm.SamplingParams(temperature=2.0, max_tokens=16),  # High temperature
-        vllm.SamplingParams(
-            temperature=0.8, top_p=0.01, max_tokens=16
-        ),  # Very low top_p
-        vllm.SamplingParams(temperature=0.8, top_k=1, max_tokens=16),  # Minimal top_k
-        vllm.SamplingParams(temperature=0.8, min_p=0.5, max_tokens=16),  # High min_p
-    ]
-
-    for i, params in enumerate(test_cases):
-        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
-        print(
-            f"[TESTOUT test_parameter_boundary_values] Test {i+1}:"
-            f" {str(params)[:60]}... -> {output[:40]}..."
-        )
-        assert len(output) > 0, f"Boundary test {i+1} should produce output"
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_boundary_values(target_llm, prompt):
+    sh.run_parameter_boundary_values(target_llm, prompt)
