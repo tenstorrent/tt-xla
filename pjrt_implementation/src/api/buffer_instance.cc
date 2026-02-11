@@ -332,7 +332,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       e->markAsReady(tt_pjrt_status::kSuccess);
 
     } catch (const std::exception &error) {
-      DLOG_F(ERROR, "Copy to host buffer failed with error: %s", error.what());
+      LOG_F(ERROR, "Copy to host buffer failed with error: %s", error.what());
       e->markAsReady(tt_pjrt_status::kInternal);
     }
   });
@@ -362,7 +362,7 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
   // PJRT API specification requires returning error in case of copying to same
   // device/memory space.
   if (getMemory() == dst_memory || getDevice() == dst_device) {
-    DLOG_F(ERROR, "Cannot copy buffer to the same memory or device");
+    LOG_F(ERROR, "Cannot copy buffer to the same memory or device");
     return tt_pjrt_status::kInvalidArgument;
   }
 
@@ -380,7 +380,7 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
 
 tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
   if (m_data_ready_event) {
-    DLOG_F(ERROR, "Buffer marked as data ready multiple times");
+    LOG_F(ERROR, "Buffer marked as data ready multiple times");
     return tt_pjrt_status::kInternal;
   }
 
@@ -523,7 +523,7 @@ PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
   // Copying into to host memory is undefined, since it's not clear
   // when we should use it, since PJRT_Buffer_ToHostBuffer is used for this.
   if (dst_memory->isHostMemory()) {
-    DLOG_F(ERROR, "Copying buffer to host memory is not supported");
+    LOG_F(ERROR, "Copying buffer to host memory is not supported");
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 

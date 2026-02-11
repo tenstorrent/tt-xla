@@ -5,7 +5,7 @@ name: Nighty Uplift
 
 on:
   schedule:
-    - cron: '0 6 * * *'  # Runs at 06:00 UTC every day
+    - cron: '0 3 * * *'  # Runs at 03:00 UTC every day
   workflow_dispatch:  # Manual trigger
     inputs:
       force-overwrite:

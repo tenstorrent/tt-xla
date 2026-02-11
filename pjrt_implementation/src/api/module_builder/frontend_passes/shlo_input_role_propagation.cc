@@ -301,7 +301,7 @@ tt_pjrt_status annotateArgumentAttributesFromCustomCall(
 
   if (failed(mlir::applyPatternsGreedily(mlir_module.get(),
                                          std::move(patterns)))) {
-    DLOG_F(ERROR, "Failed to uplift mark parameters custom call");
+    LOG_F(ERROR, "Failed to uplift mark parameters custom call");
     return tt_pjrt_status::kInternal;
   }
 
