@@ -2208,7 +2208,7 @@ test_config:
 
   transfuser/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Input tensor data type for ttnn.sort must be BFLOAT16 or UINT16, got DataType::FLOAT32 (https://github.com/tenstorrent/tt-xla/issues/3089)"
+    # reason: "Input tensor data type for ttnn.sort must be BFLOAT16 or UINT16, got DataType::FLOAT32 (https://github.com/tenstorrent/tt-xla/issues/3089)"
 
   issac_groot/pytorch-GR00T_n1.5-3b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
