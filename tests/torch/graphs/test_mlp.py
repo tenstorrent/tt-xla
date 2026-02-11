@@ -492,13 +492,15 @@ def test_gpt_oss_mlp(variant, variant_config, mlp_type, arch):
         from tt_torch.sparse_mlp import A2aSparseMLP
 
         original_mlp = model.model.layers[0].mlp
+        flat_device_order = [0, 1, 2, 3, 7, 6, 5, 4]  # T3K snake order for (2,4) → (1,8) flatten
         model.model.layers[0].mlp = A2aSparseMLP(
             original_mlp,
             num_experts=config.num_local_experts,
             num_experts_per_tok=config.num_experts_per_tok,
             num_devices=8,
-            cluster_axis=1,
+            cluster_axis=-1,
             config=config,
+            flat_device_order=flat_device_order,
         )
 
     mlp = model.model.layers[0].mlp
@@ -513,7 +515,7 @@ def test_gpt_oss_mlp(variant, variant_config, mlp_type, arch):
 
         if mlp_type == "a2a_sparse":
             # A2aSparseMLP: (1, 8) mesh, E sharded on "batch" axis (8-way EP)
-            mesh_shape = (1, num_devices)
+            mesh_shape = (2, 4)
             device_ids = np.array(range(num_devices))
             mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
 
@@ -522,10 +524,10 @@ def test_gpt_oss_mlp(variant, variant_config, mlp_type, arch):
                 shard_specs[mlp.router.weight] = (None, "batch")
 
                 # weights [E, H, inter*2], E on "batch" (8-way EP, no TP)
-                shard_specs[mlp.experts.gate_up_proj] = ("batch", None, None)
-                shard_specs[mlp.experts.gate_up_proj_bias] = ("batch", None)
-                shard_specs[mlp.experts.down_proj] = ("batch", None, None)
-                shard_specs[mlp.experts.down_proj_bias] = ("batch", None)
+                shard_specs[mlp.experts.gate_up_proj] = (("model", "batch"), None, None)
+                shard_specs[mlp.experts.gate_up_proj_bias] = (("model", "batch"), None)
+                shard_specs[mlp.experts.down_proj] = (("model", "batch"), None, None)
+                shard_specs[mlp.experts.down_proj_bias] = (("model", "batch"), None)
 
                 return shard_specs
 
@@ -572,7 +574,7 @@ def test_sparse_mlp_cpu_parity(variant, variant_config):
     """Verify SparseMLP produces the same results as the original MLP on CPU."""
     from tt_torch.sparse_mlp import SparseMLP
 
-    loader = GPTOSSModelLoader(variant=variant, num_layers=11)
+    loader = GPTOSSModelLoader(variant=variant, num_layers=1)
     model = loader.load_model()
     config = loader.load_config()
     inputs = loader.load_inputs()
@@ -696,10 +698,11 @@ def test_a2a_sparse_mlp(variant, variant_config, arch):
 @pytest.mark.nightly
 @parametrize_arch(["llmbox"])
 def test_all_to_all_dispatch_op(arch):
-    """Unit test for all_to_all_dispatch + sparse_matmul + combine on (2,4) mesh.
+    """Unit test for full MoE forward (dispatch + gate_up/down sparse_matmul + activation + combine) on (2,4) mesh.
 
     Tests dispatch/combine with EP compound-sharded weights across all 8 devices.
-    weight [E, H, H] is sharded on E across ("model", "batch") axes (8-way EP).
+    gate_up_proj [E, H, inter*2] and down_proj [E, inter, H] are sharded on E
+    across ("model", "batch") axes (8-way EP).
     cluster_axis=-1 enables all-device routing via mesh flatten.
     """
     from tt_torch.sparse_mlp import build_expert_mapping
@@ -716,6 +719,8 @@ def test_all_to_all_dispatch_op(arch):
     num_devices = 8
     cluster_axis = -1  # all devices (mesh flatten for 2D mesh)
 
+    intermediate_size = 7680  # GPT-OSS 20B intermediate size
+
     class DispatchSparseMatmulCombineModule(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -727,14 +732,34 @@ def test_all_to_all_dispatch_op(arch):
             for d in range(num_devices):
                 permuted_mapping[:, :, :, flat_device_order[d]] = mapping[:, :, :, d]
             self.register_buffer("expert_mapping", permuted_mapping)
-            # Single weight: [E, H, H]
-            self.weight = torch.nn.Parameter(
+
+            self.alpha = 1.702
+            self.limit = 7.0
+
+            # gate_up_proj: [E, H, inter*2] (interleaved gate+up)
+            self.gate_up_proj = torch.nn.Parameter(
                 torch.randn(
                     num_experts,
                     hidden_size,
+                    intermediate_size * 2,
+                    dtype=torch.bfloat16,
+                )
+            )
+            # down_proj: [E, inter, H]
+            self.down_proj = torch.nn.Parameter(
+                torch.randn(
+                    num_experts,
+                    intermediate_size,
                     hidden_size,
                     dtype=torch.bfloat16,
                 )
+            )
+            # Biases
+            self.gate_up_proj_bias = torch.nn.Parameter(
+                torch.randn(num_experts, intermediate_size * 2, dtype=torch.bfloat16)
+            )
+            self.down_proj_bias = torch.nn.Parameter(
+                torch.randn(num_experts, hidden_size, dtype=torch.bfloat16)
             )
 
         def forward(self, hidden_states, expert_indices):
@@ -773,21 +798,54 @@ def test_all_to_all_dispatch_op(arch):
                 src=torch.ones_like(topk_indices_unsqueezed, dtype=hidden_states.dtype),
             )
 
-            # 3. sparse_matmul
+            # 3. Gate_up sparse_matmul
             hidden_4d = dispatched.view(BD, S, 1, H)
-            weight_4d = self.weight.unsqueeze(0)  # [1, E, H, H]
-            out = torch.ops.tt.sparse_matmul(
+            gate_up_proj = self.gate_up_proj.unsqueeze(0)  # [1, E, H, inter*2]
+            gate_up_out = torch.ops.tt.sparse_matmul(
                 hidden_4d,
-                weight_4d,
+                gate_up_proj,
                 sparsity,
                 nnz=0,
                 is_input_a_sparse=False,
                 is_input_b_sparse=True,
             )
-            out = out.view(BD, S, num_experts, H)
-            out = out.permute(2, 0, 1, 3)  # [E, BD, S, H]
+            # [BD, S, 1, E, 1, inter*2] → [BD, S, E, inter*2]
+            gate_up_out = gate_up_out.view(BD, S, num_experts, intermediate_size * 2)
+            gate_up_out = gate_up_out + self.gate_up_proj_bias
 
-            # 4. Combine
+            # 4. Activation (interleaved split + clamped SiGLU)
+            gate_out = gate_up_out[..., ::2]   # [BD, S, E, inter]
+            up_out = gate_up_out[..., 1::2]    # [BD, S, E, inter]
+            gate_out = gate_out.clamp(max=self.limit)
+            up_out = up_out.clamp(-self.limit, self.limit)
+            glu = gate_out * torch.sigmoid(gate_out * self.alpha)
+            activated = (up_out + 1) * glu  # [BD, S, E, inter]
+
+            # 5. Down sparse_matmul
+            activated_reshaped = activated.view(
+                BD * S, num_experts, 1, intermediate_size
+            )
+            sparsity_down = sparsity.view(1, 1, BD * S, num_experts)
+            down_proj = self.down_proj.view(
+                1, num_experts, intermediate_size, hidden_size
+            )
+            down_out = torch.ops.tt.sparse_matmul(
+                activated_reshaped,
+                down_proj,
+                sparsity_down,
+                nnz=0,
+                is_input_a_sparse=True,
+                is_input_b_sparse=False,
+            )
+            # [BD*S, E, 1, H] → [BD*S, E, H]
+            down_out = down_out.squeeze(2)
+            down_out = down_out + self.down_proj_bias
+
+            # 6. Reshape for combine: [E, BD, S, H]
+            down_out = down_out.view(BD, S, num_experts, H)
+            out = down_out.permute(2, 0, 1, 3).contiguous()  # [E, BD, S, H]
+
+            # 7. Combine
             combined = torch.ops.tt.all_to_all_combine(
                 out,
                 metadata,
@@ -824,13 +882,17 @@ def test_all_to_all_dispatch_op(arch):
     def get_shard_spec(module, args, kwargs):
         shard_specs = {}
         shard_specs[args[0]] = (None, None, "batch")
-        # weight [E, H, H] — EP compound-sharded on E across both mesh axes
-        shard_specs[module.weight] = (("model", "batch"), None, None)
+        # EP compound-sharded on E across both mesh axes
+        shard_specs[module.gate_up_proj] = (("model", "batch"), None, None)
+        shard_specs[module.gate_up_proj_bias] = (("model", "batch"), None)
+        shard_specs[module.down_proj] = (("model", "batch"), None, None)
+        shard_specs[module.down_proj_bias] = (("model", "batch"), None)
         return shard_specs
-
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=1.0))
     run_graph_test(
         module,
         [hidden_states, expert_indices],
+        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -850,7 +912,7 @@ def test_a2a_sparse_mlp_cpu_parity(variant, variant_config, num_devices):
     Tests with num_devices=1 (no E0/E1 reshape) and num_devices>1 (E0/E1 reshape active).
     On CPU, dispatch/combine are no-ops regardless of num_devices, so outputs should match.
     """
-    from tt_torch.sparse_mlp import A2aSparseMLP
+    from tt_torch.sparse_mlp import A2aSparseStackedMlp
 
     loader = GPTOSSModelLoader(variant=variant, num_layers=1)
     model = loader.load_model()
@@ -875,7 +937,7 @@ def test_a2a_sparse_mlp_cpu_parity(variant, variant_config, num_devices):
     with torch.no_grad():
         original_out, original_scores = original_mlp(hidden_states)
 
-    a2a_mlp = A2aSparseMLP(
+    a2a_mlp = A2aSparseStackedMlp(
         original_mlp,
         num_experts=config.num_local_experts,
         num_experts_per_tok=config.num_experts_per_tok,
