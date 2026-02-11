@@ -2671,7 +2671,7 @@ test_config:
 
   vocoder_speecht5/pytorch-hifigan-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false # PCC < 0.1, tracking issue https://github.com/tenstorrent/tt-xla/issues/3064
+    # assert_pcc: false # PCC < 0.1, tracking issue https://github.com/tenstorrent/tt-xla/issues/3064
 
   ssd512/object_detection/pytorch-ssd512-single_device-inference:
     status: EXPECTED_PASSING
