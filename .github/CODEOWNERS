@@ -13,6 +13,9 @@
 # CI
 /.github/ @vmilosevic @kmabeeTT @nsumrakTT @vvukomanTT
 
+# Examples
+/examples/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @acicovicTT
+
 # Tests
 /tests/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @acicovicTT
 /tests/infra/utilities/failing_reasons/ @mrakitaTT @ajakovljevicTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @vbrkicTT @vobojevicTT @kmilanovicTT @nvukobratTT @dgolubovicTT @acicovicTT
