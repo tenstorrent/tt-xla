@@ -6,6 +6,10 @@ import torch
 import torch.nn as nn
 from diffusers.models.transformers import transformer_z_image
 from diffusers.pipelines.z_image.pipeline_z_image import calculate_shift
+from transformers.masking_utils import (
+    create_causal_mask,
+    create_sliding_window_causal_mask,
+)
 
 
 def patch_rope_real_valued():
@@ -140,6 +144,61 @@ def patch_rope_real_valued():
     print("Patched Z-Image RoPE to use real-valued arithmetic (no complex64)")
 
 
+class TextEncoderModule(nn.Module):
+    """Wraps Qwen3 to run layers 0..N-2 directly, avoiding the
+    hook-based output_hidden_states mechanism that breaks torch.compile.
+
+    Returns the output of the second-to-last decoder layer, which is
+    equivalent to text_encoder(..., output_hidden_states=True).hidden_states[-2].
+    """
+
+    def __init__(self, text_encoder):
+        super().__init__()
+        self.embed_tokens = text_encoder.embed_tokens
+        self.rotary_emb = text_encoder.rotary_emb
+        num_layers = text_encoder.config.num_hidden_layers
+        self.layers = text_encoder.layers[: num_layers - 1]
+        self.config = text_encoder.config
+        self.has_sliding_layers = text_encoder.has_sliding_layers
+
+    def forward(self, input_ids, attention_mask):
+        inputs_embeds = self.embed_tokens(input_ids)
+
+        cache_position = torch.arange(
+            inputs_embeds.shape[1], device=inputs_embeds.device
+        )
+        position_ids = cache_position.unsqueeze(0)
+
+        mask_kwargs = {
+            "config": self.config,
+            "input_embeds": inputs_embeds,
+            "attention_mask": attention_mask,
+            "cache_position": cache_position,
+            "past_key_values": None,
+            "position_ids": position_ids,
+        }
+        causal_mask_mapping = {
+            "full_attention": create_causal_mask(**mask_kwargs),
+        }
+        if self.has_sliding_layers:
+            causal_mask_mapping["sliding_attention"] = (
+                create_sliding_window_causal_mask(**mask_kwargs)
+            )
+
+        hidden_states = inputs_embeds
+        position_embeddings = self.rotary_emb(hidden_states, position_ids)
+
+        for decoder_layer in self.layers:
+            hidden_states = decoder_layer(
+                hidden_states,
+                attention_mask=causal_mask_mapping[decoder_layer.attention_type],
+                position_embeddings=position_embeddings,
+                position_ids=position_ids,
+            )
+
+        return hidden_states
+
+
 class ZImageModule(nn.Module):
     """Wraps the full Z-Image pipeline into a single nn.Module.
 
@@ -153,7 +212,7 @@ class ZImageModule(nn.Module):
 
     def __init__(self, pipe):
         super().__init__()
-        self.text_encoder = pipe.text_encoder
+        self.text_encoder_module = TextEncoderModule(pipe.text_encoder)
         self.transformer = pipe.transformer
         self.vae = pipe.vae
         self.tokenizer = pipe.tokenizer
@@ -164,8 +223,11 @@ class ZImageModule(nn.Module):
 
         # Patch RoPE to avoid complex64 (not supported by XLA/PJRT)
         patch_rope_real_valued()
-        # Clear any cached complex64 freqs_cis so the patched version recomputes
-        self.transformer.rope_embedder.freqs_cis = None
+        # Eagerly precompute RoPE tables so they exist before compilation
+        rope = self.transformer.rope_embedder
+        rope.freqs_cis = rope.precompute_freqs_cis(
+            rope.axes_dims, rope.axes_lens, theta=rope.theta
+        )
 
     def encode_prompt(self, prompt):
         """Encode a single prompt string, matching pipeline's _encode_prompt exactly."""
@@ -185,13 +247,16 @@ class ZImageModule(nn.Module):
         input_ids = tokens.input_ids
         attention_mask = tokens.attention_mask.bool()
 
-        prompt_embeds = self.text_encoder(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            output_hidden_states=True,
-        ).hidden_states[-2]
+        # Run text encoder on its device (CPU or TT)
+        te_device = next(self.text_encoder_module.parameters()).device
+        prompt_embeds = self.text_encoder_module(
+            input_ids.to(te_device),
+            attention_mask.to(te_device),
+        )
 
-        # Filter padding: return list of variable-length tensors (one per batch item)
+        # Filter padding on CPU (variable-length output, can't be compiled)
+        prompt_embeds = prompt_embeds.cpu()
+        attention_mask = attention_mask.cpu()
         return [prompt_embeds[i][attention_mask[i]] for i in range(len(prompt_embeds))]
 
     @property
@@ -221,7 +286,7 @@ class ZImageModule(nn.Module):
         """
         device = self.device
 
-        # 1. Encode prompts (always on CPU — tokenizer + hidden_states not traceable)
+        # 1. Encode prompts (tokenizer on CPU, text encoder on its device)
         prompt_embeds = self.encode_prompt(positive_prompt)
         negative_prompt_embeds = self.encode_prompt(negative_prompt)
 
@@ -239,6 +304,11 @@ class ZImageModule(nn.Module):
         timesteps = self.scheduler.timesteps
 
         do_cfg = guidance_scale > 1
+
+        # Ensure RoPE tables are on the transformer's device
+        rope = self.transformer.rope_embedder
+        if rope.freqs_cis is not None and rope.freqs_cis[0][0].device != device:
+            rope.freqs_cis = [(c.to(device), s.to(device)) for c, s in rope.freqs_cis]
 
         # 3. Denoising loop
         for i, t in enumerate(timesteps):
