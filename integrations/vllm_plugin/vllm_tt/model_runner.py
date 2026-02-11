@@ -93,8 +93,9 @@ from .attention import (
     get_page_size_bytes,
 )
 from .logger import tt_init_logger
+from .overrides import replace_modules
 from .platform import TTConfig
-from .vllm_distributed_utils import replace_rmsnorm_modules, shard_model
+from .vllm_distributed_utils import shard_model
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -1444,7 +1445,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 model = model_loader.load_model(
                     vllm_config=self.vllm_config, model_config=self.model_config
                 ).eval()
-                replace_rmsnorm_modules(model)
+                replace_modules(model)
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
