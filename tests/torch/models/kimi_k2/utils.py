@@ -215,6 +215,17 @@ class MLACache(Cache):
             offload_only_non_sliding=offload_only_non_sliding,
         )
 
+    def get_usable_length(self, new_seq_length: int, layer_idx: int = 0) -> int:
+        """Return usable cache length for static cache.
+
+        Static caches are pre-allocated to max_cache_len, so the attention
+        always attends to max_cache_len positions. Return max - new so that
+        past_key_values_length + seq_length == max_cache_len.
+        """
+        if layer_idx < len(self.layers):
+            return self.layers[layer_idx].get_max_cache_shape() - new_seq_length
+        return 0
+
     def to_legacy_cache(self) -> tuple[tuple[torch.Tensor]]:
         """Converts the `MLACache` instance into its equivalent in the legacy cache format."""
         legacy_cache = ()
