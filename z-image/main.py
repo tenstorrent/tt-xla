@@ -156,10 +156,12 @@ def run_on_tt():
     model.eval()
     print("\t\tModel loaded")
 
-    # Compile transformer for TT and move to device
+    # Compile and move to TT device
     model.transformer.compile(backend="tt")
-    device = xm.xla_device()
+    model.text_encoder_module.compile(backend="tt")
+    device = torch_xla.device()
     model.transformer = model.transformer.to(device)
+    model.text_encoder_module = model.text_encoder_module.to(device)
 
     positive_prompt, negative_prompt = get_input_prompts()
     latents = get_input_latents(pipe)
@@ -187,7 +189,10 @@ def run_on_tt():
 
 
 def bitwise_compare(a, b):
-    if type(a) == PIL.Image.Image and type(b) == PIL.Image.Image:
+    if (
+        type(a) == PIL.PngImagePlugin.PngImageFile
+        and type(b) == PIL.PngImagePlugin.PngImageFile
+    ):
         return a == b
     elif type(a) == torch.Tensor and type(b) == torch.Tensor:
         return torch.equal(a, b)
@@ -198,9 +203,10 @@ def bitwise_compare(a, b):
 def main():
     out_golden = run_on_cpu_pipeline()
     out_cpu = run_on_cpu_manual()
-    out_tt = run_on_tt()
 
     print(f"Golden vs CPU: {bitwise_compare(out_golden, out_cpu)}")
+
+    out_tt = run_on_tt()
 
 
 if __name__ == "__main__":
