@@ -21,7 +21,16 @@ from infra.utilities import (
     random_tensor,
 )
 from infra.workloads import Workload
-from transformers.modeling_flax_utils import FlaxPreTrainedModel
+
+try:
+    from transformers.modeling_flax_utils import FlaxPreTrainedModel
+except ImportError:
+
+    class FlaxPreTrainedModel:
+        """Dummy placeholder when transformers lacks Flax support."""
+
+        pass
+
 
 from tests.infra.testers.compiler_config import CompilerConfig
 

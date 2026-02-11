@@ -13,7 +13,16 @@ from flax import linen, nnx
 from jaxtyping import PyTree as jax_pytree
 from torch.utils._pytree import PyTree as torch_pytree
 from torch_xla.distributed.spmd import Mesh
-from transformers import FlaxPreTrainedModel
+
+try:
+    from transformers import FlaxPreTrainedModel
+except ImportError:
+
+    class FlaxPreTrainedModel:
+        """Dummy placeholder when transformers lacks Flax support."""
+
+        pass
+
 
 # Convenience alias. Used to jointly represent tensors from different frameworks.
 Tensor = Union[jax.Array, torch.Tensor]

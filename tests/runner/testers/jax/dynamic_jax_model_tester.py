@@ -11,7 +11,16 @@ from flax import linen
 from infra.evaluators import ComparisonConfig
 from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import JaxModelTester, RunMode
-from transformers import FlaxPreTrainedModel
+
+try:
+    from transformers import FlaxPreTrainedModel
+except ImportError:
+
+    class FlaxPreTrainedModel:
+        """Dummy placeholder when transformers lacks Flax support."""
+
+        pass
+
 
 from tests.runner.utils import JaxDynamicLoader
 
