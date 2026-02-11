@@ -89,8 +89,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInf
     add_definitions(-DLOGURU_DEBUG_LOGGING=1)
 endif()
 
-add_subdirectory(pjrt_implementation/src)
 add_subdirectory(third_party)
+add_subdirectory(pjrt_implementation/src)
 add_subdirectory(docs)
 add_subdirectory(python_package)
 
