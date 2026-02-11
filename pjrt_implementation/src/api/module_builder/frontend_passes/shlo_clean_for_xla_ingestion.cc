@@ -359,8 +359,8 @@ void simplifyMainFuncOp(mlir::func::FuncOp funcOp) {
 
 } // namespace internal
 
-tt_pjrt_status cleanForXlaIngestion(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+tt_pjrt_status
+cleanForXlaIngestion(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   mlir::ModuleOp module = mlir_module.get();
 
   std::vector<mlir::sdy::ManualComputationOp> manualComputationOps;
