@@ -99,3 +99,44 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on n300-llmbox"
     bringup_status: FAILED_RUNTIME
+
+  # ============================================================================
+  # Llama 3.1 8B Prefill — Extended sharding configs (mesh shape × strategy × input sharding)
+  # These expand the multi-chip test matrix beyond the default FSDP (1,N) setup.
+  # ============================================================================
+
+  # --- FSDP (1,8) — explicit FSDP strategy, same mesh as default tensor_parallel ---
+  llama/causal_lm/pytorch-llama_3_1_8b-llm_prefill-seq_128-batch_1-fsdp_1x8-inference:
+    supported_archs: ["n300-llmbox"]
+    status: UNSPECIFIED
+
+  llama/causal_lm/pytorch-llama_3_1_8b-llm_prefill-seq_128-batch_1-fsdp_1x8_dp-inference:
+    supported_archs: ["n300-llmbox"]
+    status: UNSPECIFIED
+
+  # --- Megatron (1,8) — model-axis-only sharding ---
+  llama/causal_lm/pytorch-llama_3_1_8b-llm_prefill-seq_128-batch_1-megatron_1x8-inference:
+    supported_archs: ["n300-llmbox"]
+    status: UNSPECIFIED
+
+  llama/causal_lm/pytorch-llama_3_1_8b-llm_prefill-seq_128-batch_1-megatron_1x8_dp-inference:
+    supported_archs: ["n300-llmbox"]
+    status: UNSPECIFIED
+
+  # --- FSDP (2,4) — both-axis sharding with 2×4 mesh ---
+  llama/causal_lm/pytorch-llama_3_1_8b-llm_prefill-seq_128-batch_1-fsdp_2x4-inference:
+    supported_archs: ["n300-llmbox"]
+    status: UNSPECIFIED
+
+  llama/causal_lm/pytorch-llama_3_1_8b-llm_prefill-seq_128-batch_1-fsdp_2x4_dp-inference:
+    supported_archs: ["n300-llmbox"]
+    status: UNSPECIFIED
+
+  # --- Megatron (2,4) — model-axis-only sharding with 2×4 mesh ---
+  llama/causal_lm/pytorch-llama_3_1_8b-llm_prefill-seq_128-batch_1-megatron_2x4-inference:
+    supported_archs: ["n300-llmbox"]
+    status: UNSPECIFIED
+
+  llama/causal_lm/pytorch-llama_3_1_8b-llm_prefill-seq_128-batch_1-megatron_2x4_dp-inference:
+    supported_archs: ["n300-llmbox"]
+    status: UNSPECIFIED

@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import inspect
 import os
 import shutil
 import socket
@@ -28,6 +29,7 @@ from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
     RunPhase,
+    ShardingConfigs,
     create_benchmark_result,
     find_dumped_ir_files,
     fix_venv_isolation,
@@ -356,6 +358,21 @@ def test_all_models_jax(
 # LLM Specific tests for decode and prefill phases. Separate test to avoid impacting
 # original test names in test_all_models_torch and no need for collection-time deselection logic.
 
+
+def _loader_supports_shard_strategy(ModelLoader):
+    """Check if a loader's load_shard_spec accepts a 'strategy' parameter.
+
+    Analogous to ``hasattr(ModelLoader, 'load_inputs_prefill')`` for prefill
+    capability — this checks whether a loader has been updated to support
+    explicit shard-strategy selection (e.g. "fsdp" vs "megatron").
+    """
+    load_shard_spec = getattr(ModelLoader, "load_shard_spec", None)
+    if load_shard_spec is None:
+        return False
+    sig = inspect.signature(load_shard_spec)
+    return "strategy" in sig.parameters
+
+
 # Build list of (test_entry, run_phase) pairs based on loader capabilities
 _llm_test_params = []
 for entry in test_entries_torch:
@@ -392,16 +409,57 @@ def _generate_batch_size_id(batch_size):
     ],
 )
 @pytest.mark.parametrize(
-    "parallelism",
+    "sharding_config",
     [
         pytest.param(
-            Parallelism.SINGLE_DEVICE,
+            ShardingConfigs.SINGLE_DEVICE,
             id="single_device",
             marks=pytest.mark.single_device,
         ),
         pytest.param(
-            Parallelism.TENSOR_PARALLEL,
+            ShardingConfigs.TENSOR_PARALLEL,
             id="tensor_parallel",
+            marks=pytest.mark.tensor_parallel,
+        ),
+        # --- Extended sharding configs (gated to Llama 8B prefill) ---
+        pytest.param(
+            ShardingConfigs.FSDP_1x8,
+            id="fsdp_1x8",
+            marks=pytest.mark.tensor_parallel,
+        ),
+        pytest.param(
+            ShardingConfigs.FSDP_1x8_DP,
+            id="fsdp_1x8_dp",
+            marks=pytest.mark.tensor_parallel,
+        ),
+        pytest.param(
+            ShardingConfigs.MEGATRON_1x8,
+            id="megatron_1x8",
+            marks=pytest.mark.tensor_parallel,
+        ),
+        pytest.param(
+            ShardingConfigs.MEGATRON_1x8_DP,
+            id="megatron_1x8_dp",
+            marks=pytest.mark.tensor_parallel,
+        ),
+        pytest.param(
+            ShardingConfigs.FSDP_2x4,
+            id="fsdp_2x4",
+            marks=pytest.mark.tensor_parallel,
+        ),
+        pytest.param(
+            ShardingConfigs.FSDP_2x4_DP,
+            id="fsdp_2x4_dp",
+            marks=pytest.mark.tensor_parallel,
+        ),
+        pytest.param(
+            ShardingConfigs.MEGATRON_2x4,
+            id="megatron_2x4",
+            marks=pytest.mark.tensor_parallel,
+        ),
+        pytest.param(
+            ShardingConfigs.MEGATRON_2x4_DP,
+            id="megatron_2x4_dp",
             marks=pytest.mark.tensor_parallel,
         ),
     ],
@@ -422,7 +480,7 @@ def test_llms_torch(
     sequence_length,
     batch_size,
     run_mode,
-    parallelism,
+    sharding_config,
     record_property,
     test_metadata,
     request,
@@ -447,14 +505,28 @@ def test_llms_torch(
             pytest.skip("Sequence length must be specified for prefill tests")
         request.node.add_marker(pytest.mark.llm_prefill)
 
+    # Extended sharding configs are gated by loader capability + prefill phase.
+    # SINGLE_DEVICE and TENSOR_PARALLEL (the backward-compat defaults) pass through
+    # for all models, preserving existing behavior.
+    if sharding_config not in (ShardingConfigs.SINGLE_DEVICE, ShardingConfigs.TENSOR_PARALLEL):
+        if run_phase != RunPhase.LLM_PREFILL:
+            pytest.skip("Extended sharding configs only for prefill")
+        _, ModelLoaderCls = test_entry.variant_info
+        if not _loader_supports_shard_strategy(ModelLoaderCls):
+            pytest.skip("Loader doesn't support extended shard strategies")
+
+    # Propagate sharding config fields to test_metadata for the tester to pick up.
     test_metadata.batch_size = batch_size
     test_metadata.seq_len = sequence_length
+    test_metadata.mesh_shape = sharding_config.mesh_shape
+    test_metadata.shard_strategy = sharding_config.shard_strategy
+    test_metadata.shard_inputs = sharding_config.shard_inputs
 
     _run_model_test_impl(
         test_entry=test_entry,
         run_mode=run_mode,
         run_phase=run_phase,
-        parallelism=parallelism,
+        parallelism=sharding_config.parallelism,
         framework=Framework.TORCH,
         request=request,
         record_property=record_property,

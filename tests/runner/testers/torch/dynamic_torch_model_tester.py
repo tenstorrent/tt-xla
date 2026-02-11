@@ -97,19 +97,30 @@ class DynamicTorchModelTester(TorchModelTester):
             batch_size=batch_size,
         )
 
+        # Determine input batching factor:
+        #   DATA_PARALLEL  → replicate across all devices
+        #   shard_inputs   → replicate across the batch axis of the mesh (e.g. 2 for a (2,4) mesh)
+        batch_factor = None
         if self.parallelism == Parallelism.DATA_PARALLEL:
-            num_devices = xr.global_runtime_device_count()
+            batch_factor = xr.global_runtime_device_count()
+        else:
+            shard_inputs = getattr(self._test_metadata, "shard_inputs", None) if self._test_metadata else None
+            mesh_shape = getattr(self._test_metadata, "mesh_shape", None) if self._test_metadata else None
+            if shard_inputs and mesh_shape is not None and mesh_shape[0] > 1:
+                batch_factor = mesh_shape[0]
+
+        if batch_factor is not None:
             if isinstance(inputs, collections.abc.Mapping):
                 inputs = {
-                    k: self.dynamic_loader.batch_tensor(v, num_devices)
+                    k: self.dynamic_loader.batch_tensor(v, batch_factor)
                     for k, v in inputs.items()
                 }
             elif isinstance(inputs, collections.abc.Sequence):
                 inputs = [
-                    self.dynamic_loader.batch_tensor(inp, num_devices) for inp in inputs
+                    self.dynamic_loader.batch_tensor(inp, batch_factor) for inp in inputs
                 ]
             else:
-                inputs = self.dynamic_loader.batch_tensor(inputs, num_devices)
+                inputs = self.dynamic_loader.batch_tensor(inputs, batch_factor)
 
         return inputs
 
@@ -121,8 +132,36 @@ class DynamicTorchModelTester(TorchModelTester):
         """
         if self.parallelism == Parallelism.DATA_PARALLEL:
             return self.dynamic_loader.load_shard_spec_data_parallel
-        else:
-            return self.dynamic_loader.get_shard_spec_function()
+
+        # Check for explicit shard_strategy override from test_metadata
+        shard_strategy = getattr(self._test_metadata, "shard_strategy", None) if self._test_metadata else None
+        shard_inputs = getattr(self._test_metadata, "shard_inputs", None) if self._test_metadata else None
+
+        if shard_strategy is not None:
+            # Build a custom shard spec function that uses the requested strategy.
+            # The function signature determines how the runner calls it:
+            #   (model)              → weight sharding only
+            #   (model, args, kwargs) → weight + input (activation) sharding
+            loader = self.dynamic_loader.loader
+            dynamic_loader = self.dynamic_loader
+
+            if shard_inputs:
+                def shard_spec_fn(model, args, kwargs):
+                    specs = loader.load_shard_spec(model, strategy=shard_strategy) or {}
+                    # Reuse existing input-sharding logic (shards dim 0 on "data" axis)
+                    input_specs = dynamic_loader.load_shard_spec_data_parallel(
+                        args, kwargs
+                    )
+                    specs.update(input_specs)
+                    return specs
+            else:
+                def shard_spec_fn(model):
+                    return loader.load_shard_spec(model, strategy=shard_strategy)
+
+            return shard_spec_fn
+
+        # Default: existing loader-driven behavior
+        return self.dynamic_loader.get_shard_spec_function()
 
     def _get_mesh(self):
         """Get mesh configuration from the dynamic loader if available.
@@ -137,7 +176,16 @@ class DynamicTorchModelTester(TorchModelTester):
         if self.parallelism == Parallelism.DATA_PARALLEL:
             mesh_shape, mesh_names = (1, num_devices), ("model", "data")
         else:
-            mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
+            # Check for mesh_shape override from test_metadata (set by ShardingConfig)
+            mesh_shape_override = (
+                getattr(self._test_metadata, "mesh_shape", None)
+                if self._test_metadata
+                else None
+            )
+            if mesh_shape_override is not None:
+                mesh_shape, mesh_names = mesh_shape_override, ("data", "model")
+            else:
+                mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
 
         if mesh_shape and mesh_names:
             return get_mesh(mesh_shape, mesh_names)
