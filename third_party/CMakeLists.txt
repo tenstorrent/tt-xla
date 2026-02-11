@@ -130,11 +130,4 @@ else()
         GIT_PROGRESS ON
     )
 
-    # Create an imported library target for loguru
-    add_library(loguru SHARED IMPORTED GLOBAL)
-    set_target_properties(loguru PROPERTIES
-        IMPORTED_LOCATION ${LOGURU_LIB_DIR}/libloguru.so
-    )
-    add_dependencies(loguru loguru-external)
-
 endif()

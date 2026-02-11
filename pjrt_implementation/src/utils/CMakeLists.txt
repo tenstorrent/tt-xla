@@ -26,10 +26,14 @@ target_include_directories(TTPJRTUtils PUBLIC
 
 add_dependencies(TTPJRTUtils
     tt-mlir
+    loguru
 )
 
 target_link_libraries(TTPJRTUtils PUBLIC
     coverage_config
+)
+
+target_link_libraries(TTPJRTUtils PRIVATE
     loguru
 )
 
