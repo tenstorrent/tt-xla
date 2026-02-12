@@ -27,6 +27,7 @@ jobs:
       sh-runner: false
       skip-device-perf: false
       runs-on-filter: n150
+      fail-notify: true
 
   perf-benchmark-llmbox:
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
@@ -38,6 +39,7 @@ jobs:
       sh-runner: false
       skip-device-perf: false
       runs-on-filter: llmbox
+      fail-notify: true
 
   demo-test:
     uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
