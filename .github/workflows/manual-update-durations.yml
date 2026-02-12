@@ -29,6 +29,7 @@ jobs:
   multihost-test:
     runs-on: ${{ matrix.hostname }}
     strategy:
+      fail-fast: false
       matrix:
         hostname:
           - forge-qbae-01
@@ -97,13 +98,33 @@ jobs:
           echo "Installing wheel: $WHEEL_PATH"
           pip install "$WHEEL_PATH"
 
-          # Install tt-smi and check hardware
-          echo "Resetting hardware; multiple resets"
-          pip install tt-smi
-          for i in {1..5}; do tt-smi -r; sleep 1; done
+      - name: Reset hardware and run liveness check
+        shell: bash
+        run: |
+          source venv/activate
 
-          # sanity check that singledevice execution works.
-          python3 examples/pytorch/mnist.py
+          # Install tt-smi
+          pip install tt-smi
+
+          # Reset and test in a loop - retry if liveness check fails
+          MAX_ATTEMPTS=5
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            echo "Attempt $i/$MAX_ATTEMPTS: Resetting hardware..."
+            tt-smi -r
+            sleep 1
+
+            echo "Running liveness check (MNIST example)..."
+            if python3 examples/pytorch/mnist.py; then
+              echo "Liveness check passed!"
+              break
+            else
+              echo "Liveness check failed, will retry..."
+              if [ $i -eq $MAX_ATTEMPTS ]; then
+                echo "Failed after $MAX_ATTEMPTS attempts"
+                exit 1
+              fi
+            fi
+          done
 
       - name: Setup SSH
         shell: bash
