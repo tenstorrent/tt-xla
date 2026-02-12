@@ -19,12 +19,12 @@ MODEL_LOADER_MAP = {
 
 AVAILABLE_VARIANT_MAP = {
     "llama": [
-        "llama_3_8b",
-        "llama_3_1_8b",
-        "llama_3_2_1b",
-        "llama_3_2_3b",
-        "huggyllama_7b",
-        "TinyLlama_v1.1",
+        "3.0_8B",
+        "3.1_8B",
+        "3.2_1B",
+        "3.2_3B",
+        "Huggyllama_7B",
+        "Tinyllama_v1.1",
     ],
 }
 

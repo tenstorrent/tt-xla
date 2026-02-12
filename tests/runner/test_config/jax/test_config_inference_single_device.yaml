@@ -8,62 +8,62 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
-  albert/masked_lm/jax-base_v2-single_device-inference:
+  albert/masked_lm/jax-Base_v2-single_device-inference:
     status: EXPECTED_PASSING
 
-  albert/masked_lm/jax-large-v2-single_device-inference:
+  albert/masked_lm/jax-Large_v2-single_device-inference:
     status: EXPECTED_PASSING
 
-  albert/masked_lm/jax-xlarge-v2-single_device-inference:
+  albert/masked_lm/jax-Xlarge_v2-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9897431135177612. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
     bringup_status: INCORRECT_RESULT
 
-  albert/masked_lm/jax-xxlarge-v2-single_device-inference:
+  albert/masked_lm/jax-Xxlarge_v2-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9695068001747131. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
     bringup_status: INCORRECT_RESULT
 
-  alexnet/image_classification/jax-custom-single_device-inference:
+  alexnet/image_classification/jax-Custom-single_device-inference:
     status: EXPECTED_PASSING
 
-  bart/causal_lm/jax-base-single_device-inference:
+  bart/causal_lm/jax-Base-single_device-inference:
     status: EXPECTED_PASSING
 
-  bart/causal_lm/jax-large-single_device-inference:
+  bart/causal_lm/jax-Large-single_device-inference:
     status: EXPECTED_PASSING
 
-  beit/image_classification/jax-base-single_device-inference:
+  beit/image_classification/jax-Base-single_device-inference:
     status: EXPECTED_PASSING
 
-  beit/image_classification/jax-large-single_device-inference:
+  beit/image_classification/jax-Large-single_device-inference:
     status: EXPECTED_PASSING
 
-  bert/masked_lm/jax-base-single_device-inference:
+  bert/masked_lm/jax-Base-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
-  bert/masked_lm/jax-large-single_device-inference:
+  bert/masked_lm/jax-Large-single_device-inference:
     status: EXPECTED_PASSING
 
-  bigbird/causal_lm/jax-large-single_device-inference:
+  bigbird/causal_lm/jax-Large-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Assertion `false && \"incorrect fold result type\" - https://github.com/tenstorrent/tt-xla/issues/2140"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
-  bigbird/question_answering/jax-base-single_device-inference:
+  bigbird/question_answering/jax-Base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
-  bigbird/question_answering/jax-large-single_device-inference:
+  bigbird/question_answering/jax-Large-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
-  blenderbot/summarization/jax-1B-distill-single_device-inference:
+  blenderbot/summarization/jax-1B_Distill-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
@@ -74,17 +74,17 @@ test_config:
     bringup_status: FAILED_TTMLIR_COMPILATION
     markers: [large, nightly]
 
-  blenderbot/summarization/jax-400M-distill-single_device-inference:
+  blenderbot/summarization/jax-400M_Distill-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
-  blenderbot/summarization/jax-small-90M-single_device-inference:
+  blenderbot/summarization/jax-90M_Small-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
-  bloom/causal_lm/jax-560m-single_device-inference:
+  bloom/causal_lm/jax-560M-single_device-inference:
     status: EXPECTED_PASSING
 
   bloom/causal_lm/jax-1b1-single_device-inference:
@@ -95,136 +95,136 @@ test_config:
     reason: "Not enough space to allocate 1027604480 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/1957"
     bringup_status: FAILED_RUNTIME
 
-  bloom/causal_lm/jax-3b-single_device-inference:
+  bloom/causal_lm/jax-3B-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks"
     bringup_status: FAILED_RUNTIME
     markers: [large]
 
-  bloom/causal_lm/jax-7b-single_device-inference:
+  bloom/causal_lm/jax-7B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 2055208960 B DRAM buffer across 12 banks, where each bank needs to store 171270144 B, but bank size is only 1073741792 B"
     markers: [large]
     bringup_status: FAILED_RUNTIME
 
-  clip/image_classification/jax-base_patch16-single_device-inference:
+  clip/image_classification/jax-Base_Patch16-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "Severe PCC comparison failed: pcc=-1.0 < 0.99 required"
 
-  clip/image_classification/jax-base_patch32-single_device-inference:
+  clip/image_classification/jax-Base_Patch32-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 2287616 B L1 buffer across 2 banks, where each bank needs to store 1143808 B, but bank size is only 1364928 B"
     bringup_status: FAILED_RUNTIME
 
-  clip/image_classification/jax-large_patch14-single_device-inference:
+  clip/image_classification/jax-Large_Patch14-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 7782400 B L1 buffer across 5 banks"
     bringup_status: FAILED_RUNTIME
 
-  clip/image_classification/jax-large_patch14_336-single_device-inference:
+  clip/image_classification/jax-Large_Patch14_336-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate L1 buffer, bank size exceeded"
     bringup_status: FAILED_RUNTIME
 
-  dinov2/image_classification/jax-base-single_device-inference:
+  dinov2/image_classification/jax-Base-single_device-inference:
     status: EXPECTED_PASSING
 
-  dinov2/image_classification/jax-giant-single_device-inference:
+  dinov2/image_classification/jax-Giant-single_device-inference:
     status: EXPECTED_PASSING
 
-  dinov2/image_classification/jax-large-single_device-inference:
+  dinov2/image_classification/jax-Large-single_device-inference:
     status: EXPECTED_PASSING
 
-  distilbert/masked_lm/jax-base-uncased-single_device-inference:
+  distilbert/masked_lm/jax-Base_Uncased-single_device-inference:
     status: EXPECTED_PASSING
 
-  electra/causal_lm/jax-base-discriminator-single_device-inference:
+  electra/causal_lm/jax-Base_Discriminator-single_device-inference:
     status: EXPECTED_PASSING
 
-  electra/causal_lm/jax-base-generator-single_device-inference:
+  electra/causal_lm/jax-Base_Generator-single_device-inference:
     status: EXPECTED_PASSING
 
-  electra/causal_lm/jax-large-discriminator-single_device-inference:
+  electra/causal_lm/jax-Large_Discriminator-single_device-inference:
     status: EXPECTED_PASSING
 
-  electra/causal_lm/jax-small-discriminator-single_device-inference:
+  electra/causal_lm/jax-Small_Discriminator-single_device-inference:
     status: EXPECTED_PASSING
 
-  falcon/jax-tiiuae/Falcon3-1B-Base-single_device-inference:
+  falcon/jax-3_1B_Base-single_device-inference:
     status: EXPECTED_PASSING
 
-  falcon/jax-tiiuae/Falcon3-3B-Base-single_device-inference:
+  falcon/jax-3_3B_Base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 37748736 B DRAM buffer across 12 banks, where each bank needs to store 3145728 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
-  gpt2/causal_lm/jax-base-single_device-inference:
+  gpt2/causal_lm/jax-Base-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
-  gpt2/causal_lm/jax-large-single_device-inference:
+  gpt2/causal_lm/jax-Large-single_device-inference:
     status: EXPECTED_PASSING
 
-  gpt2/causal_lm/jax-medium-single_device-inference:
+  gpt2/causal_lm/jax-Medium-single_device-inference:
     status: EXPECTED_PASSING
 
-  gpt2/causal_lm/jax-xl-single_device-inference:
+  gpt2/causal_lm/jax-Xl-single_device-inference:
     status: EXPECTED_PASSING
 
-  gpt_j/causal_lm/jax-6b-single_device-inference:
+  gpt_j/causal_lm/jax-6B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough RAM memory to load the model."
     markers: [large]
     bringup_status: FAILED_RUNTIME
 
-  gpt_neo/causal_lm/jax-_125m-single_device-inference:
+  gpt_neo/causal_lm/jax-125M-single_device-inference:
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  gpt_neo/causal_lm/jax-_1_3b-single_device-inference:
+  gpt_neo/causal_lm/jax-1_3B-single_device-inference:
     required_pcc: 0.988 # PCC dropped from <0.992 to <0.99 after tilize was *improved*
     status: EXPECTED_PASSING
 
-  gpt_neo/causal_lm/jax-_2_7b-single_device-inference:
+  gpt_neo/causal_lm/jax-2_7B-single_device-inference:
     status: EXPECTED_PASSING
     markers: [large]
 
-  gpt_sw3/causal_lm/jax-1_3b_instruct-single_device-inference:
+  gpt_sw3/causal_lm/jax-1_3B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
     markers: [large]
 
-  llama/causal_lm/jax-1B_TINY-single_device-inference:
+  llama/causal_lm/jax-1B_Tiny-single_device-inference:
     status: EXPECTED_PASSING
 
-  llama/causal_lm/jax-3b-v2-single_device-inference:
+  llama/causal_lm/jax-3B_v2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Not enough space to allocate 110592000 B DRAM buffer across 12 banks, where each bank needs to store 9216000 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
     markers: [large]
 
-  longt5/text_classification/jax-base-tglobal-single_device-inference:
+  longt5/text_classification/jax-Base_Tglobal-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 - https://github.com/tenstorrent/tt-xla/issues/580"
     bringup_status: FAILED_RUNTIME
 
-  longt5/text_classification/jax-large-local-single_device-inference:
+  longt5/text_classification/jax-Large_Local-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 - https://github.com/tenstorrent/tt-xla/issues/580"
     bringup_status: FAILED_RUNTIME
 
-  longt5/text_classification/jax-xl-tglobal-single_device-inference:
+  longt5/text_classification/jax-Xl_Tglobal-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1"
     bringup_status: FAILED_RUNTIME
     markers: [large]
 
-  marian_mt/text_classification/jax-opus-mt-en-de-single_device-inference:
+  marian_mt/text_classification/jax-Opus_Mt_En_De-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
-  mbart50/nlp_summarization/jax-large_many_to_many-single_device-inference:
+  mbart50/nlp_summarization/jax-Large_Many_To_Many-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "'ttir.scatter' op Dimension size to slice into must be 1 - https://github.com/tenstorrent/tt-xla/issues/386"
     bringup_status: FAILED_TTMLIR_COMPILATION
@@ -235,52 +235,52 @@ test_config:
     markers: [large]
     bringup_status: FAILED_RUNTIME
 
-  mistral/causal_lm/jax-v0_1_tiny-single_device-inference:
+  mistral/causal_lm/jax-v0_1_Tiny-single_device-inference:
     status: EXPECTED_PASSING
 
-  mistral/causal_lm/jax-v0_2_instruct-single_device-inference:
+  mistral/causal_lm/jax-v0_2_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: " Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
     markers: [large]
 
-  mistral/causal_lm/jax-v0_3_instruct-single_device-inference:
+  mistral/causal_lm/jax-v0_3_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
     markers: [large]
 
-  mlp_mixer/image_classification/jax-base_16-single_device-inference:
+  mlp_mixer/image_classification/jax-Base_16-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
     reason: "PCC comparison failed. Calculated: pcc=-0.006557859480381012. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
     markers: [nightly]
 
-  mnist/image_classification/jax-mlp_custom-single_device-inference:
+  mnist/image_classification/jax-Mlp_Custom-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
-  mnist/image_classification/jax-cnn_batchnorm-single_device-inference:
+  mnist/image_classification/jax-Cnn_Batchnorm-single_device-inference:
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  mnist/image_classification/jax-cnn_dropout-single_device-inference:
+  mnist/image_classification/jax-Cnn_Dropout-single_device-inference:
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  mt5/nlp_summarization/jax-base-single_device-inference:
+  mt5/nlp_summarization/jax-Base-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.7113243341445923. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
     bringup_status: INCORRECT_RESULT
 
-  mt5/nlp_summarization/jax-large-single_device-inference:
+  mt5/nlp_summarization/jax-Large-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.6492372155189514. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
     bringup_status: INCORRECT_RESULT
 
-  mt5/nlp_summarization/jax-xl-single_device-inference:
+  mt5/nlp_summarization/jax-Xl-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 2048917504 B DRAM buffer across 12 banks, where each bank needs to store 170745856 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
@@ -292,266 +292,266 @@ test_config:
   opt/causal_lm/jax-350M-single_device-inference:
     status: EXPECTED_PASSING
 
-  opt/causal_lm/jax-1.3B-single_device-inference:
+  opt/causal_lm/jax-1.3b-single_device-inference:
     status: EXPECTED_PASSING
 
-  opt/causal_lm/jax-2.7B-single_device-inference:
+  opt/causal_lm/jax-2.7b-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
     bringup_status: FAILED_RUNTIME
     markers: [large]
 
-  opt/causal_lm/jax-6.7B-single_device-inference:
+  opt/causal_lm/jax-6.7b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 134217728 B DRAM buffer across 12 banks, where each bank needs to store 11186176 B, but bank size is only 1073741792 B"
     bringup_status: FAILED_RUNTIME
     markers: [large]
 
-  pegasus/summarization/jax-large-single_device-inference:
+  pegasus/summarization/jax-Large-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
-  pegasus/summarization/jax-xsum-single_device-inference:
+  pegasus/summarization/jax-Xsum-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
-  phi1/causal_lm/jax-microsoft/phi-1-single_device-inference:
+  phi1/causal_lm/jax-Phi_1-single_device-inference:
     status: EXPECTED_PASSING
 
-  phi1_5/causal_lm/jax-microsoft/phi-1_5-single_device-inference:
+  phi1_5/causal_lm/jax-Phi_1_5-single_device-inference:
     status: EXPECTED_PASSING
 
-  phi2/causal_lm/jax-microsoft/phi-2-single_device-inference:
+  phi2/causal_lm/jax-Phi_2-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
-  phi2/causal_lm/jax-microsoft/phi-2-pytdml-single_device-inference:
+  phi2/causal_lm/jax-Phi_2_Pytdml-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
-  phi3/causal_lm/jax-microsoft/Phi-3-mini-128k-instruct-single_device-inference:
+  phi3/causal_lm/jax-Phi_3_Mini_128K_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     bringup_status: FAILED_RUNTIME
 
-  phi3/causal_lm/jax-microsoft/Phi-3-mini-4k-instruct-single_device-inference:
+  phi3/causal_lm/jax-Phi_3_Mini_4K_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "OOM DRAM"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/causal_lm/jax-0_5b-single_device-inference:
+  qwen_2_5/causal_lm/jax-0.5B-single_device-inference:
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/jax-0_5b_instruct-single_device-inference:
+  qwen_2_5/causal_lm/jax-0.5B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/jax-1_5b-single_device-inference:
+  qwen_2_5/causal_lm/jax-1.5B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 34359738368 B DRAM buffer across 12 banks, where each bank needs to store 2863312896 B, but bank size is 1073741792 B "
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/causal_lm/jax-1_5b_instruct-single_device-inference:
+  qwen_2_5/causal_lm/jax-1.5B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/jax-3b-single_device-inference:
+  qwen_2_5/causal_lm/jax-3B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B "
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/causal_lm/jax-3b_instruct-single_device-inference:
+  qwen_2_5/causal_lm/jax-3B_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B "
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/causal_lm/jax-7b-single_device-inference:
+  qwen_2_5/causal_lm/jax-7B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 271581184 B DRAM buffer across 12 banks, where each bank needs to store 22636544 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/causal_lm/jax-7b_instruct-single_device-inference:
+  qwen_2_5/causal_lm/jax-7B_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 271581184 B DRAM buffer across 12 banks, where each bank needs to store 22636544 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5_coder/causal_lm/jax-0_5b-single_device-inference:
+  qwen_2_5_coder/causal_lm/jax-0.5B-single_device-inference:
     status: EXPECTED_PASSING
 
-  qwen_2_5_coder/causal_lm/jax-1_5b-single_device-inference:
+  qwen_2_5_coder/causal_lm/jax-1.5B-single_device-inference:
     status: EXPECTED_PASSING
 
-  qwen_2_5_coder/causal_lm/jax-1_5b_instruct-single_device-inference:
+  qwen_2_5_coder/causal_lm/jax-1.5B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
 
-  qwen_2_5_coder/causal_lm/jax-3b-single_device-inference:
+  qwen_2_5_coder/causal_lm/jax-3B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5_coder/causal_lm/jax-3b_instruct-single_device-inference:
+  qwen_2_5_coder/causal_lm/jax-3B_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5_coder/causal_lm/jax-7b-single_device-inference:
+  qwen_2_5_coder/causal_lm/jax-7B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5_coder/causal_lm/jax-7b_instruct-single_device-inference:
+  qwen_2_5_coder/causal_lm/jax-7B_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     bringup_status: FAILED_RUNTIME
 
-  qwen_3/causal_lm/jax-0_6b-single_device-inference:
+  qwen_3/causal_lm/jax-0_6B-single_device-inference:
     status: EXPECTED_PASSING
 
-  qwen_3/causal_lm/jax-1_7b-single_device-inference:
+  qwen_3/causal_lm/jax-1_7B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     bringup_status: FAILED_RUNTIME
 
-  qwen_3/causal_lm/jax-4b-single_device-inference:
+  qwen_3/causal_lm/jax-4B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 10485760 B DRAM buffer across 12 banks, where each bank needs to store 876544 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
 
 
-  regnet/image_classification/jax-y-040-single_device-inference:
+  regnet/image_classification/jax-Y_040-single_device-inference:
     status: EXPECTED_PASSING
 
-  regnet/image_classification/jax-y-160-single_device-inference:
+  regnet/image_classification/jax-Y_160-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 15259926528 B L1 buffer - https://github.com/tenstorrent/tt-xla/issues/187"
     bringup_status: FAILED_RUNTIME
 
-  regnet/image_classification/jax-y-320-single_device-inference:
+  regnet/image_classification/jax-Y_320-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 56438554624 B L1 buffer - https://github.com/tenstorrent/tt-xla/issues/187"
     bringup_status: FAILED_RUNTIME
 
-  resnet/image_classification/jax-resnet-18-single_device-inference:
+  resnet/image_classification/jax-ResNet18-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly, large]
 
-  resnet/image_classification/jax-resnet-26-single_device-inference:
+  resnet/image_classification/jax-ResNet26-single_device-inference:
     status: EXPECTED_PASSING
 
-  resnet/image_classification/jax-resnet-34-single_device-inference:
+  resnet/image_classification/jax-ResNet34-single_device-inference:
     status: EXPECTED_PASSING
 
-  resnet/image_classification/jax-resnet-50-single_device-inference:
+  resnet/image_classification/jax-ResNet50-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
-  resnet/image_classification/jax-resnet-101-single_device-inference:
+  resnet/image_classification/jax-ResNet101-single_device-inference:
     status: EXPECTED_PASSING
 
-  resnet/image_classification/jax-resnet-152-single_device-inference:
+  resnet/image_classification/jax-ResNet152-single_device-inference:
     required_pcc: 0.988 # We have >0.9893 on both, BH was <0.99 from the start, WH regressed from <0.992 to <0.99 after tilize was *improved*
     status: EXPECTED_PASSING
 
-  roberta/masked_lm/jax-base-single_device-inference:
+  roberta/masked_lm/jax-Base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Failed to allocate buffers for RoBERTa base model"
     bringup_status: FAILED_RUNTIME
 
-  roberta/masked_lm/jax-large-single_device-inference:
+  roberta/masked_lm/jax-Large-single_device-inference:
     status: EXPECTED_PASSING
 
-  roberta_prelayernorm/masked_lm/jax-efficient-mlm-m0.40-single_device-inference:
+  roberta_prelayernorm/masked_lm/jax-Efficient_Mlm_M0.40-single_device-inference:
     status: EXPECTED_PASSING
 
-  roformer/masked_lm/jax-chinese-base-single_device-inference:
+  roformer/masked_lm/jax-Chinese_Base-single_device-inference:
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  roformer/masked_lm/jax-chinese-char-small-single_device-inference:
+  roformer/masked_lm/jax-Chinese_Char_Small-single_device-inference:
     status: EXPECTED_PASSING
 
-  roformer/masked_lm/jax-chinese-small-single_device-inference:
+  roformer/masked_lm/jax-Chinese_Small-single_device-inference:
     status: EXPECTED_PASSING
 
-  squeezebert/masked_lm/jax-base-single_device-inference:
+  squeezebert/masked_lm/jax-Base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Failed to allocate buffers for SqueezeBERT model"
     bringup_status: FAILED_RUNTIME
 
-  t5/summarization/jax-base-single_device-inference:
+  t5/summarization/jax-Base-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
-  t5/summarization/jax-large-single_device-inference:
+  t5/summarization/jax-Large-single_device-inference:
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  t5/summarization/jax-small-single_device-inference:
+  t5/summarization/jax-Small-single_device-inference:
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  vision_text_dual_encoder/mm_image_ttt/jax-base-single_device-inference:
+  vision_text_dual_encoder/mm_image_ttt/jax-Base-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "Atol comparison failed. Calculated: atol=6632.052734375. Required: atol=0.16 - https://github.com/tenstorrent/tt-xla/issues/379"
     bringup_status: INCORRECT_RESULT
 
-  vit/image_classification/jax-base_patch16_224-single_device-inference:
+  vit/image_classification/jax-Base_Patch16_224-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
-  vit/image_classification/jax-base_patch16_384-single_device-inference:
+  vit/image_classification/jax-Base_Patch16_384-single_device-inference:
     status: EXPECTED_PASSING
 
-  vit/image_classification/jax-base_patch32_224_in_21k-single_device-inference:
+  vit/image_classification/jax-Base_Patch32_224_In_21K-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2287616 B L1 buffer across 2 banks"
     bringup_status: FAILED_RUNTIME
 
-  vit/image_classification/jax-base_patch32_384-single_device-inference:
+  vit/image_classification/jax-Base_Patch32_384-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate L1 buffer for ViT patch32_384"
     bringup_status: FAILED_RUNTIME
 
-  vit/image_classification/jax-huge_patch14_224_in_21k-single_device-inference:
+  vit/image_classification/jax-Huge_Patch14_224_In_21K-single_device-inference:
     status: EXPECTED_PASSING
 
-  vit/image_classification/jax-large_patch16_224-single_device-inference:
+  vit/image_classification/jax-Large_Patch16_224-single_device-inference:
     status: EXPECTED_PASSING
 
-  vit/image_classification/jax-large_patch16_384-single_device-inference:
+  vit/image_classification/jax-Large_Patch16_384-single_device-inference:
     status: EXPECTED_PASSING
 
-  vit/image_classification/jax-large_patch32_224_in_21k-single_device-inference:
+  vit/image_classification/jax-Large_Patch32_224_In_21K-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 7782400 B L1 buffer across 5 banks"
     bringup_status: FAILED_RUNTIME
 
-  vit/image_classification/jax-large_patch32_384-single_device-inference:
+  vit/image_classification/jax-Large_Patch32_384-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Failed to allocate buffers for ViT large patch32_384"
     bringup_status: FAILED_RUNTIME
 
-  wav2vec2/audio_classification/jax-large_lv_60-single_device-inference:
+  wav2vec2/audio_classification/jax-Large_Lv_60-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "failed to legalize operation 'stablehlo.dynamic_slice' - https://github.com/tenstorrent/tt-xla/issues/404"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
-  whisper/audio_classification/jax-base-single_device-inference:
+  whisper/audio_classification/jax-Base-single_device-inference:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.668. Required: pcc=0.99"
     bringup_status: INCORRECT_RESULT
 
-  whisper/audio_classification/jax-medium-single_device-inference:
+  whisper/audio_classification/jax-Medium-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.734. Required: pcc=0.99"
     bringup_status: INCORRECT_RESULT
 
-  whisper/audio_classification/jax-large_v3-single_device-inference:
+  whisper/audio_classification/jax-Large_v3-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 6710886400 B DRAM buffer across 12 banks, where each bank needs to store 559243264 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
@@ -562,12 +562,12 @@ test_config:
     reason: "Invalid data size. numElements * elementSize == data->size() - https://github.com/tenstorrent/tt-xla/issues/1313"
     bringup_status: FAILED_RUNTIME
 
-  xlm_roberta/causal_lm/jax-base-single_device-inference:
+  xlm_roberta/causal_lm/jax-Base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Failed to allocate buffers for XLM-RoBERTa base model"
     bringup_status: FAILED_RUNTIME
 
-  xlm_roberta/causal_lm/jax-large-single_device-inference:
+  xlm_roberta/causal_lm/jax-Large-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
     bringup_status: FAILED_RUNTIME
