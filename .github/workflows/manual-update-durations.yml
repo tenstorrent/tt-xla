@@ -52,6 +52,8 @@ jobs:
             -v /dev/hugepages-1G:/dev/hugepages-1G \
             -v /etc/udev/rules.d:/etc/udev/rules.d \
             -v /lib/modules:/lib/modules \
+            -v /etc/passwd:/etc/passwd:ro \
+            -v /etc/group:/etc/group:ro \
             -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
             -v /mnt/dockercache:/mnt/dockercache \
             -v /home/ttuser/.ssh:/home/ttuser/.ssh:ro \
@@ -200,7 +202,7 @@ jobs:
               # Poll until the ready file exists in the worker container
               # SSH as the configured user, then docker exec into the container
               while true; do
-                if ssh -F /tmp/ssh_config/config -o ConnectTimeout=5 \${SSH_USER}@\${remote_host} \"docker exec ubuntu-host-mapped test -f /tmp/worker_status/ready\" 2>/dev/null; then
+                if ssh -F /tmp/ssh_config/config -o ConnectTimeout=5 \${SSH_USER}@\${remote_host} 'docker exec ubuntu-host-mapped test -f /tmp/worker_status/ready' 2>/dev/null; then
                   echo 'Worker' \$remote_host 'is ready!'
                   break
                 else
