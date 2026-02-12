@@ -251,9 +251,9 @@ test_config:
     markers: [large]
 
   mlp_mixer/image_classification/jax-base_16-single_device-inference:
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "PCC comparison failed. Calculated: pcc=-0.006557859480381012. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "HTTPS 403/Forbidden -  https://github.com/tenstorrent/tt-xla/issues/3279"
+    bringup_status: FAILED_FE_COMPILATION
     markers: [nightly]
 
   mnist/image_classification/jax-mlp_custom-single_device-inference:
