@@ -2142,7 +2142,7 @@ test_config:
 
   pointpillars/pytorch-pointpillars-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
+    # reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
 
   sam/pytorch-facebook/sam-vit-base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
