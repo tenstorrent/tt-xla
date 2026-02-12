@@ -73,37 +73,40 @@ jobs:
           ALL_HOSTS: ${{ env.ALL_HOSTS }}
           ARTIFACT_MODE: ${{ env.ARTIFACT_MODE }}
           ARTIFACT_RUN_ID: ${{ env.ARTIFACT_RUN_ID }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          docker exec ubuntu-host-mapped bash -c '
-          export CURRENT_HOST="${{ matrix.hostname }}"
-          export CONTROLLER_HOST="${{ env.CONTROLLER_HOST }}"
-          export ALL_HOSTS="${{ env.ALL_HOSTS }}"
-          export ARTIFACT_MODE="${{ env.ARTIFACT_MODE }}"
-          export ARTIFACT_RUN_ID="${{ env.ARTIFACT_RUN_ID }}"
-          echo "Current hostname: $CURRENT_HOST"
-          echo "Controller hostname: $CONTROLLER_HOST"
-          echo "All participating hosts: $ALL_HOSTS"
+          docker exec \
+            -e GH_TOKEN="${{ github.token }}" \
+            -e CURRENT_HOST="${{ matrix.hostname }}" \
+            -e CONTROLLER_HOST="${{ env.CONTROLLER_HOST }}" \
+            -e ALL_HOSTS="${{ env.ALL_HOSTS }}" \
+            -e ARTIFACT_MODE="${{ env.ARTIFACT_MODE }}" \
+            -e ARTIFACT_RUN_ID="${{ env.ARTIFACT_RUN_ID }}" \
+            ubuntu-host-mapped bash -c "
+          echo 'Current hostname:' \$CURRENT_HOST
+          echo 'Controller hostname:' \$CONTROLLER_HOST
+          echo 'All participating hosts:' \$ALL_HOSTS
           hostname
 
           # Download the artifact based on mode
-          ARTIFACT_DIR="xla_artifacts"
-          if [ "$ARTIFACT_MODE" = "specific" ]; then
-            echo "Downloading artifacts from specific run: $ARTIFACT_RUN_ID"
-            python3 .github/scripts/download_artifacts.py --run-id $ARTIFACT_RUN_ID --filter xla-whl-release --output-folder $ARTIFACT_DIR
+          ARTIFACT_DIR=xla_artifacts
+          if [ \"\$ARTIFACT_MODE\" = \"specific\" ]; then
+            echo 'Downloading artifacts from specific run:' \$ARTIFACT_RUN_ID
+            python3 .github/scripts/download_artifacts.py --run-id \$ARTIFACT_RUN_ID --filter xla-whl-release --output-folder \$ARTIFACT_DIR
           else
-            echo "Downloading artifacts from latest push-main"
-            python3 .github/scripts/download_artifacts.py --workflow push-main.yml --branch main --filter xla-whl-release --output-folder $ARTIFACT_DIR
+            echo 'Downloading artifacts from latest push-main'
+            python3 .github/scripts/download_artifacts.py --workflow push-main.yml --branch main --filter xla-whl-release --output-folder \$ARTIFACT_DIR
           fi
 
           # Create venv
           source venv/activate
 
           # Install the wheel
-          echo "Not installing wheel for now."
-          # WHEEL_PATH=$(find $ARTIFACT_DIR -name "*.whl" | head -n 1)
-          # echo "Installing wheel: $WHEEL_PATH"
-          # pip install "$WHEEL_PATH"
-          '
+          echo 'Not installing wheel for now.'
+          # WHEEL_PATH=\$(find \$ARTIFACT_DIR -name '*.whl' | head -n 1)
+          # echo 'Installing wheel:' \$WHEEL_PATH
+          # pip install \"\$WHEEL_PATH\"
+          "
 
       # - name: Reset hardware and run liveness check
       #   shell: bash
@@ -136,19 +139,19 @@ jobs:
       - name: Setup SSH
         shell: bash
         run: |
-          docker exec ubuntu-host-mapped bash -c '
-          echo "Setting up SSH configuration for keyless access..."
+          docker exec ubuntu-host-mapped bash -c "
+          echo 'Setting up SSH configuration for keyless access...'
 
           # Create SSH config in /tmp (since /home/ttuser/.ssh is read-only)
           mkdir -p /tmp/ssh_config
-          cat > /tmp/ssh_config/config <<EOF
+          cat > /tmp/ssh_config/config <<'EOF'
           Host *
             StrictHostKeyChecking no
             UserKnownHostsFile=/dev/null
           EOF
 
-          echo "SSH configuration complete"
-          '
+          echo 'SSH configuration complete'
+          "
 
       - name: Worker Pause
         if: matrix.hostname != env.CONTROLLER_HOST
@@ -158,16 +161,16 @@ jobs:
           CONTROLLER_HOST: ${{ env.CONTROLLER_HOST }}
           ALL_HOSTS: ${{ env.ALL_HOSTS }}
         run: |
-          docker exec ubuntu-host-mapped bash -c '
-          echo "Worker ready and waiting for commands."
+          docker exec ubuntu-host-mapped bash -c "
+          echo 'Worker ready and waiting for commands.'
 
-          # Write ready status file (we're already in the container)
+          # Write ready status file (we are already in the container)
           mkdir -p /tmp/worker_status
-          echo "ready" > /tmp/worker_status/ready
+          echo 'ready' > /tmp/worker_status/ready
 
-          echo "Status file written, worker is ready"
+          echo 'Status file written, worker is ready'
           sleep 6000
-          '
+          "
 
       - name: Controller Barrier
         if: matrix.hostname == env.CONTROLLER_HOST
@@ -183,33 +186,33 @@ jobs:
             -e CONTROLLER_HOST="${{ env.CONTROLLER_HOST }}" \
             -e ALL_HOSTS="${{ env.ALL_HOSTS }}" \
             -e SSH_USER="${{ env.SSH_USER }}" \
-            ubuntu-host-mapped bash -c '
-          echo "Controller waiting for all workers to be ready..."
+            ubuntu-host-mapped bash -c "
+          echo 'Controller waiting for all workers to be ready...'
 
           # Convert comma-separated hosts to array
-          IFS="," read -ra HOST_ARRAY <<< "$ALL_HOSTS"
+          IFS=',' read -ra HOST_ARRAY <<< \"\$ALL_HOSTS\"
 
           # Wait for each worker to be ready
-          for remote_host in "${HOST_ARRAY[@]}"; do
-            if [ "$remote_host" != "$CURRENT_HOST" ]; then
-              echo "Checking if worker $remote_host is ready..."
+          for remote_host in \"\${HOST_ARRAY[@]}\"; do
+            if [ \"\$remote_host\" != \"\$CURRENT_HOST\" ]; then
+              echo 'Checking if worker' \$remote_host 'is ready...'
 
               # Poll until the ready file exists in the worker container
               # SSH as the configured user, then docker exec into the container
               while true; do
-                if ssh -F /tmp/ssh_config/config -o ConnectTimeout=5 ${SSH_USER}@${remote_host} "docker exec ubuntu-host-mapped test -f /tmp/worker_status/ready" 2>/dev/null; then
-                  echo "Worker $remote_host is ready!"
+                if ssh -F /tmp/ssh_config/config -o ConnectTimeout=5 \${SSH_USER}@\${remote_host} \"docker exec ubuntu-host-mapped test -f /tmp/worker_status/ready\" 2>/dev/null; then
+                  echo 'Worker' \$remote_host 'is ready!'
                   break
                 else
-                  echo "Worker $remote_host not ready yet, waiting..."
+                  echo 'Worker' \$remote_host 'not ready yet, waiting...'
                   sleep 5
                 fi
               done
             fi
           done
 
-          echo "All workers are ready! Controller barrier complete."
-          '
+          echo 'All workers are ready! Controller barrier complete.'
+          "
 
       - name: Controller Run Tests
         if: matrix.hostname == env.CONTROLLER_HOST
@@ -223,15 +226,15 @@ jobs:
           docker exec \
             -e GH_TOKEN="${{ github.token }}" \
             -e TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain \
-            ubuntu-host-mapped bash -c '
-          echo "Running tests across all hosts..."
+            ubuntu-host-mapped bash -c "
+          echo 'Running tests across all hosts...'
           source venv/activate
 
-          echo "Sleeping for 6000 seconds"
+          echo 'Sleeping for 6000 seconds'
           sleep 6000
 
-          TTXLA_LOGGER_LEVEL=DEBUG pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k "dual_bh_quietbox"
-          '
+          TTXLA_LOGGER_LEVEL=DEBUG pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k \"dual_bh_quietbox\"
+          "
 
       - name: Cleanup
         if: always()
