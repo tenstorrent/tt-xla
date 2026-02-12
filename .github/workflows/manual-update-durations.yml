@@ -53,18 +53,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          sparse-checkout: |
-            .github/scripts
-            .gitmodules
-            .test_durations
-            pjrt_implementation
-            third_party/pjrt_c_api
-            pytest.ini
-            python_package/requirements.txt
-            integrations/vllm_plugin/requirements-vllm-plugin.txt
-            tests
-            venv
-            examples
 
       - name: Download artifact and setup venv
         shell: bash
@@ -94,37 +82,38 @@ jobs:
           source venv/activate
 
           # Install the wheel
-          WHEEL_PATH=$(find $ARTIFACT_DIR -name "*.whl" | head -n 1)
-          echo "Installing wheel: $WHEEL_PATH"
-          pip install "$WHEEL_PATH"
+          echo "Not installing wheel for now."
+          # WHEEL_PATH=$(find $ARTIFACT_DIR -name "*.whl" | head -n 1)
+          # echo "Installing wheel: $WHEEL_PATH"
+          # pip install "$WHEEL_PATH"
 
-      - name: Reset hardware and run liveness check
-        shell: bash
-        run: |
-          source venv/activate
+      # - name: Reset hardware and run liveness check
+      #   shell: bash
+      #   run: |
+      #     source venv/activate
 
-          # Install tt-smi
-          pip install tt-smi
+      #     # Install tt-smi
+      #     pip install tt-smi
 
-          # Reset and test in a loop - retry if liveness check fails
-          MAX_ATTEMPTS=5
-          for i in $(seq 1 $MAX_ATTEMPTS); do
-            echo "Attempt $i/$MAX_ATTEMPTS: Resetting hardware..."
-            tt-smi -r
-            sleep 1
+      #     # Reset and test in a loop - retry if liveness check fails
+      #     MAX_ATTEMPTS=5
+      #     for i in $(seq 1 $MAX_ATTEMPTS); do
+      #       echo "Attempt $i/$MAX_ATTEMPTS: Resetting hardware..."
+      #       tt-smi -r
+      #       sleep 1
 
-            echo "Running liveness check (MNIST example)..."
-            if python3 examples/pytorch/mnist.py; then
-              echo "Liveness check passed!"
-              break
-            else
-              echo "Liveness check failed, will retry..."
-              if [ $i -eq $MAX_ATTEMPTS ]; then
-                echo "Failed after $MAX_ATTEMPTS attempts"
-                exit 1
-              fi
-            fi
-          done
+      #       echo "Running liveness check (MNIST example)..."
+      #       if python3 examples/pytorch/mnist.py; then
+      #         echo "Liveness check passed!"
+      #         break
+      #       else
+      #         echo "Liveness check failed, will retry..."
+      #         if [ $i -eq $MAX_ATTEMPTS ]; then
+      #           echo "Failed after $MAX_ATTEMPTS attempts"
+      #           exit 1
+      #         fi
+      #       fi
+      #     done
 
       - name: Setup SSH
         shell: bash
