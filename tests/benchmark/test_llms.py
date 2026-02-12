@@ -12,7 +12,7 @@ from loguru import logger
 from utils import create_model_loader, resolve_display_name
 
 # Defaults for all llms
-DEFAULT_OPTIMIZATION_LEVEL = 1
+DEFAULT_OPTIMIZATION_LEVEL = 2
 DEFAULT_MEMORY_LAYOUT_ANALYSIS = False
 DEFAULT_TRACE_ENABLED = False
 DEFAULT_BATCH_SIZE = 32
