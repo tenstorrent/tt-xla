@@ -136,6 +136,12 @@ def test_deepseek_attention_prefill():
         shard_specs[attention.kv_cache] = ("batch", None, None)
         shard_specs[attention.pe_cache] = ("batch", None, None)
 
+        # Indexer sharding
+        shard_specs[attention.indexer.wq_b.weight] = ("model", None)  # [n_heads*head_dim, q_lora_rank] - column-parallel
+        shard_specs[attention.indexer.wk.weight] = (None, "batch")  # [head_dim, dim] - row-parallel
+        shard_specs[attention.indexer.weights_proj.weight] = (None, "batch")  # [n_heads, dim] - row-parallel
+        shard_specs[attention.indexer.k_cache] = ("batch", None, None)  # [max_batch, max_seq, head_dim]
+
         return shard_specs
 
     comparison_config = ComparisonConfig(
@@ -189,18 +195,35 @@ def test_deepseek_indexer():
     mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
 
     def get_shard_spec(indexer, args, kwargs):
-        # Return fully replicated shard specs (tuple with None for each dimension)
+        """
+        Hybrid sharding strategy for DeepSeek indexer:
+        - Input qr: batch-sharded for row-parallel computation
+        - Input hidden_states: feature-sharded for row-parallel computation
+        - Weight wq_b: column-parallel (model axis)
+        - Weights wk, weights_proj: row-parallel (batch axis)
+        - Cache k_cache: batch-sharded to match output
+        """
         shard_specs = {}
-        shard_specs[args[0]] = (None, None, None)  # hidden_states (x): [batch, seq, dim]
-        shard_specs[args[1]] = (None, None, None)  # qr: [batch, seq, q_lora_rank]
-        shard_specs[indexer.wq_b.weight] = (None, None)  # [n_heads*head_dim, q_lora_rank]
-        shard_specs[indexer.wk.weight] = (None, None)  # [head_dim, dim]
-        shard_specs[indexer.k_norm.weight] = (None,)  # [head_dim]
-        shard_specs[indexer.k_norm.bias] = (None,)  # [head_dim]
-        shard_specs[indexer.weights_proj.weight] = (None, None)  # [n_heads, dim]
-        shard_specs[indexer.k_cache] = (None, None, None)  # [max_batch, max_seq, head_dim]
+
+        # Input tensors - hybrid sharding
+        shard_specs[args[0]] = (None, None, "batch")  # hidden_states (x): [batch, seq, dim]
+        shard_specs[args[1]] = ("batch", None, None)  # qr: [batch, seq, q_lora_rank]
+
+        # Weight tensors - optimized for parallel linear operations
+        shard_specs[indexer.wq_b.weight] = ("model", None)  # [n_heads*head_dim, q_lora_rank] - column-parallel
+        shard_specs[indexer.wk.weight] = (None, "batch")  # [head_dim, dim] - row-parallel
+        shard_specs[indexer.k_norm.weight] = (None,)  # [head_dim] - replicated
+        shard_specs[indexer.k_norm.bias] = (None,)  # [head_dim] - replicated
+        shard_specs[indexer.weights_proj.weight] = (None, "batch")  # [n_heads, dim] - row-parallel
+        shard_specs[indexer.haddamard] = (None, None)  # [head_dim, head_dim] - replicated
+
+        # Cache tensors - batch-sharded for efficiency
+        shard_specs[indexer.k_cache] = ("batch", None, None)  # [max_batch, max_seq, head_dim]
+
+        # k_scale_cache if present (for FP8 quantization mode)
         if hasattr(indexer, 'k_scale_cache'):
-            shard_specs[indexer.k_scale_cache] = (None, None, None)  # [max_batch, max_seq, head_dim//block_size]
+            shard_specs[indexer.k_scale_cache] = ("batch", None, None)
+
         return shard_specs
 
     comparison_config = ComparisonConfig(
