@@ -44,6 +44,7 @@ jobs:
           docker run -d \
             --name ubuntu-host-mapped \
             --user $(id -u):$(id -g) \
+            -e HOME=/tmp \
             --pid=host \
             --network=host \
             --device /dev/tenstorrent \
@@ -138,7 +139,7 @@ jobs:
           docker exec ubuntu-host-mapped bash -c '
           echo "Setting up SSH configuration for keyless access..."
 
-          # Create SSH config in /tmp (since /root/.ssh is read-only)
+          # Create SSH config in /tmp (since /home/ttuser/.ssh is read-only)
           mkdir -p /tmp/ssh_config
           cat > /tmp/ssh_config/config <<EOF
           Host *
