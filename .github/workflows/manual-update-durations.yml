@@ -36,7 +36,7 @@ jobs:
           - forge-qbae-02
     container:
       image: ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest
-      options: --device /dev/tenstorrent --name ubuntu-host-mapped
+      options: --device /dev/tenstorrent --name ubuntu-host-mapped --pid=host --network=host
       volumes:
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G
