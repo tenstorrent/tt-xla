@@ -54,6 +54,7 @@ jobs:
             -v /lib/modules:/lib/modules \
             -v /etc/passwd:/etc/passwd:ro \
             -v /etc/group:/etc/group:ro \
+            -v /etc/sudoers.d:/etc/sudoers.d:ro \
             -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
             -v /mnt/dockercache:/mnt/dockercache \
             -v /home/ttuser/.ssh:/home/ttuser/.ssh:ro \
