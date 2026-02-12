@@ -1,0 +1,127 @@
+ Context
+
+ Running z_image_turbo.py with the transformer model crashes during TT-MLIR compilation (TTIR→TTNN conversion pipeline) with SIGFPE: Integer divide-by-zero. This analysis
+ traces the crash from the stack trace to the exact C++ line and identifies the model-side trigger.
+
+ ---
+ 1. Exact Crash Location (from addr2line)
+
+ Function: ttmlir::utils::getBroadcastDimensions<long>
+ File: /home/ttuser/tt-xla/third_party/tt-mlir/src/tt-mlir/include/ttmlir/Utils.h:350
+ Instantiated from: Broadcast.cpp (the TTIRImplicitBroadcastFold pass)
+
+ // Utils.h:341-355
+ template <typename T>
+ inline llvm::SmallVector<T>
+ getBroadcastDimensions(llvm::ArrayRef<int64_t> inputShape,
+                        llvm::ArrayRef<int64_t> outputShape) {
+   // ...
+   for (size_t i = 0; i < outputShape.size(); i++) {
+     T d = outputShape[i] / inputShape[i];  // ← CRASH: inputShape[i] == 0
+     broadcastShape.push_back(d);
+   }
+   return broadcastShape;
+ }
+
+ Called from: Broadcast.cpp:71-72 inside TTIRImplicitBroadcastFoldRewriter::matchAndRewrite():
+ auto broadcastDimensions = ttmlir::utils::getBroadcastDimensions<int64_t>(
+     implicitBroadcastedShape, resultShape);  // implicitBroadcastedShape has a 0 dim
+
+ ---
+ 2. Which Compiler Pass Crashes
+
+ The TTIRImplicitBroadcastFold pass at Broadcast.cpp:85-105.
+
+ This pass:
+ - Uses applyPatternsGreedily (matching the stack trace frame [8])
+ - Runs as part of createTTNNPipelineTTIRPasses() when implicitBroadcastFoldingEnabled is true
+ - Part of the TTIR preparation pipeline, BEFORE the TTIR→TTNN conversion
+
+ Stack trace correlation:
+ Frame [ 1]: getBroadcastDimensions<long>  (Utils.h:350)     ← DIVISION BY ZERO
+ Frame [ 2]: TTIRImplicitBroadcastFoldRewriter::matchAndRewrite (Broadcast.cpp:71)
+ Frame [ 3]: (pattern infrastructure)
+ Frame [ 5]: PatternApplicator::matchAndRewrite
+ Frame [ 8]: applyPatternsGreedily                           ← greedy pattern driver
+ Frame [ 9]: TTIRImplicitBroadcastFold::runOnOperation       ← the pass entry point
+ Frame [12+]: OpToOpPassAdaptor (3 nesting levels: Module → DeviceModule → Module)
+ Frame [25]: PassManager::run
+ Frame [26]: ModuleBuilder::convertFromTTIRToTTNN            ← PJRT plugin entry
+
+ ---
+ 3. Model-Side Trigger: Zero-Sized Tensors
+
+ The Z-Image Turbo transformer creates zero-sized intermediate tensors in its patchify_and_embed() method when image_padding_len == 0.
+
+ Input shape analysis
+
+ Given load_transformer_inputs():
+ - latent = torch.randn(16, 1, 128, 128) → C=16, F=1, H=128, W=128
+ - With patch_size=2, f_patch_size=1:
+   - F_tokens = 1, H_tokens = 64, W_tokens = 64
+   - image_ori_len = 1 × 64 × 64 = 4096
+   - image_padding_len = (-4096) % 32 = 0  ← zero padding needed!
+
+ Where zero-sized tensors are created (transformer_zimg_source.py)
+
+ Line 518-519 — repeat(0, 1) creates a (0, 64) tensor:
+ image_padded_feat = torch.cat(
+     [image, image[-1:].repeat(image_padding_len, 1)],  # repeat(0, 1) → shape (0, 64)
+     dim=0,
+ )
+
+ Line 494-502 — repeat(0, 1) creates a (0, 3) tensor:
+ image_padded_pos_ids = torch.cat(
+     [image_ori_pos_ids,
+      self.create_coordinate_grid(...)
+          .flatten(0, 2)
+          .repeat(image_padding_len, 1)],  # repeat(0, 1) → shape (0, 3)
+     dim=0,
+ )
+
+ Line 505-511 — torch.ones((0,), ...) creates a (0,) tensor:
+ image_pad_mask = torch.cat(
+     [torch.zeros((image_ori_len,), dtype=torch.bool, device=device),
+      torch.ones((image_padding_len,), dtype=torch.bool, device=device)],  # shape (0,)
+     dim=0,
+ )
+
+ Although the code has conditionals like if image_padding_len > 0 to discard these results, the zero-sized intermediate tensors are still computed and present in the
+ traced computation graph. When torch.compile(backend="tt") traces the model, these zero-sized tensors become TTIR operations with 0-valued shape dimensions.
+
+ Why this triggers the broadcast fold crash
+
+ 1. The repeat(0, 1) operation on a (1, 64) tensor produces a (0, 64) tensor
+ 2. In TTIR, this may be represented as a broadcast from (1, 64) to (0, 64), or the (0, 64) tensor flows into a subsequent cat operation
+ 3. The TTIRImplicitBroadcastFold pass encounters an op with a 0-sized operand
+ 4. It computes implicitBroadcastedShape which has 0 in the first dimension
+ 5. When implicitBroadcastedShape != resultShape, it calls getBroadcastDimensions
+ 6. getBroadcastDimensions computes resultShape[0] / implicitBroadcastedShape[0] = X / 0 → SIGFPE
+
+ ---
+ 4. Summary
+ Component: Signal
+ Details: SIGFPE (Integer divide-by-zero)
+ ────────────────────────────────────────
+ Component: Crash function
+ Details: ttmlir::utils::getBroadcastDimensions<long>
+ ────────────────────────────────────────
+ Component: Crash file:line
+ Details: ttmlir/Utils.h:350
+ ────────────────────────────────────────
+ Component: Calling pass
+ Details: TTIRImplicitBroadcastFold (Broadcast.cpp:71)
+ ────────────────────────────────────────
+ Component: Pipeline stage
+ Details: TTIR preparation (before TTIR→TTNN conversion)
+ ────────────────────────────────────────
+ Component: Root cause (compiler)
+ Details: getBroadcastDimensions divides by inputShape[i] without checking for zero
+ ────────────────────────────────────────
+ Component: Root cause (model)
+ Details: patchify_and_embed() creates zero-sized tensors via repeat(0, ...) when image_padding_len == 0
+ ────────────────────────────────────────
+ Component: Input trigger
+ Details: Latent shape (16, 1, 128, 128) with patch_size=2 yields 4096 patches, which is already a multiple of SEQ_MULTI_OF=32, so no padding is needed → image_padding_len
+
+   = 0
