@@ -1,0 +1,440 @@
+# This workflow proactively tests tt-xla against the latest transformers from main.
+# If failures occur, it uses Claude Code CLI to auto-generate compatibility fixes
+# and opens a PR for human review.
+
+name: Transformers Compatibility Check
+
+on:
+  push:
+    branches:
+      - aknezevic/hf_uplift  # TODO: Remove before merging to main
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      transformers_ref:
+        description: 'Git ref for transformers (branch, tag, or SHA). Defaults to main.'
+        required: false
+        default: 'main'
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  checks: write
+  pull-requests: write
+  actions: write
+  id-token: write
+
+concurrency:
+  group: transformers-compat
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  TT_XLA_CI: 1
+
+jobs:
+
+  # ── Job 1: Build Docker image ─────────────────────────────────────────
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+
+  # ── Job 2: Build tt-xla wheel ─────────────────────────────────────────
+  build-ttxla:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla"
+    secrets: inherit
+    needs: build-image
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  # ── Job 3: Test with latest transformers, auto-fix on failure ──────────
+  test-and-fix:
+    needs: [build-image, build-ttxla]
+
+    runs-on:
+      - n150
+      - in-service
+
+    name: "compat-test (n150, torch models)"
+
+    outputs:
+      has-fix: ${{ steps.check-changes.outputs.has_fix }}
+      fix-branch: ${{ steps.create-branch.outputs.branch_name }}
+
+    container:
+      image: ${{ needs.build-image.outputs.docker-image-base }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-xla/tt-xla
+        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+    - name: Log disk space
+      run: df -h
+
+    - name: Set caching env variables
+      shell: bash
+      run: echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+        token: ${{ secrets.GH_TOKEN }}
+        sparse-checkout: |
+          .github/scripts
+          .gitmodules
+          .test_durations
+          pjrt_implementation
+          third_party/pjrt_c_api
+          pytest.ini
+          python_package/requirements.txt
+          integrations/vllm_plugin/requirements-vllm-plugin.txt
+          tests
+          venv
+          examples
+
+    - name: Fetch job id
+      id: fetch-job-id
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "compat-test (n150, torch models)"
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      env:
+        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
+        echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
+
+    - name: Download and install wheels
+      shell: bash
+      run: |
+        echo "=== Downloading wheels ==="
+        gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir wheels \
+          --name ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+        echo "Downloaded wheel files:"
+        ls -la wheels
+
+        echo "=== Installing wheel ==="
+        source venv/activate
+        uv pip install wheels/*.whl
+
+    - name: Swap transformers to latest
+      id: swap-transformers
+      shell: bash
+      run: |
+        source venv/activate
+        CURRENT_VERSION=$(python -c "import transformers; print(transformers.__version__)")
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "Current transformers version: $CURRENT_VERSION"
+
+        uv pip uninstall transformers
+        TRANSFORMERS_REF="${{ inputs.transformers_ref || 'main' }}"
+        echo "Installing transformers from git ref: $TRANSFORMERS_REF"
+        uv pip install "transformers @ git+https://github.com/huggingface/transformers.git@${TRANSFORMERS_REF}"
+
+        NEW_VERSION=$(python -c "import transformers; print(transformers.__version__)")
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "New transformers version: $NEW_VERSION"
+
+    - name: Set pytest command
+      shell: bash
+      run: |
+        BASE_PYTEST_CMD="--forked --log-memory \
+          --durations=0 \
+          ./tests/runner/test_models.py::test_all_models_torch \
+          --arch n150 \
+          -m \"n150 and expected_passing and push\""
+
+        echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
+        echo "VERBOSITY=-vv" >> $GITHUB_ENV
+
+        FULL_TEST_CMD="source venv/activate && python -m pytest -vv $BASE_PYTEST_CMD"
+        echo "FULL_TEST_CMD=$FULL_TEST_CMD" >> $GITHUB_ENV
+
+    - name: Install System Deps
+      shell: bash
+      run: |
+        apt-get update
+        apt install -y libgl1 libglx-mesa0
+
+    - name: Validate test config
+      continue-on-error: true
+      shell: bash
+      run: |
+        source venv/activate
+        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_torch --validate-test-config
+
+    - name: Collect Tests
+      id: collect-tests
+      continue-on-error: true
+      shell: bash
+      run: |
+        source venv/activate
+        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
+        cat collected_tests.txt
+
+        NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
+        if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
+          ESTIMATED_DURATION=240
+        else
+          SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
+            --collected-output collected_tests.txt \
+            --durations-file .test_durations \
+            --default-timeout 240)
+          echo "$SCRIPT_OUTPUT"
+          ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
+        fi
+
+        echo "Estimated duration: $ESTIMATED_DURATION minutes"
+        echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
+
+    - name: Run tests
+      id: run-tests
+      continue-on-error: true
+      timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes || '120') }}
+      env:
+        HF_HOME: /mnt/dockercache/huggingface
+        TORCH_HOME: /mnt/dockercache/torchhub
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        ENABLE_BRINGUP_STAGE_LOGGING: 1
+      shell: bash
+      run: |
+        source venv/activate
+        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
+               --junitxml=${{ steps.strings.outputs.test_report_path }} \
+               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
+               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
+               2>&1 | tee pytest.log
+
+    # ── Claude Code auto-fix on failure ──
+    - name: Install Claude Code CLI
+      if: steps.run-tests.outcome == 'failure'
+      shell: bash
+      run: |
+        curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local/ || true
+        npm install -g @anthropic-ai/claude-code
+
+    - name: Create fix branch
+      id: create-branch
+      if: steps.run-tests.outcome == 'failure'
+      shell: bash
+      run: |
+        BRANCH_NAME="auto/transformers-compat-$(date +%Y%m%d-%H%M)"
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        git checkout -b "$BRANCH_NAME"
+        echo "Created branch: $BRANCH_NAME"
+
+    - name: Build Claude Code prompt
+      if: steps.run-tests.outcome == 'failure'
+      shell: bash
+      run: |
+        cat > claude_prompt.txt << 'PROMPT_HEADER'
+        You are fixing transformers compatibility issues in the tt-xla project.
+
+        The HuggingFace transformers library was updated from the pinned version to the latest
+        from the 'main' branch, and some model tests broke.
+
+        ## Test output (pytest.log)
+        PROMPT_HEADER
+        tail -500 pytest.log >> claude_prompt.txt 2>/dev/null || echo "No pytest.log available" >> claude_prompt.txt
+
+        cat >> claude_prompt.txt << PROMPT_CMD
+
+        ## Test command to re-run after fixing
+        ${{ env.FULL_TEST_CMD }}
+        PROMPT_CMD
+
+        cat >> claude_prompt.txt << 'PROMPT_TAIL'
+
+        ## Instructions
+        1. Analyze the failures to identify which transformers API changes caused them.
+        2. Your changes do not need to be backward-compatible with older transformers versions. The whole repo is going to be updated to the latest transformers version.
+        3. You may modify any Python files in the repo as needed to fix the compatibility issues
+           (e.g. update imports, fix class references, etc.).
+        4. Try to address any API changes at the source level. If an old API is no longer supported, search for alternatives to use instead.
+        5. After making fixes, you MUST re-run the FULL test command above (not just --collect-only).
+           Run the exact test command provided and wait for it to complete.
+           If it still fails, analyze the new error and iterate until the tests pass.
+        6. Do NOT consider your task complete until you have run the full test suite and it passes.
+
+        ## Rules
+        - Do NOT modify files under third_party/ (these are external submodules).
+        - Do NOT modify venv/requirements-dev.txt or change the pinned transformers version.
+        - Keep changes minimal and focused on compatibility.
+        PROMPT_TAIL
+
+    - name: Run Claude Code to fix and re-run tests
+      if: steps.run-tests.outcome == 'failure'
+      timeout-minutes: 120
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        HF_HOME: /mnt/dockercache/huggingface
+        TORCH_HOME: /mnt/dockercache/torchhub
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      shell: bash
+      run: |
+        cat claude_prompt.txt | claude -p \
+          --verbose \
+          --allowedTools "Edit,Read,Glob,Grep,Write,Bash"
+
+    - name: Revert any changes to third_party submodules
+      if: steps.run-tests.outcome == 'failure'
+      shell: bash
+      run: |
+        CHANGED_FILES=$(git diff --name-only)
+        if [ -z "$CHANGED_FILES" ]; then
+          echo "No changes were made"
+          exit 0
+        fi
+
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+
+        SUBMODULE_FILES=$(echo "$CHANGED_FILES" | grep "^third_party/" || true)
+        if [ -n "$SUBMODULE_FILES" ]; then
+          echo "Reverting changes to third_party/ submodules:"
+          echo "$SUBMODULE_FILES"
+          while IFS= read -r file; do
+            if [ -n "$file" ]; then
+              git checkout -- "$file" 2>/dev/null || true
+            fi
+          done <<< "$SUBMODULE_FILES"
+        fi
+
+    - name: Check for changes and commit
+      id: check-changes
+      if: steps.run-tests.outcome == 'failure'
+      shell: bash
+      run: |
+        if [ -z "$(git diff --name-only)" ]; then
+          echo "has_fix=false" >> $GITHUB_OUTPUT
+          echo "No fix was produced"
+          exit 0
+        fi
+
+        echo "has_fix=true" >> $GITHUB_OUTPUT
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git diff --name-only | xargs git add --
+        git commit -m "Auto-fix: transformers compatibility
+
+        Generated by Claude Code CLI in response to test failures
+        when running against latest transformers from main.
+
+        Co-Authored-By: Claude <noreply@anthropic.com>"
+        git push origin "${{ steps.create-branch.outputs.branch_name }}"
+
+    # ── Upload artifacts (always) ──
+    - name: Upload Test Log
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: transformers-compat-test-log-${{ steps.fetch-job-id.outputs.job_id }}
+        path: pytest.log
+        if-no-files-found: ignore
+
+    - name: Upload Test Report
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: transformers-compat-test-report-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ steps.strings.outputs.test_report_path }}
+        if-no-files-found: ignore
+
+    - name: Fail if tests failed and no fix was produced
+      if: steps.run-tests.outcome == 'failure' && steps.check-changes.outputs.has_fix != 'true'
+      run: exit 1
+
+  # ── Job 4: Create PR if fix was pushed ─────────────────────────────────
+  create-pr:
+    needs: [test-and-fix]
+    if: ${{ always() && needs.test-and-fix.outputs.has-fix == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.test-and-fix.outputs.fix-branch }}
+        fetch-depth: 0
+
+    - name: Create Pull Request
+      id: create-pr
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      shell: bash
+      run: |
+        PR_URL=$(gh pr create \
+          --base "${{ github.ref_name }}" \
+          --head "${{ needs.test-and-fix.outputs.fix-branch }}" \
+          --title "Auto-fix: transformers compatibility (latest from main)" \
+          --body "$(cat <<'EOF'
+        ## Summary
+
+        This PR was auto-generated by the **Transformers Compatibility Check** workflow.
+
+        Model tests failed when running against the latest `transformers` from `main`.
+        Claude Code CLI analyzed the failures, applied fixes, and verified they pass on hardware.
+
+        ### Verification
+        - Claude Code iterated on fixes until the test passed on a TT hardware runner (n150).
+
+        ### Workflow run
+        https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+        > **Note:** This PR requires human review before merging.
+
+        ---
+        *Generated by Claude Code CLI*
+        EOF
+        )" \
+          --label "transformers-compat" \
+          --label "auto-generated" 2>&1)
+
+        echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+        echo "PR created: $PR_URL"
+
+    outputs:
+      pr-url: ${{ steps.create-pr.outputs.pr_url }}
+
+  # ── Job 5: Notify via Slack ────────────────────────────────────────────
+  notify:
+    if: always()
+    needs:
+      - test-and-fix
+      - create-pr
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Determine outcome and send notification
+      uses: slackapi/slack-github-action@v1.26.0
+      with:
+        payload: |
+          {
+            "text": "${{ needs.test-and-fix.result == 'success' && (needs.test-and-fix.outputs.has-fix == 'true' && format('Transformers compat: Tests failed, Claude Code auto-fix PR created: {0}', needs.create-pr.outputs.pr-url) || 'Transformers compat: All model tests pass with latest transformers — no compat issues') || 'Transformers compat: Tests failed, Claude Code could not produce a fix' }} | <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Workflow Run>",
+            "channel": "C08GYB57C8M",
+            "unfurl_links": false, "unfurl_media": false
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
