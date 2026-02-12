@@ -97,6 +97,10 @@ jobs:
           echo "Installing wheel: $WHEEL_PATH"
           pip install "$WHEEL_PATH"
 
+          # Install tt-smi and check hardware
+          echo "Resetting hardware"
+          pip install tt-smi && tt-smi -r
+
           # sanity check that singledevice execution works.
           python3 examples/pytorch/mnist.py
 
