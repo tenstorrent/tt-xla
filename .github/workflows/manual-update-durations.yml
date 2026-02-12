@@ -74,8 +74,9 @@ jobs:
           echo "All participating hosts: $ALL_HOSTS"
           hostname
 
-          # Download the artifact into the cwd
-          python3 .github/scripts/download_artifacts.py --workflow push-main.yml --branch main --filter xla-whl-release
+          # Download the artifact from specific workflow run
+          python3 .github/scripts/download_artifacts.py --run-id 21839981996 --filter xla-whl-release
+          # python3 .github/scripts/download_artifacts.py --workflow push-main.yml --branch main --filter xla-whl-release
 
           # Create venv
           source venv/activate
