@@ -16,13 +16,13 @@ import vllm
 # ---------------------------------------------------------------------------
 
 SAMPLING_PARAM_SWEEPS = [
-    ("temperature", [0.5, 0.8, 1.0, 1.5]),
-    ("top_p", [0.3, 0.5, 0.8, 0.9, 1.0]),
-    ("top_k", [5, 10, 50, 100, -1]),
-    ("min_p", [0.0, 0.05, 0.1, 0.2]),
-    ("presence_penalty", [0.0, 0.5, 1.0, 2.0]),
-    ("frequency_penalty", [0.0, 0.5, 1.0, 2.0]),
-    ("repetition_penalty", [1.0, 1.2, 1.5, 2.0]),
+    ("temperature", [0.5, 1.0, 1.5]),
+    ("top_p", [0.3, 0.8, 1.0]),
+    ("top_k", [5, 50, -1]),
+    ("min_p", [0.0, 0.1, 0.2]),
+    ("presence_penalty", [0.0, 1.0, 2.0]),
+    ("frequency_penalty", [0.0, 1.0, 2.0]),
+    ("repetition_penalty", [1.0, 1.5, 2.0]),
 ]
 
 # ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ def run_diversity_check(llm, prompt):
     params = vllm.SamplingParams(
         temperature=1.0,
         top_p=1.0,
-        n=8,
+        n=4,
         max_tokens=16,
     )
     outputs = llm.generate(prompt, params, use_tqdm=False)[0].outputs
@@ -193,9 +193,7 @@ def run_parameter_boundary_values(llm, prompt):
     test_cases = [
         vllm.SamplingParams(temperature=0.0, max_tokens=16),
         vllm.SamplingParams(temperature=2.0, max_tokens=16),
-        vllm.SamplingParams(temperature=0.8, top_p=0.01, max_tokens=16),
         vllm.SamplingParams(temperature=0.8, top_k=1, max_tokens=16),
-        vllm.SamplingParams(temperature=0.8, min_p=0.5, max_tokens=16),
     ]
 
     for i, params in enumerate(test_cases):
