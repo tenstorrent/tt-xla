@@ -302,6 +302,7 @@ class CMakeBuildPy(build_py):
             "Ninja",
             "-B",
             "build",
+            "-DTTXLA_ENABLE_EWHEEL_INSTALL=OFF",
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),

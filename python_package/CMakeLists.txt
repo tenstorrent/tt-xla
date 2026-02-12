@@ -1,14 +1,15 @@
+if(TTXLA_ENABLE_EWHEEL_INSTALL)
+  # Editable installation of all python packages in the python_package directory.
+  add_custom_target(install-ttxla-python-packages ALL
+      COMMAND ln -sf $<TARGET_FILE:TTPJRTTTDylib> ${CMAKE_SOURCE_DIR}/python_package/pjrt_plugin_tt/pjrt_plugin_tt.so
+      COMMENT "Installing pjrt_plugin_tt.so to python_package/pjrt_plugin_tt"
+      COMMAND pip install -e ${CMAKE_SOURCE_DIR}/python_package --no-deps --no-build-isolation
+      COMMENT "Running editable installation..."
+      USES_TERMINAL
+  )
 
-# Editable installation of all python packages in the python_package directory.
-add_custom_target(install-ttxla-python-packages ALL
-    COMMAND ln -sf $<TARGET_FILE:TTPJRTTTDylib> ${CMAKE_SOURCE_DIR}/python_package/pjrt_plugin_tt/pjrt_plugin_tt.so
-    COMMENT "Installing pjrt_plugin_tt.so to python_package/pjrt_plugin_tt"
-    COMMAND pip install -e ${CMAKE_SOURCE_DIR}/python_package --no-deps --no-build-isolation
-    COMMENT "Running editable installation..."
-    USES_TERMINAL
-)
-
-add_dependencies(install-ttxla-python-packages TTPJRTTTDylib bundle-tracy bundle-ttnn)
+  add_dependencies(install-ttxla-python-packages TTPJRTTTDylib bundle-tracy bundle-ttnn)
+endif()
 
 # Create symlinks to the original tracy and ttnn modules from tt-metal.
 # These symlinks allow our wrapper modules to import and delegate to the original code.
