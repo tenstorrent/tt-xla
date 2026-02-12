@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import infra.utilities.transformers_compat  # noqa: F401  # Patch removed transformers APIs early
+
 import contextlib
 import ctypes
 import gc

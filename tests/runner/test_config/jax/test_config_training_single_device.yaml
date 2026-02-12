@@ -162,14 +162,20 @@ test_config:
     execution_pass: FORWARD
 
   gpt_neo/causal_lm/jax-_125m-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxGPTNeoForCausalLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   gpt_neo/causal_lm/jax-_1_3b-single_device-training:
-    status: NOT_SUPPORTED_SKIP # Model too large for our runners https://github.com/tenstorrent/tt-xla/issues/3209
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxGPTNeoForCausalLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
     markers: [large, nightly]
 
   gpt_neo/causal_lm/jax-_2_7b-single_device-training:
-    status: KNOWN_FAILURE_XFAIL # Model too large for our runners
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxGPTNeoForCausalLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
     markers: [large]
 
   gpt_sw3/causal_lm/jax-1_3b_instruct-single_device-training:
@@ -319,41 +325,35 @@ test_config:
 
   resnet/image_classification/jax-resnet-101-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
-    execution_pass: BACKWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
 
   resnet/image_classification/jax-resnet-152-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
-    execution_pass: BACKWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
 
   resnet/image_classification/jax-resnet-18-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
-    execution_pass: BACKWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
 
   resnet/image_classification/jax-resnet-26-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
+    bringup_status: FAILED_FE_COMPILATION
     markers: [large]
-    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
-    execution_pass: BACKWARD
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
 
   resnet/image_classification/jax-resnet-34-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
-    execution_pass: BACKWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
 
   resnet/image_classification/jax-resnet-50-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
+    bringup_status: FAILED_FE_COMPILATION
     markers: [large, push]
-    reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
-    execution_pass: BACKWARD
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
 
   roberta/masked_lm/jax-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -365,13 +365,19 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
 
   roformer/masked_lm/jax-chinese-base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxRoFormerForMaskedLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   roformer/masked_lm/jax-chinese-char-small-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxRoFormerForMaskedLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   roformer/masked_lm/jax-chinese-small-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxRoFormerForMaskedLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   squeezebert/masked_lm/jax-base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
@@ -390,57 +396,48 @@ test_config:
 
   vit/image_classification/jax-base_patch16_224-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
-    execution_pass: BACKWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
 
   vit/image_classification/jax-base_patch16_384-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
-    execution_pass: BACKWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
 
   vit/image_classification/jax-base_patch32_224_in_21k-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
-    execution_pass: BACKWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
 
   vit/image_classification/jax-base_patch32_384-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
-    execution_pass: BACKWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
 
   vit/image_classification/jax-huge_patch14_224_in_21k-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
-    execution_pass: BACKWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
 
   vit/image_classification/jax-large_patch16_224-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
-    execution_pass: BACKWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
 
   vit/image_classification/jax-large_patch16_384-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
-    execution_pass: BACKWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
 
   vit/image_classification/jax-large_patch32_224_in_21k-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Statically allocated circular buffers in program 37 clash with L1 buffers on core range [(x=0,y=0) - (x=0,y=0)]. L1 buffer allocated at 253952 and static circular buffer region ends at 1347456"
-    execution_pass: FORWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
 
   vit/image_classification/jax-large_patch32_384-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Statically allocated circular buffers in program 37 clash with L1 buffers on core range [(x=0,y=0) - (x=0,y=0)]. L1 buffer allocated at 253952 and static circular buffer region ends at 1347456"
-    execution_pass: FORWARD
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
 
   wav2vec2/audio_classification/jax-large_lv_60-single_device-training:
     status: NOT_SUPPORTED_SKIP

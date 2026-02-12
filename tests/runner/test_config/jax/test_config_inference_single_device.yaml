@@ -179,15 +179,20 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   gpt_neo/causal_lm/jax-_125m-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxGPTNeoForCausalLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
     markers: [nightly]
 
   gpt_neo/causal_lm/jax-_1_3b-single_device-inference:
-    required_pcc: 0.988 # PCC dropped from <0.992 to <0.99 after tilize was *improved*
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxGPTNeoForCausalLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   gpt_neo/causal_lm/jax-_2_7b-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxGPTNeoForCausalLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
     markers: [large]
 
   gpt_sw3/causal_lm/jax-1_3b_instruct-single_device-inference:
@@ -435,25 +440,36 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   resnet/image_classification/jax-resnet-18-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
     markers: [push, nightly, large]
 
   resnet/image_classification/jax-resnet-26-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   resnet/image_classification/jax-resnet-34-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   resnet/image_classification/jax-resnet-50-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
     markers: [push, nightly]
 
   resnet/image_classification/jax-resnet-101-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   resnet/image_classification/jax-resnet-152-single_device-inference:
-    required_pcc: 0.988 # We have >0.9893 on both, BH was <0.99 from the start, WH regressed from <0.992 to <0.99 after tilize was *improved*
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxResNetForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   roberta/masked_lm/jax-base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -467,14 +483,20 @@ test_config:
     status: EXPECTED_PASSING
 
   roformer/masked_lm/jax-chinese-base-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxRoFormerForMaskedLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
     markers: [nightly]
 
   roformer/masked_lm/jax-chinese-char-small-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxRoFormerForMaskedLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   roformer/masked_lm/jax-chinese-small-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxRoFormerForMaskedLM removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   squeezebert/masked_lm/jax-base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -500,40 +522,50 @@ test_config:
     bringup_status: INCORRECT_RESULT
 
   vit/image_classification/jax-base_patch16_224-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
     markers: [push, nightly]
 
   vit/image_classification/jax-base_patch16_384-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   vit/image_classification/jax-base_patch32_224_in_21k-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 2287616 B L1 buffer across 2 banks"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   vit/image_classification/jax-base_patch32_384-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate L1 buffer for ViT patch32_384"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   vit/image_classification/jax-huge_patch14_224_in_21k-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   vit/image_classification/jax-large_patch16_224-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   vit/image_classification/jax-large_patch16_384-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   vit/image_classification/jax-large_patch32_224_in_21k-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 7782400 B L1 buffer across 5 banks"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   vit/image_classification/jax-large_patch32_384-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Failed to allocate buffers for ViT large patch32_384"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class FlaxViTForImageClassification removed in transformers"
+    bringup_status: FAILED_FE_COMPILATION
 
   wav2vec2/audio_classification/jax-large_lv_60-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
