@@ -17,24 +17,24 @@ permissions:
 
 jobs:
   perf-benchmark-n150:
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/add-fail-notify-perf-flag
     secrets: inherit
     with:
       docker-image: ${{ inputs.release_docker_image }}
-      ref: main
+      ref: vvukoman/add-fail-notify-perf-flag
       project: tt-xla
-      sh-runner: false
+      sh-runner: true
       skip-device-perf: false
       runs-on-filter: n150
       fail-notify: true
 
   perf-benchmark-llmbox:
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/add-fail-notify-perf-flag
     secrets: inherit
     with:
       docker-image: ${{ inputs.release_docker_image }}
-      ref: main
+      ref: vvukoman/add-fail-notify-perf-flag
       project: tt-xla
-      sh-runner: false
+      sh-runner: true
       skip-device-perf: false
       runs-on-filter: llmbox
