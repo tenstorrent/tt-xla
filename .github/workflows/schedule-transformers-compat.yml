@@ -1,0 +1,769 @@
+# This workflow proactively tests tt-xla against the latest transformers from main.
+# If failures occur, it uses Claude Code CLI to auto-generate compatibility fixes
+# and opens a PR for human review.
+
+name: Transformers Compatibility Check
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      transformers_ref:
+        description: 'Git ref for transformers (branch, tag, or SHA). Defaults to main.'
+        required: false
+        default: 'main'
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  checks: write
+  pull-requests: write
+  actions: write
+  id-token: write
+
+concurrency:
+  group: transformers-compat
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  TT_XLA_CI: 1
+
+jobs:
+
+  # ── Job 1: Build Docker image ─────────────────────────────────────────
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+
+  # ── Job 2: Build tt-xla wheel ─────────────────────────────────────────
+  build-ttxla:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla"
+    secrets: inherit
+    needs: build-image
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  # ── Job 3: Generate test matrix ────────────────────────────────────────
+  generate-matrix:
+    uses: ./.github/workflows/call-generate-matrix.yml
+    secrets: inherit
+    with:
+      test_suite: model-test-push.json
+
+  # ── Job 4: Run tests with latest transformers ──────────────────────────
+  test-with-latest-transformers:
+    needs: [build-image, build-ttxla, generate-matrix]
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJson(needs.generate-matrix.outputs.test_matrix) }}
+
+    runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on }}
+
+    name: "compat-test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+
+    container:
+      image: ${{ !matrix.build.shared-runners && needs.build-image.outputs.docker-image-base || format('harbor.ci.tenstorrent.net/{0}', needs.build-image.outputs.docker-image-base) }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-xla/tt-xla
+        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+    - name: Log disk space
+      run: df -h
+
+    - name: Set caching env variables
+      shell: bash
+      run: |
+        shared_runners=${{ matrix.build.shared-runners }}
+        if [[ "$shared_runners" == "" || "$shared_runners" == "false" ]]; then
+          echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
+        else
+          echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
+        fi
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        sparse-checkout: |
+          .github/scripts
+          .gitmodules
+          .test_durations
+          pjrt_implementation
+          third_party/pjrt_c_api
+          pytest.ini
+          python_package/requirements.txt
+          integrations/vllm_plugin/requirements-vllm-plugin.txt
+          tests
+          venv
+          examples
+
+    - name: Fetch job id
+      id: fetch-job-id
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "compat-test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      env:
+        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+        echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
+        echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
+        echo "wheel_artifact_name=${{ needs.build-ttxla.outputs.wheel_artifact_name }}" >> "$GITHUB_OUTPUT"
+        echo "artifact_run_id=${{ needs.build-ttxla.outputs.artifacts_run_id }}" >> "$GITHUB_OUTPUT"
+
+        if [[ "${{ matrix.build.dir }}" == *"tests/runner/test_models.py"* ]]; then
+          echo "forge-models-test=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "forge-models-test=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Download and install wheels
+      shell: bash
+      run: |
+        echo "=== Downloading wheels ==="
+        gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir wheels \
+          --name ${{ steps.strings.outputs.wheel_artifact_name }}
+        echo "Downloaded wheel files:"
+        ls -la wheels
+
+        echo "=== Installing wheel ==="
+        source venv/activate
+        uv pip install wheels/*.whl
+
+    - name: Swap transformers to latest
+      id: swap-transformers
+      shell: bash
+      run: |
+        source venv/activate
+        CURRENT_VERSION=$(python -c "import transformers; print(transformers.__version__)")
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "Current transformers version: $CURRENT_VERSION"
+
+        uv pip uninstall transformers
+        TRANSFORMERS_REF="${{ inputs.transformers_ref || 'main' }}"
+        echo "Installing transformers from git ref: $TRANSFORMERS_REF"
+        uv pip install "transformers @ git+https://github.com/huggingface/transformers.git@${TRANSFORMERS_REF}"
+
+        NEW_VERSION=$(python -c "import transformers; print(transformers.__version__)")
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "New transformers version: $NEW_VERSION"
+
+    - name: Set pytest command
+      shell: bash
+      run: |
+        PYTEST_FORKED=""
+        for n in run_torch run_large_jax_models run_forge_models run_forge_models_llm run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
+          if [[ "${{ matrix.build.name }}" == "$n" ]]; then
+            PYTEST_FORKED="--forked"; break
+          fi
+        done
+
+        if [[ -n "$PYTEST_FORKED" ]]; then
+          VERBOSITY="-vv"
+        else
+          VERBOSITY="-sv"
+        fi
+
+        ARCH=""
+        if [[ "${{ steps.strings.outputs.forge-models-test }}" == "true" ]]; then
+          ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
+        fi
+
+        MARKS="${{ matrix.build.test-mark }}"
+
+        PYTEST_SPLITS="--splits ${{ matrix.build.parallel-groups || 1}} \
+          --group ${{ matrix.build.group-id || 1}} \
+          --splitting-algorithm least_duration"
+
+        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
+          --durations=0 \
+          ${{ matrix.build.dir }} \
+          $ARCH \
+          -m \"$MARKS\" ${{ matrix.build.args }} \
+          -k "$(printf '%q' '${{ matrix.build.contains }}')" \
+          $PYTEST_SPLITS"
+
+        echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
+        echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
+
+    - name: Install System Deps for Forge Models Tests
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' }}
+      shell: bash
+      run: |
+        apt-get update
+        apt install -y libgl1 libglx-mesa0
+
+    - name: Validate Forge Models Tests test config file
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
+      shell: bash
+      run: |
+        source venv/activate
+        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_torch --validate-test-config
+        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_jax --validate-test-config
+        python -m pytest -vv ./tests/runner/test_models.py::test_llms_torch --validate-test-config
+
+    - name: Collect Tests
+      id: collect-tests
+      shell: bash
+      run: |
+        source venv/activate
+        echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
+        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
+        cat collected_tests.txt
+
+        NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
+        if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
+          echo "Found $NOTIMEOUT_COUNT tests with notimeout marker, using default timeout of 240 minutes"
+          ESTIMATED_DURATION=240
+        else
+          SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
+            --collected-output collected_tests.txt \
+            --durations-file .test_durations \
+            --default-timeout 240)
+          echo "$SCRIPT_OUTPUT"
+          ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
+        fi
+
+        echo "Estimated duration: $ESTIMATED_DURATION minutes"
+        echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
+
+    - name: Run tests
+      id: run-tests
+      continue-on-error: true
+      timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
+      env:
+        HF_HOME: /mnt/dockercache/huggingface
+        TORCH_HOME: /mnt/dockercache/torchhub
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        ENABLE_BRINGUP_STAGE_LOGGING: 1
+      shell: bash
+      run: |
+        source venv/activate
+        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
+               --junitxml=${{ steps.strings.outputs.test_report_path }} \
+               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
+               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
+               2>&1 | tee pytest.log
+
+    - name: Sanitize test_mark
+      id: sanitize
+      shell: bash
+      run: echo "test_mark=${TEST_MARK// /_}" >> $GITHUB_OUTPUT
+      env:
+        TEST_MARK: ${{ matrix.build.test-mark }}
+
+    - name: Upload Test Log
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: transformers-compat-test-log-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: pytest.log
+
+    - name: Upload Test Report
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: transformers-compat-test-reports-${{ needs.generate-matrix.outputs.test_matrix_hash }}-${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ steps.strings.outputs.test_report_path }}
+
+    - name: Fail if tests failed
+      if: steps.run-tests.outcome == 'failure'
+      run: exit 1
+
+  # ── Job 5: Analyze failures and generate fix with Claude Code ──────────
+  analyze-and-fix:
+    needs: [test-with-latest-transformers, generate-matrix]
+    if: ${{ needs.test-with-latest-transformers.result == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      has-fix: ${{ steps.check-changes.outputs.has_fix }}
+      fix-branch: ${{ steps.create-branch.outputs.branch_name }}
+      failed-tests-summary: ${{ steps.extract-context.outputs.summary }}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+        ref: main
+        token: ${{ secrets.GH_TOKEN }}
+
+    - name: Download test report artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: transformers-compat-test-reports-*
+        path: test-reports
+
+    - name: Download test log artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: transformers-compat-test-log-*
+        path: test-logs
+
+    - name: Extract failed test names
+      id: find-failures
+      shell: bash
+      run: |
+        python .github/scripts/find_all_failed_tests.py test-reports
+        if [ -f .pytest_tests_to_run ]; then
+          FAILED_COUNT=$(wc -l < .pytest_tests_to_run)
+          echo "failed_count=$FAILED_COUNT" >> $GITHUB_OUTPUT
+          echo "Found $FAILED_COUNT failed tests"
+          cat .pytest_tests_to_run
+        else
+          echo "failed_count=0" >> $GITHUB_OUTPUT
+          echo "No failed tests found in XML reports"
+        fi
+
+    - name: Extract failure context for Claude Code
+      id: extract-context
+      shell: bash
+      run: |
+        python .github/scripts/extract_transformers_failure_context.py \
+          test-reports test-logs failure_context.txt
+        if [ -f failure_context.txt ]; then
+          # Store a short summary for PR body (first 500 chars)
+          SUMMARY=$(head -c 500 failure_context.txt)
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create fix branch
+      id: create-branch
+      shell: bash
+      run: |
+        BRANCH_NAME="auto/transformers-compat-$(date +%Y%m%d-%H%M)"
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        git checkout -b "$BRANCH_NAME"
+        echo "Created branch: $BRANCH_NAME"
+
+    - name: Install Claude Code CLI
+      shell: bash
+      run: npm install -g @anthropic-ai/claude-code
+
+    - name: Build Claude Code prompt
+      shell: bash
+      run: |
+        FAILED_TESTS=""
+        if [ -f .pytest_tests_to_run ]; then
+          FAILED_TESTS=$(cat .pytest_tests_to_run)
+        fi
+
+        cat > claude_prompt.txt << 'PROMPT_HEADER'
+        You are fixing transformers compatibility issues in the tt-xla project.
+
+        The HuggingFace transformers library was updated from the pinned version to the latest
+        from the 'main' branch, and some model tests broke.
+
+        ## Failed Tests
+        PROMPT_HEADER
+
+        if [ -n "$FAILED_TESTS" ]; then
+          echo "$FAILED_TESTS" >> claude_prompt.txt
+        fi
+
+        cat >> claude_prompt.txt << 'PROMPT_MID'
+
+        ## Failure Context (error messages and stack traces)
+        PROMPT_MID
+        cat failure_context.txt >> claude_prompt.txt
+
+        cat >> claude_prompt.txt << 'PROMPT_MID2'
+
+        ## Current Compatibility Shim
+        File: tests/infra/utilities/transformers_compat.py
+        PROMPT_MID2
+        cat tests/infra/utilities/transformers_compat.py >> claude_prompt.txt
+
+        cat >> claude_prompt.txt << 'PROMPT_TAIL'
+
+        ## Instructions
+        1. Analyze the failures to identify which transformers API changes caused them.
+        2. Add backward-compatible shims to tests/infra/utilities/transformers_compat.py using
+           hasattr guards (following the existing pattern in that file).
+        3. You may modify any Python files in the repo as needed to fix the compatibility issues
+           (e.g. update imports, fix class references, add conftest imports, etc.).
+        4. If adding new shims, ensure tests/conftest.py or tests/runner/conftest.py imports
+           the transformers_compat module if it is not already imported there.
+
+        ## Rules
+        - Do NOT modify files under third_party/ (these are external submodules).
+        - Do NOT modify venv/requirements-dev.txt or change the pinned transformers version.
+        - Use hasattr() guards so your shims work with both the old and new transformers versions.
+        - Keep changes minimal and focused on compatibility.
+        PROMPT_TAIL
+
+    - name: Run Claude Code to generate fix
+      timeout-minutes: 15
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      shell: bash
+      run: |
+        claude -p \
+          --allowedTools "Edit,Read,Glob,Grep,Write,Bash(git diff:*),Bash(git status)" \
+          "$(cat claude_prompt.txt)"
+
+    - name: Revert any changes to third_party submodules
+      shell: bash
+      run: |
+        CHANGED_FILES=$(git diff --name-only)
+        if [ -z "$CHANGED_FILES" ]; then
+          echo "No changes were made"
+          exit 0
+        fi
+
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+
+        # Revert any changes under third_party/ (external submodules)
+        SUBMODULE_FILES=$(echo "$CHANGED_FILES" | grep "^third_party/" || true)
+        if [ -n "$SUBMODULE_FILES" ]; then
+          echo "Reverting changes to third_party/ submodules:"
+          echo "$SUBMODULE_FILES"
+          while IFS= read -r file; do
+            if [ -n "$file" ]; then
+              git checkout -- "$file" 2>/dev/null || true
+            fi
+          done <<< "$SUBMODULE_FILES"
+        fi
+
+    - name: Check for changes and commit
+      id: check-changes
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      shell: bash
+      run: |
+        if [ -z "$(git diff --name-only)" ]; then
+          echo "has_fix=false" >> $GITHUB_OUTPUT
+          echo "No fix was produced"
+          exit 0
+        fi
+
+        echo "has_fix=true" >> $GITHUB_OUTPUT
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add -A
+        git commit -m "Auto-fix: transformers compatibility shims
+
+        Generated by Claude Code CLI in response to test failures
+        when running against latest transformers from main.
+
+        Co-Authored-By: Claude <noreply@anthropic.com>"
+        git push origin "${{ steps.create-branch.outputs.branch_name }}"
+
+  # ── Job 6: Re-run tests with the fix applied ──────────────────────────
+  rerun-tests:
+    needs: [build-image, build-ttxla, generate-matrix, analyze-and-fix]
+    if: ${{ needs.analyze-and-fix.outputs.has-fix == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJson(needs.generate-matrix.outputs.test_matrix) }}
+
+    runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on }}
+
+    name: "rerun-test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+
+    container:
+      image: ${{ !matrix.build.shared-runners && needs.build-image.outputs.docker-image-base || format('harbor.ci.tenstorrent.net/{0}', needs.build-image.outputs.docker-image-base) }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-xla/tt-xla
+        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+    - name: Log disk space
+      run: df -h
+
+    - name: Set caching env variables
+      shell: bash
+      run: |
+        shared_runners=${{ matrix.build.shared-runners }}
+        if [[ "$shared_runners" == "" || "$shared_runners" == "false" ]]; then
+          echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
+        else
+          echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
+        fi
+
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.analyze-and-fix.outputs.fix-branch }}
+        submodules: recursive
+        sparse-checkout: |
+          .github/scripts
+          .gitmodules
+          .test_durations
+          pjrt_implementation
+          third_party/pjrt_c_api
+          pytest.ini
+          python_package/requirements.txt
+          integrations/vllm_plugin/requirements-vllm-plugin.txt
+          tests
+          venv
+          examples
+
+    - name: Fetch job id
+      id: fetch-job-id
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "rerun-test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      env:
+        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+        echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
+        echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
+        echo "wheel_artifact_name=${{ needs.build-ttxla.outputs.wheel_artifact_name }}" >> "$GITHUB_OUTPUT"
+        echo "artifact_run_id=${{ needs.build-ttxla.outputs.artifacts_run_id }}" >> "$GITHUB_OUTPUT"
+
+        if [[ "${{ matrix.build.dir }}" == *"tests/runner/test_models.py"* ]]; then
+          echo "forge-models-test=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "forge-models-test=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Download and install wheels
+      shell: bash
+      run: |
+        echo "=== Downloading wheels (reusing original build) ==="
+        gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir wheels \
+          --name ${{ steps.strings.outputs.wheel_artifact_name }}
+        echo "Downloaded wheel files:"
+        ls -la wheels
+
+        echo "=== Installing wheel ==="
+        source venv/activate
+        uv pip install wheels/*.whl
+
+    - name: Swap transformers to latest
+      id: swap-transformers
+      shell: bash
+      run: |
+        source venv/activate
+        uv pip uninstall transformers
+        TRANSFORMERS_REF="${{ inputs.transformers_ref || 'main' }}"
+        echo "Installing transformers from git ref: $TRANSFORMERS_REF"
+        uv pip install "transformers @ git+https://github.com/huggingface/transformers.git@${TRANSFORMERS_REF}"
+        NEW_VERSION=$(python -c "import transformers; print(transformers.__version__)")
+        echo "Transformers version: $NEW_VERSION"
+
+    - name: Set pytest command
+      shell: bash
+      run: |
+        PYTEST_FORKED=""
+        for n in run_torch run_large_jax_models run_forge_models run_forge_models_llm run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
+          if [[ "${{ matrix.build.name }}" == "$n" ]]; then
+            PYTEST_FORKED="--forked"; break
+          fi
+        done
+
+        if [[ -n "$PYTEST_FORKED" ]]; then
+          VERBOSITY="-vv"
+        else
+          VERBOSITY="-sv"
+        fi
+
+        ARCH=""
+        if [[ "${{ steps.strings.outputs.forge-models-test }}" == "true" ]]; then
+          ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
+        fi
+
+        MARKS="${{ matrix.build.test-mark }}"
+
+        PYTEST_SPLITS="--splits ${{ matrix.build.parallel-groups || 1}} \
+          --group ${{ matrix.build.group-id || 1}} \
+          --splitting-algorithm least_duration"
+
+        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
+          --durations=0 \
+          ${{ matrix.build.dir }} \
+          $ARCH \
+          -m \"$MARKS\" ${{ matrix.build.args }} \
+          -k "$(printf '%q' '${{ matrix.build.contains }}')" \
+          $PYTEST_SPLITS"
+
+        echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
+        echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
+
+    - name: Install System Deps for Forge Models Tests
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' }}
+      shell: bash
+      run: |
+        apt-get update
+        apt install -y libgl1 libglx-mesa0
+
+    - name: Collect Tests
+      id: collect-tests
+      shell: bash
+      run: |
+        source venv/activate
+        echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
+        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
+        cat collected_tests.txt
+
+        NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
+        if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
+          ESTIMATED_DURATION=240
+        else
+          SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
+            --collected-output collected_tests.txt \
+            --durations-file .test_durations \
+            --default-timeout 240)
+          echo "$SCRIPT_OUTPUT"
+          ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
+        fi
+
+        echo "Estimated duration: $ESTIMATED_DURATION minutes"
+        echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
+
+    - name: Run tests with fix applied
+      timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
+      env:
+        HF_HOME: /mnt/dockercache/huggingface
+        TORCH_HOME: /mnt/dockercache/torchhub
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        ENABLE_BRINGUP_STAGE_LOGGING: 1
+      shell: bash
+      run: |
+        source venv/activate
+        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
+               --junitxml=${{ steps.strings.outputs.test_report_path }} \
+               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
+               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
+               2>&1 | tee pytest.log
+
+    - name: Sanitize test_mark
+      id: sanitize
+      shell: bash
+      run: echo "test_mark=${TEST_MARK// /_}" >> $GITHUB_OUTPUT
+      env:
+        TEST_MARK: ${{ matrix.build.test-mark }}
+
+    - name: Upload Test Report
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: transformers-compat-rerun-reports-${{ needs.generate-matrix.outputs.test_matrix_hash }}-${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ steps.strings.outputs.test_report_path }}
+
+  # ── Job 7: Create PR if re-run passed ──────────────────────────────────
+  create-pr:
+    needs: [analyze-and-fix, rerun-tests]
+    if: ${{ needs.analyze-and-fix.outputs.has-fix == 'true' && needs.rerun-tests.result == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.analyze-and-fix.outputs.fix-branch }}
+        fetch-depth: 0
+
+    - name: Create Pull Request
+      id: create-pr
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      shell: bash
+      run: |
+        PR_URL=$(gh pr create \
+          --base main \
+          --head "${{ needs.analyze-and-fix.outputs.fix-branch }}" \
+          --title "Auto-fix: transformers compatibility (latest from main)" \
+          --body "$(cat <<'EOF'
+        ## Summary
+
+        This PR was auto-generated by the **Transformers Compatibility Check** workflow.
+
+        Model tests failed when running against the latest `transformers` from `main`.
+        Claude Code CLI analyzed the failures and produced compatibility fixes.
+
+        ### What changed
+        - Claude Code analyzed test failures and applied compatibility fixes
+        - Changes may include shims, import fixes, or other Python-level adjustments
+
+        ### Verification
+        - The fix was verified by re-running the full `model-test-push.json` test suite
+        against latest transformers with the fix applied — **all tests passed**.
+
+        ### Workflow run
+        https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+        > **Note:** This PR requires human review before merging.
+
+        ---
+        *Generated by Claude Code CLI*
+        EOF
+        )" \
+          --label "transformers-compat" \
+          --label "auto-generated" 2>&1) || true
+
+        echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+        echo "PR created: $PR_URL"
+
+    outputs:
+      pr-url: ${{ steps.create-pr.outputs.pr_url }}
+
+  # ── Job 8: Notify via Slack ────────────────────────────────────────────
+  notify:
+    if: always()
+    needs:
+      - test-with-latest-transformers
+      - analyze-and-fix
+      - rerun-tests
+      - create-pr
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Determine outcome and send notification
+      uses: slackapi/slack-github-action@v1.26.0
+      with:
+        payload: |
+          {
+            "text": "${{ needs.test-with-latest-transformers.result == 'success' && 'Transformers compat: All model tests pass with latest transformers — no compat issues' || (needs.create-pr.result == 'success' && format('Transformers compat: Tests failed, auto-fix PR created: {0}', needs.create-pr.outputs.pr-url) || (needs.rerun-tests.result == 'failure' && 'Transformers compat: Tests failed, Claude Code fix did not resolve all failures' || (needs.analyze-and-fix.outputs.has-fix == 'false' && 'Transformers compat: Tests failed, Claude Code could not produce a fix' || format('Transformers compat: Check workflow run for details')))) }} | <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Workflow Run>",
+            "channel": "C08GYB57C8M",
+            "unfurl_links": false, "unfurl_media": false
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
