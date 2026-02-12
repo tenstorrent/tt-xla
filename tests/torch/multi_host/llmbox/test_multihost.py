@@ -36,14 +36,16 @@ def get_distributed_worker_path():
 @pytest.mark.multi_host_cluster
 @pytest.mark.parametrize(
     "model_variant",
-    ["llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference"],
+    [
+        "llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference",
+        "gpt_oss/pytorch-20B-tensor_parallel-inference",
+    ],
 )
 def test_multihost_models(model_variant):
     distributed_env = os.environ.copy()
     distributed_env["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
     distributed_env["TT_DISTRIBUTED_WORKER_PATH"] = get_distributed_worker_path()
     distributed_env["TT_RUNTIME_ENABLE_DISTRIBUTED"] = "1"
-    # distributed_env["TT_DISTRIBUTED_RANK_BINDING"] = "2x4_multiprocess"
     distributed_env["TT_DISTRIBUTED_RANK_BINDING"] = "dual_bh_quietbox"
 
     result = subprocess.run(
