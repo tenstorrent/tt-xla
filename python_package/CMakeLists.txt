@@ -27,7 +27,7 @@ add_custom_target(bundle-ttnn ALL
 find_program(PATCHELF patchelf REQUIRED)
 
 install(CODE "
-  file(GLOB_RECURSE TTNN_SO_FILES \"${CMAKE_CURRENT_SOURCE_DIR}/build/lib.*/pjrt_plugin_tt/tt-metal/ttnn/ttnn/_ttnn.so\")
+  file(GLOB_RECURSE TTNN_SO_FILES \"${CMAKE_CURRENT_SOURCE_DIR}/build/lib*/pjrt_plugin_tt/**/_ttnn.so\")
   if(TTNN_SO_FILES)
     list(GET TTNN_SO_FILES 0 TTNN_SO_SOURCE)
     message(STATUS \"Fixing RPATH for _ttnn.so: \${TTNN_SO_SOURCE}\")
