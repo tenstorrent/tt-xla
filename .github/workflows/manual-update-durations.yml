@@ -21,6 +21,9 @@ env:
   ALL_HOSTS: forge-qbae-01,forge-qbae-02
   # SSH user with keyless SSH configured between hosts
   SSH_USER: ttuser
+  # Artifact download mode: 'specific' to use ARTIFACT_RUN_ID, 'latest' to use latest push-main
+  ARTIFACT_MODE: specific
+  ARTIFACT_RUN_ID: 21839981996
 
 jobs:
   multihost-test:
@@ -68,21 +71,29 @@ jobs:
           CURRENT_HOST: ${{ matrix.hostname }}
           CONTROLLER_HOST: ${{ env.CONTROLLER_HOST }}
           ALL_HOSTS: ${{ env.ALL_HOSTS }}
+          ARTIFACT_MODE: ${{ env.ARTIFACT_MODE }}
+          ARTIFACT_RUN_ID: ${{ env.ARTIFACT_RUN_ID }}
         run: |
           echo "Current hostname: $CURRENT_HOST"
           echo "Controller hostname: $CONTROLLER_HOST"
           echo "All participating hosts: $ALL_HOSTS"
           hostname
 
-          # Download the artifact from specific workflow run
-          python3 .github/scripts/download_artifacts.py --run-id 21839981996 --filter xla-whl-release
-          # python3 .github/scripts/download_artifacts.py --workflow push-main.yml --branch main --filter xla-whl-release
+          # Download the artifact based on mode
+          ARTIFACT_DIR="xla_artifacts"
+          if [ "$ARTIFACT_MODE" = "specific" ]; then
+            echo "Downloading artifacts from specific run: $ARTIFACT_RUN_ID"
+            python3 .github/scripts/download_artifacts.py --run-id $ARTIFACT_RUN_ID --filter xla-whl-release --output-folder $ARTIFACT_DIR
+          else
+            echo "Downloading artifacts from latest push-main"
+            python3 .github/scripts/download_artifacts.py --workflow push-main.yml --branch main --filter xla-whl-release --output-folder $ARTIFACT_DIR
+          fi
 
           # Create venv
           source venv/activate
 
           # Install the wheel
-          WHEEL_PATH=$(find push-main_artifacts_*/xla-whl-release-*/*.whl | head -n 1)
+          WHEEL_PATH=$(find $ARTIFACT_DIR -name "*.whl" | head -n 1)
           echo "Installing wheel: $WHEEL_PATH"
           pip install "$WHEEL_PATH"
 
