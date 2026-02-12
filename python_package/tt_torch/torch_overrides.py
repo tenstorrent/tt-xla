@@ -20,20 +20,6 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if len(args) > 2 and args[2] is not None:
                     res = res + args[2]
                 return res
-        # Normalize dtypes for matrix ops (mm, bmm, matmul, etc.) when inductor
-        # or other compiled code passes mixed dtypes (e.g. float vs bfloat16).
-        # TODO: This is a hack to ensure that the dtypes are consistent.
-        # We should find a better way to do this.
-        if func.__name__ in ("mm", "bmm", "matmul", "mv") and len(args) >= 2:
-            a, b = args[0], args[1]
-            if hasattr(a, "dtype") and hasattr(b, "dtype") and a.dtype != b.dtype:
-                out = kwargs.get("out")
-                target_dtype = out.dtype if out is not None else a.dtype
-                args = list(args)
-                if a.dtype != target_dtype:
-                    args[0] = a.to(target_dtype)
-                if b.dtype != target_dtype:
-                    args[1] = b.to(target_dtype)
         return func(*args, **kwargs)
 
 

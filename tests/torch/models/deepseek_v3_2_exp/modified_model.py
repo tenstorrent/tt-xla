@@ -159,6 +159,13 @@ class ParallelEmbedding(nn.Module):
         self.vocab_start_idx = rank * self.part_vocab_size
         self.vocab_end_idx = self.vocab_start_idx + self.part_vocab_size
         self.weight = nn.Parameter(torch.empty(self.part_vocab_size, self.dim))
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        """
+        Initialize weights using Kaiming uniform initialization.
+        """
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -263,10 +270,12 @@ class Linear(nn.Module):
         Initialize weights and bias using Kaiming uniform initialization.
         This matches PyTorch's standard nn.Linear initialization.
         """
-        # Initialize weights with Kaiming uniform
         nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
 
-        # Initialize bias if it exists
+        if self.scale is not None:
+            # Only matters if FP8 quantization is enabled
+            nn.init.constant_(self.scale, 1.0)
+
         if self.bias is not None:
             fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
@@ -657,15 +666,10 @@ class Indexer(torch.nn.Module):
             k, self.haddamard
         )  ###Haddamard matrix is precomputed and passed from outside
 
-        # For now, skip FP8 quantization in BF16 mode - just use the values directly
-        # This is a simplified version that won't work in actual FP8 deployment
-        # TODO: Implement proper indexer logic for BF16 mode
         # In the original code, these would be quantized:
         # q_fp8, q_scale = act_quant(q, block_size, self.scale_fmt)
         # k_fp8, k_scale = act_quant(k, block_size, self.scale_fmt)
 
-        # For now, return a simple topk without the full indexer logic
-        # This is a placeholder until proper BF16 indexer support is added
         bsz, seqlen, n_heads, head_dim = q.shape
         end_pos = start_pos + seqlen
 
@@ -673,7 +677,8 @@ class Indexer(torch.nn.Module):
 
         # Simple dot product scoring (placeholder)
         # In full implementation, this would use fp8_index with quantized values
-        weights = self.weights_proj(x.float()) * self.n_heads**-0.5
+        weights = self.weights_proj(x) * self.n_heads**-0.5
+        weights = weights.unsqueeze(-1) * self.softmax_scale
 
         index_score = bf16_index(q, weights, self.k_cache[:bsz, :end_pos])
 
@@ -685,17 +690,6 @@ class Indexer(torch.nn.Module):
             return index_score
 
         topk_indices = index_score.topk(min(self.index_topk, end_pos), dim=-1)[1]
-        # Return dummy topk indices for now
-        # TODO: Implement proper indexing logic for BF16 mode
-        # topk_indices = torch.zeros(
-        #     bsz,
-        #     seqlen,
-        #     min(self.index_topk, end_pos),
-        #     dtype=torch.long,
-        #     device=x.device,
-        # )
-        # for i in range(min(self.index_topk, end_pos)):
-        #     topk_indices[:, :, i] = i
 
         return topk_indices
 
@@ -952,6 +946,17 @@ class Gate(nn.Module):
             if self.dim == 7168
             else None
         )
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        """
+        Initialize weights using Kaiming uniform initialization.
+        """
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """

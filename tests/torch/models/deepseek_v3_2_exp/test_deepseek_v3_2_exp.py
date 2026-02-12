@@ -100,9 +100,10 @@ def test_deepseek_complex_rotary_emb():
     assert y.shape == x.shape
 
 
-def test_deepseek_attention_prefill():
+
+@pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
+def test_deepseek_attention_prefill(batch_size):
     xr.set_device_type("TT")
-    batch_size = 64
     seq_len = 32
     args = ModelArgs(
         n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=1024
@@ -124,24 +125,29 @@ def test_deepseek_attention_prefill():
     mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
 
     def get_shard_spec(attention, args, kwargs):
+        mesh_batch_axis_size = mesh.shape()["batch"]
+        # Conditionally shard weights that involve batch axis
+        batch_axis = "batch" if batch_size >= mesh_batch_axis_size else None
+
         shard_specs = {}
-        shard_specs[args[0]] = (None, None, "batch") # hidden_states
-        shard_specs[args[3]] = ("batch", None, None) # attention_mask
+
+        shard_specs[args[0]] = (None, None, batch_axis) # hidden_states
+        shard_specs[args[3]] = (batch_axis, None, None) # attention_mask
         shard_specs[attention.wq_b.weight] = ("model", None)
         shard_specs[attention.wkv_b.weight] = ("model", None)
-        shard_specs[attention.wo.weight] = ("batch", "model")
+        shard_specs[attention.wo.weight] = (batch_axis, "model")
 
-        shard_specs[attention.wq_a.weight] = (None, "batch")
-        shard_specs[attention.wkv_a.weight] = (None, "batch")
+        shard_specs[attention.wq_a.weight] = (None, batch_axis)
+        shard_specs[attention.wkv_a.weight] = (None, batch_axis)
 
-        shard_specs[attention.kv_cache] = ("batch", None, None)
-        shard_specs[attention.pe_cache] = ("batch", None, None)
+        shard_specs[attention.kv_cache] = (batch_axis, None, None)
+        shard_specs[attention.pe_cache] = (batch_axis, None, None)
 
         # Indexer sharding
         shard_specs[attention.indexer.wq_b.weight] = ("model", None)  # [n_heads*head_dim, q_lora_rank] - column-parallel
-        shard_specs[attention.indexer.wk.weight] = (None, "batch")  # [head_dim, dim] - row-parallel
-        shard_specs[attention.indexer.weights_proj.weight] = ("model", "batch")  # [n_heads, dim] - 2D sharded
-        shard_specs[attention.indexer.k_cache] = ("batch", None, None)  # [max_batch, max_seq, head_dim]
+        shard_specs[attention.indexer.wk.weight] = (None, batch_axis)  # [head_dim, dim] - row-parallel
+        shard_specs[attention.indexer.weights_proj.weight] = ("model", batch_axis)  # [n_heads, dim] - 2D sharded
+        shard_specs[attention.indexer.k_cache] = (batch_axis, None, None)  # [max_batch, max_seq, head_dim]
 
         return shard_specs
 
@@ -164,10 +170,10 @@ def test_deepseek_attention_prefill():
     )
 
 
-def test_deepseek_indexer():
+@pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
+def test_deepseek_indexer(batch_size):
     xr.set_device_type("TT")
 
-    batch_size = 64
     seq_len = 32
     args = ModelArgs(
         n_layers=1,
@@ -196,39 +202,33 @@ def test_deepseek_indexer():
     mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
 
     def get_shard_spec(indexer, args, kwargs):
-        """
-        Optimized hybrid sharding strategy for DeepSeek indexer:
-        - Input qr: batch-sharded for row-parallel computation
-        - Input hidden_states: feature-sharded for row-parallel computation
-        - Weight wq_b: column-parallel (model axis)
-        - Weight wk: row-parallel (batch axis)
-        - Weight weights_proj: 2D sharded
-        - Cache k_cache: batch-sharded to match output
-        - Attention mask: batch-sharded to match output - ADDED
-        """
+        # Conditionally shard weights that involve batch axis
+        mesh_batch_axis_size = mesh.shape()["batch"]
+        batch_axis = "batch" if batch_size >= mesh_batch_axis_size else None
+
         shard_specs = {}
 
         # Input tensors - hybrid sharding
-        shard_specs[args[0]] = (None, None, "batch")  # hidden_states (x): [batch, seq, dim]
-        shard_specs[args[1]] = ("batch", None, None)  # qr: [batch, seq, q_lora_rank]
+        shard_specs[args[0]] = (None, None, batch_axis)  # hidden_states (x): [batch, seq, dim]
+        shard_specs[args[1]] = (batch_axis, None, None)  # qr: [batch, seq, q_lora_rank]
 
         # Attention mask - batch-sharded to match output (eliminates all-to-all)
-        shard_specs[args[4]] = ("batch", None, None)  # attention_mask: [batch, seq, seq]
+        shard_specs[args[4]] = (batch_axis, None, None)  # attention_mask: [batch, seq, seq]
 
         # Weight tensors - optimized for parallel linear operations
         shard_specs[indexer.wq_b.weight] = ("model", None)  # [n_heads*head_dim, q_lora_rank] - column-parallel
-        shard_specs[indexer.wk.weight] = (None, "batch")  # [head_dim, dim] - row-parallel
+        shard_specs[indexer.wk.weight] = (None, batch_axis)  # [head_dim, dim] - row-parallel
         shard_specs[indexer.k_norm.weight] = (None,)  # [head_dim] - replicated
         shard_specs[indexer.k_norm.bias] = (None,)  # [head_dim] - replicated
-        shard_specs[indexer.weights_proj.weight] = ("model", "batch")  # [n_heads, dim] - 2D sharded
+        shard_specs[indexer.weights_proj.weight] = ("model", batch_axis)  # [n_heads, dim] - 2D sharded
         shard_specs[indexer.haddamard] = (None, None)  # [head_dim, head_dim] - replicated
 
         # Cache tensors - batch-sharded for efficiency
-        shard_specs[indexer.k_cache] = ("batch", None, None)  # [max_batch, max_seq, head_dim]
+        shard_specs[indexer.k_cache] = (batch_axis, None, None)  # [max_batch, max_seq, head_dim]
 
         # k_scale_cache if present (for FP8 quantization mode)
         if hasattr(indexer, 'k_scale_cache'):
-            shard_specs[indexer.k_scale_cache] = ("batch", None, None)
+            shard_specs[indexer.k_scale_cache] = (batch_axis, None, None)
 
         return shard_specs
 
