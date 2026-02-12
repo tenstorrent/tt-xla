@@ -5,6 +5,9 @@
 name: Transformers Compatibility Check
 
 on:
+  push:
+    branches:
+      - aknezevic/hf_uplift  # TODO: Remove before merging to main
   schedule:
     - cron: '0 6 * * *'  # Daily at 06:00 UTC
   workflow_dispatch:
