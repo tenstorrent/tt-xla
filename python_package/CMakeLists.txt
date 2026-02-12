@@ -27,10 +27,15 @@ add_custom_target(bundle-ttnn ALL
 find_program(PATCHELF patchelf REQUIRED)
 
 install(CODE "
-  set(TTNN_SO_SOURCE \"${TTMLIR_LIB_DIR}/tt-metal/ttnn/ttnn/_ttnn.so\")
-  message(STATUS \"Fixing RPATH for _ttnn.so: \${TTNN_SO_SOURCE}\")
-  execute_process(
-    COMMAND \"${PATCHELF}\" --add-rpath \"\$ORIGIN/../../pjrt_plugin_tt/lib\" \"\${TTNN_SO_SOURCE}\"
-    COMMAND_ERROR_IS_FATAL ANY
-  )
+  file(GLOB_RECURSE TTNN_SO_FILES \"\${CMAKE_INSTALL_PREFIX}/pjrt_plugin_tt/tt-metal/ttnn/ttnn/_ttnn.so\")
+  if(TTNN_SO_FILES)
+    list(GET TTNN_SO_FILES 0 TTNN_SO_SOURCE)
+    message(STATUS \"Fixing RPATH for _ttnn.so: \${TTNN_SO_SOURCE}\")
+    execute_process(
+      COMMAND \"${PATCHELF}\" --add-rpath \"\$ORIGIN/../../pjrt_plugin_tt/lib\" \"\${TTNN_SO_SOURCE}\"
+      COMMAND_ERROR_IS_FATAL ANY
+    )
+  else()
+    message(WARNING \"Could not find _ttnn.so to patch RPATH\")
+  endif()
 ")
