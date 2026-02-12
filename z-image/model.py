@@ -4,144 +4,74 @@
 
 import torch
 import torch.nn as nn
-from diffusers.models.transformers import transformer_z_image
+import torch.nn.functional as F
 from diffusers.pipelines.z_image.pipeline_z_image import calculate_shift
 from transformers.masking_utils import (
     create_causal_mask,
     create_sliding_window_causal_mask,
 )
 
+# ---------------------------------------------------------------------------
+# Scheduler (plain class, CPU only)
+# ---------------------------------------------------------------------------
 
-def patch_rope_real_valued():
-    """Monkey-patch Z-Image's RoPE to use real-valued cos/sin arithmetic.
 
-    The original implementation uses torch.complex64 (via torch.polar,
-    view_as_complex, view_as_real) which XLA/PJRT doesn't support.
-    This replaces it with mathematically equivalent real-valued operations.
+class Scheduler:
+    """Wraps the diffusers scheduler with Z-Image's dynamic shift logic."""
 
-    Each axis stores cos and sin separately as a (cos, sin) tuple of real
-    tensors with shape [end, d//2]. RopeEmbedder.__call__ is patched to
-    index-gather each axis and concatenate as [all_cos | all_sin] so that
-    apply_rotary_emb_real can split at the midpoint.
-    """
+    def __init__(self, scheduler):
+        self.scheduler = scheduler
 
-    # 1. Patch precompute_freqs_cis: store (cos, sin) tuples per axis
-    @staticmethod
-    def precompute_freqs_cis_real(dim, end, theta=256.0):
-        with torch.device("cpu"):
-            freqs_cis = []
-            for d, e in zip(dim, end):
-                freqs = 1.0 / (
-                    theta
-                    ** (torch.arange(0, d, 2, dtype=torch.float64, device="cpu") / d)
-                )
-                timestep = torch.arange(e, device=freqs.device, dtype=torch.float64)
-                freqs = torch.outer(timestep, freqs).float()
-                # Use torch.polar to match the original implementation exactly,
-                # then extract real (cos) and imag (sin) parts.
-                polar = torch.polar(torch.ones_like(freqs), freqs)
-                freqs_cis.append((polar.real, polar.imag))
-            return freqs_cis
-
-    # 2. Patch RopeEmbedder.__call__ to produce [all_cos | all_sin] layout
-    def rope_call_real(self, ids):
-        assert ids.ndim == 2
-        assert ids.shape[-1] == len(self.axes_dims)
-        device = ids.device
-
-        if self.freqs_cis is None:
-            self.freqs_cis = self.precompute_freqs_cis(
-                self.axes_dims, self.axes_lens, theta=self.theta
-            )
-            self.freqs_cis = [(c.to(device), s.to(device)) for c, s in self.freqs_cis]
-        else:
-            if self.freqs_cis[0][0].device != device:
-                self.freqs_cis = [
-                    (c.to(device), s.to(device)) for c, s in self.freqs_cis
-                ]
-
-        cos_parts = []
-        sin_parts = []
-        for i in range(len(self.axes_dims)):
-            index = ids[:, i]
-            cos_i, sin_i = self.freqs_cis[i]
-            cos_parts.append(cos_i[index])
-            sin_parts.append(sin_i[index])
-        return torch.cat(cos_parts + sin_parts, dim=-1)
-
-    # 3. Patch the attention processor to use real-valued rotary embedding
-    def attn_call_real(
-        self,
-        attn,
-        hidden_states,
-        encoder_hidden_states=None,
-        attention_mask=None,
-        freqs_cis=None,
-    ):
-        query = attn.to_q(hidden_states)
-        key = attn.to_k(hidden_states)
-        value = attn.to_v(hidden_states)
-
-        query = query.unflatten(-1, (attn.heads, -1))
-        key = key.unflatten(-1, (attn.heads, -1))
-        value = value.unflatten(-1, (attn.heads, -1))
-
-        if attn.norm_q is not None:
-            query = attn.norm_q(query)
-        if attn.norm_k is not None:
-            key = attn.norm_k(key)
-
-        # Real-valued RoPE: freqs_cis has [all_cos | all_sin] in last dim
-        def apply_rotary_emb_real(x_in, freqs_cis):
-            half = freqs_cis.shape[-1] // 2
-            cos = freqs_cis[..., :half].unsqueeze(2)
-            sin = freqs_cis[..., half:].unsqueeze(2)
-
-            x = x_in.float().reshape(*x_in.shape[:-1], -1, 2)
-            x_real = x[..., 0]
-            x_imag = x[..., 1]
-
-            out_real = x_real * cos - x_imag * sin
-            out_imag = x_real * sin + x_imag * cos
-            out = torch.stack([out_real, out_imag], dim=-1).flatten(3)
-            return out.type_as(x_in)
-
-        if freqs_cis is not None:
-            query = apply_rotary_emb_real(query, freqs_cis)
-            key = apply_rotary_emb_real(key, freqs_cis)
-
-        dt = query.dtype
-        query, key = query.to(dt), key.to(dt)
-
-        if attention_mask is not None and attention_mask.ndim == 2:
-            attention_mask = attention_mask[:, None, None, :]
-
-        from diffusers.models.attention_dispatch import dispatch_attention_fn
-
-        hidden_states = dispatch_attention_fn(
-            query,
-            key,
-            value,
-            attn_mask=attention_mask,
-            dropout_p=0.0,
-            is_causal=False,
-            backend=self._attention_backend,
-            parallel_config=self._parallel_config,
+    def compute_timesteps(self, latents, num_inference_steps):
+        image_seq_len = (latents.shape[2] // 2) * (latents.shape[3] // 2)
+        mu = calculate_shift(
+            image_seq_len,
+            self.scheduler.config.get("base_image_seq_len", 256),
+            self.scheduler.config.get("max_image_seq_len", 4096),
+            self.scheduler.config.get("base_shift", 0.5),
+            self.scheduler.config.get("max_shift", 1.15),
         )
+        self.scheduler.sigma_min = 0.0
+        self.scheduler.set_timesteps(num_inference_steps, mu=mu)
+        return self.scheduler.timesteps
 
-        hidden_states = hidden_states.flatten(2, 3)
-        hidden_states = hidden_states.to(dt)
+    def step(self, noise_pred, t, latents):
+        return self.scheduler.step(
+            noise_pred.to(torch.float32), t, latents, return_dict=False
+        )[0]
 
-        output = attn.to_out[0](hidden_states)
-        if len(attn.to_out) > 1:
-            output = attn.to_out[1](output)
-        return output
 
-    # Apply patches
-    transformer_z_image.RopeEmbedder.precompute_freqs_cis = precompute_freqs_cis_real
-    transformer_z_image.RopeEmbedder.__call__ = rope_call_real
-    transformer_z_image.ZSingleStreamAttnProcessor.__call__ = attn_call_real
-    print("Patched Z-Image RoPE to use real-valued arithmetic (no complex64)")
+# ---------------------------------------------------------------------------
+# Tokenizer (plain class, CPU only)
+# ---------------------------------------------------------------------------
+
+
+class Tokenizer:
+    """Wraps the HuggingFace tokenizer with Z-Image's chat template."""
+
+    def __init__(self, tokenizer):
+        self.tokenizer = tokenizer
+
+    def __call__(self, prompt):
+        chat_text = self.tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=True,
+        )
+        tokens = self.tokenizer(
+            [chat_text],
+            padding="max_length",
+            max_length=512,
+            truncation=True,
+            return_tensors="pt",
+        )
+        return tokens.input_ids, tokens.attention_mask.bool()
+
+
+# ---------------------------------------------------------------------------
+# TextEncoderModule (nn.Module)
+# ---------------------------------------------------------------------------
 
 
 class TextEncoderModule(nn.Module):
@@ -199,70 +129,190 @@ class TextEncoderModule(nn.Module):
         return hidden_states
 
 
+# ---------------------------------------------------------------------------
+# Patched attention processor (Step 1: direct SDPA, no dispatch_attention_fn)
+# ---------------------------------------------------------------------------
+
+
+class PatchedZSingleStreamAttnProcessor:
+    """Drop-in replacement for ZSingleStreamAttnProcessor that uses
+    F.scaled_dot_product_attention directly instead of dispatch_attention_fn."""
+
+    def __call__(
+        self,
+        attn,
+        hidden_states,
+        encoder_hidden_states=None,
+        attention_mask=None,
+        freqs_cis=None,
+    ):
+        query = attn.to_q(hidden_states)
+        key = attn.to_k(hidden_states)
+        value = attn.to_v(hidden_states)
+
+        query = query.unflatten(-1, (attn.heads, -1))
+        key = key.unflatten(-1, (attn.heads, -1))
+        value = value.unflatten(-1, (attn.heads, -1))
+
+        if attn.norm_q is not None:
+            query = attn.norm_q(query)
+        if attn.norm_k is not None:
+            key = attn.norm_k(key)
+
+        # Apply RoPE (original complex path)
+        def apply_rotary_emb(x_in, freqs_cis):
+            with torch.amp.autocast("cuda", enabled=False):
+                x = torch.view_as_complex(x_in.float().reshape(*x_in.shape[:-1], -1, 2))
+                freqs_cis = freqs_cis.unsqueeze(2)
+                x_out = torch.view_as_real(x * freqs_cis).flatten(3)
+                return x_out.type_as(x_in)
+
+        if freqs_cis is not None:
+            query = apply_rotary_emb(query, freqs_cis)
+            key = apply_rotary_emb(key, freqs_cis)
+
+        dtype = query.dtype
+        query, key = query.to(dtype), key.to(dtype)
+
+        if attention_mask is not None and attention_mask.ndim == 2:
+            attention_mask = attention_mask[:, None, None, :]
+
+        # Direct SDPA (replaces dispatch_attention_fn)
+        query = query.permute(0, 2, 1, 3)
+        key = key.permute(0, 2, 1, 3)
+        value = value.permute(0, 2, 1, 3)
+        hidden_states = F.scaled_dot_product_attention(
+            query,
+            key,
+            value,
+            attn_mask=attention_mask,
+            dropout_p=0.0,
+            is_causal=False,
+        )
+        hidden_states = hidden_states.permute(0, 2, 1, 3)
+
+        hidden_states = hidden_states.flatten(2, 3)
+        hidden_states = hidden_states.to(dtype)
+
+        output = attn.to_out[0](hidden_states)
+        if len(attn.to_out) > 1:
+            output = attn.to_out[1](output)
+
+        return output
+
+
+def _patch_attention(transformer):
+    """Replace all attention processors with direct-SDPA versions."""
+    patched = PatchedZSingleStreamAttnProcessor()
+    for block in (
+        list(transformer.noise_refiner)
+        + list(transformer.context_refiner)
+        + list(transformer.layers)
+    ):
+        block.attention.set_processor(patched)
+
+
+# ---------------------------------------------------------------------------
+# TransformerModule (nn.Module)
+# ---------------------------------------------------------------------------
+
+
+class TransformerModule(nn.Module):
+    """Thin wrapper around the original diffusers Z-Image transformer.
+
+    Converts between the batched tensor interface used by ZImageModule
+    and the List[Tensor] interface expected by the original model.
+    """
+
+    def __init__(self, pipe_transformer):
+        super().__init__()
+        self.transformer = pipe_transformer
+        _patch_attention(self.transformer)
+
+    def forward(self, x, t, cap_feats, cap_mask=None):
+        """Forward pass with batched tensors.
+
+        Args:
+            x: [B, C, F, H, W] — batched latents.
+            t: [B] — timestep values.
+            cap_feats: [B, max_len, cap_feat_dim] — padded caption features.
+            cap_mask: [B, max_len] — True for valid tokens. If None, inferred.
+
+        Returns:
+            [B, C, F, H, W] — denoised output.
+        """
+        if cap_mask is None:
+            cap_mask = cap_feats.abs().sum(dim=-1) > 0
+
+        # Convert batched latents to List[Tensor]
+        x_list = list(x.unbind(dim=0))
+
+        # Filter cap_feats per item using cap_mask (variable-length)
+        cap_feats_list = [cap_feats[i][cap_mask[i]] for i in range(cap_feats.shape[0])]
+
+        # Call original diffusers forward
+        out_list = self.transformer(x_list, t, cap_feats_list, return_dict=False)[0]
+
+        # Stack back to batched tensor [B, C, F, H, W]
+        return torch.stack(out_list, dim=0)
+
+
+# ---------------------------------------------------------------------------
+# VAEDecoder (nn.Module)
+# ---------------------------------------------------------------------------
+
+
+class VAEDecoder(nn.Module):
+    """Wraps the VAE decoder with scaling/shift and postprocessing."""
+
+    def __init__(self, vae):
+        super().__init__()
+        self.vae = vae
+        self.scaling_factor = vae.config.scaling_factor
+        self.shift_factor = vae.config.shift_factor
+
+    def forward(self, latents):
+        latents = latents.to(self.vae.dtype)
+        latents = (latents / self.scaling_factor) + self.shift_factor
+        image = self.vae.decode(latents, return_dict=False)[0]
+        return (image * 0.5 + 0.5).clamp(0, 1)
+
+
+# ---------------------------------------------------------------------------
+# ZImageModule — orchestrator
+# ---------------------------------------------------------------------------
+
+
 class ZImageModule(nn.Module):
-    """Wraps the full Z-Image pipeline into a single nn.Module.
+    """Orchestrates the full Z-Image pipeline.
 
-    __init__ extracts all components from a ZImagePipeline and applies
-    the RoPE monkey-patch (complex64 -> real-valued) for XLA compatibility.
-
-    forward() runs the complete pipeline: text encoding, denoising loop with CFG,
-    VAE decode, and postprocessing to a raw image tensor. The transformer inputs
-    are automatically moved to/from whatever device it lives on.
+    Holds all five submodules (tokenizer, text_encoder, scheduler,
+    transformer, vae) and runs the complete text-to-image pipeline
+    in forward().
     """
 
     def __init__(self, pipe, device):
         super().__init__()
-        self.text_encoder_module = TextEncoderModule(pipe.text_encoder)
-        self.transformer = pipe.transformer
-        self.vae = pipe.vae
-        self.tokenizer = pipe.tokenizer
-        self.scheduler = pipe.scheduler
-
-        self.vae_scaling_factor = pipe.vae.config.scaling_factor
-        self.vae_shift_factor = pipe.vae.config.shift_factor
-
+        self.tokenizer = Tokenizer(pipe.tokenizer)
+        self.text_encoder = TextEncoderModule(pipe.text_encoder)
+        self.scheduler = Scheduler(pipe.scheduler)
+        self.transformer = TransformerModule(pipe.transformer)
+        self.vae = VAEDecoder(pipe.vae)
         self.device = device
-
-        # Patch RoPE to avoid complex64 (not supported by XLA/PJRT)
-        patch_rope_real_valued()
-        # Eagerly precompute RoPE tables so they exist before compilation
-        rope = self.transformer.rope_embedder
-        rope.freqs_cis = rope.precompute_freqs_cis(
-            rope.axes_dims, rope.axes_lens, theta=rope.theta
-        )
-
-    def tokenize(self, prompt):
-        """Tokenize a prompt string. Runs on CPU."""
-        chat_text = self.tokenizer.apply_chat_template(
-            [{"role": "user", "content": prompt}],
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=True,
-        )
-        tokens = self.tokenizer(
-            [chat_text],
-            padding="max_length",
-            max_length=512,
-            truncation=True,
-            return_tensors="pt",
-        )
-        return tokens.input_ids, tokens.attention_mask.bool()
 
     def encode_prompt(self, input_ids, attention_mask):
         """Run the text encoder and filter padding.
 
         Args:
-            input_ids: Token IDs from tokenize().
-            attention_mask: Boolean attention mask from tokenize().
+            input_ids: Token IDs from Tokenizer.
+            attention_mask: Boolean attention mask from Tokenizer.
 
         Returns:
             List of variable-length embeddings (one per batch item).
         """
-        # Run text encoder on its device (CPU or TT)
-        te_device = next(self.text_encoder_module.parameters()).device
-        prompt_embeds = self.text_encoder_module(
-            input_ids.to(te_device),
-            attention_mask.to(te_device),
+        prompt_embeds = self.text_encoder(
+            input_ids.to(self.device),
+            attention_mask.to(self.device),
         )
 
         # Filter padding on CPU (variable-length output, can't be compiled)
@@ -292,90 +342,71 @@ class ZImageModule(nn.Module):
         """
         device = self.device
 
-        # 1. Tokenize on CPU, then encode on text encoder's device
-        pos_ids, pos_mask = self.tokenize(positive_prompt)
-        neg_ids, neg_mask = self.tokenize(negative_prompt)
+        # 1. Tokenize on CPU
+        pos_ids, pos_mask = self.tokenizer(positive_prompt)
+        neg_ids, neg_mask = self.tokenizer(negative_prompt)
+
+        # 2. Encode on text encoder's device
         prompt_embeds = self.encode_prompt(pos_ids, pos_mask)
         negative_prompt_embeds = self.encode_prompt(neg_ids, neg_mask)
 
-        # 2. Compute timesteps with dynamic shifting
-        image_seq_len = (latents.shape[2] // 2) * (latents.shape[3] // 2)
-        mu = calculate_shift(
-            image_seq_len,
-            self.scheduler.config.get("base_image_seq_len", 256),
-            self.scheduler.config.get("max_image_seq_len", 4096),
-            self.scheduler.config.get("base_shift", 0.5),
-            self.scheduler.config.get("max_shift", 1.15),
-        )
-        self.scheduler.sigma_min = 0.0
-        self.scheduler.set_timesteps(num_inference_steps, mu=mu)
-        timesteps = self.scheduler.timesteps
-
+        # 3. Compute timesteps
+        timesteps = self.scheduler.compute_timesteps(latents, num_inference_steps)
         do_cfg = guidance_scale > 1
 
-        # Ensure RoPE tables are on the transformer's device
-        rope = self.transformer.rope_embedder
-        if rope.freqs_cis is not None and rope.freqs_cis[0][0].device != device:
-            rope.freqs_cis = [(c.to(device), s.to(device)) for c, s in rope.freqs_cis]
+        # 4. Denoising loop
+        transformer_dtype = next(self.transformer.parameters()).dtype
 
-        # 3. Denoising loop
-        for i, t in enumerate(timesteps):
+        for t in timesteps:
             timestep = (1000 - t.expand(latents.shape[0])) / 1000
 
             if do_cfg:
-                # CFG: double the batch
-                latents_typed = latents.to(self.transformer.dtype)
-                latent_model_input = latents_typed.repeat(2, 1, 1, 1)
-                prompt_embeds_input = prompt_embeds + negative_prompt_embeds
+                latent_input = (
+                    latents.to(transformer_dtype).repeat(2, 1, 1, 1).unsqueeze(2)
+                )
+                cap_feats_list = prompt_embeds + negative_prompt_embeds
                 timestep_input = timestep.repeat(2)
             else:
-                latent_model_input = latents.to(self.transformer.dtype)
-                prompt_embeds_input = prompt_embeds
+                latent_input = latents.to(transformer_dtype).unsqueeze(2)
+                cap_feats_list = prompt_embeds
                 timestep_input = timestep
 
-            # Prepare transformer input: [B, C, H, W] -> list of [C, 1, H, W]
-            latent_model_input = latent_model_input.unsqueeze(2)
-            latent_list = [x.to(device) for x in latent_model_input.unbind(dim=0)]
-            prompt_embeds_device = [x.to(device) for x in prompt_embeds_input]
-            timestep_device = timestep_input.to(device)
+            # Pad variable-length cap_feats to uniform length and build mask
+            max_len = max(c.shape[0] for c in cap_feats_list)
+            cap_feats_padded = torch.stack(
+                [F.pad(c, (0, 0, 0, max_len - c.shape[0])) for c in cap_feats_list]
+            )
+            cap_mask = torch.stack(
+                [
+                    F.pad(
+                        torch.ones(c.shape[0], dtype=torch.bool),
+                        (0, max_len - c.shape[0]),
+                    )
+                    for c in cap_feats_list
+                ]
+            )
 
-            # Transformer forward (on whatever device it lives on)
-            model_out_list = self.transformer(
-                latent_list, timestep_device, prompt_embeds_device, return_dict=False
-            )[0]
+            # Run transformer (batched)
+            noise_pred = self.transformer(
+                latent_input.to(device),
+                timestep_input.to(device),
+                cap_feats_padded.to(device),
+                cap_mask.to(device),
+            )
 
+            # CFG combine (back on CPU for scheduler)
             if do_cfg:
-                # CFG combine (back on CPU for scheduler)
-                actual_batch_size = latents.shape[0]
-                pos_out = model_out_list[:actual_batch_size]
-                neg_out = model_out_list[actual_batch_size:]
-
-                noise_pred = []
-                for j in range(actual_batch_size):
-                    pos = pos_out[j].cpu().float()
-                    neg = neg_out[j].cpu().float()
-                    noise_pred.append(pos + guidance_scale * (pos - neg))
-                noise_pred = torch.stack(noise_pred, dim=0)
+                bs = latents.shape[0]
+                pos_out = noise_pred[:bs].cpu().float()
+                neg_out = noise_pred[bs:].cpu().float()
+                noise_pred = pos_out + guidance_scale * (pos_out - neg_out)
             else:
-                noise_pred = torch.stack(
-                    [x.cpu().float() for x in model_out_list], dim=0
-                )
+                noise_pred = noise_pred.cpu().float()
 
-            # Squeeze temporal dim + negate for flow matching
             noise_pred = noise_pred.squeeze(2)
             noise_pred = -noise_pred
 
-            # Scheduler step (on CPU — uses numpy internally)
-            latents = self.scheduler.step(
-                noise_pred.to(torch.float32), t, latents, return_dict=False
-            )[0]
+            latents = self.scheduler.step(noise_pred, t, latents)
 
-        # 4. VAE decode (on CPU)
-        latents = latents.to(self.vae.dtype)
-        latents = (latents / self.vae_scaling_factor) + self.vae_shift_factor
-        image = self.vae.decode(latents, return_dict=False)[0]
-
-        # 5. Postprocess: denormalize to [0, 1]
-        image = (image * 0.5 + 0.5).clamp(0, 1)
-
-        return image
+        # 5. VAE decode (CPU)
+        return self.vae(latents)

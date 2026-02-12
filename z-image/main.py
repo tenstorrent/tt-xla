@@ -157,17 +157,20 @@ def run_on_tt():
         torch_dtype=DTYPE,
         low_cpu_mem_usage=False,
     )
-    model = ZImageModule(pipe, device=torch_xla.device())
+    device = torch_xla.device()
+    model = ZImageModule(pipe, device=device)
     model.eval()
     print("\t\tModel loaded")
 
-    # Compile and move to TT device
+    # Compile for TT
+    model.text_encoder.compile(backend="tt")
     model.transformer.compile(backend="tt")
-    model.text_encoder_module.compile(backend="tt")
-    device = torch_xla.device()
-    model.transformer = model.transformer.to(device)
-    model.text_encoder_module = model.text_encoder_module.to(device)
 
+    # Move to TT device
+    model.text_encoder = model.text_encoder.to(device)
+    model.transformer = model.transformer.to(device)
+
+    # Prepare inputs
     positive_prompt, negative_prompt = get_input_prompts()
     latents = get_input_latents(pipe)
 
@@ -204,7 +207,7 @@ def run_codegen(text_encoder=True, transformer=True):
         torch_dtype=DTYPE,
         low_cpu_mem_usage=False,
     )
-    model = ZImageModule(pipe, device=torch_xla.device())
+    model = ZImageModule(pipe, device="cpu")
     model.eval()
 
     positive_prompt, negative_prompt = get_input_prompts()
@@ -213,58 +216,31 @@ def run_codegen(text_encoder=True, transformer=True):
     # --- Text encoder codegen ---
     if text_encoder:
         print("\t\tGenerating text encoder codegen...")
-        tokens = model.tokenizer(
-            [
-                model.tokenizer.apply_chat_template(
-                    [{"role": "user", "content": positive_prompt}],
-                    tokenize=False,
-                    add_generation_prompt=True,
-                    enable_thinking=True,
-                )
-            ],
-            padding="max_length",
-            max_length=512,
-            truncation=True,
-            return_tensors="pt",
-        )
+        input_ids, attention_mask = model.tokenizer(positive_prompt)
         codegen_py(
-            model.text_encoder_module,
-            tokens.input_ids,
-            tokens.attention_mask.bool(),
+            model.text_encoder,
+            input_ids,
+            attention_mask,
             export_path=EXPORT_PATH + "/text_encoder",
             compiler_options=compile_options,
         )
         print("\t\tText encoder codegen done")
 
     # --- Transformer codegen ---
-    # The transformer takes List[Tensor] args, so wrap it to accept batched tensors.
     if transformer:
-
-        class TransformerWrapper(torch.nn.Module):
-            def __init__(self, transformer):
-                super().__init__()
-                self.transformer = transformer
-
-            def forward(self, x, t, cap_feats):
-                out_list = self.transformer(
-                    list(x.unbind(dim=0)),
-                    t,
-                    list(cap_feats.unbind(dim=0)),
-                    return_dict=False,
-                )[0]
-                return torch.stack(out_list)
-
         print("\t\tGenerating transformer codegen...")
-        wrapper = TransformerWrapper(model.transformer)
-        wrapper.eval()
 
         # Build sample inputs matching a single denoising step with CFG
         with torch.no_grad():
-            prompt_embeds = model.encode_prompt(positive_prompt)
-            negative_prompt_embeds = model.encode_prompt(negative_prompt)
+            pos_ids, pos_mask = model.tokenizer(positive_prompt)
+            neg_ids, neg_mask = model.tokenizer(negative_prompt)
+            prompt_embeds = model.encode_prompt(pos_ids, pos_mask)
+            negative_prompt_embeds = model.encode_prompt(neg_ids, neg_mask)
 
-        latents_typed = latents.to(model.transformer.dtype)
-        latent_input = latents_typed.repeat(2, 1, 1, 1).unsqueeze(2)  # [2, C, 1, H, W]
+        transformer_dtype = next(model.transformer.parameters()).dtype
+        latent_input = (
+            latents.to(transformer_dtype).repeat(2, 1, 1, 1).unsqueeze(2)
+        )  # [2, C, 1, H, W]
         cap_feats_list = prompt_embeds + negative_prompt_embeds
         # Pad to same length and stack into a batched tensor
         max_len = max(c.shape[0] for c in cap_feats_list)
@@ -274,13 +250,23 @@ def run_codegen(text_encoder=True, transformer=True):
                 for c in cap_feats_list
             ]
         )  # [2, max_len, hidden_dim]
+        cap_mask = torch.stack(
+            [
+                torch.nn.functional.pad(
+                    torch.ones(c.shape[0], dtype=torch.bool),
+                    (0, max_len - c.shape[0]),
+                )
+                for c in cap_feats_list
+            ]
+        )  # [2, max_len]
         timestep = torch.tensor([0.5, 0.5], dtype=torch.float32)
 
         codegen_py(
-            wrapper,
+            model.transformer,
             latent_input,
             timestep,
             cap_feats_padded,
+            cap_mask,
             export_path=EXPORT_PATH + "/transformer",
             compiler_options=compile_options,
         )
@@ -294,6 +280,8 @@ def bitwise_compare(a, b):
         type(a) == PIL.PngImagePlugin.PngImageFile
         and type(b) == PIL.PngImagePlugin.PngImageFile
     ):
+        return a == b
+    elif type(a) == PIL.Image.Image and type(b) == PIL.Image.Image:
         return a == b
     elif type(a) == torch.Tensor and type(b) == torch.Tensor:
         return torch.equal(a, b)
@@ -309,9 +297,9 @@ def main():
 
     # run_codegen(
     #     # text_encoder=True,
+    #     # transformer=False,
     #     text_encoder=False,
     #     transformer=True,
-    #     # transformer=False,
     # )
 
     # out_tt = run_on_tt()
