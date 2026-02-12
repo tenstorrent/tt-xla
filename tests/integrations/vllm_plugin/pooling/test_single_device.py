@@ -35,7 +35,6 @@ def test_embed_qwen3_reduced_dims():
     ]
     llm_args = {
         "model": "Qwen/Qwen3-Embedding-0.6B",
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": 64,
         "disable_sliding_window": True,
@@ -227,7 +226,6 @@ def test_embed_qwen3_perf():
         i *= 2
     llm_args = {
         "model": "Qwen/Qwen3-Embedding-4B",
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": max_seq_len,
         "disable_sliding_window": True,
