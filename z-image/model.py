@@ -210,7 +210,7 @@ class ZImageModule(nn.Module):
     are automatically moved to/from whatever device it lives on.
     """
 
-    def __init__(self, pipe):
+    def __init__(self, pipe, device):
         super().__init__()
         self.text_encoder_module = TextEncoderModule(pipe.text_encoder)
         self.transformer = pipe.transformer
@@ -221,6 +221,8 @@ class ZImageModule(nn.Module):
         self.vae_scaling_factor = pipe.vae.config.scaling_factor
         self.vae_shift_factor = pipe.vae.config.shift_factor
 
+        self.device = device
+
         # Patch RoPE to avoid complex64 (not supported by XLA/PJRT)
         patch_rope_real_valued()
         # Eagerly precompute RoPE tables so they exist before compilation
@@ -229,8 +231,8 @@ class ZImageModule(nn.Module):
             rope.axes_dims, rope.axes_lens, theta=rope.theta
         )
 
-    def encode_prompt(self, prompt):
-        """Encode a single prompt string, matching pipeline's _encode_prompt exactly."""
+    def tokenize(self, prompt):
+        """Tokenize a prompt string. Runs on CPU."""
         chat_text = self.tokenizer.apply_chat_template(
             [{"role": "user", "content": prompt}],
             tokenize=False,
@@ -244,9 +246,18 @@ class ZImageModule(nn.Module):
             truncation=True,
             return_tensors="pt",
         )
-        input_ids = tokens.input_ids
-        attention_mask = tokens.attention_mask.bool()
+        return tokens.input_ids, tokens.attention_mask.bool()
 
+    def encode_prompt(self, input_ids, attention_mask):
+        """Run the text encoder and filter padding.
+
+        Args:
+            input_ids: Token IDs from tokenize().
+            attention_mask: Boolean attention mask from tokenize().
+
+        Returns:
+            List of variable-length embeddings (one per batch item).
+        """
         # Run text encoder on its device (CPU or TT)
         te_device = next(self.text_encoder_module.parameters()).device
         prompt_embeds = self.text_encoder_module(
@@ -258,11 +269,6 @@ class ZImageModule(nn.Module):
         prompt_embeds = prompt_embeds.cpu()
         attention_mask = attention_mask.cpu()
         return [prompt_embeds[i][attention_mask[i]] for i in range(len(prompt_embeds))]
-
-    @property
-    def device(self):
-        """Device where the transformer lives (CPU or TT)."""
-        return next(self.transformer.parameters()).device
 
     def forward(
         self,
@@ -286,9 +292,11 @@ class ZImageModule(nn.Module):
         """
         device = self.device
 
-        # 1. Encode prompts (tokenizer on CPU, text encoder on its device)
-        prompt_embeds = self.encode_prompt(positive_prompt)
-        negative_prompt_embeds = self.encode_prompt(negative_prompt)
+        # 1. Tokenize on CPU, then encode on text encoder's device
+        pos_ids, pos_mask = self.tokenize(positive_prompt)
+        neg_ids, neg_mask = self.tokenize(negative_prompt)
+        prompt_embeds = self.encode_prompt(pos_ids, pos_mask)
+        negative_prompt_embeds = self.encode_prompt(neg_ids, neg_mask)
 
         # 2. Compute timesteps with dynamic shifting
         image_seq_len = (latents.shape[2] // 2) * (latents.shape[3] // 2)

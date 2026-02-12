@@ -114,7 +114,7 @@ def run_on_cpu_manual():
         torch_dtype=DTYPE,
         low_cpu_mem_usage=False,
     )
-    model = ZImageModule(pipe)
+    model = ZImageModule(pipe, device="cpu")
     model.eval()
     print("\t\tModel loaded")
 
@@ -157,7 +157,7 @@ def run_on_tt():
         torch_dtype=DTYPE,
         low_cpu_mem_usage=False,
     )
-    model = ZImageModule(pipe)
+    model = ZImageModule(pipe, device=torch_xla.device())
     model.eval()
     print("\t\tModel loaded")
 
@@ -204,7 +204,7 @@ def run_codegen(text_encoder=True, transformer=True):
         torch_dtype=DTYPE,
         low_cpu_mem_usage=False,
     )
-    model = ZImageModule(pipe)
+    model = ZImageModule(pipe, device=torch_xla.device())
     model.eval()
 
     positive_prompt, negative_prompt = get_input_prompts()
@@ -307,14 +307,14 @@ def main():
 
     print(f"Golden vs CPU: {bitwise_compare(out_golden, out_cpu)}")
 
-    run_codegen(
-        # text_encoder=True,
-        text_encoder=False,
-        transformer=True,
-        # transformer=False,
-    )
+    # run_codegen(
+    #     # text_encoder=True,
+    #     text_encoder=False,
+    #     transformer=True,
+    #     # transformer=False,
+    # )
 
-    out_tt = run_on_tt()
+    # out_tt = run_on_tt()
 
 
 if __name__ == "__main__":
