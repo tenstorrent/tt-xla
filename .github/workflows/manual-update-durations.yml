@@ -165,9 +165,5 @@ jobs:
           SSH_USER: ${{ env.SSH_USER }}
         run: |
           echo "Running tests across all hosts..."
-
-          # Example: Run distributed test using mpirun across all hosts
-          # mpirun --host $ALL_HOSTS --mca btl self,tcp --mca btl_tcp_if_include enp10s0f1np1 --tag-output --allow-run-as-root \
-          #   pytest tests/your_multihost_test.py
+          source venv/activate
           pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k "dual_bh_quietbox"
-          # Add your multi-host test commands here
