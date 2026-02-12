@@ -100,7 +100,7 @@ jobs:
           # Install tt-smi and check hardware
           echo "Resetting hardware; multiple resets"
           pip install tt-smi
-          for {1..5}; do tt-smi -r; sleep 1; done
+          for i in {1..5}; do tt-smi -r; sleep 1; done
 
           # sanity check that singledevice execution works.
           python3 examples/pytorch/mnist.py
@@ -183,4 +183,9 @@ jobs:
         run: |
           echo "Running tests across all hosts..."
           source venv/activate
+
+          echo "Sleeping for 6000 seconds"
+          sleep 6000
+
+
           TTXLA_LOGGER_LEVEL=DEBUG pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k "dual_bh_quietbox"
