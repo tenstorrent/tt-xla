@@ -35,12 +35,6 @@ jobs:
           - forge-qbae-01
           - forge-qbae-02
     steps:
-      - name: Cleanup workspace
-        run: |
-          # Clean up any existing workspace to avoid permission issues
-          sudo rm -rf ${{ github.workspace }}/* || true
-          sudo rm -rf ${{ github.workspace }}/.git || true
-
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -49,6 +43,7 @@ jobs:
         run: |
           docker run -d \
             --name ubuntu-host-mapped \
+            --user $(id -u):$(id -g) \
             --pid=host \
             --network=host \
             --device /dev/tenstorrent \
@@ -58,7 +53,7 @@ jobs:
             -v /lib/modules:/lib/modules \
             -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
             -v /mnt/dockercache:/mnt/dockercache \
-            -v /home/ttuser/.ssh:/root/.ssh:ro \
+            -v /home/ttuser/.ssh:/home/ttuser/.ssh:ro \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
