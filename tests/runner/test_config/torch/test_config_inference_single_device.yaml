@@ -2694,3 +2694,27 @@ test_config:
   arcee/text_generation/pytorch-arcee_Spark-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B (allocated: 1055220960 B, free: 18520832 B, largest free block: 9253856 B) - https://github.com/tenstorrent/tt-xla/issues/3183"
+
+  olmo3/causal_lm/pytorch-3_7b_think-single_device-inference:
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 52428800 B L1 buffer across 64 banks, where each bank needs to store 819200 B, but bank size is only 1331936 B"
+      p150:
+        status: EXPECTED_PASSING
+
+  olmo3/causal_lm/pytorch-3_7b_instruct-single_device-inference:
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 52428800 B L1 buffer across 64 banks, where each bank needs to store 819200 B, but bank size is only 1331936 B"
+      p150:
+        status: EXPECTED_PASSING
+
+  olmo3/causal_lm/pytorch-3_1025_7b-single_device-inference:
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 52428800 B L1 buffer across 64 banks, where each bank needs to store 819200 B, but bank size is only 1331936 B"
+      p150:
+        status: EXPECTED_PASSING
