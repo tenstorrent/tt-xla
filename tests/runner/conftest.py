@@ -6,13 +6,12 @@ import os
 
 import pytest
 
+from tests.runner.test_config.constants import ALLOWED_ARCHES
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
 from tests.runner.test_config.torch_llm import test_config as torch_llm_test_config
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
-# Allowed architecture identifiers for arch_overrides and --arch option
-ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
 _BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 

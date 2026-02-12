@@ -14,57 +14,32 @@ Usage:
 import ast
 import difflib
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
 
-# Allowed fields in test_config YAML entries (duplicated from config_loader.py)
-_ALLOWED_FIELDS = {
-    "required_pcc",
-    "assert_pcc",
-    "assert_atol",
-    "required_atol",
-    "assert_allclose",
-    "allclose_rtol",
-    "allclose_atol",
-    "status",
-    "reason",
-    "bringup_status",
-    "markers",
-    "supported_archs",
-    "batch_size",
-    "arch_overrides",
-    "execution_pass",
-    "filechecks",
-}
+# Allow standalone execution (python tests/runner/validate_test_config.py)
+# by ensuring the project root is on sys.path.
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
-# Allowed architecture identifiers (duplicated from conftest.py)
-ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
-
-# Frameworks mapped to their config directory names
-FRAMEWORKS = ("torch", "jax", "torch_llm")
-
-# Parallelism values for test ID cross-product
-PARALLELISMS_STANDARD = ("single_device", "data_parallel", "tensor_parallel")
-PARALLELISMS_LLM = ("single_device", "tensor_parallel")
-
-# Run modes
-RUN_MODES_STANDARD = ("inference", "training")
-RUN_MODES_LLM = ("inference",)
-
-# LLM phases
-LLM_PHASES = {"load_inputs_decode": "llm_decode", "load_inputs_prefill": "llm_prefill"}
-
-# Models excluded from PyTorch discovery (matches dynamic_loader.py:416-418)
-TORCH_EXCLUDED_MODEL_DIRS = {"suryaocr"}
-
-# Single source of truth for the placeholders YAML filename
-PLACEHOLDERS_FILENAME = "test_config_placeholders.yaml"
-
-# LLM parametrization values (mirrors test_models.py:409-414)
-LLM_SEQUENCE_LENGTHS = (128, 1024, 2048, 4096, 8192)
-LLM_BATCH_SIZES = (1, 2)
+from tests.runner.test_config.constants import (
+    ALLOWED_ARCHES,
+    ALLOWED_FIELDS,
+    FRAMEWORKS,
+    LLM_BATCH_SIZES,
+    LLM_PHASES,
+    LLM_SEQUENCE_LENGTHS,
+    PARALLELISMS_LLM,
+    PARALLELISMS_STANDARD,
+    PLACEHOLDERS_FILENAME,
+    RUN_MODES_LLM,
+    RUN_MODES_STANDARD,
+    TORCH_EXCLUDED_MODEL_DIRS,
+)
 
 
 @dataclass
@@ -300,10 +275,10 @@ class TestConfigValidator:
 
             # Validate allowed fields at top level
             for key in cfg.keys():
-                if key not in _ALLOWED_FIELDS:
+                if key not in ALLOWED_FIELDS:
                     errors.append(
                         f"Unknown field '{key}' in {ctx}. "
-                        f"Allowed: {sorted(_ALLOWED_FIELDS)}"
+                        f"Allowed: {sorted(ALLOWED_FIELDS)}"
                     )
 
             # Validate arch_overrides
@@ -320,11 +295,11 @@ class TestConfigValidator:
                             )
                         if isinstance(arch_cfg, dict):
                             for key in arch_cfg.keys():
-                                if key not in _ALLOWED_FIELDS:
+                                if key not in ALLOWED_FIELDS:
                                     errors.append(
                                         f"Unknown field '{key}' in "
                                         f"arch_overrides['{arch_key}'] of {ctx}. "
-                                        f"Allowed: {sorted(_ALLOWED_FIELDS)}"
+                                        f"Allowed: {sorted(ALLOWED_FIELDS)}"
                                     )
 
             # Validate filecheck references
