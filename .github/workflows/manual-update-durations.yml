@@ -178,4 +178,4 @@ jobs:
         run: |
           echo "Running tests across all hosts..."
           source venv/activate
-          pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k "dual_bh_quietbox"
+          TTXLA_LOGGER_LEVEL=DEBUG pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k "dual_bh_quietbox"
