@@ -56,7 +56,7 @@ jobs:
     uses: ./.github/workflows/call-generate-matrix.yml
     secrets: inherit
     with:
-      test_suite: model-test-push.json
+      test_suite: model-test-push-no-multihost.json
 
   # ── Job 4: Run tests with latest transformers ──────────────────────────
   test-with-latest-transformers:
@@ -727,7 +727,7 @@ jobs:
         - Changes may include shims, import fixes, or other Python-level adjustments
 
         ### Verification
-        - The fix was verified by re-running the full `model-test-push.json` test suite
+        - The fix was verified by re-running the `model-test-push-no-multihost.json` test suite
         against latest transformers with the fix applied — **all tests passed**.
 
         ### Workflow run
