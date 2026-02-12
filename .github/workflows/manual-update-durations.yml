@@ -98,8 +98,9 @@ jobs:
           pip install "$WHEEL_PATH"
 
           # Install tt-smi and check hardware
-          echo "Resetting hardware"
-          pip install tt-smi && tt-smi -r
+          echo "Resetting hardware; multiple resets"
+          pip install tt-smi
+          for {1..5}; do tt-smi -r; sleep 1; done
 
           # sanity check that singledevice execution works.
           python3 examples/pytorch/mnist.py
