@@ -14,7 +14,6 @@ Usage:
 import ast
 import difflib
 import os
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -63,13 +62,9 @@ TORCH_EXCLUDED_MODEL_DIRS = {"suryaocr"}
 # Single source of truth for the placeholders YAML filename
 PLACEHOLDERS_FILENAME = "test_config_placeholders.yaml"
 
-# Regex to strip pytest parametrization segments (e.g. "seq_1-", "batch_2-") from YAML keys
-_PARAMETRIZATION_RE = re.compile(r"-(seq_\d+|batch_\d+)")
-
-
-def _strip_parametrization(test_id: str) -> str:
-    """Remove pytest parametrization noise (seq_X, batch_Y) from a test ID."""
-    return _PARAMETRIZATION_RE.sub("", test_id)
+# LLM parametrization values (mirrors test_models.py:409-414)
+LLM_SEQUENCE_LENGTHS = (128, 1024, 2048, 4096, 8192)
+LLM_BATCH_SIZES = (1, 2)
 
 
 @dataclass
@@ -245,12 +240,8 @@ class TestConfigValidator:
         structure_errors = self._validate_yaml_structure(all_configs)
         torch_models, jax_models, llm_models, parse_warnings = self._discover_models()
         discovered_ids = self._generate_test_ids(torch_models, jax_models, llm_models)
-        # Strip pytest parametrization noise (e.g. seq_X-batch_Y) from YAML keys
-        # before comparing, so the validator doesn't need to replicate every
-        # parametrization detail from test_models.py.
-        normalized_yaml_keys = {_strip_parametrization(k) for k in yaml_keys}
-        unknown = normalized_yaml_keys - discovered_ids
-        unlisted = discovered_ids - normalized_yaml_keys
+        unknown = yaml_keys - discovered_ids
+        unlisted = discovered_ids - yaml_keys
 
         return ValidationResult(
             yaml_key_count=len(yaml_keys),
@@ -470,12 +461,24 @@ class TestConfigValidator:
                 for run_mode in RUN_MODES_STANDARD:
                     ids.add(f"{base}-{parallelism}-{run_mode}")
 
-        # test_llms_torch: {rel_path}-{variant}-{phase}-{parallelism}-{run_mode}
+        # test_llms_torch: {base}-{phase}-seq_{X}-batch_{Y}-{parallelism}-{run_mode}
+        # Decode: only seq_1-batch_1 (test_models.py:436-441)
+        # Prefill: seq_{128..8192} x batch_{1,2} (test_models.py:444-448)
         for rel_path, variant, phase in llm_models:
             base = f"{rel_path}-{variant}" if variant else rel_path
             for parallelism in PARALLELISMS_LLM:
                 for run_mode in RUN_MODES_LLM:
-                    ids.add(f"{base}-{phase}-{parallelism}-{run_mode}")
+                    if phase == "llm_decode":
+                        ids.add(
+                            f"{base}-{phase}-seq_1-batch_1" f"-{parallelism}-{run_mode}"
+                        )
+                    else:
+                        for seq in LLM_SEQUENCE_LENGTHS:
+                            for batch in LLM_BATCH_SIZES:
+                                ids.add(
+                                    f"{base}-{phase}-seq_{seq}-batch_{batch}"
+                                    f"-{parallelism}-{run_mode}"
+                                )
 
         return ids
 
