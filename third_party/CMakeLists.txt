@@ -77,7 +77,7 @@ else()
           -DTTMLIR_ENABLE_OPMODEL=ON
           -DTTMLIR_ENABLE_EXPLORER=${TTXLA_ENABLE_EXPLORER}
           -DTTMLIR_ENABLE_TESTS=OFF
-          -DTTMLIR_ENABLE_TOOLS=OFF
+          -DTTMLIR_ENABLE_TOOLS=${TTXLA_ENABLE_TOOLS}
           -DTTMLIR_ENABLE_DOCS=OFF
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
