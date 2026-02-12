@@ -34,22 +34,30 @@ jobs:
         hostname:
           - forge-qbae-01
           - forge-qbae-02
-    container:
-      image: ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest
-      options: --device /dev/tenstorrent --name ubuntu-host-mapped --pid=host
-      volumes:
-        - /dev/hugepages:/dev/hugepages
-        - /dev/hugepages-1G:/dev/hugepages-1G
-        - /etc/udev/rules.d:/etc/udev/rules.d
-        - /lib/modules:/lib/modules
-        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
-        - /mnt/dockercache:/mnt/dockercache
-        - /home/ttuser/.ssh:/root/.ssh:ro
     steps:
+      - name: Start container
+        run: |
+          docker run -d \
+            --name ubuntu-host-mapped \
+            --pid=host \
+            --network=host \
+            --device /dev/tenstorrent \
+            -v /dev/hugepages:/dev/hugepages \
+            -v /dev/hugepages-1G:/dev/hugepages-1G \
+            -v /etc/udev/rules.d:/etc/udev/rules.d \
+            -v /lib/modules:/lib/modules \
+            -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
+            -v /mnt/dockercache:/mnt/dockercache \
+            -v /home/ttuser/.ssh:/root/.ssh:ro \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
+            sleep infinity
+
       - name: Mark repo as safe for git
         run: |
-          git config --global --add safe.directory /__w/tt-xla/tt-xla
-          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+          docker exec ubuntu-host-mapped git config --global --add safe.directory /workspace
+          docker exec ubuntu-host-mapped git config --global --add safe.directory /workspace/third_party/tt_forge_models
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -63,6 +71,12 @@ jobs:
           ARTIFACT_MODE: ${{ env.ARTIFACT_MODE }}
           ARTIFACT_RUN_ID: ${{ env.ARTIFACT_RUN_ID }}
         run: |
+          docker exec ubuntu-host-mapped bash -c '
+          export CURRENT_HOST="${{ matrix.hostname }}"
+          export CONTROLLER_HOST="${{ env.CONTROLLER_HOST }}"
+          export ALL_HOSTS="${{ env.ALL_HOSTS }}"
+          export ARTIFACT_MODE="${{ env.ARTIFACT_MODE }}"
+          export ARTIFACT_RUN_ID="${{ env.ARTIFACT_RUN_ID }}"
           echo "Current hostname: $CURRENT_HOST"
           echo "Controller hostname: $CONTROLLER_HOST"
           echo "All participating hosts: $ALL_HOSTS"
@@ -86,6 +100,7 @@ jobs:
           # WHEEL_PATH=$(find $ARTIFACT_DIR -name "*.whl" | head -n 1)
           # echo "Installing wheel: $WHEEL_PATH"
           # pip install "$WHEEL_PATH"
+          '
 
       # - name: Reset hardware and run liveness check
       #   shell: bash
@@ -118,6 +133,7 @@ jobs:
       - name: Setup SSH
         shell: bash
         run: |
+          docker exec ubuntu-host-mapped bash -c '
           echo "Setting up SSH configuration for keyless access..."
 
           # Create SSH config in /tmp (since /root/.ssh is read-only)
@@ -129,6 +145,7 @@ jobs:
           EOF
 
           echo "SSH configuration complete"
+          '
 
       - name: Worker Pause
         if: matrix.hostname != env.CONTROLLER_HOST
@@ -138,6 +155,7 @@ jobs:
           CONTROLLER_HOST: ${{ env.CONTROLLER_HOST }}
           ALL_HOSTS: ${{ env.ALL_HOSTS }}
         run: |
+          docker exec ubuntu-host-mapped bash -c '
           echo "Worker ready and waiting for commands."
 
           # Write ready status file (we're already in the container)
@@ -146,6 +164,7 @@ jobs:
 
           echo "Status file written, worker is ready"
           sleep 6000
+          '
 
       - name: Controller Barrier
         if: matrix.hostname == env.CONTROLLER_HOST
@@ -156,10 +175,16 @@ jobs:
           ALL_HOSTS: ${{ env.ALL_HOSTS }}
           SSH_USER: ${{ env.SSH_USER }}
         run: |
+          docker exec \
+            -e CURRENT_HOST="${{ matrix.hostname }}" \
+            -e CONTROLLER_HOST="${{ env.CONTROLLER_HOST }}" \
+            -e ALL_HOSTS="${{ env.ALL_HOSTS }}" \
+            -e SSH_USER="${{ env.SSH_USER }}" \
+            ubuntu-host-mapped bash -c '
           echo "Controller waiting for all workers to be ready..."
 
           # Convert comma-separated hosts to array
-          IFS=',' read -ra HOST_ARRAY <<< "$ALL_HOSTS"
+          IFS="," read -ra HOST_ARRAY <<< "$ALL_HOSTS"
 
           # Wait for each worker to be ready
           for remote_host in "${HOST_ARRAY[@]}"; do
@@ -181,6 +206,7 @@ jobs:
           done
 
           echo "All workers are ready! Controller barrier complete."
+          '
 
       - name: Controller Run Tests
         if: matrix.hostname == env.CONTROLLER_HOST
@@ -191,11 +217,21 @@ jobs:
           ALL_HOSTS: ${{ env.ALL_HOSTS }}
           SSH_USER: ${{ env.SSH_USER }}
         run: |
+          docker exec \
+            -e GH_TOKEN="${{ github.token }}" \
+            -e TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain \
+            ubuntu-host-mapped bash -c '
           echo "Running tests across all hosts..."
           source venv/activate
 
           echo "Sleeping for 6000 seconds"
           sleep 6000
 
-
           TTXLA_LOGGER_LEVEL=DEBUG pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k "dual_bh_quietbox"
+          '
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop ubuntu-host-mapped || true
+          docker rm ubuntu-host-mapped || true
