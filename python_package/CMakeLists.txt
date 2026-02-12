@@ -26,9 +26,16 @@ add_custom_target(bundle-ttnn ALL
 # Fix RPATH of _ttnn.so to find shared libraries in pjrt_plugin_tt/lib at runtime (wheel installation).
 find_program(PATCHELF patchelf REQUIRED)
 
-add_custom_target(patch-ttnn-rpath ALL
-  COMMAND ${CMAKE_COMMAND} -E echo "Searching for _ttnn.so to patch..."
-  COMMAND bash -c "find ${CMAKE_CURRENT_SOURCE_DIR}/build -name '_ttnn.so' -path '*/pjrt_plugin_tt/tt-metal/ttnn/ttnn/_ttnn.so' -exec echo 'Found: {}' \\; -exec ${PATCHELF} --add-rpath '$ORIGIN/../../pjrt_plugin_tt/lib' {} \\; || echo 'Warning: _ttnn.so not found yet'"
-  COMMENT "Patching RPATH for _ttnn.so"
-  VERBATIM
-)
+install(CODE "
+  file(GLOB_RECURSE TTNN_SO_FILES \"${CMAKE_CURRENT_SOURCE_DIR}/build/lib.*/pjrt_plugin_tt/tt-metal/ttnn/ttnn/_ttnn.so\")
+  if(TTNN_SO_FILES)
+    list(GET TTNN_SO_FILES 0 TTNN_SO_SOURCE)
+    message(STATUS \"Fixing RPATH for _ttnn.so: \${TTNN_SO_SOURCE}\")
+    execute_process(
+      COMMAND \"${PATCHELF}\" --add-rpath \"\$ORIGIN/../../pjrt_plugin_tt/lib\" \"\${TTNN_SO_SOURCE}\"
+      COMMAND_ERROR_IS_FATAL ANY
+    )
+  else()
+    message(FATAL_ERROR \"Could not find _ttnn.so to patch RPATH in ${CMAKE_CURRENT_SOURCE_DIR}/build/\")
+  endif()
+")
