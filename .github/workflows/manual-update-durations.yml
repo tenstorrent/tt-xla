@@ -35,6 +35,16 @@ jobs:
           - forge-qbae-01
           - forge-qbae-02
     steps:
+      - name: Cleanup workspace
+        run: |
+          # Clean up any existing workspace to avoid permission issues
+          sudo rm -rf ${{ github.workspace }}/* || true
+          sudo rm -rf ${{ github.workspace }}/.git || true
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
       - name: Start container
         run: |
           docker run -d \
@@ -58,9 +68,6 @@ jobs:
         run: |
           docker exec ubuntu-host-mapped git config --global --add safe.directory /workspace
           docker exec ubuntu-host-mapped git config --global --add safe.directory /workspace/third_party/tt_forge_models
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Download artifact and setup venv
         shell: bash
