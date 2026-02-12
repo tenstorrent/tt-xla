@@ -159,13 +159,17 @@ class PatchedZSingleStreamAttnProcessor:
         if attn.norm_k is not None:
             key = attn.norm_k(key)
 
-        # Apply RoPE (original complex path)
+        # Apply RoPE (real-valued, no complex64 ops)
         def apply_rotary_emb(x_in, freqs_cis):
-            with torch.amp.autocast("cuda", enabled=False):
-                x = torch.view_as_complex(x_in.float().reshape(*x_in.shape[:-1], -1, 2))
-                freqs_cis = freqs_cis.unsqueeze(2)
-                x_out = torch.view_as_real(x * freqs_cis).flatten(3)
-                return x_out.type_as(x_in)
+            cos = freqs_cis.real.unsqueeze(2)
+            sin = freqs_cis.imag.unsqueeze(2)
+            x = x_in.float().reshape(*x_in.shape[:-1], -1, 2)
+            x_real, x_imag = x[..., 0], x[..., 1]
+            out = torch.stack(
+                [x_real * cos - x_imag * sin, x_real * sin + x_imag * cos],
+                dim=-1,
+            ).flatten(3)
+            return out.type_as(x_in)
 
         if freqs_cis is not None:
             query = apply_rotary_emb(query, freqs_cis)
