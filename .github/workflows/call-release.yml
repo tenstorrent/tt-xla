@@ -1,0 +1,68 @@
+name: TT-xla release (call)
+
+on:
+  workflow_call:
+    inputs:
+      artifact_release_run_id:
+        description: 'Run id of the release wheel'
+        type: string
+        required: true
+      wheel_release_artifact_name:
+        description: 'Artifact name of the wheel'
+        type: string
+        required: true
+      wheel_release_vllm_tt_artifact_name:
+        description: 'Artifact name of the vllm wheel'
+        type: string
+        required: true
+      is_nightly_release:
+        description: 'Is release a nightly'
+        type: boolean
+        required: true
+    outputs:
+      release_tag:
+        description: 'Release tag'
+        value: ${{ jobs.publish-release-wheel.outputs.release_tag }}
+
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+  packages: write
+  checks: write
+
+jobs:
+  publish-release-wheel:
+    uses: ./.github/workflows/call-publish-release-wheel.yml
+    secrets: inherit
+    with:
+      wheel_release_artifact_run_id: ${{ inputs.artifact_release_run_id }}
+      wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
+      is_nightly_release: ${{ inputs.is_nightly_release }}
+
+  build-release-docker:
+    uses: ./.github/workflows/call-build-release-docker.yml
+    needs: [ publish-release-wheel ]
+    secrets: inherit
+    with:
+      wheel_release_artifact_run_id: ${{ inputs.artifact_release_run_id }}
+      wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
+      wheel_version_override: ${{ needs.publish-release-wheel.outputs.release_tag }}
+
+  release-tests:
+    uses: ./.github/workflows/call-release-tests.yml
+    needs: [ build-release-docker ]
+    secrets: inherit
+    with:
+      release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
+
+  publish-release:
+    uses: ./.github/workflows/call-publish-release.yml
+    if: always()
+    needs: [ publish-release-wheel, build-release-docker, release-tests ]
+    secrets: inherit
+    with:
+      release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}
+      docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}

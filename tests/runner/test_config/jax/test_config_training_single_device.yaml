@@ -3,70 +3,70 @@
 # SPDX-License-Identifier: Apache-2.0
 
 test_config:
-  albert/masked_lm/jax-base_v2-single_device-training:
+  albert/masked_lm/jax-Base_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  albert/masked_lm/jax-large-v2-single_device-training:
+  albert/masked_lm/jax-Large_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  albert/masked_lm/jax-xlarge-v2-single_device-training:
+  albert/masked_lm/jax-Xlarge_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  albert/masked_lm/jax-xxlarge-v2-single_device-training:
+  albert/masked_lm/jax-Xxlarge_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  alexnet/image_classification/jax-custom-single_device-training:
+  alexnet/image_classification/jax-Custom-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  bart/causal_lm/jax-base-single_device-training:
+  bart/causal_lm/jax-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  bart/causal_lm/jax-large-single_device-training:
+  bart/causal_lm/jax-Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  beit/image_classification/jax-base-single_device-training:
+  beit/image_classification/jax-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  beit/image_classification/jax-large-single_device-training:
+  beit/image_classification/jax-Large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  bert/masked_lm/jax-base-single_device-training:
+  bert/masked_lm/jax-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  bert/masked_lm/jax-large-single_device-training:
+  bert/masked_lm/jax-Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  bigbird/causal_lm/jax-large-single_device-training:
+  bigbird/causal_lm/jax-Large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Assertion `false && \"incorrect fold result type\""
     execution_pass: FORWARD
 
-  bigbird/question_answering/jax-base-single_device-training:
+  bigbird/question_answering/jax-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  bigbird/question_answering/jax-large-single_device-training:
+  bigbird/question_answering/jax-Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  blenderbot/summarization/jax-1B-distill-single_device-training:
+  blenderbot/summarization/jax-1B_Distill-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
   blenderbot/summarization/jax-3B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large]
 
-  blenderbot/summarization/jax-400M-distill-single_device-training:
+  blenderbot/summarization/jax-400M_Distill-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "mlir::DenseElementsAttr::getValues() const [T = float]: Assertion `succeeded(range) && \"element type cannot be iterated\"' failed. - https://github.com/tenstorrent/tt-xla/issues/2693"
     markers: [nightly]
 
-  blenderbot/summarization/jax-small-90M-single_device-training:
+  blenderbot/summarization/jax-90M_Small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
   bloom/causal_lm/jax-1b1-single_device-training:
@@ -78,135 +78,135 @@ test_config:
     reason: "Out of Memory"
     execution_pass: BACKWARD
 
-  bloom/causal_lm/jax-3b-single_device-training:
+  bloom/causal_lm/jax-3B-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: BACKWARD
 
-  bloom/causal_lm/jax-560m-single_device-training:
+  bloom/causal_lm/jax-560M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  bloom/causal_lm/jax-7b-single_device-training:
+  bloom/causal_lm/jax-7B-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  clip/image_classification/jax-base_patch16-single_device-training:
+  clip/image_classification/jax-Base_Patch16-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  clip/image_classification/jax-base_patch32-single_device-training:
+  clip/image_classification/jax-Base_Patch32-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  clip/image_classification/jax-large_patch14-single_device-training:
+  clip/image_classification/jax-Large_Patch14-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  clip/image_classification/jax-large_patch14_336-single_device-training:
+  clip/image_classification/jax-Large_Patch14_336-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  dinov2/image_classification/jax-base-single_device-training:
+  dinov2/image_classification/jax-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 21471744 B L1 buffer across 7 banks, where each bank needs to store 3067392 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  dinov2/image_classification/jax-giant-single_device-training:
+  dinov2/image_classification/jax-Giant-single_device-training:
     status: NOT_SUPPORTED_SKIP # Model too large for our runners.
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: FORWARD
     markers: [large]
 
-  dinov2/image_classification/jax-large-single_device-training:
+  dinov2/image_classification/jax-Large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 21471744 B L1 buffer across 7 banks, where each bank needs to store 3067392 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  distilbert/masked_lm/jax-base-uncased-single_device-training:
+  distilbert/masked_lm/jax-Base_Uncased-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  electra/causal_lm/jax-base-discriminator-single_device-training:
+  electra/causal_lm/jax-Base_Discriminator-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  electra/causal_lm/jax-base-generator-single_device-training:
+  electra/causal_lm/jax-Base_Generator-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  electra/causal_lm/jax-large-discriminator-single_device-training:
+  electra/causal_lm/jax-Large_Discriminator-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  electra/causal_lm/jax-small-discriminator-single_device-training:
+  electra/causal_lm/jax-Small_Discriminator-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  gpt2/causal_lm/jax-base-single_device-training:
+  gpt2/causal_lm/jax-Base-single_device-training:
     status: EXPECTED_PASSING
 
-  gpt2/causal_lm/jax-large-single_device-training:
+  gpt2/causal_lm/jax-Large-single_device-training:
     status: EXPECTED_PASSING
 
-  gpt2/causal_lm/jax-medium-single_device-training:
+  gpt2/causal_lm/jax-Medium-single_device-training:
     status: EXPECTED_PASSING
 
-  gpt2/causal_lm/jax-xl-single_device-training:
+  gpt2/causal_lm/jax-Xl-single_device-training:
     status: EXPECTED_PASSING
     markers: [large, nightly]
 
-  gpt_j/causal_lm/jax-6b-single_device-training:
+  gpt_j/causal_lm/jax-6B-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  gpt_neo/causal_lm/jax-_125m-single_device-training:
+  gpt_neo/causal_lm/jax-125M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  gpt_neo/causal_lm/jax-_1_3b-single_device-training:
+  gpt_neo/causal_lm/jax-1_3B-single_device-training:
     status: NOT_SUPPORTED_SKIP # Model too large for our runners https://github.com/tenstorrent/tt-xla/issues/3209
     markers: [large, nightly]
 
-  gpt_neo/causal_lm/jax-_2_7b-single_device-training:
+  gpt_neo/causal_lm/jax-2_7B-single_device-training:
     status: KNOWN_FAILURE_XFAIL # Model too large for our runners
     markers: [large]
 
-  gpt_sw3/causal_lm/jax-1_3b_instruct-single_device-training:
+  gpt_sw3/causal_lm/jax-1_3B_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: BACKWARD
 
-  llama/causal_lm/jax-3b-v2-single_device-training:
+  llama/causal_lm/jax-3B_v2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  longt5/text_classification/jax-base-tglobal-single_device-training:
+  longt5/text_classification/jax-Base_Tglobal-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1"
     execution_pass: FORWARD
 
-  longt5/text_classification/jax-large-local-single_device-training:
+  longt5/text_classification/jax-Large_Local-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1"
     execution_pass: FORWARD
 
-  longt5/text_classification/jax-xl-tglobal-single_device-training:
+  longt5/text_classification/jax-Xl_Tglobal-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1"
     markers: [large]
     execution_pass: FORWARD
 
-  marian_mt/text_classification/jax-opus-mt-en-de-single_device-training:
+  marian_mt/text_classification/jax-Opus_Mt_En_De-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  mbart50/nlp_summarization/jax-large_many_to_many-single_device-training:
+  mbart50/nlp_summarization/jax-Large_Many_To_Many-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
   mistral/causal_lm/jax-v0_1-single_device-training:
@@ -215,58 +215,58 @@ test_config:
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  mistral/causal_lm/jax-v0_1_tiny-single_device-training:
+  mistral/causal_lm/jax-v0_1_Tiny-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  mistral/causal_lm/jax-v0_2_instruct-single_device-training:
+  mistral/causal_lm/jax-v0_2_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  mistral/causal_lm/jax-v0_3_instruct-single_device-training:
+  mistral/causal_lm/jax-v0_3_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  mlp_mixer/image_classification/jax-base_16-single_device-training:
+  mlp_mixer/image_classification/jax-Base_16-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  mnist/image_classification/jax-cnn_batchnorm-single_device-training:
+  mnist/image_classification/jax-Cnn_Batchnorm-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: INCORRECT_RESULT
     reason: "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
     execution_pass: FORWARD
 
-  mnist/image_classification/jax-cnn_dropout-single_device-training:
+  mnist/image_classification/jax-Cnn_Dropout-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: INCORRECT_RESULT
     reason: "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=0.14429746568202972. Required: pcc=0.99."
     execution_pass: FORWARD
 
-  mnist/image_classification/jax-mlp_custom-single_device-training:
+  mnist/image_classification/jax-Mlp_Custom-single_device-training:
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
-  mt5/nlp_summarization/jax-base-single_device-training:
+  mt5/nlp_summarization/jax-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  mt5/nlp_summarization/jax-large-single_device-training:
+  mt5/nlp_summarization/jax-Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large]
 
-  mt5/nlp_summarization/jax-xl-single_device-training:
+  mt5/nlp_summarization/jax-Xl-single_device-training:
     status: KNOWN_FAILURE_XFAIL # Model too large for our runners
     markers: [large]
 
-  opt/causal_lm/jax-1.3B-single_device-training:
+  opt/causal_lm/jax-1.3b-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
@@ -275,7 +275,7 @@ test_config:
   opt/causal_lm/jax-125M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  opt/causal_lm/jax-2.7B-single_device-training:
+  opt/causal_lm/jax-2.7b-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
@@ -284,184 +284,184 @@ test_config:
   opt/causal_lm/jax-350M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  opt/causal_lm/jax-6.7B-single_device-training:
+  opt/causal_lm/jax-6.7b-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  pegasus/summarization/jax-large-single_device-training:
+  pegasus/summarization/jax-Large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: BACKWARD
 
-  pegasus/summarization/jax-xsum-single_device-training:
+  pegasus/summarization/jax-Xsum-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: BACKWARD
 
-  regnet/image_classification/jax-y-040-single_device-training:
+  regnet/image_classification/jax-Y_040-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  regnet/image_classification/jax-y-160-single_device-training:
+  regnet/image_classification/jax-Y_160-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  regnet/image_classification/jax-y-320-single_device-training:
+  regnet/image_classification/jax-Y_320-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  resnet/image_classification/jax-resnet-101-single_device-training:
+  resnet/image_classification/jax-ResNet101-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
-  resnet/image_classification/jax-resnet-152-single_device-training:
+  resnet/image_classification/jax-ResNet152-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
-  resnet/image_classification/jax-resnet-18-single_device-training:
+  resnet/image_classification/jax-ResNet18-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
-  resnet/image_classification/jax-resnet-26-single_device-training:
+  resnet/image_classification/jax-ResNet26-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     markers: [large]
     reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
-  resnet/image_classification/jax-resnet-34-single_device-training:
+  resnet/image_classification/jax-ResNet34-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
-  resnet/image_classification/jax-resnet-50-single_device-training:
+  resnet/image_classification/jax-ResNet50-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     markers: [large, push]
     reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2010400 B which is beyond max L1 size of 1499136 B"
     execution_pass: BACKWARD
 
-  roberta/masked_lm/jax-base-single_device-training:
+  roberta/masked_lm/jax-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  roberta/masked_lm/jax-large-single_device-training:
+  roberta/masked_lm/jax-Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  roberta_prelayernorm/masked_lm/jax-efficient-mlm-m0.40-single_device-training:
+  roberta_prelayernorm/masked_lm/jax-Efficient_Mlm_M0.40-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  roformer/masked_lm/jax-chinese-base-single_device-training:
+  roformer/masked_lm/jax-Chinese_Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  roformer/masked_lm/jax-chinese-char-small-single_device-training:
+  roformer/masked_lm/jax-Chinese_Char_Small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  roformer/masked_lm/jax-chinese-small-single_device-training:
+  roformer/masked_lm/jax-Chinese_Small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  squeezebert/masked_lm/jax-base-single_device-training:
+  squeezebert/masked_lm/jax-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  t5/summarization/jax-base-single_device-training:
+  t5/summarization/jax-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  t5/summarization/jax-large-single_device-training:
+  t5/summarization/jax-Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  t5/summarization/jax-small-single_device-training:
+  t5/summarization/jax-Small-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  vision_text_dual_encoder/mm_image_ttt/jax-base-single_device-training:
+  vision_text_dual_encoder/mm_image_ttt/jax-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
 
-  vit/image_classification/jax-base_patch16_224-single_device-training:
+  vit/image_classification/jax-Base_Patch16_224-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  vit/image_classification/jax-base_patch16_384-single_device-training:
+  vit/image_classification/jax-Base_Patch16_384-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  vit/image_classification/jax-base_patch32_224_in_21k-single_device-training:
+  vit/image_classification/jax-Base_Patch32_224_In_21K-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  vit/image_classification/jax-base_patch32_384-single_device-training:
+  vit/image_classification/jax-Base_Patch32_384-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  vit/image_classification/jax-huge_patch14_224_in_21k-single_device-training:
+  vit/image_classification/jax-Huge_Patch14_224_In_21K-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  vit/image_classification/jax-large_patch16_224-single_device-training:
+  vit/image_classification/jax-Large_Patch16_224-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  vit/image_classification/jax-large_patch16_384-single_device-training:
+  vit/image_classification/jax-Large_Patch16_384-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 36126720 B L1 buffer across 24 banks, where each bank needs to store 1505280 B, but bank size is only 1331936 B https://github.com/tenstorrent/tt-xla/issues/918"
     execution_pass: BACKWARD
 
-  vit/image_classification/jax-large_patch32_224_in_21k-single_device-training:
+  vit/image_classification/jax-Large_Patch32_224_In_21K-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 37 clash with L1 buffers on core range [(x=0,y=0) - (x=0,y=0)]. L1 buffer allocated at 253952 and static circular buffer region ends at 1347456"
     execution_pass: FORWARD
 
-  vit/image_classification/jax-large_patch32_384-single_device-training:
+  vit/image_classification/jax-Large_Patch32_384-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 37 clash with L1 buffers on core range [(x=0,y=0) - (x=0,y=0)]. L1 buffer allocated at 253952 and static circular buffer region ends at 1347456"
     execution_pass: FORWARD
 
-  wav2vec2/audio_classification/jax-large_lv_60-single_device-training:
+  wav2vec2/audio_classification/jax-Large_Lv_60-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Library import problem"
     execution_pass: BACKWARD
 
-  whisper/audio_classification/jax-base-single_device-training:
+  whisper/audio_classification/jax-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: " Assertion `Index < Length && \"Invalid index!\"' failed."
     execution_pass: BACKWARD
 
-  whisper/audio_classification/jax-large_v3-single_device-training:
+  whisper/audio_classification/jax-Large_v3-single_device-training:
     status: NOT_SUPPORTED_SKIP
     reason: " Assertion `Index < Length && \"Invalid index!\"' failed."
     bringup_status: FAILED_RUNTIME
     markers: [large]
     execution_pass: BACKWARD
 
-  whisper/audio_classification/jax-medium-single_device-training:
+  whisper/audio_classification/jax-Medium-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of memory"
@@ -473,13 +473,13 @@ test_config:
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  xlm_roberta/causal_lm/jax-base-single_device-training:
+  xlm_roberta/causal_lm/jax-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
     execution_pass: FORWARD
 
-  xlm_roberta/causal_lm/jax-large-single_device-training:
+  xlm_roberta/causal_lm/jax-Large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory"
