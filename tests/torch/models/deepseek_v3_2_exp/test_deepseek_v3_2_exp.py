@@ -125,7 +125,8 @@ def test_deepseek_attention_prefill():
 
     def get_shard_spec(attention, args, kwargs):
         shard_specs = {}
-        shard_specs[args[0]] = (None, None, "batch")
+        shard_specs[args[0]] = (None, None, "batch") # hidden_states
+        shard_specs[args[3]] = ("batch", None, None) # attention_mask
         shard_specs[attention.wq_b.weight] = ("model", None)
         shard_specs[attention.wkv_b.weight] = ("model", None)
         shard_specs[attention.wo.weight] = ("batch", "model")
@@ -139,7 +140,7 @@ def test_deepseek_attention_prefill():
         # Indexer sharding
         shard_specs[attention.indexer.wq_b.weight] = ("model", None)  # [n_heads*head_dim, q_lora_rank] - column-parallel
         shard_specs[attention.indexer.wk.weight] = (None, "batch")  # [head_dim, dim] - row-parallel
-        shard_specs[attention.indexer.weights_proj.weight] = (None, "batch")  # [n_heads, dim] - row-parallel
+        shard_specs[attention.indexer.weights_proj.weight] = ("model", "batch")  # [n_heads, dim] - 2D sharded
         shard_specs[attention.indexer.k_cache] = ("batch", None, None)  # [max_batch, max_seq, head_dim]
 
         return shard_specs
@@ -196,12 +197,14 @@ def test_deepseek_indexer():
 
     def get_shard_spec(indexer, args, kwargs):
         """
-        Hybrid sharding strategy for DeepSeek indexer:
+        Optimized hybrid sharding strategy for DeepSeek indexer:
         - Input qr: batch-sharded for row-parallel computation
         - Input hidden_states: feature-sharded for row-parallel computation
         - Weight wq_b: column-parallel (model axis)
-        - Weights wk, weights_proj: row-parallel (batch axis)
+        - Weight wk: row-parallel (batch axis)
+        - Weight weights_proj: 2D sharded
         - Cache k_cache: batch-sharded to match output
+        - Attention mask: batch-sharded to match output - ADDED
         """
         shard_specs = {}
 
@@ -209,12 +212,15 @@ def test_deepseek_indexer():
         shard_specs[args[0]] = (None, None, "batch")  # hidden_states (x): [batch, seq, dim]
         shard_specs[args[1]] = ("batch", None, None)  # qr: [batch, seq, q_lora_rank]
 
+        # Attention mask - batch-sharded to match output (eliminates all-to-all)
+        shard_specs[args[4]] = ("batch", None, None)  # attention_mask: [batch, seq, seq]
+
         # Weight tensors - optimized for parallel linear operations
         shard_specs[indexer.wq_b.weight] = ("model", None)  # [n_heads*head_dim, q_lora_rank] - column-parallel
         shard_specs[indexer.wk.weight] = (None, "batch")  # [head_dim, dim] - row-parallel
         shard_specs[indexer.k_norm.weight] = (None,)  # [head_dim] - replicated
         shard_specs[indexer.k_norm.bias] = (None,)  # [head_dim] - replicated
-        shard_specs[indexer.weights_proj.weight] = (None, "batch")  # [n_heads, dim] - row-parallel
+        shard_specs[indexer.weights_proj.weight] = ("model", "batch")  # [n_heads, dim] - 2D sharded
         shard_specs[indexer.haddamard] = (None, None)  # [head_dim, head_dim] - replicated
 
         # Cache tensors - batch-sharded for efficiency
