@@ -7,7 +7,7 @@ import os
 
 import numpy as np
 import pytest
-from llm_benchmark import benchmark_llm_torch_xla
+from benchmarks.llm_benchmark import benchmark_llm_torch_xla
 from loguru import logger
 from utils import create_model_loader, resolve_display_name
 

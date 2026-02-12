@@ -5,8 +5,8 @@
 import json
 
 import torch
+from benchmarks.vision_benchmark import benchmark_vision_torch_xla
 from utils import aggregate_ttnn_perf_metrics, resolve_display_name
-from vision_benchmark import benchmark_vision_torch_xla
 
 # Defaults for all vision models
 DEFAULT_OPTIMIZATION_LEVEL = 2

@@ -7,7 +7,7 @@ from typing import List
 
 import pytest
 import torch
-from encoder_benchmark import benchmark_encoder_torch_xla
+from benchmarks.encoder_benchmark import benchmark_encoder_torch_xla
 from utils import (
     aggregate_ttnn_perf_metrics,
     apply_last_token_pooling,
