@@ -30,6 +30,8 @@ import torch_xla.runtime as xr
 from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
 from torch_xla.distributed.spmd import Mesh
 
+from tests.torch.multi_host.experimental.conftest import get_mesh_shape
+
 
 def setup_spmd():
     """Helper to enable SPMD mode with Shardy conversion."""
@@ -46,7 +48,7 @@ def create_device_mesh(mesh_shape) -> Mesh:
 
 
 @pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy"])
-def test_simple_distributed_addition(topology, configure_topology, mesh_shape):
+def test_simple_distributed_addition(topology, configure_topology):
     """
     Verifies basic distributed tensor addition across multiple hosts.
     Creates two sharded tensors, adds them, and validates correctness.
@@ -60,7 +62,8 @@ def test_simple_distributed_addition(topology, configure_topology, mesh_shape):
     setup_spmd()
     device = torch_xla.device()
 
-    # Use mesh_shape from fixture (topology-aware)
+    # Get mesh_shape based on device count (topology-aware)
+    mesh_shape = get_mesh_shape()
     mesh = create_device_mesh(mesh_shape)
 
     # Create test tensors
@@ -88,7 +91,7 @@ def test_simple_distributed_addition(topology, configure_topology, mesh_shape):
 
 
 @pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy"])
-def test_matmul_contracting_dim_sharded(topology, configure_topology, mesh_shape):
+def test_matmul_contracting_dim_sharded(topology, configure_topology):
     """
     Matmul A @ B with contracting dimension (K) sharded across model axis.
     Each device holds a slice of A on K and B on K; local matmuls give partial
@@ -102,6 +105,8 @@ def test_matmul_contracting_dim_sharded(topology, configure_topology, mesh_shape
     xr.set_device_type("TT")
     setup_spmd()
     device = torch_xla.device()
+
+    mesh_shape = get_mesh_shape()
     mesh = create_device_mesh(mesh_shape)
 
     batch_dim, model_dim = mesh_shape
@@ -137,7 +142,7 @@ def test_matmul_contracting_dim_sharded(topology, configure_topology, mesh_shape
 
 
 @pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy"])
-def test_matmul_batch_sharded(topology, configure_topology, mesh_shape):
+def test_matmul_batch_sharded(topology, configure_topology):
     """
     Matmul A @ B with A sharded on batch. Each device holds a batch slice,
     B is replicated; result is sharded on batch. No all-reduce on result.
@@ -150,6 +155,8 @@ def test_matmul_batch_sharded(topology, configure_topology, mesh_shape):
     xr.set_device_type("TT")
     setup_spmd()
     device = torch_xla.device()
+
+    mesh_shape = get_mesh_shape()
     mesh = create_device_mesh(mesh_shape)
 
     batch_dim, model_dim = mesh_shape

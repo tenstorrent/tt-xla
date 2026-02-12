@@ -79,10 +79,9 @@ def get_mesh_shape_for_device_count(num_devices: int) -> tuple[int, int]:
         )
 
 
-@pytest.fixture(scope="function")
-def mesh_shape():
+def get_mesh_shape():
     """
-    Fixture that provides the appropriate mesh shape for the current topology.
+    Get the appropriate mesh shape for the current topology.
 
     Queries the actual device count and returns the corresponding mesh shape.
     This allows tests to be topology-agnostic.
