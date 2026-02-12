@@ -477,12 +477,6 @@ setup(
             "tracy = tracy.__main__:main",
         ],
     },
-    ext_modules=[
-        Extension(
-            name="pjrt_plugin_tt.native",
-            sources=[],
-        )
-    ],
     include_package_data=True,
     install_requires=config.requirements,
     license="Apache-2.0",
