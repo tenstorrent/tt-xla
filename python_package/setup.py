@@ -241,6 +241,14 @@ class BdistWheel(bdist_wheel):
         python, abi, plat = bdist_wheel.get_tag(self)
         # Force specific Python 3.11 ABI format for the wheel
         python, abi = "cp311", "cp311"
+        # Ensure platform-specific tag for x86_64 architecture
+        # This prevents 'any' platform and enables auditwheel to properly repair
+        import platform
+
+        if plat == "any" or not plat:
+            machine = platform.machine().lower()
+            if machine in ("x86_64", "amd64"):
+                plat = "linux_x86_64"
         return python, abi, plat
 
 
@@ -369,6 +377,12 @@ class CMakeBuildPy(build_py):
         _remove_broken_symlinks(install_dir)
         _remove_static_archives(install_dir)
 
+        # remove cmake and pkgconfig files
+        _remove_bloat_dir(install_dir / "lib" / "cmake")
+        _remove_bloat_dir(install_dir / "lib" / "pkgconfig")
+        _remove_bloat_dir(install_dir / "bin")
+        _remove_bloat_dir(install_dir / "include")
+        _remove_bloat_dir(install_dir / "tt-metal" / "tests")
         if config.build_type == "release":
             _strip_shared_objects(install_dir)
 
@@ -384,6 +398,12 @@ class CMakeBuildPy(build_py):
                 shutil.copy2(script_src, config.jax_plugin_target_dir)
             else:
                 print(f"{script_file} already copied.")
+
+
+def _remove_bloat_dir(dir_path: Path) -> None:
+    if dir_path.exists() and dir_path.is_dir():
+        print(f"Removing bloat directory: {dir_path}")
+        shutil.rmtree(dir_path)
 
 
 def _remove_static_archives(root: Path) -> None:
