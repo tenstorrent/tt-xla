@@ -106,10 +106,10 @@ jobs:
           pip install s3pypi
 
           echo "Uploading wheels to the pypi bucket"
-          for wheel_file in wheel/*.whl; do
+          # for wheel_file in wheel/*.whl; do
             # if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
             #   s3pypi upload "$wheel_file" --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
             # else
             #   s3pypi upload "$wheel_file" --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
             # fi
-          done
+          # done
