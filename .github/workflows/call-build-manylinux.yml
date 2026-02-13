@@ -41,6 +41,7 @@ jobs:
           CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
           CIBW_BEFORE_ALL: "ls -la /usr/bin/c* || true"
+          CIBW_SKIP: "*-musllinux_*"
         run: python -m cibuildwheel --output-dir "${{ steps.strings.outputs.wheel-output-dir }}" --config-file "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml" ${{ steps.strings.outputs.work-dir }}/python_package
 
       # - name: Build ttxla  Wheel (manylinux)
