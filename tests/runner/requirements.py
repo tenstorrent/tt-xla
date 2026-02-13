@@ -131,6 +131,7 @@ class RequirementsManager:
         _dbg("[Requirements] __enter__: running pip freeze (after)")
         self._after_freeze = self._pip_freeze()
         self._compute_diffs()
+        self._clear_installed_from_sys_modules()
         _dbg(
             f"[Requirements] __enter__: newly_installed={sorted(self._newly_installed)}"
         )
@@ -159,6 +160,9 @@ class RequirementsManager:
                 ]
                 _dbg(f"[Requirements] __exit__: restoring versions: {pinned}")
                 self._pip_install(tuple(pinned))
+            # Clear restored/changed packages from sys.modules so next import sees restored versions
+            if self._newly_installed or self._changed_versions:
+                self._clear_installed_from_sys_modules()
         finally:
             # Always release the lock if held
             if self._lock_file is not None:
@@ -250,6 +254,13 @@ class RequirementsManager:
                     result[name.strip().lower()] = version.strip()
                 except ValueError:
                     continue
+            elif " @ " in line: # track packages installed via @ (git packages) for roll-back
+                try:
+                    name, spec = line.split(" @ ", 1)
+                    name_lower = name.strip().lower()
+                    result[name_lower] = spec.strip()
+                except ValueError:
+                    continue
         return result
 
     def _install_system_requirements(self, system_req_path: str) -> None:
@@ -316,6 +327,31 @@ class RequirementsManager:
             )
             # Don't fail the test if system packages can't be installed
             # The test might still work if the package was already available
+
+    def _clear_installed_from_sys_modules(self) -> None:
+        """Remove from sys.modules any package whose version we changed.
+
+        The test runner may have already imported e.g. transformers (via
+        tests.infra.utilities.types) before RequirementsManager runs. Pip
+        installs new versions in a subprocess, so the current process still
+        has the old module in sys.modules. Clearing them forces the next
+        import to load the newly installed versions. Newly installed packages
+        were not in the env before, so they are not in sys.modules to clear.
+        """
+        affected = set(self._changed_versions.keys())
+        to_remove = set()
+        for pkg in affected:
+            # Pip freeze uses lowercase; module names use underscores for hyphens
+            mod = pkg.replace("-", "_")
+            to_remove.add(mod)
+            to_remove.update(
+                k for k in sys.modules if k.startswith(mod + ".")
+            )
+        for mod in to_remove:
+            sys.modules.pop(mod, None)
+        if to_remove:
+            _dbg(f"[Requirements] _clear_installed_from_sys_modules: cleared {len(to_remove)} module(s)")
+
 
     @staticmethod
     def _is_system_package_installed(package: str) -> bool:
