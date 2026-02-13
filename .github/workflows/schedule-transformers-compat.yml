@@ -221,6 +221,7 @@ jobs:
 
     - name: Validate Forge Models Tests test config file
       if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
+      continue-on-error: true
       shell: bash
       run: |
         source venv/activate
@@ -230,6 +231,7 @@ jobs:
 
     - name: Collect Tests
       id: collect-tests
+      continue-on-error: true
       shell: bash
       run: |
         source venv/activate
@@ -313,7 +315,6 @@ jobs:
       with:
         submodules: recursive
         fetch-depth: 0
-        ref: main
         token: ${{ secrets.GH_TOKEN }}
 
     - name: Download test report artifacts
@@ -332,6 +333,7 @@ jobs:
       id: find-failures
       shell: bash
       run: |
+        mkdir -p test-reports test-logs
         python .github/scripts/find_all_failed_tests.py test-reports
         if [ -f .pytest_tests_to_run ]; then
           FAILED_COUNT=$(wc -l < .pytest_tests_to_run)
@@ -347,14 +349,16 @@ jobs:
       id: extract-context
       shell: bash
       run: |
+        mkdir -p test-reports test-logs
         python .github/scripts/extract_transformers_failure_context.py \
           test-reports test-logs failure_context.txt
         if [ -f failure_context.txt ]; then
-          # Store a short summary for PR body (first 500 chars)
           SUMMARY=$(head -c 500 failure_context.txt)
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "No test artifacts were uploaded — tests likely failed before producing output." > failure_context.txt
         fi
 
     - name: Create fix branch
