@@ -202,7 +202,7 @@ There are two replacement categories:
        )
    ```
 
-5. **Ensure TT-MLIR has a handler** for the composite name (`tenstorrent.my_op`). The composite will only be lowered to an optimized implementation if the `legalizeCompositeToCall` pass in TT-MLIR recognizes it.
+5. **Ensure TT-MLIR has a handler** for the composite name (`tenstorrent.my_op`). The composite will only be lowered to an optimized implementation if the `StableHLOLegalizeCompositePass` in TT-MLIR recognizes it.
 
 ## Torch FX Fusing
 
