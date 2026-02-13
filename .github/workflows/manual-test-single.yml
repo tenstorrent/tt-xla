@@ -16,6 +16,15 @@ permissions:
   checks: write
 
 jobs:
+  basic-tests:
+    uses: tenstorrent/tt-forge/.github/workflows/basic-tests.yml@vvukoman/add-fail-notify-perf-flag
+    secrets: inherit
+    with:
+      docker-image: ${{ inputs.release_docker_image }}
+      ref: vvukoman/add-fail-notify-perf-flag
+      project-filter: tt-xla
+      fail-notify: true
+
   perf-benchmark-n150:
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/add-fail-notify-perf-flag
     secrets: inherit
@@ -23,7 +32,7 @@ jobs:
       docker-image: ${{ inputs.release_docker_image }}
       ref: vvukoman/add-fail-notify-perf-flag
       project: tt-xla
-      sh-runner: true
+      sh-runner: false
       skip-device-perf: false
       runs-on-filter: n150
       fail-notify: true
@@ -35,6 +44,16 @@ jobs:
       docker-image: ${{ inputs.release_docker_image }}
       ref: vvukoman/add-fail-notify-perf-flag
       project: tt-xla
-      sh-runner: true
+      sh-runner: false
       skip-device-perf: false
       runs-on-filter: llmbox
+      fail-notify: true
+
+  demo-test:
+    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@vvukoman/add-fail-notify-perf-flag
+    secrets: inherit
+    with:
+      docker-image: ${{ inputs.release_docker_image }}
+      ref: vvukoman/add-fail-notify-perf-flag
+      project-filter: tt-xla
+      fail-notify: true
