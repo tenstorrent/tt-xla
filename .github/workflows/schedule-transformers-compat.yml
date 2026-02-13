@@ -410,7 +410,7 @@ jobs:
         EOF
         )" \
           --label "transformers-compat" \
-          --label "auto-generated" 2>&1) || true
+          --label "auto-generated" 2>&1)
 
         echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
         echo "PR created: $PR_URL"
