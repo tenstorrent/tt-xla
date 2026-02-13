@@ -16,3 +16,4 @@ jobs:
     secrets: inherit
     with:
       release_docker_image: "random"
+      caller_workflow: ${{ github.workflow }}
