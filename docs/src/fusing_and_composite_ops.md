@@ -338,6 +338,13 @@ This filter uses `node.meta["example_value"]` to inspect tensor shapes at match 
 
 ## MLIR Fusing (Advanced)
 
+TT-MLIR also supports fusing at the MLIR level, as an alternative to the Torch FX + Composites approach described above. The two approaches have different trade-offs:
+
+| | Torch FX + Composites | MLIR Fusing |
+|---|---|---|
+| **Advantages** | Easier to write and debug (Python-based pattern matching), lower barrier to entry  | Agreed-upon best location for fusions to live long-term. Has better context about hardware-specific optimizations |
+| **Limitations** | All torch-fused operations must be wrapped inside a composite op and legalized in tt-mlir to prevent decomposition during torch\_xla lowering | Requires MLIR pattern matching syntax, which is harder to write and debug. Higher barrier to entry for new contributors |
+
 In addition to the Torch FX level fusing described above, TT-MLIR has its own pattern matching and fusion passes at the MLIR level. These operate on the TTIR and TTNN dialects *after* StableHLO conversion.
 
 Key MLIR fusing components (in the [tt-mlir repository](https://github.com/tenstorrent/tt-mlir)):
