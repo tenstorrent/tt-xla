@@ -8,8 +8,30 @@ Import this module early (before any model code) to patch removed APIs
 that third-party libraries (e.g. EasyDel) still depend on.
 """
 
+import transformers
 import transformers.utils
 import transformers.utils.generic
+
+
+def _ensure_flax_pretrained_model():
+    """Provide a stub for `transformers.FlaxPreTrainedModel` if it was removed."""
+    if hasattr(transformers, "FlaxPreTrainedModel"):
+        return
+
+    try:
+        # Try importing from the modeling_flax_utils module if it still exists
+        from transformers.modeling_flax_utils import FlaxPreTrainedModel
+
+        transformers.FlaxPreTrainedModel = FlaxPreTrainedModel
+    except ImportError:
+        # If modeling_flax_utils doesn't exist, create a minimal stub class
+        # This is used for type annotations in tests/infra/utilities/types.py
+        class FlaxPreTrainedModel:
+            """Minimal stub for removed FlaxPreTrainedModel."""
+
+            pass
+
+        transformers.FlaxPreTrainedModel = FlaxPreTrainedModel
 
 
 def _ensure_download_url():
@@ -68,6 +90,7 @@ def _ensure_working_or_temp_dir():
     transformers.utils.generic.working_or_temp_dir = working_or_temp_dir
 
 
+_ensure_flax_pretrained_model()
 _ensure_download_url()
 _ensure_is_remote_url()
 _ensure_working_or_temp_dir()

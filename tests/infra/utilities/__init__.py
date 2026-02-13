@@ -2,6 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# Import transformers compatibility shims FIRST
+from . import transformers_compat  # noqa: F401
+
 from .jax_multichip_utils import (
     ShardingMode,
     enable_shardy,

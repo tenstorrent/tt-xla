@@ -1,0 +1,141 @@
+You are fixing transformers compatibility issues in the tt-xla project.
+
+The HuggingFace transformers library was updated from the pinned version to the latest
+from the 'main' branch, and some model tests broke.
+
+## Failed Tests
+
+## Failure Context (error messages and stack traces)
+
+=== ERROR EXCERPTS FROM LOGS ===
+
+--- Log: transformers-compat-test-log-n150-n150_and_expected_passing_and_push-63475593513 ---
+2026-02-13 02:16:22.500 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+ImportError while loading conftest '/__w/tt-xla/tt-xla/tests/conftest.py'.
+tests/conftest.py:21: in <module>
+    from infra import DeviceConnectorFactory, Framework
+tests/infra/__init__.py:10: in <module>
+    from .evaluators import ComparisonConfig
+tests/infra/evaluators/__init__.py:5: in <module>
+    from .comparison_evaluator import ComparisonEvaluator
+tests/infra/evaluators/comparison_evaluator.py:9: in <module>
+    from infra.utilities import PyTree, Tensor
+tests/infra/utilities/__init__.py:5: in <module>
+    from .jax_multichip_utils import (
+
+~~~
+tests/infra/utilities/types.py:16: in <module>
+    from transformers import FlaxPreTrainedModel
+E   ImportError: cannot import name 'FlaxPreTrainedModel' from 'transformers' (/__w/tt-xla/tt-xla/venv/lib/python3.11/site-packages/transformers/__init__.py)
+
+~~~
+--- Log: transformers-compat-test-log-p150-p150_and_expected_passing_and_push-63475593481 ---
+2026-02-13 02:16:02.503 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+ImportError while loading conftest '/__w/tt-xla/tt-xla/tests/conftest.py'.
+tests/conftest.py:21: in <module>
+    from infra import DeviceConnectorFactory, Framework
+tests/infra/__init__.py:10: in <module>
+    from .evaluators import ComparisonConfig
+tests/infra/evaluators/__init__.py:5: in <module>
+    from .comparison_evaluator import ComparisonEvaluator
+tests/infra/evaluators/comparison_evaluator.py:9: in <module>
+    from infra.utilities import PyTree, Tensor
+tests/infra/utilities/__init__.py:5: in <module>
+    from .jax_multichip_utils import (
+
+~~~
+tests/infra/utilities/types.py:16: in <module>
+    from transformers import FlaxPreTrainedModel
+E   ImportError: cannot import name 'FlaxPreTrainedModel' from 'transformers' (/__w/tt-xla/tt-xla/venv/lib/python3.11/site-packages/transformers/__init__.py)
+
+~~~
+## Current Compatibility Shim
+File: tests/infra/utilities/transformers_compat.py
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+"""
+Compatibility shims for newer transformers versions.
+
+Import this module early (before any model code) to patch removed APIs
+that third-party libraries (e.g. EasyDel) still depend on.
+"""
+
+import transformers.utils
+import transformers.utils.generic
+
+
+def _ensure_download_url():
+    """Provide a stub for `transformers.utils.download_url` if it was removed."""
+    if hasattr(transformers.utils, "download_url"):
+        return
+
+    import tempfile
+
+    import requests
+
+    def download_url(url, proxies=None):
+        """Minimal replacement for the removed transformers.utils.download_url."""
+        response = requests.get(url, proxies=proxies)
+        response.raise_for_status()
+        tmp = tempfile.NamedTemporaryFile(delete=False)
+        tmp.write(response.content)
+        tmp.close()
+        return tmp.name
+
+    transformers.utils.download_url = download_url
+
+
+def _ensure_is_remote_url():
+    """Provide a stub for `transformers.utils.is_remote_url` if it was removed."""
+    if hasattr(transformers.utils, "is_remote_url"):
+        return
+
+    def is_remote_url(url_or_filename):
+        """Minimal replacement for the removed transformers.utils.is_remote_url."""
+        if not isinstance(url_or_filename, str):
+            return False
+        return url_or_filename.startswith(("http://", "https://", "s3://", "gs://"))
+
+    transformers.utils.is_remote_url = is_remote_url
+
+
+def _ensure_working_or_temp_dir():
+    """Provide a stub for `transformers.utils.generic.working_or_temp_dir` if removed."""
+    if hasattr(transformers.utils.generic, "working_or_temp_dir"):
+        return
+
+    import os
+    import tempfile
+    from contextlib import contextmanager
+
+    @contextmanager
+    def working_or_temp_dir(working_dir, use_temp_dir=False):
+        """Minimal replacement for the removed working_or_temp_dir."""
+        if use_temp_dir:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                yield tmp_dir
+        else:
+            yield working_dir if working_dir is not None else os.getcwd()
+
+    transformers.utils.generic.working_or_temp_dir = working_or_temp_dir
+
+
+_ensure_download_url()
+_ensure_is_remote_url()
+_ensure_working_or_temp_dir()
+
+## Instructions
+1. Analyze the failures to identify which transformers API changes caused them.
+2. Add backward-compatible shims to tests/infra/utilities/transformers_compat.py using
+   hasattr guards (following the existing pattern in that file).
+3. You may modify any Python files in the repo as needed to fix the compatibility issues
+   (e.g. update imports, fix class references, add conftest imports, etc.).
+4. If adding new shims, ensure tests/conftest.py or tests/runner/conftest.py imports
+   the transformers_compat module if it is not already imported there.
+
+## Rules
+- Do NOT modify files under third_party/ (these are external submodules).
+- Do NOT modify venv/requirements-dev.txt or change the pinned transformers version.
+- Use hasattr() guards so your shims work with both the old and new transformers versions.
+- Keep changes minimal and focused on compatibility.
