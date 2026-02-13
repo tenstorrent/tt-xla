@@ -11,7 +11,6 @@ from flax import linen
 from infra.evaluators import ComparisonConfig
 from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import JaxModelTester, RunMode
-from transformers import FlaxPreTrainedModel
 
 from tests.runner.utils import JaxDynamicLoader
 
@@ -123,7 +122,7 @@ class DynamicJaxModelTester(JaxModelTester):
             # For HuggingFace models, merge the loader kwargs with parent kwargs
             # For custom models, the loader kwargs replace the parent kwargs
             model = self._get_model()
-            if isinstance(model, FlaxPreTrainedModel):
+            if isinstance(model, linen.Module):
                 # HuggingFace model: merge (loader provides RNG keys, parent provides inputs/params)
                 kwargs.update(loader_kwargs)
             else:
@@ -135,7 +134,7 @@ class DynamicJaxModelTester(JaxModelTester):
         # Only add if the model actually accepts dropout_rng parameter
         if self._run_mode == RunMode.TRAINING:
             model = self._get_model()
-            if isinstance(model, FlaxPreTrainedModel):
+            if isinstance(model, linen.Module):
                 if "dropout_rng" not in kwargs:
                     # Check if the model's __call__ method accepts dropout_rng
                     sig = inspect.signature(model.__call__)
@@ -154,7 +153,7 @@ class DynamicJaxModelTester(JaxModelTester):
             loader_static_args = self.dynamic_loader.loader.get_static_argnames()
             # For HuggingFace models, also check parent's logic for train/deterministic
             model = self._get_model()
-            if isinstance(model, FlaxPreTrainedModel):
+            if isinstance(model, linen.Module):
                 # Get parent's static argnames (which checks model signature for train/deterministic)
                 parent_static_args = super()._get_static_argnames()
                 # Merge both lists, keeping unique values

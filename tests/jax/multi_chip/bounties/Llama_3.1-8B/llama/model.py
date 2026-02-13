@@ -20,20 +20,75 @@ from jax import lax  # type: ignore
 from jax.experimental.shard_map import shard_map  # type: ignore
 from jax.sharding import Mesh  # type: ignore
 from jax.sharding import PartitionSpec  # type: ignore
-from transformers.modeling_flax_outputs import (  # type: ignore
-    FlaxBaseModelOutput,
-    FlaxCausalLMOutput,
-)
-from transformers.modeling_flax_utils import (  # type: ignore
-    ACT2FN,
-    FlaxPreTrainedModel,
-    append_call_sample_docstring,
-)
+from transformers import activations  # type: ignore
 from transformers.utils import (  # type: ignore
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
     logging,
 )
+
+# ACT2FN moved to activations module
+ACT2FN = activations.ACT2FN
+
+# Define output classes that were removed from transformers
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class FlaxBaseModelOutput:
+    last_hidden_state: jnp.ndarray
+    hidden_states: Optional[Tuple[jnp.ndarray]] = None
+    attentions: Optional[Tuple[jnp.ndarray]] = None
+
+@dataclass
+class FlaxCausalLMOutput:
+    logits: jnp.ndarray
+    hidden_states: Optional[Tuple[jnp.ndarray]] = None
+    attentions: Optional[Tuple[jnp.ndarray]] = None
+
+# Decorator that was removed - make it a no-op
+def append_call_sample_docstring(*args, **kwargs):
+    def decorator(func):
+        return func
+    return decorator
+
+# Minimal FlaxPreTrainedModel replacement
+# This was removed from transformers when Flax support was dropped
+class FlaxPreTrainedModel:
+    """Minimal base class for Flax pretrained models."""
+
+    config_class = None
+    base_model_prefix = ""
+    module_class = None
+    _missing_keys = set()
+
+    def __init__(
+        self,
+        config,
+        module,
+        input_shape=(1, 1),
+        seed=0,
+        dtype=jnp.float32,
+        _do_init=True,
+    ):
+        self.config = config
+        self.module = module
+        self.dtype = dtype
+
+        if _do_init:
+            # Initialize parameters
+            rng = jax.random.PRNGKey(seed)
+            self.params = self.init_weights(rng, input_shape)
+        else:
+            self.params = None
+
+    def init_weights(self, rng, input_shape):
+        """Initialize model weights. Should be overridden by subclasses."""
+        raise NotImplementedError("Subclasses must implement init_weights")
+
+    def __call__(self, *args, **kwargs):
+        """Forward pass through the module."""
+        return self.module.apply(*args, **kwargs)
 
 remat = nn_partitioning.remat
 
