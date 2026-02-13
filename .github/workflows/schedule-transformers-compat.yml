@@ -386,7 +386,7 @@ jobs:
       shell: bash
       run: |
         PR_URL=$(gh pr create \
-          --base main \
+          --base "${{ github.ref_name }}" \
           --head "${{ needs.test-and-fix.outputs.fix-branch }}" \
           --title "Auto-fix: transformers compatibility (latest from main)" \
           --body "$(cat <<'EOF'
