@@ -16,6 +16,7 @@ jobs:
       docker-image: ${{ inputs.release_docker_image }}
       ref: main
       project-filter: tt-xla
+      fail-notify: true
 
   perf-benchmark-n150:
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
