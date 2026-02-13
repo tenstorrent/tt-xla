@@ -6,3 +6,6 @@ requires = [
     "cmake",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.cibuildwheel]
+repair-wheel-command = "auditwheel repair --lib-sdir ./ -w {dest_dir} {wheel}"

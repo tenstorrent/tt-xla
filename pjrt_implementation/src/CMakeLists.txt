@@ -50,8 +50,8 @@ target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
 set_target_properties(TTPJRTTTDylib PROPERTIES
     PREFIX "" # Disable "lib" prefix.
     LIBRARY_OUTPUT_NAME pjrt_plugin_tt
-    BUILD_RPATH "$ORIGIN:$ORIGIN/lib"
-    INSTALL_RPATH "$ORIGIN:$ORIGIN/lib"
+    BUILD_RPATH "$ORIGIN:$ORIGIN/lib:$ORIGIN/lib64"
+    INSTALL_RPATH "$ORIGIN:$ORIGIN/lib:$ORIGIN/lib64"
 )
 
 set_property(TARGET TTPJRTTTDylib PROPERTY BUILD_WITH_INSTALL_RPATH ON)
