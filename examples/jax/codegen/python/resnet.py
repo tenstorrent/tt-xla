@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 
 import jax
-from transformers import FlaxResNetForImageClassification
+from transformers.models.resnet.modeling_flax_resnet import FlaxResNetForImageClassification
 from tt_jax import codegen_py
 
 

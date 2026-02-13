@@ -1,0 +1,62 @@
+You are fixing transformers compatibility issues in the tt-xla project.
+
+The HuggingFace transformers library was updated from the pinned version to the latest
+from the 'main' branch, and some model tests broke.
+
+## Failed Tests
+
+## Failure Context (error messages and stack traces)
+
+=== ERROR EXCERPTS FROM LOGS ===
+
+--- Log: transformers-compat-test-log-n150-n150_and_expected_passing_and_push-63477939321 ---
+2026-02-13 02:57:33.472 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+ImportError while loading conftest '/__w/tt-xla/tt-xla/tests/conftest.py'.
+tests/conftest.py:21: in <module>
+    from infra import DeviceConnectorFactory, Framework
+tests/infra/__init__.py:10: in <module>
+    from .evaluators import ComparisonConfig
+tests/infra/evaluators/__init__.py:5: in <module>
+    from .comparison_evaluator import ComparisonEvaluator
+tests/infra/evaluators/comparison_evaluator.py:9: in <module>
+    from infra.utilities import PyTree, Tensor
+tests/infra/utilities/__init__.py:5: in <module>
+    from .jax_multichip_utils import (
+
+~~~
+tests/infra/utilities/types.py:16: in <module>
+    from transformers import FlaxPreTrainedModel
+E   ImportError: cannot import name 'FlaxPreTrainedModel' from 'transformers' (/__w/tt-xla/tt-xla/venv/lib/python3.11/site-packages/transformers/__init__.py)
+
+~~~
+--- Log: transformers-compat-test-log-p150-p150_and_expected_passing_and_push-63477939298 ---
+2026-02-13 02:56:52.818 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+ImportError while loading conftest '/__w/tt-xla/tt-xla/tests/conftest.py'.
+tests/conftest.py:21: in <module>
+    from infra import DeviceConnectorFactory, Framework
+tests/infra/__init__.py:10: in <module>
+    from .evaluators import ComparisonConfig
+tests/infra/evaluators/__init__.py:5: in <module>
+    from .comparison_evaluator import ComparisonEvaluator
+tests/infra/evaluators/comparison_evaluator.py:9: in <module>
+    from infra.utilities import PyTree, Tensor
+tests/infra/utilities/__init__.py:5: in <module>
+    from .jax_multichip_utils import (
+
+~~~
+tests/infra/utilities/types.py:16: in <module>
+    from transformers import FlaxPreTrainedModel
+E   ImportError: cannot import name 'FlaxPreTrainedModel' from 'transformers' (/__w/tt-xla/tt-xla/venv/lib/python3.11/site-packages/transformers/__init__.py)
+
+~~~
+## Instructions
+1. Analyze the failures to identify which transformers API changes caused them.
+2. Your changes do not need to be backward-compatible with older transformers versions. The whole repo is going to be updated to the latest transformers version.
+3. You may modify any Python files in the repo as needed to fix the compatibility issues
+   (e.g. update imports, fix class references, etc.).
+4. Try to address any API changes at the source level. If an old API is no longer supported, search for alternatives to use instead.
+
+## Rules
+- Do NOT modify files under third_party/ (these are external submodules).
+- Do NOT modify venv/requirements-dev.txt or change the pinned transformers version.
+- Keep changes minimal and focused on compatibility.

@@ -1,0 +1,43 @@
+
+=== ERROR EXCERPTS FROM LOGS ===
+
+--- Log: transformers-compat-test-log-n150-n150_and_expected_passing_and_push-63477939321 ---
+2026-02-13 02:57:33.472 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+ImportError while loading conftest '/__w/tt-xla/tt-xla/tests/conftest.py'.
+tests/conftest.py:21: in <module>
+    from infra import DeviceConnectorFactory, Framework
+tests/infra/__init__.py:10: in <module>
+    from .evaluators import ComparisonConfig
+tests/infra/evaluators/__init__.py:5: in <module>
+    from .comparison_evaluator import ComparisonEvaluator
+tests/infra/evaluators/comparison_evaluator.py:9: in <module>
+    from infra.utilities import PyTree, Tensor
+tests/infra/utilities/__init__.py:5: in <module>
+    from .jax_multichip_utils import (
+
+~~~
+tests/infra/utilities/types.py:16: in <module>
+    from transformers import FlaxPreTrainedModel
+E   ImportError: cannot import name 'FlaxPreTrainedModel' from 'transformers' (/__w/tt-xla/tt-xla/venv/lib/python3.11/site-packages/transformers/__init__.py)
+
+~~~
+--- Log: transformers-compat-test-log-p150-p150_and_expected_passing_and_push-63477939298 ---
+2026-02-13 02:56:52.818 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+ImportError while loading conftest '/__w/tt-xla/tt-xla/tests/conftest.py'.
+tests/conftest.py:21: in <module>
+    from infra import DeviceConnectorFactory, Framework
+tests/infra/__init__.py:10: in <module>
+    from .evaluators import ComparisonConfig
+tests/infra/evaluators/__init__.py:5: in <module>
+    from .comparison_evaluator import ComparisonEvaluator
+tests/infra/evaluators/comparison_evaluator.py:9: in <module>
+    from infra.utilities import PyTree, Tensor
+tests/infra/utilities/__init__.py:5: in <module>
+    from .jax_multichip_utils import (
+
+~~~
+tests/infra/utilities/types.py:16: in <module>
+    from transformers import FlaxPreTrainedModel
+E   ImportError: cannot import name 'FlaxPreTrainedModel' from 'transformers' (/__w/tt-xla/tt-xla/venv/lib/python3.11/site-packages/transformers/__init__.py)
+
+~~~
