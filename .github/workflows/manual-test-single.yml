@@ -3,6 +3,13 @@ name: Run Test Single
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+  packages: write
+  checks: write
+
 jobs:
   release-tests:
     uses: ./.github/workflows/call-release-tests.yml
