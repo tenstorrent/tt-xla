@@ -33,7 +33,6 @@ def run_pooling_test(
     ]
     llm_args = {
         "model": model_name,
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": max_model_len,
         "disable_sliding_window": True,

@@ -8,15 +8,12 @@ from tt_torch.fusion_providers import FusionProvider
 from ttxla_tools.logging import logger
 
 
-def run_fusion_passes(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+def run_fusion_passes(gm: torch.fx.GraphModule) -> None:
     """
     Run all registered fusion passes on a GraphModule.
 
     Args:
         gm: The GraphModule to transform
-
-    Returns:
-        The transformed GraphModule
     """
     total_replacements = 0
 
@@ -30,8 +27,6 @@ def run_fusion_passes(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
     if total_replacements > 0:
         gm.graph.lint()
         gm.recompile()
-
-    return gm
 
 
 def handle_composite_ops(gm: torch.fx.GraphModule) -> None:

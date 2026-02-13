@@ -46,8 +46,8 @@ setup(
     version="0.1",
     packages=find_packages(),
     install_requires=[
-        "vllm@git+https://github.com/tenstorrent/vllm.git@forge/v0.10.1.1_patched",
-        "transformers==4.55.0",
+        "vllm==0.13.0",
+        "transformers==4.57.1",
     ],
     python_requires=">=3.11, <3.12",
     license="Apache-2.0",

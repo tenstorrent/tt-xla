@@ -7,10 +7,12 @@ from typing import Optional, cast
 import numpy as np
 import torch
 from vllm.lora.request import LoRARequest
-from vllm.sampling_params import SamplingType
-from vllm.utils import swap_dict_values
+from vllm.pooling_params import PoolingParams
+from vllm.sampling_params import SamplingParams, SamplingType
+from vllm.utils import length_from_prompt_token_ids_or_embeds
+from vllm.utils.collection_utils import swap_dict_values
 from vllm.v1.outputs import LogprobsTensors
-from vllm.v1.pool.metadata import PoolingMetadata
+from vllm.v1.pool.metadata import PoolingMetadata, PoolingStates
 from vllm.v1.sample.logits_processor import LogitsProcessors
 from vllm.v1.sample.metadata import SamplingMetadata
 from vllm.v1.worker.block_table import MultiGroupBlockTable
@@ -29,8 +31,12 @@ class InputBatch:
         pin_memory: bool,
         vocab_size: int,
         block_sizes: list[int],  # The block_size of each kv cache group
+        kernel_block_sizes: list[int],
         logitsprocs: Optional[LogitsProcessors] = None,
+        logitsprocs_need_output_token_ids: bool = False,
         is_pooling_model: bool = True,
+        num_speculative_tokens: int = 0,
+        cp_kv_cache_interleave_size: int = 1,
     ):
         self.is_pooling_model = is_pooling_model
         self.max_num_reqs = max_num_reqs
@@ -54,6 +60,14 @@ class InputBatch:
             pin_memory=False,
         )
         self.token_ids_cpu = self.token_ids_cpu_tensor.numpy()
+        self.is_token_ids_tensor = torch.zeros(
+            (max_num_reqs, max_model_len), device="cpu", dtype=bool, pin_memory=False
+        )
+        self.is_token_ids = self.is_token_ids_tensor.numpy()
+        # Store prompt embeddings per request to avoid OOM from large upfront
+        # allocation if max_model_len is big.
+        # Maps req_index -> tensor of shape (num_prompt_tokens, hidden_size)
+        self.req_prompt_embeds: dict[int, torch.Tensor] = {}
         self.num_tokens = np.zeros(max_num_reqs, dtype=np.int32)
         self.num_tokens_no_spec = np.zeros(max_num_reqs, dtype=np.int32)
         self.num_prompt_tokens = np.zeros(max_num_reqs, dtype=np.int32)
@@ -73,6 +87,9 @@ class InputBatch:
             pin_memory=pin_memory,
             device=device,
             block_sizes=block_sizes,
+            kernel_block_sizes=kernel_block_sizes,
+            num_speculative_tokens=num_speculative_tokens,
+            cp_kv_cache_interleave_size=cp_kv_cache_interleave_size,
         )
 
         # Sampling-related.
@@ -137,11 +154,14 @@ class InputBatch:
         self.repetition_penalties_cpu = self.repetition_penalties_cpu_tensor.numpy()
         self.repetition_penalties_reqs: set[str] = set()
 
-        # req_index -> (min_tokens, stop_token_ids)
-        self.min_tokens: dict[int, tuple[int, set[int]]] = {}
+        # Speculative decoding
+        self.num_accepted_tokens_cpu_tensor = torch.ones(
+            (max_num_reqs,), dtype=torch.int64, device="cpu", pin_memory=pin_memory
+        )
+        self.num_accepted_tokens_cpu = self.num_accepted_tokens_cpu_tensor.numpy()
 
         # lora related
-        self.request_lora_mapping = np.zeros((self.max_num_reqs,), dtype=np.int32)
+        self.request_lora_mapping = np.zeros((self.max_num_reqs,), dtype=np.int64)
         self.lora_id_to_request_ids: dict[int, set[str]] = {}
         self.lora_id_to_lora_request: dict[int, LoRARequest] = {}
 
@@ -175,11 +195,17 @@ class InputBatch:
         # Store provided logitsprocs. If none are provided, initialize empty
         # data structure
         self.logitsprocs = logitsprocs or LogitsProcessors()
+        self.logitsprocs_need_output_token_ids = logitsprocs_need_output_token_ids
+
+        # Store last speculative tokens for sampler.
+        self.spec_token_ids: list[list[int]] = [[] for _ in range(max_num_reqs)]
 
         # This is updated each time the batch constituents change.
         self.sampling_metadata = self._make_sampling_metadata()
 
+        # for pooling models
         self.pooling_params: dict[str, PoolingParams] = {}
+        self.pooling_states: dict[str, PoolingStates] = {}
 
     @property
     def req_ids(self) -> list[str]:
@@ -207,6 +233,10 @@ class InputBatch:
         self.req_id_to_index[req_id] = req_index
 
         # Copy the prompt token ids and output token ids.
+        num_prompt_tokens = length_from_prompt_token_ids_or_embeds(
+            request.prompt_token_ids, request.prompt_embeds
+        )
+        # TODO: copy prompt_embeds
         num_prompt_tokens = len(request.prompt_token_ids)
         self.num_prompt_tokens[req_index] = num_prompt_tokens
         self.token_ids_cpu[req_index, :num_prompt_tokens] = request.prompt_token_ids
@@ -227,8 +257,8 @@ class InputBatch:
         if sampling_params := request.sampling_params:
             # assert sampling_params is not None, "pooling requests not supported yet"
             if sampling_params.sampling_type == SamplingType.GREEDY:
-                # Avoid later division by zero.
-                self.temperature_cpu[req_index] = -1.0
+                # Should avoid division by zero later when apply_temperature.
+                self.temperature_cpu[req_index] = 0.0
                 self.greedy_reqs.add(req_id)
             else:
                 self.temperature_cpu[req_index] = sampling_params.temperature
@@ -304,6 +334,9 @@ class InputBatch:
                 )
         elif pooling_params := request.pooling_params:
             self.pooling_params[req_id] = pooling_params
+            pooling_states = request.pooling_states
+            assert pooling_states is not None
+            self.pooling_states[req_id] = pooling_states
             self.logits_processing_needs_token_ids[req_index] = (
                 pooling_params.requires_token_ids
             )
@@ -350,6 +383,7 @@ class InputBatch:
 
         if self.is_pooling_model:
             self.pooling_params.pop(req_id, None)
+            self.pooling_states.pop(req_id, None)
             return req_index
 
         self.greedy_reqs.discard(req_id)
@@ -385,6 +419,10 @@ class InputBatch:
             self.req_output_token_ids[i2],
             self.req_output_token_ids[i1],
         )
+        self.spec_token_ids[i1], self.spec_token_ids[i2] = (
+            self.spec_token_ids[i2],
+            self.spec_token_ids[i1],
+        )
         assert old_id_i1 is not None and old_id_i2 is not None
         self.req_id_to_index[old_id_i1], self.req_id_to_index[old_id_i2] = (
             self.req_id_to_index[old_id_i2],
@@ -406,6 +444,25 @@ class InputBatch:
             self.num_computed_tokens_cpu[i2],
             self.num_computed_tokens_cpu[i1],
         )
+
+        # NOTE: the following is unsafe
+        # self.token_ids_cpu[i1, ...], self.token_ids_cpu[i2, ...], =\
+        #     self.token_ids_cpu[i2, ...], self.token_ids_cpu[i1, ...]
+        # instead, we need to temporarily copy the data for one of the indices
+        # TODO(lucas): optimize this by only copying valid indices
+        tmp = self.token_ids_cpu[i1, ...].copy()
+        self.token_ids_cpu[i1, ...] = self.token_ids_cpu[i2, ...]
+        self.token_ids_cpu[i2, ...] = tmp
+
+        # Only manage block tables for models that need KV cache
+        if len(self.block_table.block_tables) > 0:
+            self.block_table.swap_row(i1, i2)
+
+        self.request_lora_mapping[i1], self.request_lora_mapping[i2] = (
+            self.request_lora_mapping[i2],
+            self.request_lora_mapping[i1],
+        )
+
         self.temperature_cpu[i1], self.temperature_cpu[i2] = (
             self.temperature_cpu[i2],
             self.temperature_cpu[i1],
@@ -426,23 +483,10 @@ class InputBatch:
         )
         self.min_p_cpu[i1], self.min_p_cpu[i2] = self.min_p_cpu[i2], self.min_p_cpu[i1]
 
-        # NOTE: the following is unsafe
-        # self.token_ids_cpu[i1, ...], self.token_ids_cpu[i2, ...], =\
-        #     self.token_ids_cpu[i2, ...], self.token_ids_cpu[i1, ...]
-        # instead, we need to temporiarily copy the data for one of the indices
-        # TODO(lucas): optimize this by only copying valid indices
-        tmp = self.token_ids_cpu[i1, ...].copy()
-        self.token_ids_cpu[i1, ...] = self.token_ids_cpu[i2, ...]
-        self.token_ids_cpu[i2, ...] = tmp
-
         swap_dict_values(self.generators, i1, i2)
         swap_dict_values(self.min_tokens, i1, i2)
         swap_dict_values(self.bad_words_token_ids, i1, i2)
 
-        self.request_lora_mapping[i1], self.request_lora_mapping[i2] = (
-            self.request_lora_mapping[i2],
-            self.request_lora_mapping[i1],
-        )
         self.logit_bias[i1], self.logit_bias[i2] = (
             self.logit_bias[i2],
             self.logit_bias[i1],
@@ -456,9 +500,6 @@ class InputBatch:
                 self.allowed_token_ids_mask_cpu_tensor[i2],
                 self.allowed_token_ids_mask_cpu_tensor[i1],
             )
-        # Only manage block tables for models that need KV cache
-        if len(self.block_table.block_tables) > 0:
-            self.block_table.swap_row(i1, i2)
 
     def condense(self, empty_req_indices: list[int]) -> None:
         """Move non-empty requests down into lower, empty indices.
@@ -511,6 +552,11 @@ class InputBatch:
             # Only manage block tables for models that need KV cache
             if len(self.block_table.block_tables) > 0:
                 self.block_table.move_row(last_req_index, empty_index)
+
+            self.request_lora_mapping[empty_index] = self.request_lora_mapping[
+                last_req_index
+            ]
+
             self.temperature_cpu[empty_index] = self.temperature_cpu[last_req_index]
             self.top_p_cpu[empty_index] = self.top_p_cpu[last_req_index]
             self.top_k_cpu[empty_index] = self.top_k_cpu[last_req_index]
@@ -532,10 +578,6 @@ class InputBatch:
             if min_token is not None:
                 self.min_tokens[empty_index] = min_token
 
-            self.request_lora_mapping[empty_index] = self.request_lora_mapping[
-                last_req_index
-            ]
-
             self.logit_bias[empty_index] = self.logit_bias[last_req_index]
 
             if self.allowed_token_ids_mask_cpu_tensor is not None:
@@ -550,47 +592,8 @@ class InputBatch:
             last_req_index -= 1
 
         # Trim lists to the batch size.
-        del self._req_ids[self.num_reqs :]
-        del self.req_output_token_ids[self.num_reqs :]
-
-    def _make_prompt_token_ids_tensor(self) -> torch.Tensor:
-        max_prompt_len = self.num_prompt_tokens[: self.num_reqs].max()
-        prompt_token_ids_cpu_tensor = torch.empty(
-            (self.num_reqs, max_prompt_len),
-            device="cpu",
-            dtype=torch.int64,
-            pin_memory=self.pin_memory,
-        )
-        prompt_token_ids = prompt_token_ids_cpu_tensor.numpy()
-        prompt_token_ids[:] = self.token_ids_cpu[: self.num_reqs, :max_prompt_len]
-        # Use the value of vocab_size as a pad since we don't have a
-        # token_id of this value.
-        for i in range(self.num_reqs):
-            prompt_token_ids[i, self.num_prompt_tokens[i] :] = self.vocab_size
-        return prompt_token_ids_cpu_tensor.to(device=self.device, non_blocking=True)
-
-    def make_lora_inputs(
-        self, num_scheduled_tokens: np.ndarray
-    ) -> tuple[tuple[int, ...], tuple[int, ...], set[LoRARequest]]:
-        """
-        Given the num_scheduled_tokens for each request in the batch, return
-        datastructures used to activate the current LoRAs.
-        Returns:
-            1. prompt_lora_mapping: A tuple of size self.num_reqs where,
-               prompt_lora_mapping[i] is the LoRA id to use for the ith prompt.
-            2. token_lora_mapping: A tuple of size np.sum(num_scheduled_tokens)
-               where, token_lora_mapping[i] is the LoRA id to use for ith token.
-            3. lora_requests: Set of relevant LoRA requests.
-        """
-
-        req_lora_mapping = self.request_lora_mapping[: self.num_reqs]
-        prompt_lora_mapping = tuple(req_lora_mapping)
-        token_lora_mapping = tuple(req_lora_mapping.repeat(num_scheduled_tokens))
-        active_lora_requests: set[LoRARequest] = set(
-            self.lora_id_to_lora_request.values()
-        )
-
-        return prompt_lora_mapping, token_lora_mapping, active_lora_requests
+        del self._req_ids[num_reqs:]
+        del self.req_output_token_ids[num_reqs:]
 
     def _make_sampling_metadata(self) -> SamplingMetadata:
         num_reqs = self.num_reqs
@@ -625,14 +628,26 @@ class InputBatch:
             not self.no_penalties
             or self.logits_processing_needs_token_ids[:num_reqs].any()
         )
-        if needs_prompt_token_ids:
-            # The prompt tokens are used only for applying penalties or
-            # step pooling during the sampling/pooling process.
-            # Hence copy these tensors only when there are requests which
-            # need penalties/step_pooler to be applied.
-            prompt_token_ids = self._make_prompt_token_ids_tensor()
-        else:
-            prompt_token_ids = None
+        # The prompt tokens are used only for applying penalties or
+        # step pooling during the sampling/pooling process.
+        # Hence copy these tensors only when there are requests which
+        # need penalties/step_pooler to be applied.
+        prompt_token_ids = (
+            self._make_prompt_token_ids_tensor() if needs_prompt_token_ids else None
+        )
+
+        # Only set output_token_ids if required by the current requests'
+        # sampling parameters.
+        needs_output_token_ids = (
+            not self.no_penalties
+            or bool(self.bad_words_token_ids)
+            or self.logitsprocs_need_output_token_ids
+        )
+        output_token_ids = (
+            cast(list[list[int]], self.req_output_token_ids)
+            if needs_output_token_ids
+            else []
+        )
 
         allowed_token_ids_mask: Optional[torch.Tensor] = None
         if not self.no_allowed_token_ids:
@@ -656,28 +671,80 @@ class InputBatch:
             frequency_penalties=self.frequency_penalties[:num_reqs],
             presence_penalties=self.presence_penalties[:num_reqs],
             repetition_penalties=self.repetition_penalties[:num_reqs],
-            output_token_ids=cast(list[list[int]], self.req_output_token_ids),
+            output_token_ids=output_token_ids,
+            spec_token_ids=cast(list[list[int]], self.spec_token_ids),
             no_penalties=self.no_penalties,
             allowed_token_ids_mask=allowed_token_ids_mask,
             bad_words_token_ids=self.bad_words_token_ids,
             logitsprocs=self.logitsprocs,
         )
 
+    def get_pooling_params(self) -> list[PoolingParams]:
+        assert len(self.req_ids) == len(self.pooling_params)
+        return [self.pooling_params[req_id] for req_id in self.req_ids]
+
+    def get_pooling_states(self) -> list[PoolingStates]:
+        assert len(self.req_ids) == len(self.pooling_states)
+        return [self.pooling_states[req_id] for req_id in self.req_ids]
+
     @property
     def pooling_metadata(self) -> PoolingMetadata:
-        if len(self.pooling_params) == 0:
-            pooling_params = []
-        else:
-            # Note, for now this assumes that all request in the batch
-            # are either sampling or pooling requests
-            assert len(self.req_ids) == len(self.pooling_params)
-            pooling_params = [self.pooling_params[req_id] for req_id in self.req_ids]
+        pooling_params = self.get_pooling_params()
+        pooling_states = self.get_pooling_states()
+
+        prompt_lens_tensor = torch.tensor(
+            self.num_prompt_tokens[: self.num_reqs].copy(),
+            dtype=torch.int64,
+            device="cpu",
+        )
 
         return PoolingMetadata(
-            prompt_lens=torch.from_numpy(self.num_prompt_tokens[: self.num_reqs]),
+            prompt_lens=prompt_lens_tensor,
             prompt_token_ids=self.sampling_metadata.prompt_token_ids,
             pooling_params=pooling_params,
+            pooling_states=pooling_states,
         )
+
+    def _make_prompt_token_ids_tensor(self) -> torch.Tensor:
+        num_reqs = self.num_reqs
+        max_prompt_len = self.num_prompt_tokens[:num_reqs].max()
+        prompt_token_ids_cpu_tensor = torch.empty(
+            (num_reqs, max_prompt_len),
+            device="cpu",
+            dtype=torch.int64,
+            pin_memory=self.pin_memory,
+        )
+        prompt_token_ids = prompt_token_ids_cpu_tensor.numpy()
+        prompt_token_ids[:] = self.token_ids_cpu[:num_reqs, :max_prompt_len]
+        # Use the value of vocab_size as a pad since we don't have a
+        # token_id of this value.
+        for i in range(num_reqs):
+            prompt_token_ids[i, self.num_prompt_tokens[i] :] = self.vocab_size
+        return prompt_token_ids_cpu_tensor.to(device=self.device, non_blocking=True)
+
+    def make_lora_inputs(
+        self, num_scheduled_tokens: np.ndarray, num_sampled_tokens: np.ndarray
+    ) -> tuple[tuple[int, ...], tuple[int, ...], set[LoRARequest]]:
+        """
+        Given the num_scheduled_tokens for each request in the batch, return
+        datastructures used to activate the current LoRAs.
+        Returns:
+            1. prompt_lora_mapping: A tuple of size self.num_reqs where,
+               prompt_lora_mapping[i] is the LoRA id to use for the ith prompt.
+            2. token_lora_mapping: A tuple of size np.sum(num_scheduled_tokens)
+               where, token_lora_mapping[i] is the LoRA id to use for ith token.
+            3. lora_requests: Set of relevant LoRA requests.
+        """
+
+        req_lora_mapping = self.request_lora_mapping[: self.num_reqs]
+        prompt_lora_mapping = tuple(req_lora_mapping.repeat(num_sampled_tokens))
+        token_lora_mapping = tuple(req_lora_mapping.repeat(num_scheduled_tokens))
+
+        active_lora_requests: set[LoRARequest] = set(
+            self.lora_id_to_lora_request.values()
+        )
+
+        return prompt_lora_mapping, token_lora_mapping, active_lora_requests
 
     @property
     def num_reqs(self) -> int:

@@ -26,6 +26,8 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec) -> str:
     Uses generic placeholders (mesh_idx_0, mesh_idx_1) that tt-mlir will
     replace with actual axis names from the mesh definition.
 
+    Mesh axes with size 1 are treated as replicated (empty set).
+
     Example:
         partition_spec = ("batch", None, None)
         mesh.axis_names = ("batch", "model")
@@ -39,11 +41,17 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec) -> str:
             # Map axis name to mesh index placeholder (e.g., "batch" -> "mesh_idx_0")
             try:
                 axis_idx = mesh.axis_names.index(axis)
-                dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis_idx}"}}')
+                if mesh.mesh_shape[axis_idx] > 1:
+                    dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis_idx}"}}')
+                else:
+                    dim_shardings.append("{}")
             except ValueError:
                 dim_shardings.append("{}")
         elif isinstance(axis, int):
-            dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
+            if mesh.mesh_shape[axis] > 1:
+                dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
+            else:
+                dim_shardings.append("{}")
         else:
             dim_shardings.append("{}")
 

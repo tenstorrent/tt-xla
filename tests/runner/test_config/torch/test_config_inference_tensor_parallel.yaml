@@ -4,53 +4,53 @@
 
 
 test_config:
-  falcon/pytorch-tiiuae/Falcon3-7B-Base-tensor_parallel-inference:
+  falcon/pytorch-3_7B_Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  falcon/pytorch-tiiuae/Falcon3-10B-Base-tensor_parallel-inference:
+  falcon/pytorch-3_10B_Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  falcon/pytorch-tiiuae/Falcon3-Mamba-7B-Base-tensor_parallel-inference:
+  falcon/pytorch-3_Mamba_7B_Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
     reason: " Error: loc('compare.1209'): error: Compare operation is not supported in stablehlo-pipeline for meshes not 1x1 - https://github.com/tenstorrent/tt-mlir/issues/3497"
 
-  gemma/pytorch-google/gemma-1.1-7b-it-tensor_parallel-inference:
+  gemma/pytorch-1.1_7B_IT-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     required_pcc: 0.985 # Calculated: pcc=0.9898088782430592 https://github.com/tenstorrent/tt-xla/issues/3212
 
-  gemma/pytorch-google/gemma-2-9b-it-tensor_parallel-inference:
+  gemma/pytorch-2_9B_IT-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     markers: [extended]
 
-  gemma/pytorch-google/gemma-2-27b-it-tensor_parallel-inference:
+  gemma/pytorch-2_27B_IT-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494"
     bringup_status: FAILED_RUNTIME
 
-  gpt_oss/pytorch-gpt_oss_20b-tensor_parallel-inference:
+  gpt_oss/pytorch-20B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     required_pcc: 0.935 # https://github.com/tenstorrent/tt-xla/issues/3181
 
-  falcon/pytorch-tiiuae/falcon-7b-instruct-tensor_parallel-inference:
+  falcon/pytorch-7B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  llama/causal_lm/pytorch-llama_3_1_8b-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  llama/causal_lm/pytorch-llama_3_1_8b_instruct-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  llama/causal_lm/pytorch-llama_3_8b_instruct-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.0_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
@@ -59,64 +59,64 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false
 
-  mistral/pytorch-7b_instruct_v03-tensor_parallel-inference:
+  mistral/pytorch-7B_INSTRUCT_v03-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     markers: [extended]
 
-  qwen_3/causal_lm/pytorch-0_6b-tensor_parallel-inference:
+  qwen_3/causal_lm/pytorch-0_6B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2550
 
-  qwen_3/causal_lm/pytorch-14b-tensor_parallel-inference:
+  qwen_3/causal_lm/pytorch-14B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  qwen_3/causal_lm/pytorch-1_7b-tensor_parallel-inference:
+  qwen_3/causal_lm/pytorch-1_7B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2550
 
-  qwen_3/causal_lm/pytorch-32b-tensor_parallel-inference:
+  qwen_3/causal_lm/pytorch-32B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  qwen_3/causal_lm/pytorch-8b-tensor_parallel-inference:
+  qwen_3/causal_lm/pytorch-8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  qwen_3/embedding/pytorch-embedding_8b-tensor_parallel-inference:
+  qwen_3/embedding/pytorch-Embedding_8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     markers: [extended]
 
-  mistral/pytorch-ministral_8b_instruct-tensor_parallel-inference:
+  mistral/pytorch-Ministral_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  mistral/pytorch-mistral_small_24b_instruct_2501-tensor_parallel-inference:
+  mistral/pytorch-Small_24B_INSTRUCT_2501-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  mistral/pytorch-mistral_nemo_instruct_2407-tensor_parallel-inference:
+  mistral/pytorch-Nemo_INSTRUCT_2407-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  mistral/pytorch-mistral_large_instruct_2411-tensor_parallel-inference:
+  mistral/pytorch-Large_INSTRUCT_2411-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
     reason: "xr.global_runtime_device_count() - Expected 2 eth links from physical chip 4 to physical chip 0 - https://github.com/tenstorrent/tt-xla/issues/1975"
 
-  mistral/pytorch-devstral_small_2505-tensor_parallel-inference:
+  mistral/pytorch-Devstral_Small_2505-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  mistral/pytorch-magistral_small_2506-tensor_parallel-inference:
+  mistral/pytorch-Magistral_Small_2506-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/pytorch-7b_instruct-tensor_parallel-inference:
+  qwen_2_5/causal_lm/pytorch-7B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     # bringup_status: INCORRECT_RESULT
     # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
@@ -124,19 +124,19 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
 
-  qwen_2_5/causal_lm/pytorch-14b_instruct-tensor_parallel-inference:
+  qwen_2_5/causal_lm/pytorch-14B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/pytorch-32b_instruct-tensor_parallel-inference:
+  qwen_2_5/causal_lm/pytorch-32B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  qwen_2_5_coder/pytorch-32b_instruct-tensor_parallel-inference:
+  qwen_2_5_coder/pytorch-32B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/pytorch-math_7b-tensor_parallel-inference:
+  qwen_2_5/causal_lm/pytorch-Math_7B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     # bringup_status: INCORRECT_RESULT
     # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
@@ -145,49 +145,49 @@ test_config:
 
   # Models that need work....
 
-  llama/causal_lm/pytorch-llama_3_1_405b-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_405B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on galaxy"
     bringup_status: FAILED_RUNTIME
 
-  llama/causal_lm/pytorch-llama_3_1_70b-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_70B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on galaxy"
     bringup_status: FAILED_RUNTIME
 
-  llama/causal_lm/pytorch-llama_3_1_70b_instruct-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on galaxy"
     bringup_status: FAILED_RUNTIME
 
-  llama/causal_lm/pytorch-llama_3_3_70b_instruct-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.3_70B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on galaxy"
     bringup_status: FAILED_RUNTIME
 
-  phi4/causal_lm/pytorch-microsoft/phi-4-tensor_parallel-inference:
+  phi4/causal_lm/pytorch-Phi_4-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on n300-llmbox 14B param"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2/causal_lm/pytorch-qwq_32b-tensor_parallel-inference:
+  qwen_2/causal_lm/pytorch-Qwq_32B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on n300-llmbox"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/causal_lm/pytorch-72b_instruct-tensor_parallel-inference:
+  qwen_2_5/causal_lm/pytorch-72B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on galaxy"
     bringup_status: FAILED_RUNTIME
 
-  qwen_3/causal_lm/pytorch-30b_a3b-tensor_parallel-inference:
+  qwen_3/causal_lm/pytorch-30B_A3b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on n300-llmbox"

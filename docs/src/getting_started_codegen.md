@@ -96,11 +96,13 @@ result = jitted_forward(graphdef, state, x)
 
 ### Codegen Options
 
+Use `codegen_py` to generate Python output and `codegen_cpp` to generate C++ output. Both entrypoints share the same API and accept the following options.
+
 | Option | Type | Description |
 |--------|------|-------------|
-| `backend` | `string` | Code generation target:<br>• `"codegen_py"` - Generate Python code<br>• `"codegen_cpp"` - Generate C++ code |
 | `export_path` | `string` | Directory for generated code (created if doesn't exist) |
-| `export_tensors` | `bool` | Whether to export model input and parameter tensors to disk under `export_path\tensors` directory  (**True** by default) |
+| `export_tensors` | `bool` | Whether to export model input and parameter tensors to disk under `export_path/tensors` directory  (**True** by default) |
+| `compiler_options` | `dict` | Key-value pairs of compiler options (e.g. `optimization_level=2`) |
 
 **Note** If 'export_tensors' is set to False, model input and parameter tensors won't be exported to disk, and instead ttnn.ones will be loaded into model inputs and parameters.
 
@@ -108,20 +110,16 @@ result = jitted_forward(graphdef, state, x)
 
 **Python Generation:**
 ```python
-options = {
-    "backend": "codegen_py",
-    "export_path": "./generated_python"
-    "export_tensors": True
-}
+codegen_py(
+    forward, graphdef, state, x, export_path="generated_python", export_tensors=False
+)
 ```
 
 **C++ Generation:**
 ```python
-options = {
-    "backend": "codegen_cpp",
-    "export_path": "./generated_cpp"
-    #export_tensors -> default True when doing codegen
-}
+codegen_cpp(
+    forward, graphdef, state, x, export_path="generated_cpp"
+)
 ```
 
 ---

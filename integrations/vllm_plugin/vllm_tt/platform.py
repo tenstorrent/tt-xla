@@ -2,29 +2,38 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
+import contextlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
+from vllm.attention.backends.registry import AttentionBackendEnum
 from vllm.inputs import ProcessorInputs, PromptType
-from vllm.platforms.interface import Platform, PlatformEnum, _Backend
-from vllm.sampling_params import SamplingParams, SamplingType
-from vllm.utils import DEFAULT_MAX_NUM_BATCHED_TOKENS
+from vllm.platforms.interface import Platform, PlatformEnum
 
 if TYPE_CHECKING:
-    from vllm.config import BlockSize, ModelConfig, VllmConfig
+    from typing import TypeAlias
+
+    from vllm.attention.selector import AttentionSelectorConfig
+    from vllm.config import VllmConfig
+    from vllm.config.cache import BlockSize
     from vllm.pooling_params import PoolingParams
+    from vllm.sampling_params import SamplingParams
+
+    ParamsType: TypeAlias = SamplingParams | PoolingParams
 else:
     BlockSize = None
-    ModelConfig = None
     VllmConfig = None
     PoolingParams = None
+    ParamsType = None
 
 from torch_xla import runtime as xrt
 
 from .logger import tt_init_logger
 
 logger = tt_init_logger(__name__)
+
+USE_TPU_INFERENCE = False
 
 
 @dataclass
@@ -93,19 +102,18 @@ class TTPlatform(Platform):
     @classmethod
     def get_attn_backend_cls(
         cls,
-        selected_backend: _Backend,
-        head_size: int,
-        dtype: torch.dtype,
-        kv_cache_dtype: Optional[str],
-        block_size: int,
-        use_v1: bool,
-        use_mla: bool,
-        has_sink,
+        selected_backend: "AttentionBackendEnum",
+        attn_selector_config: "AttentionSelectorConfig",
     ) -> str:
-        if not use_v1:
-            raise ValueError("TT backend only supports V1.")
+        if attn_selector_config.use_sparse:
+            raise NotImplementedError(
+                "Sparse Attention is not supported on TT devices."
+            )
+        if selected_backend != AttentionBackendEnum.CUSTOM:
+            logger.info("Cannot use %s backend on TT devices.", selected_backend)
+
         logger.info("Using TT Attention layer.")
-        return "vllm_tt.attention.TTAttentionBackend"
+        return AttentionBackendEnum.CUSTOM.get_path()
 
     @classmethod
     def set_device(cls, device: torch.device) -> None:
@@ -149,7 +157,7 @@ class TTPlatform(Platform):
 
     @classmethod
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
-        from vllm.config import CompilationLevel, CUDAGraphMode
+        from vllm.config import CompilationMode, CUDAGraphMode
 
         # Use AscendScheduler as the default scheduler for TT (except for pooling models)
         if vllm_config.model_config.runner_type != "pooling":
@@ -163,13 +171,13 @@ class TTPlatform(Platform):
             cache_config.block_size = cast(BlockSize, 32)
         compilation_config = vllm_config.compilation_config
 
-        # TT only supports DYNAMO_ONCE compilation level
-        if compilation_config.level != CompilationLevel.DYNAMO_ONCE:
+        # TT only supports DYNAMO_TRACE_ONCE compilation level
+        if compilation_config.mode != CompilationMode.DYNAMO_TRACE_ONCE:
             logger.info(
-                "[TT] Forcing DYNAMO_ONCE compilation level, and "
+                "[TT] Forcing DYNAMO_TRACE_ONCE compilation level, and "
                 "disabling cudagraph."
             )
-            compilation_config.level = CompilationLevel.DYNAMO_ONCE
+            compilation_config.mode = CompilationMode.DYNAMO_TRACE_ONCE
 
         if (
             compilation_config.cudagraph_mode is None
@@ -234,8 +242,8 @@ class TTPlatform(Platform):
             vllm_config.scheduler_config.enable_chunked_prefill = False
             vllm_config.scheduler_config.chunked_prefill_enabled = False
             vllm_config.scheduler_config.max_num_batched_tokens = max(
-                vllm_config.scheduler_config.max_model_len,
-                DEFAULT_MAX_NUM_BATCHED_TOKENS,
+                vllm_config.model_config.max_model_len,
+                vllm_config.scheduler_config.DEFAULT_MAX_NUM_BATCHED_TOKENS,
             )
 
     @classmethod
@@ -248,33 +256,20 @@ class TTPlatform(Platform):
         return "vllm.distributed.device_communicators.tpu_communicator.TpuCommunicator"  # noqa
 
     @classmethod
-    def use_all_gather(cls) -> bool:
-        return True
-
-    @classmethod
-    def supports_v1(cls, model_config: ModelConfig) -> bool:
-        # V1 support on TPU is experimental
-        return True
-
-    @classmethod
     def validate_request(
         cls,
         prompt: PromptType,
-        params: Union[SamplingParams, PoolingParams],
+        params: ParamsType,
         processed_inputs: ProcessorInputs,
     ) -> None:
         """Raises if this request is unsupported on this platform"""
+        from vllm.sampling_params import SamplingParams, SamplingType
+
         if (
             isinstance(params, SamplingParams)
             and params.sampling_type == SamplingType.RANDOM_SEED
         ):
             raise ValueError("Torch XLA does not support per-request seed.")
-
-    @classmethod
-    def is_kv_cache_dtype_supported(
-        cls, kv_cache_dtype: str, model_config: "ModelConfig"
-    ) -> bool:
-        return True
 
     @classmethod
     @torch.compile(backend="tt")
@@ -300,3 +295,23 @@ class TTPlatform(Platform):
         """tpu blocks to cpu blocks"""
         torch.ops.xla.dynamo_set_buffer_donor_(src_cache, True)
         dst_cache[dst_block_indices] = src_cache[src_block_indices].cpu()
+
+    @classmethod
+    def use_sync_weight_loader(cls) -> bool:
+        return True
+
+    @classmethod
+    def check_max_model_len(cls, max_model_len: int) -> int:
+        """
+        Check max_model_len for the current platform.
+        """
+        logger.warning(
+            "--max-model-len is not specified, "
+            "it's currently using model's default length %d, "
+            "which might be too large."
+            "Please input with --max-model-len based on your "
+            "request input length and output length, to avoid "
+            "unnecessary degradation.",
+            max_model_len,
+        )
+        return max_model_len
