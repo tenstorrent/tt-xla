@@ -250,6 +250,13 @@ class RequirementsManager:
                     result[name.strip().lower()] = version.strip()
                 except ValueError:
                     continue
+            elif " @ " in line:
+                try:
+                    name, spec = line.split(" @ ", 1)
+                    name_lower = name.strip().lower()
+                    result[name_lower] = spec.strip()
+                except ValueError:
+                    continue
         return result
 
     def _install_system_requirements(self, system_req_path: str) -> None:
