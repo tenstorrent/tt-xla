@@ -476,7 +476,7 @@ jobs:
   # ── Job 6: Re-run tests with the fix applied ──────────────────────────
   rerun-tests:
     needs: [build-image, build-ttxla, generate-matrix, analyze-and-fix]
-    if: ${{ needs.analyze-and-fix.outputs.has-fix == 'true' }}
+    if: ${{ always() && needs.analyze-and-fix.outputs.has-fix == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -688,7 +688,7 @@ jobs:
   # ── Job 7: Create PR if re-run passed ──────────────────────────────────
   create-pr:
     needs: [analyze-and-fix, rerun-tests]
-    if: ${{ needs.analyze-and-fix.outputs.has-fix == 'true' && needs.rerun-tests.result == 'success' }}
+    if: ${{ always() && needs.analyze-and-fix.outputs.has-fix == 'true' && needs.rerun-tests.result == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
