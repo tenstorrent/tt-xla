@@ -10,20 +10,20 @@ on:
 
 jobs:
   basic-tests:
-    uses: tenstorrent/tt-forge/.github/workflows/basic-tests.yml@vvukoman/add-fail-notify-perf-flag
+    uses: tenstorrent/tt-forge/.github/workflows/basic-tests.yml@main
     secrets: inherit
     with:
       docker-image: ${{ inputs.release_docker_image }}
-      ref: vvukoman/add-fail-notify-perf-flag
+      ref: main
       project-filter: tt-xla
       fail-notify: true
 
   perf-benchmark-n150:
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/add-fail-notify-perf-flag
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
     with:
       docker-image: ${{ inputs.release_docker_image }}
-      ref: vvukoman/add-fail-notify-perf-flag
+      ref: main
       project: tt-xla
       sh-runner: false
       skip-device-perf: false
@@ -31,11 +31,11 @@ jobs:
       fail-notify: true
 
   perf-benchmark-llmbox:
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/add-fail-notify-perf-flag
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
     with:
       docker-image: ${{ inputs.release_docker_image }}
-      ref: vvukoman/add-fail-notify-perf-flag
+      ref: main
       project: tt-xla
       sh-runner: false
       skip-device-perf: false
@@ -43,10 +43,10 @@ jobs:
       fail-notify: true
 
   demo-test:
-    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@vvukoman/add-fail-notify-perf-flag
+    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
     secrets: inherit
     with:
       docker-image: ${{ inputs.release_docker_image }}
-      ref: vvukoman/add-fail-notify-perf-flag
+      ref: main
       project-filter: tt-xla
       fail-notify: true
