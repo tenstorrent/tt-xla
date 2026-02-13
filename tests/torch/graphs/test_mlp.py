@@ -114,7 +114,7 @@ AVAILABLE_VARIANT_MAP = {
         "tiiuae/Falcon3-Mamba-7B-Base",
         "tiiuae/falcon-7b-instruct",
     ],
-    "gpt_oss": ["gpt_oss_20b", "gpt_oss_120b"],
+    "gpt_oss": ["20B", "120B"],
 }
 
 
