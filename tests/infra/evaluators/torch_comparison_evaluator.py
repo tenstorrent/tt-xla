@@ -26,8 +26,8 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             leaf.numel() == 1 for leaf in leaves if isinstance(leaf, torch.Tensor)
         )
 
-    # LLM decode tests may include transformers StaticCache objects in outputs (e.g., past_key_values).
-    # These are not torch.Tensors, so we detect them and treat matching StaticCache leaves as equal.
+    # LLM decode tests may include transformers StaticCache or DynamicCache objects in outputs (e.g., past_key_values).
+    # These are not torch.Tensors, so we detect them and treat matching cache objects as equal.
     # TODO https://github.com/tenstorrent/tt-xla/issues/2743: Enable checking for allclose, pcc, atol, equal.
     @staticmethod
     def _is_static_cache(x: object) -> bool:
@@ -40,9 +40,24 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             return False
 
     @staticmethod
+    def _is_dynamic_cache(x: object) -> bool:
+        # Avoid importing transformers at module import time.
+        try:
+            from transformers.cache_utils import DynamicCache  # type: ignore
+
+            return isinstance(x, DynamicCache)
+        except Exception:
+            return False
+
+    @staticmethod
     def _both_static_cache(x: object, y: object) -> bool:
         is_sc = TorchComparisonEvaluator._is_static_cache
         return is_sc(x) and is_sc(y)
+
+    @staticmethod
+    def _both_dynamic_cache(x: object, y: object) -> bool:
+        is_dc = TorchComparisonEvaluator._is_dynamic_cache
+        return is_dc(x) and is_dc(y)
 
     # @override
     @staticmethod
@@ -71,9 +86,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     @run_on_cpu(Framework.TORCH)
     def _compare_equal(device_output: PyTree, golden_output: PyTree) -> bool:
         def _equal_leaf(x, y):
-            if TorchComparisonEvaluator._both_static_cache(x, y) or (
-                x is None and y is None
-            ):
+            if (TorchComparisonEvaluator._both_static_cache(x, y) or
+                TorchComparisonEvaluator._both_dynamic_cache(x, y) or
+                (x is None and y is None)):
                 return True
             return torch.equal(x, y)
 
@@ -88,9 +103,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
     ) -> float:
         def _atol_leaf(x, y):
-            if TorchComparisonEvaluator._both_static_cache(x, y) or (
-                x is None and y is None
-            ):
+            if (TorchComparisonEvaluator._both_static_cache(x, y) or
+                TorchComparisonEvaluator._both_dynamic_cache(x, y) or
+                (x is None and y is None)):
                 return torch.tensor(0.0)
             return torch.max(torch.abs(x - y))
 
@@ -106,7 +121,8 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         self, device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
-            if TorchComparisonEvaluator._both_static_cache(x, y):
+            if (TorchComparisonEvaluator._both_static_cache(x, y) or
+                TorchComparisonEvaluator._both_dynamic_cache(x, y)):
                 return torch.tensor(1.0)
             if x is None and y is None:
                 return None
@@ -140,9 +156,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         allclose_config: AllcloseConfig,
     ) -> bool:
         def _allclose_leaf(x, y):
-            if TorchComparisonEvaluator._both_static_cache(x, y) or (
-                x is None and y is None
-            ):
+            if (TorchComparisonEvaluator._both_static_cache(x, y) or
+                TorchComparisonEvaluator._both_dynamic_cache(x, y) or
+                (x is None and y is None)):
                 return True
             return torch.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
