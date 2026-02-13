@@ -37,3 +37,6 @@ bindist/
 
 # Bisect artifacts
 .bisect-run/
+
+# Downloaded CI artifacts
+artifacts/
