@@ -1,35 +1,53 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Test vLLM sampling parameters on TT device."""
+"""Test vLLM sampling parameters on TT device with real models."""
+
+import signal
+
 import pytest
 import vllm
-
-
-@pytest.fixture(scope="module")
-def llm():
-    """Shared LLM instance across all tests in this module."""
-    llm_args = {
-        "model": "facebook/opt-125m",
-        "max_num_batched_tokens": 128,
-        "max_num_seqs": 1,
-        "max_model_len": 128,
-        "gpu_memory_utilization": 0.001,
-        "enable_prefix_caching": False,
-        "disable_log_stats": True,
-        "enforce_eager": True,
-        "additional_config": {
-            "enable_const_eval": False,
-            "min_context_len": 32,
-        },
-    }
-    return vllm.LLM(**llm_args)
+from conftest import TEST_TIMEOUT_SECONDS, get_or_create_llm
 
 
 @pytest.fixture
-def prompt():
-    """Shared prompt for tests."""
-    return ["Once upon a time, there was a"]
+def llm():
+    return get_or_create_llm(
+        "opt_125m",
+        model="facebook/opt-125m",
+        max_num_batched_tokens=128,
+        max_num_seqs=1,
+        max_model_len=128,
+        gpu_memory_utilization=0.001,
+        enable_prefix_caching=False,
+        disable_log_stats=True,
+        enforce_eager=True,
+        additional_config={
+            "enable_const_eval": False,
+            "min_context_len": 32,
+        },
+    )
+
+
+# This is a workaround mainly for CI so that crash in one test does not hang all the tests
+# saw it happen with logprobs failure, so being safe.
+@pytest.fixture(autouse=True)
+def _test_timeout(llm):
+    """Kill any test that hangs longer than TEST_TIMEOUT_SECONDS.
+
+    Depends on ``llm`` so the alarm only starts after the LLM is ready.
+    """
+
+    def _handler(signum, frame):
+        raise TimeoutError(
+            f"Test exceeded {TEST_TIMEOUT_SECONDS}s — vLLM engine likely dead"
+        )
+
+    old_handler = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(TEST_TIMEOUT_SECONDS)
+    yield
+    signal.alarm(0)
+    signal.signal(signal.SIGALRM, old_handler)
 
 
 def assert_diverse(outputs, min_unique=2):
@@ -39,11 +57,6 @@ def assert_diverse(outputs, min_unique=2):
         unique >= min_unique
     ), f"Expected >= {min_unique} unique outputs, got {unique}: {outputs}"
 
-
-# ---------------------------------------------------------------------------
-# Nightly: parametrized sweep per sampling parameter, asserting non-empty
-# outputs + diversity across each sweep.
-# ---------------------------------------------------------------------------
 
 SAMPLING_PARAM_SWEEPS = [
     ("temperature", [0.5, 0.8, 1.0, 1.5]),
@@ -81,11 +94,6 @@ def test_sampling_param_sweep(llm, prompt, param_name, values):
     assert_diverse(outputs)
 
 
-# ---------------------------------------------------------------------------
-# Push: canary tests that catch fundamental sampling regressions on every PR.
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.push
 @pytest.mark.single_device
 def test_sampling_has_diversity_when_temp_positive(llm, prompt):
@@ -96,7 +104,6 @@ def test_sampling_has_diversity_when_temp_positive(llm, prompt):
         n=8,
         max_tokens=16,
     )
-    # IMPORTANT: llm must allow max_num_seqs >= n
     outputs = llm.generate(prompt, params, use_tqdm=False)[0].outputs
     texts = [o.text for o in outputs]
 
@@ -121,11 +128,6 @@ def test_greedy_determinism(llm, prompt):
     assert (
         outputs[0] == outputs[1] == outputs[2]
     ), "Greedy sampling must be deterministic"
-
-
-# ---------------------------------------------------------------------------
-# Nightly: thorough coverage of specific sampling features.
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.nightly
@@ -168,7 +170,6 @@ def test_stop_sequences(llm, prompt):
         print(f"[TESTOUT test_stop_sequences] {desc}: {output[:50]}...")
         assert len(output) > 0, f"{desc} should produce output"
 
-        # Verify stop strings are not present in output (vLLM strips them by default)
         if stop:
             for s in stop:
                 assert s not in output, f"Output should not contain stop string {s!r}"
@@ -178,6 +179,9 @@ def test_stop_sequences(llm, prompt):
 
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.skip(
+    reason="numpy.int64 serialization crash in vLLM v0.13.0 kills engine core - https://github.com/tenstorrent/tt-xla/issues/3310"
+)
 def test_logprobs(llm, prompt):
     """Test requesting log probabilities."""
     logprobs_values = [None, 1, 5]
@@ -226,7 +230,6 @@ def test_output_length_controls(llm, prompt):
             n_tokens <= config["max_tokens"]
         ), f"{desc}: generated {n_tokens} tokens, exceeds max_tokens={config['max_tokens']}"
 
-    # Short output should have fewer tokens than medium
     assert (
         results[0][3] <= results[1][3]
     ), f"short ({results[0][3]} tokens) should be <= medium ({results[1][3]} tokens)"
@@ -237,13 +240,11 @@ def test_output_length_controls(llm, prompt):
 def test_parameter_boundary_values(llm, prompt):
     """Test boundary and edge case values don't crash."""
     test_cases = [
-        vllm.SamplingParams(temperature=0.0, max_tokens=16),  # Min temperature
-        vllm.SamplingParams(temperature=2.0, max_tokens=16),  # High temperature
-        vllm.SamplingParams(
-            temperature=0.8, top_p=0.01, max_tokens=16
-        ),  # Very low top_p
-        vllm.SamplingParams(temperature=0.8, top_k=1, max_tokens=16),  # Minimal top_k
-        vllm.SamplingParams(temperature=0.8, min_p=0.5, max_tokens=16),  # High min_p
+        vllm.SamplingParams(temperature=0.0, max_tokens=16),
+        vllm.SamplingParams(temperature=2.0, max_tokens=16),
+        vllm.SamplingParams(temperature=0.8, top_p=0.01, max_tokens=16),
+        vllm.SamplingParams(temperature=0.8, top_k=1, max_tokens=16),
+        vllm.SamplingParams(temperature=0.8, min_p=0.5, max_tokens=16),
     ]
 
     for i, params in enumerate(test_cases):
