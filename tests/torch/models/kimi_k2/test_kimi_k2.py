@@ -229,7 +229,7 @@ def test_kimi_k2_layer():
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
     config = DeepseekV3Config.from_json_file(config_path)
     config._attn_implementation = "eager"
-    config.num_hidden_layers = 2  # Need 2+ so layer_idx=1 exists and is MoE
+    config.num_hidden_layers = 4  # Need 2+ so layer_idx=1 exists and is MoE
 
     layer = DeepseekV3DecoderLayer(config, layer_idx=1)
     layer = layer.to(torch.bfloat16)
@@ -240,8 +240,8 @@ def test_kimi_k2_layer():
     layer.mlp = create_a2a_from_deepseek_v3_moe(
         layer.mlp,
         config,
-        num_devices=2,       # Dispatch axis_0 has 2 devices
-        cluster_axis=0,      # All-to-all along axis_0 (rows)
+        num_devices=8,  # Dispatch axis_0 has 8 devices
+        cluster_axis=0,  # All-to-all along axis_0 (rows)
     )
     layer.eval()  # MoEGate noaux_tc requires eval mode
 
@@ -256,7 +256,7 @@ def test_kimi_k2_layer():
     )
     cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
     num_devices_total = xr.global_runtime_device_count()
-    mesh_shape = (2, 4)
+    mesh_shape = (8, 8)
     device_ids = np.array(range(num_devices_total))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
 
@@ -372,9 +372,11 @@ def test_kimi_k2_a2a_sparse_cpu_parity(num_devices):
     hidden_base = torch.randn(
         batch_size, seq_len // M, 1, config.hidden_size, dtype=torch.bfloat16
     )
-    hidden_states = hidden_base.expand(
-        batch_size, seq_len // M, M, -1
-    ).reshape(batch_size, seq_len, config.hidden_size).contiguous()
+    hidden_states = (
+        hidden_base.expand(batch_size, seq_len // M, M, -1)
+        .reshape(batch_size, seq_len, config.hidden_size)
+        .contiguous()
+    )
 
     # Run original BEFORE creating A2aSparse (adapter stacks weights from experts)
     with torch.no_grad():
