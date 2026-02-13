@@ -88,7 +88,7 @@ jobs:
         run: exit 0
 
   summary:
-    # if: always()
+    if: always()
     needs: [ publish-release-wheel, build-release-docker, publish-release ]
     runs-on: ubuntu-latest
     outputs:
