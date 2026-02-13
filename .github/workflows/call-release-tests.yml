@@ -68,7 +68,7 @@ jobs:
         id: branch-check
         run: echo "is_main=$(if [ '${{ github.ref }}' == 'refs/heads/main' ]; then echo true; else echo false; fi)" >> $GITHUB_OUTPUT
 
-      - name: Check if caller workflow is On nightly
+      - name: Check if in the release process
         id: nightly-check
         shell: bash
         run: |
