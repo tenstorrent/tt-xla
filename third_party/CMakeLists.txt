@@ -97,7 +97,7 @@ else()
     # Add a step to patch RPATH of installed libraries to support both lib and lib64
     ExternalProject_Add_Step(tt-mlir patch_rpath
         COMMAND ${CMAKE_COMMAND} -E echo "Patching RPATH for tt-mlir libraries..."
-        COMMAND bash -c "find ${TTMLIR_INSTALL_PREFIX} -name '*.so*' -type f -exec patchelf --set-rpath '$ORIGIN:$ORIGIN/lib:$ORIGIN/lib64' {} \\; 2>/dev/null || true"
+        COMMAND bash -c "find ${TTMLIR_INSTALL_PREFIX} -name '*.so*' -type f -exec patchelf --set-rpath '$ORIGIN:$ORIGIN/lib:$ORIGIN/lib64' {} \\\\\\; 2>/dev/null || true"
         DEPENDEES install
         WORKING_DIRECTORY ${TTMLIR_INSTALL_PREFIX}
     )
