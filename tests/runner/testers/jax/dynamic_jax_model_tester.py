@@ -11,7 +11,7 @@ from flax import linen
 from infra.evaluators import ComparisonConfig
 from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import JaxModelTester, RunMode
-from transformers import FlaxPreTrainedModel
+from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
 from tests.runner.utils import JaxDynamicLoader
 

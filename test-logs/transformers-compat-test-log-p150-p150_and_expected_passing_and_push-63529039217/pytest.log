@@ -1,0 +1,17 @@
+2026-02-13 13:29:28.469 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+ImportError while loading conftest '/__w/tt-xla/tt-xla/tests/conftest.py'.
+tests/conftest.py:21: in <module>
+    from infra import DeviceConnectorFactory, Framework
+tests/infra/__init__.py:10: in <module>
+    from .evaluators import ComparisonConfig
+tests/infra/evaluators/__init__.py:5: in <module>
+    from .comparison_evaluator import ComparisonEvaluator
+tests/infra/evaluators/comparison_evaluator.py:9: in <module>
+    from infra.utilities import PyTree, Tensor
+tests/infra/utilities/__init__.py:5: in <module>
+    from .jax_multichip_utils import (
+tests/infra/utilities/jax_multichip_utils.py:15: in <module>
+    from .types import Tensor
+tests/infra/utilities/types.py:16: in <module>
+    from transformers import FlaxPreTrainedModel
+E   ImportError: cannot import name 'FlaxPreTrainedModel' from 'transformers' (/__w/tt-xla/tt-xla/venv/lib/python3.11/site-packages/transformers/__init__.py)
