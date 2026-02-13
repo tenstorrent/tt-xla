@@ -300,7 +300,7 @@ jobs:
   # ── Job 5: Analyze failures and generate fix with Claude Code ──────────
   analyze-and-fix:
     needs: [test-with-latest-transformers, generate-matrix]
-    if: ${{ needs.test-with-latest-transformers.result == 'failure' }}
+    if: ${{ always() && needs.test-with-latest-transformers.result != 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
