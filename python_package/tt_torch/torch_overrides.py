@@ -7,7 +7,6 @@ from torch.overrides import TorchFunctionMode
 
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
-        kwargs = kwargs or {}
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():
@@ -20,7 +19,7 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if len(args) > 2 and args[2] is not None:
                     res = res + args[2]
                 return res
-        return func(*args, **kwargs)
+        return func(*args, **(kwargs or {}))
 
 
 torch_function_override = TorchFunctionOverride()

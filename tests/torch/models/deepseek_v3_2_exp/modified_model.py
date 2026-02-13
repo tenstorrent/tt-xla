@@ -584,7 +584,9 @@ def rotate_activation(x: torch.Tensor) -> torch.Tensor:
 
 
 class Indexer(torch.nn.Module):
-    def __init__(self, args: ModelArgs, haddamard_matrix, return_raw_scores: bool = False):
+    def __init__(
+        self, args: ModelArgs, haddamard_matrix, return_raw_scores: bool = False
+    ):
         super().__init__()
         self.return_raw_scores = return_raw_scores
         self.dim: int = args.dim
@@ -615,6 +617,9 @@ class Indexer(torch.nn.Module):
             ),
             persistent=False,
         )
+        # k_scale_cache is only used for fp8 quantization mode.
+        # Currently, we don't need it since the Indexer only supports bf16.
+        # Keeping this here for when we support fp8 quantization.
         # self.register_buffer(
         #     "k_scale_cache",
         #     torch.zeros(
@@ -675,7 +680,6 @@ class Indexer(torch.nn.Module):
 
         self.k_cache[:bsz, start_pos:end_pos] = k
 
-        # Simple dot product scoring (placeholder)
         # In full implementation, this would use fp8_index with quantized values
         weights = self.weights_proj(x) * self.n_heads**-0.5
         weights = weights.unsqueeze(-1) * self.softmax_scale
@@ -838,12 +842,12 @@ class MLA(nn.Module):
             if self.indexer is not None:
                 topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
                 index_mask = torch.full(
-                    (bsz, seqlen, seqlen), float("-inf"), device=x.device, dtype=x.dtype
+                    (bsz, seqlen, seqlen), float("-inf"), device=x.device
                 ).scatter_(-1, topk_indices, 0)
                 index_mask += mask
                 scores += index_mask.unsqueeze(2)
 
-            scores = scores.softmax(dim=-1).to(x.dtype)
+            scores = scores.softmax(dim=-1)
             x = torch.einsum("bsht,bthd->bshd", scores, v)
         else:  # MQA decode
             if self.dequant_wkv_b is None and self.wkv_b.scale is not None:
@@ -864,11 +868,11 @@ class MLA(nn.Module):
             if self.indexer is not None:
                 topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
                 index_mask = torch.full(
-                    (bsz, 1, end_pos), float("-inf"), device=x.device, dtype=x.dtype
+                    (bsz, 1, end_pos), float("-inf"), device=x.device
                 ).scatter_(-1, topk_indices, 0)
                 scores += index_mask.unsqueeze(2)
 
-            scores = scores.softmax(dim=-1).to(x.dtype)
+            scores = scores.softmax(dim=-1)
             x = torch.einsum("bsht,btc->bshc", scores, self.kv_cache[:bsz, :end_pos])
             x = torch.einsum("bshc,hdc->bshd", x, wkv_b[:, -self.v_head_dim :])
         x = self.wo(x.flatten(2))
@@ -1253,7 +1257,6 @@ class Transformer(nn.Module):
                 (seqlen, seqlen),
                 float("-inf"),
                 device=tokens.device,
-                dtype=tokens.dtype,
             ).triu_(1)
             if seqlen > 1
             else None

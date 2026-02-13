@@ -1,25 +1,18 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
-import os
-
 import numpy as np
 import pytest
-import scipy.linalg
 import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
-from modified_model import Indexer, ModelArgs
+from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
-from modified_model import precompute_freqs_cis
 from torch_xla.distributed.spmd import Mesh
 
 from tests.utils import failed_ttmlir_compilation
-
-# from tests.torch.models.kimi_k2.utils import MLACache
 
 # This model is modified from the original deepseek_v3_2_exp model.py to:
 # 1. Use scipy.linalg.hadamard instead of fast_hadamard_transform
