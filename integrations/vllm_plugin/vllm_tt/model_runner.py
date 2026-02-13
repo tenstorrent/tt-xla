@@ -1255,9 +1255,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ):
                 # Apply sharding constraint to logits for SPMD case.
                 # This will replicate the logits.
-                logits = sharding_constraint_tensor(
-                    logits, self.mesh, (None, None, None)
-                )
+                logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
 
             # Need to remove hack that forces greedy in sample_from_logits. https://github.com/tenstorrent/tt-xla/issues/3026
             if not tpu_sampling_metadata.all_greedy:
