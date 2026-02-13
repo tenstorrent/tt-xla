@@ -5,6 +5,7 @@
 """A TT worker class."""
 
 import os
+import sys
 from collections.abc import Callable
 from typing import Any, Optional, TypeVar
 
@@ -350,6 +351,8 @@ class TTWorker:
 
     def shutdown(self) -> None:
         self.model_runner.ensure_kv_transfer_shutdown()
+        print(f"TTWorker (rank {self.rank}) is shutting down...", flush=True)
+        sys.exit(0)
 
     def apply_model(self, fn: Callable[[nn.Module], _R]) -> _R:
         """Apply a function on the model inside this worker."""
