@@ -47,6 +47,8 @@ def test_multihost_models(model_variant):
     distributed_env["TT_DISTRIBUTED_WORKER_PATH"] = get_distributed_worker_path()
     distributed_env["TT_RUNTIME_ENABLE_DISTRIBUTED"] = "1"
     distributed_env["TT_DISTRIBUTED_RANK_BINDING"] = "dual_bh_quietbox"
+    distributed_env["TT_DISTRIBUTED_HOSTS_LIST"] = "localhost"
+    distributed_env["TT_DISTRIBUTED_CONTROLLER_HOST_NAME"] = "localhost"
 
     result = subprocess.run(
         [

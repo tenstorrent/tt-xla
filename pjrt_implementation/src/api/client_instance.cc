@@ -94,7 +94,7 @@ static tt_pjrt_status launchDistributedRuntime() {
   const char *controller_host_name =
       std::getenv("TT_DISTRIBUTED_CONTROLLER_HOST_NAME");
   if (!controller_host_name) {
-    DLOG_F(
+    LOG_F(
         ERROR,
         "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set");
     return tt_pjrt_status::kInternal;
@@ -102,7 +102,7 @@ static tt_pjrt_status launchDistributedRuntime() {
 
   const char *hosts_list = std::getenv("TT_DISTRIBUTED_HOSTS_LIST");
   if (!hosts_list) {
-    DLOG_F(ERROR, "TT_DISTRIBUTED_HOSTS_LIST environment variable is not set");
+    LOG_F(ERROR, "TT_DISTRIBUTED_HOSTS_LIST environment variable is not set");
     return tt_pjrt_status::kInternal;
   }
 
