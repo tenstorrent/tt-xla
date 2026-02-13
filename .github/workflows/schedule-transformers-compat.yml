@@ -401,26 +401,18 @@ jobs:
         PROMPT_MID
         cat failure_context.txt >> claude_prompt.txt
 
-        cat >> claude_prompt.txt << 'PROMPT_MID2'
-
-        ## Current Compatibility Shim
-        File: tests/infra/utilities/transformers_compat.py
-        PROMPT_MID2
-        cat tests/infra/utilities/transformers_compat.py >> claude_prompt.txt
-
         cat >> claude_prompt.txt << 'PROMPT_TAIL'
 
         ## Instructions
         1. Analyze the failures to identify which transformers API changes caused them.
-        2. You changes do not need to be backward-compatible with older transformers versions. The whole repo is going to be updated to the latest transformers version.
+        2. Your changes do not need to be backward-compatible with older transformers versions. The whole repo is going to be updated to the latest transformers version.
         3. You may modify any Python files in the repo as needed to fix the compatibility issues
-           (e.g. update imports, fix class references, add conftest imports, etc.).
-        4. Try to address any API changes at the source level, if possible. If an old API is no longer supported, search for alternatives to use instead. 
+           (e.g. update imports, fix class references, etc.).
+        4. Try to address any API changes at the source level. If an old API is no longer supported, search for alternatives to use instead.
 
         ## Rules
         - Do NOT modify files under third_party/ (these are external submodules).
         - Do NOT modify venv/requirements-dev.txt or change the pinned transformers version.
-        - Use hasattr() guards so your shims work with both the old and new transformers versions.
         - Keep changes minimal and focused on compatibility.
         PROMPT_TAIL
 
@@ -484,7 +476,7 @@ jobs:
   # ── Job 6: Re-run tests with the fix applied ──────────────────────────
   rerun-tests:
     needs: [build-image, build-ttxla, generate-matrix, analyze-and-fix]
-    if: ${{ always() && needs.analyze-and-fix.outputs.has-fix == 'true' }}
+    if: ${{ needs.analyze-and-fix.outputs.has-fix == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -696,7 +688,7 @@ jobs:
   # ── Job 7: Create PR if re-run passed ──────────────────────────────────
   create-pr:
     needs: [analyze-and-fix, rerun-tests]
-    if: ${{ always() && needs.analyze-and-fix.outputs.has-fix == 'true' && needs.rerun-tests.result == 'success' }}
+    if: ${{ needs.analyze-and-fix.outputs.has-fix == 'true' && needs.rerun-tests.result == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
