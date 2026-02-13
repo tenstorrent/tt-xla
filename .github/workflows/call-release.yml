@@ -23,6 +23,9 @@ on:
       release_tag:
         description: 'Release tag'
         value: ${{ jobs.publish-release-wheel.outputs.release_tag }}
+      release_ready:
+        description: 'Did wheel push, docker build and release publish steps succeed'
+        value: ${{ jobs.summary.outputs.release_ready }}
 
 permissions:
   contents: write
@@ -66,3 +69,16 @@ jobs:
     with:
       release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}
       docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}
+
+  summary:
+    needs: [ publish-release-wheel, build-release-docker, release-tests, publish-release ]
+    runs-on: ubuntu-latest
+    outputs:
+      release_ready: ${{ steps.flag.outputs.ready }}
+    steps:
+      - id: flag
+        run: |
+          ready="false"
+          if [[ ${{ needs.publish-release-wheel.result == 'success' && needs.build-release-docker.result == 'success' && needs.publish-release.result == 'success' }} ]]; then
+            ready="true"
+          fi
