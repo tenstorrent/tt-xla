@@ -2272,7 +2272,7 @@ test_config:
 
   panoptic_segmentation/pytorch-ResNet50_Backbone_1x_COCO-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3258)"
+    # reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3258)"
 
   panoptic_segmentation/pytorch-ResNet50_Backbone_3x_COCO-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
