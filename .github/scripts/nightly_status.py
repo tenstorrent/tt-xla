@@ -60,6 +60,7 @@ class TestResult(NamedTuple):
     duration: Optional[float]
     job_id: Optional[str]
     run_id: str
+    attempt: int  # workflow run attempt (1 = first try, 2+ = retry)
 
 
 # ---------------------------------------------------------------------------
@@ -267,14 +268,26 @@ def extract_job_id_from_artifact_dir(dirname: str) -> Optional[str]:
     return None
 
 
+def extract_attempt_from_artifact_dir(dirname: str) -> int:
+    """Extract run attempt number from artifact dir name.
+
+    Pattern: test-reports-{hash}-{attempt}.{index}-{runner}-{mark}-{job_id}
+    The second segment after 'test-reports-{hash}-' is '{attempt}.{index}'.
+    """
+    # Match the attempt.index segment
+    m = re.match(r"test-reports-[^-]+-(\d+)\.\d+-", dirname)
+    return int(m.group(1)) if m else 1
+
+
 def parse_junit_xml(xml_path: str, run_id: str) -> List[TestResult]:
     """Parse a JUnit XML file and return TestResult entries for every testcase."""
     results = []
+    parent = os.path.basename(os.path.dirname(xml_path))
     job_id = extract_job_id_from_xml(xml_path)
     if job_id is None:
         # Fallback: try parent directory name
-        parent = os.path.basename(os.path.dirname(xml_path))
         job_id = extract_job_id_from_artifact_dir(parent)
+    attempt = extract_attempt_from_artifact_dir(parent)
 
     try:
         tree = ET.parse(xml_path)
@@ -311,18 +324,22 @@ def parse_junit_xml(xml_path: str, run_id: str) -> List[TestResult]:
                 if not msg and failure.text:
                     msg = failure.text.split("\n")[0]
                 results.append(
-                    TestResult(node_id, False, msg.strip(), duration, job_id, run_id)
+                    TestResult(
+                        node_id, False, msg.strip(), duration, job_id, run_id, attempt
+                    )
                 )
             elif error is not None:
                 msg = error.get("message", "") or ""
                 if not msg and error.text:
                     msg = error.text.split("\n")[0]
                 results.append(
-                    TestResult(node_id, False, msg.strip(), duration, job_id, run_id)
+                    TestResult(
+                        node_id, False, msg.strip(), duration, job_id, run_id, attempt
+                    )
                 )
             else:
                 results.append(
-                    TestResult(node_id, True, None, duration, job_id, run_id)
+                    TestResult(node_id, True, None, duration, job_id, run_id, attempt)
                 )
 
     return results
@@ -340,6 +357,7 @@ class AggregatedTest:
         self.total_count = 0
         self.fail_type = "FAILURE"  # or "TIMEOUT"
         self.timeout_count = 0
+        self.retry_count = 0  # number of runs where the test was retried (attempt > 1)
         self.error_signatures: List[str] = []
         self.last_fail_job_id: Optional[str] = None
         self.last_fail_run_id: Optional[str] = None
@@ -377,35 +395,53 @@ def classify_and_aggregate(
     for run_id, results in all_results.items():
         run_conclusions = job_conclusions.get(run_id, {})
 
-        # Track which tests we've seen in this run (for dedup within a run)
-        seen_in_run: Dict[str, TestResult] = {}
+        # Per test per run: collect all attempts. The highest attempt is the
+        # final outcome, but we also keep the first-attempt failure info.
+        all_attempts: Dict[str, List[TestResult]] = defaultdict(list)
         for r in results:
-            # Keep the worst result per test per run (failure > pass)
-            existing = seen_in_run.get(r.node_id)
-            if existing is None or (not r.passed and existing.passed):
-                seen_in_run[r.node_id] = r
+            all_attempts[r.node_id].append(r)
 
-        for node_id, r in seen_in_run.items():
+        for node_id, attempts in all_attempts.items():
             if node_id not in tests:
                 tests[node_id] = AggregatedTest(node_id)
             agg = tests[node_id]
             agg.total_count += 1
 
-            if not r.passed:
+            attempts.sort(key=lambda r: r.attempt)
+            first = attempts[0]
+            final = attempts[-1]
+            # Find the earliest failure across attempts (if any)
+            first_failure = next((a for a in attempts if not a.passed), None)
+            # Retried = we have results from multiple attempts
+            was_retried = final.attempt > first.attempt
+
+            if was_retried:
+                agg.retry_count += 1
+
+            if not final.passed:
+                # Failed even after any retries
                 agg.fail_count += 1
 
-                # Determine if this was a timeout
-                is_timeout = False
-                if r.job_id and r.job_id in run_conclusions:
-                    if run_conclusions[r.job_id] == "timed_out":
-                        is_timeout = True
+                if final.job_id and final.job_id in run_conclusions:
+                    if run_conclusions[final.job_id] == "timed_out":
                         agg.timeout_count += 1
 
-                if r.error_message:
-                    agg.error_signatures.append(r.error_message)
+                if final.error_message:
+                    agg.error_signatures.append(final.error_message)
 
-                agg.last_fail_job_id = r.job_id
-                agg.last_fail_run_id = r.run_id
+                agg.last_fail_job_id = final.job_id
+                agg.last_fail_run_id = final.run_id
+
+            elif was_retried:
+                # Passed on retry — we have results from both attempts and
+                # the CI only re-runs previously failed tests.
+                agg.fail_count += 1
+                agg.error_signatures.append("Passed on retry")
+                # Link to the original failure if we have it, otherwise
+                # the retry job (best we can do)
+                link_result = first_failure if first_failure else final
+                agg.last_fail_job_id = link_result.job_id
+                agg.last_fail_run_id = link_result.run_id
 
         # Check for tests in timed-out jobs that are missing from results.
         # These tests were likely running when the job was killed.
@@ -455,7 +491,7 @@ def print_table(
     print()
 
     # Column headers
-    headers = ["FAIL%", "FAIL/TOTAL", "TYPE", "TEST", "REASON", "LINK"]
+    headers = ["FAIL%", "FAIL/TOTAL", "TYPE", "RETRIED", "TEST", "REASON", "LINK"]
 
     # Build rows
     max_reason_len = 60
@@ -463,13 +499,14 @@ def print_table(
     for t in tests:
         pct = f"{t.fail_rate:5.1f}"
         counts = f"{t.fail_count}/{t.total_count}"
+        retried = f"{t.retry_count}x" if t.retry_count > 0 else ""
         reason = t.top_signature
         if len(reason) > max_reason_len:
             reason = reason[: max_reason_len - 3] + "..."
         link = ""
         if t.last_fail_run_id and t.last_fail_job_id:
             link = job_url(repo, t.last_fail_run_id, t.last_fail_job_id)
-        rows.append([pct, counts, t.fail_type, t.node_id, reason, link])
+        rows.append([pct, counts, t.fail_type, retried, t.node_id, reason, link])
 
     # Compute column widths (excluding LINK which is variable)
     widths = [len(h) for h in headers]
