@@ -13,6 +13,13 @@ on:
         type: string
 
 jobs:
+  log:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log
+        run: |
+          echo "logging caller: ${{ inputs.caller_workflow }}"
+
   basic-tests:
     uses: tenstorrent/tt-forge/.github/workflows/basic-tests.yml@main
     secrets: inherit
