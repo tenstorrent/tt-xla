@@ -12,8 +12,9 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
-from modified_model import Indexer, ModelArgs, precompute_freqs_cis
+from modified_model import Indexer, ModelArgs
 from modified_model import Transformer as ModifiedTransformer
+from modified_model import precompute_freqs_cis
 from torch_xla.distributed.spmd import Mesh
 
 from tests.utils import failed_ttmlir_compilation
@@ -100,13 +101,13 @@ def test_deepseek_complex_rotary_emb():
     assert y.shape == x.shape
 
 
-
+@pytest.mark.llmbox
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
 def test_deepseek_attention_prefill(batch_size):
     xr.set_device_type("TT")
     seq_len = 32
     args = ModelArgs(
-        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=1024
+        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len * 2
     )
 
     model = ModifiedTransformer(args)
@@ -120,9 +121,9 @@ def test_deepseek_attention_prefill(batch_size):
     freqs_cis = model.freqs_cis[0:seq_len]
 
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (8, 4)
+    mesh_shape = (2, 4)
     device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
     def get_shard_spec(attention, args, kwargs):
         mesh_batch_axis_size = mesh.shape()["batch"]
@@ -131,8 +132,8 @@ def test_deepseek_attention_prefill(batch_size):
 
         shard_specs = {}
 
-        shard_specs[args[0]] = (None, None, batch_axis) # hidden_states
-        shard_specs[args[3]] = (batch_axis, None, None) # attention_mask
+        shard_specs[args[0]] = (None, None, batch_axis)  # hidden_states
+        shard_specs[args[3]] = (batch_axis, None, None)  # attention_mask
         shard_specs[attention.wq_b.weight] = ("model", None)
         shard_specs[attention.wkv_b.weight] = ("model", None)
         shard_specs[attention.wo.weight] = (batch_axis, "model")
@@ -144,10 +145,10 @@ def test_deepseek_attention_prefill(batch_size):
         shard_specs[attention.pe_cache] = (batch_axis, None, None)
 
         # Indexer sharding
-        shard_specs[attention.indexer.wq_b.weight] = ("model", None)  # [n_heads*head_dim, q_lora_rank] - column-parallel
-        shard_specs[attention.indexer.wk.weight] = (None, batch_axis)  # [head_dim, dim] - row-parallel
-        shard_specs[attention.indexer.weights_proj.weight] = ("model", batch_axis)  # [n_heads, dim] - 2D sharded
-        shard_specs[attention.indexer.k_cache] = (batch_axis, None, None)  # [max_batch, max_seq, head_dim]
+        shard_specs[attention.indexer.wq_b.weight] = ("model", None)
+        shard_specs[attention.indexer.wk.weight] = (None, batch_axis)
+        shard_specs[attention.indexer.weights_proj.weight] = ("model", batch_axis)
+        shard_specs[attention.indexer.k_cache] = (batch_axis, None, None)
 
         return shard_specs
 
@@ -160,8 +161,8 @@ def test_deepseek_attention_prefill(batch_size):
         [
             hidden_states,  # input tensor
             0,  # start_pos
-            freqs_cis,  # freqs_cis
-            attention_mask,  # attention_mask
+            freqs_cis,
+            attention_mask,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
@@ -170,16 +171,14 @@ def test_deepseek_attention_prefill(batch_size):
     )
 
 
+@pytest.mark.llmbox
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
 def test_deepseek_indexer(batch_size):
     xr.set_device_type("TT")
 
     seq_len = 32
     args = ModelArgs(
-        n_layers=1,
-        q_lora_rank=3072,
-        max_batch_size=batch_size,
-        max_seq_len=1024
+        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len * 2
     )
 
     model = ModifiedTransformer(args)
@@ -197,9 +196,9 @@ def test_deepseek_indexer(batch_size):
 
     # Setup mesh
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (8, 4)
+    mesh_shape = (2, 4)
     device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
     def get_shard_spec(indexer, args, kwargs):
         # Conditionally shard weights that involve batch axis
@@ -208,26 +207,30 @@ def test_deepseek_indexer(batch_size):
 
         shard_specs = {}
 
-        # Input tensors - hybrid sharding
-        shard_specs[args[0]] = (None, None, batch_axis)  # hidden_states (x): [batch, seq, dim]
-        shard_specs[args[1]] = (batch_axis, None, None)  # qr: [batch, seq, q_lora_rank]
+        # Input tensors
+        # hidden_states (x): [batch, seq, dim]
+        shard_specs[args[0]] = (None, None, batch_axis)
+        # qr: [batch, seq, q_lora_rank]
+        shard_specs[args[1]] = (batch_axis, None, None)
+        # attention_mask: [batch, seq, seq]
+        shard_specs[args[4]] = (batch_axis, None, None)
 
-        # Attention mask - batch-sharded to match output (eliminates all-to-all)
-        shard_specs[args[4]] = (batch_axis, None, None)  # attention_mask: [batch, seq, seq]
+        # Weight tensors
+        # [n_heads*head_dim, q_lora_rank]
+        shard_specs[indexer.wq_b.weight] = ("model", None)
+        shard_specs[indexer.wk.weight] = (None, batch_axis)  # [head_dim, dim]
+        shard_specs[indexer.k_norm.weight] = (None,)  # [head_dim]
+        shard_specs[indexer.k_norm.bias] = (None,)  # [head_dim]
+        # [n_heads, dim]
+        shard_specs[indexer.weights_proj.weight] = ("model", batch_axis)
+        shard_specs[indexer.haddamard] = (None, None)  # [head_dim, head_dim]
 
-        # Weight tensors - optimized for parallel linear operations
-        shard_specs[indexer.wq_b.weight] = ("model", None)  # [n_heads*head_dim, q_lora_rank] - column-parallel
-        shard_specs[indexer.wk.weight] = (None, batch_axis)  # [head_dim, dim] - row-parallel
-        shard_specs[indexer.k_norm.weight] = (None,)  # [head_dim] - replicated
-        shard_specs[indexer.k_norm.bias] = (None,)  # [head_dim] - replicated
-        shard_specs[indexer.weights_proj.weight] = ("model", batch_axis)  # [n_heads, dim] - 2D sharded
-        shard_specs[indexer.haddamard] = (None, None)  # [head_dim, head_dim] - replicated
-
-        # Cache tensors - batch-sharded for efficiency
-        shard_specs[indexer.k_cache] = (batch_axis, None, None)  # [max_batch, max_seq, head_dim]
+        # Cache tensors
+        # [max_batch, max_seq, head_dim]
+        shard_specs[indexer.k_cache] = (batch_axis, None, None)
 
         # k_scale_cache if present (for FP8 quantization mode)
-        if hasattr(indexer, 'k_scale_cache'):
+        if hasattr(indexer, "k_scale_cache"):
             shard_specs[indexer.k_scale_cache] = (batch_axis, None, None)
 
         return shard_specs
@@ -239,15 +242,14 @@ def test_deepseek_indexer(batch_size):
     run_graph_test(
         indexer,
         [
-            hidden_states,    # x
-            qr,               # qr
-            0,                # start_pos
-            freqs_cis,        # freqs_cis
-            attention_mask,   # mask
+            hidden_states,
+            qr,
+            0,  # start_pos
+            freqs_cis,
+            attention_mask,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
     )
-
