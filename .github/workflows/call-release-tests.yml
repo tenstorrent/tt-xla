@@ -95,6 +95,7 @@ jobs:
         id: nightly-check
         shell: bash
         run: |
+          echo "${{ inputs.caller_workflow }}"
           echo "is_release_process=$(if [ "${{ inputs.caller_workflow }}" = "TT-xla release (call)" ]; then echo true; else echo false; fi)" >> $GITHUB_OUTPUT
 
       - name: Check if the needed jobs succeeded or failed
@@ -116,6 +117,7 @@ jobs:
           echo "needs.fail-notify.outputs.is-main: ${{needs.fail-notify.outputs.is-main}}"
           echo "needs.fail-notify.outputs.is-release-process: ${{needs.fail-notify.outputs.is-release-process}}"
       - name: Send Fail Notification
+        if: ${{ needs.fail-notify.outputs.failed == 'true' && needs.fail-notify.outputs.is-main == 'true' && needs.fail-notify.outputs.is-release-process == 'true'}}
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
