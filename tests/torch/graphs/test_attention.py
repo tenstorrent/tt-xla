@@ -122,7 +122,7 @@ AVAILABLE_VARIANT_MAP = {
         "ministral_3b_instruct",
         "ministral_8b_instruct",
     ],
-    "gpt_oss": ["gpt_oss_20b", "gpt_oss_120b"],
+    "gpt_oss": ["20B", "120B"],
 }
 
 
