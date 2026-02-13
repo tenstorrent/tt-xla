@@ -14,6 +14,7 @@ from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers.models.falcon.modeling_falcon import FalconMLP
 from transformers.models.gemma.modeling_gemma import GemmaMLP
+from transformers.models.glm4_moe.modeling_glm4_moe import Glm4MoeMLP, Glm4MoeMoE
 from transformers.models.llama.modeling_llama import LlamaMLP
 from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
@@ -31,6 +32,12 @@ from third_party.tt_forge_models.gemma.pytorch.loader import (
 )
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelVariant as GemmaModelVariant,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelLoader as GLMModelLoader,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelVariant as GLMModelVariant,
 )
 from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
     ModelLoader as GPTOSSModelLoader,
@@ -68,6 +75,7 @@ MODEL_LOADER_MAP = {
     "mistral": MistralModelLoader,
     "falcon": FalconModelLoader,
     "gpt_oss": GPTOSSModelLoader,
+    "glm": GLMModelLoader,
 }
 
 AVAILABLE_VARIANT_MAP = {
@@ -115,6 +123,7 @@ AVAILABLE_VARIANT_MAP = {
         "tiiuae/falcon-7b-instruct",
     ],
     "gpt_oss": ["gpt_oss_20b", "gpt_oss_120b"],
+    "glm": ["GLM-4.7", "GLM-4.5", "GLM-4.5-Air"],
 }
 
 
@@ -523,6 +532,83 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
         [hidden_states],
         framework=Framework.TORCH,
         comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""GLM MLP test"""
+
+
+# NOTE: GLM Decoder layer has two MLPs, one with MoE and one without
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "mlp_type",
+    [
+        "mlp",
+        pytest.param(
+            "moe",
+            marks=pytest.mark.xfail(
+                reason="Fails on ttnn.sort as it doesnt support fp32 input types."
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("glm").items(),
+    ids=[str(k) for k in get_available_variants("glm").keys()],
+)
+def test_glm_mlp(variant, variant_config, mlp_type, seq_len, arch):
+    xr.set_device_type("TT")
+
+    loader = GLMModelLoader(variant=variant)
+    config = loader.load_config()
+    if mlp_type == "mlp":
+        mlp = Glm4MoeMLP(config).to(torch.bfloat16)
+    elif mlp_type == "moe":
+        mlp = Glm4MoeMoE(config).to(torch.bfloat16)
+        seq_len = 32  # hardcoded for now to test the MoE. Bigger seq_len takes longer.
+
+    batch_size = 4
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, 4)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(mlp, args, kwargs):
+            shard_specs = {}
+
+            if hasattr(mlp, "experts"):
+                for expert in mlp.experts:
+                    shard_specs[expert.gate_proj.weight] = ("model", "batch")
+                    shard_specs[expert.up_proj.weight] = ("model", "batch")
+                    shard_specs[expert.down_proj.weight] = ("batch", "model")
+            else:
+                shard_specs[mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[mlp.down_proj.weight] = ("batch", "model")
+
+            # input sharding
+            shard_specs[args[0]] = ("model", None, "batch")
+
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )

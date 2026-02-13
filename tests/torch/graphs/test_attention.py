@@ -18,6 +18,7 @@ from torch_xla.distributed.spmd import Mesh
 from transformers.cache_utils import StaticCache
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.models.gemma.modeling_gemma import GemmaAttention
+from transformers.models.glm4_moe.modeling_glm4_moe import Glm4MoeAttention
 from transformers.models.gpt_oss.modeling_gpt_oss import (
     ALL_ATTENTION_FUNCTIONS,
     eager_attention_forward,
@@ -44,6 +45,12 @@ from third_party.tt_forge_models.gemma.pytorch.loader import (
 )
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelVariant as GemmaModelVariant,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelLoader as GLMModelLoader,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelVariant as GLMModelVariant,
 )
 from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
     ModelLoader as GPTOSSModelLoader,
@@ -82,6 +89,7 @@ MODEL_LOADER_MAP = {
     "gemma": GemmaModelLoader,
     "mistral": MistralModelLoader,
     "gpt_oss": GPTOSSModelLoader,
+    "glm": GLMModelLoader,
 }
 
 AVAILABLE_VARIANT_MAP = {
@@ -123,6 +131,7 @@ AVAILABLE_VARIANT_MAP = {
         "ministral_8b_instruct",
     ],
     "gpt_oss": ["gpt_oss_20b", "gpt_oss_120b"],
+    "glm": ["GLM-4.7", "GLM-4.5", "GLM-4.5-Air"],
 }
 
 
@@ -2419,6 +2428,79 @@ def test_gpt_oss_attention(variant, variant_config, arch):
             dropout,
             scaling,
         ],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""GLM attention tests"""
+
+
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("glm").items(),
+    ids=[str(k) for k in get_available_variants("glm").keys()],
+)
+def test_glm_attention_module(variant, variant_config, seq_len, arch):
+    xr.set_device_type("TT")
+
+    loader = GLMModelLoader(variant=variant)
+    config = loader.load_config()
+    config._attn_implementation = "sdpa"
+    attention = Glm4MoeAttention(config, layer_idx=0).to(torch.bfloat16)
+
+    batch_size = 4
+    head_dim = config.head_dim
+    hidden_states = torch.randn(
+        batch_size, seq_len, config.hidden_size, dtype=torch.bfloat16
+    )
+    attention_mask = torch.ones(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    cos_sin = torch.randn(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+
+    past_key_states = None
+
+    # Setup for tensor parallel
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, 4)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            """Returns shard specifications for the layer's parameters."""
+            shard_specs = {}
+
+            shard_specs[attention.q_proj.weight] = ("model", "batch")
+            shard_specs[attention.q_proj.bias] = ("model",)
+            shard_specs[attention.k_proj.weight] = ("model", "batch")
+            shard_specs[attention.k_proj.bias] = ("model",)
+            shard_specs[attention.v_proj.weight] = ("model", "batch")
+            shard_specs[attention.v_proj.bias] = ("model",)
+            shard_specs[attention.o_proj.weight] = ("batch", "model")
+
+            # input sharding
+            shard_specs[args[0]] = ("model", None, "batch")
+            shard_specs[args[1][0]] = ("model", None, None)
+            shard_specs[args[1][1]] = ("model", None, None)
+            shard_specs[args[2]] = ("model", None, None, None)
+
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
         framework=Framework.TORCH,
         comparison_config=comparison_config,
         mesh=mesh,
