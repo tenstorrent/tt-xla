@@ -116,12 +116,11 @@ jobs:
           echo "needs.fail-notify.outputs.is-main: ${{needs.fail-notify.outputs.is-main}}"
           echo "needs.fail-notify.outputs.is-release-process: ${{needs.fail-notify.outputs.is-release-process}}"
       - name: Send Fail Notification
-        if: ${{ needs.fail-notify.outputs.failed == 'true' && needs.fail-notify.outputs.is-main == 'true' && needs.fail-notify.outputs.is-release-process == 'true'}}
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": "Release tests tt-xla failed: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}",
+              "text": "Release tests tt-xla failed: https://github.com/tenstorrent/tt-xla/actions/runs/21969404262",
               "channel": "C088QN7E0R3"
             }
         env:
