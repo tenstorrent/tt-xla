@@ -40,7 +40,7 @@ def torch_pass_pipeline(
         "tt_enable_torch_fx_fusion_pass", True
     )
     if enable_fusion_passes:
-        gm = run_fusion_passes(gm)
+        run_fusion_passes(gm)
 
     # This is a temporary option to disable / enable composite ops
     # that will be removed once composite ops are more stable.

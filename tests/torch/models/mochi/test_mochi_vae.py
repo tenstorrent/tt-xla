@@ -23,7 +23,6 @@ _DRAM_OOM_SKIP_REASON = (
         pytest.param(
             ModelVariant.MOCHI,
             marks=[
-                pytest.mark.skip(reason=_DRAM_OOM_SKIP_REASON),
                 pytest.mark.record_test_properties(
                     category=Category.MODEL_TEST,
                     model_info=ModelLoader.get_model_info(ModelVariant.MOCHI),
