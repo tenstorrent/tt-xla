@@ -36,39 +36,36 @@ permissions:
 
 jobs:
   publish-release-wheel:
-    uses: ./.github/workflows/call-publish-release-wheel.yml
-    secrets: inherit
-    with:
-      wheel_release_artifact_run_id: ${{ inputs.artifact_release_run_id }}
-      wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
-      is_nightly_release: ${{ inputs.is_nightly_release }}
+    # uses: ./.github/workflows/call-publish-release-wheel.yml
+    # secrets: inherit
+    # with:
+    #   wheel_release_artifact_run_id: ${{ inputs.artifact_release_run_id }}
+    #   wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
+    #   wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
+    #   is_nightly_release: ${{ inputs.is_nightly_release }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exit 0
+        run: exit 0
+
 
   build-release-docker:
-    uses: ./.github/workflows/call-build-release-docker.yml
-    needs: [ publish-release-wheel ]
-    secrets: inherit
-    with:
-      wheel_release_artifact_run_id: ${{ inputs.artifact_release_run_id }}
-      wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
-      wheel_version_override: ${{ needs.publish-release-wheel.outputs.release_tag }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exit 0
+        run: exit 0
 
   release-tests:
-    uses: ./.github/workflows/call-release-tests.yml
-    needs: [ build-release-docker ]
-    secrets: inherit
-    with:
-      release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exit 0
+        run: exit 1
 
   publish-release:
-    uses: ./.github/workflows/call-publish-release.yml
-    if: ${{ needs.publish-release-wheel.result == 'success' && needs.build-release-docker.result == 'success' && (needs.release-tests.result == 'success' || needs.release-tests.result == 'failure') }}
-    needs: [ publish-release-wheel, build-release-docker, release-tests ]
-    secrets: inherit
-    with:
-      release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}
-      docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exit 0
+        run: exit 0
 
   summary:
     needs: [ publish-release-wheel, build-release-docker, release-tests, publish-release ]
