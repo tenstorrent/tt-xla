@@ -88,6 +88,7 @@ jobs:
         run: exit 0
 
   summary:
+    # if: always()
     needs: [ publish-release-wheel, build-release-docker, publish-release ]
     runs-on: ubuntu-latest
     outputs:
@@ -99,3 +100,4 @@ jobs:
           if [[ ${{ needs.publish-release-wheel.result == 'success' && needs.build-release-docker.result == 'success' && needs.publish-release.result == 'success' }} ]]; then
             ready="true"
           fi
+          echo "ready=$ready" >> $GITHUB_OUTPUT
