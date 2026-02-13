@@ -35,6 +35,9 @@ xr.set_device_type("TT")
 
 MIN_STEPS = 16
 
+# Number of tokens to compute PCC for (should not exceed max_tokens_to_generate)
+NUM_PCC_TOKENS = 16
+
 # Default input prompt
 DEFAULT_INPUT_PROMPT = (
     "Here is an exaustive list of the best practices for writing clean code:"
@@ -366,18 +369,18 @@ def benchmark_llm_torch_xla(
     # Limit maximum generation count to fit within preallocated static cache
     max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
 
-    # Get CPU result
+    # Get CPU results for PCC comparison
+    # Generate NUM_PCC_TOKENS tokens on CPU (but not more than max_tokens_to_generate)
+    num_cpu_tokens = min(NUM_PCC_TOKENS, max_tokens_to_generate)
     cpu_logits, _ = generate_and_benchmark(
         model,
         input_args,
         tokenizer,
         torch.device("cpu"),
-        1,
+        num_cpu_tokens,
         read_logits_fn=read_logits_fn,
         verbose=False,
     )
-    # Only one output makes sense to compare.
-    cpu_logits = cpu_logits[0]
 
     # Transfer model and inputs to device
     input_args = construct_inputs(tokenizer, model.config, batch_size, max_cache_len)
@@ -524,10 +527,30 @@ def benchmark_llm_torch_xla(
         ttft_ms=ttft_ms,
     )
 
-    # Check PCC
-    pcc_value = compute_pcc(
-        output_logits[0][0], cpu_logits[0], required_pcc=required_pcc
-    )
+    # Check PCC for first NUM_PCC_TOKENS decode outputs
+    pcc_values = []
+    num_pcc_tokens = min(NUM_PCC_TOKENS, len(output_logits), len(cpu_logits))
+
+    for i in range(num_pcc_tokens):
+        pcc = compute_pcc(output_logits[i][0], cpu_logits[i][0])
+        pcc_values.append(pcc)
+        print(f"PCC for token {i}: {pcc:.6f}")
+
+    # Compute statistics
+    max_pcc = max(pcc_values)
+    min_pcc = min(pcc_values)
+    avg_pcc = sum(pcc_values) / len(pcc_values)
+
+    print(f"PCC Statistics (over {num_pcc_tokens} tokens):")
+    print(f"  MAX PCC: {max_pcc:.6f}")
+    print(f"  MIN PCC: {min_pcc:.6f}")
+    print(f"  AVG PCC: {avg_pcc:.6f}")
+
+    # Use MIN PCC as final PCC value
+    pcc_value = min_pcc
+    assert (
+        pcc_value >= required_pcc
+    ), f"PCC verification failed. PCC={pcc_value:.6f}, Required PCC={required_pcc}"
     print(f"PCC verification passed with PCC={pcc_value:.6f}")
 
     # Get device count and mesh info for metrics
