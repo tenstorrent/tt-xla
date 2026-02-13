@@ -43,24 +43,29 @@ def get_distributed_worker_path():
 )
 def test_multihost_models(model_variant):
     distributed_env = os.environ.copy()
-    distributed_env["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
     distributed_env["TT_DISTRIBUTED_WORKER_PATH"] = get_distributed_worker_path()
     distributed_env["TT_RUNTIME_ENABLE_DISTRIBUTED"] = "1"
-    distributed_env["TT_DISTRIBUTED_RANK_BINDING"] = "dual_bh_quietbox"
-    distributed_env["TT_DISTRIBUTED_HOSTS_LIST"] = "localhost"
-    distributed_env["TT_DISTRIBUTED_CONTROLLER_HOST_NAME"] = "localhost"
+    distributed_env["TT_DISTRIBUTED_RANK_BINDING"] = "2x4_multiprocess"
+
+    # Enable C++ logging from PJRT plugin
+    distributed_env["TTXLA_LOGGER_LEVEL"] = "DEBUG"  # or "VERBOSE" for even more detail
+
+    print(f"\n=== Starting multihost test for {model_variant} ===", flush=True)
 
     result = subprocess.run(
         [
             sys.executable,
             "-m",
             "pytest",
-            "-ssv",
+            "-svv",
             f"tests/runner/test_models.py::test_all_models_torch[{model_variant}]",
             "--disable-perf-measurement",
         ],
         env=distributed_env,
         cwd=os.getcwd(),
+        # don't buffer stdout/stderr to show logs in real-time
+        stdout=None,  # Changed to None to inherit directly
+        stderr=None,
     )
 
     assert (

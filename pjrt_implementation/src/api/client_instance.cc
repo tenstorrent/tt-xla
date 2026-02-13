@@ -86,6 +86,7 @@ static std::string getDistributedWorkerPath() {
 }
 
 static tt_pjrt_status launchDistributedRuntime() {
+  DLOG_F(LOG_DEBUG, "ClientInstance::launchDistributedRuntime");
   const char *metal_home = std::getenv("TT_METAL_RUNTIME_ROOT");
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
@@ -94,23 +95,24 @@ static tt_pjrt_status launchDistributedRuntime() {
   const char *controller_host_name =
       std::getenv("TT_DISTRIBUTED_CONTROLLER_HOST_NAME");
   if (!controller_host_name) {
-    LOG_F(
-        ERROR,
+    DLOG_F(
+        WARNING,
         "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set");
-    return tt_pjrt_status::kInternal;
   }
 
   const char *hosts_list = std::getenv("TT_DISTRIBUTED_HOSTS_LIST");
   if (!hosts_list) {
-    LOG_F(ERROR, "TT_DISTRIBUTED_HOSTS_LIST environment variable is not set");
-    return tt_pjrt_status::kInternal;
+    DLOG_F(WARNING,
+           "TT_DISTRIBUTED_HOSTS_LIST environment variable is not set");
   }
 
   std::vector<std::string> hosts_list_vec;
-  std::string host;
-  std::istringstream tokenStream(hosts_list);
-  while (std::getline(tokenStream, host, ',')) {
-    hosts_list_vec.push_back(host);
+  if (hosts_list) {
+    std::string host;
+    std::istringstream tokenStream(hosts_list);
+    while (std::getline(tokenStream, host, ',')) {
+      hosts_list_vec.push_back(host);
+    }
   }
 
   tt::runtime::setMetalHome(metal_home);
@@ -139,15 +141,25 @@ static tt_pjrt_status launchDistributedRuntime() {
   tt::runtime::DistributedOptions distributed_options;
   distributed_options.mode = tt::runtime::DistributedMode::MultiProcess;
   distributed_options.workerPath = distributed_worker_path;
-  distributed_options.multiProcessArgs =
+  auto multiprocess_args =
       tt::runtime::MultiProcessArgs::create(rank_binding_path)
-          .withAllowRunAsRoot(true)
-          .withMcaOptions(mca_options)
-          .withControllerHostname(controller_host_name)
-          .withHosts(hosts_list_vec);
+          .withAllowRunAsRoot(true);
+  // .withMcaOptions(mca_options);
+
+  if (controller_host_name) {
+    multiprocess_args =
+        multiprocess_args.withControllerHostname(controller_host_name);
+  }
+
+  if (!hosts_list_vec.empty()) {
+    multiprocess_args = multiprocess_args.withHosts(hosts_list_vec);
+  }
+
+  distributed_options.multiProcessArgs = multiprocess_args;
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
   tt::runtime::launchDistributedRuntime(distributed_options);
+  DLOG_F(LOG_DEBUG, "ClientInstance::launchDistributedRuntime - done");
 
   return tt_pjrt_status::kSuccess;
 }
@@ -244,6 +256,8 @@ PJRT_Error *ClientInstance::initialize() {
   bool distributed_runtime =
       std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0";
+  DLOG_F(LOG_DEBUG, "ClientInstance::Initialize - distributed_runtime: %d",
+         distributed_runtime);
 
   if (distributed_runtime) {
     tt_pjrt_status launch_result = launchDistributedRuntime();
