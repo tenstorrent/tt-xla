@@ -19,6 +19,10 @@ on:
         description: 'Is release a nightly'
         type: boolean
         required: true
+      tag:
+        description: 'tag'
+        type: string
+        required: true
     outputs:
       release_tag:
         description: 'Release tag'
@@ -43,6 +47,7 @@ jobs:
       wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
       is_nightly_release: ${{ inputs.is_nightly_release }}
+      tag: ${{ inputs.tag }}
 
   build-release-docker:
     uses: ./.github/workflows/call-build-release-docker.yml
