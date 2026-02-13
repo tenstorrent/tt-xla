@@ -87,6 +87,7 @@ jobs:
   release-forge:
     uses: ./.github/workflows/call-forge-release.yml
     needs: [ release ]
+    if: ${{ always() && needs.release.outputs.release_ready == 'true' }}
     secrets: inherit
     with:
       release_tag: ${{ needs.release.outputs.release_tag }}
