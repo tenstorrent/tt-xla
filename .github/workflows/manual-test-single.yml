@@ -3,8 +3,8 @@ name: Run Test Single
 on:
   workflow_dispatch:
     inputs:
-      version_tag:
-        description: 'version_tag'
+      release_docker_image:
+        description: 'Name of the release Docker image'
         type: string
         required: true
 
@@ -16,19 +16,44 @@ permissions:
   checks: write
 
 jobs:
-  release:
-    uses: ./.github/workflows/call-release.yml
+  basic-tests:
+    uses: tenstorrent/tt-forge/.github/workflows/basic-tests.yml@vvukoman/add-fail-notify-perf-flag
     secrets: inherit
     with:
-      artifact_release_run_id: ""
-      wheel_release_artifact_name: ""
-      wheel_release_vllm_tt_artifact_name: ""
-      is_nightly_release: true
+      docker-image: ${{ inputs.release_docker_image }}
+      ref: vvukoman/add-fail-notify-perf-flag
+      project-filter: tt-xla
+      fail-notify: true
 
-  release-forge:
-    uses: ./.github/workflows/call-forge-release.yml
-    needs: [ release ]
-    if: ${{ always() && needs.release.outputs.release_ready == 'true' }}
+  perf-benchmark-n150:
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/add-fail-notify-perf-flag
     secrets: inherit
     with:
-      release_tag: "test"
+      docker-image: ${{ inputs.release_docker_image }}
+      ref: vvukoman/add-fail-notify-perf-flag
+      project: tt-xla
+      sh-runner: false
+      skip-device-perf: false
+      runs-on-filter: n150
+      fail-notify: true
+
+  perf-benchmark-llmbox:
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@vvukoman/add-fail-notify-perf-flag
+    secrets: inherit
+    with:
+      docker-image: ${{ inputs.release_docker_image }}
+      ref: vvukoman/add-fail-notify-perf-flag
+      project: tt-xla
+      sh-runner: false
+      skip-device-perf: false
+      runs-on-filter: llmbox
+      fail-notify: true
+
+  demo-test:
+    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@vvukoman/add-fail-notify-perf-flag
+    secrets: inherit
+    with:
+      docker-image: ${{ inputs.release_docker_image }}
+      ref: vvukoman/add-fail-notify-perf-flag
+      project-filter: tt-xla
+      fail-notify: true
