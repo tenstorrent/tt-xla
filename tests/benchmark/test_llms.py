@@ -13,6 +13,7 @@ from utils import create_model_loader, resolve_display_name
 
 # Defaults for all llms
 DEFAULT_OPTIMIZATION_LEVEL = 2
+DEFAULT_TP_OPTIMIZATION_LEVEL = 1
 DEFAULT_MEMORY_LAYOUT_ANALYSIS = False
 DEFAULT_TRACE_ENABLED = False
 DEFAULT_BATCH_SIZE = 32
@@ -185,6 +186,7 @@ def test_llm_tp(
         ModelLoaderModule=ModelLoaderModule,
         variant=variant,
         output_file=output_file,
+        optimization_level=DEFAULT_TP_OPTIMIZATION_LEVEL,
         mesh_config_fn=mesh_config_fn,
         shard_spec_fn=shard_spec_fn,
         arch=arch,
