@@ -64,15 +64,15 @@ jobs:
         run: exit 0
 
   release-tests:
-    # uses: ./.github/workflows/call-release-tests.yml
+    uses: ./.github/workflows/call-release-tests.yml
     needs: [ build-release-docker ]
-    # secrets: inherit
-    # with:
-    #   release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Exit 1
-        run: exit 1
+    secrets: inherit
+    with:
+      release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
+    # runs-on: ubuntu-latest
+    # steps:
+    #   - name: Exit 1
+    #     run: exit 1
 
   publish-release:
     # uses: ./.github/workflows/call-publish-release.yml
