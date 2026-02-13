@@ -76,7 +76,7 @@ jobs:
 
   publish-release:
     # uses: ./.github/workflows/call-publish-release.yml
-    if: ${{ needs.publish-release-wheel.result == 'success' && needs.build-release-docker.result == 'success' && (needs.release-tests.result == 'success' || needs.release-tests.result == 'failure') }}
+    if: ${{ always() && needs.publish-release-wheel.result == 'success' && needs.build-release-docker.result == 'success' && (needs.release-tests.result == 'success' || needs.release-tests.result == 'failure') }}
     needs: [ publish-release-wheel, build-release-docker, release-tests ]
     # secrets: inherit
     # with:
