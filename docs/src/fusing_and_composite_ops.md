@@ -15,7 +15,7 @@ The following diagram shows where fusing and composite ops fit in the compilatio
 PyTorch Model
   |
   v
-torch.compile("tt")
+Torch compilation
   |
   v
 FX Graph (torch.fx.GraphModule)
