@@ -108,6 +108,7 @@ jobs:
           tests
           venv
           examples
+          third_party/CMakeLists.txt
 
     - name: Fetch job id
       id: fetch-job-id
