@@ -108,7 +108,7 @@ Step 6: TTIR legalization
   → Compiled to TTNN and executed on hardware
 ```
 
-Without fusion, users who write their own RMSNorm implementation (rather than calling `torch.nn.functional.rms_norm` directly) would not benefit from the composite optimization. The fusion pass bridges this gap.
+Without fusion, users who write their own RMSNorm implementation rather than calling `torch.nn.functional.rms_norm` directly (e.g. LlamaRMSNorm in huggingface transformers), would not benefit from the composite optimization. The fusion pass bridges this gap.
 
 ## Composite Ops
 
