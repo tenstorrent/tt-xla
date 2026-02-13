@@ -60,6 +60,7 @@ jobs:
     secrets: inherit
     with:
       release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
+      caller_workflow: ${{ github.workflow }}
 
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
