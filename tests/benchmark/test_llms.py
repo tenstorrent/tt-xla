@@ -67,6 +67,7 @@ def test_llm(
         experimental_enable_permute_matmul_fusion: Enable permute matmul fusion optimization
         read_logits_fn: Function to extract logits from model output
         required_pcc: Required PCC threshold
+        num_layers: Number of layers to override
     """
     model_loader = create_model_loader(
         ModelLoaderModule, num_layers=num_layers, variant=variant
@@ -93,6 +94,7 @@ def test_llm(
     enable_weight_bfp8_conversion={enable_weight_bfp8_conversion}
     experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
     required_pcc={required_pcc}
+    num_layers={num_layers}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
     """
     )
@@ -185,8 +187,6 @@ def test_llm_tp(
         output_file=output_file,
         mesh_config_fn=mesh_config_fn,
         shard_spec_fn=shard_spec_fn,
-        batch_size=32,
-        input_sequence_length=128,
         arch=arch,
         num_layers=num_layers,
         request=request,
@@ -841,3 +841,21 @@ def test_llama_3_1_70b_tp(output_file, num_layers, request):
         request=request,
         required_pcc=-1.0,
     )  # https://github.com/tenstorrent/tt-xla/issues/2976
+
+
+def test_gpt_oss_20b_tp(output_file, num_layers, request):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_20B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        batch_size=16,  # https://github.com/tenstorrent/tt-xla/issues/3251
+        optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
+    )
