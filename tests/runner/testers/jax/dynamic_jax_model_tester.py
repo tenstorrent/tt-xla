@@ -11,7 +11,6 @@ from flax import linen
 from infra.evaluators import ComparisonConfig
 from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import JaxModelTester, RunMode
-from transformers import FlaxPreTrainedModel
 
 from tests.runner.utils import JaxDynamicLoader
 
@@ -120,22 +119,24 @@ class DynamicJaxModelTester(JaxModelTester):
             else:
                 loader_kwargs = self.dynamic_loader.loader.get_forward_method_kwargs()
 
-            # For HuggingFace models, merge the loader kwargs with parent kwargs
             # For custom models, the loader kwargs replace the parent kwargs
+            # Note: FlaxPreTrainedModel has been removed from transformers
+            # Check if model has 'params' attribute (typical for HF-style models)
             model = self._get_model()
-            if isinstance(model, FlaxPreTrainedModel):
-                # HuggingFace model: merge (loader provides RNG keys, parent provides inputs/params)
+            if hasattr(model, 'params'):
+                # HuggingFace-style model: merge (loader provides RNG keys, parent provides inputs/params)
                 kwargs.update(loader_kwargs)
             else:
                 # Custom model: replace (loader provides everything)
                 kwargs = loader_kwargs
 
-        # Add dropout_rng for HuggingFace models in training mode (if not already present)
+        # Add dropout_rng for HuggingFace-style models in training mode (if not already present)
         # This handles HuggingFace models that don't have a custom loader
         # Only add if the model actually accepts dropout_rng parameter
+        # Note: FlaxPreTrainedModel has been removed from transformers
         if self._run_mode == RunMode.TRAINING:
             model = self._get_model()
-            if isinstance(model, FlaxPreTrainedModel):
+            if hasattr(model, 'params'):
                 if "dropout_rng" not in kwargs:
                     # Check if the model's __call__ method accepts dropout_rng
                     sig = inspect.signature(model.__call__)
@@ -152,9 +153,10 @@ class DynamicJaxModelTester(JaxModelTester):
         """
         if hasattr(self.dynamic_loader.loader, "get_static_argnames"):
             loader_static_args = self.dynamic_loader.loader.get_static_argnames()
-            # For HuggingFace models, also check parent's logic for train/deterministic
+            # For HuggingFace-style models, also check parent's logic for train/deterministic
+            # Note: FlaxPreTrainedModel has been removed from transformers
             model = self._get_model()
-            if isinstance(model, FlaxPreTrainedModel):
+            if hasattr(model, 'params'):
                 # Get parent's static argnames (which checks model signature for train/deterministic)
                 parent_static_args = super()._get_static_argnames()
                 # Merge both lists, keeping unique values

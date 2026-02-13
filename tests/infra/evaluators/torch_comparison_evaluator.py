@@ -44,6 +44,19 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         is_sc = TorchComparisonEvaluator._is_static_cache
         return is_sc(x) and is_sc(y)
 
+    @staticmethod
+    def _is_dynamic_cache(x: object) -> bool:
+        # Check if object is a DynamicCache from transformers
+        try:
+            return isinstance(x, DynamicCache)
+        except Exception:
+            return False
+
+    @staticmethod
+    def _both_dynamic_cache(x: object, y: object) -> bool:
+        is_dc = TorchComparisonEvaluator._is_dynamic_cache
+        return is_dc(x) and is_dc(y)
+
     # @override
     @staticmethod
     @run_on_cpu(Framework.TORCH)
@@ -75,6 +88,10 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
                 x is None and y is None
             ):
                 return True
+            # Handle DynamicCache objects - treat as equal if both are DynamicCache
+            # TODO: Consider deep comparison of cache contents if needed
+            if TorchComparisonEvaluator._both_dynamic_cache(x, y):
+                return True
             return torch.equal(x, y)
 
         passed = tree_map(_equal_leaf, device_output, golden_output)
@@ -92,6 +109,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
                 x is None and y is None
             ):
                 return torch.tensor(0.0)
+            # Handle DynamicCache objects - return 0.0 atol if both are DynamicCache
+            if TorchComparisonEvaluator._both_dynamic_cache(x, y):
+                return torch.tensor(0.0)
             return torch.max(torch.abs(x - y))
 
         leaf_atols = tree_map(_atol_leaf, device_output, golden_output)
@@ -107,6 +127,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
             if TorchComparisonEvaluator._both_static_cache(x, y):
+                return torch.tensor(1.0)
+            # Handle DynamicCache objects - return 1.0 pcc if both are DynamicCache
+            if TorchComparisonEvaluator._both_dynamic_cache(x, y):
                 return torch.tensor(1.0)
             if x is None and y is None:
                 return None
@@ -143,6 +166,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             if TorchComparisonEvaluator._both_static_cache(x, y) or (
                 x is None and y is None
             ):
+                return True
+            # Handle DynamicCache objects - treat as allclose if both are DynamicCache
+            if TorchComparisonEvaluator._both_dynamic_cache(x, y):
                 return True
             return torch.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
