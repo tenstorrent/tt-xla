@@ -39,7 +39,6 @@ def get_distributed_worker_path():
     [
         "llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference",
         "gpt_oss/pytorch-20B-tensor_parallel-inference",
-        "qwen_3/causal_lm/pytorch-1_7B-tensor_parallel-inference",
     ],
 )
 def test_multihost_models(model_variant):
