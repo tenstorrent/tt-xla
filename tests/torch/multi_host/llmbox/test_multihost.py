@@ -39,16 +39,15 @@ def get_distributed_worker_path():
     [
         "llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference",
         "gpt_oss/pytorch-20B-tensor_parallel-inference",
+        "qwen_3/causal_lm/pytorch-1_7B-tensor_parallel-inference",
     ],
 )
 def test_multihost_models(model_variant):
     distributed_env = os.environ.copy()
+    distributed_env["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "1"
     distributed_env["TT_DISTRIBUTED_WORKER_PATH"] = get_distributed_worker_path()
     distributed_env["TT_RUNTIME_ENABLE_DISTRIBUTED"] = "1"
     distributed_env["TT_DISTRIBUTED_RANK_BINDING"] = "2x4_multiprocess"
-
-    # Enable C++ logging from PJRT plugin
-    distributed_env["TTXLA_LOGGER_LEVEL"] = "DEBUG"  # or "VERBOSE" for even more detail
 
     print(f"\n=== Starting multihost test for {model_variant} ===", flush=True)
 
@@ -63,9 +62,6 @@ def test_multihost_models(model_variant):
         ],
         env=distributed_env,
         cwd=os.getcwd(),
-        # don't buffer stdout/stderr to show logs in real-time
-        stdout=None,  # Changed to None to inherit directly
-        stderr=None,
     )
 
     assert (
