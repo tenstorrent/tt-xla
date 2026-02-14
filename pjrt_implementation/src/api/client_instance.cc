@@ -127,33 +127,33 @@ static tt_pjrt_status launchDistributedRuntime() {
     return tt_pjrt_status::kInternal;
   }
 
-  // const char *plm_rsh_agent = std::getenv("TT_DISTRIBUTED_PLM_RSH_AGENT");
-  // const char *btl_tcp_if_include =
-  //     std::getenv("TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE");
-  // std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
-  // if (btl_tcp_if_include) {
-  //   mca_options["btl_tcp_if_include"] = btl_tcp_if_include;
-  // }
-  // if (plm_rsh_agent) {
-  //   mca_options["plm_rsh_agent"] = plm_rsh_agent;
-  // }
+  const char *plm_rsh_agent = std::getenv("TT_DISTRIBUTED_PLM_RSH_AGENT");
+  const char *btl_tcp_if_include =
+      std::getenv("TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE");
+  std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
+  if (btl_tcp_if_include) {
+    mca_options["btl_tcp_if_include"] = btl_tcp_if_include;
+  }
+  if (plm_rsh_agent) {
+    mca_options["plm_rsh_agent"] = plm_rsh_agent;
+  }
 
   tt::runtime::DistributedOptions distributed_options;
   distributed_options.mode = tt::runtime::DistributedMode::MultiProcess;
   distributed_options.workerPath = distributed_worker_path;
   distributed_options.multiProcessArgs =
       tt::runtime::MultiProcessArgs::create(rank_binding_path)
-          .withAllowRunAsRoot(true);
-  // .withMcaOptions(mca_options);
-  // if (controller_host_name) {
-  //   multiprocess_args.withControllerHostname(controller_host_name);
-  // }
+          .withAllowRunAsRoot(true)
+          .withMcaOptions(mca_options);
 
-  // if (!hosts_list_vec.empty()) {
-  //   multiprocess_args.withHosts(hosts_list_vec);
-  // }
+  if (controller_host_name) {
+    distributed_options.multiProcessArgs->withControllerHostname(
+        controller_host_name);
+  }
 
-  // distributed_options.multiProcessArgs = multiprocess_args;
+  if (!hosts_list_vec.empty()) {
+    distributed_options.multiProcessArgs->withHosts(hosts_list_vec);
+  }
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
   tt::runtime::launchDistributedRuntime(distributed_options);
