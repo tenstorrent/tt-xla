@@ -1255,15 +1255,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ):
                 # Apply sharding constraint to logits for SPMD case.
                 # This will replicate the logits.
-                logits = sharding_constraint_tensor(
-                    logits, self.mesh, (None, None, None)
-                )
-
-            # Need to remove hack that forces greedy in sample_from_logits. https://github.com/tenstorrent/tt-xla/issues/3026
-            if not tpu_sampling_metadata.all_greedy:
-                logger.warning_once(
-                    "Sampler not supported currently, using greedy sampling. Issue #3026"
-                )
+                logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
 
             selected_token_ids = self.sample_from_logits_func(
                 logits, tpu_sampling_metadata
@@ -2020,8 +2012,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Sample with xla-friendly function. This function is to be traced
         separately from `forward` for lighter compilation overhead.
         """
-        # @LPanosTT: sampler functionalitty has issues currently, so we will always use greedy sampling
-        if sampling_metadata.all_greedy or True:
+        if sampling_metadata.all_greedy:
             out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
