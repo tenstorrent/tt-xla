@@ -577,7 +577,7 @@ test_config:
 
   mlp_mixer/pytorch-Mixer_L16_224_In21k-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false
+    # assert_pcc: false
 
   mlp_mixer/pytorch-Mixer_B16_224.goog_In21k-single_device-inference:
     status: EXPECTED_PASSING
