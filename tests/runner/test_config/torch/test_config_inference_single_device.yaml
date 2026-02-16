@@ -1280,7 +1280,7 @@ test_config:
 
   deepseek/deepseek_ocr/pytorch-Ocr-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
+    # reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
 
   deepseek/pytorch-single_device-inference:
     status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
@@ -2102,7 +2102,7 @@ test_config:
 
   maptr/pytorch-Tiny_R50_24e_Bevformer-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    # reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
 
   maptr/pytorch-Tiny_R50_24e_Bevformer_T4-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
