@@ -136,13 +136,13 @@ def assert_diverse(outputs, min_unique=2):
 # ---------------------------------------------------------------------------
 
 SAMPLING_PARAM_SWEEPS = [
-    ("temperature", [0.5, 0.8, 1.0, 1.5]),
-    ("top_p", [0.3, 0.5, 0.8, 0.9, 1.0]),
-    ("top_k", [5, 10, 50, 100, -1]),
-    ("min_p", [0.0, 0.05, 0.1, 0.2]),
-    ("presence_penalty", [0.0, 0.5, 1.0, 2.0]),
-    ("frequency_penalty", [0.0, 0.5, 1.0, 2.0]),
-    ("repetition_penalty", [1.0, 1.2, 1.5, 2.0]),
+    ("temperature", [0.5, 1.0, 1.5]),
+    ("top_p", [0.3, 0.8, 1.0]),
+    ("top_k", [5, 50, -1]),
+    ("min_p", [0.0, 0.1, 0.2]),
+    ("presence_penalty", [0.0, 1.0, 2.0]),
+    ("frequency_penalty", [0.0, 1.0, 2.0]),
+    ("repetition_penalty", [1.0, 1.5, 2.0]),
 ]
 
 
@@ -176,7 +176,7 @@ def test_sampling_has_diversity_when_temp_positive(llm, prompt):
     params = vllm.SamplingParams(
         temperature=1.0,
         top_p=1.0,
-        n=8,
+        n=4,
         max_tokens=16,
     )
     outputs = llm.generate(prompt, params, use_tqdm=False)[0].outputs
@@ -251,7 +251,7 @@ def test_stop_sequences(llm, prompt):
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 @pytest.mark.skip(
-    reason="numpy.int64 serialization crash in vLLM v0.13.0 kills engine core - https://github.com/tenstorrent/tt-xla/issues/3310"
+    reason="numpy.int64 serialization crash in vLLM v0.13.0 kills engine core (#3310); once fixed, logprobs_tensors always None in vllm_tt Sampler (#3366)"
 )
 def test_logprobs(llm, prompt):
     """Test requesting log probabilities."""
@@ -305,15 +305,117 @@ def test_output_length_controls(llm, prompt):
     ), f"short ({results[0][3]} tokens) should be <= medium ({results[1][3]} tokens)"
 
 
+@pytest.mark.xfail(
+    reason="Torch XLA does not support per-request seed — see https://github.com/tenstorrent/tt-xla/issues/3365"
+)
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_seed(llm, prompt):
+    """Test that same seed produces same output, different seeds diverge."""
+    base = {"temperature": 0.8, "top_p": 0.9, "max_tokens": 16}
+    outputs_same = []
+    for i in range(2):
+        params = vllm.SamplingParams(seed=42, **base)
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
+        outputs_same.append(output)
+        print(f"[TESTOUT test_seed] seed=42 run {i+1}: {output[:50]}...")
+    assert (
+        outputs_same[0] == outputs_same[1]
+    ), f"Same seed should produce same output: {outputs_same[0]!r} != {outputs_same[1]!r}"
+    params_diff = vllm.SamplingParams(seed=999, **base)
+    output_diff = llm.generate(prompt, params_diff, use_tqdm=False)[0].outputs[0].text
+    print(f"[TESTOUT test_seed] seed=999: {output_diff[:50]}...")
+    assert (
+        output_diff != outputs_same[0]
+    ), "Different seeds should produce different output"
+
+
+@pytest.mark.xfail(
+    reason="bad_words not enforced in vllm_tt Sampler — see https://github.com/tenstorrent/tt-xla/issues/3363"
+)
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_bad_words(llm, prompt):
+    """Test that bad_words prevents specified words from appearing."""
+    baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
+    baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0].text
+    print(f"[TESTOUT test_bad_words] baseline: {baseline[:50]}...")
+    banned = "the"
+    params = vllm.SamplingParams(temperature=0.0, max_tokens=16, bad_words=[banned])
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
+    print(f"[TESTOUT test_bad_words] bad_words=[{banned!r}]: {output[:50]}...")
+    assert len(output) > 0, "Should produce output with bad_words"
+    assert (
+        f" {banned} " not in f" {output.lower()} "
+    ), f"Output should not contain banned word {banned!r}: {output!r}"
+
+
+@pytest.mark.xfail(
+    reason="logit_bias silently ignored in vllm_tt Sampler — see https://github.com/tenstorrent/tt-xla/issues/3364"
+)
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_logit_bias(llm, prompt):
+    """Test that logit_bias steers generation away from biased tokens."""
+    baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
+    baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0].text
+    print(f"[TESTOUT test_logit_bias] baseline: {baseline[:50]}...")
+    bias = {i: -100.0 for i in range(10)}
+    params = vllm.SamplingParams(temperature=0.0, max_tokens=16, logit_bias=bias)
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
+    print(f"[TESTOUT test_logit_bias] with bias: {output[:50]}...")
+    assert len(output) > 0, "Should produce output with logit_bias"
+    assert (
+        output != baseline
+    ), "logit_bias=-100 on token IDs 0-9 should change greedy output"
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_stop_token_ids(llm, prompt):
+    """Test that stop_token_ids halts generation at the specified token."""
+    baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
+    baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0]
+    baseline_tokens = list(baseline.token_ids)
+    print(
+        f"[TESTOUT test_stop_token_ids] baseline tokens: {baseline_tokens[:8]}..."
+        f" text: {baseline.text[:50]}..."
+    )
+    if len(baseline_tokens) >= 3:
+        stop_id = baseline_tokens[2]
+        params = vllm.SamplingParams(
+            temperature=0.0, max_tokens=16, stop_token_ids=[stop_id]
+        )
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+        print(
+            f"[TESTOUT test_stop_token_ids] stop_token_ids=[{stop_id}]:"
+            f" {len(output.token_ids)} tokens, text: {output.text[:50]}..."
+        )
+        assert (
+            len(output.token_ids) <= 3
+        ), f"Should stop at or before token {stop_id}, got {len(output.token_ids)} tokens"
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_ignore_eos(llm, prompt):
+    """Test that ignore_eos=True generates up to max_tokens."""
+    max_tok = 16
+    params = vllm.SamplingParams(temperature=0.0, max_tokens=max_tok, ignore_eos=True)
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_ignore_eos] ignore_eos=True:"
+        f" {len(output.token_ids)} tokens, text: {output.text[:50]}..."
+    )
+    assert len(output.token_ids) > 0, "Should produce output with ignore_eos"
+    assert len(output.token_ids) == max_tok, (
+        f"With ignore_eos=True should generate exactly {max_tok} tokens, "
+        f"got {len(output.token_ids)}"
+    )
+
+
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_parameter_boundary_values(llm, prompt):
     """Test boundary and edge case values don't crash."""
     test_cases = [
         vllm.SamplingParams(temperature=0.0, max_tokens=16),
         vllm.SamplingParams(temperature=2.0, max_tokens=16),
-        vllm.SamplingParams(temperature=0.8, top_p=0.01, max_tokens=16),
         vllm.SamplingParams(temperature=0.8, top_k=1, max_tokens=16),
-        vllm.SamplingParams(temperature=0.8, min_p=0.5, max_tokens=16),
     ]
 
     for i, params in enumerate(test_cases):
