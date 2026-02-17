@@ -125,6 +125,7 @@ jobs:
       - name: Reset hardware and run liveness check
         shell: bash
         run: |
+          docker exec ubuntu-host-mapped bash -c "
           source venv/activate
 
           # Install tt-smi
@@ -132,23 +133,24 @@ jobs:
 
           # Reset and test in a loop - retry if liveness check fails
           MAX_ATTEMPTS=5
-          for i in $(seq 1 $MAX_ATTEMPTS); do
-            echo "Attempt $i/$MAX_ATTEMPTS: Resetting hardware..."
+          for i in \$(seq 1 \$MAX_ATTEMPTS); do
+            echo 'Attempt' \$i'/'\$MAX_ATTEMPTS': Resetting hardware...'
             tt-smi -r
             sleep 1
 
-            echo "Running liveness check (MNIST example)..."
+            echo 'Running liveness check (MNIST example)...'
             if python3 examples/pytorch/mnist.py; then
-              echo "Liveness check passed!"
+              echo 'Liveness check passed!'
               break
             else
-              echo "Liveness check failed, will retry..."
-              if [ $i -eq $MAX_ATTEMPTS ]; then
-                echo "Failed after $MAX_ATTEMPTS attempts"
+              echo 'Liveness check failed, will retry...'
+              if [ \$i -eq \$MAX_ATTEMPTS ]; then
+                echo 'Failed after '\$MAX_ATTEMPTS' attempts'
                 exit 1
               fi
             fi
           done
+          "
 
       - name: Worker Pause
         if: matrix.hostname != env.CONTROLLER_HOST
