@@ -7,10 +7,6 @@ on:
         description: 'Release tag'
         type: string
         required: true
-      is_nightly_release:
-        description: 'Is the docker a nigthly release'
-        type: boolean
-        required: true
       docker_image_base:
         description: 'Released docker image base'
         type: string
@@ -50,7 +46,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
+          if git ls-remote --tags origin "refs/tags/$tag" | grep -q "$tag"; then
+            echo "Remote tag $tag already exists"
+          elif git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
             echo "Tag $tag already exists"
           else
             git tag -a "$tag" -m "Release $tag" "$commit"
@@ -65,12 +63,15 @@ jobs:
           version_tag="${{ inputs.release_tag }}"
 
           latest_tag="latest"
-          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
+          if [[ "$version_tag" == *dev* ]]; then
             latest_tag="nightly-latest"
           fi
 
           echo "Pushing tags for $docker_image_base"
-          skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
+
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$latest_tag"
+          fi
           skopeo copy "docker://$docker_image_base:$commit_tag" "docker://$docker_image_base:$version_tag"
 
       - name: Publish github release
@@ -78,10 +79,12 @@ jobs:
         with:
           tag_name: ${{ inputs.release_tag }}
           generate_release_notes: true
-          draft: true
+          draft: false
+          prerelease: false
           body: |
             Install via pypi
             pip install pjrt-plugin-tt==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+            pip install vllm-tt==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
 
             Pull docker image
             docker pull ${{ inputs.docker_image_base }}:${{ inputs.release_tag }}

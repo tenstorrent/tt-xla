@@ -72,14 +72,14 @@ MODEL_LOADER_MAP = {
 
 AVAILABLE_VARIANT_MAP = {
     "llama": [
-        "llama_3_8b",
-        "llama_3_1_8b",
-        "llama_3_1_70b",
-        "llama_3_2_1b",
-        "llama_3_2_3b",
-        "llama_3_3_70b_instruct",
-        "huggyllama_7b",
-        "TinyLlama_v1.1",
+        "3.0_8B",
+        "3.1_8B",
+        "3.1_70B",
+        "3.2_1B",
+        "3.2_3B",
+        "3.3_70B_Instruct",
+        "Huggyllama_7B",
+        "Tinyllama_v1.1",
     ],
     "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b", "32b"],
     "qwen2_5": [
@@ -114,7 +114,7 @@ AVAILABLE_VARIANT_MAP = {
         "tiiuae/Falcon3-Mamba-7B-Base",
         "tiiuae/falcon-7b-instruct",
     ],
-    "gpt_oss": ["gpt_oss_20b", "gpt_oss_120b"],
+    "gpt_oss": ["20B", "120B"],
 }
 
 

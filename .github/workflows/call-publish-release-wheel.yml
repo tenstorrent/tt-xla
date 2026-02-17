@@ -16,7 +16,7 @@ on:
         type: string
         required: true
       is_nightly_release:
-        description: 'Is the wheel a nigthly release'
+        description: 'Is the wheel a nightly release'
         type: boolean
         required: true
       should_overwrite_release:
@@ -24,10 +24,6 @@ on:
         type: boolean
         required: false
         default: false
-      release_tag_override:
-        description: 'Release tag override'
-        type: string
-        required: false
     outputs:
       release_tag:
         description: 'Release tag'
@@ -43,20 +39,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-        # todo(vvukoman): inputs.release_tag_override is a temporary input for testing
       - name: Set tag
         shell: bash
         id: set-tag
         run: |
-          # source .version
-          # tag="$VERSION"
+          source .version
+          tag="$VERSION"
 
-          # if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
-          #   nightly_release_suffix="dev$(date -u +'%Y%m%d%H%M%S')"
-          #   tag="$VERSION.$nightly_release_suffix"
-          # fi
+          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
+            nightly_release_suffix="dev$(date -u +'%Y%m%d%H%M%S')"
+            tag="$VERSION.$nightly_release_suffix"
+          fi
 
-          tag="${{ inputs.release_tag_override }}"
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Set up Python

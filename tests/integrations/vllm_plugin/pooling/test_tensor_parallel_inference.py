@@ -13,6 +13,9 @@ from tests.integrations.vllm_plugin.pooling.utils import run_pooling_test
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.dual_chip
+@pytest.mark.skip(
+    reason="vLLM TP test leave the device in bad state after successful execution; causing subsequent tests to fail. https://github.com/tenstorrent/tt-xla/issues/3266"
+)
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
@@ -42,6 +45,9 @@ def test_tensor_parallel_n300(
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
+@pytest.mark.skip(
+    reason="vLLM TP test leave the device in bad state after successful execution; causing subsequent tests to fail. https://github.com/tenstorrent/tt-xla/issues/3266"
+)
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [

@@ -7,6 +7,10 @@ on:
         description: 'Name of the release Docker image'
         type: string
         required: true
+      caller_workflow:
+        description: 'Name of the caller workflow'
+        required: false
+        type: string
 
 jobs:
   basic-tests:
@@ -17,19 +21,79 @@ jobs:
       ref: main
       project-filter: tt-xla
 
-  perf-benchmark:
+  perf-benchmark-n150:
     uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
     secrets: inherit
     with:
       docker-image: ${{ inputs.release_docker_image }}
       ref: main
       project: tt-xla
-      sh-runner: true
+      sh-runner: false
+      skip-device-perf: false
+      runs-on-filter: n150
 
-  demo-test:
+  perf-benchmark-llmbox:
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    secrets: inherit
+    with:
+      docker-image: ${{ inputs.release_docker_image }}
+      ref: main
+      project: tt-xla
+      sh-runner: false
+      skip-device-perf: false
+      runs-on-filter: llmbox
+
+  demo-tests:
     uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
     secrets: inherit
     with:
       docker-image: ${{ inputs.release_docker_image }}
       ref: main
       project-filter: tt-xla
+
+  fail-notify:
+    if: always()
+    needs:
+      - basic-tests
+      - perf-benchmark-n150
+      - perf-benchmark-llmbox
+      - demo-tests
+    runs-on: ubuntu-latest
+    outputs:
+      is-main: ${{ steps.branch-check.outputs.is_main }}
+      is-release-process: ${{ steps.nightly-check.outputs.is_release_process }}
+      failed: ${{ steps.check.outputs.failure }}
+    steps:
+      - name: Check if branch is main
+        id: branch-check
+        run: echo "is_main=$(if [ '${{ github.ref }}' == 'refs/heads/main' ]; then echo true; else echo false; fi)" >> $GITHUB_OUTPUT
+
+      - name: Check if in the release process
+        id: nightly-check
+        shell: bash
+        run: |
+          echo "is_release_process=$(if [ "${{ inputs.caller_workflow }}" = "TT-xla release (call)" ]; then echo true; else echo false; fi)" >> $GITHUB_OUTPUT
+
+      - name: Check if the needed jobs succeeded or failed
+        id: check
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
+
+  fail-send-msg:
+    if: always()
+    needs:
+      - fail-notify
+    runs-on: Ubuntu-latest
+    steps:
+      - name: Send Fail Notification
+        if: ${{ needs.fail-notify.outputs.failed == 'true' && needs.fail-notify.outputs.is-main == 'true' && needs.fail-notify.outputs.is-release-process == 'true'}}
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Release tests tt-xla failed: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}",
+              "channel": "C088QN7E0R3"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_RELEASE_TESTS_FAIL }}
