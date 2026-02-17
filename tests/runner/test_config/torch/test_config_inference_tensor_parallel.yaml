@@ -192,3 +192,28 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on n300-llmbox"
     bringup_status: FAILED_RUNTIME
+
+  olmo3/causal_lm/pytorch-3_7b_think-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    markers: [testing]
+
+  olmo3/causal_lm/pytorch-3_7b_instruct-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    markers: [testing]
+
+  olmo3/causal_lm/pytorch-3_1025_7b-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    markers: [testing]
+
+  olmo3/causal_lm/pytorch-3_1125_32b-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    markers: [testing]
+
+  olmo3/causal_lm/pytorch-3_32b_think-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    markers: [testing]
