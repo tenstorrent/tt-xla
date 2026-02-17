@@ -35,6 +35,13 @@ def pytest_runtest_makereport(item, call):
         _needs_recreate = True
 
 
+def pytest_sessionfinish(session, exitstatus):
+    """Shut down cached LLM instances before Python tears down I/O."""
+    for name in list(_llm_cache):
+        del _llm_cache[name]
+    _llm_cache.clear()
+
+
 @pytest.fixture
 def prompt():
     return ["Once upon a time, there was a"]
