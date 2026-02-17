@@ -43,8 +43,7 @@ jobs:
         run: |
           docker run -d \
             --name ubuntu-host-mapped \
-            --user $(id -u):$(id -g) \
-            -e HOME=/tmp \
+            --privileged \
             --pid=host \
             --network=host \
             --device /dev/tenstorrent \
@@ -52,12 +51,10 @@ jobs:
             -v /dev/hugepages-1G:/dev/hugepages-1G \
             -v /etc/udev/rules.d:/etc/udev/rules.d \
             -v /lib/modules:/lib/modules \
-            -v /etc/passwd:/etc/passwd:ro \
-            -v /etc/group:/etc/group:ro \
-            -v /etc/sudoers.d:/etc/sudoers.d:ro \
             -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
             -v /mnt/dockercache:/mnt/dockercache \
-            -v /home/ttuser/.ssh:/home/ttuser/.ssh:ro \
+            -v $SSH_AUTH_SOCK:/ssh-agent \
+            -e SSH_AUTH_SOCK=/ssh-agent \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
@@ -139,23 +136,6 @@ jobs:
       #       fi
       #     done
 
-      - name: Setup SSH
-        shell: bash
-        run: |
-          docker exec ubuntu-host-mapped bash -c "
-          echo 'Setting up SSH configuration for keyless access...'
-
-          # Create SSH config in /tmp (since /home/ttuser/.ssh is read-only)
-          mkdir -p /tmp/ssh_config
-          cat > /tmp/ssh_config/config <<'EOF'
-          Host *
-            StrictHostKeyChecking no
-            UserKnownHostsFile=/dev/null
-          EOF
-
-          echo 'SSH configuration complete'
-          "
-
       - name: Worker Pause
         if: matrix.hostname != env.CONTROLLER_HOST
         shell: bash
@@ -203,7 +183,7 @@ jobs:
               # Poll until the ready file exists in the worker container
               # SSH as the configured user, then docker exec into the container
               while true; do
-                if ssh -F /tmp/ssh_config/config -o ConnectTimeout=5 \${SSH_USER}@\${remote_host} 'docker exec ubuntu-host-mapped test -f /tmp/worker_status/ready' 2>/dev/null; then
+                if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 \${SSH_USER}@\${remote_host} 'docker exec ubuntu-host-mapped test -f /tmp/worker_status/ready' 2>/dev/null; then
                   echo 'Worker' \$remote_host 'is ready!'
                   break
                 else
@@ -242,5 +222,7 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
+          docker exec ubuntu-host-mapped chown -R $(id -u):$(id -g) /workspace || true
+
           docker stop ubuntu-host-mapped || true
           docker rm ubuntu-host-mapped || true
