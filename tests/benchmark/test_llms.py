@@ -858,6 +858,6 @@ def test_gpt_oss_20b_tp(output_file, num_layers, request):
         output_file,
         num_layers=num_layers,
         request=request,
-        batch_size=16,  # https://github.com/tenstorrent/tt-xla/issues/3251
+        batch_size=32,  # https://github.com/tenstorrent/tt-xla/issues/3251
         optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
     )
