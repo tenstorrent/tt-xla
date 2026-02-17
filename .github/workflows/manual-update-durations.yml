@@ -39,6 +39,13 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Start SSH agent
+        run: |
+          eval $(ssh-agent -s)
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
+          ssh-add ~/.ssh/id_rsa || ssh-add ~/.ssh/id_ed25519 || ssh-add
+
       - name: Start container
         run: |
           docker run -d \
@@ -226,3 +233,8 @@ jobs:
 
           docker stop ubuntu-host-mapped || true
           docker rm ubuntu-host-mapped || true
+
+          # Stop SSH agent
+          if [ -n "$SSH_AGENT_PID" ]; then
+            kill $SSH_AGENT_PID || true
+          fi
