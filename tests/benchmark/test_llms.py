@@ -187,7 +187,6 @@ def test_llm_tp(
     else:
         optimization_level = DEFAULT_TP_OPTIMIZATION_LEVEL
 
-
     test_llm(
         ModelLoaderModule=ModelLoaderModule,
         variant=variant,
