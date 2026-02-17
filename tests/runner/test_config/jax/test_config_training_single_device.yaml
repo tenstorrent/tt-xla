@@ -143,16 +143,20 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
 
   gpt2/causal_lm/jax-base-single_device-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
 
   gpt2/causal_lm/jax-large-single_device-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
 
   gpt2/causal_lm/jax-medium-single_device-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
 
   gpt2/causal_lm/jax-xl-single_device-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
     markers: [large, nightly]
 
   gpt_j/causal_lm/jax-6b-single_device-training:

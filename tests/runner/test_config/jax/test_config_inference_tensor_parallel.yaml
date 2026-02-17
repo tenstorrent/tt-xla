@@ -27,9 +27,8 @@ test_config:
 
   falcon/jax-tiiuae/Falcon3-1B-Base-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=0.066 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   falcon/jax-tiiuae/Falcon3-3B-Base-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -39,15 +38,13 @@ test_config:
 
   qwen_2_5/causal_lm/jax-0_5b-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.011 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-0_5b_instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.036 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-1_5b-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -57,21 +54,18 @@ test_config:
 
   qwen_2_5/causal_lm/jax-1_5b_instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.019 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-3b-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.0005 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-3b_instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.001 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-7b-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -87,33 +81,28 @@ test_config:
 
   qwen_2_5_coder/causal_lm/jax-0_5b-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=0.0073 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-1_5b-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.054 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-1_5b_instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.025 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-3b-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=0.012 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-3b_instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.004 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-7b-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -129,21 +118,18 @@ test_config:
 
   qwen_3/causal_lm/jax-0_6b-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.018 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_3/causal_lm/jax-1_7b-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=0.004 < 0.99 required. n300 OOM"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_3/causal_lm/jax-4b-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=0.0005 < 0.99 required. n300 OOM"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   mnist/image_classification/jax-mlp_custom_1x2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -195,27 +181,23 @@ test_config:
 
   phi1/causal_lm/jax-microsoft/phi-1-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.01 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
 
   phi1_5/causal_lm/jax-microsoft/phi-1_5-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=0.006 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
 
   phi2/causal_lm/jax-microsoft/phi-2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.012 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
 
   phi2/causal_lm/jax-microsoft/phi-2-pytdml-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=-0.012 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
 
   phi3/causal_lm/jax-microsoft/Phi-3-mini-128k-instruct-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
