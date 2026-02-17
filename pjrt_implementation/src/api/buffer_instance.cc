@@ -109,6 +109,9 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Memory = internal::onBufferMemory;
 }
 
+// TODO(acolic): We are returning whole runtime tensors size which might be
+// constructed from any number of shards. Return just single shard size without
+// calling runtime for tensor volume.
 size_t BufferInstance::tensorSize() {
   size_t tensor_volume = tt::runtime::getTensorVolume(runtimeTensor());
 
@@ -326,8 +329,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       m_pjrt_tensor->move_to_host();
 
       assert(tensorSize() <= host_buffer_size && "Host buffer is too small.");
-      tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
-                          rt_data_type);
+      tt::runtime::memcpy(host_buffer, runtimeTensor(), rt_data_type);
 
       e->markAsReady(tt_pjrt_status::kSuccess);
 

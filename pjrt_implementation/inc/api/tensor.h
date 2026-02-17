@@ -12,12 +12,16 @@
 #define TT_XLA_PJRT_IMPLEMENTATION_INC_API_TENSOR_H_
 
 // c++ standard library includes
+#include <iterator>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <variant>
 #include <vector>
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
+#include "tt/runtime/types.h"
 
 namespace tt::pjrt {
 
@@ -74,11 +78,40 @@ public: // Constructors needs to be public for std::shared_ptr.
   PjrtTensor(PjrtTensor &&other) noexcept = delete;
   PjrtTensor &operator=(PjrtTensor &&other) noexcept = delete;
 
-  std::vector<BufferInstance *> &shards() { return m_shards; };
-  const std::vector<BufferInstance *> &shards() const { return m_shards; };
+  // Returns underlying runtime tensor. User should check whether tensor is
+  // prepared.
+  tt::runtime::Tensor &runtime_tensor() {
 
-  tt::runtime::Tensor &runtime_tensor() { return m_runtime_tensor; }
-  const tt::runtime::Tensor &runtime_tensor() const { return m_runtime_tensor; }
+    assert(prepared());
+    return std::get<tt::runtime::Tensor>(m_runtime_tensor);
+  }
+
+  const tt::runtime::Tensor &runtime_tensor() const {
+
+    assert(prepared());
+    return std::get<tt::runtime::Tensor>(m_runtime_tensor);
+  }
+
+  // Returns underlying runtime tensor for provided shard.
+  //
+  // If we have single runtime tensor, it means that this is a single sharded
+  // tensor or that tensor was created from some sharding strategy so it does
+  // not matter which shard asked for it.
+  // Otherwise, we need to find shard offset in shards vector and return runtime
+  // tensor from tensors at the same offset.
+  tt::runtime::Tensor &runtime_tensor(const BufferInstance *shard) {
+    if (prepared())
+      return runtime_tensor();
+
+    return runtime_tensors().at(shard_offset(shard));
+  }
+
+  const tt::runtime::Tensor &runtime_tensor(const BufferInstance *shard) const {
+    if (prepared())
+      return runtime_tensor();
+
+    return runtime_tensors().at(shard_offset(shard));
+  }
 
   uint64_t uid() const noexcept { return m_uid; }
 
@@ -110,6 +143,31 @@ private:
       const std::unordered_map<std::string, std::string> &strategy,
       const std::vector<std::uint32_t> &mesh_shape);
 
+  // Returns whether tensor if prepared.
+  //
+  // Prepared tensor means that we have created single runtime tensor from
+  // shards and m_runtime_tensor will hold runtime tensor instead of vector of
+  // runtime tensors.
+  bool prepared() const noexcept {
+    return std::holds_alternative<tt::runtime::Tensor>(m_runtime_tensor);
+  }
+
+  std::vector<tt::runtime::Tensor> &runtime_tensors() {
+    return std::get<std::vector<tt::runtime::Tensor>>(m_runtime_tensor);
+  }
+  const std::vector<tt::runtime::Tensor> &runtime_tensors() const {
+    return std::get<std::vector<tt::runtime::Tensor>>(m_runtime_tensor);
+  }
+
+  // Returns shard offset within shards vector.
+  size_t shard_offset(const BufferInstance *shard) const noexcept {
+
+    auto it = std::find(m_shards.begin(), m_shards.end(), shard);
+    assert(it != m_shards.end());
+
+    return std::distance(m_shards.begin(), it);
+  }
+
 private:
   // Tensor unique identifier. For now, used for debug only.
   const uint64_t m_uid;
@@ -117,8 +175,12 @@ private:
   // Tensor shards. Each shard hold pjrt tensor reference to this pjrt tensor.
   std::vector<BufferInstance *> m_shards;
 
-  // Underlying runtime tensor.
-  tt::runtime::Tensor m_runtime_tensor;
+  // Represents runtime tensor.
+  std::variant<tt::runtime::Tensor, std::vector<tt::runtime::Tensor>>
+      m_runtime_tensor;
+
+  // Mutex protecting movement of device runtime tensor to host.
+  std::mutex m_mutex;
 };
 
 // Shared pointer to pjrt tensor used by all shards that holds tensor.

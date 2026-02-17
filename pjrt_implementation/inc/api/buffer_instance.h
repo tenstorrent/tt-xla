@@ -159,10 +159,10 @@ public:
   const PjrtTensorRef &getPjrtTensor() const { return m_pjrt_tensor; };
 
   const tt::runtime::Tensor &runtimeTensor() const {
-    return m_pjrt_tensor->runtime_tensor();
+    return m_pjrt_tensor->runtime_tensor(this);
   }
   tt::runtime::Tensor &runtimeTensor() {
-    return m_pjrt_tensor->runtime_tensor();
+    return m_pjrt_tensor->runtime_tensor(this);
   }
 
 private:
