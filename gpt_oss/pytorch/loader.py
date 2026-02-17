@@ -96,12 +96,23 @@ class ModelLoader(ForgeModel):
         )
         return self.tokenizer
 
-    def load_model(self, dtype_override=None):
+    def load_model(
+        self,
+        dtype_override=None,
+        mlp_type="a2a_sparse",
+        num_devices=8,
+        cluster_axis=-1,
+        flat_device_order=None,
+    ):
         """Load and return the gpt-oss model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use bfloat16 as default.
+            mlp_type: MLP implementation to use. One of "original", "sparse", "a2a_sparse".
+            num_devices: Number of devices for A2aSparseMLP dispatch/combine.
+            cluster_axis: Mesh axis for A2aSparseMLP dispatch/combine.
+            flat_device_order: Optional device order permutation for A2aSparseMLP.
 
         Returns:
             torch.nn.Module: The gpt-oss model instance for causal language modeling.
@@ -128,6 +139,25 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name, **model_kwargs
         )
         model.eval()
+        self.mlp_type = mlp_type
+        # Replace MLP layers if requested
+        if mlp_type == "sparse":
+            import tt_torch.sparse_mlp
+            
+            tt_torch.sparse_mlp.enable_sparse_mlp(model)
+        elif mlp_type == "a2a_sparse":
+            from tt_torch.sparse_mlp import A2aSparseMLP
+
+            for layer in model.model.layers:
+                layer.mlp = A2aSparseMLP(
+                    layer.mlp,
+                    num_experts=self.config.num_local_experts,
+                    num_experts_per_tok=self.config.num_experts_per_tok,
+                    num_devices=num_devices,
+                    cluster_axis=cluster_axis,
+                    config=self.config,
+                    flat_device_order=flat_device_order,
+                )
 
         return model
 
@@ -145,7 +175,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        # Create tokenized inputs
+        # Create tokenized inputs (single sample)
         inputs = self.tokenizer.apply_chat_template(
             self.messages,
             add_generation_prompt=True,
@@ -155,6 +185,9 @@ class ModelLoader(ForgeModel):
             padding="max_length",
             max_length=128,
         )
+
+        # Repeat to batch_size=4
+        # inputs = {k: v.repeat(4, 1) for k, v in inputs.items()}
 
         return inputs
 
@@ -167,8 +200,8 @@ class ModelLoader(ForgeModel):
         Returns:
             Tuple of (mesh_shape, axis_names)
         """
-        mesh_shape = (1, num_devices)
-        return mesh_shape, ("batch", "model")
+        mesh_shape = (2, 4)
+        return mesh_shape, ("model", "batch")
 
     def load_shard_spec(self, model):
         """Load shard specifications for tensor parallelism.
@@ -180,36 +213,61 @@ class ModelLoader(ForgeModel):
             Dictionary mapping model parameters to their shard specifications,
             or None if sharding is not needed for this variant
         """
+        # Sharding Strategy:
+        # - Mesh: ("model"=2, "batch"=4) = 8 devices
+        # - hidden_dim is consistently sharded on "batch" axis (2-way TP)
+        # - Expert dim is sharded on "model" axis (4-way EP)
+        # - K dimension sharding triggers all-reduce automatically
+
         shard_specs = {}
+
+        # ===== Embedding & LM Head =====
+        # (vocab_size, hidden_dim) -> hidden/"batch" for consistent sharding
+        shard_specs[model.lm_head.weight] = (None, "batch")
+        shard_specs[model.model.embed_tokens.weight] = (None, "batch")
+        shard_specs[model.model.norm.weight] = ("batch",)
+
         for layer in model.model.layers:
-            # Self-attention weights
-            # q_proj, k_proj, v_proj: column-wise sharding
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
-            # o_proj: row-wise sharding
-            shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+            # ===== Layer Norms =====
+            # (hidden_dim,) -> hidden/"batch" for consistent sharding
+            shard_specs[layer.input_layernorm.weight] = ("batch",)
+            shard_specs[layer.post_attention_layernorm.weight] = ("batch",)
+            # ===== Self-Attention =====
+            # Q/K/V: (heads*head_dim, hidden) -> 2D sharding
+            #   - output dim (heads): "model" (4-way)
+            #   - input dim (hidden): "batch" (2-way, K shard -> all-reduce)
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
+            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
+            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
+
+            # O: (hidden, heads*head_dim) -> 2D sharding (reversed)
+            #   - output dim (hidden): "batch" (2-way)
+            #   - input dim (heads): "model" (4-way)
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+            shard_specs[layer.self_attn.o_proj.bias] = (None,)
             shard_specs[layer.self_attn.sinks] = (None,)
 
-            # MoE MLP components
-            # Router is replicated across all devices
-            shard_specs[layer.mlp.router.weight] = (None, None)
+            # ===== MoE MLP =====
+            # Router: (num_experts, hidden) -> hidden/"batch" for K shard
+            shard_specs[layer.mlp.router.weight] = (None, "batch")
+            # shard_specs[layer.mlp.router.bias] = ("batch",)
+            
+            # if self.mlp_type is None or self.mlp_type == "sparse":
+            if True:
+                shard_specs[layer.mlp.experts.gate_up_proj] = (("model", "batch"), None, None)
+                shard_specs[layer.mlp.experts.gate_up_proj_bias] = (("model", "batch"), None)
 
-            # Expert weights - sharded across the expert dimension
-            # These are 3D tensors with shape (num_experts, hidden_size, intermediate_size)
-            shard_specs[layer.mlp.experts.gate_up_proj] = (
-                "model",
-                None,
-                None,
-            )
-            shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
-            shard_specs[layer.mlp.experts.down_proj] = (
-                "model",
-                None,
-                None,
-            )
-            shard_specs[layer.mlp.experts.down_proj_bias] = ("model", None)
+                shard_specs[layer.mlp.experts.down_proj] = (("model", "batch"), None, None)
+                shard_specs[layer.mlp.experts.down_proj_bias] = (("model", "batch"), None)
+            else :
+                shard_specs[layer.mlp.experts.gate_up_proj] = (None, ("model", "batch"), None, None)
+                shard_specs[layer.mlp.experts.gate_up_proj_bias] = (("model", "batch"), None)
 
+                shard_specs[layer.mlp.experts.down_proj] = (None, ("model", "batch"), None, None)
+                shard_specs[layer.mlp.experts.down_proj_bias] = (("model", "batch"), None)
         return shard_specs
 
     def load_config(self):
