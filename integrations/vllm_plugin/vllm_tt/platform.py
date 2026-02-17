@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
-from vllm.attention.backends.registry import AttentionBackendEnum
 from vllm.inputs import ProcessorInputs, PromptType
 from vllm.platforms.interface import Platform, PlatformEnum
+from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
 if TYPE_CHECKING:
     from typing import TypeAlias
