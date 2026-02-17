@@ -101,7 +101,7 @@ class ModelLoader(ForgeModel):
         dtype_override=None,
         mlp_type="a2a_sparse",
         num_devices=8,
-        cluster_axis=-1,
+        cluster_axis=0,
         flat_device_order=None,
     ):
         """Load and return the gpt-oss model instance for this instance's variant.
@@ -153,10 +153,12 @@ class ModelLoader(ForgeModel):
                     layer.mlp,
                     num_experts=self.config.num_local_experts,
                     num_experts_per_tok=self.config.num_experts_per_tok,
-                    num_devices=num_devices,
-                    cluster_axis=cluster_axis,
+                    num_devices=8,
+                    dispatch_devices=2,
+                    cluster_axis=0,
+                    # reduce_axis=1,
                     config=self.config,
-                    flat_device_order=flat_device_order,
+                    # flat_device_order=flat_device_order,
                 )
 
         return model
