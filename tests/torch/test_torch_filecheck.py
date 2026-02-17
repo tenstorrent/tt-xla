@@ -136,6 +136,19 @@ def test_builder_build_ttir_module():
     assert "tensor<32x32xf32>" in asm
 
 
+def _inputs_path_from_mlir_path(mlir_file_path: str) -> str:
+    """Derive saved inputs path from MLIR path (e.g. ..._ttir.mlir -> ..._inputs.pt)."""
+    import re
+    return re.sub(r"_(ttir|ttnn)\.mlir$", "_inputs.pt", mlir_file_path)
+
+
+def _first_func_name_from_mlir(mlir_text: str) -> str:
+    """Return the first func.func name in MLIR (e.g. 'main')."""
+    import re
+    m = re.search(r"func\.func\s+@(\w+)\s*\(", mlir_text)
+    return m.group(1) if m else "main"
+
+
 # Run test_op_graph_filecheck[op-False] before running this test so that the mlir files are generated.
 @pytest.mark.parametrize("target,mlir_file_path", [("ttir", "output_artifact/test_op_graph_filecheck_op_False_ttir.mlir"), ("ttnn", "output_artifact/test_op_graph_filecheck_op_False_ttnn.mlir")    ])
 def test_serialize_and_builder_integration(target, mlir_file_path):
@@ -144,7 +157,8 @@ def test_serialize_and_builder_integration(target, mlir_file_path):
 
     import os
 
-    import torch_xla.core.xla_model as xm
+    import torch
+
     from builder.base.builder_apis import (
         compile_ttir_module_to_flatbuffer,
         load_mlir_file,
@@ -160,7 +174,17 @@ def test_serialize_and_builder_integration(target, mlir_file_path):
     with open(mlir_file_path, "r") as f:
         mlir_ir_string = f.read()
 
-    module, builder = load_mlir_file(mlir_ir_string, target=target)
+    golden_inputs = None
+    inputs_path = _inputs_path_from_mlir_path(mlir_file_path)
+    if os.path.exists(inputs_path):
+        data = torch.load(inputs_path, weights_only=True)
+        input_tensors = data["input_tensors"]
+        func_name = _first_func_name_from_mlir(mlir_ir_string)
+        golden_inputs = {func_name: input_tensors}
+
+    module, builder = load_mlir_file(
+        mlir_ir_string, target=target, golden_inputs=golden_inputs
+    )
     print(module)
 
     builder_module_list = split_mlir_file(module, builder)

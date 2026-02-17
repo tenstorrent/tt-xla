@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
+import torch
 import torch_xla.runtime as xr
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.utilities import Framework, Mesh, Model
@@ -114,6 +115,9 @@ class Workload:
             self.execute()
             parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
 
+            # Save input tensors so builder integration can reuse them for goldens
+            self._save_inputs_for_builder(output_prefix)
+
             # Recreate the cache directory after parsing
             Path(cache_dir).mkdir(parents=True, exist_ok=True)
 
@@ -121,3 +125,16 @@ class Workload:
             raise ValueError(
                 f"Unsupported framework for serialization: {self.framework}"
             )
+
+    def _save_inputs_for_builder(self, output_prefix: str) -> None:
+        """Save workload args as CPU tensors for builder golden reuse. Torch only."""
+        input_tensors = []
+        for a in self.args:
+            if isinstance(a, torch.Tensor):
+                input_tensors.append(a.detach().cpu().clone())
+            else:
+                input_tensors.append(a)
+        if input_tensors:
+            path = Path(f"{output_prefix}_inputs.pt")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save({"input_tensors": input_tensors}, path)
