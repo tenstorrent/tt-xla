@@ -1,12 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
-#
-# SPDX-License-Identifier: Apache-2.0
-
 #!/bin/bash
-# Reference from metal: https://github.com/tenstorrent/tt-metal/commit/8c8b385e58a4a262dd98
-# To be used for mca option plm_rsh_agent script path
-
-# MPI passes the hostname as the first argument
 HOST=$1
 shift
 
@@ -16,18 +8,12 @@ REMOTE_COMMAND="$*"
 # Get SSH user from environment or default to ttuser
 SSH_USER=${SSH_USER:-ttuser}
 
-# Use SSH config from /tmp if it exists (set up by workflow), otherwise use default options
-if [ -f /tmp/ssh_config/config ]; then
-  SSH_CONFIG_OPT="-F /tmp/ssh_config/config"
-else
-  # SSH Options:
-  # StrictHostKeyChecking=no: Don't ask to verify the host
-  # UserKnownHostsFile=/dev/null: Don't write to or check the global known_hosts file
-  # LogLevel=ERROR: Suppress the "Warning: Permanently added..." message for a cleaner MPI output
-  SSH_CONFIG_OPT="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-fi
+# SSH Options:
+# StrictHostKeyChecking=no: Don't ask to verify the host
+# UserKnownHostsFile=/dev/null: Don't write to or check the global known_hosts file
+# LogLevel=ERROR: Suppress the "Warning: Permanently added..." message for a cleaner MPI output
+SSH_CONFIG_OPT="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
 # Use bash -c inside docker exec to handle the complex MPI environment string
 ssh $SSH_CONFIG_OPT -l $SSH_USER "$HOST" docker exec \
-  -e LD_LIBRARY_PATH=/opt/ttmlir-toolchain/lib:/lib/x86_64-linux-gnu \
   ubuntu-host-mapped bash -c "'$REMOTE_COMMAND'"
