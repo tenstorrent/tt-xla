@@ -71,14 +71,11 @@ from vllm.v1.outputs import (
     LogprobsTensors,
     ModelRunnerOutput,
 )
-from vllm.v1.sample.tpu.metadata import TPUSupportedSamplingMetadata
-from vllm.v1.sample.tpu.sampler import Sampler as TPUSampler
 from vllm.v1.worker.kv_connector_model_runner_mixin import (
     KVConnectorModelRunnerMixin,
     KVConnectorOutput,
 )
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
-from vllm.v1.worker.tpu_input_batch import CachedRequestState, InputBatch
 from vllm.v1.worker.utils import (
     MultiModalBudget,
     add_kv_sharing_layers_to_kv_cache_groups,
@@ -92,9 +89,12 @@ from .attention import (
     TTMetadata,
     get_page_size_bytes,
 )
+from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
+from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
 from .platform import TTConfig
+from .sampler import Sampler
 from .vllm_distributed_utils import shard_model
 
 
@@ -344,6 +344,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             vocab_size=self.model_config.get_vocab_size(),
             block_sizes=[self.block_size],
             kernel_block_sizes=[self.block_size],
+            is_pooling_model=False,
         )
 
         # Cached torch/numpy tensor
@@ -1233,7 +1234,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
-            tpu_sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
+            tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
                 self.device,
@@ -1460,7 +1461,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.model = model
 
         self.model.compile(backend="tt", dynamic=False)
-        self.sampler = TPUSampler()
+        self.sampler = Sampler()
         logger.info(f"Compiled model: \n{self.model}")
 
     def reload_weights(self) -> None:
@@ -1719,7 +1720,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # because some operations in the sampler require it to be static.
         for all_greedy in [False, True]:
             generate_params_if_all_greedy = not all_greedy
-            sampling_metadata = TPUSupportedSamplingMetadata.from_input_batch(
+            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
                 self.device,
@@ -1910,6 +1911,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 kernel_block_sizes=[
                     kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
                 ],
+                is_pooling_model=False,
             )
         # Verify dtype compatibility between block_table_cpu and input_batch
         assert (
@@ -2006,7 +2008,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     #       Re-enable the torch.compile once the issue is fixed in torchxla.
     # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def sample_from_logits(
-        self, logits: torch.Tensor, sampling_metadata: TPUSupportedSamplingMetadata
+        self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
     ) -> torch.Tensor:
         """
         Sample with xla-friendly function. This function is to be traced
