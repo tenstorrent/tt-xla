@@ -136,7 +136,12 @@ def test_builder_build_ttir_module():
     assert "tensor<32x32xf32>" in asm
 
 
-def test_serialize_and_builder_integration(request):
+# Run test_op_graph_filecheck[op-False] before running this test so that the mlir files are generated.
+@pytest.mark.parametrize("target,mlir_file_path", [("ttir", "output_artifact/test_op_graph_filecheck_op_False_ttir.mlir"), ("ttnn", "output_artifact/test_op_graph_filecheck_op_False_ttnn.mlir")    ])
+def test_serialize_and_builder_integration(target, mlir_file_path):
+    if target == "ttnn":
+        pytest.skip("TTNN target is not supported yet for this op test")
+
     import os
 
     import torch_xla.core.xla_model as xm
@@ -146,50 +151,35 @@ def test_serialize_and_builder_integration(request):
         split_mlir_file,
     )
     from builder.base.builder_runtime import execute_fb
+    import _ttmlir_runtime as tt_runtime
 
-    class LinearModel(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.linear = torch.nn.Linear(32, 32, bias=False, dtype=torch.bfloat16)
-
-        def forward(self, x):
-            return self.linear(x) + x
-
-    model = LinearModel()
-    input = torch.randn(32, 32, dtype=torch.bfloat16)
-    run_graph_test(model, [input], framework=Framework.TORCH, request=request)
     assert os.path.exists(
-        "output_artifact/test_serialize_and_builder_integration_ttir.mlir"
+        mlir_file_path
     )
-
-    mlir_file_path = "output_artifact/test_serialize_and_builder_integration_ttir.mlir"
 
     with open(mlir_file_path, "r") as f:
         mlir_ir_string = f.read()
 
-    module, builder = load_mlir_file(mlir_ir_string, target="ttir")
+    module, builder = load_mlir_file(mlir_ir_string, target=target)
     print(module)
 
     builder_module_list = split_mlir_file(module, builder)
-    for builder_module, builder_module_builder in builder_module_list:
-        print(builder_module)
 
-    # for split_module, split_builder in builder_module_list:
-    #     print("-------------- Running test for split module: --------------")
-    #     print(split_module)
-    #     import _ttmlir_runtime as tt_runtime
+    tt_runtime.runtime.set_current_device_runtime(tt_runtime.runtime.DeviceRuntime.TTNN)
+    mesh_options = tt_runtime.runtime.MeshDeviceOptions()
+    mesh_options.dispatch_core_type = tt_runtime.runtime.DispatchCoreType.ETH
+    mesh_options.mesh_shape = (1, 1)
+    device = tt_runtime.runtime.open_mesh_device(mesh_options)
 
-    #     tt_runtime.runtime.set_current_device_runtime(tt_runtime.runtime.DeviceRuntime.TTNN)
-    #     mesh_options = tt_runtime.runtime.MeshDeviceOptions()
-    #     mesh_options.dispatch_core_type = tt_runtime.runtime.DispatchCoreType.ETH
-    #     mesh_options.mesh_shape = (1, 1)
-    #     device = tt_runtime.runtime.open_mesh_device(mesh_options)
+    for split_module, split_builder in builder_module_list:
+        print("-------------- Running test for split module: --------------")
+        
+        print(split_module)
+        compiled_bin, input_output_goldens, intermediate_goldens = compile_ttir_module_to_flatbuffer(
+            split_module,
+            split_builder,
+        )
 
-    #     compiled_bin, input_output_goldens, intermediate_goldens = compile_ttir_module_to_flatbuffer(
-    #         split_module,
-    #         split_builder,
-    #     )
+        execute_fb(compiled_bin, input_output_goldens, intermediate_goldens, device=device)
 
-    #     execute_fb(compiled_bin, input_output_goldens, intermediate_goldens, device=device)
-
-    # tt_runtime.runtime.close_mesh_device(device)
+    tt_runtime.runtime.close_mesh_device(device)
