@@ -342,6 +342,62 @@ def copy_default(
     return src_converted.expand(dst.shape).clone()
 
 
+def slice(
+    input: torch.Tensor,
+    dim: int = 0,
+    start: int = 0,
+    end: int = 9223372036854775807,
+    step: int = 1,
+) -> torch.Tensor:
+    """
+    Custom decomposition for aten.slice.Tensor that handles out-of-range slice indices.
+    This decomposition normalizes slice indices to the actual tensor dimensions
+    and uses index_select to avoid recursion issues with narrow/slice.
+
+    Args:
+        input: Input tensor to slice
+        dim: Dimension to slice along
+        start: Start index (can be negative)
+        end: End index (can be negative or INT64_MAX)
+        step: Step size (default 1)
+
+    Returns:
+        Sliced tensor with normalized indices
+    """
+    # Get the size of the dimension we're slicing
+    dim_size = input.shape[dim]
+
+    # Normalize start index
+    if start < 0:
+        # Convert negative index to positive, clamped to [0, dim_size]
+        normalized_start = max(0, dim_size + start)
+    else:
+        # Clamp positive index to dimension size
+        normalized_start = min(start, dim_size)
+
+    # Normalize end index
+    if end < 0:
+        normalized_end = max(0, dim_size + end)
+    else:
+        normalized_end = min(end, dim_size)
+
+    # Calculate the length of the slice
+    length = normalized_end - normalized_start
+
+    if length <= 0:
+        # Empty slice - return a zero-sized tensor
+        shape = list(input.shape)
+        shape[dim] = 0
+        return input.new_empty(shape)
+
+    # Use index_select with torch.arange to avoid recursion
+    # This creates indices [normalized_start, normalized_start+1, ..., normalized_end-1]
+    indices = torch.arange(
+        normalized_start, normalized_end, step, dtype=torch.long, device=input.device
+    )
+    return torch.index_select(input, dim, indices)
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
@@ -404,6 +460,7 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.repeat.default: repeat,
         torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
+        aten.slice.Tensor: slice,
     }
 
 
