@@ -9,9 +9,48 @@ import pytest
 import vllm
 from conftest import TEST_TIMEOUT_SECONDS, get_or_create_llm
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_TARGET_MARKS = {
+    "single_device": ("vllm_single_device", [pytest.mark.single_device]),
+    "n300": ("vllm_n300", [pytest.mark.tensor_parallel, pytest.mark.dual_chip]),
+    "n300_llmbox": (
+        "vllm_n300_llmbox",
+        [pytest.mark.tensor_parallel, pytest.mark.llmbox],
+    ),
+}
+
+
+# maps target id -> (fixture name, base marks)
+def for_targets(**kwargs):
+    """Parametrize a test across hardware targets with per-target CI tier.
+
+    Pass ``target_id="tier"`` or ``target_id=("tier", extra_mark, ...)``
+    for xfail / skip on individual targets.
+    """
+    params = []
+    for target_id, tier_or_tuple in kwargs.items():
+        if isinstance(tier_or_tuple, tuple):
+            tier, *extra_marks = tier_or_tuple
+        else:
+            tier = tier_or_tuple
+            extra_marks = []
+        fixture, base_marks = _TARGET_MARKS[target_id]
+        all_marks = base_marks + [getattr(pytest.mark, tier)] + extra_marks
+        params.append(pytest.param(fixture, id=target_id, marks=all_marks))
+    return pytest.mark.parametrize("llm", params, indirect=True)
+
 
 @pytest.fixture
-def llm():
+def llm(request):
+    """Resolve the LLM fixture by name (used with indirect parametrize)."""
+    return request.getfixturevalue(request.param)
+
+
+@pytest.fixture(scope="module")
+def vllm_single_device():
     return get_or_create_llm(
         "opt_125m",
         model="facebook/opt-125m",
@@ -25,6 +64,40 @@ def llm():
         additional_config={
             "enable_const_eval": False,
             "min_context_len": 32,
+        },
+    )
+
+
+@pytest.fixture(scope="module")
+def vllm_n300():
+    return get_or_create_llm(
+        "llama_3b",
+        model="meta-llama/Llama-3.2-3B",
+        max_num_batched_tokens=128,
+        max_num_seqs=1,
+        max_model_len=128,
+        gpu_memory_utilization=0.002,
+        additional_config={
+            "enable_const_eval": False,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+        },
+    )
+
+
+@pytest.fixture(scope="module")
+def vllm_n300_llmbox():
+    return get_or_create_llm(
+        "qwen3_0_6b",
+        model="Qwen/Qwen3-0.6B",
+        max_num_batched_tokens=128,
+        max_num_seqs=1,
+        max_model_len=128,
+        gpu_memory_utilization=0.002,
+        additional_config={
+            "enable_const_eval": False,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
         },
     )
 
@@ -58,6 +131,10 @@ def assert_diverse(outputs, min_unique=2):
     ), f"Expected >= {min_unique} unique outputs, got {unique}: {outputs}"
 
 
+# ---------------------------------------------------------------------------
+# Sweep Tests
+# ---------------------------------------------------------------------------
+
 SAMPLING_PARAM_SWEEPS = [
     ("temperature", [0.5, 0.8, 1.0, 1.5]),
     ("top_p", [0.3, 0.5, 0.8, 0.9, 1.0]),
@@ -69,8 +146,7 @@ SAMPLING_PARAM_SWEEPS = [
 ]
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 @pytest.mark.parametrize(
     "param_name,values",
     SAMPLING_PARAM_SWEEPS,
@@ -94,8 +170,7 @@ def test_sampling_param_sweep(llm, prompt, param_name, values):
     assert_diverse(outputs)
 
 
-@pytest.mark.push
-@pytest.mark.single_device
+@for_targets(single_device="push", n300="push", n300_llmbox="push")
 def test_sampling_has_diversity_when_temp_positive(llm, prompt):
     """Test that n>1 with temperature>0 produces diverse outputs in a single call."""
     params = vllm.SamplingParams(
@@ -113,8 +188,7 @@ def test_sampling_has_diversity_when_temp_positive(llm, prompt):
     assert_diverse(texts)
 
 
-@pytest.mark.push
-@pytest.mark.single_device
+@for_targets(single_device="push", n300="push", n300_llmbox="push")
 def test_greedy_determinism(llm, prompt):
     """Verify greedy sampling (temperature=0) is deterministic."""
     params = vllm.SamplingParams(temperature=0.0, max_tokens=20)
@@ -130,8 +204,7 @@ def test_greedy_determinism(llm, prompt):
     ), "Greedy sampling must be deterministic"
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_combined_sampling(llm, prompt):
     """Test realistic combinations of sampling parameters."""
     configs = [
@@ -152,8 +225,7 @@ def test_combined_sampling(llm, prompt):
     assert_diverse(outputs)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_stop_sequences(llm, prompt):
     """Test early stopping with stop strings."""
     stop_configs = [
@@ -177,8 +249,7 @@ def test_stop_sequences(llm, prompt):
     assert_diverse(outputs)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 @pytest.mark.skip(
     reason="numpy.int64 serialization crash in vLLM v0.13.0 kills engine core - https://github.com/tenstorrent/tt-xla/issues/3310"
 )
@@ -203,8 +274,7 @@ def test_logprobs(llm, prompt):
             assert len(result.logprobs) > 0, "Should have logprob entries"
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_output_length_controls(llm, prompt):
     """Test min_tokens and max_tokens parameters."""
     configs = [
@@ -235,8 +305,7 @@ def test_output_length_controls(llm, prompt):
     ), f"short ({results[0][3]} tokens) should be <= medium ({results[1][3]} tokens)"
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_parameter_boundary_values(llm, prompt):
     """Test boundary and edge case values don't crash."""
     test_cases = [
