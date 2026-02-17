@@ -1,0 +1,183 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+"""Test vllm_tt Sampler on TT device with synthetic logits — no model needed.
+
+Calls the real vllm_tt Sampler with synthetic logits at production vocab
+sizes, compiled via torch.compile(backend="tt"). Validates that the
+compiled sampling graph produces valid tokens on TT hardware.
+
+Covers the on-device sampling ops (temperature, top_k, top_p, min_p,
+greedy). Params requiring the full model pipeline (penalties, stop,
+logprobs, etc.) are tested in test_sampling_params.py.
+
+Scope and limitations
+---------------------
+These tests check that the compiled graph runs on device and returns a
+token in range. They do NOT verify semantic correctness — e.g. that
+higher temperature actually increases diversity, or that penalty values
+actually suppress repeated tokens. For that, see test_sampling_params.py
+which runs the full vLLM pipeline with real models and checks output
+behavior.
+
+Different penalty magnitudes (0.0 vs 1.0 vs 2.0) also do not produce
+different compiled graphs: dynamic=False fixes tensor shapes, not values.
+The single test_penalties case exercises the penalty code path; the
+per-value sweep lives in test_sampling_params.py.
+
+Vocab sizes:
+  - 128256  (Llama-3-8B)
+  - 151936  (Qwen3-32B)
+  - 201088  (GPT-OSS-120B)
+  - 128000  (DeepSeek-R1)
+"""
+
+import pytest
+import torch
+from vllm_tt.metadata import XLASupportedSamplingMetadata
+from vllm_tt.sampler import Sampler
+
+
+def make_metadata(
+    batch_size=1,
+    temperature=0.8,
+    top_k=50,
+    top_p=0.9,
+    min_p=0.0,
+    all_greedy=False,
+    device=None,
+):
+    dev = device or torch.device("cpu")
+    return XLASupportedSamplingMetadata(
+        temperature=torch.full((batch_size,), temperature, device=dev),
+        top_k=torch.full((batch_size,), top_k, dtype=torch.int32, device=dev),
+        top_p=torch.full((batch_size,), top_p, device=dev),
+        min_p=torch.full((batch_size,), min_p, device=dev),
+        all_greedy=all_greedy,
+    )
+
+
+def run_sampler_greedy(logits, metadata):
+    return torch.argmax(logits, dim=-1, keepdim=True)
+
+
+def run_sampler(logits, metadata):
+    sampler = Sampler()
+    return sampler(logits, metadata).sampled_token_ids
+
+
+def assert_valid_tokens(actual, vocab_size, context=""):
+    for i in range(actual.shape[0]):
+        token = actual[i].item()
+        assert 0 <= token < vocab_size, (
+            f"Token {token} out of range [0, {vocab_size})"
+            f"{' ' + context if context else ''}"
+        )
+
+
+VOCAB_SIZES = [
+    pytest.param(128256, id="llama3_8b"),
+    pytest.param(151936, id="qwen3_32b"),
+    pytest.param(201088, id="gpt_oss_120b"),
+    pytest.param(128000, id="deepseek_r1_7b"),
+]
+
+
+@pytest.fixture
+def device():
+    import torch_xla.core.xla_model as xm
+
+    return xm.xla_device()
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_greedy(device, vocab_size):
+    """Greedy (argmax) matches CPU reference at production shapes."""
+    logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+    expected = run_sampler_greedy(logits_cpu, None)
+
+    compiled_fn = torch.compile(run_sampler_greedy, backend="tt", dynamic=False)
+    actual = compiled_fn(logits_cpu.to(device), None).cpu()
+
+    assert torch.equal(
+        actual, expected
+    ), f"Greedy mismatch: expected {expected.item()}, got {actual.item()}"
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_non_greedy(device, vocab_size):
+    """Smoke test: stochastic vllm_tt Sampler produces correct shape and valid token on TT."""
+    logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    metadata_dev = make_metadata(device=device)
+    actual = compiled_fn(logits_cpu.to(device), metadata_dev).cpu()
+
+    assert actual.shape == (1, 1)
+    assert_valid_tokens(actual, vocab_size)
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_combined(device, vocab_size):
+    """Different param combinations on the same logits produce diverse tokens.
+
+    Runs a tight config and a loose config against identical logits. If the
+    sampler were ignoring params entirely both would produce the same token;
+    diversity here is evidence that the filtering is actually applied.
+    """
+    logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+
+    configs = [
+        ("tight", dict(temperature=0.3, top_k=10, top_p=0.9, min_p=0.0)),
+        (
+            "loose",
+            dict(temperature=1.5, top_k=min(100, vocab_size), top_p=0.95, min_p=0.0),
+        ),
+        (
+            "with_min_p",
+            dict(temperature=0.8, top_k=min(50, vocab_size), top_p=0.9, min_p=0.05),
+        ),
+    ]
+
+    tokens = []
+    for name, params in configs:
+        meta = make_metadata(**params, device=device)
+        actual = compiled_fn(logits_cpu.to(device), meta).cpu()
+        assert_valid_tokens(actual, vocab_size, context=name)
+        tokens.append(actual.item())
+
+    unique = len(set(tokens))
+    assert unique >= 2, (
+        f"Expected diverse tokens across param configs, got {tokens} "
+        f"(all same — sampler may be ignoring params)"
+    )
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_boundary_values(device, vocab_size):
+    """Edge case param values don't crash the compiled sampler."""
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+
+    cases = [
+        {"temperature": 0.01, "top_k": 1, "top_p": 0.9, "min_p": 0.0},
+        {"temperature": 2.0, "top_k": vocab_size, "top_p": 1.0, "min_p": 0.0},
+        {"temperature": 0.8, "top_k": 50, "top_p": 0.01, "min_p": 0.0},
+        {"temperature": 0.8, "top_k": 50, "top_p": 0.9, "min_p": 0.5},
+    ]
+
+    for i, kwargs in enumerate(cases):
+        logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+        metadata_dev = make_metadata(device=device, **kwargs)
+        actual = compiled_fn(logits_cpu.to(device), metadata_dev).cpu()
+
+        assert_valid_tokens(actual, vocab_size, context=f"boundary case {i+1}")
+

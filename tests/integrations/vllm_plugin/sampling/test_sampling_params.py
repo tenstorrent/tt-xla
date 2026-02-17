@@ -1,7 +1,20 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Test vLLM sampling parameters on TT device with real models."""
+"""Test vLLM sampling parameters on TT device with real models.
+
+Runs the full vLLM generate() pipeline and validates output behavior —
+e.g. that temperature produces diverse outputs, that stop strings are
+respected, that penalties suppress repeated tokens. Uses real models
+(OPT-125m, Llama-3.2-3B, Qwen3-0.6B) so results reflect end-to-end
+correctness including tokenization and logit processing.
+
+For fast on-device graph validation (no model loading, ~seconds per
+test), see test_sampling_params_synthetic.py. The two files are
+complementary:
+  - synthetic: compiled graph runs on device, returns valid token index
+  - here:      param semantics are correct in a real generation loop
+"""
 
 import signal
 
