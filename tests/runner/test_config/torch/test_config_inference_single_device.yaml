@@ -27,14 +27,10 @@ test_config:
     status: EXPECTED_PASSING
 
   vovnet/pytorch-39_Th-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
+    status: EXPECTED_PASSING # https://github.com/tenstorrent/tt-xla/issues/2390
 
   vovnet/pytorch-57_Th-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1832
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Issues with pulling urls - https://github.com/tenstorrent/tt-xla/issues/2390"
+    status: EXPECTED_PASSING # https://github.com/tenstorrent/tt-xla/issues/2390
 
   hardnet/pytorch-single_device-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
@@ -53,8 +49,11 @@ test_config:
     status: EXPECTED_PASSING
 
   clip/pytorch-Large_Patch14-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 13185 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/1306"
+    status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9832790861293572. Required: pcc=0.99."
 
   clip/pytorch-Large_Patch14_336-single_device-inference:
     required_pcc: 0.97
@@ -322,17 +321,9 @@ test_config:
 
   efficientnet/pytorch-B6-single_device-inference:
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Statically allocated circular buffers in program 162 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   efficientnet/pytorch-B7-single_device-inference:
     status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Statically allocated circular buffers in program 260 clash with L1 buffers on core range [(x=0,y=0) - (x=12,y=9)] - https://github.com/tenstorrent/tt-xla/issues/2368"
 
   ghostnet/pytorch-100-single_device-inference:
     status: EXPECTED_PASSING
@@ -489,6 +480,9 @@ test_config:
   unet/pytorch-carvana_unet_480x640-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2537856 B L1_SMALL buffer across 72 banks, where each bank needs to store 35248 B, but bank size is only 65536 B"
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
 
   vgg/pytorch-Torchvision_Vgg11_Bn-single_device-inference:
     status: EXPECTED_PASSING
@@ -1291,8 +1285,7 @@ test_config:
     status: EXPECTED_PASSING
 
   nbeats/pytorch-generic_basis-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "patoolib.util.PatoolError: error extracting STORAGE/datasets/electricity/LD2011_2014.txt.zip - https://github.com/tenstorrent/tt-xla/issues/2185"
+    status: EXPECTED_PASSING
 
   nbeats/pytorch-seasonality_basis-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1320,8 +1313,7 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov9/pytorch-M-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Trying to access XLA data for tensor with ID 2590 while an async operation is in flight: UNKNOWN_SCALAR[]') raised in repr() - https://github.com/tenstorrent/tt-xla/issues/2776"
+    status: EXPECTED_PASSING
 
   yolov9/pytorch-C-single_device-inference:
     status: EXPECTED_PASSING
@@ -1602,13 +1594,7 @@ test_config:
     status: EXPECTED_PASSING
 
   glpn_kitti/pytorch-single_device-inference:
-    arch_overrides:
-      p150:
-        status: EXPECTED_PASSING
-
-      n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "RuntimeError: Out of Memory: Not enough space to allocate 49971200 B L1 buffer across 64 banks"
+    status: EXPECTED_PASSING
 
   stable_diffusion_1_4/pytorch-Base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2159,16 +2145,14 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   openvla/pytorch-7B-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    status: EXPECTED_PASSING
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Multi chip is required"
 
   openvla/pytorch-v01_7B-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
+    status: EXPECTED_PASSING
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -2245,6 +2229,9 @@ test_config:
   vgg19_unet/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2162688 B L1_SMALL buffer across 64 banks, where each bank needs to store 33792 B, but bank size is only 32768 B - https://github.com/tenstorrent/tt-xla/issues/1722"
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
 
   qwen_2/token_classification/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2252,6 +2239,9 @@ test_config:
 
   unet/pytorch-Segmentation_Models_PyTorch_UNet_ResNet101_Backbone-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
 
   sam/pytorch-Vit_Large-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2371,8 +2361,7 @@ test_config:
     status: EXPECTED_PASSING
 
   yolop/pytorch-Default-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'ttnn.max_pool2d' op Kernel height 13 is greater than input height 12. This ttnn.max_pool2d configuration is invalid - https://github.com/tenstorrent/tt-xla/issues/2007"
+    status: EXPECTED_PASSING
 
 
   owl_vit/pytorch-Base_Patch32-single_device-inference:
@@ -2480,40 +2469,31 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   efficientdet/pytorch-D0-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,64,8,8] vs. bf16[2]. Expected dimension 3 of shape bf16[1,64,8,8] (8) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+    status: EXPECTED_PASSING
 
   efficientdet/pytorch-D1-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,88,10,10] vs. bf16[2]. Expected dimension 3 of shape bf16[1,88,10,10] (10) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+    status: EXPECTED_PASSING
 
   efficientdet/pytorch-D2-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,112,12,12] vs. bf16[2]. Expected dimension 3 of shape bf16[1,112,12,12] (12) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+    status: EXPECTED_PASSING
 
   efficientdet/pytorch-D3-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,160,14,14] vs. bf16[2]. Expected dimension 3 of shape bf16[1,160,14,14] (14) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+    status: EXPECTED_PASSING
 
   efficientdet/pytorch-D4-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,224,16,16] vs. bf16[2]. Expected dimension 3 of shape bf16[1,224,16,16] (16) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+    status: EXPECTED_PASSING
 
   efficientdet/pytorch-D5-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Shapes are not compatible for broadcasting: bf16[1,288,20,20] vs. bf16[2]. Expected dimension 3 of shape bf16[1,288,20,20] (20) to match dimension 0 of shape bf16[2] (2). Either that or that any of them is either 1 or unbounded. Try reshaping one of the tensors to match the other. - https://github.com/tenstorrent/tt-xla/issues/2206"
+    status: EXPECTED_PASSING
 
   efficientdet/pytorch-D6-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 52428800 B L1 buffer across 64 banks, where each bank needs to store 819200 B, but bank size is only 1331936 B"
+    status: EXPECTED_PASSING
 
   efficientdet/pytorch-D7-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 33030144 B L1 buffer across 56 banks, where each bank needs to store 589824 B, but bank size is only 1331936 B"
+    status: EXPECTED_PASSING
 
   efficientdet/pytorch-D7x-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 5760 B L1_SMALL buffer across 36 banks, where each bank needs to store 160 B, but bank size is only 65536 B"
+    status: EXPECTED_PASSING
 
   unet/pytorch-Torchhub_Brain_Unet-single_device-inference:
     status: EXPECTED_PASSING
