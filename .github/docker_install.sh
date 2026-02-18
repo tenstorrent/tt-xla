@@ -28,6 +28,6 @@ else
 fi
 
 # Install uv tool for managing Python packages
-RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
 ln -sf /usr/bin/FileCheck-17 /usr/bin/FileCheck
