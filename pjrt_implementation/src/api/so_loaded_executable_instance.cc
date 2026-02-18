@@ -80,14 +80,14 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "SOLoadedExecutableInstance::Execute");
 
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
-    DLOG_F(ERROR, "Device count mismatch: %zu vs %zu", args->num_devices,
-           m_executable_image->getNumDevicesToUtilize());
+    LOG_F(ERROR, "Device count mismatch: %zu vs %zu", args->num_devices,
+          m_executable_image->getNumDevicesToUtilize());
     return tt_pjrt_status::kInternal;
   }
 
   if (args->num_args != m_executable_image->getNumInputs()) {
-    DLOG_F(ERROR, "Argument count mismatch: %zu vs %zu", args->num_args,
-           m_executable_image->getNumInputs());
+    LOG_F(ERROR, "Argument count mismatch: %zu vs %zu", args->num_args,
+          m_executable_image->getNumInputs());
     return tt_pjrt_status::kInternal;
   }
 
@@ -193,7 +193,7 @@ SOLoadedExecutableInstance::prepareInputTensor(
           m_executable_image->getInputSharding(arg_index), num_devices);
 
   if (mlir::failed(strategy)) {
-    DLOG_F(ERROR, "Failed to fill strategy map from sharding");
+    LOG_F(ERROR, "Failed to fill strategy map from sharding");
     return std::nullopt;
   }
 

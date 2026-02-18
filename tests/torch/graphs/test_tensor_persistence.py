@@ -26,6 +26,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
 from torch_xla.distributed.spmd import Mesh
+from utils import failed_runtime
 
 """
 A test suite checking various multi-graph tensor persistence scenarios.
@@ -599,6 +600,9 @@ def create_device_mesh(mesh_shape) -> Mesh:
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
+@pytest.mark.skip(
+    reason=failed_runtime("Segfault: https://github.com/tenstorrent/tt-xla/issues/3280")
+)
 def test_shared_input_across_mesh_reshape():
     """
     Test scenario: Run 2 models back to back, one on 2x4 mesh and a 1x8 mesh,
