@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import inspect
 import shutil
 import socket
 import subprocess
@@ -28,6 +29,7 @@ from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
     RunPhase,
+    ShardingConfigs,
     create_benchmark_result,
     find_dumped_ir_files,
     get_input_shape_info,
@@ -383,6 +385,18 @@ def _generate_batch_size_id(batch_size):
     return f"batch_{batch_size}"
 
 
+def _supports_strategy_shard_spec(model_loader_cls) -> bool:
+    """Return True if loader.load_shard_spec supports strategy/batch_axis kwargs."""
+    if not hasattr(model_loader_cls, "load_shard_spec"):
+        return False
+    try:
+        signature = inspect.signature(model_loader_cls.load_shard_spec)
+    except (TypeError, ValueError):
+        return False
+    params = signature.parameters
+    return "strategy" in params and "batch_axis" in params
+
+
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
 @pytest.mark.llm
@@ -393,18 +407,28 @@ def _generate_batch_size_id(batch_size):
     ],
 )
 @pytest.mark.parametrize(
-    "parallelism",
+    "sharding_config",
     [
-        pytest.param(
-            Parallelism.SINGLE_DEVICE,
-            id="single_device",
-            marks=pytest.mark.single_device,
-        ),
-        pytest.param(
-            Parallelism.TENSOR_PARALLEL,
-            id="tensor_parallel",
-            marks=pytest.mark.tensor_parallel,
-        ),
+        pytest.param(ShardingConfigs.SINGLE_DEVICE, id="single_device",
+                     marks=pytest.mark.single_device),
+        pytest.param(ShardingConfigs.TENSOR_PARALLEL, id="tensor_parallel",
+                     marks=pytest.mark.tensor_parallel),
+        pytest.param(ShardingConfigs.FSDP_1x8, id="fsdp-mesh_1x8-no_dp-tensor_parallel",
+                     marks=pytest.mark.tensor_parallel),
+        pytest.param(ShardingConfigs.FSDP_1x8_DP, id="fsdp-mesh_1x8-dp-tensor_parallel",
+                     marks=pytest.mark.tensor_parallel),
+        pytest.param(ShardingConfigs.FSDP_2x4, id="fsdp-mesh_2x4-no_dp-tensor_parallel",
+                     marks=pytest.mark.tensor_parallel),
+        pytest.param(ShardingConfigs.FSDP_2x4_DP, id="fsdp-mesh_2x4-dp-tensor_parallel",
+                     marks=pytest.mark.tensor_parallel),
+        pytest.param(ShardingConfigs.MEGATRON_1x8, id="megatron-mesh_1x8-no_dp-tensor_parallel",
+                     marks=pytest.mark.tensor_parallel),
+        pytest.param(ShardingConfigs.MEGATRON_1x8_DP, id="megatron-mesh_1x8-dp-tensor_parallel",
+                     marks=pytest.mark.tensor_parallel),
+        pytest.param(ShardingConfigs.MEGATRON_2x4, id="megatron-mesh_2x4-no_dp-tensor_parallel",
+                     marks=pytest.mark.tensor_parallel),
+        pytest.param(ShardingConfigs.MEGATRON_2x4_DP, id="megatron-mesh_2x4-dp-tensor_parallel",
+                     marks=pytest.mark.tensor_parallel),
     ],
 )
 @pytest.mark.parametrize("batch_size", [1, 2], ids=_generate_batch_size_id)
@@ -422,8 +446,8 @@ def test_llms_torch(
     test_entry_and_phase,
     sequence_length,
     batch_size,
+    sharding_config,
     run_mode,
-    parallelism,
     record_property,
     test_metadata,
     request,
@@ -432,6 +456,9 @@ def test_llms_torch(
 ):
     """PyTorch LLM model test (decode/prefill phases) - delegates to shared implementation."""
     test_entry, run_phase = test_entry_and_phase
+    _, model_loader_cls = test_entry.variant_info
+    supports_strategy_shard_spec = _supports_strategy_shard_spec(model_loader_cls)
+    parallelism = sharding_config.parallelism
 
     if run_phase == RunPhase.LLM_DECODE:
         # Decode tests don't parametrize on sequence length (default is seq_len = 1).
@@ -440,16 +467,52 @@ def test_llms_torch(
         # Decode tests for now run only batch_size = 1.
         if batch_size != 1:
             pytest.skip("Decode tests currently only support batch_size=1")
+        # Decode uses only the backward-compatible default sharding configs.
+        if sharding_config.shard_strategy is not None:
+            pytest.skip("Decode tests use default sharding config only")
         request.node.add_marker(pytest.mark.llm_decode)
 
     if run_phase == RunPhase.LLM_PREFILL:
         # Sequence length should be specified for prefill tests.
         if sequence_length is None:
             pytest.skip("Sequence length must be specified for prefill tests")
+        # Explicit strategy configs are supported only for loaders that accept
+        # strategy/batch_axis kwargs in load_shard_spec.
+        if (
+            parallelism == Parallelism.TENSOR_PARALLEL
+            and sharding_config.shard_strategy is not None
+            and not supports_strategy_shard_spec
+        ):
+            pytest.skip("Loader does not support explicit sharding strategy config")
+        # For loaders that support strategy kwarg (e.g. Llama), avoid redundant
+        # default TP prefill and rely on explicit strategy configs.
+        if (
+            parallelism == Parallelism.TENSOR_PARALLEL
+            and sharding_config.shard_strategy is None
+            and supports_strategy_shard_spec
+        ):
+            pytest.skip(
+                "Prefill TP for strategy-aware loaders uses explicit sharding configs"
+            )
+        # Combined TP + input sharding: batch_size must cover the DP axis so each
+        # device processes different data (no replication).
+        if sharding_config.shard_inputs and sharding_config.mesh_shape:
+            dp_size = sharding_config.mesh_shape[0]
+            if batch_size < dp_size:
+                pytest.skip(
+                    f"Input sharding requires batch_size >= dp axis size ({dp_size}), "
+                    f"got batch_size={batch_size}"
+                )
         request.node.add_marker(pytest.mark.llm_prefill)
 
     test_metadata.batch_size = batch_size
     test_metadata.seq_len = sequence_length
+
+    # Propagate sharding configuration into test_metadata for downstream consumers
+    if sharding_config.shard_strategy is not None:
+        test_metadata.sharding_strategy = sharding_config.shard_strategy
+        test_metadata.mesh_shape = sharding_config.mesh_shape
+        test_metadata.shard_inputs = sharding_config.shard_inputs
 
     _run_model_test_impl(
         test_entry=test_entry,
