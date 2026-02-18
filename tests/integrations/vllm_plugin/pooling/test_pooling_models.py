@@ -35,6 +35,10 @@ def run_pooling_model_test(model_config: Dict[str, Any]) -> List[List[float]]:
     }
     if "additional_config" in model_config:
         llm_args["additional_config"] = model_config["additional_config"]
+    if "hf_overrides" in model_config:
+        llm_args["hf_overrides"] = model_config["hf_overrides"]
+    if "pooler_config" in model_config:
+        llm_args["pooler_config"] = model_config["pooler_config"]
 
     llm = vllm.LLM(**llm_args)
     output_embedding = llm.embed(prompts)

@@ -77,3 +77,32 @@ model_configs:
     max_model_len: 64
     max_num_seqs: 2
     status: "expected_passing"
+  vllm_sweep_splade:
+    model: "naver/splade-v3"
+    marks: [vllm_sweep]
+  vllm_sweep_bge_multilingual_gemma2:
+    model: "BAAI/bge-multilingual-gemma2"
+    marks: [vllm_sweep]
+  vllm_sweep_embedding_gemma3:
+    model: "google/embeddinggemma-300m"
+    marks: [vllm_sweep]
+  vllm_sweep_arctic_embed_m_v2:
+    model: "Snowflake/snowflake-arctic-embed-m-v2.0"
+    marks: [vllm_sweep]
+  vllm_sweep_gte_multilingual:
+    model: "Alibaba-NLP/gte-multilingual-base"
+    hf_overrides: {"architectures": ["GteNewModel"]}
+    marks: [vllm_sweep]
+  vllm_sweep_modernbert:
+    model: "Alibaba-NLP/gte-modernbert-base"
+    marks: [vllm_sweep]
+  vllm_sweep_nomic_embed:
+    model: "nomic-ai/nomic-embed-text-v1"
+    marks: [vllm_sweep]
+  vllm_sweep_llama_nemotron_embed:
+    model: "nvidia/llama-nemotron-embed-1b-v2"
+    marks: [vllm_sweep]
+  vllm_sweep_qwen2_embed:
+    model: "ssmits/Qwen2-7B-Instruct-embed-base"
+    pooler_config: {"pooling_type": "MEAN"}
+    marks: [vllm_sweep]
