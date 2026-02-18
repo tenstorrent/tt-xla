@@ -72,7 +72,7 @@ jobs:
         id: nightly-check
         shell: bash
         run: |
-          echo "is_release_process=$(if [ "${{ inputs.caller_workflow }}" = "TT-xla release (call)" ]; then echo true; else echo false; fi)" >> $GITHUB_OUTPUT
+          echo "is_release_process=$(if [ "${{ inputs.caller_workflow }}" = "On nightly" ]; then echo true; else echo false; fi)" >> $GITHUB_OUTPUT
 
       - name: Check if the needed jobs succeeded or failed
         id: check
