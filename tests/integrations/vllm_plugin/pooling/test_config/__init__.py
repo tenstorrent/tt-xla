@@ -34,6 +34,22 @@ DEFAULT_POOLING_CONFIG = {
     "status": "unspecified",
 }
 
+# Tensor parallel llmbox: pooling models that OOM on single-device; run with TP on llmbox.
+# Same shape as DEFAULT_POOLING_CONFIG but with enable_tensor_parallel in additional_config.
+DEFAULT_TENSOR_PARALLEL_LLMBOX_POOLING_CONFIG = {
+    "task": "embed",
+    "dtype": "bfloat16",
+    "max_model_len": 128,
+    "max_num_batched_tokens": 128,
+    "max_num_seqs": 1,
+    "disable_sliding_window": True,
+    "additional_config": {
+        "enable_tensor_parallel": True,
+    },
+    "prompts": ["Hello, my name is"],
+    "status": "unspecified",
+}
+
 # Map YAML mark names to pytest markers
 MARK_MAP = {
     "push": pytest.mark.push,
@@ -96,6 +112,23 @@ def _load_model_configs() -> dict:
 
 
 MODEL_CONFIGS = _load_model_configs()
+
+# Tensor parallel llmbox configs (defaults applied; YAML has only overrides)
+MODEL_CONFIGS_TP_LLMBOX_FILENAME = "model_configs_tensor_parallel_llmbox.yaml"
+MODEL_CONFIGS_TP_LLMBOX = _load_model_configs_from_file(
+    MODEL_CONFIGS_TP_LLMBOX_FILENAME,
+    apply_defaults=True,
+    default_config=DEFAULT_TENSOR_PARALLEL_LLMBOX_POOLING_CONFIG,
+    default_marks=["tensor_parallel"],
+)
+
+
+def get_model_config_params_tp_llmbox():
+    """Return list of pytest.param for tensor parallel llmbox pooling models."""
+    return [
+        pytest.param(name, cfg, id=name, marks=cfg.get("marks", []))
+        for name, cfg in MODEL_CONFIGS_TP_LLMBOX.items()
+    ]
 
 
 def get_model_config_params():

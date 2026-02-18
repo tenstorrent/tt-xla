@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# vLLM pooling models that OOM on single-device; run in tensor parallel on llmbox.
+# Defaults are applied in test_config/__init__.py (DEFAULT_TENSOR_PARALLEL_LLMBOX_POOLING_CONFIG).
+# Only "model" is required. "marks" default to [tensor_parallel]; "status" defaults to "unspecified".
+
+model_configs:
+  vllm_sweep_e5_mistral_7b_instruct:
+    model: "intfloat/e5-mistral-7b-instruct"
+    status: "expected_passing"

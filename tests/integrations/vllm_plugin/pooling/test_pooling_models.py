@@ -21,7 +21,7 @@ def run_pooling_model_test(model_config: Dict[str, Any]) -> List[List[float]]:
 
     Args:
         model_config: Dictionary containing model configuration parameters
-          (model, task, dtype, max_model_len, max_num_batched_tokens, max_num_seqs,
+          (model, dtype, max_model_len, max_num_batched_tokens, max_num_seqs,
           disable_sliding_window, prompts; optional additional_config).
 
     Returns:
@@ -30,7 +30,6 @@ def run_pooling_model_test(model_config: Dict[str, Any]) -> List[List[float]]:
     prompts = model_config["prompts"]
     llm_args = {
         "model": model_config["model"],
-        "task": model_config.get("task", "embed"),
         "dtype": model_config.get("dtype", "bfloat16"),
         "max_model_len": model_config["max_model_len"],
         "max_num_batched_tokens": model_config["max_num_batched_tokens"],
