@@ -368,32 +368,6 @@ class CMakeBuildPy(build_py):
         )
 
         self._prune_install_tree(install_dir)
-        self._patch_library_rpaths(install_dir)
-
-    def _patch_library_rpaths(self, install_dir: Path) -> None:
-        """Patch RPATH of all shared libraries to support lib and lib64 directories."""
-        patchelf_path = shutil.which("patchelf")
-        if patchelf_path is None:
-            print("WARNING: patchelf not found; skipping RPATH patching")
-            return
-
-        print("Patching RPATH for shared libraries...")
-        rpath = "$ORIGIN:$ORIGIN/lib:$ORIGIN/lib64"
-
-        for so_file in install_dir.rglob("*.so*"):
-            if so_file.is_symlink() or not so_file.is_file():
-                continue
-            try:
-                subprocess.run(
-                    [patchelf_path, "--set-rpath", rpath, str(so_file)],
-                    check=True,
-                    capture_output=True,
-                )
-                rel = so_file.relative_to(install_dir)
-                print(f"Patched RPATH: {rel}")
-            except subprocess.CalledProcessError:
-                # Some files may not be ELF binaries, ignore those
-                pass
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():

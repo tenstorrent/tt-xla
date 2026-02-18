@@ -42,14 +42,14 @@ jobs:
     with:
       dockbuild: all
 
-  # build-ttxla-release:
-  #   if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
-  #   uses: ./.github/workflows/call-build.yml
-  #   name: "Build tt-xla release"
-  #   secrets: inherit
-  #   needs: [ inspect-changes, build-image ]
-  #   with:
-  #     docker_image: ${{ needs.build-image.outputs.docker-image }}
+  build-ttxla-release:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla release"
+    secrets: inherit
+    needs: [ inspect-changes, build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
 
   build-manylinux-ttxla:
     needs: [ build-image ]
@@ -69,18 +69,18 @@ jobs:
   #     docker_image: ${{ needs.build-image.outputs.docker-image }}
   #     build_type: explorer
 
-  # test:
-  #   needs: [ inspect-changes, build-image, build-ttxla-release ]
-  #   if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
-  #   uses: ./.github/workflows/call-test.yml
-  #   secrets: inherit
-  #   with:
-  #     test_suite: basic-test.json
-  #     docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-  #     artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-  #     wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
-  #     wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_release_vllm_tt_artifact_name }}
-  #     alchemist_artifact_name: ${{ needs.build-ttxla-release.outputs.alchemist_artifact_name }}
+  test:
+    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    with:
+      test_suite: basic-test.json
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: xla-whl-manylinux
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_release_vllm_tt_artifact_name }}
+      alchemist_artifact_name: ${{ needs.build-ttxla-release.outputs.alchemist_artifact_name }}
 
   # perf-benchmark:
   #   if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift')
