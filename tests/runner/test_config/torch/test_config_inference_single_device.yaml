@@ -125,7 +125,8 @@ test_config:
     status: EXPECTED_PASSING
 
   falcon/pytorch-3_1B_Base-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "RuntimeError: torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_module L__self___maxpool1(*(FakeTensor(..., device='xla:0', size=(1, 96, 16, 128, 128), dtype=torch.bfloat16),), https://github.com/tenstorrent/tt-xla/issues/2567"
     markers: [push]
 
 
