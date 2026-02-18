@@ -4,6 +4,10 @@
 
 test_config:
 
+  llama/causal_lm/jax-1B_TINY-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
   falcon/jax-tiiuae/Falcon3-1B-Base-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
@@ -36,10 +40,6 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
     markers: [large]
-
-  llama/causal_lm/jax-1B_TINY-data_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
 
   phi1/causal_lm/jax-microsoft/phi-1-data_parallel-inference:
     supported_archs: ["n300-llmbox"]

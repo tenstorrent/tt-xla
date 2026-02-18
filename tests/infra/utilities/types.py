@@ -14,16 +14,6 @@ from jaxtyping import PyTree as jax_pytree
 from torch.utils._pytree import PyTree as torch_pytree
 from torch_xla.distributed.spmd import Mesh
 
-try:
-    from transformers import FlaxPreTrainedModel
-except ImportError:
-
-    class FlaxPreTrainedModel:
-        """Dummy placeholder when transformers lacks Flax support."""
-
-        pass
-
-
 # Convenience alias. Used to jointly represent tensors from different frameworks.
 Tensor = Union[jax.Array, torch.Tensor]
 
@@ -31,7 +21,9 @@ Tensor = Union[jax.Array, torch.Tensor]
 # different frameworks.
 # NOTE nnx.Module is the newest API, linen.Module is legacy but it is used in all
 # huggingface models.
-Model = Union[nnx.Module, linen.Module, FlaxPreTrainedModel, torch.nn.Module]
+# NOTE FlaxPreTrainedModel was removed from transformers 5.x (Flax support dropped).
+# EasyDel models (nnx.Module subclasses) and custom linen.Module models cover all JAX cases.
+Model = Union[nnx.Module, linen.Module, torch.nn.Module]
 
 # Convenience alias. Used to jointly represent physical HW/device from different
 # frameworks.
