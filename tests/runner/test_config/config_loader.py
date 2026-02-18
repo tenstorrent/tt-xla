@@ -8,11 +8,9 @@ from typing import Any, Dict
 from ruamel.yaml import YAML
 
 from tests.infra.utilities.types import Framework
+from tests.runner.test_config.constants import ALLOWED_FIELDS, PLACEHOLDERS_FILENAME
 from tests.runner.test_utils import ModelTestStatus
 from tests.utils import BringupStatus
-
-# Single source of truth for the placeholders YAML filename
-PLACEHOLDERS_FILENAME = "test_config_placeholders.yaml"
 
 # Path to filecheck pattern files
 FILECHECK_DIR = Path(__file__).parent.parent.parent / "filecheck"
@@ -75,39 +73,13 @@ def _normalize_enums_in_cfg(cfg: Dict[str, Any]) -> Dict[str, Any]:
     return cfg
 
 
-# Define allowed fields, used for validation of test config YAML to catch unknown fields / typos.
-_ALLOWED_FIELDS = {
-    # Comparator controls
-    "required_pcc",
-    "assert_pcc",
-    "assert_atol",
-    "required_atol",
-    "assert_allclose",
-    "allclose_rtol",
-    "allclose_atol",
-    # Status/metadata
-    "status",
-    "reason",
-    "bringup_status",
-    "markers",
-    "supported_archs",
-    "batch_size",
-    # Nested arch overrides
-    "arch_overrides",
-    # Needed for training tests
-    "execution_pass",
-    # FileCheck patterns list
-    "filechecks",
-}
-
-
 # Validate top-level and nested fields to ensure they are from the allowed fields list.
 def _validate_allowed_keys(cfg: Dict[str, Any], *, ctx: str) -> None:
     def validate_mapping(mapping: Dict[str, Any], where: str) -> None:
         for k in mapping.keys():
-            if k not in _ALLOWED_FIELDS:
+            if k not in ALLOWED_FIELDS:
                 raise ValueError(
-                    f"Unknown field '{k}' in {where} of {ctx}. Allowed: {sorted(_ALLOWED_FIELDS)}"
+                    f"Unknown field '{k}' in {where} of {ctx}. Allowed: {sorted(ALLOWED_FIELDS)}"
                 )
 
     validate_mapping(cfg, where="entry")

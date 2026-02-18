@@ -43,6 +43,18 @@ env:
   TT_XLA_CI: 1
 
 jobs:
+  validate-test-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pyyaml
+      - run: python3 tests/runner/validate_test_config.py
+
   generate-matrix-test:
     uses: ./.github/workflows/call-generate-matrix.yml
     secrets: inherit
@@ -286,10 +298,8 @@ jobs:
       if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
       shell: bash
       run: |
-        source venv/activate
-        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_torch --validate-test-config
-        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_jax --validate-test-config
-        python -m pytest -vv ./tests/runner/test_models.py::test_llms_torch --validate-test-config
+        pip install pyyaml
+        python3 tests/runner/validate_test_config.py
 
     - name: Collect Tests
       id: collect-tests
