@@ -4,33 +4,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish-release-wheel:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Exit 0
-        run: exit 0
+  release:
+    uses: ./.github/workflows/call-release-tmp.yml
 
-  build-release-docker:
+  release-forge-tmp:
+    needs: [ release ]
+    if: ${{ always() && needs.release.outputs.release_ready == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Exit 0
-        run: exit 0
-
-  release-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Exit 1
-        run: exit 1
-
-  publish-release:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Exit 0
-        run: exit 0
-
-  summary:
-    needs: [ publish-release-wheel, build-release-docker, publish-release ]
-    runs-on: ubuntu-latest
-    steps:
-      - id: Log
+      - name: Log
         run: echo "I'm here"
