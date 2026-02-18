@@ -128,7 +128,6 @@ test_config:
     status: EXPECTED_PASSING
     markers: [push]
 
-
   falcon/pytorch-3_3B_Base-single_device-inference:
     status: EXPECTED_PASSING
 
