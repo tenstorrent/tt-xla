@@ -156,3 +156,43 @@ model_configs:
     model: upstage/solar-pro-preview-instruct
     status: "known_failure_xfail"
     reason: "loc('reshape.235'): error: number of output elements (40960) doesn't match expected number of elements (5120)"
+  vllm_sweep_apertus:
+    model: swiss-ai/Apertus-8B-2509
+  vllm_sweep_bamba:
+    model: ibm-ai-platform/Bamba-9B
+  vllm_sweep_ernie4_5_moe:
+    model: baidu/ERNIE-4.5-21B-A3B-PT
+  vllm_sweep_exaone4:
+    model: LGAI-EXAONE/EXAONE-4.0-32B
+  vllm_sweep_falcon_h1:
+    model: tiiuae/Falcon-H1-34B-Base
+  vllm_sweep_flex_olmo:
+    model: allenai/FlexOlmo-7x7B-1T
+  vllm_sweep_glm4:
+    model: zai-org/GLM-4-32B-0414
+  vllm_sweep_gpt_oss:
+    model: openai/gpt-oss-20b
+  vllm_sweep_hunyuan_moe:
+    model: tencent/Hunyuan-A13B-Instruct
+  vllm_sweep_jais:
+    model: inceptionai/jais-13b
+    max_model_len: 64
+    max_num_batched_tokens: 64
+  vllm_sweep_jais2:
+    model: inceptionai/Jais-2-8B-Chat
+  vllm_sweep_kimi_linear:
+    model: moonshotai/Kimi-Linear-48B-A3B-Base
+  vllm_sweep_lfm2_moe:
+    model: LiquidAI/LFM2-8B-A1B-preview
+  vllm_sweep_nemotron:
+    model: nvidia/Minitron-8B-Base
+  vllm_sweep_nemotron_h:
+    model: nvidia/Nemotron-H-8B-Base-8K
+  vllm_sweep_qwen3:
+    model: Qwen/Qwen3-8B
+  vllm_sweep_qwen3_moe:
+    model: Qwen/Qwen3-30B-A3B
+  vllm_sweep_qwen3_next:
+    model: Qwen/Qwen3-Next-80B-A3B-Instruct
+  vllm_sweep_seed_oss:
+    model: ByteDance-Seed/Seed-OSS-36B-Instruct
