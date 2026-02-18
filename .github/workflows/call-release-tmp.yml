@@ -1,7 +1,7 @@
-name: Run Test Single
+name: TT-xla release (call)
 
 on:
-  workflow_dispatch:
+  workflow_call:
 
 jobs:
   publish-release-wheel:
