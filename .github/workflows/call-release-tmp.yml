@@ -16,18 +16,22 @@ jobs:
 
   build-release-docker:
     runs-on: ubuntu-latest
+    needs: [ publish-release-wheel ]
     steps:
       - name: Exit 0
         run: exit 0
 
   release-tests:
     runs-on: ubuntu-latest
+    needs: [ build-release-docker ]
     steps:
       - name: Exit 1
         run: exit 1
 
   publish-release:
     runs-on: ubuntu-latest
+    if: ${{ always() && needs.publish-release-wheel.result == 'success' && needs.build-release-docker.result == 'success' }}
+    needs: [ publish-release-wheel, build-release-docker, release-tests ]
     steps:
       - name: Exit 0
         run: exit 0
