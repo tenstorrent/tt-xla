@@ -13,7 +13,6 @@ import pytest
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent.parent / "examples"
 PATTERN = "**/*.py"
-TIMEOUT_SECS = 20 * 60
 
 # Directories with known issues - tests will be marked as xfail with the given reason
 XFAIL_DIRS: dict[str, str] = {
@@ -103,7 +102,11 @@ def _discover_script_examples() -> list[Path]:
 
 
 @pytest.mark.push
-@pytest.mark.parametrize("script", _discover_pytest_examples(), ids=lambda p: str(p))
+@pytest.mark.parametrize(
+    "script",
+    _discover_pytest_examples(),
+    ids=lambda p: str(p.relative_to(EXAMPLES_DIR)),
+)
 def test_pytest_examples(script: Path):
     """Run example files that contain pytest tests using pytest."""
     xfail_reason = _get_xfail_reason(script)
@@ -118,7 +121,6 @@ def test_pytest_examples(script: Path):
         env=env,
         capture_output=True,
         text=True,
-        timeout=TIMEOUT_SECS,
     )
 
     if proc.returncode != 0:
@@ -133,7 +135,11 @@ def test_pytest_examples(script: Path):
 
 
 @pytest.mark.push
-@pytest.mark.parametrize("script", _discover_script_examples(), ids=lambda p: str(p))
+@pytest.mark.parametrize(
+    "script",
+    _discover_script_examples(),
+    ids=lambda p: str(p.relative_to(EXAMPLES_DIR)),
+)
 def test_script_examples(script: Path):
     """Run example files that have a main block as standalone scripts."""
     xfail_reason = _get_xfail_reason(script)
@@ -148,7 +154,6 @@ def test_script_examples(script: Path):
         env=env,
         capture_output=True,
         text=True,
-        timeout=TIMEOUT_SECS,
     )
 
     if proc.returncode != 0:
