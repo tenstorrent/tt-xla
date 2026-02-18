@@ -62,9 +62,11 @@ model_configs:
   vllm_sweep_e5_mistral_7b_instruct:
     model: "intfloat/e5-mistral-7b-instruct"
     status: "known_failure_xfail"
-    reason: "Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1073741792 B (allocated: 1055589376 B, free: 18152416 B, largest free block: 4194304 B)"
-  vllm_sweep_gritlm: # was failing before because of a ValueError: TT backend only supports V1. should be new error with uplift
+    reason: "Model is too large for single chip"
+  vllm_sweep_gritlm:
     model: "parasail-ai/GritLM-7B-vllm"
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_roberta:
     model: "sentence-transformers/nli-roberta-base-v2"
     max_model_len: 64

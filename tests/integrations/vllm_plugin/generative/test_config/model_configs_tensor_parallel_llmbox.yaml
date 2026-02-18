@@ -91,37 +91,68 @@ model_configs:
     reason: "Model hangs"
   falcon3-7b-base:
     model: tiiuae/Falcon3-7B-Base
+    status: "known_failure_xfail"
+    reason: "loc('reshape.151'): error: Could not apply propagated tensor shardings to tensor dimensions"
   falcon3-10b-base:
     model: tiiuae/Falcon3-10B-Base
+    status: "known_failure_xfail"
+    reason: "loc('reshape.175'): error: Could not apply propagated tensor shardings to tensor dimensions"
   huggyllama-llama-7b:
     model: huggyllama/llama-7b
     status: "known_failure_xfail"
     reason: "Model hangs"
   mistral-7b-instruct-v0.3:
     model: mistralai/Mistral-7B-Instruct-v0.3
+    status: "expected_passing"
   vllm_sweep_aquila:
     model: BAAI/Aquila-7B
+    status: "known_failure_xfail"
+    reason: "hangs? "
   vllm_sweep_aquila_chat:
     model: BAAI/AquilaChat-7B
+    status: "known_failure_xfail"
+    reason: "hangs? "
   vllm_sweep_baichuan:
     model: baichuan-inc/Baichuan-7B
+    status: "known_failure_xfail"
+    reason: "hangs? "
   vllm_sweep_deepseek:
     model: deepseek-ai/deepseek-llm-7b-chat
+    status: "known_failure_xfail"
+    reason: "hangs? "
   vllm_sweep_chat_glm2:
     model: THUDM/chatglm2-6b
+    status: "known_failure_xfail"
+    reason: "'ChatGLMForCausalLM' object has no attribute 'model'"
   vllm_sweep_chat_glm3:
     model: THUDM/chatglm3-6b
+    status: "known_failure_xfail"
+    reason: "'ChatGLMForCausalLM' object has no attribute 'model'"
   vllm_sweep_glm:
     model: THUDM/glm-4-9b-chat-hf
+    status: "known_failure_xfail"
+    reason: "loc(`reshape.202`): error: Could not apply propagated tensor shardings to tensor dimensions"
   vllm_sweep_internlm:
     model: internlm/internlm-7b
+    status: "known_failure_xfail"
+    reason: "hangs? "
   vllm_sweep_internlm2:
     model: internlm/internlm2-7b
+    status: "known_failure_xfail"
+    reason: "InternLM2ForCausalLM.forward() missing 1 required positional argument: 'intermediate_tensors'"
   vllm_sweep_internlm3:
     model: internlm/internlm3-8b-instruct
+    status: "known_failure_xfail"
+    reason: "loc('reshape.191'): error: Could not apply propagated tensor shardings to tensor dimensions"
   vllm_sweep_olmo2:
     model: allenai/OLMo2-7B-1124
+    status: "known_failure_xfail"
+    reason: "hangs? "
   vllm_sweep_qwen:
     model: Qwen/Qwen-7B
+    status: "known_failure_xfail"
+    reason: "'QWenLMHeadModel' object has no attribute 'model'"
   vllm_sweep_solar:
     model: upstage/solar-pro-preview-instruct
+    status: "known_failure_xfail"
+    reason: "loc('reshape.235'): error: number of output elements (40960) doesn't match expected number of elements (5120)"

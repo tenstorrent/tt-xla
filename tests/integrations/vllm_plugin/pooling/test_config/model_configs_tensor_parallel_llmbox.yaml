@@ -10,3 +10,7 @@ model_configs:
   vllm_sweep_e5_mistral_7b_instruct:
     model: "intfloat/e5-mistral-7b-instruct"
     status: "expected_passing"
+  vllm_sweep_gritlm:
+    model: "parasail-ai/GritLM-7B-vllm"
+    status: "known_failure_xfail"
+    reason: "Please set `requires_token_ids=True` in `get_pooling_updates`"
