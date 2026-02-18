@@ -5,7 +5,7 @@
 import pytest
 import torch
 from infra import Framework, run_op_test_with_random_inputs
-from utils import Category, TTArch, get_torch_device_arch
+from utils import Category
 
 
 @pytest.mark.nightly
@@ -21,11 +21,21 @@ from utils import Category, TTArch, get_torch_device_arch
         ((1, 20), 5),
         ((1, 30), 5),
         ((1, 40), 5),
-        ((1, 8400), 300),
+        pytest.param(
+            (1, 8400),
+            300,
+            marks=pytest.mark.xfail(
+                reason="Bad PCC due to ttnn sort bug for greater than 256 elements - https://github.com/tenstorrent/tt-xla/issues/1797"
+            ),
+        ),
+        pytest.param(
+            (1, 50000),
+            100,
+            marks=pytest.mark.xfail(
+                reason="Bad PCC due to ttnn sort bug for greater than 256 elements - https://github.com/tenstorrent/tt-xla/issues/1797"
+            ),
+        ),
     ],
-)
-@pytest.mark.xfail(
-    reason="Input tensor data type for ttnn.sort must be BFLOAT16 or UINT16, got DataType::FLOAT32 (https://github.com/tenstorrent/tt-xla/issues/3089)"
 )
 def test_topk_indices(input_shape: tuple, k: int):
     """Test topk operation returning indices."""

@@ -53,8 +53,4 @@ def test_clip_sdxl(request):
         warmup=True,
         seed=42,
     )
-    tester.test()
-
-    # Serialize compilation artifacts if requested
-    if request.config.getoption("--serialize", default=False):
-        tester.serialize_compilation_artifacts(request.node.name)
+    tester.test(request=request)

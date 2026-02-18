@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_BUFFER_INSTANCE_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_BUFFER_INSTANCE_H_
+
 // c++ standard library includes
 #include <atomic>
 #include <memory>
@@ -25,16 +28,14 @@
 
 // tt-xla includes
 #include "api/event_instance.h"
+#include "api/tensor.h"
 #include "utils/status.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_BUFFER_INSTANCE_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_BUFFER_INSTANCE_H_
 
 namespace tt::pjrt {
 
-class ClientInstance;
 class DeviceInstance;
 class MemoryInstance;
+class PjrtTensor;
 
 // Represents PJRT_Buffer structure and the functionality around it. Wraps
 // `tt::runtime::Tensor` underneath. `PJRT_Buffer` was designed to represent
@@ -51,17 +52,16 @@ class MemoryInstance;
 class BufferInstance {
 public:
   // Creates new buffer instance for input buffer.
-  static std::unique_ptr<BufferInstance> createInputBufferInstance(
-      PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
-      DeviceInstance *device, MemoryInstance *memory, ClientInstance *client);
+  static std::unique_ptr<BufferInstance>
+  createInputBufferInstance(PJRT_Buffer_Type data_type,
+                            const std::int64_t *dims, size_t num_dims,
+                            DeviceInstance *device, MemoryInstance *memory);
 
   // Creates new buffer instance for output buffer.
   static std::unique_ptr<BufferInstance>
-  createOutputBufferInstance(const tt::runtime::Tensor &device_tensor,
-                             std::vector<std::uint32_t> &&dimensions,
+  createOutputBufferInstance(std::vector<std::uint32_t> &&dimensions,
                              DeviceInstance *device, MemoryInstance *memory,
-                             PJRT_Buffer_Type data_type, uint32_t device_id,
-                             ClientInstance *client);
+                             PJRT_Buffer_Type data_type, uint32_t device_id);
 
   // Destructor, deletes buffer data if not already deleted.
   ~BufferInstance();
@@ -92,30 +92,6 @@ public:
   // Returns const device instance on which this buffer resides.
   const DeviceInstance *getDevice() const { return m_device; }
 
-  // Returns the underlying host runtime tensor created for this buffer.
-  const std::optional<tt::runtime::Tensor> &getHostRuntimeTensor() const {
-    return m_host_runtime_tensor;
-  }
-
-  // Returns the prepared runtime tensor created for this buffer on last
-  // execution.
-  const std::optional<tt::runtime::Tensor> &getPreparedTensor() const {
-    return m_prepared_runtime_tensor;
-  }
-
-  // Sets the prepared runtime tensor created for this buffer.
-  void setPreparedTensor(const tt::runtime::Tensor &tensor) {
-    m_prepared_runtime_tensor = tensor;
-  }
-
-  // Sets the host runtime tensor for this buffer.
-  void setHostRuntimeTensor(const tt::runtime::Tensor &tensor) {
-    m_host_runtime_tensor = tensor;
-  }
-
-  // Clears the prepared runtime tensor.
-  void clearPreparedTensor() { m_prepared_runtime_tensor = std::nullopt; }
-
   // Returns the memory instance on which this buffers resides.
   MemoryInstance *getMemory() { return m_memory; }
 
@@ -129,8 +105,7 @@ public:
   // expected data type when copying to host, possibly leading to a different
   // size. This function will calculate the converted runtime tensor size to be
   // tensor_volume * expected_host_data_type_element_size
-  static size_t getConvertedRuntimeTensorSize(const tt::runtime::Tensor &tensor,
-                                              PJRT_Buffer_Type data_type);
+  size_t tensorSize();
 
   // Returns a string representation of the buffer's shape in the format
   // [d1,d2,d3,...].
@@ -175,25 +150,37 @@ public:
   // Returns buffer's device id relative to mesh on which a output shard resides
   std::optional<uint32_t> getDeviceId() const { return m_device_id; }
 
+  // Sets PJRT tensor for this buffer instance (tensor shard).
+  void setPjrtTensor(std::shared_ptr<PjrtTensor> pjrt_tensor) noexcept {
+    m_pjrt_tensor.reset(std::move(pjrt_tensor), this);
+  }
+
+  PjrtTensorRef &getPjrtTensor() { return m_pjrt_tensor; };
+  const PjrtTensorRef &getPjrtTensor() const { return m_pjrt_tensor; };
+
+  const tt::runtime::Tensor &runtimeTensor() const {
+    return m_pjrt_tensor->runtime_tensor();
+  }
+  tt::runtime::Tensor &runtimeTensor() {
+    return m_pjrt_tensor->runtime_tensor();
+  }
+
 private:
   // Constructor used for the input buffers.
   BufferInstance(PJRT_Buffer_Type data_type, const std::int64_t *dims,
                  size_t num_dims, DeviceInstance *device,
-                 MemoryInstance *memory, ClientInstance *client);
+                 MemoryInstance *memory);
 
   // Constructor used for the output buffers.
-  BufferInstance(
-      const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
-      MemoryInstance *memory, PJRT_Buffer_Type data_type,
-      ClientInstance *client,
-      const std::optional<tt::runtime::Tensor> &host_tensor = std::nullopt,
-      const std::optional<tt::runtime::Tensor> &device_tensor = std::nullopt,
-      std::optional<uint32_t> device_id = std::nullopt);
+  BufferInstance(const std::vector<std::uint32_t> &dimensions,
+                 DeviceInstance *device, MemoryInstance *memory,
+                 PJRT_Buffer_Type data_type,
+                 std::optional<uint32_t> device_id = std::nullopt);
 
   // Copies the tensor inside the src_buffer to the tensor of this buffer.
   // Currently only used for device to device transfer in copy construction
   // of new buffer instance.
-  void copyFromBuffer(const BufferInstance *src_buffer);
+  void copyFromBuffer(BufferInstance *src_buffer);
 
   // Calculates required tensor shape.
   static std::vector<std::uint32_t> calculateShape(const std::int64_t *dims,
@@ -211,6 +198,15 @@ private:
     return uid.fetch_add(1, std::memory_order_relaxed);
   }
 
+  // Waits on a current copy to host thread to finish.
+  void joinCopyThread() {
+    const std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
+    if (m_copy_to_host_thread) {
+      m_copy_to_host_thread->join();
+      m_copy_to_host_thread.reset();
+    }
+  }
+
   // Unique identifier for this buffer instance.
   const uint64_t m_uid;
 
@@ -224,27 +220,12 @@ private:
   // Device instance on which this buffer resides.
   DeviceInstance *m_device;
 
-  // Client instance that owns this buffer, used for buffer tracking.
-  // Can be nullptr if buffer is created without client tracking.
-  ClientInstance *m_client;
-
   // Device index relative to mesh on which a output shard resides
   const std::optional<uint32_t> m_device_id;
 
   // Memory on which this buffer resides, Can be nullptr if buffer is created
   // via `PJRT_Client_BufferFromHostBuffer_Args` and memory was not specified.
   MemoryInstance *m_memory;
-
-  // Underlying host runtime tensor created for this buffer. Unlike the prepared
-  // tensor this one is guaranteed to be on host and is exactly the shard that
-  // the buffer instance represents.
-  std::optional<tt::runtime::Tensor> m_host_runtime_tensor;
-
-  // Prepared runtime tensor created for this buffer on last execution. If this
-  // buffer is used in multiple programs, it will be the tensor prepared for the
-  // last program executed. If this buffer instance is a part of a multi-device
-  // tensor, this field contains the full tensor.
-  std::optional<tt::runtime::Tensor> m_prepared_runtime_tensor;
 
   // True if data in the buffer is ready (transferred from host or computed on
   // device).
@@ -282,6 +263,9 @@ private:
   // Metal+Program Cache is not thread safe when untilizing on device, so
   //  even different bufferInstances may not be concurrently copied to host.
   static std::mutex s_copy_to_host_internal_mutex;
+
+  // Pjrt tensor reference.
+  PjrtTensorRef m_pjrt_tensor;
 };
 
 namespace internal {

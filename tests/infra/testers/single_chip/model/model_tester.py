@@ -148,14 +148,14 @@ class ModelTester(BaseTester, ABC):
         """
         return "__call__"
 
-    def test(self) -> Tuple[ComparisonResult, ...]:
+    def test(self, request=None) -> Tuple[ComparisonResult, ...]:
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
-            return self._test_inference()
+            return self._test_inference(request=request)
         else:
             return self._test_training()
 
-    def _test_inference(self) -> Tuple[ComparisonResult, ...]:
+    def _test_inference(self, request=None) -> Tuple[ComparisonResult, ...]:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
@@ -170,6 +170,9 @@ class ModelTester(BaseTester, ABC):
             list.append(self._perf_measurements, e2e_perf_stats)
 
         tt_res = self._run_on_tt_device(self._workload)
+
+        if request:
+            self.handle_filecheck_and_serialization(request, self._workload)
 
         return (self._compare(tt_res, cpu_res),)
 
@@ -221,15 +224,21 @@ class ModelTester(BaseTester, ABC):
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def serialize_on_device(self, output_prefix: str) -> None:
+    def serialize_on_device(
+        self, workload: Workload = None, output_prefix: str = None
+    ) -> None:
         """
         Serializes the model workload on TT device with proper compiler configuration.
 
         Args:
+            workload: Workload to serialize (if None, uses self._workload)
             output_prefix: Base path and filename prefix for output files
         """
-        if self._workload is None:
-            self._initialize_workload()
+        # Use provided workload or fall back to self._workload
+        if workload is None:
+            if self._workload is None:
+                self._initialize_workload()
+            workload = self._workload
 
         # Get compiler options based on framework
         if self._framework == Framework.JAX:
@@ -240,5 +249,5 @@ class ModelTester(BaseTester, ABC):
             raise ValueError(f"Unsupported framework: {self._framework}")
 
         self._device_runner.serialize_on_device(
-            self._workload, output_prefix, compiler_options=compiler_options
+            workload, output_prefix, compiler_options=compiler_options
         )

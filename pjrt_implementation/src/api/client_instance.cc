@@ -27,6 +27,7 @@
 #include "api/executable_image.h"
 #include "api/memory_instance.h"
 #include "api/module_builder/module_builder.h"
+#include "api/tensor_pool.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
 
@@ -40,12 +41,11 @@ static std::string getRankBindingPath(const std::string &metal_home) {
 
   const char *rank_binding = std::getenv("TT_DISTRIBUTED_RANK_BINDING");
   if (!rank_binding) {
-    DLOG_F(ERROR,
-           "TT_DISTRIBUTED_RANK_BINDING environment variable is not set");
+    LOG_F(ERROR, "TT_DISTRIBUTED_RANK_BINDING environment variable is not set");
     return "";
   }
   if (rank_binding_paths.find(rank_binding) == rank_binding_paths.end()) {
-    DLOG_F(ERROR, "Invalid rank binding: %s", rank_binding);
+    LOG_F(ERROR, "Invalid rank binding: %s", rank_binding);
     return "";
   }
 
@@ -53,8 +53,8 @@ static std::string getRankBindingPath(const std::string &metal_home) {
       std::filesystem::path(metal_home) / rank_binding_paths.at(rank_binding);
 
   if (std::filesystem::exists(rank_binding_path) == false) {
-    DLOG_F(ERROR, "Rank binding file does not exist at path: %s",
-           rank_binding_path.c_str());
+    LOG_F(ERROR, "Rank binding file does not exist at path: %s",
+          rank_binding_path.c_str());
     return "";
   }
 
@@ -65,13 +65,13 @@ static std::string getDistributedWorkerPath() {
   const char *distributed_worker_path =
       std::getenv("TT_DISTRIBUTED_WORKER_PATH");
   if (!distributed_worker_path) {
-    DLOG_F(ERROR, "TT_DISTRIBUTED_WORKER_PATH environment variable is not set");
+    LOG_F(ERROR, "TT_DISTRIBUTED_WORKER_PATH environment variable is not set");
     return "";
   }
 
   if (std::filesystem::exists(distributed_worker_path) == false) {
-    DLOG_F(ERROR, "Distributed worker file does not exist at path: %s",
-           distributed_worker_path);
+    LOG_F(ERROR, "Distributed worker file does not exist at path: %s",
+          distributed_worker_path);
     return "";
   }
 
@@ -81,7 +81,7 @@ static std::string getDistributedWorkerPath() {
 static tt_pjrt_status launchDistributedRuntime() {
   const char *metal_home = std::getenv("TT_METAL_RUNTIME_ROOT");
   if (!metal_home) {
-    DLOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
+    LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
     return tt_pjrt_status::kInternal;
   }
   tt::runtime::setMetalHome(metal_home);
@@ -130,7 +130,7 @@ static tt_pjrt_status setMemoryLogLevel() {
   } else if (memory_log_level_str == "any" || memory_log_level_str == "all") {
     log_level = tt::runtime::MemoryLogLevel::ANY;
   } else {
-    DLOG_F(ERROR, "Invalid memory logging level: %s", memory_log_level_env);
+    LOG_F(ERROR, "Invalid memory logging level: %s", memory_log_level_env);
     return tt_pjrt_status::kInternal;
   }
 
@@ -250,9 +250,9 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
   if (std::filesystem::exists(m_cached_system_descriptor_path) == false) {
-    DLOG_F(ERROR,
-           "Failed to store the system descriptor to the disk using path: %s",
-           m_cached_system_descriptor_path.c_str());
+    LOG_F(ERROR,
+          "Failed to store the system descriptor to the disk using path: %s",
+          m_cached_system_descriptor_path.c_str());
     return tt_pjrt_status::kInternal;
   }
 
@@ -283,7 +283,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
   }
 
   if (m_addressable_devices_raw.empty()) {
-    DLOG_F(ERROR, "Found no addressable devices in the system");
+    LOG_F(ERROR, "Found no addressable devices in the system");
     return tt_pjrt_status::kInternal;
   }
 
@@ -344,7 +344,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
           device_id < static_cast<int64_t>(m_addressable_devices_raw.size())) {
         addressable_devices.push_back(m_addressable_devices_raw[device_id]);
       } else {
-        DLOG_F(ERROR, "Invalid device ID %ld in DeviceAssignment", device_id);
+        LOG_F(ERROR, "Invalid device ID %ld in DeviceAssignment", device_id);
         return tt_pjrt_status::kInvalidArgument;
       }
     }
@@ -363,39 +363,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   *out_executable = executable.release();
 
   return tt_pjrt_status::kSuccess;
-}
-
-void ClientInstance::registerBuffer(BufferInstance *buffer) {
-  std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
-  m_tracked_buffers.insert(buffer);
-}
-
-void ClientInstance::unregisterBuffer(BufferInstance *buffer) {
-  std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
-  m_tracked_buffers.erase(buffer);
-}
-
-void ClientInstance::materializeAllBuffersToHost() {
-  std::lock_guard<std::mutex> lock(m_tracked_buffers_mutex);
-
-  for (BufferInstance *buffer : m_tracked_buffers) {
-    if (!buffer->getHostRuntimeTensor().has_value() &&
-        buffer->getPreparedTensor().has_value()) {
-      if (tt::runtime::isTensorAllocated(buffer->getPreparedTensor().value())) {
-        std::vector<tt::runtime::Tensor> host_tensors = tt::runtime::toHost(
-            buffer->getPreparedTensor().value(), /*untilize=*/true);
-        if (!host_tensors.empty()) {
-          buffer->setHostRuntimeTensor(host_tensors[0]);
-        }
-      }
-    }
-  }
-
-  // This ensures all buffers in a sharded group have the same prepared_tensor
-  // state (none) after mesh reshape, which is required by prepareInputTensor.
-  for (BufferInstance *buffer : m_tracked_buffers) {
-    buffer->clearPreparedTensor();
-  }
 }
 
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
@@ -423,11 +390,11 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
          utils::to_string(parent_mesh_shape).c_str(),
          utils::to_string(target_mesh_shape).c_str());
 
-  // Materialize all buffers to host and clear prepared tensors before closing
-  // the mesh. This ensures buffers don't hold references to deallocated tensors
-  // after mesh close, which could cause assertion failures in
-  // prepareInputTensor when buffers are reused as inputs to subsequent graphs.
-  materializeAllBuffersToHost();
+  // Move tensors to host before closing the mesh. This ensures buffers don't
+  // hold references to deallocated tensors after mesh close, which could cause
+  // assertion failures in prepareInputTensor when buffers are reused as inputs
+  // to subsequent graphs.
+  TensorPool::move_tensors_to_host();
 
   // NOTE: Due to some issues hit when testing, instead of using the reshape
   // mesh API, we are closing and re-opening the device with the wanted mesh
@@ -554,7 +521,7 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
   PJRT_Error *error = GlobalClientInstanceSingleton::initClient();
 
   if (error) {
-    DLOG_F(ERROR, "Failed to initialize PJRT client instance");
+    LOG_F(ERROR, "Failed to initialize PJRT client instance");
     return error;
   }
 
@@ -644,7 +611,7 @@ PJRT_Error *onClientLookupDevice(PJRT_Client_LookupDevice_Args *args) {
     }
   }
 
-  DLOG_F(ERROR, "Client device lookup failed for device with ID: %d", args->id);
+  LOG_F(ERROR, "Client device lookup failed for device with ID: %d", args->id);
 
   return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument).release();
 }
@@ -662,9 +629,9 @@ PJRT_Error *onClientLookupAddressableDevice(
     }
   }
 
-  DLOG_F(ERROR,
-         "Client addressable device lookup failed for device with local ID: %d",
-         args->local_hardware_id);
+  LOG_F(ERROR,
+        "Client addressable device lookup failed for device with local ID: %d",
+        args->local_hardware_id);
 
   return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument).release();
 }
@@ -701,10 +668,10 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   std::string_view program_format(args->program->format,
                                   args->program->format_size);
   if (program_format != module_builder::c_mlir_format_name) {
-    DLOG_F(ERROR,
-           "Program code format \"%s\" is not supported, only MLIR format is "
-           "currently supported",
-           args->program->format);
+    LOG_F(ERROR,
+          "Program code format \"%s\" is not supported, only MLIR format is "
+          "currently supported",
+          args->program->format);
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
@@ -730,6 +697,7 @@ PJRT_Error *onClientDefaultDeviceAssignment(
   return nullptr;
 }
 
+// Constructing buffer instance for the first time.
 PJRT_Error *
 onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
@@ -737,13 +705,13 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
 
   if (args->device_layout &&
       args->device_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
-    DLOG_F(ERROR,
-           "Copying from host is supported only with strided memory layout");
+    LOG_F(ERROR,
+          "Copying from host is supported only with strided memory layout");
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
   if (args->num_byte_strides != 0 && args->num_byte_strides != args->num_dims) {
-    DLOG_F(ERROR, "Invalid `num_byte_strides` argument");
+    LOG_F(ERROR, "Invalid `num_byte_strides` argument");
     return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                 .release();
   }
@@ -755,8 +723,8 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   // otherwise we copy data to `memory`."
   if (memory_instance) {
     if (device_instance && device_instance != memory_instance->getDevice()) {
-      DLOG_F(ERROR, "Device set in `device` arg is different from the memory "
-                    "space device set in `memory` arg");
+      LOG_F(ERROR, "Device set in `device` arg is different from the memory "
+                   "space device set in `memory` arg");
       return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                   .release();
     }
@@ -766,26 +734,26 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   }
 
   if (!memory_instance) {
-    DLOG_F(ERROR, "Memory space is not set either in `memory` arg nor in "
-                  "device from `device` arg");
+    LOG_F(ERROR, "Memory space is not set either in `memory` arg nor in "
+                 "device from `device` arg");
     return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                 .release();
   }
   if (memory_instance->isHostMemory()) {
-    DLOG_F(ERROR, "We only support creating buffers on device memory");
+    LOG_F(ERROR, "We only support creating buffers on device memory");
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
   if (!device_instance) {
-    DLOG_F(ERROR, "Device is not set either in `device` arg nor in device from "
-                  "`memory` arg");
+    LOG_F(ERROR, "Device is not set either in `device` arg nor in device from "
+                 "`memory` arg");
     return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                 .release();
   }
 
   std::unique_ptr<BufferInstance> buffer =
-      BufferInstance::createInputBufferInstance(
-          args->type, args->dims, args->num_dims, device_instance,
-          memory_instance, client_instance);
+      BufferInstance::createInputBufferInstance(args->type, args->dims,
+                                                args->num_dims, device_instance,
+                                                memory_instance);
 
   buffer->copyFromHost(
       args->data, args->type, args->dims, args->num_dims, args->byte_strides,

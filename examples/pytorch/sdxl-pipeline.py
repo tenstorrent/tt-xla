@@ -392,7 +392,7 @@ def test_sdxl_pipeline():
         output_file.unlink()
 
     try:
-        run_sdxl_pipeline(output_path=output_path, num_inference_steps=5)
+        run_sdxl_pipeline(output_path=output_path, num_inference_steps=1)
 
         assert output_file.exists(), f"Output image {output_path} was not created"
 

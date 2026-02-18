@@ -16,6 +16,7 @@ on:
           - 'model-test-push.json'
           - 'model-test-full.json'
           - 'on-pr.json'
+          - 'schedule-nightly.json'
           - 'model-test-passing.json'
           - 'model-test-xfail.json'
           - 'model-test-experimental.json'
@@ -25,6 +26,7 @@ on:
           - 'model-test-passing-weekly.json'
           - 'model-test-weekly.json'
           - 'vllm-model-tests.json'
+          - 'vllm-model-tests-nightly.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'

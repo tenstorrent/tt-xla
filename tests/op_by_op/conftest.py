@@ -41,3 +41,9 @@ def pytest_addoption(parser):
         default="",
         help="Filter files by subpath pattern and extract model names (e.g., 'irs/shlo_compiler' finds model_name/irs/shlo_compiler_*.mlir)",
     )
+    parser.addoption(
+        "--failed-ops-folder",
+        action="store",
+        default=None,
+        help="Folder path to save MLIR modules of failed operations (default: None, no saving)",
+    )

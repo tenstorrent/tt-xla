@@ -114,10 +114,10 @@ LoadedExecutableInstance::getOrCreateMeshDevice(
                       std::multiplies<std::uint32_t>{}));
 
   if (device_ids.size() != mesh_shape_num_devices) {
-    DLOG_F(ERROR,
-           "Input buffers are placed on a different number of devices (%zu) "
-           "than in the mesh shape estimated by the compiler (%zu)",
-           device_ids.size(), mesh_shape_num_devices);
+    LOG_F(ERROR,
+          "Input buffers are placed on a different number of devices (%zu) "
+          "than in the mesh shape estimated by the compiler (%zu)",
+          device_ids.size(), mesh_shape_num_devices);
     return std::nullopt;
   }
 
@@ -125,8 +125,8 @@ LoadedExecutableInstance::getOrCreateMeshDevice(
   if (device_instance &&
       !(device_ids.size() == 1 &&
         *device_ids.begin() == device_instance->getGlobalDeviceId())) {
-    DLOG_F(ERROR, "Input buffers are placed on a different device than the one "
-                  "specified in the execute_device argument");
+    LOG_F(ERROR, "Input buffers are placed on a different device than the one "
+                 "specified in the execute_device argument");
     return std::nullopt;
   }
 
@@ -191,13 +191,13 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     // Safety check to ensure no input tensor can be accidentally
     //  deallocated during execution, as it may be reused in a future graph.
     if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
-      DLOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
-                    "be deallocated during execution.");
+      LOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
+                   "be deallocated during execution.");
       return tt_pjrt_status::kInternal;
     }
     if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
-      DLOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
-                    "means it was deallocated by a previous operation.");
+      LOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
+                   "means it was deallocated by a previous operation.");
       return tt_pjrt_status::kInternal;
     }
   }
@@ -237,40 +237,6 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
     return mlir::failure();
   }
   return strategy;
-}
-
-// TODO: We are using std::maps with strings as that is the way it is defined in
-// the tt::runtime, instead of a more structured approach with structs and/or
-// enums. See issue: https://github.com/tenstorrent/tt-mlir/issues/2513
-tt::runtime::Tensor LoadedExecutableInstance::getTensorFromStrategy(
-    const std::vector<BufferInstance *> &arg_buffers,
-    const std::unordered_map<std::string, std::string> &strategy) {
-  if (strategy.at("strategy") == "identity") {
-    std::optional<tt::runtime::Tensor> host_runtime_tensor =
-        arg_buffers.front()->getHostRuntimeTensor();
-    assert(
-        host_runtime_tensor.has_value() &&
-        "Host tensor should be available in the buffer instance at this point");
-    return *host_runtime_tensor;
-  }
-
-  std::vector<tt::runtime::Tensor> runtime_tensor_shards;
-  runtime_tensor_shards.reserve(arg_buffers.size());
-  for (const BufferInstance *buffer : arg_buffers) {
-    std::optional<tt::runtime::Tensor> host_runtime_tensor =
-        buffer->getHostRuntimeTensor();
-    assert(
-        host_runtime_tensor.has_value() &&
-        "Host tensor should be available in the buffer instance at this point");
-    runtime_tensor_shards.push_back(*host_runtime_tensor);
-  }
-
-  tt::runtime::Tensor tensor = tt::runtime::createMultiDeviceHostTensor(
-      runtime_tensor_shards, strategy,
-      m_executable_image->getDevicesMeshShape());
-  tt::runtime::setTensorRetain(tensor, /*retain=*/true);
-
-  return tensor;
 }
 
 namespace internal {

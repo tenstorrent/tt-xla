@@ -51,13 +51,14 @@ class OpTester(BaseTester):
             os.environ.get("ENABLE_OP_TEST_PERF_MEASUREMENT", "0") == "1"
         )
         self._perf_measurements: list[dict[str, float]] = []
+        self._workload: Optional[Workload] = None
         super().__init__(
             evaluator_type="comparison",
             comparison_config=comparison_config,
             framework=framework,
         )
 
-    def test(self, workload: Workload) -> None:
+    def test(self, workload: Workload, request=None) -> None:
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
@@ -76,6 +77,9 @@ class OpTester(BaseTester):
 
         if self._enable_perf_measurement:
             self._test_e2e_perf(tt_workload)
+
+        if request:
+            self.handle_filecheck_and_serialization(request, tt_workload)
 
     def _test_e2e_perf(self, workload: Workload) -> None:
         warmup_iters_count = 3
@@ -134,6 +138,7 @@ class OpTester(BaseTester):
         minval: float = 0.0,
         maxval: float = 1.0,
         dtype: str | DTypeLike | torch.dtype = "float32",
+        request=None,
     ) -> None:
         """
         Tests `f` by running it with random inputs in range [`minval`, `maxval`) on
@@ -150,7 +155,7 @@ class OpTester(BaseTester):
             for shape in input_shapes
         ]
         workload = Workload(framework=self._framework, executable=f, args=inputs)
-        self.test(workload)
+        self.test(workload, request=request)
 
     def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
         """
@@ -181,6 +186,7 @@ def run_op_test(
     compiler_config: CompilerConfig = None,
     mesh: Optional[Mesh] = None,
     shard_spec_fn: Optional[Callable] = None,
+    request=None,
 ) -> None:
     """
     Tests `op` with `inputs` by running it on TT device and CPU and comparing the
@@ -195,75 +201,7 @@ def run_op_test(
         )
     else:
         workload = Workload(framework, executable=op, args=inputs)
-    tester.test(workload)
-
-
-def serialize_op(
-    op: Callable,
-    inputs: Sequence[Tensor],
-    output_prefix: str,
-    framework: Framework = Framework.JAX,
-    compiler_config: CompilerConfig = None,
-) -> None:
-    """
-    Serializes an op with given inputs to disk.
-
-    Args:
-        op: The operation/function to serialize
-        inputs: Input tensors for the operation
-        output_prefix: Base path and filename prefix for output files
-        framework: The framework to use (default: JAX)
-        compiler_config: Compiler configuration options
-    """
-    # Create an OpTester instance to get access to its device runner
-    if compiler_config is None:
-        compiler_config = CompilerConfig()
-    tester = OpTester(framework=framework, compiler_config=compiler_config)
-
-    workload = Workload(framework=framework, executable=op, args=inputs)
-
-    # Serialize workload on TT device using OpTester's method
-    tester.serialize_on_device(workload, output_prefix)
-
-
-def serialize_op_with_random_inputs(
-    op: Callable,
-    input_shapes: Sequence[tuple],
-    test_name: str,
-    minval: float = 0.0,
-    maxval: float = 1.0,
-    dtype: str | DTypeLike | torch.dtype = "float32",
-    framework: Framework = Framework.JAX,
-    compiler_config: CompilerConfig = None,
-) -> None:
-    """
-    Serializes an op with random inputs to disk.
-
-    Args:
-        op: The operation/function to serialize
-        input_shapes: Shapes for random input generation
-        test_name: Test name to generate output prefix from
-        minval: Minimum value for random inputs (default: 0.0)
-        maxval: Maximum value for random inputs (default: 1.0)
-        dtype: Data type for inputs
-        framework: The framework to use (default: JAX)
-        compiler_config: Compiler configuration options
-    """
-
-    clean_name = sanitize_test_name(test_name)
-    output_prefix = f"output_artifact/{clean_name}"
-
-    inputs = [
-        random_tensor(
-            shape,
-            minval=minval,
-            maxval=maxval,
-            dtype=dtype,
-            framework=framework,
-        )
-        for shape in input_shapes
-    ]
-    serialize_op(op, inputs, output_prefix, framework, compiler_config)
+    tester.test(workload, request=request)
 
 
 def run_op_test_with_random_inputs(
@@ -276,6 +214,7 @@ def run_op_test_with_random_inputs(
     framework: Framework = Framework.JAX,
     compiler_config: CompilerConfig = None,
     torch_options: dict = None,
+    request=None,
 ) -> None:
     """
     Tests `op` with random inputs in range [`minval`, `maxval`) by running it on
@@ -289,4 +228,6 @@ def run_op_test_with_random_inputs(
         compiler_config=compiler_config,
         torch_options=torch_options,
     )
-    tester.test_with_random_inputs(op, input_shapes, minval, maxval, dtype)
+    tester.test_with_random_inputs(
+        op, input_shapes, minval, maxval, dtype, request=request
+    )

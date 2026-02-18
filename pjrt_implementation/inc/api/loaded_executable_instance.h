@@ -134,12 +134,6 @@ protected:
       const mlir::tt::sharding_utils::MeshSharding &meshSharding,
       size_t num_devices);
 
-  // Either returns single tensor or creates multi-device host tensor from arg
-  // tensors, depending on the strategy.
-  tt::runtime::Tensor getTensorFromStrategy(
-      const std::vector<BufferInstance *> &arg_buffers,
-      const std::unordered_map<std::string, std::string> &strategy);
-
   // Executable image instance which is shared between executable and loaded
   // executable instances.
   std::shared_ptr<ExecutableImage> m_executable_image;

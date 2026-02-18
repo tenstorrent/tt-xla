@@ -105,7 +105,6 @@ def _run_model_test_impl(
         succeeded = False
         comparison_result = None
         tester = None
-        filecheck_results = None
 
         try:
             # Only run the actual model test if not marked for skip. The record properties
@@ -120,6 +119,7 @@ def _run_model_test_impl(
                         comparison_config=test_metadata.to_comparison_config(),
                         compiler_config=compiler_config,
                         parallelism=parallelism,
+                        test_metadata=test_metadata,
                     )
                 elif framework == Framework.JAX:
                     if (
@@ -153,38 +153,20 @@ def _run_model_test_impl(
                 else:
                     raise ValueError(f"Unknown framework: {framework}")
 
-                comparison_result = tester.test()
+                # Add filecheck marker dynamically if patterns are specified in test metadata
+                if hasattr(test_metadata, "filechecks") and test_metadata.filechecks:
+                    request.node.add_marker(
+                        pytest.mark.filecheck(test_metadata.filechecks)
+                    )
 
-                # Check if filecheck patterns are specified
-                pattern_files = (
-                    test_metadata.filechecks
-                    if hasattr(test_metadata, "filechecks")
-                    else None
-                )
-
-                # Serialize if --serialize flag is set OR if pattern files are specified
-                # Serializing IR to disk is required for FileCheck
-                if (
-                    request.config.getoption("--serialize", default=False)
-                    or pattern_files
-                ):
-                    tester.serialize_compilation_artifacts(request.node.name)
+                comparison_result = tester.test(request=request)
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
 
-                # Run FileCheck on generated IR files if test succeeded
-                if succeeded and pattern_files:
-                    filecheck_results = run_filecheck(
-                        test_node_name=request.node.name,
-                        irs_filepath="output_artifact",
-                        pattern_files=pattern_files,
-                    )
-
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
                 Evaluator._assert_on_results(comparison_result)
-                validate_filecheck_results(filecheck_results)
 
         except Exception as e:
             captured = captured_output_fixture.readouterr()
@@ -384,6 +366,22 @@ for entry in test_entries_torch:
         _llm_test_params.append((entry, RunPhase.LLM_PREFILL))
 
 
+def _generate_llm_test_id(param_tuple):
+    """Generate test ID for LLM tests."""
+    entry, phase = param_tuple
+    return f"{DynamicLoader.generate_test_id(entry, MODELS_ROOT_TORCH)}-{phase.value}"
+
+
+def _generate_sequence_length_id(sequence_length):
+    """Generate test ID component for sequence_length."""
+    return f"seq_{sequence_length}" if sequence_length is not None else "seq_1"
+
+
+def _generate_batch_size_id(batch_size):
+    """Generate test ID component for batch_size."""
+    return f"batch_{batch_size}"
+
+
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
 @pytest.mark.llm
@@ -408,13 +406,21 @@ for entry in test_entries_torch:
         ),
     ],
 )
+@pytest.mark.parametrize("batch_size", [1, 2], ids=_generate_batch_size_id)
+@pytest.mark.parametrize(
+    "sequence_length",
+    [None, 128, 1024, 2048, 4096, 8192],
+    ids=_generate_sequence_length_id,
+)
 @pytest.mark.parametrize(
     "test_entry_and_phase",
     _llm_test_params,
-    ids=lambda p: f"{DynamicLoader.generate_test_id(p[0], MODELS_ROOT_TORCH)}-{p[1].value}",
+    ids=_generate_llm_test_id,
 )
 def test_llms_torch(
     test_entry_and_phase,
+    sequence_length,
+    batch_size,
     run_mode,
     parallelism,
     record_property,
@@ -426,11 +432,23 @@ def test_llms_torch(
     """PyTorch LLM model test (decode/prefill phases) - delegates to shared implementation."""
     test_entry, run_phase = test_entry_and_phase
 
-    # Add phase-specific marker for filtering
     if run_phase == RunPhase.LLM_DECODE:
+        # Decode tests don't parametrize on sequence length (default is seq_len = 1).
+        if sequence_length is not None:
+            pytest.skip("Decode tests do not support sequence_length parameterization")
+        # Decode tests for now run only batch_size = 1.
+        if batch_size != 1:
+            pytest.skip("Decode tests currently only support batch_size=1")
         request.node.add_marker(pytest.mark.llm_decode)
-    elif run_phase == RunPhase.LLM_PREFILL:
+
+    if run_phase == RunPhase.LLM_PREFILL:
+        # Sequence length should be specified for prefill tests.
+        if sequence_length is None:
+            pytest.skip("Sequence length must be specified for prefill tests")
         request.node.add_marker(pytest.mark.llm_prefill)
+
+    test_metadata.batch_size = batch_size
+    test_metadata.seq_len = sequence_length
 
     _run_model_test_impl(
         test_entry=test_entry,

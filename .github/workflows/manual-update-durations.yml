@@ -43,7 +43,7 @@ jobs:
               if echo "$conclusions" | grep -q -w "$conclusion"; then
                 break
               else
-                ((counter++))
+                ((++counter))
 
                 # Exit if the counter reaches $num
                 if [ $counter -ge $num ]; then
