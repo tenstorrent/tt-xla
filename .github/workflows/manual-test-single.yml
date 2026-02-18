@@ -12,5 +12,6 @@ jobs:
     if: ${{ always() && needs.release.outputs.release_ready == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Log
-        run: echo "I'm here"
+      - name: Log outputs
+        run: |
+          echo "release_ready: ${{ needs.release.outputs.release_ready }}"
