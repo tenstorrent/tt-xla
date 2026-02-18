@@ -37,8 +37,9 @@ jobs:
         run: exit 0
 
   summary:
-    needs: [ publish-release-wheel, build-release-docker, publish-release ]
     runs-on: ubuntu-latest
+    if: always()
+    needs: [ publish-release-wheel, build-release-docker, publish-release ]
     outputs:
       release_ready: ${{ steps.flag.outputs.ready }}
     steps:
