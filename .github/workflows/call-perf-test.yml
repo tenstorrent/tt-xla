@@ -13,12 +13,19 @@ on:
         type: string
       artifact_run_id:
         description: "Run ID to download wheel artifact from"
-        required: true
+        required: false
         type: string
+        default: ''
       wheel_artifact_name:
         description: "Name of the wheel artifact"
-        required: true
+        required: false
         type: string
+        default: ''
+      use_docker_wheel:
+        description: "Use wheel from docker instead of building a new one"
+        required: false
+        type: boolean
+        default: false
       skip-device-perf:
         description: "Skip device performance measurement"
         required: false
@@ -119,6 +126,7 @@ jobs:
         fi
 
     - name: Download and install wheel
+      if: ${{ !inputs.use_docker_wheel }}
       shell: bash
       run: |
         echo "=== Downloading wheel ==="
