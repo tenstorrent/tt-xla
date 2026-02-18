@@ -33,8 +33,8 @@ jobs:
     if: ${{ always() && needs.publish-release-wheel.result == 'success' && needs.build-release-docker.result == 'success' }}
     needs: [ publish-release-wheel, build-release-docker, release-tests ]
     steps:
-      - name: Exit 1
-        run: exit 1
+      - name: Exit 0
+        run: exit 0
 
   summary:
     runs-on: ubuntu-latest
