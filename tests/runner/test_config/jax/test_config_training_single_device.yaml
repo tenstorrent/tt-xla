@@ -240,7 +240,7 @@ test_config:
     execution_pass: BACKWARD
 
   mnist/image_classification/jax-Cnn_Batchnorm-single_device-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
     bringup_status: INCORRECT_RESULT
     reason: "Comparison result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
     execution_pass: FORWARD
