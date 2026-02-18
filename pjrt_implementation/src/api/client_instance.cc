@@ -87,24 +87,38 @@ static std::string getDistributedWorkerPath() {
 
 static tt_pjrt_status launchDistributedRuntime() {
   DLOG_F(LOG_DEBUG, "ClientInstance::launchDistributedRuntime");
+
   const char *metal_home = std::getenv("TT_METAL_RUNTIME_ROOT");
+  // Hostname of the controller node
+  const char *controller_host_name =
+      std::getenv("TT_DISTRIBUTED_CONTROLLER_HOST_NAME");
+  // Comma separated list of hostnames
+  const char *hosts_list = std::getenv("TT_DISTRIBUTED_HOSTS_LIST");
+  // Path to the shell script used by MPI to execute commands on remote hosts
+  // eg. tests/torch/multi_host/experimental/remote_docker.sh
+  const char *plm_rsh_agent = std::getenv("TT_DISTRIBUTED_PLM_RSH_AGENT");
+  // Network interface name for MPI (eg. cnx1, enp10s0f1np1)
+  const char *btl_tcp_if_include =
+      std::getenv("TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE");
+
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
     return tt_pjrt_status::kInternal;
   }
-  const char *controller_host_name =
-      std::getenv("TT_DISTRIBUTED_CONTROLLER_HOST_NAME");
+
+  // On a single node setup (eg. split llmbox), these environment variables are
+  // not set.
   if (!controller_host_name) {
     DLOG_F(
         WARNING,
         "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set");
   }
-
-  const char *hosts_list = std::getenv("TT_DISTRIBUTED_HOSTS_LIST");
   if (!hosts_list) {
     DLOG_F(WARNING,
            "TT_DISTRIBUTED_HOSTS_LIST environment variable is not set");
   }
+
+  tt::runtime::setMetalHome(metal_home);
 
   std::vector<std::string> hosts_list_vec;
   if (hosts_list) {
@@ -115,7 +129,13 @@ static tt_pjrt_status launchDistributedRuntime() {
     }
   }
 
-  tt::runtime::setMetalHome(metal_home);
+  std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
+  if (btl_tcp_if_include) {
+    mca_options["btl_tcp_if_include"] = btl_tcp_if_include;
+  }
+  if (plm_rsh_agent) {
+    mca_options["plm_rsh_agent"] = plm_rsh_agent;
+  }
 
   std::string rank_binding_path = getRankBindingPath(metal_home);
   if (rank_binding_path.empty()) {
@@ -125,17 +145,6 @@ static tt_pjrt_status launchDistributedRuntime() {
   std::string distributed_worker_path = getDistributedWorkerPath();
   if (distributed_worker_path.empty()) {
     return tt_pjrt_status::kInternal;
-  }
-
-  const char *plm_rsh_agent = std::getenv("TT_DISTRIBUTED_PLM_RSH_AGENT");
-  const char *btl_tcp_if_include =
-      std::getenv("TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE");
-  std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
-  if (btl_tcp_if_include) {
-    mca_options["btl_tcp_if_include"] = btl_tcp_if_include;
-  }
-  if (plm_rsh_agent) {
-    mca_options["plm_rsh_agent"] = plm_rsh_agent;
   }
 
   tt::runtime::DistributedOptions distributed_options;

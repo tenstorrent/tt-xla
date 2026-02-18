@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 import pytest
+from ttxla_tools.logging import logger
 
 
 def get_distributed_worker_path():
@@ -48,7 +49,7 @@ def test_multihost_models(model_variant):
     distributed_env["TT_RUNTIME_ENABLE_DISTRIBUTED"] = "1"
     distributed_env["TT_DISTRIBUTED_RANK_BINDING"] = "2x4_multiprocess"
 
-    print(f"\n=== Starting multihost test for {model_variant} ===", flush=True)
+    logger.info(f"Starting multihost test for {model_variant}")
 
     result = subprocess.run(
         [
