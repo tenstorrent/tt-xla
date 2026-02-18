@@ -48,7 +48,9 @@ jobs:
           ready="false"
           if [[ ${{ needs.publish-release-wheel.result == 'success' && needs.build-release-docker.result == 'success' && needs.publish-release.result == 'success' }} ]]; then
             ready="true"
+            echo "event: ready switched to true"
           fi
+          echo "ready=$ready"
           echo "ready=$ready" >> $GITHUB_OUTPUT
 
       - id: Log
