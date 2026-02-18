@@ -46,7 +46,7 @@ jobs:
       - id: flag
         run: |
           ready="false"
-          if [[ ${{ needs.publish-release-wheel.result == 'success' && needs.build-release-docker.result == 'success' && needs.publish-release.result == 'success' }} ]]; then
+          if [[ "${{ needs.publish-release-wheel.result == 'success' && needs.build-release-docker.result == 'success' && needs.publish-release.result == 'success' }}" == "true" ]]; then
             ready="true"
             echo "event: ready switched to true"
           fi
