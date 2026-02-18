@@ -205,7 +205,7 @@ def _run_model_test_impl(
                 batch_size, input_sequence_length, input_size = (
                     get_input_shape_info(getattr(tester, "_input_activations", None))
                     if tester
-                    else (1, -1)
+                    else (1, -1, (-1,))
                 )
                 create_benchmark_result(
                     full_model_name=model_info.name,
