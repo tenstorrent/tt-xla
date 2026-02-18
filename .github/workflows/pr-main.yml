@@ -70,7 +70,7 @@ jobs:
   #     build_type: explorer
 
   test:
-    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    needs: [ inspect-changes, build-image, build-manylinux-ttxla ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
