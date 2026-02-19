@@ -20,6 +20,10 @@
   // which is the only non-optional stat that has to be set in this function.
   // https://github.com/tenstorrent/tt-xla/issues/470
   _STUB(PJRT_Device_MemoryStats);
+
+  // Not required to be implemented. Needs further investigation into if and how
+  // clients utilize this function.
+  _STUB(PJRT_Device_PoisonExecution);
   // ---------------------------------------------------------------------------
 
 
@@ -33,6 +37,7 @@
   // need flexible memcpy from runtime in order to specify the offset and size.
   _STUB(PJRT_Buffer_OnDeviceSizeInBytes);
   _STUB(PJRT_Buffer_CopyRawToHost);
+  _STUB(PJRT_Buffer_CopyRawToHostFuture);
 
   // Can be used in combination with `PJRT_Buffer_IsOnCpu` to enable certain
   // optimizations (avoids memory copy), but currently all our inputs are
@@ -42,6 +47,10 @@
   _STUB(PJRT_Buffer_IncreaseExternalReferenceCount);
   _STUB(PJRT_Buffer_DecreaseExternalReferenceCount);
   _STUB(PJRT_Buffer_OpaqueDeviceMemoryDataPointer);
+
+  // Needs further investigation into how this function ties in with buffer
+  // donation.
+  _STUB(PJRT_Buffer_DonateWithControlDependency);
   // ---------------------------------------------------------------------------
 
 
@@ -62,6 +71,7 @@
   // Not required to be implemented and unclear how this is used by the clients
   // (if at all).
   _STUB(PJRT_Executable_GetCostAnalysis);
+  _STUB(PJRT_LoadedExecutable_GetDeviceAssignment);
 
   // This is not required to be implemented by all platforms. It should return
   // memory stats that allow callers to estimate device memory usage when
@@ -72,6 +82,10 @@
   // Deserialization of our executable is not yet supported.
   // https://github.com/tenstorrent/tt-xla/issues/498
   _STUB(PJRT_Executable_DeserializeAndLoad);
+
+  // Designed to override already serialized options, but since deserialization
+  // is not yet supported, there is no benefit to implementing this yet.
+  _STUB(PJRT_Executable_GetCompileOptions);
   // ---------------------------------------------------------------------------
 
 
@@ -89,6 +103,10 @@
   // Not required to be implemented.
   _STUB(PJRT_Client_DefaultDeviceAssignment);
 
+  // Designed for PJRT model for multi-host scenarios, but TT does not implement
+  // this model.
+  _STUB(PJRT_Client_UpdateGlobalProcessInfo);
+
   // Not required to be implemented. This is intended to support dlpack on GPU
   // and is not expected to be supported on all hardware platforms.
   _STUB(PJRT_Client_CreateViewOfDeviceBuffer);
@@ -105,6 +123,32 @@
   // Not required to be implemented. Used to map memory for fast transfers.
   _STUB(PJRT_Client_DmaMap);
   _STUB(PJRT_Client_DmaUnmap);
+
+  // Various types of buffers that need further investigation into if and how
+  // clients utilize them.
+  _STUB(PJRT_Client_CreateAliasBuffer);
+  _STUB(PJRT_Client_FulfillAliasBuffer);
+  _STUB(PJRT_Client_CreateErrorBuffer);
+  _STUB(PJRT_Client_CreateUninitializedBuffer);
+  // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // PJRT_Event stubs:
+
+  // Not required for now. It appears that these functions enable scenarios in
+  // which the PJRT implementation waits for an async operation in the client
+  // to complete.
+  _STUB(PJRT_Event_Create);
+  _STUB(PJRT_Event_Set);
+  // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // PJRT_AsyncTrackingEvent stubs:
+
+  // Not required to be implemented. Need further investigation into if and how
+  // clients utilize them.
+  _STUB(PJRT_Device_CreateAsyncTrackingEvent);
+  _STUB(PJRT_AsyncTrackingEvent_Destroy);
   // ---------------------------------------------------------------------------
 
   _STUB(PJRT_CopyToDeviceStream_Destroy);
@@ -119,6 +163,7 @@
   _STUB(PJRT_TopologyDescription_GetDeviceDescriptions);
   _STUB(PJRT_TopologyDescription_Serialize);
   _STUB(PJRT_TopologyDescription_Attributes);
+  _STUB(PJRT_TopologyDescription_Deserialize);
   _STUB(PJRT_Compile);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Device);
@@ -128,3 +173,4 @@
   _STUB(PJRT_AsyncHostToDeviceTransferManager_BufferSize);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_SetBufferError);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_AddMetadata);
+  _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferLiteral);

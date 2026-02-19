@@ -69,30 +69,30 @@ AVAILABLE_VARIANT_MAP = {
         "Huggyllama_7B",
         "Tinyllama_v1.1",
     ],
-    "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b", "32b"],
+    "qwen3": ["0_6B", "1_7B", "4B", "8B", "14B", "32B"],
     "qwen2_5": [
-        "0_5b",
-        "1_5b",
-        "3b",
-        "7b",
-        "14b",
-        "32b_instruct",
-        "72b_instruct",
-        "math_7b",
+        "0.5B",
+        "1.5B",
+        "3B",
+        "7B",
+        "14B",
+        "32B_Instruct",
+        "72B_Instruct",
+        "Math_7B",
     ],
     "gemma": [
-        "google/gemma-1.1-2b-it",
-        "google/gemma-1.1-7b-it",
-        "google/gemma-2b",
-        "google/gemma-2-2b-it",
-        "google/gemma-2-9b-it",
-        "google/gemma-2-27b-it",
+        "1.1_2B_IT",
+        "1.1_7B_IT",
+        "2B",
+        "2_2B_IT",
+        "2_9B_IT",
+        "2_27B_IT",
     ],
     "mistral": [
-        "7b",
-        "7b_instruct_v03",
-        "ministral_3b_instruct",
-        "ministral_8b_instruct",
+        "7B",
+        "7B_INSTRUCT_v03",
+        "Ministral_3B_Instruct",
+        "Ministral_8B_Instruct",
     ],
 }
 
@@ -294,7 +294,7 @@ def test_qwen3_decoder_layer(seq_len, variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_decoder_layer(seq_len, variant, variant_config, arch):
-    if str(variant) == "google/gemma-1.1-2b-it" or str(variant) == "google/gemma-2b":
+    if str(variant) == "1.1_2B_IT" or str(variant) == "2B":
         pytest.skip("Only running variants that support 2x4 sharding")
 
     xr.set_device_type("TT")
@@ -303,7 +303,7 @@ def test_gemma_decoder_layer(seq_len, variant, variant_config, arch):
     config = loader.load_config()
 
     # For Gemma2 use the Gemma2DecoderLayer
-    if "gemma-2-" in str(variant):
+    if str(variant).startswith("2_"):
 
         class Wrapper(torch.nn.Module):
             def __init__(self):
@@ -517,7 +517,7 @@ def test_mistral_decoder_layer(seq_len, variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
 def test_qwen2_5_decoder_layer(seq_len, variant, variant_config, arch):
-    if str(variant) == "0_5b" or str(variant) == "1_5b" or str(variant) == "3b":
+    if str(variant) == "0.5B" or str(variant) == "1.5B" or str(variant) == "3B":
         pytest.skip("Only running variants that support 2x4 sharding")
 
     xr.set_device_type("TT")

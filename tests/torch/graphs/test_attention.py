@@ -95,32 +95,32 @@ AVAILABLE_VARIANT_MAP = {
         "Huggyllama_7B",
         "Tinyllama_v1.1",
     ],
-    "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b", "32b", "30b_a3b"],
-    "bge_m3": ["base"],
-    "bert": ["bert-base-uncased"],
+    "qwen3": ["0_6B", "1_7B", "4B", "8B", "14B", "32B", "30B_A3b"],
+    "bge_m3": ["Base"],
+    "bert": ["Base_Uncased"],
     "qwen2_5": [
-        "0_5b",
-        "1_5b",
-        "3b",
-        "7b",
-        "14b",
-        "32b_instruct",
-        "72b_instruct",
-        "math_7b",
+        "0.5B",
+        "1.5B",
+        "3B",
+        "7B",
+        "14B",
+        "32B_Instruct",
+        "72B_Instruct",
+        "Math_7B",
     ],
     "gemma": [
-        "google/gemma-1.1-2b-it",
-        "google/gemma-1.1-7b-it",
-        "google/gemma-2b",
-        "google/gemma-2-2b-it",
-        "google/gemma-2-9b-it",
-        "google/gemma-2-27b-it",
+        "1.1_2B_IT",
+        "1.1_7B_IT",
+        "2B",
+        "2_2B_IT",
+        "2_9B_IT",
+        "2_27B_IT",
     ],
     "mistral": [
-        "7b",
-        "7b_instruct_v03",
-        "ministral_3b_instruct",
-        "ministral_8b_instruct",
+        "7B",
+        "7B_INSTRUCT_v03",
+        "Ministral_3B_Instruct",
+        "Ministral_8B_Instruct",
     ],
     "gpt_oss": ["20B", "120B"],
 }
@@ -516,7 +516,7 @@ def test_llama_attention(variant, variant_config, seq_len, arch):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_prefill(seq_len, variant, variant_config, arch):
-    if not arch == "llmbox" and (str(variant) == "32b" or str(variant) == "30b_a3b"):
+    if not arch == "llmbox" and (str(variant) == "32B" or str(variant) == "30B_A3b"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -659,7 +659,7 @@ def test_qwen3_attention_prefill_push(seq_len, variant, arch):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_decode(variant, variant_config, arch):
-    if not arch == "llmbox" and (str(variant) == "32b" or str(variant) == "30b_a3b"):
+    if not arch == "llmbox" and (str(variant) == "32B" or str(variant) == "30B_A3b"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -763,7 +763,7 @@ def test_qwen3_attention_decode(variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_concat_heads(variant, variant_config, seq_len):
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
+    if str(variant) == "32B" or str(variant) == "30B_A3b":
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -795,7 +795,7 @@ def test_qwen3_concat_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_create_heads(variant, variant_config, seq_len):
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
+    if str(variant) == "32B" or str(variant) == "30B_A3b":
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -846,7 +846,7 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention(variant, variant_config, seq_len, arch):
-    if not arch == "llmbox" and (str(variant) == "32b" or str(variant) == "30b_a3b"):
+    if not arch == "llmbox" and (str(variant) == "32B" or str(variant) == "30B_A3b"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -1137,7 +1137,7 @@ def test_bert_create_heads(variant, variant_config, seq_len):
 )
 def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, arch):
     if not arch == "llmbox" and (
-        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+        str(variant) == "72B_Instruct" or str(variant) == "32B_Instruct"
     ):
         pytest.skip("Variant doesn't fit on a single device")
 
@@ -1318,7 +1318,7 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, arch):
 )
 def test_qwen2_5_attention_decode(variant, variant_config, arch):
     if not arch == "llmbox" and (
-        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+        str(variant) == "72B_Instruct" or str(variant) == "32B_Instruct"
     ):
         pytest.skip("Variant doesn't fit on a single device")
 
@@ -1427,7 +1427,7 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
 )
 def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
     if not arch == "llmbox" and (
-        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+        str(variant) == "72B_Instruct" or str(variant) == "32B_Instruct"
     ):
         pytest.skip("Variant doesn't fit on a single device")
 
@@ -1571,7 +1571,7 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_attention_prefill(seq_len, variant, variant_config, arch):
-    if not arch == "llmbox" and (str(variant) == "google/gemma-2-27b-it"):
+    if not arch == "llmbox" and (str(variant) == "2_27B_IT"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -1715,7 +1715,7 @@ def test_gemma_attention_prefill_push(seq_len, variant, arch):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_attention_decode(variant, variant_config, arch):
-    if not arch == "llmbox" and (str(variant) == "google/gemma-2-27b-it"):
+    if not arch == "llmbox" and (str(variant) == "2_27B_IT"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -1820,7 +1820,7 @@ def test_gemma_attention_decode(variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_attention(variant, variant_config, seq_len, arch):
-    if not arch == "llmbox" and (str(variant) == "google/gemma-2-27b-it"):
+    if not arch == "llmbox" and (str(variant) == "2_27B_IT"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")

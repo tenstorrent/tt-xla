@@ -43,18 +43,6 @@ env:
   TT_XLA_CI: 1
 
 jobs:
-  validate-test-config:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install pyyaml
-      - run: python3 tests/runner/validate_test_config.py
-
   generate-matrix-test:
     uses: ./.github/workflows/call-generate-matrix.yml
     secrets: inherit

@@ -160,6 +160,9 @@ class InputBatch:
         )
         self.num_accepted_tokens_cpu = self.num_accepted_tokens_cpu_tensor.numpy()
 
+        # req_index -> (min_tokens, stop_token_ids)
+        self.min_tokens: dict[int, tuple[int, set[int]]] = {}
+
         # lora related
         self.request_lora_mapping = np.zeros((self.max_num_reqs,), dtype=np.int64)
         self.lora_id_to_request_ids: dict[int, set[str]] = {}

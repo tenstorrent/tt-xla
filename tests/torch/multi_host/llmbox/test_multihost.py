@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 import pytest
+from ttxla_tools.logging import logger
 
 
 def get_distributed_worker_path():
@@ -36,7 +37,10 @@ def get_distributed_worker_path():
 @pytest.mark.multi_host_cluster
 @pytest.mark.parametrize(
     "model_variant",
-    ["llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference"],
+    [
+        "llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference",
+        "gpt_oss/pytorch-20B-tensor_parallel-inference",
+    ],
 )
 def test_multihost_models(model_variant):
     distributed_env = os.environ.copy()
@@ -45,12 +49,14 @@ def test_multihost_models(model_variant):
     distributed_env["TT_RUNTIME_ENABLE_DISTRIBUTED"] = "1"
     distributed_env["TT_DISTRIBUTED_RANK_BINDING"] = "2x4_multiprocess"
 
+    logger.info(f"Starting multihost test for {model_variant}")
+
     result = subprocess.run(
         [
             sys.executable,
             "-m",
             "pytest",
-            "-ssv",
+            "-svv",
             f"tests/runner/test_models.py::test_all_models_torch[{model_variant}]",
             "--disable-perf-measurement",
         ],
