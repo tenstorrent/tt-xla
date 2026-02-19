@@ -43,7 +43,12 @@ cmake -G Ninja -B build  # Add -DCMAKE_BUILD_TYPE=Debug for debug build
 cmake --build build
 ```
 
+**Important:** The project must be built before running any tests. If you see `ModuleNotFoundError: No module named 'tt_jax'`, it means the project hasn't been built yet. Run `source venv/activate && cmake -G Ninja -B build && cmake --build build` to fix this.
+
 ### Testing
+
+**Important:** Tests cannot be run in parallel — each test requires exclusive access to hardware resources. Always run tests sequentially (one at a time).
+
 ```bash
 # JAX tests
 pytest -v tests/jax/single_chip          # Single-chip JAX tests
