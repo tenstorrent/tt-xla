@@ -182,11 +182,16 @@ def test_llm_tp(
     mesh_config_fn = ModelLoaderModule.get_mesh_config
     shard_spec_fn = ModelLoaderModule.load_shard_spec
 
+    if "optimization_level" in kwargs:
+        optimization_level = kwargs.pop("optimization_level")
+    else:
+        optimization_level = DEFAULT_TP_OPTIMIZATION_LEVEL
+
     test_llm(
         ModelLoaderModule=ModelLoaderModule,
         variant=variant,
         output_file=output_file,
-        optimization_level=DEFAULT_TP_OPTIMIZATION_LEVEL,
+        optimization_level=optimization_level,
         mesh_config_fn=mesh_config_fn,
         shard_spec_fn=shard_spec_fn,
         arch=arch,

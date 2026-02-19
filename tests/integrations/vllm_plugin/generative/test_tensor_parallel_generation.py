@@ -8,9 +8,6 @@ import vllm
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.dual_chip
-@pytest.mark.skip(
-    reason="vLLM TP test leave the device in bad state after successful execution; causing subsequent tests to fail. https://github.com/tenstorrent/tt-xla/issues/3266"
-)
 @pytest.mark.parametrize("model_name", ["meta-llama/Llama-3.2-3B"])
 def test_tensor_parallel_generation_n300(model_name: str):
     prompts = [
@@ -38,9 +35,6 @@ def test_tensor_parallel_generation_n300(model_name: str):
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
-@pytest.mark.skip(
-    reason="vLLM TP test leave the device in bad state after successful execution; causing subsequent tests to fail. https://github.com/tenstorrent/tt-xla/issues/3266"
-)
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_enable_weight_bfp8_conversion"],
     [
@@ -78,9 +72,6 @@ def test_tensor_parallel_generation_llmbox_small(
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
-@pytest.mark.skip(
-    reason="vLLM TP test leave the device in bad state after successful execution; causing subsequent tests to fail. https://github.com/tenstorrent/tt-xla/issues/3266"
-)
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_enable_weight_bfp8_conversion"],
     [

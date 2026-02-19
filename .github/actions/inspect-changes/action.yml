@@ -21,6 +21,11 @@ runs:
   using: "composite"
   steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
     - name: Inspect changes
       id: inspect
       shell: bash
@@ -58,7 +63,8 @@ runs:
             ".github/workflows/push-main.yml"
             ".github/scripts/download_artifacts.py"
             ".github/scripts/summarize_junit_xmls.py"
-            "tests/runner/*" # This goes with custom logic below.
+            ".github/actions/inspect-changes/*.yml"
+            "tests/runner/*"
           )
 
           for file in $CHANGED_FILES; do
@@ -84,16 +90,36 @@ runs:
             fi
           done
 
+
           # Just run forge tests if everything else is skipped but we detect changes under tests/runner/.
           if [[ "$skip_build_and_test" == "true" ]]; then
+            push_changed=false
+            yml_changed=false
+            pip install pyyaml pytest jsonschema
+            git fetch origin "${{ github.event.pull_request.base.sha }}"
             for file in $CHANGED_FILES; do
-              if [[ $file == tests/runner/* ]]; then
-                echo "Detected only skippable files + tests/runner/, enabling forge-model tests."
-                skip_build_and_test=false
-                only_run_forge_models=true
-                break
+              if [[ $file =~ ^tests/runner/.+\.(yml|yaml)$ ]]; then
+                echo "Config file $file changed"
+                yml_changed=true
+                # Get the original file content before PR changes
+                rm -f .original_file.yml
+                git show "${{ github.event.pull_request.base.sha }}:$file" >.original_file.yml
+                res=$(python tests/runner/test_config/model_diff.py "$file" .original_file.yml)
+                if [ -z "$res" ] || [ "$res" -eq 1 ]; then
+                  push_changed=true
+                fi
+              elif [[ $file == tests/runner/* ]]; then
+                push_changed=true
               fi
             done
+            if [[ $push_changed == true ]]; then
+              echo "Other changes under tests/runner/ detected. Will run push tests."
+              only_run_forge_models=true
+              skip_build_and_test=false
+            elif [[ $yml_changed == true ]]; then
+              echo "Only yml config changes under tests/runner/. Validating changed config files against schema."
+              python tests/runner/validate_test_config.py
+            fi
           fi
 
           # Detect TT-MLIR dependency updates in PRs.

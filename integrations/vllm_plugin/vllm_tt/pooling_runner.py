@@ -90,10 +90,10 @@ from .attention import (
     TTMetadata,
     get_page_size_bytes,
 )
+from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
 from .overrides import replace_modules
 from .platform import TTConfig
-from .pooling_input_batch import CachedRequestState, InputBatch
 from .vllm_distributed_utils import shard_model
 
 if TYPE_CHECKING:
