@@ -52,8 +52,10 @@ class XLASupportedSamplingMetadata:
     no_logit_bias: bool = True
     logit_bias_tensor: Optional[torch.Tensor] = None
 
+    no_bad_words: bool = True
+    bad_words_mask: Optional[torch.Tensor] = None
+
     allowed_token_ids_mask = None
-    bad_words_token_ids = None
 
     # Generator not supported by xla
     _generators: dict[int, torch.Generator] = field(default_factory=lambda: dict())
@@ -109,6 +111,22 @@ class XLASupportedSamplingMetadata:
             logit_bias_tensor = None
             no_logit_bias = True
 
+        # Build bad_words_mask tensor (single-token bad words only).
+        has_bad_words = bool(input_batch.bad_words_token_ids)
+        if has_bad_words:
+            bad_words_cpu = torch.zeros(
+                padded_num_reqs, input_batch.vocab_size, dtype=torch.float32
+            )
+            for req_idx, token_seqs in input_batch.bad_words_token_ids.items():
+                for token_seq in token_seqs:
+                    if len(token_seq) == 1:
+                        bad_words_cpu[req_idx, token_seq[0]] = float("-inf")
+            bad_words_mask = bad_words_cpu.to(xla_device)
+            no_bad_words = False
+        else:
+            bad_words_mask = None
+            no_bad_words = True
+
         # Early return to avoid unnecessary cpu to tpu copy
         if input_batch.all_greedy is True and generate_params_if_all_greedy is False:
             return cls(
@@ -116,6 +134,8 @@ class XLASupportedSamplingMetadata:
                 logprobs=needs_logprobs,
                 no_logit_bias=no_logit_bias,
                 logit_bias_tensor=logit_bias_tensor,
+                no_bad_words=no_bad_words,
+                bad_words_mask=bad_words_mask,
             )
 
         def fill_slice(cpu_tensor: torch.Tensor, fill_val) -> torch.Tensor:
@@ -143,4 +163,6 @@ class XLASupportedSamplingMetadata:
             logprobs=needs_logprobs,
             no_logit_bias=no_logit_bias,
             logit_bias_tensor=logit_bias_tensor,
+            no_bad_words=no_bad_words,
+            bad_words_mask=bad_words_mask,
         )
