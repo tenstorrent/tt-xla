@@ -137,7 +137,7 @@ getOrderedAxisRefs(TensorShardingAttr sdySharding, MeshAttr mesh) {
     llvm::sort(preSizes);
     preSizes.erase(std::unique(preSizes.begin(), preSizes.end()),
                    preSizes.end());
-    for (int64_t i = 0; i < preSizes.size() - 1; ++i) {
+    for (size_t i = 0; i < preSizes.size() - 1; ++i) {
       int64_t preSize = preSizes[i];
       int64_t size = preSizes[i + 1] / preSize;
       axisRefs.push_back(AxisRefAttr::get(
@@ -163,35 +163,37 @@ void canonicalizeIotaDims(mlir::SmallVector<int64_t> &reshapeDims,
   while (true) {
     bool changed = false;
     // Remove all dimensions of size 1
-    int new_ndims = 0;
-    for (int i = 0; i < reshapeDims.size(); ++i) {
+    int64_t new_ndims = 0;
+    for (int64_t i = 0; i < static_cast<int64_t>(reshapeDims.size()); ++i) {
       if (reshapeDims[i] == 1) {
         old_to_new_dims[i] = -1;
       } else {
         old_to_new_dims[i] = new_ndims++;
       }
     }
-    if (new_ndims != reshapeDims.size()) {
-      for (int i = 0, new_idx = 0; i < reshapeDims.size(); ++i) {
-        int new_dim = old_to_new_dims[i];
+    if (new_ndims != static_cast<int64_t>(reshapeDims.size())) {
+      for (int64_t i = 0, new_idx = 0;
+           i < static_cast<int64_t>(reshapeDims.size()); ++i) {
+        int64_t new_dim = old_to_new_dims[i];
         if (new_dim >= 0) {
           reshapeDims[new_dim] = reshapeDims[i];
         }
 
-        int new_perm_dim = old_to_new_dims[transposePerm[i]];
+        int64_t new_perm_dim = old_to_new_dims[transposePerm[i]];
         if (new_perm_dim >= 0) {
           transposePerm[new_idx] = new_perm_dim;
           ++new_idx;
           assert(new_idx <= new_ndims);
         }
       }
-      transposePerm.truncate(new_ndims);
-      reshapeDims.truncate(new_ndims);
+      transposePerm.truncate(static_cast<size_t>(new_ndims));
+      reshapeDims.truncate(static_cast<size_t>(new_ndims));
     }
     // Merge subranges
-    for (int i = 1, base = 0, n = reshapeDims.size(); i < n; ++i) {
-      const int base_dim = transposePerm[base];
-      const int dim = transposePerm[i];
+    for (int64_t i = 1, base = 0, n = static_cast<int64_t>(reshapeDims.size());
+         i < n; ++i) {
+      const int64_t base_dim = transposePerm[base];
+      const int64_t dim = transposePerm[i];
       if (base_dim + (i - base) == dim) {
         reshapeDims[base_dim] *= reshapeDims[dim];
         reshapeDims[dim] = 1;
@@ -269,7 +271,7 @@ std::string extractHloShardingString(TensorShardingAttr sdySharding,
   // Only add transposePerm if it is not the identity permutation, i.e.,
   // if it's not [0, 1, 2, ...].
   bool shouldAddTransposePerm = false;
-  for (size_t i = 0; i < transposePerm.size(); ++i) {
+  for (int64_t i = 0; i < static_cast<int64_t>(transposePerm.size()); ++i) {
     if (transposePerm[i] != i) {
       shouldAddTransposePerm = true;
       break;

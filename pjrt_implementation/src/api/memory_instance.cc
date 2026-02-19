@@ -47,8 +47,8 @@ void MemoryInstance::bindApi(PJRT_Api *api) {
 MemoryInstance::MemoryInstance(
     std::vector<DeviceInstance *> &addressable_by_devices, size_t id,
     bool is_host_memory)
-    : m_addressable_by_devices(addressable_by_devices), m_id(id),
-      m_is_host_memory(is_host_memory) {
+    : m_addressable_by_devices(addressable_by_devices),
+      m_is_host_memory(is_host_memory), m_id(id) {
   m_debug_string =
       "MemoryInstance: " + std::to_string(id) + " (" + getMemoryKind() + ")";
 }

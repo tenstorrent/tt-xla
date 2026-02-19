@@ -151,7 +151,7 @@ void BufferInstance::deleteData() {
 
 // Constructing buffer instance for the first time.
 void BufferInstance::copyFromHost(
-    const void *host_buffer, PJRT_Buffer_Type data_type,
+    const void *host_buffer, [[maybe_unused]] PJRT_Buffer_Type data_type,
     const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides,
     size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
     EventInstance **out_done_with_host_buffer_event) {
@@ -299,7 +299,7 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
 }
 
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
-                                          size_t host_buffer_size,
+                                          size_t /*host_buffer_size*/,
                                           EventInstance **out_copy_done_event) {
   assert(m_pjrt_tensor && "Copy from buffer without an associated tensor.");
 

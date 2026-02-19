@@ -92,7 +92,7 @@ void LoadedExecutableInstance::dumpInputs(
       "tensors";
   std::filesystem::create_directories(dump_dir);
 
-  for (int i = 0; i < input_tensors.size(); ++i) {
+  for (size_t i = 0; i < input_tensors.size(); ++i) {
     std::string filename = "arg" + std::to_string(i) + ".tensorbin";
     std::filesystem::path filepath = dump_dir / filename;
 

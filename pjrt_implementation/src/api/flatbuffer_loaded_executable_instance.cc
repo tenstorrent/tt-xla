@@ -97,7 +97,7 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
     std::vector<BufferInstance *> shards;
     shards.reserve(num_devices);
 
-    for (int device_index = 0; device_index < num_devices; ++device_index) {
+    for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
 
       // For a given output_index, each device will get the same
@@ -251,7 +251,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
                       m_executable_image->getOutputTypes());
 
   if (args->device_complete_events) {
-    for (int device_num = 0; device_num < args->num_devices; ++device_num) {
+    for (size_t device_num = 0; device_num < args->num_devices; ++device_num) {
       std::unique_ptr<EventInstance> device_complete_event =
           EventInstance::createInstance();
       device_complete_event->markAsReady(tt_pjrt_status::kSuccess);

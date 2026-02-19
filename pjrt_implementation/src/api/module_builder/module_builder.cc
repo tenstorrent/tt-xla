@@ -574,7 +574,7 @@ ModuleBuilder::collectOutputShardingsShardy(
     mlir::sdy::ManualComputationOp manual_op = manual_computation_ops[0];
     mlir::sdy::TensorShardingPerValueAttr out_shardings =
         manual_op.getOutShardings();
-    for (size_t i = 0; i < out_shardings.size(); ++i) {
+    for (int64_t i = 0; i < out_shardings.size(); ++i) {
       shardy_attributes.push_back(out_shardings.getSharding(i));
     }
   }
@@ -890,9 +890,7 @@ NumDevicesResult ModuleBuilder::collectNumDevicesToUtilize(
     num_devices_to_utilize = num_partitions * num_replicas;
   }
 
-  return {.num_partitions = num_partitions,
-          .num_replicas = num_replicas,
-          .num_devices_to_utilize = num_devices_to_utilize};
+  return {num_partitions, num_replicas, num_devices_to_utilize};
 }
 
 tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
@@ -1167,7 +1165,7 @@ bool ModuleBuilder::isUsingShardyManualComputation(
   }
 
   bool is_using_shardy_manual_computation = false;
-  module.get().walk([&](mlir::sdy::ManualComputationOp op) {
+  module.get().walk([&](mlir::sdy::ManualComputationOp /*op*/) {
     is_using_shardy_manual_computation = true;
 
     return mlir::WalkResult::interrupt();
@@ -1255,7 +1253,7 @@ ModuleBuilder::buildModuleForTTNNRuntime(
 
 std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
 ModuleBuilder::buildModuleForTTNNCodegen(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    mlir::OwningOpRef<mlir::ModuleOp> & /*mlir_module*/,
     std::string &&original_mlir_code, std::string &&ttir_mlir,
     std::string &&ttnn_mlir, std::string &&executable_name,
     NumArgumentsResult &&num_arguments,
@@ -1324,7 +1322,7 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
                                  " "
                                  "tensor-load-directory='./tensors'";
 
-  bool result;
+  bool result = false;
 
   if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
     result = m_tt_alchemist_handler.generateCppFunc()(

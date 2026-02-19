@@ -126,7 +126,7 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   createDefaultOutputBuffers(args->output_lists, args->num_devices);
 
   if (args->device_complete_events) {
-    for (int device_num = 0; device_num < args->num_devices; ++device_num) {
+    for (size_t device_num = 0; device_num < args->num_devices; ++device_num) {
       std::unique_ptr<EventInstance> device_complete_event =
           EventInstance::createInstance();
       device_complete_event->markAsReady(tt_pjrt_status::kSuccess);
@@ -185,8 +185,8 @@ void SOLoadedExecutableInstance::createDefaultOutputBuffers(
 std::optional<tt::runtime::Tensor>
 SOLoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,
-    tt::runtime::Device runtime_device, size_t num_devices,
-    std::uint32_t program_index, size_t arg_index) {
+    tt::runtime::Device /*runtime_device*/, size_t num_devices,
+    std::uint32_t /*program_index*/, size_t arg_index) {
 
   mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
       fillStrategyMapFromSharding(

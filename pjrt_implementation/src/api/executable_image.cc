@@ -163,16 +163,15 @@ ExecutableImage::ExecutableImage(
       m_ttir_mlir(std::move(ttir_mlir_code)),
       m_ttnn_mlir(std::move(ttnn_mlir_code)),
       m_optimized_mlir_code(std::move(optimized_mlir_code)),
-      m_executable_name(std::move(executable_name)), m_num_inputs(num_inputs),
-      m_num_outputs(num_outputs),
+      m_executable_name(std::move(executable_name)),
+      m_num_partitions(num_partitions), m_num_replicas(num_replicas),
+      m_num_devices_to_utilize(num_devices_to_utilize),
+      m_devices_mesh_shape(devices_mesh_shape), m_num_inputs(num_inputs),
+      m_num_outputs(num_outputs), m_output_types(expected_output_data_types),
       m_output_dimensions(std::move(output_dimensions)),
       m_output_ranks(std::move(output_ranks)),
       m_output_dimensions_flat(std::move(output_dimensions_flat)),
-      m_num_partitions(num_partitions), m_num_replicas(num_replicas),
-      m_num_devices_to_utilize(num_devices_to_utilize),
-      m_devices_mesh_shape(devices_mesh_shape),
       m_input_sharding(input_sharding), m_output_sharding(output_sharding),
-      m_output_types(expected_output_data_types),
       m_output_memory_kinds(std::move(output_memory_kinds)),
       m_output_memory_kinds_sizes(std::move(output_memory_kinds_sizes)),
       m_compile_options(std::move(compile_options)) {
@@ -197,8 +196,7 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
     std::string &&optimized_mlir_code, CompileOptions &&compile_options)
-    : m_flatbuffer_binary(flatbuffer_binary),
-      ExecutableImage(
+    : ExecutableImage(
           std::move(original_mlir_code), std::move(ttir_mlir_code),
           std::move(ttnn_mlir_code), std::move(executable_name), num_inputs,
           num_outputs, std::move(output_dimensions), std::move(output_ranks),
@@ -206,7 +204,9 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
           num_devices_to_utilize, devices_mesh_shape, input_sharding,
           output_sharding, expected_output_data_types,
           std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-          std::move(optimized_mlir_code), std::move(compile_options)) {
+          std::move(optimized_mlir_code), std::move(compile_options)),
+      m_flatbuffer_binary(flatbuffer_binary) {
+#ifndef NDEBUG
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
   assert(this->getNumInputs() ==
@@ -228,17 +228,20 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
            "Output rank from flatbuffer binary does not match the one "
            "collected from the MLIR module");
 
-    for (auto dim_index = 0;
+    for (size_t dim_index = 0;
          dim_index < getOutputDimensions()[output_index].size(); dim_index++) {
-      assert(getOutputDimensionsFlat()[output_dims_so_far + dim_index] ==
+      assert(getOutputDimensionsFlat()[output_dims_so_far +
+                                       static_cast<int>(dim_index)] ==
                  static_cast<std::int64_t>(
                      getOutputDimensions()[output_index][dim_index]) &&
              "Output flat dimension from flatbuffer binary does not match the "
              "one collected from the MLIR module");
     }
 
-    output_dims_so_far += getOutputDimensions()[output_index].size();
+    output_dims_so_far +=
+        static_cast<int>(getOutputDimensions()[output_index].size());
   }
+#endif
 
   // Generate fingerprint after all dependencies are initialized
   m_fingerprint = generateFingerprint();

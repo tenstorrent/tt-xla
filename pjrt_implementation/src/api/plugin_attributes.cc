@@ -56,7 +56,7 @@ void PluginAttributes::bindApi(PJRT_Api *api) {
 
 namespace internal {
 
-PJRT_Error *onPluginInitialize(PJRT_Plugin_Initialize_Args *args) {
+PJRT_Error *onPluginInitialize(PJRT_Plugin_Initialize_Args * /*args*/) {
   DLOG_F(LOG_DEBUG, "PluginAttributes::PJRT_Plugin_Initialize");
 
   return nullptr;

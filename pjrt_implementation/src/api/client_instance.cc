@@ -232,9 +232,8 @@ ClientInstance *GlobalClientInstanceSingleton::getClientInstance() {
 }
 
 ClientInstance::ClientInstance()
-    : m_system_descriptor(nullptr),
-      m_module_builder(std::make_unique<module_builder::ModuleBuilder>()),
-      m_parent_mesh(std::nullopt) {
+    : m_module_builder(std::make_unique<module_builder::ModuleBuilder>()),
+      m_system_descriptor(nullptr), m_parent_mesh(std::nullopt) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
 
   // TODO(mrakita): Add support for multi-process environment. Process index is
@@ -515,11 +514,10 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
     traceRegionSize = std::stoull(std::getenv("TT_RUNTIME_TRACE_REGION_SIZE"));
   }
 
-  tt::runtime::MeshDeviceOptions options = tt::runtime::MeshDeviceOptions{
-      .enableProgramCache = enableProgramCache,
-      .meshShape = mesh_shape,
-      .traceRegionSize = traceRegionSize,
-  };
+  tt::runtime::MeshDeviceOptions options;
+  options.enableProgramCache = enableProgramCache;
+  options.meshShape = mesh_shape;
+  options.traceRegionSize = traceRegionSize;
 
   return tt::runtime::openMeshDevice(options);
 }
@@ -599,8 +597,9 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
 PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");
 
-  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
-  ClientInstance *global_client_instance =
+  [[maybe_unused]] ClientInstance *client_instance =
+      ClientInstance::unwrap(args->client);
+  [[maybe_unused]] ClientInstance *global_client_instance =
       GlobalClientInstanceSingleton::getClientInstance();
   assert(client_instance == global_client_instance);
   GlobalClientInstanceSingleton::destroyClient();
@@ -764,7 +763,8 @@ PJRT_Error *onClientDefaultDeviceAssignment(
 PJRT_Error *
 onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
-  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
+  [[maybe_unused]] ClientInstance *client_instance =
+      ClientInstance::unwrap(args->client);
 
   if (args->device_layout &&
       args->device_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {

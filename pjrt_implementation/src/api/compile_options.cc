@@ -137,7 +137,6 @@ std::optional<std::string> parseStringOption(
 std::optional<int> parseIntOption(
     const std::unordered_map<std::string, std::string> &compile_options,
     const std::string &option_name) {
-  static constexpr int max_optimization_level = 2;
   if (auto it = compile_options.find(option_name);
       it != compile_options.end()) {
     try {

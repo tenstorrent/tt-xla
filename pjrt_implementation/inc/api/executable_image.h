@@ -66,10 +66,10 @@ public:
   }
 
   // Returns number of input buffers per device this executable requires.
-  const size_t getNumInputs() const { return m_num_inputs; }
+  size_t getNumInputs() const { return m_num_inputs; }
 
   // Returns number of output buffers per device produced by this executable.
-  const size_t getNumOutputs() const { return m_num_outputs; }
+  size_t getNumOutputs() const { return m_num_outputs; }
 
   // Returns the vector of output data types.
   std::vector<PJRT_Buffer_Type> &getOutputTypes() { return m_output_types; }
