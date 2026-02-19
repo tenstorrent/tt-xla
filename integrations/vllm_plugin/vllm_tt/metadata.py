@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 from dataclasses import dataclass, field
+from typing import Optional
 
 import torch
 
@@ -48,7 +49,8 @@ class XLASupportedSamplingMetadata:
 
     min_tokens = None  # impl is not vectorized
 
-    logit_bias: list[dict[int, float] | None] = field(default_factory=lambda: list())
+    no_logit_bias: bool = True
+    logit_bias_tensor: Optional[torch.Tensor] = None
 
     allowed_token_ids_mask = None
     bad_words_token_ids = None
@@ -88,11 +90,33 @@ class XLASupportedSamplingMetadata:
         needs_logprobs = (
             input_batch.max_num_logprobs > 0 if input_batch.max_num_logprobs else False
         )
-        # Early return to avoid unnecessary cpu to tpu copy
-        if input_batch.all_greedy is True and generate_params_if_all_greedy is False:
-            return cls(all_greedy=True, logprobs=needs_logprobs)
 
         num_reqs = input_batch.num_reqs
+
+        # Build logit_bias tensor before early return (needed even for greedy).
+        has_logit_bias = any(b is not None for b in input_batch.logit_bias[:num_reqs])
+        if has_logit_bias:
+            logit_bias_cpu = torch.zeros(
+                padded_num_reqs, input_batch.vocab_size, dtype=torch.float32
+            )
+            for req_idx, bias_dict in enumerate(input_batch.logit_bias[:num_reqs]):
+                if bias_dict is not None:
+                    for token_id, bias_val in bias_dict.items():
+                        logit_bias_cpu[req_idx, token_id] = bias_val
+            logit_bias_tensor = logit_bias_cpu.to(xla_device)
+            no_logit_bias = False
+        else:
+            logit_bias_tensor = None
+            no_logit_bias = True
+
+        # Early return to avoid unnecessary cpu to tpu copy
+        if input_batch.all_greedy is True and generate_params_if_all_greedy is False:
+            return cls(
+                all_greedy=True,
+                logprobs=needs_logprobs,
+                no_logit_bias=no_logit_bias,
+                logit_bias_tensor=logit_bias_tensor,
+            )
 
         def fill_slice(cpu_tensor: torch.Tensor, fill_val) -> torch.Tensor:
             # Pad value is the default one.
@@ -117,4 +141,6 @@ class XLASupportedSamplingMetadata:
             top_k=input_batch.top_k_cpu_tensor[:padded_num_reqs].to(xla_device),
             min_p=input_batch.min_p_cpu_tensor[:padded_num_reqs].to(xla_device),
             logprobs=needs_logprobs,
+            no_logit_bias=no_logit_bias,
+            logit_bias_tensor=logit_bias_tensor,
         )
