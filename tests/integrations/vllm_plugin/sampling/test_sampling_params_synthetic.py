@@ -8,7 +8,7 @@ sizes, compiled via torch.compile(backend="tt"). Validates that the
 compiled sampling graph produces valid tokens on TT hardware.
 
 Covers the on-device sampling ops (temperature, top_k, top_p, min_p,
-greedy). Params requiring the full model pipeline (penalties, stop,
+greedy, penalties). Params requiring the full model pipeline (stop,
 logprobs, etc.) are tested in test_sampling_params.py.
 
 Scope and limitations
@@ -180,3 +180,37 @@ def test_boundary_values(device, vocab_size):
         actual = compiled_fn(logits_cpu.to(device), metadata_dev).cpu()
 
         assert_valid_tokens(actual, vocab_size, context=f"boundary case {i+1}")
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_penalties(device, vocab_size):
+    """Presence/frequency/repetition penalties compile and produce valid tokens on TT."""
+    logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+
+    # Mark the first 10 tokens as having been generated once each,
+    # and tokens 20-29 as appearing in the prompt.
+    output_token_counts = torch.zeros(1, vocab_size, dtype=torch.float32)
+    output_token_counts[0, :10] = 1.0
+    prompt_token_mask = torch.zeros(1, vocab_size, dtype=torch.bool)
+    prompt_token_mask[0, 20:30] = True
+
+    metadata = XLASupportedSamplingMetadata(
+        temperature=torch.full((1,), 0.8, device=device),
+        top_k=torch.full((1,), 50, dtype=torch.int32, device=device),
+        top_p=torch.full((1,), 0.9, device=device),
+        min_p=torch.full((1,), 0.0, device=device),
+        all_greedy=False,
+        no_penalties=False,
+        presence_penalties=torch.full((1,), 1.0, device=device),
+        frequency_penalties=torch.full((1,), 0.5, device=device),
+        repetition_penalties=torch.full((1,), 1.3, device=device),
+        output_token_counts=output_token_counts.to(device),
+        prompt_token_mask=prompt_token_mask.to(device),
+    )
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    actual = compiled_fn(logits_cpu.to(device), metadata).cpu()
+
+    assert actual.shape == (1, 1)
+    assert_valid_tokens(actual, vocab_size, context="with penalties")
