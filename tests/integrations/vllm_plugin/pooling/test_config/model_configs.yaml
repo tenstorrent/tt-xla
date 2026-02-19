@@ -104,7 +104,8 @@ model_configs:
     marks: [vllm_sweep]
   vllm_sweep_llama_nemotron_embed:
     model: "nvidia/llama-nemotron-embed-1b-v2"
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ImportError: Transformers modeling backend requires transformers>=5.0.0.dev0 for encoder models support, but got 4.57.1"
   vllm_sweep_qwen2_embed:
     model: "ssmits/Qwen2-7B-Instruct-embed-base"
     pooler_config: {"pooling_type": "MEAN"}

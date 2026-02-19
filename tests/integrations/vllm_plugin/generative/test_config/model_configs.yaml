@@ -360,7 +360,8 @@ model_configs:
     reason: "too many values to unpack (expected 2) - hidden_states.shape"
   vllm_sweep_bailing_moe_v2:
     model: inclusionAI/Ling-mini-2.0
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "self.instruction_pointer is None"
   vllm_sweep_bamba:
     model: ibm-ai-platform/Bamba-9B
     status: "known_failure_xfail"
@@ -421,7 +422,8 @@ model_configs:
     reason: "Chunked MM input disabled but max_tokens_per_mm_item (14400) is larger than max_num_batched_tokens (128). Please increase max_num_batched_tokens."
   vllm_sweep_ernie4_5:
     model: baidu/ERNIE-4.5-0.3B-PT
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "You marked L['positions'].size()[1] as dynamic but your code specialized it to be a constant (128)"
   vllm_sweep_ernie4_5_moe:
     model: baidu/ERNIE-4.5-21B-A3B-PT
     status: "known_failure_xfail"
@@ -460,7 +462,8 @@ model_configs:
   #   marks: [vllm_sweep]
   vllm_sweep_gemma3:
     model: google/gemma-3-1b-it
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_gemma3n:
     model: google/gemma-3n-E2B-it
     status: "known_failure_xfail"
@@ -510,7 +513,8 @@ model_configs:
     reason: "RuntimeError: model.layers.0.mixer - While executing %auto_functionalized"
   vllm_sweep_granite_moe_shared:
     model: ibm-research/moe-7b-1b-active-shared-experts
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "'_OpNamespace' '_moe_C' object has no attribute 'topk_softmax'"
   vllm_sweep_gritlm:
     model: parasail-ai/GritLM-7B-vllm
     status: "known_failure_xfail"
@@ -527,9 +531,10 @@ model_configs:
     model: tencent/Hunyuan-A13B-Instruct 
     status: "known_failure_xfail"
     reason: "Model is too large for single chip"
-  vllm_sweep_hcx_vision:
-    model: naver-hyperclovax/HyperCLOVAX-SEED-Vision-Instruct-3B
-    marks: [vllm_sweep]
+  # vllm_sweep_hcx_vision:
+  #   model: naver-hyperclovax/HyperCLOVAX-SEED-Vision-Instruct-3B
+  #   status: "known_failure_xfail"
+  #   reason: "Model is too large for single chip"
   vllm_sweep_internlm:
     model: internlm/internlm-7b
     status: "known_failure_xfail"
@@ -562,7 +567,8 @@ model_configs:
     reason: "Model is too large for single chip"
   vllm_sweep_lfm2:
     model: LiquidAI/LFM2-350M
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "KeyError: 'model.layers.0.conv - While executing %auto_functionalized"
   vllm_sweep_lfm2_moe:
     model: LiquidAI/LFM2-8B-A1B-preview
     status: "known_failure_xfail"
@@ -580,7 +586,8 @@ model_configs:
     reason: "ZeroDivisionError: integer division or modulo by zero"
   vllm_sweep_mamba2:
     model: mistralai/Mamba-Codestral-7B-v0.1
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ZeroDivisionError: integer division or modulo by zero"
   vllm_sweep_minicpm:
     model: openbmb/MiniCPM-2B-sft-bf16
     gpu_memory_utilization: 0.004
@@ -593,15 +600,18 @@ model_configs:
     model: XiaomiMiMo/MiMo-7B-RL
     status: "known_failure_xfail"
     reason: "Model is too large for single chip"
-  vllm_sweep_minimax_m1:
-    model: MiniMaxAI/MiniMax-M1-40k
-    marks: [vllm_sweep]
-  vllm_sweep_minimax_m2:
-    model: MiniMaxAI/MiniMax-M2
-    marks: [vllm_sweep]
-  vllm_sweep_minimax_text01:
-    model: MiniMaxAI/MiniMax-Text-01
-    marks: [vllm_sweep]
+  # vllm_sweep_minimax_m1:
+  #   model: MiniMaxAI/MiniMax-M1-40k
+  #   status: "known_failure_xfail"
+  #   reason: "Model is too large for single chip"
+  # vllm_sweep_minimax_m2:
+  #   model: MiniMaxAI/MiniMax-M2
+  #   status: "known_failure_xfail"
+  #   reason: "Model is too large for single chip"
+  # vllm_sweep_minimax_text01:
+  #   model: MiniMaxAI/MiniMax-Text-01
+  #   status: "known_failure_xfail"
+  #   reason: "Model is too large for single chip"
   # vllm_sweep_mistral:
   #   model: mistralai/Mistral-7B-v0.1
   #   gpu_memory_utilization: 0.001
@@ -647,6 +657,9 @@ model_configs:
     reason: "'_OpNamespace' '_moe_C' object has no attribute 'topk_softmax'"
   vllm_sweep_ouro:
     model: ByteDance/Ouro-1.4B
+    gpu_memory_utilization: 0.009
+    status: "known_failure_xfail"
+    reason: "0.09 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)"
     marks: [vllm_sweep]
   # vllm_sweep_opt:
   #   model: facebook/opt-125m
@@ -734,6 +747,9 @@ model_configs:
     reason: "Model is too large for single chip"
   vllm_sweep_telechat2:
     model: Tele-AI/TeleChat2-3B
+    gpu_memory_utilization: 0.004
+    status: "known_failure_xfail"
+    reason: "0.04 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)"
     marks: [vllm_sweep]
   # vllm_sweep_tele_flm:
   #   model: CofeAI/FLM-2-52B-Instruct-2407

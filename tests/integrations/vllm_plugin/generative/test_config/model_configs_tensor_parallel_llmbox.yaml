@@ -208,3 +208,11 @@ model_configs:
   #   model: meituan-longcat/LongCat-Flash-Chat
   # vllm_sweep_dots1: # 142B parameter model
   #   model: rednote-hilab/dots.llm1.base
+  # vllm_sweep_minimax_m1:
+  #   model: MiniMaxAI/MiniMax-M1-40k
+  # vllm_sweep_minimax_m2:
+  #   model: MiniMaxAI/MiniMax-M2
+  # vllm_sweep_minimax_text01:
+  #   model: MiniMaxAI/MiniMax-Text-01
+  # vllm_sweep_hcx_vision:
+  #   model: naver-hyperclovax/HyperCLOVAX-SEED-Vision-Instruct-3B
