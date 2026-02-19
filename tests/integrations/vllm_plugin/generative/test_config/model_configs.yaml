@@ -411,9 +411,10 @@ model_configs:
     max_num_batched_tokens: 64
     status: "known_failure_xfail"
     reason: "TypeError: TTAttentionBackendImpl.__init__() got an unexpected keyword argument 'q_lora_rank'"
-  vllm_sweep_dots1:
-    model: rednote-hilab/dots.llm1.base
-    marks: [vllm_sweep]
+  # vllm_sweep_dots1: # 142B parameter model
+  #   model: rednote-hilab/dots.llm1.base
+  #   status: "known_failure_xfail"
+  #   reason: "Model is too large for single chip"
   vllm_sweep_dots_ocr: 
     model: rednote-hilab/dots.ocr
     status: "known_failure_xfail"
@@ -474,7 +475,8 @@ model_configs:
     reason: "Model is too large for single chip"
   vllm_sweep_glm4_moe:
     model: zai-org/GLM-4.5
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_gpt2:
     model: gpt2
     status: "known_failure_xfail"
@@ -568,9 +570,10 @@ model_configs:
   # vllm_sweep_llama:
   #   model: meta-llama/Llama-3.2-1B
   #   marks: [vllm_sweep]
-  vllm_sweep_longcat_flash:
-    model: meituan-longcat/LongCat-Flash-Chat
-    marks: [vllm_sweep]
+  # vllm_sweep_longcat_flash: # 560B parameter model
+  #   model: meituan-longcat/LongCat-Flash-Chat
+  #   status: "known_failure_xfail"
+  #   reason: "Model is too large for single chip"
   vllm_sweep_mamba:
     model: state-spaces/mamba-130m-hf
     status: "known_failure_xfail"
