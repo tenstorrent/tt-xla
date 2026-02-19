@@ -22,26 +22,24 @@ jobs:
       project-filter: tt-xla
 
   perf-benchmark-n150:
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    uses: ./.github/workflows/manual-benchmark.yml
     secrets: inherit
     with:
-      docker-image: ${{ inputs.release_docker_image }}
-      ref: main
-      project: tt-xla
+      docker_image: ${{ inputs.release_docker_image }}
+      runs-on-filter: n150
       sh-runner: false
       skip-device-perf: false
-      runs-on-filter: n150
+      use_docker_wheel: true
 
   perf-benchmark-llmbox:
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    uses: ./.github/workflows/manual-benchmark.yml
     secrets: inherit
     with:
-      docker-image: ${{ inputs.release_docker_image }}
-      ref: main
-      project: tt-xla
+      docker_image: ${{ inputs.release_docker_image }}
+      runs-on-filter: n300-llmbox
       sh-runner: false
       skip-device-perf: false
-      runs-on-filter: llmbox
+      use_docker_wheel: true
 
   demo-tests:
     uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
