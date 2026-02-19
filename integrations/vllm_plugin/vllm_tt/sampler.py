@@ -174,7 +174,8 @@ class Sampler(nn.Module):
         token_logprobs = logprobs.gather(-1, token_ids)
 
         # Compute the ranks of the actual token.
-        token_ranks = (logprobs >= token_logprobs).sum(-1)
+        # Cast to int32 to match LogprobsTensors.empty_cpu() convention.
+        token_ranks = (logprobs >= token_logprobs).sum(-1).to(torch.int32)
 
         # Concatenate together with the topk.
         indices = torch.cat((token_ids, topk_indices), dim=1)
