@@ -5,6 +5,7 @@
 import io
 import os
 import shutil
+import tempfile
 
 
 def parse_executable(executable_io: io.BytesIO):
@@ -125,8 +126,6 @@ def save_system_descriptor_to_disk(output_prefix: str, as_json: bool = False):
         FileNotFoundError: If the system descriptor temp file doesn't exist
         ImportError: If as_json=True and ttrt.binary module is not available
     """
-    import tempfile
-
     system_desc_temp_path = os.path.join(
         tempfile.gettempdir(), "tt_pjrt_system_descriptor"
     )
