@@ -214,3 +214,155 @@ def test_penalties(device, vocab_size):
 
     assert actual.shape == (1, 1)
     assert_valid_tokens(actual, vocab_size, context="with penalties")
+
+
+# Does not use device, but CI only targets silicon runners so must tag w/ single_device
+@pytest.mark.single_device
+@pytest.mark.push
+def test_sampling_feature_graph_coverage():
+    """Verify each on-device sampling feature changes the compiled FX graph.
+
+    For each feature, two graphs are compiled: one with the feature disabled
+    and one with it enabled. If enabling the feature doesn't change the graph,
+    its ops are not on device — it's being silently ignored. This is exactly
+    the class of bug where no_penalties was hardcoded True and penalty params
+    had zero effect (issue #3331).
+
+    Uses a plain eager-capturing backend so no TT device is needed.
+    """
+    import torch._dynamo
+
+    sampler = Sampler()
+    batch_size = 4
+    vocab_size = 256  # small; graph structure is shape-independent
+    logits_cpu = torch.randn(batch_size, vocab_size)
+
+    def node_count(metadata):
+        """Compile sampler.sample with the given metadata, return FX node count."""
+        captured = []
+
+        def capture(gm, _example_inputs):
+            captured.append(len(list(gm.graph.nodes)))
+            return gm  # run eagerly on CPU
+
+        torch._dynamo.reset()
+        compiled = torch.compile(sampler.sample, backend=capture, dynamic=False)
+        compiled(logits_cpu.clone(), metadata)
+        assert (
+            captured
+        ), "capture backend was never called — compilation did not trigger"
+        return captured[0]
+
+    def make_meta(**overrides):
+        """Return metadata with all optional features disabled."""
+        defaults = dict(
+            temperature=torch.full((batch_size,), 0.8),
+            top_k=None,
+            top_p=None,
+            min_p=None,
+            all_greedy=False,
+            all_random=True,
+            no_penalties=True,
+            no_logit_bias=True,
+            no_bad_words=True,
+        )
+        defaults.update(overrides)
+        return XLASupportedSamplingMetadata(**defaults)
+
+    baseline_count = node_count(make_meta())
+
+    failures = []
+
+    # --- Penalty features ---
+    # Check in two stages so both failure modes produce a clear message:
+    # 1. API missing: fields not present in the dataclass (TypeError at construction)
+    # 2. Feature ignored: fields exist but the graph doesn't change
+    _penalty_fields = [
+        "output_token_counts",
+        "presence_penalties",
+        "frequency_penalties",
+        "repetition_penalties",
+    ]
+    _meta_fields = XLASupportedSamplingMetadata.__dataclass_fields__
+    _missing = [f for f in _penalty_fields if f not in _meta_fields]
+    if _missing:
+        failures.append(
+            f"  presence/frequency/repetition_penalty: fields {_missing} absent "
+            f"from XLASupportedSamplingMetadata — feature not on device"
+        )
+    else:
+        count = node_count(
+            make_meta(
+                no_penalties=False,
+                output_token_counts=torch.zeros(batch_size, vocab_size),
+                presence_penalties=torch.ones(batch_size),
+                frequency_penalties=torch.zeros(batch_size),
+                repetition_penalties=torch.ones(batch_size),
+            )
+        )
+        if count <= baseline_count:
+            failures.append(
+                f"  presence/frequency/repetition_penalty: {count} nodes <= "
+                f"baseline {baseline_count} — feature likely not executing on device"
+            )
+
+    # --- Tensor-gated features (None vs tensor changes compiled graph) ---
+    for name, meta in [
+        ("top_k", make_meta(top_k=torch.full((batch_size,), 50, dtype=torch.int32))),
+        ("top_p", make_meta(top_p=torch.full((batch_size,), 0.9))),
+        ("min_p", make_meta(min_p=torch.full((batch_size,), 0.1))),
+    ]:
+        count = node_count(meta)
+        if count <= baseline_count:
+            failures.append(
+                f"  {name}: {count} nodes <= baseline {baseline_count} "
+                f"— feature likely not executing on device"
+            )
+
+    # --- logit_bias feature ---
+    _logit_bias_fields = ["logit_bias_tensor"]
+    _missing = [f for f in _logit_bias_fields if f not in _meta_fields]
+    if _missing:
+        failures.append(
+            f"  logit_bias: fields {_missing} absent "
+            f"from XLASupportedSamplingMetadata — feature not on device"
+        )
+    else:
+        count = node_count(
+            make_meta(
+                no_logit_bias=False,
+                logit_bias_tensor=torch.zeros(batch_size, vocab_size),
+            )
+        )
+        if count <= baseline_count:
+            failures.append(
+                f"  logit_bias: {count} nodes <= "
+                f"baseline {baseline_count} — feature likely not executing on device"
+            )
+
+    # --- bad_words feature ---
+    _bad_words_fields = ["bad_words_mask"]
+    _missing = [f for f in _bad_words_fields if f not in _meta_fields]
+    if _missing:
+        failures.append(
+            f"  bad_words: fields {_missing} absent "
+            f"from XLASupportedSamplingMetadata — feature not on device"
+        )
+    else:
+        count = node_count(
+            make_meta(
+                no_bad_words=False,
+                bad_words_mask=torch.zeros(batch_size, vocab_size),
+            )
+        )
+        if count <= baseline_count:
+            failures.append(
+                f"  bad_words: {count} nodes <= "
+                f"baseline {baseline_count} — feature likely not executing on device"
+            )
+
+    assert (
+        not failures
+    ), "The following sampling features are not executing on device:\n" + "\n".join(
+        failures
+    )
