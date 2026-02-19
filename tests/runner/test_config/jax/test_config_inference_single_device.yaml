@@ -9,245 +9,241 @@
 
 test_config:
   albert/masked_lm/jax-Base_v2-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   albert/masked_lm/jax-Large_v2-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   albert/masked_lm/jax-Xlarge_v2-single_device-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9897431135177612. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   albert/masked_lm/jax-Xxlarge_v2-single_device-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9695068001747131. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   alexnet/image_classification/jax-Custom-single_device-inference:
     status: EXPECTED_PASSING
 
   bart/causal_lm/jax-Base-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   bart/causal_lm/jax-Large-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   beit/image_classification/jax-Base-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   beit/image_classification/jax-Large-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   bert/masked_lm/jax-Base-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [push, nightly]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   bert/masked_lm/jax-Large-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   bigbird/causal_lm/jax-Large-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Assertion `false && \"incorrect fold result type\" - https://github.com/tenstorrent/tt-xla/issues/2140"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Flax model class removed in transformers 5.x"
 
   bigbird/question_answering/jax-Base-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   bigbird/question_answering/jax-Large-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   blenderbot/summarization/jax-1B_Distill-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   blenderbot/summarization/jax-3B-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large, nightly]
 
   blenderbot/summarization/jax-400M_Distill-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   blenderbot/summarization/jax-90M_Small-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   bloom/causal_lm/jax-560M-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   bloom/causal_lm/jax-1b1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   bloom/causal_lm/jax-1b7-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Not enough space to allocate 1027604480 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/1957"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   bloom/causal_lm/jax-3B-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
 
   bloom/causal_lm/jax-7B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 2055208960 B DRAM buffer across 12 banks, where each bank needs to store 171270144 B, but bank size is only 1073741792 B"
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
-    bringup_status: FAILED_RUNTIME
 
   clip/image_classification/jax-Base_Patch16-single_device-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "Severe PCC comparison failed: pcc=-1.0 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   clip/image_classification/jax-Base_Patch32-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of Memory: Not enough space to allocate 2287616 B L1 buffer across 2 banks, where each bank needs to store 1143808 B, but bank size is only 1364928 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "Flax model class removed in transformers 5.x"
 
   clip/image_classification/jax-Large_Patch14-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 7782400 B L1 buffer across 5 banks"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   clip/image_classification/jax-Large_Patch14_336-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate L1 buffer, bank size exceeded"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   dinov2/image_classification/jax-Base-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   dinov2/image_classification/jax-Giant-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   dinov2/image_classification/jax-Large-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   distilbert/masked_lm/jax-Base_Uncased-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   electra/causal_lm/jax-Base_Discriminator-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   electra/causal_lm/jax-Base_Generator-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   electra/causal_lm/jax-Large_Discriminator-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   electra/causal_lm/jax-Small_Discriminator-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   falcon/jax-3_1B_Base-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   falcon/jax-3_3B_Base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 37748736 B DRAM buffer across 12 banks, where each bank needs to store 3145728 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   gpt2/causal_lm/jax-Base-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [push, nightly]
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
 
   gpt2/causal_lm/jax-Large-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
 
   gpt2/causal_lm/jax-Medium-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
 
   gpt2/causal_lm/jax-Xl-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
 
   gpt_j/causal_lm/jax-6B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough RAM memory to load the model."
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
-    bringup_status: FAILED_RUNTIME
 
   gpt_neo/causal_lm/jax-125M-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [nightly]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   gpt_neo/causal_lm/jax-1_3B-single_device-inference:
-    required_pcc: 0.988 # PCC dropped from <0.992 to <0.99 after tilize was *improved*
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   gpt_neo/causal_lm/jax-2_7B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
 
   gpt_sw3/causal_lm/jax-1_3B_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
 
   llama/causal_lm/jax-1B_Tiny-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   llama/causal_lm/jax-3B_v2-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Not enough space to allocate 110592000 B DRAM buffer across 12 banks, where each bank needs to store 9216000 B, but bank size is only 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
     markers: [large]
 
   longt5/text_classification/jax-Base_Tglobal-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 - https://github.com/tenstorrent/tt-xla/issues/580"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   longt5/text_classification/jax-Large_Local-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 - https://github.com/tenstorrent/tt-xla/issues/580"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   longt5/text_classification/jax-Xl_Tglobal-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "ttnn::pad only supports padding on the lowest 3 dimensions for tensors with rank > 4 1"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
 
   marian_mt/text_classification/jax-Opus_Mt_En_De-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   mbart50/nlp_summarization/jax-Large_Many_To_Many-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "'ttir.scatter' op Dimension size to slice into must be 1 - https://github.com/tenstorrent/tt-xla/issues/386"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   mistral/causal_lm/jax-v0_1-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "OOM on host"
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
-    bringup_status: FAILED_RUNTIME
 
   mistral/causal_lm/jax-v0_1_Tiny-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   mistral/causal_lm/jax-v0_2_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: " Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is only 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
 
   mistral/causal_lm/jax-v0_3_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is only 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
 
   mlp_mixer/image_classification/jax-Base_16-single_device-inference:
@@ -269,305 +265,286 @@ test_config:
     markers: [nightly]
 
   mt5/nlp_summarization/jax-Base-single_device-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.7113243341445923. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   mt5/nlp_summarization/jax-Large-single_device-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.6492372155189514. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   mt5/nlp_summarization/jax-Xl-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 2048917504 B DRAM buffer across 12 banks, where each bank needs to store 170745856 B, but bank size is only 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
 
   opt/causal_lm/jax-125M-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   opt/causal_lm/jax-350M-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   opt/causal_lm/jax-1.3b-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   opt/causal_lm/jax-2.7b-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
 
   opt/causal_lm/jax-6.7b-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 134217728 B DRAM buffer across 12 banks, where each bank needs to store 11186176 B, but bank size is only 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "Flax model class removed in transformers 5.x"
     markers: [large]
 
   pegasus/summarization/jax-Large-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   pegasus/summarization/jax-Xsum-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   phi1/causal_lm/jax-Phi_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
 
   phi1_5/causal_lm/jax-Phi_1_5-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
 
   phi2/causal_lm/jax-Phi_2-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
 
   phi2/causal_lm/jax-Phi_2_Pytdml-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
 
   phi3/causal_lm/jax-Phi_3_Mini_128K_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   phi3/causal_lm/jax-Phi_3_Mini_4K_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "OOM DRAM"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-0.5B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-0.5B_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-1.5B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 34359738368 B DRAM buffer across 12 banks, where each bank needs to store 2863312896 B, but bank size is 1073741792 B "
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-1.5B_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-3B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of Memory: Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B "
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-3B_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B "
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-7B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 271581184 B DRAM buffer across 12 banks, where each bank needs to store 22636544 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-7B_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 271581184 B DRAM buffer across 12 banks, where each bank needs to store 22636544 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-0.5B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-1.5B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-1.5B_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-3B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-3B_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-7B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-7B_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_3/causal_lm/jax-0_6B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_3/causal_lm/jax-1_7B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_3/causal_lm/jax-4B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 10485760 B DRAM buffer across 12 banks, where each bank needs to store 876544 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
-
-
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   regnet/image_classification/jax-Y_040-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   regnet/image_classification/jax-Y_160-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 15259926528 B L1 buffer - https://github.com/tenstorrent/tt-xla/issues/187"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   regnet/image_classification/jax-Y_320-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 56438554624 B L1 buffer - https://github.com/tenstorrent/tt-xla/issues/187"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   resnet/image_classification/jax-ResNet18-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [push, nightly, large]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
+    markers: [large]
 
   resnet/image_classification/jax-ResNet26-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   resnet/image_classification/jax-ResNet34-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   resnet/image_classification/jax-ResNet50-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [push, nightly]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   resnet/image_classification/jax-ResNet101-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   resnet/image_classification/jax-ResNet152-single_device-inference:
-    required_pcc: 0.988 # We have >0.9893 on both, BH was <0.99 from the start, WH regressed from <0.992 to <0.99 after tilize was *improved*
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   roberta/masked_lm/jax-Base-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Failed to allocate buffers for RoBERTa base model"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   roberta/masked_lm/jax-Large-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   roberta_prelayernorm/masked_lm/jax-Efficient_Mlm_M0.40-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   roformer/masked_lm/jax-Chinese_Base-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [nightly]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   roformer/masked_lm/jax-Chinese_Char_Small-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   roformer/masked_lm/jax-Chinese_Small-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   squeezebert/masked_lm/jax-Base-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Failed to allocate buffers for SqueezeBERT model"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   t5/summarization/jax-Base-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [push, nightly]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   t5/summarization/jax-Large-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [nightly]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   t5/summarization/jax-Small-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [nightly]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   vision_text_dual_encoder/mm_image_ttt/jax-Base-single_device-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "Atol comparison failed. Calculated: atol=6632.052734375. Required: atol=0.16 - https://github.com/tenstorrent/tt-xla/issues/379"
-    bringup_status: INCORRECT_RESULT
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   vit/image_classification/jax-Base_Patch16_224-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [push, nightly]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   vit/image_classification/jax-Base_Patch16_384-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   vit/image_classification/jax-Base_Patch32_224_In_21K-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 2287616 B L1 buffer across 2 banks"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   vit/image_classification/jax-Base_Patch32_384-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate L1 buffer for ViT patch32_384"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   vit/image_classification/jax-Huge_Patch14_224_In_21K-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   vit/image_classification/jax-Large_Patch16_224-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   vit/image_classification/jax-Large_Patch16_384-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   vit/image_classification/jax-Large_Patch32_224_In_21K-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 7782400 B L1 buffer across 5 banks"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   vit/image_classification/jax-Large_Patch32_384-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Failed to allocate buffers for ViT large patch32_384"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   wav2vec2/audio_classification/jax-Large_Lv_60-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "failed to legalize operation 'stablehlo.dynamic_slice' - https://github.com/tenstorrent/tt-xla/issues/404"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   whisper/audio_classification/jax-Base-single_device-inference:
-    status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.668. Required: pcc=0.99"
-    bringup_status: INCORRECT_RESULT
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   whisper/audio_classification/jax-Medium-single_device-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.734. Required: pcc=0.99"
-    bringup_status: INCORRECT_RESULT
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   whisper/audio_classification/jax-Large_v3-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 6710886400 B DRAM buffer across 12 banks, where each bank needs to store 559243264 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
-    markers: [large,nightly]
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    markers: [large, nightly]
 
   xglm/causal_lm/jax-564M-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Invalid data size. numElements * elementSize == data->size() - https://github.com/tenstorrent/tt-xla/issues/1313"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   xlm_roberta/causal_lm/jax-Base-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Failed to allocate buffers for XLM-RoBERTa base model"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"
 
   xlm_roberta/causal_lm/jax-Large-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "OOM on device issues due to consteval - https://github.com/tenstorrent/tt-xla/issues/1447"
-    bringup_status: FAILED_RUNTIME
+    status: NOT_SUPPORTED_SKIP
+    reason: "Flax model class removed in transformers 5.x"

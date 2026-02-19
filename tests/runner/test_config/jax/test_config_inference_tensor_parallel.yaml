@@ -33,8 +33,7 @@ test_config:
   falcon/jax-3_3B_Base-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-0.5B-tensor_parallel-inference:
     supported_archs: ["n300"]
@@ -49,8 +48,7 @@ test_config:
   qwen_2_5/causal_lm/jax-1.5B-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 34359738368 B DRAM buffer across 12 banks, where each bank needs to store 2863312896 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-1.5B_Instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
@@ -70,14 +68,12 @@ test_config:
   qwen_2_5/causal_lm/jax-7B-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5/causal_lm/jax-7B_Instruct-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-0.5B-tensor_parallel-inference:
     supported_archs: ["n300"]
@@ -107,14 +103,12 @@ test_config:
   qwen_2_5_coder/causal_lm/jax-7B-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_2_5_coder/causal_lm/jax-7B_Instruct-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   qwen_3/causal_lm/jax-0_6B-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -146,38 +140,33 @@ test_config:
 
   gpt2/causal_lm/jax-Base-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "'stablehlo.gather' op slice size out of bounds - https://github.com/tenstorrent/tt-mlir/issues/6653"
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    markers: [nightly]
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
 
   gpt2/causal_lm/jax-Large-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "'stablehlo.gather' op slice size out of bounds - https://github.com/tenstorrent/tt-mlir/issues/6653"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
 
   gpt2/causal_lm/jax-Medium-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "'stablehlo.gather' op slice size out of bounds - https://github.com/tenstorrent/tt-mlir/issues/6653"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
 
   gpt2/causal_lm/jax-Xl-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "'stablehlo.gather' op slice size out of bounds - https://github.com/tenstorrent/tt-mlir/issues/6653"
-    bringup_status: FAILED_TTMLIR_COMPILATION
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
 
   llama/causal_lm/jax-1B_Tiny-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   llama/causal_lm/jax-3B_v2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "Severe PCC comparison failed: pcc=0.144 < 0.99 required"
+    status: NOT_SUPPORTED_SKIP
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   phi1/causal_lm/jax-Phi_1-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -202,11 +191,9 @@ test_config:
   phi3/causal_lm/jax-Phi_3_Mini_128K_Instruct-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 34359738368 B DRAM buffer across 12 banks, where each bank needs to store 2863312896 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
 
   phi3/causal_lm/jax-Phi_3_Mini_4K_Instruct-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough space to allocate 39845888 B DRAM buffer across 12 banks, where each bank needs to store 3321856 B, but bank size is 1073741792 B"
-    bringup_status: FAILED_RUNTIME
+    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
