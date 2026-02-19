@@ -346,9 +346,6 @@ class CMakeBuildPy(build_py):
             capture_output=False,
             cwd=REPO_DIR,
         )
-        print("Building project...")
-        stdout.flush()
-        stderr.flush()
         subprocess.run(
             " ".join([*cmake_cmd, *build_command]),
             check=True,
@@ -356,9 +353,6 @@ class CMakeBuildPy(build_py):
             capture_output=False,
             cwd=REPO_DIR,
         )
-        print("Installing project...")
-        stdout.flush()
-        stderr.flush()
         subprocess.run(
             " ".join([*cmake_cmd, *install_command]),
             check=True,
@@ -380,6 +374,8 @@ class CMakeBuildPy(build_py):
         # remove cmake and pkgconfig files
         _remove_bloat_dir(install_dir / "lib" / "cmake")
         _remove_bloat_dir(install_dir / "lib" / "pkgconfig")
+        _remove_bloat_dir(install_dir / "lib64" / "cmake")
+        _remove_bloat_dir(install_dir / "lib64" / "pkgconfig")
         _remove_bloat_dir(install_dir / "bin")
         _remove_bloat_dir(install_dir / "include")
         _remove_bloat_dir(install_dir / "tt-metal" / "tests")
@@ -411,7 +407,7 @@ def _remove_static_archives(root: Path) -> None:
         if archive.is_symlink() or not archive.is_file():
             continue
         rel = archive.relative_to(root)
-        if rel.parts and rel.parts[0] == "lib":
+        if rel.parts and rel.parts[0] in ("lib", "lib64"):
             print(f"Removing static archive: {rel}")
             archive.unlink()
 
