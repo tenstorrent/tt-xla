@@ -92,11 +92,22 @@ class Sampler(nn.Module):
 
         return logits
 
+    def apply_logit_bias(
+        self,
+        logits: torch.Tensor,
+        logit_bias_tensor: torch.Tensor,
+    ) -> torch.Tensor:
+        return logits + logit_bias_tensor
+
     def sample(
         self,
         logits: torch.Tensor,
         sampling_metadata: XLASupportedSamplingMetadata,
     ) -> torch.Tensor:
+        # Apply logit_bias before computing greedy argmax.
+        if not sampling_metadata.no_logit_bias:
+            logits = self.apply_logit_bias(logits, sampling_metadata.logit_bias_tensor)
+
         assert sampling_metadata.temperature is not None
 
         # Apply penalties before temperature so both greedy and random paths

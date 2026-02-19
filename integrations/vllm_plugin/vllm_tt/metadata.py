@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 from dataclasses import dataclass, field
+from typing import Optional
 
 import numpy as np
 import torch
@@ -52,7 +53,8 @@ class XLASupportedSamplingMetadata:
 
     min_tokens = None  # impl is not vectorized
 
-    logit_bias: list[dict[int, float] | None] = field(default_factory=lambda: list())
+    no_logit_bias: bool = True
+    logit_bias_tensor: Optional[torch.Tensor] = None
 
     allowed_token_ids_mask = None
     bad_words_token_ids = None
@@ -134,7 +136,6 @@ class XLASupportedSamplingMetadata:
         needs_logprobs = (
             input_batch.max_num_logprobs > 0 if input_batch.max_num_logprobs else False
         )
-
         # Guards for parameters that are tracked by InputBatch but not yet
         # forwarded through this function into the compiled sampler graph.
         # Each raise should be removed once the feature is fully plumbed here.
@@ -149,18 +150,29 @@ class XLASupportedSamplingMetadata:
                 "Per-request generators are not available on TT devices. "
                 "https://github.com/tenstorrent/tt-xla/issues/3365"
             )
-        if any(
-            input_batch.logit_bias[i] is not None for i in range(input_batch.num_reqs)
-        ):
-            raise NotImplementedError(
-                "logit_bias is not yet supported in the TT sampler. "
-                "https://github.com/tenstorrent/tt-xla/issues/3364"
-            )
         if input_batch.bad_words_token_ids:
             raise NotImplementedError(
                 "bad_words is not yet supported in the TT sampler. "
                 "https://github.com/tenstorrent/tt-xla/issues/3363"
             )
+
+        num_reqs = input_batch.num_reqs
+
+        # Build logit_bias tensor before early return (needed even for greedy).
+        has_logit_bias = any(b is not None for b in input_batch.logit_bias[:num_reqs])
+        if has_logit_bias:
+            logit_bias_cpu = torch.zeros(
+                padded_num_reqs, input_batch.vocab_size, dtype=torch.float32
+            )
+            for req_idx, bias_dict in enumerate(input_batch.logit_bias[:num_reqs]):
+                if bias_dict is not None:
+                    for token_id, bias_val in bias_dict.items():
+                        logit_bias_cpu[req_idx, token_id] = bias_val
+            logit_bias_tensor = logit_bias_cpu.to(xla_device)
+            no_logit_bias = False
+        else:
+            logit_bias_tensor = None
+            no_logit_bias = True
 
         # Early return to avoid unnecessary cpu to tpu copy.
         # Must NOT skip when penalties are active: greedy decoding with
@@ -171,9 +183,12 @@ class XLASupportedSamplingMetadata:
             and generate_params_if_all_greedy is False
             and input_batch.no_penalties
         ):
-            return cls(all_greedy=True, logprobs=needs_logprobs)
-
-        num_reqs = input_batch.num_reqs
+            return cls(
+                all_greedy=True,
+                logprobs=needs_logprobs,
+                no_logit_bias=no_logit_bias,
+                logit_bias_tensor=logit_bias_tensor,
+            )
 
         def fill_slice(cpu_tensor: torch.Tensor, fill_val) -> torch.Tensor:
             # Pad value is the default one.
@@ -243,4 +258,6 @@ class XLASupportedSamplingMetadata:
             presence_penalties=presence_penalties_t,
             frequency_penalties=frequency_penalties_t,
             repetition_penalties=repetition_penalties_t,
+            no_logit_bias=no_logit_bias,
+            logit_bias_tensor=logit_bias_tensor,
         )
