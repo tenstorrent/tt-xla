@@ -228,6 +228,15 @@ class Sampler(nn.Module):
         # not have its own seed. Then, we overwrite the values for the requests
         # that have their own seeds.
         q.exponential_()
+        # On TT hardware, generators is always an empty dict.  XLA traces a
+        # static computation graph and torch.Generator objects cannot be
+        # captured in that trace.  As a result, the loop body below never
+        # executes on TT devices — per-request seeding via
+        # SamplingParams(seed=N) has no effect.  This is documented in
+        # XLASupportedSamplingMetadata._generators.  The real fix is a
+        # seeded random op (e.g. Philox) in tt-mlir so that per-request seeds
+        # can be passed as a tensor input and applied on-device inside the
+        # compiled graph.  See https://github.com/tenstorrent/tt-xla/issues/3365
         if generators:
             for i, generator in generators.items():
                 q[i].exponential_(generator=generator)
