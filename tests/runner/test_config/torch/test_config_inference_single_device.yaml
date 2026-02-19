@@ -2001,19 +2001,19 @@ test_config:
 
   bevformer/pytorch-Tiny-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    reason: "Out of Memory: Not enough space to allocate 86450176 B L1 buffer across 64 banks, where each bank needs to store 1350784 B, but bank size is 1329888 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   bevformer/pytorch-Small-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    reason: "Out of Memory: Not enough space to allocate 86450176 B L1 buffer across 64 banks, where each bank needs to store 1350784 B, but bank size is 1329888 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   bevformer/pytorch-Base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    reason: "Out of Memory: Not enough space to allocate 86450176 B L1 buffer across 64 banks, where each bank needs to store 1350784 B, but bank size is 1329888 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   bevformer/pytorch-v2_R50_T1_Base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    reason: "Out of Memory: Not enough space to allocate L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B / 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
       p150:
         status: NOT_SUPPORTED_SKIP
@@ -2022,7 +2022,7 @@ test_config:
 
   bevformer/pytorch-v2_R50_T1-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    reason: "Out of Memory: Not enough space to allocate L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B / 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
       p150:
         status: NOT_SUPPORTED_SKIP
@@ -2031,7 +2031,7 @@ test_config:
 
   bevformer/pytorch-v2_R50_T2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    reason: "Out of Memory: Not enough space to allocate L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B / 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
       p150:
         status: NOT_SUPPORTED_SKIP
@@ -2040,7 +2040,7 @@ test_config:
 
   bevformer/pytorch-v2_R50_T8-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    reason: "Out of Memory: Not enough space to allocate L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B / 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
     arch_overrides:
       p150:
         status: NOT_SUPPORTED_SKIP
@@ -2084,39 +2084,39 @@ test_config:
 
   maptr/pytorch-Tiny_R50_24e_Av2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "Out of Memory: Not enough space to allocate 86016000 B L1 buffer across 64 banks, where each bank needs to store 1344000 B, but bank size is 1329888 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   maptr/pytorch-Tiny_R50_24e_Bevformer-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "Out of Memory: Not enough space to allocate 86450176 B L1 buffer across 64 banks, where each bank needs to store 1350784 B, but bank size is 1329888 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   maptr/pytorch-Tiny_R50_24e_Bevformer_T4-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "Out of Memory: Not enough space to allocate 86450176 B L1 buffer across 64 banks, where each bank needs to store 1350784 B, but bank size is 1329888 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   maptr/pytorch-Tiny_R50_24e-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "Out of Memory: Not enough space to allocate 86450176 B L1 buffer across 64 banks, where each bank needs to store 1350784 B, but bank size is 1329888 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   maptr/pytorch-Tiny_R50_110e-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "Out of Memory: Not enough space to allocate 86450176 B L1 buffer across 64 banks, where each bank needs to store 1350784 B, but bank size is 1329888 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   maptr/pytorch-Tiny_R50_24e_T4-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "Out of Memory: Not enough space to allocate 86450176 B L1 buffer across 64 banks, where each bank needs to store 1350784 B, but bank size is 1329888 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   maptr/pytorch-Nano_R18_110e-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "Out of Memory: Not enough space to allocate 86450176 B L1 buffer across 64 banks, where each bank needs to store 1350784 B, but bank size is 1329888 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   maptr/pytorch-Tiny_R50_24e_Bevpool-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 95029248 B L1 buffer across 64 banks, where each bank needs to store 1484832 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1588"
+    reason: "Out of Memory: Not enough space to allocate 86450176 B L1 buffer across 64 banks, where each bank needs to store 1350784 B, but bank size is 1329888 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   maptr/pytorch-Tiny_Fusion_24e-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: SparseSequential encountered by torch._dynamo"
+    reason: "Dynamo failed to run FX node with fake tensors: call_function reciprocal got AttributeError(\"'ndarray' object has no attribute 'reciprocal'\")"
 
   hrnet/pytorch-v2_W64_Osmr-single_device-inference:
     required_pcc: 0.96
