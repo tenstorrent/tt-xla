@@ -1026,7 +1026,12 @@ tt_pjrt_status ModuleBuilder::createFlatbufferBinary(
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
     tt::runtime::Binary &flatbuffer_binary) {
-  flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
+  std::string ttnn_mlir;
+  llvm::raw_string_ostream os(ttnn_mlir);
+  mlir_module.get().print(os, mlir::OpPrintingFlags().enableDebugInfo());
+  os.flush();
+  std::string ttnn_mlir_name = "ttnn";
+  flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get(), {}, {{ttnn_mlir_name, ttnn_mlir}});
 
   tt_pjrt_status status = verifyCreatedFlatbufferBinary(
       flatbuffer_binary, input_shardings, output_shardings);
