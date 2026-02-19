@@ -11,21 +11,10 @@ set -e
 pkg_install \
     git-lfs \
     patchelf \
-    protobuf-compiler
-
-if [ "$1" == "dnf" ]; then
-    # For Manylinux based images
-    pkg_install \
-        protobuf-devel \
-        ffmpeg-free
-#        gcc-toolset-12 \
-else
-    # For Ubuntu based images
-    pkg_install \
-        libprotobuf-dev \
-        ffmpeg
-#        g++-12 \
-fi
+    protobuf-compiler \
+    libprotobuf-dev \
+    ffmpeg
+#   g++-12 \
 
 # Install uv tool for managing Python packages
 curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
