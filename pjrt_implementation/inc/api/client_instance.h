@@ -21,6 +21,9 @@
 #include <unordered_set>
 #include <vector>
 
+// tt-mlir includes
+#include "tt/runtime/runtime.h"
+
 // tt-xla includes
 #include "api/device_instance.h"
 #include "api/loaded_executable_instance.h"
@@ -196,6 +199,9 @@ private:
 
   // Currently in-use mesh device.
   std::optional<tt::runtime::Device> m_parent_mesh;
+
+  // Fabric config computed for the current mesh device.
+  std::optional<tt::runtime::MeshFabricConfig> m_fabric_config;
 
   // Optimizer submesh device (created from m_parent_mesh for optimizer passes).
   std::optional<tt::runtime::Device> m_optimizer_submesh;

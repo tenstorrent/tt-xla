@@ -441,7 +441,16 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
   std::vector<uint32_t> parent_mesh_shape =
       tt::runtime::getMeshShape(*m_parent_mesh);
 
-  if (parent_mesh_shape == target_mesh_shape) {
+  tt::runtime::MeshFabricConfig target_fabric_config =
+      tt::runtime::computeMeshFabricConfig(m_system_descriptor,
+                                           target_mesh_shape);
+
+  bool should_reuse =
+      (parent_mesh_shape == target_mesh_shape) &&
+      m_fabric_config.has_value() &&
+      m_fabric_config->globalConfig == target_fabric_config.globalConfig;
+
+  if (should_reuse) {
     DLOG_F(LOG_DEBUG,
            "ClientInstance::getOrCreateMeshDevice - reusing "
            "already opened mesh device %s",
@@ -485,20 +494,20 @@ void ClientInstance::closeMeshDevice() {
 
 tt::runtime::Device
 ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
-  size_t num_devices =
-      static_cast<size_t>(std::accumulate(mesh_shape.begin(), mesh_shape.end(),
-                                          1, std::multiplies<std::uint32_t>{}));
-
-  // NOTES:
-  // - this should probably be set automatically by the mlir runtime.
-  // - it looks like metal context is being reinitialized each time we
+  // Compute fabric config based on the system descriptor and mesh shape.
+  // NOTE: it looks like metal context is being reinitialized each time we
   // open/close the device, so we need to set the fabric config each time
   // (even if we always set it to the same value).
-  if (num_devices > 1) {
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
-  } else {
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
-  }
+  tt::runtime::MeshFabricConfig fabric_config =
+      tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
+
+  DLOG_F(LOG_DEBUG,
+         "ClientInstance::openMeshDevice - setting fabric config: %s",
+         tt::runtime::flatbuffer::EnumNameFabricConfig(
+             fabric_config.globalConfig));
+
+  tt::runtime::setFabricConfig(fabric_config.globalConfig);
+  m_fabric_config = fabric_config;
 
   // TODO(odjuricicTT, #1485): This is a temporary way to disable program cache
   // now that it's enabled by default here,
@@ -532,6 +541,7 @@ void ClientInstance::closeParentMesh() {
     DLOG_F(LOG_DEBUG, "Closing parent mesh.");
     tt::runtime::closeMeshDevice(*m_parent_mesh);
     m_parent_mesh.reset();
+    m_fabric_config.reset();
   }
 }
 
