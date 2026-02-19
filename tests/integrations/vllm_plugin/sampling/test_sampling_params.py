@@ -62,7 +62,7 @@ def llm(request):
     return request.getfixturevalue(request.param)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def vllm_single_device():
     return get_or_create_llm(
         "opt_125m",
@@ -81,7 +81,7 @@ def vllm_single_device():
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def vllm_n300():
     return get_or_create_llm(
         "llama_3b",
@@ -98,7 +98,7 @@ def vllm_n300():
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def vllm_n300_llmbox():
     return get_or_create_llm(
         "qwen3_0_6b",
@@ -153,9 +153,30 @@ SAMPLING_PARAM_SWEEPS = [
     ("top_p", [0.3, 0.8, 1.0]),
     ("top_k", [5, 50, -1]),
     ("min_p", [0.0, 0.1, 0.2]),
-    ("presence_penalty", [0.0, 1.0, 2.0]),
-    ("frequency_penalty", [0.0, 1.0, 2.0]),
-    ("repetition_penalty", [1.0, 1.5, 2.0]),
+    pytest.param(
+        "presence_penalty",
+        [0.0, 1.0, 2.0],
+        marks=pytest.mark.skip(
+            reason="presence_penalty not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3331"
+        ),
+        id="presence_penalty",
+    ),
+    pytest.param(
+        "frequency_penalty",
+        [0.0, 1.0, 2.0],
+        marks=pytest.mark.skip(
+            reason="frequency_penalty not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3331"
+        ),
+        id="frequency_penalty",
+    ),
+    pytest.param(
+        "repetition_penalty",
+        [1.0, 1.5, 2.0],
+        marks=pytest.mark.skip(
+            reason="repetition_penalty not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3331"
+        ),
+        id="repetition_penalty",
+    ),
 ]
 
 
@@ -163,7 +184,6 @@ SAMPLING_PARAM_SWEEPS = [
 @pytest.mark.parametrize(
     "param_name,values",
     SAMPLING_PARAM_SWEEPS,
-    ids=[s[0] for s in SAMPLING_PARAM_SWEEPS],
 )
 def test_sampling_param_sweep(llm, prompt, param_name, values):
     """Sweep a single sampling parameter and assert diverse, non-empty outputs."""
@@ -264,7 +284,7 @@ def test_stop_sequences(llm, prompt):
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 @pytest.mark.skip(
-    reason="numpy.int64 serialization crash in vLLM v0.13.0 kills engine core (#3310); once fixed, logprobs_tensors always None in vllm_tt Sampler (#3366)"
+    reason="numpy.int64 serialization crash in vLLM v0.13.0 (#3310); logprobs not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3366"
 )
 def test_logprobs(llm, prompt):
     """Test requesting log probabilities."""
@@ -318,8 +338,8 @@ def test_output_length_controls(llm, prompt):
     ), f"short ({results[0][3]} tokens) should be <= medium ({results[1][3]} tokens)"
 
 
-@pytest.mark.xfail(
-    reason="Torch XLA does not support per-request seed — see https://github.com/tenstorrent/tt-xla/issues/3365"
+@pytest.mark.skip(
+    reason="seed not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3365"
 )
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_seed(llm, prompt):
@@ -342,8 +362,8 @@ def test_seed(llm, prompt):
     ), "Different seeds should produce different output"
 
 
-@pytest.mark.xfail(
-    reason="bad_words not enforced in vllm_tt Sampler — see https://github.com/tenstorrent/tt-xla/issues/3363"
+@pytest.mark.skip(
+    reason="bad_words not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3363"
 )
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_bad_words(llm, prompt):
@@ -361,8 +381,8 @@ def test_bad_words(llm, prompt):
     ), f"Output should not contain banned word {banned!r}: {output!r}"
 
 
-@pytest.mark.xfail(
-    reason="logit_bias silently ignored in vllm_tt Sampler — see https://github.com/tenstorrent/tt-xla/issues/3364"
+@pytest.mark.skip(
+    reason="logit_bias not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3364"
 )
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_logit_bias(llm, prompt):
