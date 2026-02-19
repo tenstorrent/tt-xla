@@ -38,7 +38,7 @@ add_library(TTPJRTApi
     "tensor_pool.cc"
 )
 
-target_include_directories(TTPJRTApi PUBLIC
+target_include_directories(TTPJRTApi SYSTEM PUBLIC
     ${TTMLIR_TOOLCHAIN_DIR}/src/shardy
     ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
 )

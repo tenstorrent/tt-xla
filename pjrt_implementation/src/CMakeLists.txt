@@ -7,6 +7,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # https://llvm.org/LICENSE.txt
 
+add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(api)
 add_subdirectory(utils)
