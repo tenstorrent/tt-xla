@@ -81,38 +81,38 @@ AVAILABLE_VARIANT_MAP = {
         "Huggyllama_7B",
         "Tinyllama_v1.1",
     ],
-    "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b", "32b"],
+    "qwen3": ["0_6B", "1_7B", "4B", "8B", "14B", "32B"],
     "qwen2_5": [
-        "0_5b",
-        "1_5b",
-        "3b",
-        "7b",
-        "14b",
-        "32b_instruct",
-        "72b_instruct",
-        "math_7b",
+        "0.5B",
+        "1.5B",
+        "3B",
+        "7B",
+        "14B",
+        "32B_Instruct",
+        "72B_Instruct",
+        "Math_7B",
     ],
     "gemma": [
-        "google/gemma-1.1-2b-it",
-        "google/gemma-1.1-7b-it",
-        "google/gemma-2b",
-        "google/gemma-2-2b-it",
-        "google/gemma-2-9b-it",
-        "google/gemma-2-27b-it",
+        "1.1_2B_IT",
+        "1.1_7B_IT",
+        "2B",
+        "2_2B_IT",
+        "2_9B_IT",
+        "2_27B_IT",
     ],
     "mistral": [
-        "7b",
-        "7b_instruct_v03",
-        "ministral_3b_instruct",
-        "ministral_8b_instruct",
+        "7B",
+        "7B_INSTRUCT_v03",
+        "Ministral_3B_Instruct",
+        "Ministral_8B_Instruct",
     ],
     "falcon": [
-        "tiiuae/Falcon3-1B-Base",
-        "tiiuae/Falcon3-3B-Base",
-        "tiiuae/Falcon3-7B-Base",
-        "tiiuae/Falcon3-10B-Base",
-        "tiiuae/Falcon3-Mamba-7B-Base",
-        "tiiuae/falcon-7b-instruct",
+        "3_1B_Base",
+        "3_3B_Base",
+        "3_7B_Base",
+        "3_10B_Base",
+        "3_Mamba_7B_Base",
+        "7B_Instruct",
     ],
     "gpt_oss": ["20B", "120B"],
 }
@@ -146,7 +146,7 @@ def get_available_variants(model_name):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_mlp(seq_len, variant, variant_config, arch):
-    if not arch == "llmbox" and str(variant) == "32b":
+    if not arch == "llmbox" and str(variant) == "32B":
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -260,7 +260,7 @@ def test_llama_mlp(seq_len, variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_mlp(seq_len, variant, variant_config, arch):
-    if not arch == "llmbox" and (str(variant) == "google/gemma-2-27b-it"):
+    if not arch == "llmbox" and (str(variant) == "2_27B_IT"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -365,7 +365,7 @@ def test_mistral_mlp(seq_len, variant, variant_config, arch):
 )
 def test_qwen2_5_mlp(seq_len, variant, variant_config, arch):
     if not arch == "llmbox" and (
-        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+        str(variant) == "72B_Instruct" or str(variant) == "32B_Instruct"
     ):
         pytest.skip("Variant doesn't fit on a single device")
 
