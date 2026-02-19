@@ -35,11 +35,33 @@ def pytest_runtest_makereport(item, call):
         _needs_recreate = True
 
 
-def pytest_sessionfinish(session, exitstatus):
-    """Shut down cached LLM instances before Python tears down I/O."""
+def _flush_llm_cache():
+    """Delete all cached LLM instances and force GC to terminate their subprocesses."""
+    import gc
+
     for name in list(_llm_cache):
         del _llm_cache[name]
     _llm_cache.clear()
+    gc.collect()
+
+
+def pytest_runtest_teardown(item, nextitem):
+    """Shut down cached vLLM engines when moving to a different test module.
+
+    _llm_cache is intended to share engine instances within a single test
+    module, not across modules.  Engines running in EngineCore subprocesses
+    hold the TT device; if they outlive their module, any subsequent test that
+    accesses the device directly (e.g. via torch.compile) will hang.
+    """
+    current_module = getattr(item, "module", None)
+    next_module = getattr(nextitem, "module", None) if nextitem else None
+    if current_module is not next_module and _llm_cache:
+        _flush_llm_cache()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Shut down cached LLM instances before Python tears down I/O."""
+    _flush_llm_cache()
 
 
 @pytest.fixture
