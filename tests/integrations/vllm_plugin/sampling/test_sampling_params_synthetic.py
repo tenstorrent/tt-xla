@@ -216,6 +216,53 @@ def test_penalties(device, vocab_size):
     assert_valid_tokens(actual, vocab_size, context="with penalties")
 
 
+def run_logprobs_pipeline(logits, token_ids):
+    sampler = Sampler()
+    logprobs = sampler.compute_logprobs(logits)
+    result = sampler.gather_logprobs(logprobs, 5, token_ids)
+    return result.logprob_token_ids, result.logprobs, result.selected_token_ranks
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_gather_logprobs(device, vocab_size):
+    """On-device logprob pipeline: correct shapes, dtypes, and valid values.
+
+    Calls compute_logprobs then gather_logprobs via torch.compile on the TT
+    device. Validates that the returned tensors have the right shapes (batch x
+    num_logprobs+1 for logprobs/token_ids, batch for ranks), correct dtypes
+    (int32 for indices/ranks avoids numpy.int64 serialization crash), and that
+    log-probabilities are non-positive and token IDs are in vocab range.
+    """
+    batch_size = 2
+    logits_cpu = torch.randn(batch_size, vocab_size, dtype=torch.float32)
+    token_ids_cpu = torch.randint(0, vocab_size, (batch_size,), dtype=torch.int64)
+
+    compiled_fn = torch.compile(run_logprobs_pipeline, backend="tt", dynamic=False)
+    ids_dev, lp_dev, ranks_dev = compiled_fn(
+        logits_cpu.to(device), token_ids_cpu.to(device)
+    )
+    ids = ids_dev.cpu()
+    lp = lp_dev.cpu()
+    ranks = ranks_dev.cpu()
+
+    num_logprobs = 5
+    assert ids.shape == (batch_size, num_logprobs + 1), f"shape mismatch: {ids.shape}"
+    assert lp.shape == (batch_size, num_logprobs + 1), f"shape mismatch: {lp.shape}"
+    assert ranks.shape == (batch_size,), f"shape mismatch: {ranks.shape}"
+
+    assert ids.dtype == torch.int32, f"logprob_token_ids must be int32, got {ids.dtype}"
+    assert (
+        ranks.dtype == torch.int32
+    ), f"selected_token_ranks must be int32, got {ranks.dtype}"
+    assert lp.dtype == torch.float32, f"logprobs must be float32, got {lp.dtype}"
+
+    assert (lp <= 0).all(), "Log-probabilities must be <= 0"
+    assert (ids >= 0).all() and (ids < vocab_size).all(), "Token IDs out of vocab range"
+    assert (ranks >= 0).all(), "Token ranks must be non-negative"
+
+
 # Does not use device, but CI only targets silicon runners so must tag w/ single_device
 @pytest.mark.single_device
 @pytest.mark.push

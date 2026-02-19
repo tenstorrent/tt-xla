@@ -262,9 +262,6 @@ def test_stop_sequences(llm, prompt):
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
-@pytest.mark.skip(
-    reason="numpy.int64 serialization crash in vLLM v0.13.0 (#3310); logprobs not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3366"
-)
 def test_logprobs(llm, prompt):
     """Test requesting log probabilities."""
     logprobs_values = [None, 1, 5]
