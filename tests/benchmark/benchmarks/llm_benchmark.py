@@ -35,9 +35,6 @@ xr.set_device_type("TT")
 
 MIN_STEPS = 16
 
-# Number of tokens to compute PCC for (should not exceed max_tokens_to_generate)
-NUM_PCC_TOKENS = 16
-
 # Default input prompt
 DEFAULT_INPUT_PROMPT = (
     "Here is an exaustive list of the best practices for writing clean code:"
@@ -183,6 +180,8 @@ def generate_and_benchmark(
     verbose: bool = True,
     is_multichip: bool = False,
     mesh: Mesh = None,
+    ground_truth_ids: Optional[List[torch.Tensor]] = None,
+    stop_on_eos: bool = True,
 ):
     """
     Run the generation loop and measure time.
@@ -194,12 +193,18 @@ def generate_and_benchmark(
         device: Device
         max_tokens_to_generate: Maximum number of tokens to generate
         verbose: Whether to print generation output
+        ground_truth_ids: When provided, enables teacher forcing by feeding these
+            tokens as input for the next step instead of the model's own predictions.
+        stop_on_eos: Whether to stop generation when EOS token is predicted.
+            Set to False for golden generation and teacher-forced runs to ensure
+            all tokens up to max_tokens_to_generate are produced.
 
     Returns:
-        Tuple of (output_logits, iteration_times)
+        Tuple of (output_logits, iteration_times, output_token_ids)
     """
     output_tokens: List[str] = []
     output_logits: List[torch.Tensor] = []
+    output_token_ids: List[torch.Tensor] = []
     iteration_times: List[float] = []
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
@@ -211,11 +216,17 @@ def generate_and_benchmark(
             logits = read_logits_fn(output).to("cpu")
             output_logits.append(logits)
             next_token_ids = logits[:, -1].argmax(dim=-1)
+            output_token_ids.append(next_token_ids)
             output_text = [tokenizer.decode(token_id) for token_id in next_token_ids]
             output_tokens.append(output_text)
 
             # Check for EOS token and early exit
-            if torch.all(next_token_ids == tokenizer.eos_token_id):
+            # Skip when teacher forcing or when stop_on_eos is disabled
+            if (
+                stop_on_eos
+                and ground_truth_ids is None
+                and torch.all(next_token_ids == tokenizer.eos_token_id)
+            ):
                 if verbose:
                     print()  # Add newline after generation completes
                 end = time.perf_counter_ns()
@@ -227,7 +238,13 @@ def generate_and_benchmark(
                 break
 
             # Update inputs for next iteration
-            input_args["input_ids"] = next_token_ids.unsqueeze(-1).to(device)
+            # Teacher forcing: use ground truth tokens instead of model's own predictions
+            if ground_truth_ids is not None:
+                feed_token_ids = ground_truth_ids[step]
+            else:
+                feed_token_ids = next_token_ids
+
+            input_args["input_ids"] = feed_token_ids.unsqueeze(-1).to(device)
 
             host_cache_pos = input_args["cache_position"].to("cpu")
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
@@ -243,7 +260,7 @@ def generate_and_benchmark(
     if verbose:
         print("Output tokens:", output_tokens)
 
-    return output_logits, iteration_times
+    return output_logits, iteration_times, output_token_ids
 
 
 def check_transformers_version():
@@ -369,17 +386,17 @@ def benchmark_llm_torch_xla(
     # Limit maximum generation count to fit within preallocated static cache
     max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
 
-    # Get CPU results for PCC comparison
-    # Generate NUM_PCC_TOKENS tokens on CPU (but not more than max_tokens_to_generate)
-    num_cpu_tokens = min(NUM_PCC_TOKENS, max_tokens_to_generate)
-    cpu_logits, _ = generate_and_benchmark(
+    # Get CPU golden results for PCC comparison (teacher forcing)
+    # Run for full sequence length with no EOS break to get golden logits and token IDs
+    cpu_logits, _, cpu_token_ids = generate_and_benchmark(
         model,
         input_args,
         tokenizer,
         torch.device("cpu"),
-        num_cpu_tokens,
+        max_tokens_to_generate,
         read_logits_fn=read_logits_fn,
         verbose=False,
+        stop_on_eos=False,
     )
 
     # Transfer model and inputs to device
@@ -435,7 +452,7 @@ def benchmark_llm_torch_xla(
     # Warmup run
     print("Warming up...")
     warmup_tokens = min(MIN_STEPS, max_tokens_to_generate)
-    _, _ = generate_and_benchmark(
+    _, _, _ = generate_and_benchmark(
         compiled_model,
         input_args,
         tokenizer,
@@ -457,9 +474,9 @@ def benchmark_llm_torch_xla(
     )
     input_args = transfer_to_device(input_args, device)
 
-    # Run benchmark once
+    # Run benchmark with teacher forcing (feed CPU golden tokens as input)
     print(f"\nStarting benchmark...")
-    output_logits, iteration_times = generate_and_benchmark(
+    output_logits, iteration_times, _ = generate_and_benchmark(
         compiled_model,
         input_args,
         tokenizer,
@@ -469,6 +486,8 @@ def benchmark_llm_torch_xla(
         verbose=True,
         is_multichip=is_multichip,
         mesh=mesh,
+        ground_truth_ids=cpu_token_ids,
+        stop_on_eos=False,
     )
 
     if len(iteration_times) < 10:
@@ -527,31 +546,23 @@ def benchmark_llm_torch_xla(
         ttft_ms=ttft_ms,
     )
 
-    # Check PCC for first NUM_PCC_TOKENS decode outputs
+    # Sequential PCC check for all decode outputs (with teacher forcing)
+    # Check PCC at each decode step and assert on first failure, since
+    # once a token diverges, subsequent tokens are expected to diverge too.
+    num_tokens = min(len(output_logits), len(cpu_logits))
     pcc_values = []
-    num_pcc_tokens = min(NUM_PCC_TOKENS, len(output_logits), len(cpu_logits))
 
-    for i in range(num_pcc_tokens):
+    for i in range(num_tokens):
         pcc = compute_pcc(output_logits[i][0], cpu_logits[i][0])
         pcc_values.append(pcc)
-        print(f"PCC for token {i}: {pcc:.6f}")
+        assert (
+            pcc >= required_pcc
+        ), f"PCC verification failed at token {i}. PCC={pcc:.6f}, Required PCC={required_pcc}"
 
-    # Compute statistics
-    max_pcc = max(pcc_values)
     min_pcc = min(pcc_values)
-    avg_pcc = sum(pcc_values) / len(pcc_values)
-
-    print(f"PCC Statistics (over {num_pcc_tokens} tokens):")
-    print(f"  MAX PCC: {max_pcc:.6f}")
-    print(f"  MIN PCC: {min_pcc:.6f}")
-    print(f"  AVG PCC: {avg_pcc:.6f}")
-
-    # Use MIN PCC as final PCC value
-    pcc_value = min_pcc
-    assert (
-        pcc_value >= required_pcc
-    ), f"PCC verification failed. PCC={pcc_value:.6f}, Required PCC={required_pcc}"
-    print(f"PCC verification passed with PCC={pcc_value:.6f}")
+    print(
+        f"PCC verification passed for all {num_tokens} tokens (min PCC={min_pcc:.6f})"
+    )
 
     # Get device count and mesh info for metrics
     device_count = xr.global_runtime_device_count()
