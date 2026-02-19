@@ -2586,6 +2586,8 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         bringup_status: FAILED_FE_COMPILATION
         reason: "Segmentation fault: https://github.com/tenstorrent/tt-xla/issues/3178"
+      p150:
+        required_pcc: 0.988
 
   siglip/image_text_similarity/pytorch-Base_Patch16_224-single_device-inference:
     status: EXPECTED_PASSING
