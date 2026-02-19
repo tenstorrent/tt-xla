@@ -658,9 +658,7 @@ model_configs:
   vllm_sweep_ouro:
     model: ByteDance/Ouro-1.4B
     gpu_memory_utilization: 0.009
-    status: "known_failure_xfail"
-    reason: "0.09 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)"
-    marks: [vllm_sweep]
+    status: "expected_passing"
   # vllm_sweep_opt:
   #   model: facebook/opt-125m
   #   marks: [vllm_sweep]
@@ -671,7 +669,8 @@ model_configs:
   #   marks: [vllm_sweep]
   vllm_sweep_pangu_embedded:
     model: FreedomIntelligence/openPangu-Embedded-7B-V1.1
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   # vllm_sweep_pangu_ultra_moe:
   #   model: FreedomIntelligence/openPangu-Ultra-MoE-718B-V1.1
   #   marks: [vllm_sweep]
@@ -683,8 +682,7 @@ model_configs:
     model: microsoft/Phi-3-mini-4k-instruct
     gpu_memory_utilization: 0.006
     status: "known_failure_xfail"
-    reason: "(0.06 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)"
-    marks: [vllm_sweep]
+    reason: "TT_FATAL: Size of cb: 80 must be divisible by the size of block used by the reader and compute kernel."
   # vllm_sweep_phi4:
   #   model: microsoft/phi-4
   #   marks: [vllm_sweep]
@@ -701,7 +699,8 @@ model_configs:
     reason: "AssertionError: Attempt to trace forbidden callable <function mark_dynamic at 0x7fbd198ff880>"
   vllm_sweep_plamo3:
     model: pfnet/plamo-3-nict-2b-base
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Gated huggingface model"
   vllm_sweep_persimmon:
     model: adept/persimmon-8b-base
     status: "known_failure_xfail"
@@ -748,9 +747,7 @@ model_configs:
   vllm_sweep_telechat2:
     model: Tele-AI/TeleChat2-3B
     gpu_memory_utilization: 0.004
-    status: "known_failure_xfail"
-    reason: "0.04 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)"
-    marks: [vllm_sweep]
+    status: "expected_passing"
   # vllm_sweep_tele_flm:
   #   model: CofeAI/FLM-2-52B-Instruct-2407
   #   marks: [vllm_sweep]
@@ -760,4 +757,5 @@ model_configs:
     reason: "Exception: add_prefix_space does not match declared prepend_scheme at line 78 column 3"
   vllm_sweep_zamba2:
     model: Zyphra/Zamba2-1.2B-instruct
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "RuntimeError: 6.mixer - While executing %auto_functionalized"

@@ -204,6 +204,8 @@ model_configs:
     model: allenai/Olmo-3-7B-Instruct
   vllm_sweep_glm4_moe:
     model: zai-org/GLM-4.5
+  vllm_sweep_pangu_embedded:
+    model: FreedomIntelligence/openPangu-Embedded-7B-V1.1
   # vllm_sweep_longcat_flash: # 560B parameter model
   #   model: meituan-longcat/LongCat-Flash-Chat
   # vllm_sweep_dots1: # 142B parameter model

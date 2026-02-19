@@ -91,17 +91,17 @@ model_configs:
     reason: "missing a required argument: 'intermediate_tensors'"
   vllm_sweep_arctic_embed_m_v2:
     model: "Snowflake/snowflake-arctic-embed-m-v2.0"
-    marks: [vllm_sweep]
+    status: "expected_passing"
   vllm_sweep_gte_multilingual:
     model: "Alibaba-NLP/gte-multilingual-base"
     hf_overrides: {"architectures": ["GteNewModel"]}
-    marks: [vllm_sweep]
+    status: "expected_passing"
   vllm_sweep_modernbert:
     model: "Alibaba-NLP/gte-modernbert-base"
     status: "expected_passing"
   vllm_sweep_nomic_embed:
     model: "nomic-ai/nomic-embed-text-v1"
-    marks: [vllm_sweep]
+    status: "expected_passing"
   vllm_sweep_llama_nemotron_embed:
     model: "nvidia/llama-nemotron-embed-1b-v2"
     status: "known_failure_xfail"
@@ -109,4 +109,5 @@ model_configs:
   vllm_sweep_qwen2_embed:
     model: "ssmits/Qwen2-7B-Instruct-embed-base"
     pooler_config: {"pooling_type": "MEAN"}
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "ValueError: Following weights were not initialized from checkpoint: {'lm_head.weight'}"
