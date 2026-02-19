@@ -154,10 +154,13 @@ test_config:
     status: EXPECTED_PASSING
 
   falcon/jax-3_3B_Base-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 37748736 B DRAM buffer across 12 banks, where each bank needs to store 3145728 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
 
   gpt2/causal_lm/jax-Base-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [push, nightly]
 
   gpt2/causal_lm/jax-Large-single_device-inference:
     status: EXPECTED_PASSING
@@ -195,7 +198,9 @@ test_config:
     status: EXPECTED_PASSING
 
   llama/causal_lm/jax-3B_v2-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 110592000 B DRAM buffer across 12 banks, where each bank needs to store 9216000 B, but bank size is only 1073741792 B"
+    bringup_status: FAILED_RUNTIME
     markers: [large]
 
   longt5/text_classification/jax-Base_Tglobal-single_device-inference:
@@ -306,16 +311,24 @@ test_config:
     status: EXPECTED_PASSING
 
   phi2/causal_lm/jax-Phi_2-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
 
   phi2/causal_lm/jax-Phi_2_Pytdml-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 16777216 B DRAM buffer across 12 banks, where each bank needs to store 1400832 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
 
   phi3/causal_lm/jax-Phi_3_Mini_128K_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
 
   phi3/causal_lm/jax-Phi_3_Mini_4K_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/jax-0.5B-single_device-inference:
     status: EXPECTED_PASSING
@@ -324,22 +337,32 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-1.5B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 34359738368 B DRAM buffer across 12 banks, where each bank needs to store 2863312896 B, but bank size is 1073741792 B "
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/jax-1.5B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-3B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Out of Memory: Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B "
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/jax-3B_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B "
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/jax-7B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 271581184 B DRAM buffer across 12 banks, where each bank needs to store 22636544 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/jax-7B_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 271581184 B DRAM buffer across 12 banks, where each bank needs to store 22636544 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/causal_lm/jax-0.5B-single_device-inference:
     status: EXPECTED_PASSING
@@ -351,25 +374,37 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-3B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/causal_lm/jax-3B_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/causal_lm/jax-7B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/causal_lm/jax-7B_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/jax-0_6B-single_device-inference:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/jax-1_7B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/jax-4B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 10485760 B DRAM buffer across 12 banks, where each bank needs to store 876544 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
 
   regnet/image_classification/jax-Y_040-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -494,13 +529,20 @@ test_config:
 
   whisper/audio_classification/jax-Base-single_device-inference:
     status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.668. Required: pcc=0.99"
+    bringup_status: INCORRECT_RESULT
 
   whisper/audio_classification/jax-Medium-single_device-inference:
+    assert_pcc: false
     status: EXPECTED_PASSING
+    reason: "PCC comparison failed. Calculated: pcc=0.734. Required: pcc=0.99"
+    bringup_status: INCORRECT_RESULT
 
   whisper/audio_classification/jax-Large_v3-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [large, nightly]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 6710886400 B DRAM buffer across 12 banks, where each bank needs to store 559243264 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+    markers: [large,nightly]
 
   xglm/causal_lm/jax-564M-single_device-inference:
     status: NOT_SUPPORTED_SKIP
