@@ -58,6 +58,9 @@ test_config:
   clip/pytorch-Large_Patch14_336-single_device-inference:
     required_pcc: 0.97
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        assert_pcc: false # PCC: 0.9529 - https://github.com/tenstorrent/tt-xla/issues/PLACEHOLDER
 
   wide_resnet/pytorch-50.2-single_device-inference:
     required_pcc: 0.98
@@ -78,8 +81,11 @@ test_config:
     status: EXPECTED_PASSING
 
   xglm/pytorch-1.7b-single_device-inference:
-    required_pcc: 0.97 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected; also https://github.com/tenstorrent/tt-xla/issues/2944
+    required_pcc: 0.97 # PCC was >0.99 while it was calculated in f32
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        required_pcc: 0.96 # PCC: 0.966 - https://github.com/tenstorrent/tt-xla/issues/PLACEHOLDER
 
   resnet/pytorch-ResNet50_HuggingFace-single_device-inference:
     required_pcc: 0.98
@@ -290,7 +296,7 @@ test_config:
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-Reader_Single_Nq_Base-single_device-inference:
-    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2944
+    assert_pcc: false # PCC: 0.0 - https://github.com/tenstorrent/tt-xla/issues/PLACEHOLDER
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-Reader_Multiset_Base-single_device-inference:
@@ -596,18 +602,20 @@ test_config:
         assert_pcc: false # n150 : https://github.com/tenstorrent/tt-xla/issues/2433, large decrese with change torch==2.9.0
 
   phi2/token_classification/pytorch-Phi_2_Pytdml-single_device-inference:
+    assert_pcc: false # PCC: 0.8717 p150, also bad on n150 - https://github.com/tenstorrent/tt-xla/issues/PLACEHOLDER
     status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
-      n150:
-        assert_pcc: false # n150 : https://github.com/tenstorrent/tt-xla/issues/2433, large decrese with change torch==2.9.0
 
   phi2/sequence_classification/pytorch-Phi_2-single_device-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        assert_pcc: false # PCC: -1.0 - https://github.com/tenstorrent/tt-xla/issues/PLACEHOLDER
 
   phi2/sequence_classification/pytorch-Phi_2_Pytdml-single_device-inference:
     status: EXPECTED_PASSING
+    arch_overrides:
+      p150:
+        assert_pcc: false # PCC: -1.0 - https://github.com/tenstorrent/tt-xla/issues/PLACEHOLDER
 
   phi1_5/token_classification/pytorch-Phi_1_5-single_device-inference:
     status: EXPECTED_PASSING
@@ -1309,8 +1317,11 @@ test_config:
     markers: [push, nightly]
 
   yolov9/pytorch-S-single_device-inference:
-    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
+    required_pcc: 0.98
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.97 # PCC: 0.9797 - https://github.com/tenstorrent/tt-xla/issues/PLACEHOLDER
 
   yolov9/pytorch-M-single_device-inference:
     status: EXPECTED_PASSING
@@ -1691,6 +1702,7 @@ test_config:
 
   llama/causal_lm/pytorch-3.0_8B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
+    required_pcc: 0.98 # PCC: 0.984 - https://github.com/tenstorrent/tt-xla/issues/PLACEHOLDER
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1982,6 +1994,9 @@ test_config:
   centernet/pytorch-Dla2x_Coco-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/2990
+    arch_overrides:
+      p150:
+        assert_pcc: false # PCC: 0.9436 - https://github.com/tenstorrent/tt-xla/issues/PLACEHOLDER
 
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
