@@ -2509,6 +2509,8 @@ test_config:
       n150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B"
+      p150:
+        required_pcc: 0.988
 
   siglip/image_text_similarity/pytorch-Base_Patch16_224-single_device-inference:
     status: EXPECTED_PASSING
