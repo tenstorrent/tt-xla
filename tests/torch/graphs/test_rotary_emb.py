@@ -32,7 +32,7 @@ AVAILABLE_VARIANT_MAP = {
         "Huggyllama_7B",
         "Tinyllama_v1.1",
     ],
-    "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b"],
+    "qwen3": ["0_6B", "1_7B", "4B", "8B", "14B"],
 }
 
 
