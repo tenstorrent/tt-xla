@@ -76,7 +76,8 @@
 #include "api/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
-
+#include <iostream>
+using namespace std;
 namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
@@ -748,6 +749,8 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
 
   return llvm::LogicalResult::success();
 }
+#include <iostream>
+using namespace std;
 
 tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
@@ -759,10 +762,14 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
 
+  std::cerr << "=== Running SHLO compiler pipeline ===" << std::endl;
   enableVerboseIRPrinting(stablehlo_pipeline_pm);
+  stablehlo_pipeline_pm.getContext()->disableMultithreading();
+  stablehlo_pipeline_pm.enableIRPrinting();
 
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     LOG_F(ERROR, "Failed to run stablehlo pipeline");
+    std::cerr << "=== Failed to run SHLO compiler pipeline ===" << std::endl;
     return tt_pjrt_status::kInternal;
   }
 
@@ -982,6 +989,9 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
           devices_mesh_shape.size());
     return tt_pjrt_status::kInternal;
   }
+  std::cout << "Using mesh size: " << devices_mesh_shape.size() << "shape: ["
+            << devices_mesh_shape[0] << ", " << devices_mesh_shape[1] << "]"
+            << std::endl;
 
   options.meshShape = {devices_mesh_shape[0], devices_mesh_shape[1]};
 

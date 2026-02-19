@@ -34,6 +34,8 @@
 #include "api/tensor_pool.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
+#include <iostream>
+using namespace std;
 
 namespace tt::pjrt {
 
@@ -454,6 +456,9 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
          "reshaping mesh device - %s -> %s",
          utils::to_string(parent_mesh_shape).c_str(),
          utils::to_string(target_mesh_shape).c_str());
+  std::cerr << "ClientInstance::getOrCreateMeshDevice - "
+            << "reshaping mesh device - " << utils::to_string(parent_mesh_shape)
+            << " -> " << utils::to_string(target_mesh_shape) << std::endl;
 
   // Move tensors to host before closing the mesh. This ensures buffers don't
   // hold references to deallocated tensors after mesh close, which could cause
@@ -529,6 +534,7 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
 
 void ClientInstance::closeParentMesh() {
   if (m_parent_mesh.has_value()) {
+    std::cerr << "Closing parent mesh device with shape: " << std::endl;
     DLOG_F(LOG_DEBUG, "Closing parent mesh.");
     tt::runtime::closeMeshDevice(*m_parent_mesh);
     m_parent_mesh.reset();

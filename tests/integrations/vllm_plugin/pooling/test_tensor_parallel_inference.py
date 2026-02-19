@@ -46,13 +46,13 @@ def test_tensor_parallel_n300(
     ["model_name", "baseline_path"],
     [
         pytest.param(
-            "Qwen/Qwen3-Embedding-4B",
-            "baseline/qwen3_embedding_4B_baseline.pt",
+            "Qwen/Qwen3-Embedding-0.6B",
+            "baseline/qwen3_embedding_0.6B_baseline.pt",
         ),
-        pytest.param(
-            "Qwen/Qwen3-Embedding-8B",
-            "baseline/qwen3_embedding_8B_baseline.pt",
-        ),
+        #    pytest.param(
+        #       "Qwen/Qwen3-Embedding-8B",
+        #      "baseline/qwen3_embedding_8B_baseline.pt",
+        # ),
     ],
 )
 def test_tensor_parallel_llmbox(

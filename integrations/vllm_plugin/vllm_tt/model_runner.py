@@ -235,8 +235,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.enable_tensor_parallel:
             num_devices = xr.global_runtime_device_count()
             mesh_shape = (num_devices, 1)
+            mesh_shape = (2, 4)
             device_ids = np.array(range(num_devices))
-            self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
+            self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+            # self.mesh = xs.Mesh(device_ids, mesh_shape, ("model", "batch"))
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -1249,7 +1251,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
-            if (
+            if False and (
                 self.enable_tensor_parallel
                 and self.model.lm_head is not None
                 and isinstance(self.model.lm_head, ParallelLMHead)
@@ -1474,6 +1476,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.no_grad()
     def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
+        if num_tokens == 1:
+            logger.info(
+                f"Skipping dummy run with num_tokens=1 to avoid XLA graph breakage."
+            )
+            return
         if self.supports_mm_inputs:
             input_ids = None
             inputs_embeds = torch.zeros(
@@ -1781,6 +1788,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_tokens: int,
     ) -> None:
         torch._dynamo.config.dynamic_shapes = False
+        return
         # Profile with multimodal encoder & encoder cache.
         if self.supports_mm_inputs:
             mm_config = self.model_config.multimodal_config
@@ -1972,7 +1980,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Shard KV Cache
             for cache in self.kv_caches:
                 assert cache.ndim == 5, "KV cache tensor must be 5D."
-                xs.mark_sharding(cache, self.mesh, (None, None, "x", None, None))
+                xs.mark_sharding(cache, self.mesh, (None, None, "batch", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
