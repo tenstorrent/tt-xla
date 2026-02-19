@@ -27,103 +27,83 @@ test_config:
 
   falcon/jax-3_1B_Base-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   falcon/jax-3_3B_Base-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-0.5B-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-0.5B_Instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-1.5B-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-1.5B_Instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-3B-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-3B_Instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-7B-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-7B_Instruct-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-0.5B-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-1.5B-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-1.5B_Instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-3B-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-3B_Instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-7B-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-7B_Instruct-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/jax-0_6B-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/jax-1_7B-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/jax-4B-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   mnist/image_classification/jax-Mlp_Custom_1x2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -140,60 +120,48 @@ test_config:
 
   gpt2/causal_lm/jax-Base-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
+    status: EXPECTED_PASSING
 
   gpt2/causal_lm/jax-Large-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
+    status: EXPECTED_PASSING
 
   gpt2/causal_lm/jax-Medium-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
+    status: EXPECTED_PASSING
 
   gpt2/causal_lm/jax-Xl-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
+    status: EXPECTED_PASSING
 
   llama/causal_lm/jax-1B_Tiny-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   llama/causal_lm/jax-3B_v2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   phi1/causal_lm/jax-Phi_1-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
+    status: EXPECTED_PASSING
 
   phi1_5/causal_lm/jax-Phi_1_5-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
+    status: EXPECTED_PASSING
 
   phi2/causal_lm/jax-Phi_2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
+    status: EXPECTED_PASSING
 
   phi2/causal_lm/jax-Phi_2_Pytdml-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
+    status: EXPECTED_PASSING
 
   phi3/causal_lm/jax-Phi_3_Mini_128K_Instruct-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   phi3/causal_lm/jax-Phi_3_Mini_4K_Instruct-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING

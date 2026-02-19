@@ -151,28 +151,22 @@ test_config:
     reason: "Flax model class removed in transformers 5.x"
 
   falcon/jax-3_1B_Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   falcon/jax-3_3B_Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   gpt2/causal_lm/jax-Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
+    status: EXPECTED_PASSING
 
   gpt2/causal_lm/jax-Large-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
+    status: EXPECTED_PASSING
 
   gpt2/causal_lm/jax-Medium-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
+    status: EXPECTED_PASSING
 
   gpt2/causal_lm/jax-Xl-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - GPT2Config missing add_cross_attention attribute"
+    status: EXPECTED_PASSING
 
   gpt_j/causal_lm/jax-6B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -198,12 +192,10 @@ test_config:
     markers: [large]
 
   llama/causal_lm/jax-1B_Tiny-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   llama/causal_lm/jax-3B_v2-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
     markers: [large]
 
   longt5/text_classification/jax-Base_Tglobal-single_device-inference:
@@ -308,100 +300,76 @@ test_config:
     reason: "Flax model class removed in transformers 5.x"
 
   phi1/causal_lm/jax-Phi_1-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
+    status: EXPECTED_PASSING
 
   phi1_5/causal_lm/jax-Phi_1_5-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
+    status: EXPECTED_PASSING
 
   phi2/causal_lm/jax-Phi_2-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
+    status: EXPECTED_PASSING
 
   phi2/causal_lm/jax-Phi_2_Pytdml-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "EasyDel incompatible with transformers 5.x - PhiConfig missing pad_token_id attribute"
+    status: EXPECTED_PASSING
 
   phi3/causal_lm/jax-Phi_3_Mini_128K_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   phi3/causal_lm/jax-Phi_3_Mini_4K_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-0.5B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-0.5B_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-1.5B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-1.5B_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-3B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-3B_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-7B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/jax-7B_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-0.5B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-1.5B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-1.5B_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-3B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-3B_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-7B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_2_5_coder/causal_lm/jax-7B_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/jax-0_6B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/jax-1_7B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/jax-4B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   regnet/image_classification/jax-Y_040-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -525,16 +493,13 @@ test_config:
     reason: "Flax model class removed in transformers 5.x"
 
   whisper/audio_classification/jax-Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   whisper/audio_classification/jax-Medium-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
 
   whisper/audio_classification/jax-Large_v3-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "transformers 5.x removed jax TensorType support - return_tensors='jax' no longer valid"
+    status: EXPECTED_PASSING
     markers: [large, nightly]
 
   xglm/causal_lm/jax-564M-single_device-inference:
