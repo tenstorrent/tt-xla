@@ -2325,9 +2325,10 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   ssd300_vgg16/pytorch-Default-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/2456"
+    # status: NOT_SUPPORTED_SKIP
+    # bringup_status: FAILED_RUNTIME
+    # reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/2456"
+    status: EXPECTED_PASSING
 
   gemma/codegemma/pytorch-2B-single_device-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-mlir/issues/6461
