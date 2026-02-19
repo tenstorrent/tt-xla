@@ -800,6 +800,16 @@ test_config:
     reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
     bringup_status: FAILED_RUNTIME
 
+  pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "ImportError due to RequirementsManager in-process package swap causing stale sys.modules (transformers version skew) - https://github.com/tenstorrent/tt-xla/issues/3315 https://github.com/tenstorrent/tt-xla/issues/3317"
+    bringup_status: FAILED_RUNTIME
+
+  pi_0/pytorch-pi0_base-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "ImportError due to RequirementsManager in-process package swap causing stale sys.modules (transformers version skew) - https://github.com/tenstorrent/tt-xla/issues/3315 https://github.com/tenstorrent/tt-xla/issues/3317"
+    bringup_status: FAILED_RUNTIME
+
   opt/qa/pytorch-1.3b-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
