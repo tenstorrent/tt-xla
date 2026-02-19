@@ -232,6 +232,8 @@ def test_sampling_feature_graph_coverage():
             all_greedy=False,
             all_random=True,
             no_penalties=True,
+            no_logit_bias=True,
+            no_bad_words=True,
         )
         defaults.update(overrides)
         return XLASupportedSamplingMetadata(**defaults)
@@ -284,6 +286,48 @@ def test_sampling_feature_graph_coverage():
             failures.append(
                 f"  {name}: {count} nodes <= baseline {baseline_count} "
                 f"— feature likely not executing on device"
+            )
+
+    # --- logit_bias feature ---
+    _logit_bias_fields = ["logit_bias_tensor"]
+    _missing = [f for f in _logit_bias_fields if f not in _meta_fields]
+    if _missing:
+        failures.append(
+            f"  logit_bias: fields {_missing} absent "
+            f"from XLASupportedSamplingMetadata — feature not on device"
+        )
+    else:
+        count = node_count(
+            make_meta(
+                no_logit_bias=False,
+                logit_bias_tensor=torch.zeros(batch_size, vocab_size),
+            )
+        )
+        if count <= baseline_count:
+            failures.append(
+                f"  logit_bias: {count} nodes <= "
+                f"baseline {baseline_count} — feature likely not executing on device"
+            )
+
+    # --- bad_words feature ---
+    _bad_words_fields = ["bad_words_mask"]
+    _missing = [f for f in _bad_words_fields if f not in _meta_fields]
+    if _missing:
+        failures.append(
+            f"  bad_words: fields {_missing} absent "
+            f"from XLASupportedSamplingMetadata — feature not on device"
+        )
+    else:
+        count = node_count(
+            make_meta(
+                no_bad_words=False,
+                bad_words_mask=torch.zeros(batch_size, vocab_size),
+            )
+        )
+        if count <= baseline_count:
+            failures.append(
+                f"  bad_words: {count} nodes <= "
+                f"baseline {baseline_count} — feature likely not executing on device"
             )
 
     assert (
