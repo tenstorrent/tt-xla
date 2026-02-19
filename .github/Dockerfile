@@ -91,50 +91,8 @@ ENV CXX=clang++
 ENV TRACY_NO_INVARIANT_CHECK=1
 ENV TRACY_NO_ISA_EXTENSIONS=1
 
-# Install clang 17
-# RUN dnf install --refresh -y clang llvm llvm-devel llvm-toolset && \
-#     ln -s /usr/bin/clang-17 /usr/bin/clang && \
-#     ln -s /usr/bin/clang++-17 /usr/bin/clang++ && \
-#     ln -s /usr/bin/clangd-17 /usr/bin/clangd
-
-# Build and install LLVM/Clang 17 from source
-# RUN dnf install --refresh -y \
-#     wget \
-#     cmake \
-#     ninja-build \
-#     gcc \
-#     gcc-c++ \
-#     zlib-devel \
-#     libxml2-devel \
-#     && cd /tmp \
-#     && wget https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/llvm-project-17.0.6.src.tar.xz \
-#     && tar -xf llvm-project-17.0.6.src.tar.xz \
-#     && cd llvm-project-17.0.6.src \
-#     && mkdir build && cd build \
-#     && cmake -G Ninja ../llvm \
-#         -DCMAKE_BUILD_TYPE=Release \
-#         -DCMAKE_INSTALL_PREFIX=/usr/local \
-#         -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld" \
-#         -DLLVM_TARGETS_TO_BUILD="X86" \
-#         -DLLVM_ENABLE_ASSERTIONS=OFF \
-#         -DLLVM_INCLUDE_TESTS=OFF \
-#         -DLLVM_INCLUDE_EXAMPLES=OFF \
-#         -DLLVM_INCLUDE_BENCHMARKS=OFF \
-#         -DLLVM_ENABLE_BINDINGS=OFF \
-#     && ninja -j32 \
-#     && ninja install \
-#     && cd /tmp \
-#     && rm -rf llvm-project-17.0.6.src*
-
-# ENV CC=clang
-# ENV CXX=clang++
-# ENV CMAKE_C_COMPILER=clang
-# ENV CMAKE_CXX_COMPILER=clang++
-
-# ENV PATH="/usr/lib/ccache:${PATH}"
-# ENV CCACHE_DIR="/root/.ccache"
-# ENV CCACHE_MAXSIZE="5G"
-# ENV CCACHE_COMPRESS="true"
+ENV CCACHE_MAXSIZE="5G"
+ENV CCACHE_COMPRESS="true"
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${MLIR_TAG} AS ird
 SHELL ["/bin/bash", "-c"]
