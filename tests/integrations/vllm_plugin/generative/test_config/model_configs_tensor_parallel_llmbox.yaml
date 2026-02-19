@@ -196,3 +196,9 @@ model_configs:
     model: Qwen/Qwen3-Next-80B-A3B-Instruct
   vllm_sweep_seed_oss:
     model: ByteDance-Seed/Seed-OSS-36B-Instruct
+  vllm_sweep_grok1:
+    model: hpcai-tech/grok-1
+  vllm_sweep_mimo:
+    model: XiaomiMiMo/MiMo-7B-RL
+  vllm_sweep_olmo3:
+    model: allenai/Olmo-3-7B-Instruct

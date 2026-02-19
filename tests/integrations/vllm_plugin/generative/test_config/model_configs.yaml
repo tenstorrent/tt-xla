@@ -346,19 +346,21 @@ model_configs:
     model: BAAI/AquilaChat-7B
     status: "known_failure_xfail"
     reason: "Model is too large for single chip"
-  vllm_sweep_arcee:
+  vllm_sweep_arcee: # Test this locally to see if it also hangs or if it's just a CI issue
     model: arcee-ai/AFM-4.5B-Base
-#     marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "hangs? "
   vllm_sweep_baichuan:
     model: baichuan-inc/Baichuan-7B
     status: "known_failure_xfail"
     reason: "Model is too large for single chip"
   vllm_sweep_bailing_moe:
     model: inclusionAI/Ling-lite-1.5
-#     marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "too many values to unpack (expected 2) - hidden_states.shape"
   vllm_sweep_bailing_moe_v2:
     model: inclusionAI/Ling-mini-2.0
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_bamba:
     model: ibm-ai-platform/Bamba-9B
     status: "known_failure_xfail"
@@ -381,7 +383,8 @@ model_configs:
     reason: "Unknown failure"
   vllm_sweep_cohere2:
     model: CohereLabs/c4ai-command-r7b-12-2024
-#     marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Gated huggingface model"
   vllm_sweep_dbrx:
     model: Undi95/dbrx-base
     status: "known_failure_xfail"
@@ -410,13 +413,14 @@ model_configs:
     reason: "TypeError: TTAttentionBackendImpl.__init__() got an unexpected keyword argument 'q_lora_rank'"
   vllm_sweep_dots1:
     model: rednote-hilab/dots.llm1.base
-#     marks: [vllm_sweep]
-  vllm_sweep_dots_ocr:
+    marks: [vllm_sweep]
+  vllm_sweep_dots_ocr: 
     model: rednote-hilab/dots.ocr
-#     marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Chunked MM input disabled but max_tokens_per_mm_item (14400) is larger than max_num_batched_tokens (128). Please increase max_num_batched_tokens."
   vllm_sweep_ernie4_5:
     model: baidu/ERNIE-4.5-0.3B-PT
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_ernie4_5_moe:
     model: baidu/ERNIE-4.5-21B-A3B-PT
     status: "known_failure_xfail"
@@ -431,7 +435,7 @@ model_configs:
     reason: "Model is too large for single chip"
   vllm_sweep_fairseq2_llama:
     model: mgleize/fairseq2-dummy-Llama-3.2-1B
-#     marks: [vllm_sweep]
+    status: "expected_passing"
   vllm_sweep_falcon_h1:
     model: tiiuae/Falcon-H1-34B-Base
     status: "known_failure_xfail"
@@ -455,10 +459,11 @@ model_configs:
   #   marks: [vllm_sweep]
   vllm_sweep_gemma3:
     model: google/gemma-3-1b-it
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_gemma3n:
     model: google/gemma-3n-E2B-it
-#     marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "'NoneType' object has no attribute 'shape' - input_embeds"
   vllm_sweep_glm:
     model: THUDM/glm-4-9b-chat-hf
     status: "known_failure_xfail"
@@ -469,7 +474,7 @@ model_configs:
     reason: "Model is too large for single chip"
   vllm_sweep_glm4_moe:
     model: zai-org/GLM-4.5
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_gpt2:
     model: gpt2
     status: "known_failure_xfail"
@@ -499,27 +504,30 @@ model_configs:
     reason: "'_OpNamespace' '_moe_C' object has no attribute 'topk_softmax'"
   vllm_sweep_granite_moe_hybrid:
     model: ibm-granite/granite-4.0-tiny-preview
-#     marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "RuntimeError: model.layers.0.mixer - While executing %auto_functionalized"
   vllm_sweep_granite_moe_shared:
     model: ibm-research/moe-7b-1b-active-shared-experts
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_gritlm:
     model: parasail-ai/GritLM-7B-vllm
     status: "known_failure_xfail"
     reason: "ZeroDivisionError: integer division or modulo by zero"
   vllm_sweep_grok1:
     model: hpcai-tech/grok-1
-#     marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_hunyuan_dense: 
     model: tencent/Hunyuan-7B-Instruct
-#     marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "AssertionError: Attempt to trace forbidden callable <function mark_dynamic at 0x7fecb642f600>"
   vllm_sweep_hunyuan_moe:
     model: tencent/Hunyuan-A13B-Instruct 
     status: "known_failure_xfail"
     reason: "Model is too large for single chip"
   vllm_sweep_hcx_vision:
     model: naver-hyperclovax/HyperCLOVAX-SEED-Vision-Instruct-3B
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_internlm:
     model: internlm/internlm-7b
     status: "known_failure_xfail"
@@ -552,7 +560,7 @@ model_configs:
     reason: "Model is too large for single chip"
   vllm_sweep_lfm2:
     model: LiquidAI/LFM2-350M
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_lfm2_moe:
     model: LiquidAI/LFM2-8B-A1B-preview
     status: "known_failure_xfail"
@@ -562,14 +570,14 @@ model_configs:
   #   marks: [vllm_sweep]
   vllm_sweep_longcat_flash:
     model: meituan-longcat/LongCat-Flash-Chat
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_mamba:
     model: state-spaces/mamba-130m-hf
     status: "known_failure_xfail"
     reason: "ZeroDivisionError: integer division or modulo by zero"
   vllm_sweep_mamba2:
     model: mistralai/Mamba-Codestral-7B-v0.1
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_minicpm:
     model: openbmb/MiniCPM-2B-sft-bf16
     gpu_memory_utilization: 0.004
@@ -580,16 +588,17 @@ model_configs:
     reason: "torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_method view(*(FakeTensor(..., device='xla:0', size=(0, 32)), 0, -1, 32), **{}): got RuntimeError('cannot reshape tensor of 0 elements into shape [0, -1, 32] because the unspecified dimension size -1 can be any value and is ambiguous')"
   vllm_sweep_mimo:
     model: XiaomiMiMo/MiMo-7B-RL
-#     marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_minimax_m1:
     model: MiniMaxAI/MiniMax-M1-40k
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_minimax_m2:
     model: MiniMaxAI/MiniMax-M2
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_minimax_text01:
     model: MiniMaxAI/MiniMax-Text-01
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   # vllm_sweep_mistral:
   #   model: mistralai/Mistral-7B-v0.1
   #   gpu_memory_utilization: 0.001
@@ -627,14 +636,15 @@ model_configs:
     reason: "Model is too large for single chip"
   vllm_sweep_olmo3:
     model: allenai/Olmo-3-7B-Instruct
-#     marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Model is too large for single chip"
   vllm_sweep_olmoe:
     model: allenai/OLMoE-1B-7B-0924
     status: "known_failure_xfail"
     reason: "'_OpNamespace' '_moe_C' object has no attribute 'topk_softmax'"
   vllm_sweep_ouro:
     model: ByteDance/Ouro-1.4B
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   # vllm_sweep_opt:
   #   model: facebook/opt-125m
   #   marks: [vllm_sweep]
@@ -645,7 +655,7 @@ model_configs:
   #   marks: [vllm_sweep]
   vllm_sweep_pangu_embedded:
     model: FreedomIntelligence/openPangu-Embedded-7B-V1.1
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   # vllm_sweep_pangu_ultra_moe:
   #   model: FreedomIntelligence/openPangu-Ultra-MoE-718B-V1.1
   #   marks: [vllm_sweep]
@@ -658,7 +668,7 @@ model_configs:
     gpu_memory_utilization: 0.006
     status: "known_failure_xfail"
     reason: "(0.06 GiB KV cache is needed, which is larger than the available KV cache memory (0.02 GiB)"
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   # vllm_sweep_phi4:
   #   model: microsoft/phi-4
   #   marks: [vllm_sweep]
@@ -671,10 +681,11 @@ model_configs:
   #   marks: [vllm_sweep]
   vllm_sweep_plamo2:
     model: pfnet/plamo-2-1b
-#     marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "AssertionError: Attempt to trace forbidden callable <function mark_dynamic at 0x7fbd198ff880>"
   vllm_sweep_plamo3:
     model: pfnet/plamo-3-nict-2b-base
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   vllm_sweep_persimmon:
     model: adept/persimmon-8b-base
     status: "known_failure_xfail"
@@ -720,7 +731,7 @@ model_configs:
     reason: "Model is too large for single chip"
   vllm_sweep_telechat2:
     model: Tele-AI/TeleChat2-3B
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
   # vllm_sweep_tele_flm:
   #   model: CofeAI/FLM-2-52B-Instruct-2407
   #   marks: [vllm_sweep]
@@ -730,4 +741,4 @@ model_configs:
     reason: "Exception: add_prefix_space does not match declared prepend_scheme at line 78 column 3"
   vllm_sweep_zamba2:
     model: Zyphra/Zamba2-1.2B-instruct
-#     marks: [vllm_sweep]
+    marks: [vllm_sweep]
