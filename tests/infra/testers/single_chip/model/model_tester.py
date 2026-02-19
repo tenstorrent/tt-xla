@@ -9,7 +9,7 @@ import time
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Callable, Optional, Tuple
-
+from ttxla_tools.logging import logger
 from infra.evaluators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
@@ -161,16 +161,17 @@ class ModelTester(BaseTester, ABC):
         results.
         """
         self._compile_for_cpu(self._workload)
+        logger.info(f"cpu compile done")
         cpu_res = self._run_on_cpu(self._workload)
-
+        logger.info(f"cpu run done")
         self._compile_for_tt_device(self._workload)
-
+        logger.info(f"tt compile done")
         if not self._disable_perf_measurement:
             e2e_perf_stats = self._test_e2e_perf()
             list.append(self._perf_measurements, e2e_perf_stats)
 
         tt_res = self._run_on_tt_device(self._workload)
-
+        logger.info(f"tt run done")
         if request:
             self.handle_filecheck_and_serialization(request, self._workload)
 

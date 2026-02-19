@@ -157,6 +157,10 @@ class OpTester(BaseTester):
         workload = Workload(framework=self._framework, executable=f, args=inputs)
         self.test(workload, request=request)
 
+    def test_with_saved_inputs(self, f: Callable, inputs: List) -> None:
+        workload = Workload(framework=self._framework, executable=f, args=inputs)
+        self.test(workload)
+
     def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
         """
         Serializes a workload on TT device with proper compiler configuration.
@@ -231,3 +235,16 @@ def run_op_test_with_random_inputs(
     tester.test_with_random_inputs(
         op, input_shapes, minval, maxval, dtype, request=request
     )
+
+
+def run_op_test_with_saved_inputs(
+    op: Callable,
+    inputs: List,
+    comparison_config: ComparisonConfig = ComparisonConfig(),
+    framework: Framework = Framework.JAX,
+    compiler_config: CompilerConfig = None,
+) -> None:
+    if compiler_config is None:
+        compiler_config = CompilerConfig()
+    tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
+    tester.test_with_saved_inputs(op, inputs)
