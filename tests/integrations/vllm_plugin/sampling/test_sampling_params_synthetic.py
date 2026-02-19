@@ -263,6 +263,32 @@ def test_gather_logprobs(device, vocab_size):
     assert (ranks >= 0).all(), "Token ranks must be non-negative"
 
 
+@pytest.mark.push
+def test_seed_limitation_documented():
+    """Document that per-request seed has no effect on TT hardware (XLA limitation).
+
+    On TT devices, XLA traces a static computation graph and torch.Generator
+    objects cannot be captured in that trace.  The _generators dict in
+    XLASupportedSamplingMetadata is always empty, so the seeding loop in
+    random_sample() never executes — SamplingParams(seed=N) silently has no
+    effect.
+
+    This test will catch any future regression if generators accidentally
+    starts being populated (which would signal an upstream XLA change that
+    warrants re-evaluation of the xfail on test_seed).
+
+    See https://github.com/tenstorrent/tt-xla/issues/3365
+    """
+    meta = XLASupportedSamplingMetadata()
+    assert meta.generators == {}, (
+        f"Expected generators to be empty (XLA seed limitation, issue #3365), "
+        f"got: {meta.generators}"
+    )
+    print(
+        "Per-request seed not supported on TT hardware " "(XLA limitation, issue #3365)"
+    )
+
+
 # Does not use device, but CI only targets silicon runners so must tag w/ single_device
 @pytest.mark.single_device
 @pytest.mark.push
