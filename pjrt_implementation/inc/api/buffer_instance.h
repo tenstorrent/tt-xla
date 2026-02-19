@@ -105,7 +105,7 @@ public:
   // expected data type when copying to host, possibly leading to a different
   // size. This function will calculate the converted runtime tensor size to be
   // tensor_volume * expected_host_data_type_element_size
-  size_t tensorSize();
+  size_t tensorSize() const;
 
   // Returns a string representation of the buffer's shape in the format
   // [d1,d2,d3,...].
@@ -117,6 +117,9 @@ public:
 
   // Deletes the buffer data.
   void deleteData();
+
+  // Handles onBufferToHostBuffer pjrt call.
+  PJRT_Error *toHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args);
 
   // This method should asynchronously copy data into device buffer from the
   // given host buffer. Currently our runtime expects all input buffers to be on
@@ -198,15 +201,6 @@ private:
     return uid.fetch_add(1, std::memory_order_relaxed);
   }
 
-  // Waits on a current copy to host thread to finish.
-  void joinCopyThread() {
-    const std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
-    if (m_copy_to_host_thread) {
-      m_copy_to_host_thread->join();
-      m_copy_to_host_thread.reset();
-    }
-  }
-
   // Unique identifier for this buffer instance.
   const uint64_t m_uid;
 
@@ -252,12 +246,10 @@ private:
   std::mutex m_data_deleted_mutex;
 
   // Thread for copying data to host.
-  std::unique_ptr<std::thread> m_copy_to_host_thread;
+  std::thread m_copy_to_host_thread;
 
-  // Mutex guarding thread spawning for copying data to host.
-  // Prevents multiple threads from concurrently copying into the same
-  // BufferInstance.
-  std::mutex m_copy_to_host_thread_mutex;
+  // Prevents multiple threads from entering toHostBuffer concurrently.
+  std::mutex m_to_host_buffer_mutex;
 
   // Mutex guarding internal copy to host operation on the same mesh device
   // Metal+Program Cache is not thread safe when untilizing on device, so

@@ -12,6 +12,7 @@
 
 // c++ standard library includes
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <thread>
@@ -109,7 +110,7 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Memory = internal::onBufferMemory;
 }
 
-size_t BufferInstance::tensorSize() {
+size_t BufferInstance::tensorSize() const {
   size_t tensor_volume = tt::runtime::getTensorVolume(runtimeTensor());
 
   size_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
@@ -137,7 +138,12 @@ void BufferInstance::deleteData() {
     return;
   }
 
-  joinCopyThread();
+  {
+    std::lock_guard<std::mutex> to_host_buffer_lock{m_to_host_buffer_mutex};
+    if (m_copy_to_host_thread.joinable()) {
+      m_copy_to_host_thread.join();
+    }
+  }
 
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
@@ -298,6 +304,27 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
   return strides;
 }
 
+PJRT_Error *BufferInstance::toHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
+
+  const std::lock_guard<std::mutex> lock{m_to_host_buffer_mutex};
+
+  // This API function can be used with null `dst` to query the required size.
+  if (!args->dst) {
+    DLOG_F(LOG_DEBUG,
+           "Calculating required host buffer size from device tensor when "
+           "args->dst is nullptr to query the required size. This will give "
+           "an overestimated tile-aligned physical tensor size instead of a "
+           "logical size. TODO @jameszianxu");
+    args->dst_size = tensorSize();
+    return nullptr;
+  }
+
+  return *ErrorInstance::makeError(
+              copyToHost(args->dst, args->dst_size,
+                         reinterpret_cast<EventInstance **>(&args->event)))
+              .release();
+}
+
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
@@ -306,20 +333,18 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
 
-  // TODO(acolic): Copying in a separate thread is left to match previous
-  // behavior. Check whether it is needed: it does not make much sense to
-  // create new thread for each shard, because tensors are moved once from
-  // device when onHost is called on a first shard; on the other hand, there is
-  // no sense to create new thread for memcpy because framework would wait on a
-  // copy anyway, right? Also, creating std::thread for memcpy might be overhead
-  // with performance loss. We must measure.
-  // Also, std::thread (as all objects from std::) has a value semantic, so it
-  // does not make any sense to create std::thread as a unique_ptr.
-  joinCopyThread();
-
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
-  m_copy_to_host_thread = std::make_unique<std::thread>([=, e = event.get()] {
+  // TODO(acolic): Copying in a separate thread for each shard is left to match
+  // previous behavior. Check whether it is needed: it does not make much sense
+  // to create new thread for each shard, because tensors are moved once from
+  // device when onHost is called on a first shard. Also, creating std::thread
+  // for memcpy might be overhead with performance loss. We should measure.
+  if (m_copy_to_host_thread.joinable()) {
+    m_copy_to_host_thread.join();
+  }
+
+  m_copy_to_host_thread = std::thread([=, e = event.get()] {
     try {
       const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
 
@@ -462,23 +487,7 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
   // https://github.com/tenstorrent/tt-xla/issues/500
 
   BufferInstance *buffer = BufferInstance::unwrap(args->src);
-
-  // This API function can be used with null `dst` to query the required size.
-  if (!args->dst) {
-    DLOG_F(LOG_DEBUG,
-           "Calculating required host buffer size from device tensor when "
-           "args->dst is nullptr to query the required size. This will give "
-           "an overestimated tile-aligned physical tensor size instead of a "
-           "logical size. TODO @jameszianxu");
-    args->dst_size = buffer->tensorSize();
-    return nullptr;
-  }
-
-  return *ErrorInstance::makeError(
-              buffer->copyToHost(
-                  args->dst, args->dst_size,
-                  reinterpret_cast<EventInstance **>(&args->event)))
-              .release();
+  return buffer->toHostBuffer(args);
 }
 
 PJRT_Error *onBufferDelete(PJRT_Buffer_Delete_Args *args) {
