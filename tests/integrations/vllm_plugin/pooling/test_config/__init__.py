@@ -30,6 +30,7 @@ DEFAULT_POOLING_CONFIG = {
     "max_num_batched_tokens": 128,
     "max_num_seqs": 1,
     "disable_sliding_window": True,
+    "trust_remote_code": True,
     "prompts": ["Hello, my name is"],
     "status": "unspecified",
 }
@@ -43,6 +44,7 @@ DEFAULT_TENSOR_PARALLEL_LLMBOX_POOLING_CONFIG = {
     "max_num_batched_tokens": 128,
     "max_num_seqs": 1,
     "disable_sliding_window": True,
+    "trust_remote_code": True,
     "additional_config": {
         "enable_tensor_parallel": True,
     },

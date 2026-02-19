@@ -32,6 +32,7 @@ def run_pooling_model_test(model_config: Dict[str, Any]) -> List[List[float]]:
         "max_num_batched_tokens": model_config["max_num_batched_tokens"],
         "max_num_seqs": model_config["max_num_seqs"],
         "disable_sliding_window": model_config.get("disable_sliding_window", True),
+        "trust_remote_code": model_config.get("trust_remote_code", True),
     }
     if "additional_config" in model_config:
         llm_args["additional_config"] = model_config["additional_config"]

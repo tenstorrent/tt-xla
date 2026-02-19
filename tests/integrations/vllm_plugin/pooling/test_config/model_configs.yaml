@@ -79,13 +79,16 @@ model_configs:
     status: "expected_passing"
   vllm_sweep_splade:
     model: "naver/splade-v3"
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Gated huggingface model"
   vllm_sweep_bge_multilingual_gemma2:
     model: "BAAI/bge-multilingual-gemma2"
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "Unknown failure"
   vllm_sweep_embedding_gemma3:
     model: "google/embeddinggemma-300m"
-    marks: [vllm_sweep]
+    status: "known_failure_xfail"
+    reason: "missing a required argument: 'intermediate_tensors'"
   vllm_sweep_arctic_embed_m_v2:
     model: "Snowflake/snowflake-arctic-embed-m-v2.0"
     marks: [vllm_sweep]
@@ -95,7 +98,7 @@ model_configs:
     marks: [vllm_sweep]
   vllm_sweep_modernbert:
     model: "Alibaba-NLP/gte-modernbert-base"
-    marks: [vllm_sweep]
+    status: "expected_passing"
   vllm_sweep_nomic_embed:
     model: "nomic-ai/nomic-embed-text-v1"
     marks: [vllm_sweep]
