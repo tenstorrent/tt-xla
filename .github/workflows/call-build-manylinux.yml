@@ -33,22 +33,15 @@ jobs:
         with:
           python-version: '3.11'
 
-      # - name: ccache
-      #   uses: hendrikmuhs/ccache-action@v1.2
-      #   with:
-      #       key: "${{ steps.strings.outputs.build-name }}-manylinux-build"
-
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==3.3.0
 
       - name: Build wheels
         env:
-          CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON CCACHE_DIR=/host/home/runner/.ccache"
+          CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
           CIBW_BEFORE_ALL: "ls -la /usr/bin/c* || true"
           CIBW_SKIP: "*-musllinux_*"
-          CIBW_ENVIRONMENT_PASS_LINUX: "CCACHE_DIR"
-          CIBW_CONTAINER_ENGINE: "docker; create_args: --volume=$HOME/.ccache:/host/home/runner/.ccache"
         run: python -m cibuildwheel --output-dir "${{ steps.strings.outputs.wheel-output-dir }}" --config-file "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml" ${{ steps.strings.outputs.work-dir }}/python_package
 
       # - name: Build ttxla  Wheel (manylinux)
