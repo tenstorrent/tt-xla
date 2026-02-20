@@ -751,10 +751,11 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Conv-single_device-inference:
-    required_pcc: 0.98
-    status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: FAILED_RUNTIME
+    # required_pcc: 0.98
+    # status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
+    # reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
+    # bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   t5/pytorch-Small-single_device-inference:
     status: EXPECTED_PASSING
@@ -768,11 +769,12 @@ test_config:
     required_pcc: 0.98
 
   perceiverio_vision/pytorch-Vision_Perceiver_Fourier-single_device-inference:
-    required_pcc: 0.98
-    assert_pcc: false  # FIXME - PCC drop to 0.96 on Aug6 due to tt-mlir/tt-xla uplift (passed locally before it)
-    status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: FAILED_RUNTIME
+    # required_pcc: 0.98
+    # assert_pcc: false  # FIXME - PCC drop to 0.96 on Aug6 due to tt-mlir/tt-xla uplift (passed locally before it)
+    # status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
+    # reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
+    # bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   # yolov8/pytorch-yolov8x-single_device-inference:
   #   status: EXPECTED_PASSING
@@ -791,10 +793,11 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99"
 
   perceiverio_vision/pytorch-Vision_Perceiver_Learned-single_device-inference:
-    assert_pcc: false  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
-    status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: FAILED_RUNTIME
+    # assert_pcc: false  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
+    # status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
+    # reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
+    # bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   opt/qa/pytorch-1.3b-single_device-inference:
     assert_pcc: false
