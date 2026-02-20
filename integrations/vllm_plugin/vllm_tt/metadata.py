@@ -88,6 +88,41 @@ class XLASupportedSamplingMetadata:
         needs_logprobs = (
             input_batch.max_num_logprobs > 0 if input_batch.max_num_logprobs else False
         )
+
+        # Guards for parameters that are tracked by InputBatch but not yet
+        # forwarded through this function into the compiled sampler graph.
+        # Each raise should be removed once the feature is fully plumbed here.
+        if needs_logprobs:
+            raise NotImplementedError(
+                "logprobs is not yet supported in the TT sampler. "
+                "https://github.com/tenstorrent/tt-xla/issues/3366"
+            )
+        if not input_batch.no_penalties:
+            raise NotImplementedError(
+                "presence_penalty, frequency_penalty, and repetition_penalty are "
+                "not yet supported in the TT sampler. Only default values "
+                "(presence/frequency: 0.0, repetition: 1.0) are accepted. "
+                "https://github.com/tenstorrent/tt-xla/issues/3331"
+            )
+        if input_batch.generators:
+            raise NotImplementedError(
+                "seed is not yet supported in the TT sampler. "
+                "Per-request generators are not available on TT devices. "
+                "https://github.com/tenstorrent/tt-xla/issues/3365"
+            )
+        if any(
+            input_batch.logit_bias[i] is not None for i in range(input_batch.num_reqs)
+        ):
+            raise NotImplementedError(
+                "logit_bias is not yet supported in the TT sampler. "
+                "https://github.com/tenstorrent/tt-xla/issues/3364"
+            )
+        if input_batch.bad_words_token_ids:
+            raise NotImplementedError(
+                "bad_words is not yet supported in the TT sampler. "
+                "https://github.com/tenstorrent/tt-xla/issues/3363"
+            )
+
         # Early return to avoid unnecessary cpu to tpu copy
         if input_batch.all_greedy is True and generate_params_if_all_greedy is False:
             return cls(all_greedy=True, logprobs=needs_logprobs)
