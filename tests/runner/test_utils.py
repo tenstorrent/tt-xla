@@ -13,7 +13,7 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional
 
 import numpy as np
 import pytest
@@ -48,18 +48,16 @@ class RunPhase(Enum):
 class ShardingConfig:
     """Configuration for multi-chip sharding in LLM tests.
 
-    Bundles mesh_shape, shard_strategy, and shard_inputs into a single
-    test parameter.  Used only by test_llms_torch to expand tested sharding
+    Bundles shard_strategy and shard_inputs into a single
+    test parameter. Used only by test_llms_torch to expand tested sharding
     combinations without changing the Parallelism enum or shared code paths.
 
     Attributes:
-        mesh_shape: Device mesh shape, e.g. (1,8) or (2,4). None = use loader default.
         shard_strategy: "fsdp" (both axes) or "megatron" (model axis only). None = loader default.
         shard_inputs: Whether to shard inputs across the batch/data axis of the mesh.
         parallelism: Parallelism enum value for dispatch and backward-compat reporting.
     """
 
-    mesh_shape: Optional[Tuple[int, int]]
     shard_strategy: Optional[str]
     shard_inputs: bool
     parallelism: Parallelism
@@ -72,21 +70,17 @@ class ShardingConfigs:
     existing (loader-driven) code path — preserving current behavior and test IDs.
     """
 
-    # --- Backward-compatible defaults (None fields → existing code paths) ---
-    SINGLE_DEVICE = ShardingConfig(None, None, False, Parallelism.SINGLE_DEVICE)
-    TENSOR_PARALLEL = ShardingConfig(None, None, False, Parallelism.TENSOR_PARALLEL)
+    # --- Backward-compatible defaults (None strategy → existing code paths) ---
+    SINGLE_DEVICE = ShardingConfig(None, False, Parallelism.SINGLE_DEVICE)
+    TENSOR_PARALLEL = ShardingConfig(None, False, Parallelism.TENSOR_PARALLEL)
 
-    # --- FSDP-like sharding (weights sharded on both "batch" and "model" axes) ---
-    FSDP_1x8 = ShardingConfig((1, 8), "fsdp", False, Parallelism.TENSOR_PARALLEL)
-    FSDP_1x8_DP = ShardingConfig((1, 8), "fsdp", True, Parallelism.TENSOR_PARALLEL)
-    FSDP_2x4 = ShardingConfig((2, 4), "fsdp", False, Parallelism.TENSOR_PARALLEL)
-    FSDP_2x4_DP = ShardingConfig((2, 4), "fsdp", True, Parallelism.TENSOR_PARALLEL)
+    # --- Explicit TP strategies (mesh shape is parametrized separately) ---
+    FSDP = ShardingConfig("fsdp", False, Parallelism.TENSOR_PARALLEL)
+    FSDP_DP = ShardingConfig("fsdp", True, Parallelism.TENSOR_PARALLEL)
 
     # --- Megatron sharding (weights sharded on "model" axis only) ---
-    MEGATRON_1x8 = ShardingConfig((1, 8), "megatron", False, Parallelism.TENSOR_PARALLEL)
-    MEGATRON_1x8_DP = ShardingConfig((1, 8), "megatron", True, Parallelism.TENSOR_PARALLEL)
-    MEGATRON_2x4 = ShardingConfig((2, 4), "megatron", False, Parallelism.TENSOR_PARALLEL)
-    MEGATRON_2x4_DP = ShardingConfig((2, 4), "megatron", True, Parallelism.TENSOR_PARALLEL)
+    MEGATRON = ShardingConfig("megatron", False, Parallelism.TENSOR_PARALLEL)
+    MEGATRON_DP = ShardingConfig("megatron", True, Parallelism.TENSOR_PARALLEL)
 
 
 def fix_venv_isolation():
