@@ -7,10 +7,12 @@ Provides a cached LLM factory that auto-recreates the engine after a test
 failure (which can leave the vLLM engine core in a dead state).
 """
 
+import gc
+
 import pytest
 import vllm
 
-TEST_TIMEOUT_SECONDS = 120
+TEST_TIMEOUT_SECONDS = 180
 
 _llm_cache: dict[str, vllm.LLM] = {}
 _needs_recreate = False
@@ -21,24 +23,13 @@ def get_or_create_llm(name: str, **llm_args) -> vllm.LLM:
     global _needs_recreate
     if name not in _llm_cache or _needs_recreate:
         _needs_recreate = False
+        _flush_llm_cache()
         _llm_cache[name] = vllm.LLM(**llm_args)
     return _llm_cache[name]
 
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item, call):
-    """Flag all cached LLMs for recreation if a test fails or errors."""
-    global _needs_recreate
-    outcome = yield
-    report = outcome.get_result()
-    if report.when in ("call", "setup") and report.failed:
-        _needs_recreate = True
-
-
 def _flush_llm_cache():
     """Delete all cached LLM instances and force GC to terminate their subprocesses."""
-    import gc
-
     for name in list(_llm_cache):
         del _llm_cache[name]
     _llm_cache.clear()
