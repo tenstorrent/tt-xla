@@ -102,144 +102,178 @@ test_config:
 
   # ============================================================================
   # Llama 3.1 8B Instruct — Prefill tensor-parallel tests
-  # Combinations of sharding strategy (fsdp/megatron), mesh (1x8/2x4), and
-  # data-parallelism (no_dp/dp).
+  # Constraints:
+  #  - Keep only one strategy for 1x8 (FSDP).
+  #  - DP only for mesh 2x4 with batch >= data dim (=2), so batch_2 only.
+  #  - Cover all prefill sequence lengths through 8192.
   # ============================================================================
 
   # --- FSDP, mesh 1x8, no DP ---
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-fsdp-mesh_1x8-no_dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-fsdp_mesh_1x8-no_dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-fsdp-mesh_1x8-no_dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-fsdp_mesh_1x8-no_dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-fsdp-mesh_1x8-no_dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-fsdp_mesh_1x8-no_dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-fsdp-mesh_1x8-no_dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-fsdp_mesh_1x8-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-fsdp_mesh_1x8-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_2-fsdp_mesh_1x8-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-fsdp_mesh_1x8-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_2-fsdp_mesh_1x8-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp_mesh_1x8-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_2-fsdp_mesh_1x8-no_dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
 
   # --- FSDP, mesh 2x4, no DP ---
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-fsdp-mesh_2x4-no_dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-fsdp_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-fsdp_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-fsdp_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-fsdp_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-fsdp_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_2-fsdp_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-fsdp_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_2-fsdp_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_2-fsdp_mesh_2x4-no_dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-fsdp-mesh_2x4-no_dp-tensor_parallel-inference:
+  # --- FSDP, mesh 2x4, DP (batch must be >= data dim 2) ---
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-fsdp_mesh_2x4-dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-fsdp-mesh_2x4-no_dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-fsdp_mesh_2x4-dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-fsdp-mesh_2x4-no_dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_2-fsdp_mesh_2x4-dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
-
-  # --- FSDP, mesh 2x4, DP ---
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-fsdp-mesh_2x4-dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_2-fsdp_mesh_2x4-dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-fsdp-mesh_2x4-dp-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-fsdp-mesh_2x4-dp-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-fsdp-mesh_2x4-dp-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    markers: [nightly]
-
-  # --- FSDP, mesh 1x8, DP (trivial: data axis = 1) ---
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-fsdp-mesh_1x8-dp-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    markers: [nightly]
-
-  # --- Megatron, mesh 1x8, no DP ---
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-megatron-mesh_1x8-no_dp-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-megatron-mesh_1x8-no_dp-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-megatron-mesh_1x8-no_dp-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-megatron-mesh_1x8-no_dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_2-fsdp_mesh_2x4-dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
 
   # --- Megatron, mesh 2x4, no DP ---
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-megatron-mesh_2x4-no_dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-megatron_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-megatron_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-megatron_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-megatron_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-megatron_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_2-megatron_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-megatron_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_2-megatron_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-megatron_mesh_2x4-no_dp-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_2-megatron_mesh_2x4-no_dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-megatron-mesh_2x4-no_dp-tensor_parallel-inference:
+  # --- Megatron, mesh 2x4, DP (batch must be >= data dim 2) ---
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-megatron_mesh_2x4-dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-megatron-mesh_2x4-no_dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-megatron_mesh_2x4-dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-megatron-mesh_2x4-no_dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_2-megatron_mesh_2x4-dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
-
-  # --- Megatron, mesh 2x4, DP ---
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-megatron-mesh_2x4-dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_2-megatron_mesh_2x4-dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-megatron-mesh_2x4-dp-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-megatron-mesh_2x4-dp-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    markers: [nightly]
-
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-megatron-mesh_2x4-dp-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    markers: [nightly]
-
-  # --- Megatron, mesh 1x8, DP (trivial: data axis = 1) ---
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-megatron-mesh_1x8-dp-tensor_parallel-inference:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_2-megatron_mesh_2x4-dp-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
