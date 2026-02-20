@@ -33,7 +33,14 @@ SEQ_MULTI_OF = 32
 
 
 class TimestepEmbedder(nn.Module):
-    def __init__(self, out_size, mid_size=None, frequency_embedding_size=256):
+    def __init__(
+        self,
+        out_size,
+        mid_size=None,
+        frequency_embedding_size=256,
+        t_scale=1.0,
+        max_period=10000,
+    ):
         super().__init__()
         if mid_size is None:
             mid_size = out_size
@@ -42,26 +49,22 @@ class TimestepEmbedder(nn.Module):
             nn.SiLU(),
             nn.Linear(mid_size, out_size, bias=True),
         )
-        self.frequency_embedding_size = frequency_embedding_size
-
-    @staticmethod
-    def timestep_embedding(t, dim, max_period=10000):
-        half = dim // 2
-        freqs = torch.exp(
-            -math.log(max_period)
-            * torch.arange(start=0, end=half, dtype=torch.float32, device=t.device)
-            / half
-        )
-        args = t[:, None].float() * freqs[None]
-        embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
-        if dim % 2:
-            embedding = torch.cat(
-                [embedding, torch.zeros_like(embedding[:, :1])], dim=-1
+        # Precompute frequency table (with t_scale baked in) as a buffer
+        # to avoid graph breaks from torch.arange/torch.exp in forward.
+        half = frequency_embedding_size // 2
+        freqs = (
+            torch.exp(
+                -math.log(max_period)
+                * torch.arange(0, half, dtype=torch.float32)
+                / half
             )
-        return embedding
+            * t_scale
+        )
+        self.register_buffer("freqs", freqs)
 
     def forward(self, t):
-        t_freq = self.timestep_embedding(t, self.frequency_embedding_size)
+        args = t[:, None].float() * self.freqs[None]
+        t_freq = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
         t_freq = t_freq.to(self.mlp[0].weight.dtype)
         return self.mlp(t_freq)
 
@@ -295,9 +298,10 @@ class ZImageTransformer(nn.Module):
         qk_norm = cfg.qk_norm
         self.out_channels = cfg.in_channels
 
-        # Timestep embedder
-        self.t_embedder = TimestepEmbedder(min(dim, ADALN_EMBED_DIM), mid_size=1024)
-        self.t_scale = cfg.t_scale
+        # Timestep embedder (t_scale baked into frequency table)
+        self.t_embedder = TimestepEmbedder(
+            min(dim, ADALN_EMBED_DIM), mid_size=1024, t_scale=cfg.t_scale
+        )
 
         # Embedders
         self.x_embedder = nn.Linear(
@@ -448,8 +452,8 @@ class ZImageTransformer(nn.Module):
         """Copy weights from a diffusers ZImageTransformer2DModel."""
         key = f"{patch_size}-{f_patch_size}"
 
-        # Simple 1:1 copies
-        self.t_embedder.load_state_dict(source.t_embedder.state_dict())
+        # Simple 1:1 copies (t_embedder: only copy MLP weights, freqs buffer is precomputed)
+        self.t_embedder.mlp.load_state_dict(source.t_embedder.mlp.state_dict())
         self.x_embedder.load_state_dict(source.all_x_embedder[key].state_dict())
         self.cap_embedder.load_state_dict(source.cap_embedder.state_dict())
         self.x_pad_token.data.copy_(source.x_pad_token.data)
@@ -520,8 +524,8 @@ class ZImageTransformer(nn.Module):
         image_padding_len = self._image_padding_len
         cap_padding_len = self._cap_padding_len
 
-        # 1. Timestep embedding
-        t_emb = self.t_embedder(t * self.t_scale)
+        # 1. Timestep embedding (t_scale baked into freqs buffer)
+        t_emb = self.t_embedder(t)
 
         # 2. Patchify image: [C, F, H, W] -> [image_ori_len, patch_dim]
         image = image.view(C, F_tokens, pF, H_tokens, pH, W_tokens, pW)
