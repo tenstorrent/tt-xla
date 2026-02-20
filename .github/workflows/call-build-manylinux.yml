@@ -33,10 +33,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-            key: "${{ steps.strings.outputs.build-name }}-manylinux-build"
+      # - name: ccache
+      #   uses: hendrikmuhs/ccache-action@v1.2
+      #   with:
+      #       key: "${{ steps.strings.outputs.build-name }}-manylinux-build"
 
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==3.3.0
