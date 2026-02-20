@@ -260,10 +260,11 @@ def _make_transformer_forward(transformer, cap_ori_len, image_shape):
     )
 
     # Attention masks [1, seq_len] (True = attend)
+    # The original forward sets mask=1 for the full padded length (x_item_seqlens
+    # includes padding), so all positions attend. Pad tokens are handled by
+    # replacing their embeddings with x_pad_token/cap_pad_token, not by masking.
     x_attn_mask = torch.ones(1, image_total, dtype=torch.bool)
-    x_attn_mask[0, image_ori_len:] = False
     cap_attn_mask = torch.ones(1, cap_total, dtype=torch.bool)
-    cap_attn_mask[0, cap_ori_len:] = False
 
     unified_seq_len = image_total + cap_total
     unified_attn_mask = torch.cat([x_attn_mask, cap_attn_mask], dim=1)
