@@ -23,7 +23,7 @@ compile_options = {
     "optimization_level": 1,
     "codegen_try_recover_structure": False,
 }
-EXPORT_PATH = "z_image_codegen"
+EXPORT_DIR = DIR / "codegen"
 torch_xla.set_custom_compile_options(compile_options)
 
 MODEL_ID = "Tongyi-MAI/Z-Image"
@@ -188,27 +188,124 @@ def run_on_tt():
     return image
 
 
-def bitwise_compare(a, b):
-    if (
-        type(a) == PIL.PngImagePlugin.PngImageFile
-        and type(b) == PIL.PngImagePlugin.PngImageFile
-    ):
-        return a == b
-    elif type(a) == PIL.Image.Image and type(b) == PIL.Image.Image:
-        return a == b
-    elif type(a) == torch.Tensor and type(b) == torch.Tensor:
-        return torch.equal(a, b)
-    else:
-        raise ValueError(f"Unsupported types: {type(a)} and {type(b)}")
+def run_codegen(target="transformer"):
+    """Run codegen on either the text_encoder or transformer.
+
+    Args:
+        target: "transformer" or "text_encoder"
+    """
+    assert target in ("transformer", "text_encoder")
+
+    print(f"\n\tRunning codegen for {target}...")
+
+    print("\t\tLoading pipeline...")
+    pipe = ZImagePipeline.from_pretrained(
+        MODEL_ID,
+        torch_dtype=DTYPE,
+        low_cpu_mem_usage=False,
+    )
+    model = ZImageModule(pipe, device="cpu")
+    model.eval()
+
+    if target == "text_encoder":
+        # Sample inputs: input_ids [1, 512], attention_mask [1, 512]
+        tokens = model.tokenizer(
+            [
+                model.tokenizer.apply_chat_template(
+                    [{"role": "user", "content": get_input_prompt()}],
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    enable_thinking=True,
+                )
+            ],
+            padding="max_length",
+            max_length=512,
+            truncation=True,
+            return_tensors="pt",
+        )
+        codegen_py(
+            model.text_encoder_module,
+            tokens.input_ids,
+            tokens.attention_mask.bool(),
+            export_path=str(EXPORT_DIR / "text_encoder"),
+            compiler_options=compile_options,
+        )
+
+    elif target == "transformer":
+        # Prepare sample transformer inputs as plain tensors
+        latents = get_input_latents(pipe)
+        prompt_embeds = model.encode_prompt(get_input_prompt())  # list of 1 tensor
+
+        latent_input = latents.to(model.transformer.dtype).unsqueeze(2)[
+            0
+        ]  # [C, 1, H, W]
+        timestep = torch.tensor([0.5])  # dummy normalized timestep
+        cap_feat = prompt_embeds[0]  # [seq_len, 2560]
+
+        # Apply graph-break-free forward now that we know the shapes
+        import types
+
+        from model import _make_transformer_forward
+
+        new_fwd = _make_transformer_forward(
+            model.transformer,
+            cap_ori_len=cap_feat.shape[0],
+            image_shape=tuple(latent_input.shape),
+        )
+        model.transformer.forward = types.MethodType(new_fwd, model.transformer)
+
+        # Thin wrapper: codegen_py only moves plain tensor args to device
+        class TransformerWrapper(torch.nn.Module):
+            def __init__(self, transformer):
+                super().__init__()
+                self.transformer = transformer
+
+            def forward(self, latent, t, cap):
+                return self.transformer(
+                    [latent],
+                    t,
+                    [cap],
+                    return_dict=False,
+                )[
+                    0
+                ][0]
+
+        wrapper = TransformerWrapper(model.transformer)
+        wrapper.eval()
+
+        codegen_py(
+            wrapper,
+            latent_input,
+            timestep,
+            cap_feat,
+            export_path=str(EXPORT_DIR / "transformer"),
+            compiler_options=compile_options,
+        )
+
+    print(f"\t\tCodegen for {target} done")
+
+
+def compare_images(label, a, b):
+    a_arr = np.array(a, dtype=np.float32).flatten()
+    b_arr = np.array(b, dtype=np.float32).flatten()
+    pcc = np.corrcoef(a_arr, b_arr)[0, 1]
+    diff = np.abs(a_arr - b_arr)
+    bitwise = diff.max() == 0
+    print(
+        f"{label}:\n\tbitwise={bitwise}\n\tPCC={pcc:.10f}\n\tmax_diff={diff.max():.1f}/255\n\tmean_diff={diff.mean():.4f}/255"
+    )
 
 
 def main():
     out_golden = run_on_cpu_pipeline()
     out_cpu = run_on_cpu_manual()
 
-    print(f"Golden vs CPU: {bitwise_compare(out_golden, out_cpu)}")
+    compare_images("Golden vs CPU", out_golden, out_cpu)
 
-    out_tt = run_on_tt()
+    # run_codegen(target="text_encoder")
+    run_codegen(target="transformer")
+
+    # out_tt = run_on_tt()
 
 
 if __name__ == "__main__":
