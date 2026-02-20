@@ -19,6 +19,9 @@
 #include "api/buffer_instance.h"
 #include "utils/logging.h"
 
+// tracy includes
+#include "tracy/Tracy.hpp"
+
 namespace tt::pjrt {
 
 namespace TensorPool {
@@ -85,7 +88,7 @@ void PjrtTensorPool::clear() {
 //
 // Note: this function is not thread safe.
 void PjrtTensorPool::move_tensors_to_host() {
-
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "Moving tensors to host.");
 
   std::vector<PjrtTensor *> tensors{m_tensors.begin(), m_tensors.end()};

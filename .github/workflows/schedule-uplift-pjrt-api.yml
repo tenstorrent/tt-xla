@@ -5,7 +5,9 @@ name: Uplift PJRT C API Header
 # there's an uplift available.
 
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 10 * * 1'  # Runs at 10:00 UTC every Monday.
+  workflow_dispatch:      # Manual trigger.
 
 permissions:
   contents: write

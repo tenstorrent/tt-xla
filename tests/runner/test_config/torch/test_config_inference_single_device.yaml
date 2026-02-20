@@ -478,11 +478,7 @@ test_config:
     status: EXPECTED_PASSING
 
   unet/pytorch-carvana_unet_480x640-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 2537856 B L1_SMALL buffer across 72 banks, where each bank needs to store 35248 B, but bank size is only 65536 B"
-    arch_overrides:
-      p150:
-        status: EXPECTED_PASSING
+    status: EXPECTED_PASSING
 
   vgg/pytorch-Torchvision_Vgg11_Bn-single_device-inference:
     status: EXPECTED_PASSING
@@ -571,7 +567,7 @@ test_config:
 
   mlp_mixer/pytorch-Mixer_L16_224_In21k-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3318
 
   mlp_mixer/pytorch-Mixer_B16_224.goog_In21k-single_device-inference:
     status: EXPECTED_PASSING
@@ -2296,12 +2292,12 @@ test_config:
     status: EXPECTED_PASSING
 
   sentencizer/pytorch-Xlm_Roberta_Base-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
+    assert_pcc: false
+    status: EXPECTED_PASSING
 
   sentencizer/pytorch-Xlm_Roberta_Large-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
+    assert_pcc: false
+    status: EXPECTED_PASSING
 
   stable_diffusion/pytorch-3.5_Medium-single_device-inference:
     status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
@@ -2325,9 +2321,8 @@ test_config:
     reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
 
   ssdlite320_mobilenetv3/pytorch-Ssdlite320_Mobilenet_v3_Large-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Can't convert shape rank  - https://github.com/tenstorrent/tt-xla/issues/2456"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: 'ttir.arange' op Invalid range: start=0, end=0, step=1 - https://github.com/tenstorrent/tt-xla/issues/3380"
 
   retinanet/pytorch-ResNet50_Backbone_with_FPN_V2-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2335,9 +2330,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   ssd300_vgg16/pytorch-Default-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/2456"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/3379"
 
   gemma/codegemma/pytorch-2B-single_device-inference:
     assert_pcc: false # https://github.com/tenstorrent/tt-mlir/issues/6461

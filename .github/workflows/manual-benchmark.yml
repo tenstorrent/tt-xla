@@ -1,6 +1,47 @@
 name: Performance Benchmark
 
 on:
+  workflow_call:
+    inputs:
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+      docker_image:
+        description: 'Docker image to use'
+        required: false
+        type: string
+        default: 'ghcr.io/tenstorrent/tt-xla-slim:nightly-latest'
+      test_filter:
+        description: "Filter tests based on the name property. One or more strings which are contained (case insensitive) in the name (e.g. 'resn' or 'resn,mni,yol')"
+        required: false
+        type: string
+      runs-on-filter:
+        description: "Architecture you want to run the tests on (All, n150, p150, n300-llmbox)"
+        required: false
+        type: string
+        default: n150
+      skip-device-perf:
+        description: "Skip device performance measurement"
+        required: false
+        type: boolean
+        default: true
+      perf_regression_check:
+        description: "Enable perf metrics regression testing"
+        required: false
+        type: boolean
+        default: false
+      use_docker_wheel:
+        description: "Use wheel from docker"
+        required: false
+        type: boolean
+        default: false
+      sh-runner:
+        description: "Run on shared runner"
+        required: false
+        type: boolean
+        default: true
+
   workflow_dispatch:
     inputs:
       mlir_override:

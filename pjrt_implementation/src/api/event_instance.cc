@@ -13,6 +13,9 @@
 // c++ standard library includes
 #include <stdexcept>
 
+// tracy includes
+#include "tracy/Tracy.hpp"
+
 // tt-xla includes
 #include "api/error_instance.h"
 #include "utils/logging.h"
@@ -169,6 +172,7 @@ void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
 namespace internal {
 
 PJRT_Error *onEventDestroy(PJRT_Event_Destroy_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Destroy");
 
   EventInstance *event_instance = EventInstance::unwrap(args->event);
@@ -188,6 +192,7 @@ PJRT_Error *onEventDestroy(PJRT_Event_Destroy_Args *args) {
 }
 
 PJRT_Error *onEventIsReady(PJRT_Event_IsReady_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_IsReady");
 
   args->is_ready = EventInstance::unwrap(args->event)->isReady();
@@ -196,6 +201,7 @@ PJRT_Error *onEventIsReady(PJRT_Event_IsReady_Args *args) {
 }
 
 PJRT_Error *onEventError(PJRT_Event_Error_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Error");
 
   EventInstance *event_instance = EventInstance::unwrap(args->event);
@@ -211,6 +217,7 @@ PJRT_Error *onEventError(PJRT_Event_Error_Args *args) {
 }
 
 PJRT_Error *onEventAwait(PJRT_Event_Await_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_Await");
 
   EventInstance *event_instance = EventInstance::unwrap(args->event);
@@ -220,6 +227,7 @@ PJRT_Error *onEventAwait(PJRT_Event_Await_Args *args) {
 }
 
 PJRT_Error *onEventOnReady(PJRT_Event_OnReady_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "EventInstance::PJRT_Event_OnReady");
 
   EventInstance *event_instance = EventInstance::unwrap(args->event);

@@ -17,6 +17,9 @@
 #include <utility>
 #include <vector>
 
+// tracy includes
+#include "tracy/Tracy.hpp"
+
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
@@ -108,7 +111,7 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
 // Additional note: for checking whether shard is nullptr, see comment in
 // remove_shard().
 void PjrtTensor::move_to_host() noexcept {
-
+  ZoneScoped;
   std::vector<tt::runtime::Tensor> tensors =
       tt::runtime::toHost(m_runtime_tensor, /*untilize=*/true);
 
