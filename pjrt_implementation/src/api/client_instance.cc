@@ -446,8 +446,7 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
                                            target_mesh_shape);
 
   bool should_reuse =
-      (parent_mesh_shape == target_mesh_shape) &&
-      m_fabric_config.has_value() &&
+      (parent_mesh_shape == target_mesh_shape) && m_fabric_config.has_value() &&
       m_fabric_config->globalConfig == target_fabric_config.globalConfig;
 
   if (should_reuse) {
