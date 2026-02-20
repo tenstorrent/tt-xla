@@ -265,7 +265,7 @@ jobs:
         BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
           --durations=0 \
           ${{ matrix.build.dir }} \
-          $ARCH \
+          --arch n300-llmbox \
           -m \"$MARKS\" ${{ matrix.build.args }} \
           -k "$(printf '%q' '${{ matrix.build.contains }}')" \
           $PYTEST_SPLITS"
