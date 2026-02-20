@@ -33,7 +33,7 @@ def map_runner_name(entry):
         if runs_on in shared_runner_mapping:
             # Preserve the original runs-on so downstream consumers
             # (e.g. --arch for test_models.py) can access non mapped arch.
-            entry["runs-on-original"] = runs_on
+            entry["runs-on-original"] = "n300-llmbox"
             entry["runs-on"] = shared_runner_mapping[runs_on]
         else:
             raise TypeError(
