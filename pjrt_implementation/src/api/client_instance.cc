@@ -497,8 +497,10 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   // NOTE: it looks like metal context is being reinitialized each time we
   // open/close the device, so we need to set the fabric config each time
   // (even if we always set it to the same value).
+  
   tt::runtime::MeshFabricConfig fabric_config =
       tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
+
 
   DLOG_F(LOG_DEBUG,
          "ClientInstance::openMeshDevice - setting fabric config: %s",
