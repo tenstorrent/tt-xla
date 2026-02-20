@@ -21,6 +21,9 @@
 #include <unordered_set>
 #include <vector>
 
+// tt-mlir includes
+#include "tt/runtime/runtime.h"
+
 // tt-xla includes
 #include "api/device_instance.h"
 #include "api/loaded_executable_instance.h"
@@ -113,6 +116,18 @@ public:
   tt::runtime::Device
   getOrCreateMeshDevice(const std::vector<uint32_t> &target_mesh_shape);
 
+  // Returns the fabric config computed for the current mesh device.
+  const std::optional<tt::runtime::MeshFabricConfig> &getFabricConfig() const {
+    return m_fabric_config;
+  }
+
+  // Computes the fabric config for the given mesh shape using the stored system
+  // descriptor.
+  tt::runtime::MeshFabricConfig
+  computeFabricConfig(const std::vector<uint32_t> &meshShape) const {
+    return tt::runtime::computeMeshFabricConfig(m_system_descriptor, meshShape);
+  }
+
   // Returns parent mesh.
   std::optional<tt::runtime::Device> &parentMesh() { return m_parent_mesh; };
 
@@ -196,6 +211,9 @@ private:
 
   // Currently in-use mesh device.
   std::optional<tt::runtime::Device> m_parent_mesh;
+
+  // Fabric config computed for the current mesh device.
+  std::optional<tt::runtime::MeshFabricConfig> m_fabric_config;
 
   // Optimizer submesh device (created from m_parent_mesh for optimizer passes).
   std::optional<tt::runtime::Device> m_optimizer_submesh;

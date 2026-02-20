@@ -995,6 +995,25 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
         std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
             submesh_for_optim.handle);
   }
+
+  // Map per-axis fabric config to mesh topology for CCL operations.
+  // Compute fabric config for the compilation mesh shape directly, since the
+  // parent mesh may still have a different shape (e.g. [1,8]) at compile time.
+  tt::runtime::MeshFabricConfig fabricConfig =
+      client_instance->computeFabricConfig(devices_mesh_shape);
+  for (const auto &axisConfig : fabricConfig.perAxisConfig) {
+    switch (axisConfig) {
+    case tt::runtime::FabricConfig::FABRIC_1D:
+      options.meshTopology.push_back(mlir::tt::ttcore::Topology::Linear);
+      break;
+    case tt::runtime::FabricConfig::FABRIC_1D_RING:
+      options.meshTopology.push_back(mlir::tt::ttcore::Topology::Ring);
+      break;
+    default:
+      options.meshTopology.push_back(mlir::tt::ttcore::Topology::Disabled);
+      break;
+    }
+  }
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
