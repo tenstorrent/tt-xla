@@ -80,7 +80,7 @@ model_configs:
   vllm_sweep_splade:
     model: "naver/splade-v3"
     status: "known_failure_xfail"
-    reason: "Gated huggingface model"
+    reason: "Value error, Model architectures ['BertForMaskedLM'] are not supported for now. -Gated huggingface model"
   vllm_sweep_bge_multilingual_gemma2:
     model: "BAAI/bge-multilingual-gemma2"
     status: "known_failure_xfail"

@@ -206,6 +206,18 @@ model_configs:
     model: zai-org/GLM-4.5
   vllm_sweep_pangu_embedded:
     model: FreedomIntelligence/openPangu-Embedded-7B-V1.1
+  vllm_sweep_jamba: # need to agree to terms to access - 12B parameter modelß
+    model: ai21labs/AI21-Jamba-Mini-1.5
+    reason: "Gated huggingface model"
+  vllm_sweep_gptbigcode: # 16B
+    model: bigcode/starcoder
+    reason: "Gated huggingface model"
+  vllm_sweep_exaone3:
+    model: LGAI-EXAONE/EXAONE-3.0-7.8B-Instruct
+    reason: "Gated huggingface model"
+  vllm_sweep_cohere2:
+    model: CohereLabs/c4ai-command-r7b-12-2024
+    reason: "Gated huggingface model"
   # vllm_sweep_longcat_flash: # 560B parameter model
   #   model: meituan-longcat/LongCat-Flash-Chat
   # vllm_sweep_dots1: # 142B parameter model

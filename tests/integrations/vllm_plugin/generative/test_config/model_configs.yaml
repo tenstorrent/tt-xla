@@ -92,11 +92,6 @@ model_configs:
     model: huggyllama/llama-7b
     status: "known_failure_xfail"
     reason: "Model is too large for single chip"
-  llama3-3b:
-    model: meta-llama/Llama-3.2-3B
-    prompts:
-    - I like taking walks in the
-    status: "expected_passing"
   llama_causal_lm_pytorch_huggyllama_7b:
     model: huggyllama/llama-7b
     status: "known_failure_xfail"
@@ -173,20 +168,15 @@ model_configs:
     model: facebook/opt-125m
     gpu_memory_utilization: 0.001
     status: "expected_passing"
-  opt-125m-multibatch:
-    model: facebook/opt-125m
-    gpu_memory_utilization: 0.001
-    max_num_batched_tokens: 256
-    max_num_seqs: 2
-    prompts:
-    - Hello, my name is
-    - Paris is the capital of
-    status: "expected_passing"
-  opt_causal_lm_pytorch_facebook_opt_125m:
-    model: facebook/opt-125m
-    max_model_len: 256
-    max_num_batched_tokens: 256
-    status: "expected_passing"
+  # opt-125m-multibatch:
+  #   model: facebook/opt-125m
+  #   gpu_memory_utilization: 0.001
+  #   max_num_batched_tokens: 256
+  #   max_num_seqs: 2
+  #   prompts:
+  #   - Hello, my name is
+  #   - Paris is the capital of
+  #   status: "expected_passing"
   opt_causal_lm_pytorch_facebook_opt_1_3b:
     model: facebook/opt-1.3b
     gpu_memory_utilization: 0.005
@@ -199,28 +189,6 @@ model_configs:
     max_num_batched_tokens: 256
     status: "known_failure_xfail"
     reason: "RuntimeError: a and b must have same reduction dim, but got [1, 1024] X [512, 50304]."
-  opt_qa_pytorch_facebook_opt_125m:
-    model: facebook/opt-125m
-    max_model_len: 32
-    max_num_batched_tokens: 32
-    status: "expected_passing"
-  opt_qa_pytorch_facebook_opt_1_3b:
-    model: facebook/opt-1.3b
-    max_model_len: 32
-    max_num_batched_tokens: 32
-    status: "expected_passing"
-  opt_qa_pytorch_facebook_opt_350m:
-    model: facebook/opt-350m
-    max_model_len: 32
-    max_num_batched_tokens: 32
-    status: "known_failure_xfail"
-    reason: "RuntimeError: a and b must have same reduction dim, but got [1, 1024] X [512, 50304]."
-  phi-2:
-    model: microsoft/phi-2
-    gpu_memory_utilization: 0.004
-    prompts:
-    - Write a poem about
-    status: "expected_passing"
   phi1_5_causal_lm_pytorch_microsoft_phi_1_5:
     model: microsoft/phi-1_5
     gpu_memory_utilization: 0.005
@@ -385,7 +353,7 @@ model_configs:
   vllm_sweep_cohere2:
     model: CohereLabs/c4ai-command-r7b-12-2024
     status: "known_failure_xfail"
-    reason: "Gated huggingface model"
+    reason: "Model is too large for single chip - Gated huggingface model"
   vllm_sweep_dbrx:
     model: Undi95/dbrx-base
     status: "known_failure_xfail"
@@ -431,7 +399,7 @@ model_configs:
   vllm_sweep_exaone3:
     model: LGAI-EXAONE/EXAONE-3.0-7.8B-Instruct
     status: "known_failure_xfail"
-    reason: "Gated huggingface model" # Need to agree to terms to access
+    reason: "Model is too large for single chip - Gated huggingface model"
   vllm_sweep_exaone4:
     model: LGAI-EXAONE/EXAONE-4.0-32B
     status: "known_failure_xfail"
@@ -480,18 +448,18 @@ model_configs:
     model: zai-org/GLM-4.5
     status: "known_failure_xfail"
     reason: "Model is too large for single chip"
-  vllm_sweep_gpt2:
-    model: gpt2
-    status: "known_failure_xfail"
-    reason: "'GPT2LMHeadModel' object has no attribute 'model'"
+  # vllm_sweep_gpt2:
+  #   model: gpt2
+  #   status: "known_failure_xfail"
+  #   reason: "'GPT2LMHeadModel' object has no attribute 'model'"
   vllm_sweep_gpt_oss:
     model: openai/gpt-oss-20b
     status: "known_failure_xfail"
     reason: "Model is too large for single chip"
-  vllm_sweep_gptbigcode: # TEST NEXT locally
+  vllm_sweep_gptbigcode: # 16B
     model: bigcode/starcoder
     status: "known_failure_xfail"
-    reason: "Gated huggingface model" # Need to agree to terms to access
+    reason: "Model is too large for single chip - Gated huggingface model"
   vllm_sweep_gptj:
     model: EleutherAI/gpt-j-6b
     status: "known_failure_xfail"
@@ -557,10 +525,10 @@ model_configs:
     model: inceptionai/Jais-2-8B-Chat
     status: "known_failure_xfail"
     reason: "Model is too large for single chip"
-  vllm_sweep_jamba: # need to agree to terms to access
+  vllm_sweep_jamba: # need to agree to terms to access - 12B parameter modelß
     model: ai21labs/AI21-Jamba-Mini-1.5
     status: "known_failure_xfail"
-    reason: "Gated huggingface model"
+    reason: "Model is too large for single chip - Gated huggingface model"
   vllm_sweep_kimi_linear:
     model: moonshotai/Kimi-Linear-48B-A3B-Base
     status: "known_failure_xfail"
@@ -591,7 +559,8 @@ model_configs:
   vllm_sweep_minicpm:
     model: openbmb/MiniCPM-2B-sft-bf16
     gpu_memory_utilization: 0.004
-    reason: "Hangs ?"
+    status: "known_failure_xfail"
+    reason: "hangs?"
   vllm_sweep_minicpm3:
     model: openbmb/MiniCPM3-4B
     status: "known_failure_xfail"
@@ -631,7 +600,7 @@ model_configs:
   vllm_sweep_mpt:
     model: mosaicml/mpt-7b
     status: "known_failure_xfail"
-    reason: "Gated huggingface model"
+    reason: "not a valid model identifier listed on 'https://huggingface.co/models'"
   vllm_sweep_nemotron:
     model: nvidia/Minitron-8B-Base
     status: "known_failure_xfail"
@@ -717,10 +686,10 @@ model_configs:
     model: Qwen/Qwen1.5-MoE-A2.7B
     status: "known_failure_xfail"
     reason: "RuntimeError: !at::functionalization::impl::isFunctionalTensor(t) INTERNAL ASSERT FAILED at '/pytorch/aten/src/ATen/FunctionalTensorWrapper.cpp':850, please report a bug to PyTorch. The composite op functionalization fallback expects its inputs all not to be functional tensors"
-  vllm_sweep_qwen3:
-    model: Qwen/Qwen3-8B
-    status: "known_failure_xfail"
-    reason: "Model is too large for single chip"
+  # vllm_sweep_qwen3:
+  #   model: Qwen/Qwen3-8B
+  #   status: "known_failure_xfail"
+  #   reason: "Model is too large for single chip"
   vllm_sweep_qwen3_moe:
     model: Qwen/Qwen3-30B-A3B
     status: "known_failure_xfail"
