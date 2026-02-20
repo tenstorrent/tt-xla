@@ -426,6 +426,12 @@ tt_pjrt_status ModuleBuilder::runFrontendSHLOPipeline(
   tt_pjrt_status status =
       frontend_passes::annotateArgumentAttributes(mlir_module);
 
+  // DEBUG: dump StableHLO frontend IR to stderr
+  llvm::errs() << "=== StableHLO Frontend IR dump ===\n";
+  mlir_module->print(llvm::errs());
+  llvm::errs() << "\n=== End StableHLO Frontend IR dump ===\n";
+  llvm::errs().flush();
+
   printModule(mlir_module, export_path, "shlo_frontend", model_name);
 
   return status;

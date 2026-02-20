@@ -125,6 +125,17 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
       options.backend == BackendRuntime::TTNNCodegenPy ? "Python" : "C++";
   std::cout << lang << " codegen successful. Check "
             << options.export_path.value() << " for the results." << std::endl;
+
+  if (options.export_path.has_value()) {
+    static int copy_counter = 0;
+    std::filesystem::path src_path = options.export_path.value();
+    std::filesystem::path dst_path =
+        src_path.string() + "_" + std::to_string(copy_counter++);
+    std::filesystem::copy(src_path, dst_path,
+                          std::filesystem::copy_options::recursive);
+    std::cout << "Copied export directory to: " << dst_path << std::endl;
+  }
+
   // TODO: Implement SO execution. For now, we create default output buffers.
   // https://github.com/tenstorrent/tt-xla/issues/2038
   createDefaultOutputBuffers(args->output_lists, args->num_devices);
