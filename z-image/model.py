@@ -273,8 +273,8 @@ def _make_transformer_forward(transformer, cap_ori_len, image_shape):
     x_embedder = transformer.all_x_embedder[f"{patch_size}-{f_patch_size}"]
     final_layer = transformer.all_final_layer[f"{patch_size}-{f_patch_size}"]
     cap_embedder = transformer.cap_embedder
-    x_pad_token = transformer.x_pad_token
-    cap_pad_token = transformer.cap_pad_token
+    # x_pad_token and cap_pad_token are accessed via self in forward
+    # so they're resolved at runtime on the correct device
     rope_embedder = transformer.rope_embedder
     t_embedder = transformer.t_embedder
     t_scale = transformer.t_scale
@@ -317,9 +317,9 @@ def _make_transformer_forward(transformer, cap_ori_len, image_shape):
         # 5. Embed
         x = x_embedder(image)
         adaln_input = t_emb.type_as(x)
-        x[self._image_pad_mask] = x_pad_token
+        x = torch.where(self._image_pad_mask.unsqueeze(-1), self.x_pad_token, x)
         cap = cap_embedder(cap_feat)
-        cap[self._cap_pad_mask] = cap_pad_token
+        cap = torch.where(self._cap_pad_mask.unsqueeze(-1), self.cap_pad_token, cap)
 
         # 6. RoPE
         x_freqs_cis = rope_embedder(self._image_pos_ids)
