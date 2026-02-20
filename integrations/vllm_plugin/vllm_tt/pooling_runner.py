@@ -70,8 +70,6 @@ from vllm.v1.outputs import (
 )
 from vllm.v1.pool.metadata import PoolingMetadata
 from vllm.v1.sample.logits_processor import LogitsProcessors, build_logitsprocs
-from vllm.v1.sample.tpu.metadata import TPUSupportedSamplingMetadata
-from vllm.v1.sample.tpu.sampler import Sampler as TPUSampler
 from vllm.v1.worker.kv_connector_model_runner_mixin import (
     KVConnectorModelRunnerMixin,
     KVConnectorOutput,
@@ -507,16 +505,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.supports_mm_inputs
             else None
         )
-
-        if not self.enable_tensor_parallel:
-            self.sample_from_logits_func = torch.compile(
-                self.sample_from_logits,
-                backend="tt",
-                fullgraph=True,
-                dynamic=False,
-            )
-        else:
-            self.sample_from_logits_func = self.sample_from_logits
 
     def _update_num_xla_graphs(self, case_str):
         check_comp = self.check_recompilation and not self.enforce_eager
@@ -1435,7 +1423,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
 
         self.model.compile(backend="tt", dynamic=False)
-        self.sampler = TPUSampler()
         logger.info(f"Compiled model: \n{self.model}")
 
     def reload_weights(self) -> None:
@@ -1689,46 +1676,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         return self.model.compute_logits(sample_hidden_states)
-
-    # TODO: Under SPMD mode, sample_from_logits has correctness issue.
-    #       Re-enable the torch.compile once the issue is fixed in torchxla.
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
-    def sample_from_logits(
-        self, logits: torch.Tensor, sampling_metadata: TPUSupportedSamplingMetadata
-    ) -> torch.Tensor:
-        """
-        Sample with xla-friendly function. This function is to be traced
-        separately from `forward` for lighter compilation overhead.
-        """
-        # @LPanosTT: sampler functionalitty has issues currently, so we will always use greedy sampling
-        if sampling_metadata.all_greedy or True:
-            out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
-        else:
-            out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
-        return out_tokens
-
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
-    def gather_logprobs(
-        self, logits: torch.Tensor, sampled_tokens: torch.Tensor
-    ) -> LogprobsTensors:
-        """
-        Gather the top_logprobs with corresponding tokens. Use a fixed number
-        of logprobs as an alternative to having multiple pre-compiled graphs.
-        Select the number of logprobs actually demanded by each request on CPU.
-        """
-        device = logits.device
-        logprobs = self.sampler.compute_logprobs(logits.to("cpu"))
-        logprobTensors = self.sampler.gather_logprobs(
-            logprobs,
-            self.model_config.max_logprobs,
-            token_ids=sampled_tokens.to("cpu").squeeze(-1),
-        )
-
-        return LogprobsTensors(
-            logprob_token_ids=logprobTensors.logprob_token_ids.to(device),
-            logprobs=logprobTensors.logprobs.to(device),
-            selected_token_ranks=logprobTensors.selected_token_ranks.to(device),
-        )
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def structured_decode(
