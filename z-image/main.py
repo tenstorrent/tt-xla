@@ -12,6 +12,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from diffusers import ZImagePipeline
+from transformer import ZImageTransformer
 from tt_torch import codegen_py
 
 from model import ZImageModule
@@ -234,47 +235,23 @@ def run_codegen(target="transformer"):
     elif target == "transformer":
         # Prepare sample transformer inputs as plain tensors
         latents = get_input_latents(pipe)
-        prompt_embeds = model.encode_prompt(get_input_prompt())  # list of 1 tensor
+        prompt_embeds = model.encode_prompt(get_input_prompt())
 
-        latent_input = latents.to(model.transformer.dtype).unsqueeze(2)[
+        latent_input = latents.to(pipe.transformer.dtype).unsqueeze(2)[
             0
         ]  # [C, 1, H, W]
-        timestep = torch.tensor([0.5])  # dummy normalized timestep
+        timestep = torch.tensor([0.5])
         cap_feat = prompt_embeds[0]  # [seq_len, 2560]
 
-        # Apply graph-break-free forward now that we know the shapes
-        import types
-
-        from model import _make_transformer_forward
-
-        new_fwd = _make_transformer_forward(
-            model.transformer,
-            cap_ori_len=cap_feat.shape[0],
+        transformer = ZImageTransformer(
+            pipe.transformer,
+            cap_len=cap_feat.shape[0],
             image_shape=tuple(latent_input.shape),
         )
-        model.transformer.forward = types.MethodType(new_fwd, model.transformer)
-
-        # Thin wrapper: codegen_py only moves plain tensor args to device
-        class TransformerWrapper(torch.nn.Module):
-            def __init__(self, transformer):
-                super().__init__()
-                self.transformer = transformer
-
-            def forward(self, latent, t, cap):
-                return self.transformer(
-                    [latent],
-                    t,
-                    [cap],
-                    return_dict=False,
-                )[
-                    0
-                ][0]
-
-        wrapper = TransformerWrapper(model.transformer)
-        wrapper.eval()
+        transformer.eval()
 
         codegen_py(
-            wrapper,
+            transformer,
             latent_input,
             timestep,
             cap_feat,
