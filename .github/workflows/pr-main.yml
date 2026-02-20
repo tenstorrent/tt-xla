@@ -84,32 +84,28 @@ jobs:
   perf-benchmark-n150:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
     needs: [ inspect-changes, build-image, build-ttxla-release ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    uses: ./.github/workflows/manual-benchmark.yml
     secrets: inherit
     with:
-      project: tt-xla
-      run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      run_id_source: tt-xla
-      ref: main
-      perf_regression_check: true
-      test-filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
       runs-on-filter: n150
       sh-runner: false
+      skip-device-perf: false
+      perf_regression_check: true
+      test_filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding
 
   perf-benchmark-llmbox:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
     needs: [ inspect-changes, build-image, build-ttxla-release ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    uses: ./.github/workflows/manual-benchmark.yml
     secrets: inherit
     with:
-      project: tt-xla
-      run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      run_id_source: tt-xla
-      ref: main
-      perf_regression_check: true
-      test-filter: test_llama_3_1_70b_tp
-      runs-on-filter: llmbox
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      runs-on-filter: n300-llmbox
       sh-runner: false
+      skip-device-perf: false
+      perf_regression_check: true
+      test_filter: test_llama_3_1_70b_tp
 
   test_forge_models_push:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
