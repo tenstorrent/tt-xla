@@ -161,9 +161,9 @@ test_config:
   alexnet/pytorch-B-single_device-inference:
     status: EXPECTED_PASSING
 
-  attention_denseunet/pytorch-Base-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "TT_FATAL: Output size cannot fit input with offset during TT compile/runtime – tracked in issue https://github.com/tenstorrent/tt-xla/issues/2293"
+  # attention_denseunet/pytorch-Base-single_device-inference:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "TT_FATAL: Output size cannot fit input with offset during TT compile/runtime – tracked in issue https://github.com/tenstorrent/tt-xla/issues/2293"
 
   mnist/image_classification/pytorch-Cnn_Dropout-single_device-inference:
     status: EXPECTED_PASSING
@@ -1270,7 +1270,7 @@ test_config:
 
   deepseek/deepseek_ocr/pytorch-Ocr-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
+    reason: "Out of Memory: Not enough space to allocate 4786749440 B DRAM buffer across 12 banks, where each bank needs to store 398897152 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3412"
 
   deepseek/pytorch-single_device-inference:
     status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
@@ -1622,6 +1622,22 @@ test_config:
   detr3d/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353"
+
+  olm_ocr/image_text_generation/pytorch-olmOCR-7B-0225-preview-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 681836544 B DRAM buffer across 12 banks, where each bank needs to store 56819712 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3388"
+  
+  olm_ocr/image_text_generation/pytorch-olmOCR-7B-0725-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 681836544 B DRAM buffer across 12 banks, where each bank needs to store 56819712 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3388"
+  
+  olm_ocr/image_text_generation/pytorch-olmOCR-7B-0825-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 681836544 B DRAM buffer across 12 banks, where each bank needs to store 56819712 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3388"
+  
+  olm_ocr/image_text_generation/pytorch-olmOCR-2-7B-1025-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 681836544 B DRAM buffer across 12 banks, where each bank needs to store 56819712 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3388"
 
   vadv2/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
