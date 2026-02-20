@@ -117,8 +117,7 @@ public:
   getOrCreateMeshDevice(const std::vector<uint32_t> &target_mesh_shape);
 
   // Returns the fabric config computed for the current mesh device.
-  const std::optional<tt::runtime::MeshFabricConfig> &
-  getFabricConfig() const {
+  const std::optional<tt::runtime::MeshFabricConfig> &getFabricConfig() const {
     return m_fabric_config;
   }
 
