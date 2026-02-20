@@ -26,23 +26,23 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             leaf.numel() == 1 for leaf in leaves if isinstance(leaf, torch.Tensor)
         )
 
-    # LLM decode tests may include transformers StaticCache objects in outputs (e.g., past_key_values).
-    # These are not torch.Tensors, so we detect them and treat matching StaticCache leaves as equal.
-    # TODO https://github.com/tenstorrent/tt-xla/issues/2743: Enable checking for allclose, pcc, atol, equal.
     @staticmethod
-    def _is_static_cache(x: object) -> bool:
-        # Avoid importing transformers at module import time.
-        try:
-            from transformers.cache_utils import StaticCache  # type: ignore
-
-            return isinstance(x, StaticCache)
-        except Exception:
-            return False
-
-    @staticmethod
-    def _both_static_cache(x: object, y: object) -> bool:
-        is_sc = TorchComparisonEvaluator._is_static_cache
-        return is_sc(x) and is_sc(y)
+    def _cache_to_legacy(cache: Cache) -> tuple:
+        """
+        Convert a Cache (DynamicCache, StaticCache, etc.) to legacy tuple of
+        (key, value) tensors per layer for comparison.
+        """
+        if hasattr(cache, "to_legacy_cache"):
+            return cache.to_legacy_cache()
+        # Fallback for StaticCache and any Cache with .layers that do not
+        # implement to_legacy_cache (e.g. StaticCache with StaticLayer).
+        if hasattr(cache, "layers"):
+            return tuple(
+                (layer.keys, layer.values)
+                for layer in cache.layers
+                if layer.keys is not None and layer.values is not None
+            )
+        return cache
 
     # @override
     @staticmethod
@@ -54,12 +54,11 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             return tensor
 
         def convert_and_match(tensor):
-            if isinstance(tensor, Cache) and hasattr(tensor, "to_legacy_cache"):
-                # New transformers library has changed the Cache classes
-                # to contain and arrays of CacheLayers instead of an array of
-                # torch.tensors, we need to extract the torch tensors from CacheLayers
-                # before comparing values in the comparator.
-                tensor = tensor.to_legacy_cache()
+            if isinstance(tensor, Cache):
+                # New transformers library uses Cache classes (DynamicCache, StaticCache)
+                # with CacheLayers/StaticLayers instead of raw tensors. Convert to legacy
+                # (keys, values) tuple per layer so the comparator can compare tensors.
+                tensor = TorchComparisonEvaluator._cache_to_legacy(tensor)
             if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float64:
                 tensor = tensor.to(torch.float64)
             return tree_map(match, tensor)
@@ -71,9 +70,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     @run_on_cpu(Framework.TORCH)
     def _compare_equal(device_output: PyTree, golden_output: PyTree) -> bool:
         def _equal_leaf(x, y):
-            if TorchComparisonEvaluator._both_static_cache(x, y) or (
-                x is None and y is None
-            ):
+            if x is None and y is None:
                 return True
             return torch.equal(x, y)
 
@@ -87,10 +84,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     def _compare_atol(
         device_output: PyTree, golden_output: PyTree, atol_config: AtolConfig
     ) -> float:
+
         def _atol_leaf(x, y):
-            if TorchComparisonEvaluator._both_static_cache(x, y) or (
-                x is None and y is None
-            ):
+            if x is None and y is None:
                 return torch.tensor(0.0)
             return torch.max(torch.abs(x - y))
 
@@ -106,8 +102,6 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         self, device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
-            if TorchComparisonEvaluator._both_static_cache(x, y):
-                return torch.tensor(1.0)
             if x is None and y is None:
                 return None
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
@@ -140,9 +134,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         allclose_config: AllcloseConfig,
     ) -> bool:
         def _allclose_leaf(x, y):
-            if TorchComparisonEvaluator._both_static_cache(x, y) or (
-                x is None and y is None
-            ):
+            if x is None and y is None:
                 return True
             return torch.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
