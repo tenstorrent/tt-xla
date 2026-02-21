@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 from dataclasses import dataclass, field
 
+import numpy as np
 import torch
 
 from .input_batch import InputBatch
@@ -12,9 +13,9 @@ DEFAULT_SAMPLING_PARAMS = dict(
     # strictly disabled for now
     top_k=0,
     top_p=1.0,
-    # frequency_penalties=0.0,
-    # presence_penalties=0.0,
-    # repetition_penalties=0.0,
+    frequency_penalties=0.0,
+    presence_penalties=0.0,
+    repetition_penalties=1.0,
 )
 
 
@@ -37,13 +38,16 @@ class XLASupportedSamplingMetadata:
     # when gathering logprobs, regardless of the values specified in the batch.
     logprobs: bool = False
 
-    # TODO No penalties for now
+    # Penalty support. no_penalties=True skips the penalty path entirely.
     no_penalties: bool = True
+    output_token_counts: torch.Tensor | None = None
+    # Bool mask [batch, vocab]: True for tokens that appeared in the prompt.
+    # Used for repetition penalty (prompt ∪ output), matching the vLLM GPU spec.
+    prompt_token_mask: torch.Tensor | None = None
+    presence_penalties: torch.Tensor | None = None
+    frequency_penalties: torch.Tensor | None = None
+    repetition_penalties: torch.Tensor | None = None
     prompt_token_ids = None
-    frequency_penalties = None
-    presence_penalties = None
-    repetition_penalties = None
-    # should use tensor
     output_token_ids: list[list[int]] = field(default_factory=lambda: list())
 
     min_tokens = None  # impl is not vectorized
@@ -61,6 +65,47 @@ class XLASupportedSamplingMetadata:
         # Generator not supported by torch/xla. This field must be immutable.
         return self._generators
 
+    @staticmethod
+    def _compute_token_counts(
+        req_output_token_ids: list[list[int] | None],
+        padded_num_reqs: int,
+        vocab_size: int,
+    ) -> torch.Tensor:
+        """Build a [padded_num_reqs, vocab_size] float32 count tensor on CPU.
+
+        Each entry [i, v] is the number of times token v appeared in the
+        output generated so far for request i. Padding rows are all zeros.
+        """
+        counts = torch.zeros(padded_num_reqs, vocab_size, dtype=torch.float32)
+        for i, token_ids in enumerate(req_output_token_ids[:padded_num_reqs]):
+            if token_ids:
+                for token_id in token_ids:
+                    counts[i, token_id] += 1
+        return counts
+
+    @staticmethod
+    def _compute_prompt_mask(
+        num_prompt_tokens: np.ndarray,
+        token_ids_cpu: np.ndarray,
+        padded_num_reqs: int,
+        vocab_size: int,
+    ) -> torch.Tensor:
+        """Build a [padded_num_reqs, vocab_size] bool mask for prompt tokens on CPU.
+
+        Each entry [i, v] is True if token v appeared in the prompt for request i.
+        Padding rows are all False. Used alongside output_token_counts so the
+        repetition penalty covers prompt ∪ output, matching the vLLM GPU spec.
+        """
+        mask = torch.zeros(padded_num_reqs, vocab_size, dtype=torch.bool)
+        for i in range(padded_num_reqs):
+            n = int(num_prompt_tokens[i])
+            if n > 0:
+                prompt_ids = torch.from_numpy(token_ids_cpu[i, :n].copy()).long()
+                valid_ids = prompt_ids[prompt_ids < vocab_size]
+                if valid_ids.numel() > 0:
+                    mask[i].scatter_(0, valid_ids, True)
+        return mask
+
     @classmethod
     def from_input_batch(
         cls,
@@ -68,6 +113,7 @@ class XLASupportedSamplingMetadata:
         padded_num_reqs: int,
         xla_device: torch.device,
         generate_params_if_all_greedy: bool = False,
+        vocab_size: int | None = None,
     ) -> "XLASupportedSamplingMetadata":
         """
         Copy sampling tensors slices from `input_batch` to on device tensors.
@@ -97,13 +143,6 @@ class XLASupportedSamplingMetadata:
                 "logprobs is not yet supported in the TT sampler. "
                 "https://github.com/tenstorrent/tt-xla/issues/3366"
             )
-        if not input_batch.no_penalties:
-            raise NotImplementedError(
-                "presence_penalty, frequency_penalty, and repetition_penalty are "
-                "not yet supported in the TT sampler. Only default values "
-                "(presence/frequency: 0.0, repetition: 1.0) are accepted. "
-                "https://github.com/tenstorrent/tt-xla/issues/3331"
-            )
         if input_batch.generators:
             raise NotImplementedError(
                 "seed is not yet supported in the TT sampler. "
@@ -123,8 +162,15 @@ class XLASupportedSamplingMetadata:
                 "https://github.com/tenstorrent/tt-xla/issues/3363"
             )
 
-        # Early return to avoid unnecessary cpu to tpu copy
-        if input_batch.all_greedy is True and generate_params_if_all_greedy is False:
+        # Early return to avoid unnecessary cpu to tpu copy.
+        # Must NOT skip when penalties are active: greedy decoding with
+        # repetition/frequency/presence penalties still needs the full penalty
+        # path (prompt_token_mask, output_token_counts, etc.).
+        if (
+            input_batch.all_greedy is True
+            and generate_params_if_all_greedy is False
+            and input_batch.no_penalties
+        ):
             return cls(all_greedy=True, logprobs=needs_logprobs)
 
         num_reqs = input_batch.num_reqs
@@ -140,6 +186,46 @@ class XLASupportedSamplingMetadata:
         fill_slice(input_batch.top_k_cpu_tensor, DEFAULT_SAMPLING_PARAMS["top_k"])
         fill_slice(input_batch.top_p_cpu_tensor, DEFAULT_SAMPLING_PARAMS["top_p"])
 
+        has_penalties = not input_batch.no_penalties
+        output_token_counts = None
+        prompt_token_mask_t = None
+        presence_penalties_t = None
+        frequency_penalties_t = None
+        repetition_penalties_t = None
+        if has_penalties and vocab_size is not None:
+            fill_slice(
+                input_batch.presence_penalties_cpu_tensor,
+                DEFAULT_SAMPLING_PARAMS["presence_penalties"],
+            )
+            fill_slice(
+                input_batch.frequency_penalties_cpu_tensor,
+                DEFAULT_SAMPLING_PARAMS["frequency_penalties"],
+            )
+            fill_slice(
+                input_batch.repetition_penalties_cpu_tensor,
+                DEFAULT_SAMPLING_PARAMS["repetition_penalties"],
+            )
+            presence_penalties_t = input_batch.presence_penalties_cpu_tensor[
+                :padded_num_reqs
+            ].to(xla_device)
+            frequency_penalties_t = input_batch.frequency_penalties_cpu_tensor[
+                :padded_num_reqs
+            ].to(xla_device)
+            repetition_penalties_t = input_batch.repetition_penalties_cpu_tensor[
+                :padded_num_reqs
+            ].to(xla_device)
+            output_token_counts = cls._compute_token_counts(
+                input_batch.req_output_token_ids,
+                padded_num_reqs,
+                vocab_size,
+            ).to(xla_device)
+            prompt_token_mask_t = cls._compute_prompt_mask(
+                input_batch.num_prompt_tokens,
+                input_batch.token_ids_cpu,
+                padded_num_reqs,
+                vocab_size,
+            ).to(xla_device)
+
         # Slice persistent device tensors to a fixed pre-compiled padded shape.
         return cls(
             temperature=input_batch.temperature_cpu_tensor[:padded_num_reqs].to(
@@ -147,9 +233,14 @@ class XLASupportedSamplingMetadata:
             ),
             all_greedy=input_batch.all_greedy,
             all_random=input_batch.all_random,
-            # TODO enable more and avoid returning None values
             top_p=input_batch.top_p_cpu_tensor[:padded_num_reqs].to(xla_device),
             top_k=input_batch.top_k_cpu_tensor[:padded_num_reqs].to(xla_device),
             min_p=input_batch.min_p_cpu_tensor[:padded_num_reqs].to(xla_device),
             logprobs=needs_logprobs,
+            no_penalties=not has_penalties,
+            output_token_counts=output_token_counts,
+            prompt_token_mask=prompt_token_mask_t,
+            presence_penalties=presence_penalties_t,
+            frequency_penalties=frequency_penalties_t,
+            repetition_penalties=repetition_penalties_t,
         )

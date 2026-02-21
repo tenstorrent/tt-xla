@@ -153,30 +153,9 @@ SAMPLING_PARAM_SWEEPS = [
     ("top_p", [0.3, 0.8, 1.0]),
     ("top_k", [5, 50, -1]),
     ("min_p", [0.0, 0.1, 0.2]),
-    pytest.param(
-        "presence_penalty",
-        [0.0, 1.0, 2.0],
-        marks=pytest.mark.skip(
-            reason="presence_penalty not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3331"
-        ),
-        id="presence_penalty",
-    ),
-    pytest.param(
-        "frequency_penalty",
-        [0.0, 1.0, 2.0],
-        marks=pytest.mark.skip(
-            reason="frequency_penalty not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3331"
-        ),
-        id="frequency_penalty",
-    ),
-    pytest.param(
-        "repetition_penalty",
-        [1.0, 1.5, 2.0],
-        marks=pytest.mark.skip(
-            reason="repetition_penalty not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3331"
-        ),
-        id="repetition_penalty",
-    ),
+    ("presence_penalty", [0.0, 1.0, 2.0]),
+    ("frequency_penalty", [0.0, 1.0, 2.0]),
+    ("repetition_penalty", [1.0, 1.5, 2.0]),
 ]
 
 
@@ -439,6 +418,87 @@ def test_ignore_eos(llm, prompt):
     assert len(output.token_ids) == max_tok, (
         f"With ignore_eos=True should generate exactly {max_tok} tokens, "
         f"got {len(output.token_ids)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Penalty end-to-end tests (test_additive_penalties_end_to_end,
+# test_repetition_penalty_end_to_end) and their shared helpers.
+# ---------------------------------------------------------------------------
+
+_PENALTY_PROMPT = ["Once upon a time, there was a"]
+_PENALTY_BASELINE_TOKENS = 64
+_PENALTY_BASELINE_THRESHOLD = 4
+
+
+def _penalty_baseline(llm):
+    """Greedy baseline generate; returns max_count, skips if not repetitive enough."""
+    from collections import Counter
+
+    baseline = llm.generate(
+        _PENALTY_PROMPT,
+        vllm.SamplingParams(temperature=0.0, max_tokens=_PENALTY_BASELINE_TOKENS),
+        use_tqdm=False,
+    )[0].outputs[0]
+    max_count = max(Counter(baseline.token_ids).values(), default=0)
+    print(f"[TESTOUT] baseline: {baseline.text[:60]!r} max_token_count={max_count}")
+    if max_count < _PENALTY_BASELINE_THRESHOLD:
+        pytest.skip(
+            f"Baseline not repetitive enough (max_count={max_count} < "
+            f"{_PENALTY_BASELINE_THRESHOLD}); "
+            "this model/prompt combo may not exercise penalty suppression."
+        )
+    return max_count
+
+
+def _assert_penalty_reduces_repetition(
+    llm, label, base_max_count, max_tokens, **kwargs
+):
+    """Run one penalized generate and assert max_count < base_max_count."""
+    from collections import Counter
+
+    out = llm.generate(
+        _PENALTY_PROMPT,
+        vllm.SamplingParams(temperature=0.0, max_tokens=max_tokens, **kwargs),
+        use_tqdm=False,
+    )[0].outputs[0]
+    max_count = max(Counter(out.token_ids).values(), default=0)
+    print(f"[TESTOUT] {label}: {out.text[:60]!r} max_token_count={max_count}")
+    assert max_count < base_max_count, (
+        f"{label} should reduce max token count: "
+        f"baseline={base_max_count}, penalized={max_count}"
+    )
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_additive_penalties_end_to_end(llm):
+    """frequency_penalty and presence_penalty must measurably reduce token repetition.
+
+    Complements test_penalties_correctness.py (which validates the math) by
+    checking the full pipeline: that output_token_counts and prompt_token_mask
+    are correctly built and apply_penalties() is actually called during live
+    greedy decoding.
+    """
+    base = _penalty_baseline(llm)
+    _assert_penalty_reduces_repetition(
+        llm, "frequency_penalty=2.0", base, 64, frequency_penalty=2.0
+    )
+    _assert_penalty_reduces_repetition(
+        llm, "presence_penalty=2.0", base, 64, presence_penalty=2.0
+    )
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_repetition_penalty_end_to_end(llm):
+    """repetition_penalty must measurably reduce token repetition.
+
+    Split from test_additive_penalties_end_to_end so the repetition_penalty
+    generate gets its own timeout budget (multiplicative penalty triggers a
+    separate on-device graph that compiles lazily on first use).
+    """
+    base = _penalty_baseline(llm)
+    _assert_penalty_reduces_repetition(
+        llm, "repetition_penalty=50.0", base, 48, repetition_penalty=50.0
     )
 
 

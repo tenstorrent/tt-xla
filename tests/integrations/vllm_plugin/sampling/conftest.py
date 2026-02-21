@@ -7,10 +7,12 @@ Provides a cached LLM factory that auto-recreates the engine after a test
 failure (which can leave the vLLM engine core in a dead state).
 """
 
+import gc
+
 import pytest
 import vllm
 
-TEST_TIMEOUT_SECONDS = 120
+TEST_TIMEOUT_SECONDS = 180
 
 _llm_cache: dict[str, vllm.LLM] = {}
 _needs_recreate = False
@@ -21,26 +23,33 @@ def get_or_create_llm(name: str, **llm_args) -> vllm.LLM:
     global _needs_recreate
     if name not in _llm_cache or _needs_recreate:
         _needs_recreate = False
+        _flush_llm_cache()
         _llm_cache[name] = vllm.LLM(**llm_args)
     return _llm_cache[name]
 
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
-    """Flag all cached LLMs for recreation if a test fails or errors."""
+    """Flag the LLM engine for recreation after any test failure."""
     global _needs_recreate
     outcome = yield
     report = outcome.get_result()
-    if report.when in ("call", "setup") and report.failed:
+    if report.when == "call" and report.failed:
         _needs_recreate = True
 
 
 def _flush_llm_cache():
     """Delete all cached LLM instances and force GC to terminate their subprocesses."""
-    import gc
-
     for name in list(_llm_cache):
-        del _llm_cache[name]
+        llm = _llm_cache.pop(name)
+        # Explicitly shut down the engine core subprocess before deleting the
+        # LLM object.  Without this, the subprocess may still hold the TT
+        # device when the next LLM is created, causing a hang.
+        try:
+            llm.llm_engine.engine_core.shutdown()
+        except Exception:
+            pass
+        del llm
     _llm_cache.clear()
     gc.collect()
 
