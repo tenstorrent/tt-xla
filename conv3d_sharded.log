@@ -1,0 +1,654 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-9.0.2, pluggy-1.6.0 -- /localdev/jameszianxu/mj/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.11.14', 'Platform': 'Linux-5.15.0-142-generic-x86_64-with-glibc2.35', 'Packages': {'pytest': '9.0.2', 'pluggy': '1.6.0'}, 'Plugins': {'metadata': '3.1.1', 'split': '0.11.0', 'anyio': '4.12.1', 'jaxtyping': '0.3.9', 'forked': '1.6.0', 'json-report': '1.5.0'}}
+rootdir: /localdev/jameszianxu/mj/tt-xla
+configfile: pytest.ini
+plugins: metadata-3.1.1, split-0.11.0, anyio-4.12.1, jaxtyping-0.3.9, forked-1.6.0, json-report-1.5.0
+collecting ... 2026-02-21 22:37:01.758 | WARNING  | ttxla_tools.logging:from_env:31 - Invalid log level 'VERBOSE', using default 'WARNING'
+2026-02-21 22:37:01.783 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+collected 12 items / 11 deselected / 1 selected
+
+test_conv3d_sharded.py::test_conv3d_sharded[large_32to96] 2026-02-21 22:37:05.886 (   0.000s) [        4BC0D480]   plugin_attributes.cc:64       1| PluginAttributes::PJRT_Plugin_Initialize
+2026-02-21 22:37:05.886 (   0.000s) [        4BC0D480]     client_instance.cc:580      1| ClientInstance::PJRT_Client_Create
+2026-02-21 22:37:05.889 (   0.003s) [        4BC0D480]     client_instance.cc:241      1| ClientInstance::ClientInstance
+2026-02-21 22:37:05.890 (   0.004s) [        4BC0D480]     client_instance.cc:263      1| ClientInstance::Initialize
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]              stubs.inc:121   WARN| STUB: PJRT_Client_TopologyDescription
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]      error_instance.cc:52       1| ErrorInstance::PJRT_Error_Message
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]      error_instance.cc:61       1| ErrorInstance::PJRT_Error_GetCode
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]      error_instance.cc:46       1| ErrorInstance::PJRT_Error_Destroy
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     client_instance.cc:638      1| ClientInstance::PJRT_Client_PlatformVersion
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     client_instance.cc:617      1| ClientInstance::PJRT_Client_PlatformName
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     client_instance.cc:650      1| ClientInstance::PJRT_Client_Devices
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:48       1| DeviceInstance::PJRT_Device_GetDescription
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:88       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:48       1| DeviceInstance::PJRT_Device_GetDescription
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:88       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:48       1| DeviceInstance::PJRT_Device_GetDescription
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:88       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:48       1| DeviceInstance::PJRT_Device_GetDescription
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:88       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:48       1| DeviceInstance::PJRT_Device_GetDescription
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:88       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:48       1| DeviceInstance::PJRT_Device_GetDescription
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:88       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:48       1| DeviceInstance::PJRT_Device_GetDescription
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:88       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:48       1| DeviceInstance::PJRT_Device_GetDescription
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:88       1| DeviceDescription::PJRT_DeviceDescription_Attributes
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     client_instance.cc:664      1| ClientInstance::PJRT_Client_AddressableDevices
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     client_instance.cc:717      1| ClientInstance::PJRT_Client_AddressableMemories
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:78       1| DeviceInstance::PJRT_Device_AddressableMemories
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:78       1| DeviceInstance::PJRT_Device_AddressableMemories
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:78       1| DeviceInstance::PJRT_Device_AddressableMemories
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:78       1| DeviceInstance::PJRT_Device_AddressableMemories
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:78       1| DeviceInstance::PJRT_Device_AddressableMemories
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:78       1| DeviceInstance::PJRT_Device_AddressableMemories
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:78       1| DeviceInstance::PJRT_Device_AddressableMemories
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     device_instance.cc:78       1| DeviceInstance::PJRT_Device_AddressableMemories
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     memory_instance.cc:133      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     memory_instance.cc:133      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     memory_instance.cc:133      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     memory_instance.cc:133      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     memory_instance.cc:133      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     memory_instance.cc:133      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     memory_instance.cc:133      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     memory_instance.cc:133      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]     memory_instance.cc:133      1| MemoryInstance::PJRT_Memory_AddressableByDevices
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]   plugin_attributes.cc:71       1| PluginAttributes::PJRT_Plugin_Attributes
+2026-02-21 22:37:07.295896: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.295 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.409s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:129      1| DeviceDescription::PJRT_DeviceDescription_ToString
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:129      1| DeviceDescription::PJRT_DeviceDescription_ToString
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:129      1| DeviceDescription::PJRT_DeviceDescription_ToString
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:129      1| DeviceDescription::PJRT_DeviceDescription_ToString
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:129      1| DeviceDescription::PJRT_DeviceDescription_ToString
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:129      1| DeviceDescription::PJRT_DeviceDescription_ToString
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:129      1| DeviceDescription::PJRT_DeviceDescription_ToString
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:129      1| DeviceDescription::PJRT_DeviceDescription_ToString
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.296 (   1.410s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.527 (   1.641s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.527 (   1.641s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.527 (   1.641s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.527 (   1.641s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.527 (   1.641s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.527 (   1.641s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.527 (   1.641s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.527 (   1.641s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.537 (   1.651s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.537 (   1.651s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.537 (   1.651s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.537 (   1.651s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.537 (   1.651s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.537 (   1.651s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.537 (   1.651s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.537 (   1.651s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.544 (   1.658s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.544 (   1.658s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.544 (   1.658s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.545 (   1.659s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.546 (   1.659s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.546 (   1.659s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.546 (   1.659s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.546 (   1.659s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.546 (   1.659s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.546 (   1.660s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.894 (   2.008s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.894 (   2.008s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.894 (   2.008s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.894 (   2.008s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.894 (   2.008s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.894 (   2.008s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.894 (   2.008s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.894 (   2.008s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.894 (   2.008s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.894 (   2.008s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.894 (   2.008s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]  device_description.cc:67       1| DeviceDescription::PJRT_DeviceDescription_Id
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.895 (   2.009s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.896 (   2.009s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.896 (   2.009s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.896 (   2.009s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.896 (   2.009s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.896 (   2.009s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     device_instance.cc:90       1| DeviceInstance::PJRT_Device_DefaultMemory
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     client_instance.cc:782      1| ClientInstance::PJRT_Client_BufferFromHostBuffer
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]     memory_instance.cc:60       1| MemoryInstance::getDevice
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:231      1| EventInstance::PJRT_Event_OnReady
+2026-02-21 22:37:07.896 (   2.010s) [        4BC0D480]      event_instance.cc:176      1| EventInstance::PJRT_Event_Destroy
+2026-02-21 22:37:07.900 (   2.014s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.900 (   2.014s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.900 (   2.014s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.901 (   2.015s) [        4BC0D480]     buffer_instance.cc:507      1| BufferInstance::PJRT_Buffer_IsDeleted
+2026-02-21 22:37:07.910 (   2.024s) [        4BC0D480]     client_instance.cc:731      1| ClientInstance::PJRT_Client_Compile
+2026-02-21 22:37:07.911 (   2.025s) [        4BC0D480]      module_builder.cc:223      1| ModuleBuilder::buildModule
+2026-02-21 22:37:07.913 (   2.027s) [        4BC0D480]      module_builder.cc:1118     1| MLIR Module vhlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.5")
+#loc3 = loc("p2.7")
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]> loc(#loc)
+  vhlo.func_v1 @main(%arg0: !vhlo.tensor_v1<96x!vhlo.bf16_v1> loc("p0.1"), %arg1: !vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1> loc("p1.5"), %arg2: !vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1> loc("p2.7")) -> (!vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>) {
+    %0 = "vhlo.custom_call_v1"(%arg2) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"input">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"args_0">}>} : (!vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1> loc(#loc4)
+    %1 = "vhlo.custom_call_v1"(%arg1) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"parameter">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"l__self___conv_weight">}>} : (!vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1> loc(#loc5)
+    %2 = "vhlo.convolution_v1"(%0, %1) <{batch_group_count = #vhlo.integer_v1<1 : i64>, feature_group_count = #vhlo.integer_v1<1 : i64>, input_batch_dimension = #vhlo.integer_v1<0 : i64>, input_feature_dimension = #vhlo.integer_v1<1 : i64>, input_spatial_dimensions = #vhlo.tensor_v1<dense<[2, 3, 4]> : tensor<3xi64>>, kernel_input_feature_dimension = #vhlo.integer_v1<1 : i64>, kernel_output_feature_dimension = #vhlo.integer_v1<0 : i64>, kernel_spatial_dimensions = #vhlo.tensor_v1<dense<[2, 3, 4]> : tensor<3xi64>>, lhs_dilation = #vhlo.tensor_v1<dense<1> : tensor<3xi64>>, output_batch_dimension = #vhlo.integer_v1<0 : i64>, output_feature_dimension = #vhlo.integer_v1<1 : i64>, output_spatial_dimensions = #vhlo.tensor_v1<dense<[2, 3, 4]> : tensor<3xi64>>, padding = #vhlo.tensor_v1<dense<0> : tensor<3x2xi64>>, precision_config = #vhlo.array_v1<[#vhlo<precision_v1 DEFAULT>, #vhlo<precision_v1 DEFAULT>]>, rhs_dilation = #vhlo.tensor_v1<dense<1> : tensor<3xi64>>, window_reversal = #vhlo.tensor_v1<dense<false> : tensor<3xi1>>, window_strides = #vhlo.tensor_v1<dense<1> : tensor<3xi64>>}> : (!vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1>, !vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1> loc(#loc6)
+    %3 = "vhlo.reshape_v1"(%arg0) : (!vhlo.tensor_v1<96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1> loc(#loc7)
+    %4 = "vhlo.custom_call_v1"(%3) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"parameter">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"l__self___conv_bias">}>} : (!vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1> loc(#loc8)
+    %5 = "vhlo.reshape_v1"(%4) : (!vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<96x!vhlo.bf16_v1> loc(#loc9)
+    %6 = "vhlo.broadcast_in_dim_v1"(%5) <{broadcast_dimensions = #vhlo.tensor_v1<dense<1> : tensor<1xi64>>}> : (!vhlo.tensor_v1<96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1> loc(#loc10)
+    %7 = "vhlo.add_v1"(%2, %6) : (!vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>, !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1> loc(#loc11)
+    "vhlo.return_v1"(%7) : (!vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>) -> () loc(#loc)
+  } {arg_attrs = #vhlo.array_v1<[#vhlo.dict_v1<{#vhlo.string_v1<"sdy.sharding"> = #sdy.sharding<@mesh, [{}]>}>, #vhlo.dict_v1<{#vhlo.string_v1<"sdy.sharding"> = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>}>, #vhlo.dict_v1<{#vhlo.string_v1<"sdy.sharding"> = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>}>]>, res_attrs = #vhlo.array_v1<[]>, sym_visibility = #vhlo.string_v1<"">} loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc4 = loc("custom-call.8")
+#loc5 = loc("custom-call.6")
+#loc6 = loc("convolution.9")
+#loc7 = loc("reshape.2")
+#loc8 = loc("custom-call.3")
+#loc9 = loc("reshape.4")
+#loc10 = loc("transpose.11")
+#loc11 = loc("add.12")
+------------------ END OF MLIR MODULE ------------------
+// -----// IR Dump Before VhloToVersionPass (vhlo-to-version) ('builtin.module' operation: @SyncTensorsGraph.14) //----- //
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]>
+  vhlo.func_v1 @main(%arg0: !vhlo.tensor_v1<96x!vhlo.bf16_v1>, %arg1: !vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1>, %arg2: !vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1>) -> (!vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>) {
+    %0 = "vhlo.custom_call_v1"(%arg2) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"input">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"args_0">}>} : (!vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1>
+    %1 = "vhlo.custom_call_v1"(%arg1) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"parameter">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"l__self___conv_weight">}>} : (!vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1>
+    %2 = "vhlo.convolution_v1"(%0, %1) <{batch_group_count = #vhlo.integer_v1<1 : i64>, feature_group_count = #vhlo.integer_v1<1 : i64>, input_batch_dimension = #vhlo.integer_v1<0 : i64>, input_feature_dimension = #vhlo.integer_v1<1 : i64>, input_spatial_dimensions = #vhlo.tensor_v1<dense<[2, 3, 4]> : tensor<3xi64>>, kernel_input_feature_dimension = #vhlo.integer_v1<1 : i64>, kernel_output_feature_dimension = #vhlo.integer_v1<0 : i64>, kernel_spatial_dimensions = #vhlo.tensor_v1<dense<[2, 3, 4]> : tensor<3xi64>>, lhs_dilation = #vhlo.tensor_v1<dense<1> : tensor<3xi64>>, output_batch_dimension = #vhlo.integer_v1<0 : i64>, output_feature_dimension = #vhlo.integer_v1<1 : i64>, output_spatial_dimensions = #vhlo.tensor_v1<dense<[2, 3, 4]> : tensor<3xi64>>, padding = #vhlo.tensor_v1<dense<0> : tensor<3x2xi64>>, precision_config = #vhlo.array_v1<[#vhlo<precision_v1 DEFAULT>, #vhlo<precision_v1 DEFAULT>]>, rhs_dilation = #vhlo.tensor_v1<dense<1> : tensor<3xi64>>, window_reversal = #vhlo.tensor_v1<dense<false> : tensor<3xi1>>, window_strides = #vhlo.tensor_v1<dense<1> : tensor<3xi64>>}> : (!vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1>, !vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>
+    %3 = "vhlo.reshape_v1"(%arg0) : (!vhlo.tensor_v1<96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1>
+    %4 = "vhlo.custom_call_v1"(%3) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"parameter">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"l__self___conv_bias">}>} : (!vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1>
+    %5 = "vhlo.reshape_v1"(%4) : (!vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<96x!vhlo.bf16_v1>
+    %6 = "vhlo.broadcast_in_dim_v1"(%5) <{broadcast_dimensions = #vhlo.tensor_v1<dense<1> : tensor<1xi64>>}> : (!vhlo.tensor_v1<96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>
+    %7 = "vhlo.add_v1"(%2, %6) : (!vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>, !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>
+    "vhlo.return_v1"(%7) : (!vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>) -> ()
+  } {arg_attrs = #vhlo.array_v1<[#vhlo.dict_v1<{#vhlo.string_v1<"sdy.sharding"> = #sdy.sharding<@mesh, [{}]>}>, #vhlo.dict_v1<{#vhlo.string_v1<"sdy.sharding"> = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>}>, #vhlo.dict_v1<{#vhlo.string_v1<"sdy.sharding"> = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>}>]>, res_attrs = #vhlo.array_v1<[]>, sym_visibility = #vhlo.string_v1<"">}
+}
+
+
+// -----// IR Dump Before VhloLegalizeToStablehloPass (vhlo-legalize-to-stablehlo) ('builtin.module' operation: @SyncTensorsGraph.14) //----- //
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]>
+  vhlo.func_v1 @main(%arg0: !vhlo.tensor_v1<96x!vhlo.bf16_v1>, %arg1: !vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1>, %arg2: !vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1>) -> (!vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>) {
+    %0 = "vhlo.custom_call_v1"(%arg2) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"input">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"args_0">}>} : (!vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1>
+    %1 = "vhlo.custom_call_v1"(%arg1) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"parameter">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"l__self___conv_weight">}>} : (!vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1>
+    %2 = "vhlo.convolution_v1"(%0, %1) <{batch_group_count = #vhlo.integer_v1<1 : i64>, feature_group_count = #vhlo.integer_v1<1 : i64>, input_batch_dimension = #vhlo.integer_v1<0 : i64>, input_feature_dimension = #vhlo.integer_v1<1 : i64>, input_spatial_dimensions = #vhlo.tensor_v1<dense<[2, 3, 4]> : tensor<3xi64>>, kernel_input_feature_dimension = #vhlo.integer_v1<1 : i64>, kernel_output_feature_dimension = #vhlo.integer_v1<0 : i64>, kernel_spatial_dimensions = #vhlo.tensor_v1<dense<[2, 3, 4]> : tensor<3xi64>>, lhs_dilation = #vhlo.tensor_v1<dense<1> : tensor<3xi64>>, output_batch_dimension = #vhlo.integer_v1<0 : i64>, output_feature_dimension = #vhlo.integer_v1<1 : i64>, output_spatial_dimensions = #vhlo.tensor_v1<dense<[2, 3, 4]> : tensor<3xi64>>, padding = #vhlo.tensor_v1<dense<0> : tensor<3x2xi64>>, precision_config = #vhlo.array_v1<[#vhlo<precision_v1 DEFAULT>, #vhlo<precision_v1 DEFAULT>]>, rhs_dilation = #vhlo.tensor_v1<dense<1> : tensor<3xi64>>, window_reversal = #vhlo.tensor_v1<dense<false> : tensor<3xi1>>, window_strides = #vhlo.tensor_v1<dense<1> : tensor<3xi64>>}> : (!vhlo.tensor_v1<1x32x3x258x258x!vhlo.bf16_v1>, !vhlo.tensor_v1<96x32x3x3x3x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>
+    %3 = "vhlo.reshape_v1"(%arg0) : (!vhlo.tensor_v1<96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1>
+    %4 = "vhlo.custom_call_v1"(%3) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"parameter">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"l__self___conv_bias">}>} : (!vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1>
+    %5 = "vhlo.reshape_v1"(%4) : (!vhlo.tensor_v1<1x1x96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<96x!vhlo.bf16_v1>
+    %6 = "vhlo.broadcast_in_dim_v1"(%5) <{broadcast_dimensions = #vhlo.tensor_v1<dense<1> : tensor<1xi64>>}> : (!vhlo.tensor_v1<96x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>
+    %7 = "vhlo.add_v1"(%2, %6) : (!vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>, !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>
+    "vhlo.return_v1"(%7) : (!vhlo.tensor_v1<1x96x1x256x256x!vhlo.bf16_v1>) -> ()
+  } {arg_attrs = #vhlo.array_v1<[#vhlo.dict_v1<{#vhlo.string_v1<"sdy.sharding"> = #sdy.sharding<@mesh, [{}]>}>, #vhlo.dict_v1<{#vhlo.string_v1<"sdy.sharding"> = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>}>, #vhlo.dict_v1<{#vhlo.string_v1<"sdy.sharding"> = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>}>]>, res_attrs = #vhlo.array_v1<[]>, sym_visibility = #vhlo.string_v1<"">}
+}
+
+
+// -----// IR Dump After VhloLegalizeToStablehloPass (vhlo-legalize-to-stablehlo) ('builtin.module' operation: @SyncTensorsGraph.14) //----- //
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]>
+  func.func @main(%arg0: tensor<96xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}]>}, %arg1: tensor<96x32x3x3x3xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>}, %arg2: tensor<1x32x3x258x258xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>}) -> tensor<1x96x1x256x256xbf16> {
+    %0 = stablehlo.custom_call @tt.mark_argument(%arg2) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "input", ttir.name = "args_0"}} : (tensor<1x32x3x258x258xbf16>) -> tensor<1x32x3x258x258xbf16>
+    %1 = stablehlo.custom_call @tt.mark_argument(%arg1) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "parameter", ttir.name = "l__self___conv_weight"}} : (tensor<96x32x3x3x3xbf16>) -> tensor<96x32x3x3x3xbf16>
+    %2 = stablehlo.convolution(%0, %1) dim_numbers = [b, f, 0, 1, 2]x[o, i, 0, 1, 2]->[b, f, 0, 1, 2], window = {} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x32x3x258x258xbf16>, tensor<96x32x3x3x3xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %3 = stablehlo.reshape %arg0 : (tensor<96xbf16>) -> tensor<1x1x96xbf16>
+    %4 = stablehlo.custom_call @tt.mark_argument(%3) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "parameter", ttir.name = "l__self___conv_bias"}} : (tensor<1x1x96xbf16>) -> tensor<1x1x96xbf16>
+    %5 = stablehlo.reshape %4 : (tensor<1x1x96xbf16>) -> tensor<96xbf16>
+    %6 = stablehlo.broadcast_in_dim %5, dims = [1] : (tensor<96xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %7 = stablehlo.add %2, %6 : tensor<1x96x1x256x256xbf16>
+    return %7 : tensor<1x96x1x256x256xbf16>
+  }
+}
+
+
+2026-02-21 22:37:07.918 (   2.032s) [        4BC0D480]      module_builder.cc:1118     1| MLIR Module shlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.5")
+#loc3 = loc("p2.7")
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]> loc(#loc)
+  func.func @main(%arg0: tensor<96xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}]>} loc("p0.1"), %arg1: tensor<96x32x3x3x3xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>} loc("p1.5"), %arg2: tensor<1x32x3x258x258xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>} loc("p2.7")) -> tensor<1x96x1x256x256xbf16> {
+    %0 = stablehlo.custom_call @tt.mark_argument(%arg2) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "input", ttir.name = "args_0"}} : (tensor<1x32x3x258x258xbf16>) -> tensor<1x32x3x258x258xbf16> loc(#loc4)
+    %1 = stablehlo.custom_call @tt.mark_argument(%arg1) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "parameter", ttir.name = "l__self___conv_weight"}} : (tensor<96x32x3x3x3xbf16>) -> tensor<96x32x3x3x3xbf16> loc(#loc5)
+    %2 = stablehlo.convolution(%0, %1) dim_numbers = [b, f, 0, 1, 2]x[o, i, 0, 1, 2]->[b, f, 0, 1, 2], window = {} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x32x3x258x258xbf16>, tensor<96x32x3x3x3xbf16>) -> tensor<1x96x1x256x256xbf16> loc(#loc6)
+    %3 = stablehlo.reshape %arg0 : (tensor<96xbf16>) -> tensor<1x1x96xbf16> loc(#loc7)
+    %4 = stablehlo.custom_call @tt.mark_argument(%3) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "parameter", ttir.name = "l__self___conv_bias"}} : (tensor<1x1x96xbf16>) -> tensor<1x1x96xbf16> loc(#loc8)
+    %5 = stablehlo.reshape %4 : (tensor<1x1x96xbf16>) -> tensor<96xbf16> loc(#loc9)
+    %6 = stablehlo.broadcast_in_dim %5, dims = [1] : (tensor<96xbf16>) -> tensor<1x96x1x256x256xbf16> loc(#loc10)
+    %7 = stablehlo.add %2, %6 : tensor<1x96x1x256x256xbf16> loc(#loc11)
+    return %7 : tensor<1x96x1x256x256xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc4 = loc("custom-call.8")
+#loc5 = loc("custom-call.6")
+#loc6 = loc("convolution.9")
+#loc7 = loc("reshape.2")
+#loc8 = loc("custom-call.3")
+#loc9 = loc("reshape.4")
+#loc10 = loc("transpose.11")
+#loc11 = loc("add.12")
+------------------ END OF MLIR MODULE ------------------
+2026-02-21 22:37:07.919 (   2.033s) [        4BC0D480]      module_builder.cc:1118     1| MLIR Module shlo_frontend:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.5")
+#loc3 = loc("p2.7")
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]> loc(#loc)
+  func.func @main(%arg0: tensor<96xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_bias"} loc("p0.1"), %arg1: tensor<96x32x3x3x3xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_weight"} loc("p1.5"), %arg2: tensor<1x32x3x258x258xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"} loc("p2.7")) -> tensor<1x96x1x256x256xbf16> {
+    %0 = stablehlo.convolution(%arg2, %arg1) dim_numbers = [b, f, 0, 1, 2]x[o, i, 0, 1, 2]->[b, f, 0, 1, 2], window = {} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x32x3x258x258xbf16>, tensor<96x32x3x3x3xbf16>) -> tensor<1x96x1x256x256xbf16> loc(#loc4)
+    %1 = stablehlo.reshape %arg0 : (tensor<96xbf16>) -> tensor<1x1x96xbf16> loc(#loc5)
+    %2 = stablehlo.reshape %1 : (tensor<1x1x96xbf16>) -> tensor<96xbf16> loc(#loc6)
+    %3 = stablehlo.broadcast_in_dim %2, dims = [1] : (tensor<96xbf16>) -> tensor<1x96x1x256x256xbf16> loc(#loc7)
+    %4 = stablehlo.add %0, %3 : tensor<1x96x1x256x256xbf16> loc(#loc8)
+    return %4 : tensor<1x96x1x256x256xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc4 = loc("convolution.9")
+#loc5 = loc("reshape.2")
+#loc6 = loc("reshape.4")
+#loc7 = loc("transpose.11")
+#loc8 = loc("add.12")
+------------------ END OF MLIR MODULE ------------------
+// -----// IR Dump Before Inliner (inline) ('builtin.module' operation: @SyncTensorsGraph.14) //----- //
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]>
+  func.func @main(%arg0: tensor<96xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_bias"}, %arg1: tensor<96x32x3x3x3xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_weight"}, %arg2: tensor<1x32x3x258x258xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"}) -> tensor<1x96x1x256x256xbf16> {
+    %0 = stablehlo.convolution(%arg2, %arg1) dim_numbers = [b, f, 0, 1, 2]x[o, i, 0, 1, 2]->[b, f, 0, 1, 2], window = {} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x32x3x258x258xbf16>, tensor<96x32x3x3x3xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %1 = stablehlo.reshape %arg0 : (tensor<96xbf16>) -> tensor<1x1x96xbf16>
+    %2 = stablehlo.reshape %1 : (tensor<1x1x96xbf16>) -> tensor<96xbf16>
+    %3 = stablehlo.broadcast_in_dim %2, dims = [1] : (tensor<96xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %4 = stablehlo.add %0, %3 : tensor<1x96x1x256x256xbf16>
+    return %4 : tensor<1x96x1x256x256xbf16>
+  }
+}
+
+
+// -----// IR Dump Before Canonicalizer (canonicalize) ('func.func' operation: @main) //----- //
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]>
+  func.func @main(%arg0: tensor<96xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_bias"}, %arg1: tensor<96x32x3x3x3xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_weight"}, %arg2: tensor<1x32x3x258x258xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"}) -> tensor<1x96x1x256x256xbf16> {
+    %0 = stablehlo.convolution(%arg2, %arg1) dim_numbers = [b, f, 0, 1, 2]x[o, i, 0, 1, 2]->[b, f, 0, 1, 2], window = {} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x32x3x258x258xbf16>, tensor<96x32x3x3x3xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %1 = stablehlo.reshape %arg0 : (tensor<96xbf16>) -> tensor<1x1x96xbf16>
+    %2 = stablehlo.reshape %1 : (tensor<1x1x96xbf16>) -> tensor<96xbf16>
+    %3 = stablehlo.broadcast_in_dim %2, dims = [1] : (tensor<96xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %4 = stablehlo.add %0, %3 : tensor<1x96x1x256x256xbf16>
+    return %4 : tensor<1x96x1x256x256xbf16>
+  }
+}
+
+
+// -----// IR Dump Before TTPopulateArgumentTypes (tt-populate-argument-types) ('builtin.module' operation: @SyncTensorsGraph.14) //----- //
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]>
+  func.func @main(%arg0: tensor<96xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_bias"}, %arg1: tensor<96x32x3x3x3xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_weight"}, %arg2: tensor<1x32x3x258x258xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"}) -> tensor<1x96x1x256x256xbf16> {
+    %0 = stablehlo.convolution(%arg2, %arg1) dim_numbers = [b, f, 0, 1, 2]x[o, i, 0, 1, 2]->[b, f, 0, 1, 2], window = {} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x32x3x258x258xbf16>, tensor<96x32x3x3x3xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %1 = stablehlo.reshape %arg0 : (tensor<96xbf16>) -> tensor<1x1x96xbf16>
+    %2 = stablehlo.reshape %1 : (tensor<1x1x96xbf16>) -> tensor<96xbf16>
+    %3 = stablehlo.broadcast_in_dim %2, dims = [1] : (tensor<96xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %4 = stablehlo.add %0, %3 : tensor<1x96x1x256x256xbf16>
+    return %4 : tensor<1x96x1x256x256xbf16>
+  }
+}
+
+
+// -----// IR Dump Before ConvertXlaSdyToSdyPass (convert-xla-sdy-to-sdy) ('builtin.module' operation: @SyncTensorsGraph.14) //----- //
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]>
+  func.func @main(%arg0: tensor<96xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_bias"}, %arg1: tensor<96x32x3x3x3xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_weight"}, %arg2: tensor<1x32x3x258x258xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"}) -> tensor<1x96x1x256x256xbf16> {
+    %0 = stablehlo.convolution(%arg2, %arg1) dim_numbers = [b, f, 0, 1, 2]x[o, i, 0, 1, 2]->[b, f, 0, 1, 2], window = {} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x32x3x258x258xbf16>, tensor<96x32x3x3x3xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %1 = stablehlo.reshape %arg0 : (tensor<96xbf16>) -> tensor<1x1x96xbf16>
+    %2 = stablehlo.reshape %1 : (tensor<1x1x96xbf16>) -> tensor<96xbf16>
+    %3 = stablehlo.broadcast_in_dim %2, dims = [1] : (tensor<96xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %4 = stablehlo.add %0, %3 : tensor<1x96x1x256x256xbf16>
+    return %4 : tensor<1x96x1x256x256xbf16>
+  }
+}
+
+
+// -----// IR Dump Before StableHLOFusingPass (stablehlo-fusing) ('builtin.module' operation: @SyncTensorsGraph.14) //----- //
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]>
+  func.func @main(%arg0: tensor<96xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_bias"}, %arg1: tensor<96x32x3x3x3xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_weight"}, %arg2: tensor<1x32x3x258x258xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"}) -> tensor<1x96x1x256x256xbf16> {
+    %0 = stablehlo.convolution(%arg2, %arg1) dim_numbers = [b, f, 0, 1, 2]x[o, i, 0, 1, 2]->[b, f, 0, 1, 2], window = {} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x32x3x258x258xbf16>, tensor<96x32x3x3x3xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %1 = stablehlo.reshape %arg0 : (tensor<96xbf16>) -> tensor<1x1x96xbf16>
+    %2 = stablehlo.reshape %1 : (tensor<1x1x96xbf16>) -> tensor<96xbf16>
+    %3 = stablehlo.broadcast_in_dim %2, dims = [1] : (tensor<96xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %4 = stablehlo.add %0, %3 : tensor<1x96x1x256x256xbf16>
+    return %4 : tensor<1x96x1x256x256xbf16>
+  }
+}
+
+
+// -----// IR Dump Before PartiallyConvertSdyToStableHLOPass (partially-convert-sdy-to-stablehlo) ('builtin.module' operation: @SyncTensorsGraph.14) //----- //
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]>
+  func.func @main(%arg0: tensor<96xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_bias"}, %arg1: tensor<96x32x3x3x3xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_weight"}, %arg2: tensor<1x32x3x258x258xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"}) -> tensor<1x96x1x256x256xbf16> {
+    %0 = stablehlo.convolution(%arg2, %arg1) dim_numbers = [b, f, 0, 1, 2]x[o, i, 0, 1, 2]->[b, f, 0, 1, 2], window = {} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x32x3x258x258xbf16>, tensor<96x32x3x3x3xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %1 = stablehlo.reshape %arg0 : (tensor<96xbf16>) -> tensor<1x1x96xbf16>
+    %2 = stablehlo.reshape %1 : (tensor<1x1x96xbf16>) -> tensor<96xbf16>
+    %3 = stablehlo.broadcast_in_dim %2, dims = [1] : (tensor<96xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %4 = stablehlo.add %0, %3 : tensor<1x96x1x256x256xbf16>
+    return %4 : tensor<1x96x1x256x256xbf16>
+  }
+}
+
+
+// -----// IR Dump Before ApplyArgumentShardStatusPass (apply-argument-shard-status) ('builtin.module' operation: @SyncTensorsGraph.14) //----- //
+module @SyncTensorsGraph.14 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["_axis_0"=8]>
+  func.func @main(%arg0: tensor<96xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_bias"}, %arg1: tensor<96x32x3x3x3xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<parameter>, ttir.name = "l__self___conv_weight"}, %arg2: tensor<1x32x3x258x258xbf16> {sdy.sharding = #sdy.sharding<@mesh, [{}, {}, {"_axis_0"}, {}, {}]>, ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"}) -> tensor<1x96x1x256x256xbf16> {
+    %0 = stablehlo.convolution(%arg2, %arg1) dim_numbers = [b, f, 0, 1, 2]x[o, i, 0, 1, 2]->[b, f, 0, 1, 2], window = {} {batch_group_count = 1 : i64, feature_group_count = 1 : i64} : (tensor<1x32x3x258x258xbf16>, tensor<96x32x3x3x3xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %1 = stablehlo.reshape %arg0 : (tensor<96xbf16>) -> tensor<1x1x96xbf16>
+    %2 = stablehlo.reshape %1 : (tensor<1x1x96xbf16>) -> tensor<96xbf16>
+    %3 = stablehlo.broadcast_in_dim %2, dims = [1] : (tensor<96xbf16>) -> tensor<1x96x1x256x256xbf16>
+    %4 = stablehlo.add %0, %3 : tensor<1x96x1x256x256xbf16>
+    return %4 : tensor<1x96x1x256x256xbf16>
+  }
+}
+
+
+Created device mesh: (1, 8) with 8 devices
+FAILED
+
+=================================== FAILURES ===================================
+______________________ test_conv3d_sharded[large_32to96] _______________________
+test_conv3d_sharded.py:136: in test_conv3d_sharded
+    output_tt = run_conv3d_on_tt(in_channels, out_channels, input_shape, kernel_size, stride, padding)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_conv3d_sharded.py:75: in run_conv3d_on_tt
+    output = model(input_tensor)
+             ^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.11/site-packages/torch/nn/modules/module.py:1773: in _wrapped_call_impl
+    return self._compiled_call_impl(*args, **kwargs)  # type: ignore[misc]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py:832: in compile_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.11/site-packages/torch/nn/modules/module.py:1786: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_conv3d_sharded.py:35: in forward
+    def forward(self, x):
+venv/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py:1044: in _fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+python_package/tt_torch/backend/backend.py:182: in __call__
+    return self._call_experimental_compile(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+python_package/tt_torch/backend/backend.py:173: in _call_experimental_compile
+    self.compiled_graph = bridge.extract_compiled_graph(
+venv/lib/python3.11/site-packages/torch_xla/_dynamo/dynamo_bridge.py:737: in extract_compiled_graph
+    return extract_compiled_graph_helper(xla_model, xla_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.11/site-packages/torch_xla/_dynamo/dynamo_bridge.py:859: in extract_compiled_graph_helper
+    return partition_fx_graph_for_cpu_fallback(xla_model, xla_args,
+venv/lib/python3.11/site-packages/torch_xla/_dynamo/dynamo_bridge.py:804: in partition_fx_graph_for_cpu_fallback
+    extract_internal(fused_module), node.args, None)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.11/site-packages/torch_xla/_dynamo/dynamo_bridge.py:539: in extract_internal
+    xla_args_need_update) = extract_graph_helper(xla_model,
+venv/lib/python3.11/site-packages/torch_xla/_dynamo/dynamo_bridge.py:483: in extract_graph_helper
+    torch_xla._XLAC._xla_warm_up_cache(args_and_out_tensor_only, [])
+E   ValueError: bad optional access
+=============================== warnings summary ===============================
+test_conv3d_sharded.py::test_conv3d_sharded[large_32to96]
+  /localdev/jameszianxu/mj/tt-xla/test_conv3d_sharded.py:63: DeprecationWarning: Use torch_xla.device instead
+    device = xm.xla_device()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED test_conv3d_sharded.py::test_conv3d_sharded[large_32to96] - ValueError: bad optional access
+================= 1 failed, 11 deselected, 1 warning in 9.66s ==================
+2026-02-21 22:37:09.802 (   3.916s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:09.802 (   3.916s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:09.802 (   3.916s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:09.802 (   3.916s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:09.802 (   3.916s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:09.802 (   3.916s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:09.802 (   3.916s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:09.803 (   3.916s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.339 (   4.453s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.340 (   4.454s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.340 (   4.454s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.340 (   4.454s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.340 (   4.454s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.340 (   4.454s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.340 (   4.454s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.340 (   4.454s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.340 (   4.454s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.341 (   4.454s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.341 (   4.455s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.341 (   4.455s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.341 (   4.455s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.341 (   4.455s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.341 (   4.455s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.341 (   4.455s) [        4BC0D480]     buffer_instance.cc:412      1| BufferInstance::PJRT_Buffer_Destroy
+2026-02-21 22:37:10.515 (   4.629s) [        4BC0D480]     client_instance.cc:256      1| ClientInstance::~ClientInstance
+2026-02-21 22:37:10.515 (   4.629s) [        4BC0D480]     client_instance.cc:532      1| Closing parent mesh.
