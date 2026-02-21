@@ -18,7 +18,6 @@ complementary:
 
 import signal
 
-import conftest
 import pytest
 import vllm
 from conftest import TEST_TIMEOUT_SECONDS, get_or_create_llm
@@ -126,8 +125,6 @@ def _test_timeout(llm):
     """
 
     def _handler(signum, frame):
-        # Flag the engine for recreation — a timeout means it stopped responding.
-        conftest._needs_recreate = True
         raise TimeoutError(
             f"Test exceeded {TEST_TIMEOUT_SECONDS}s — vLLM engine likely dead"
         )
@@ -483,7 +480,6 @@ def test_additive_penalties_end_to_end(llm):
     greedy decoding.
     """
     base = _penalty_baseline(llm)
-    assert False, "Not implemented"
     _assert_penalty_reduces_repetition(
         llm, "frequency_penalty=2.0", base, 64, frequency_penalty=2.0
     )
