@@ -1997,7 +1997,7 @@ test_config:
 
   bevformer/pytorch-Tiny-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    reason: "Out of Memory: Not enough space to allocate 176160768 B DRAM buffer across 12 banks, where each bank needs to store 14680064 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   bevformer/pytorch-Small-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
