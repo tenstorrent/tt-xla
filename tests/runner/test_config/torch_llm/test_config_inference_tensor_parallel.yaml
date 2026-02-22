@@ -102,11 +102,7 @@ test_config:
 
   # ============================================================================
   # Llama 3.1 8B Instruct — Prefill tensor-parallel tests
-  # Constraints:
-  #  - Keep only one strategy for 1x8 (Megatron).
-  #  - batch_X means batch-per-device. For DP, global batch is X * mesh_data_dim.
-  #  - DP is used only with mesh 2x4.
-  #  - Cover all prefill sequence lengths through 8192.
+  #  - batch_X means per-device batch size.
   # ============================================================================
 
   # --- Megatron, mesh 1x8, no DP ---
