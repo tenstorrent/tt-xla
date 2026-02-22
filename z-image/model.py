@@ -206,6 +206,8 @@ class ZImageModule(nn.Module):
 
         # 4. VAE decode (on CPU)
         latents = latents.to(self.vae.dtype)
+        # For debug purposes, dump latents to file
+        torch.save(latents, "latents.pt")
         latents = (latents / self.vae_scaling_factor) + self.vae_shift_factor
         image = self.vae.decode(latents, return_dict=False)[0]
 

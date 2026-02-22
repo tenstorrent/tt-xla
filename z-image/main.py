@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import PIL.Image
 import torch
+import torch.nn as nn
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
@@ -21,8 +22,9 @@ DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 
 # CONFIG
 compile_options = {
-    "optimization_level": 1,
+    "optimization_level": 2,
     "codegen_try_recover_structure": False,
+    # "enable_const_eval": False,
 }
 EXPORT_DIR = DIR / "codegen"
 torch_xla.set_custom_compile_options(compile_options)
@@ -189,13 +191,32 @@ def run_on_tt():
     return image
 
 
-def run_codegen(target="transformer"):
-    """Run codegen on either the text_encoder or transformer.
+class VAEDecodeModule(nn.Module):
+    """Wraps VAE decode path for clean export.
+
+    For this model post_quant_conv is None, use_slicing and use_tiling are
+    False, so vae.decode() reduces to just vae.decoder(z). We include the
+    scaling/shift that ZImageModule.forward applies before calling decode.
+    """
+
+    def __init__(self, vae):
+        super().__init__()
+        self.decoder = vae.decoder
+        self.scaling_factor = vae.config.scaling_factor
+        self.shift_factor = vae.config.shift_factor
+
+    def forward(self, latents):
+        z = (latents / self.scaling_factor) + self.shift_factor
+        return self.decoder(z)
+
+
+def run_codegen(target="text_encoder"):
+    """Run codegen on either the text_encoder, transformer, or vae.
 
     Args:
-        target: "transformer" or "text_encoder"
+        target: "text_encoder", "transformer", or "vae"
     """
-    assert target in ("transformer", "text_encoder")
+    assert target in ("text_encoder", "transformer", "vae")
 
     print(f"\n\tRunning codegen for {target}...")
 
@@ -259,6 +280,20 @@ def run_codegen(target="transformer"):
             compiler_options=compile_options,
         )
 
+    elif target == "vae":
+        # Use latents from the transformer codegen
+        latents = torch.load("latents.pt").to(pipe.vae.dtype)
+
+        vae_module = VAEDecodeModule(pipe.vae)
+        vae_module.eval()
+
+        codegen_py(
+            vae_module,
+            latents,
+            export_path=str(EXPORT_DIR / "vae"),
+            compiler_options=compile_options,
+        )
+
     print(f"\t\tCodegen for {target} done")
 
 
@@ -281,6 +316,7 @@ def main():
 
     # run_codegen(target="text_encoder")
     run_codegen(target="transformer")
+    # run_codegen(target="vae")
 
     # out_tt = run_on_tt()
 
