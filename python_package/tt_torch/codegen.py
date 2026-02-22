@@ -49,15 +49,23 @@ def _codegen_via_export(
     # 2. Get the graph module (params are bound in state_dict, not lifted)
     gm = program.module()
 
-    # 3. Move model to XLA device and prepare inputs
+    # 3. Strip _assert_tensor_metadata nodes that torch.export inserts.
+    #    These assert device=cpu which fails when the graph runs on XLA.
+    for node in list(gm.graph.nodes):
+        if node.target == torch.ops.aten._assert_tensor_metadata.default:
+            gm.graph.erase_node(node)
+    gm.graph.eliminate_dead_code()
+    gm.recompile()
+
+    # 4. Move model to XLA device and prepare inputs
     gm = gm.to(device)
     xla_args = tuple(a.to(device) for a in args)
 
-    # 4. Extract compiled graph (single StableHLO graph)
+    # 5. Extract compiled graph (single StableHLO graph)
     #    XLA handles lowering to StableHLO internally
     compiled = bridge.extract_compiled_graph(gm, xla_args)
 
-    # 5. Execute once to trigger codegen
+    # 6. Execute once to trigger codegen
     compiled(*xla_args)
 
     xm.wait_device_ops()
