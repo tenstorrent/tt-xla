@@ -380,9 +380,9 @@ def _generate_sequence_length_id(sequence_length):
     return f"seq_{sequence_length}" if sequence_length is not None else "seq_1"
 
 
-def _generate_batch_size_id(batch_per_device):
-    """Generate test ID component for batch-per-device."""
-    return f"batch_{batch_per_device}"
+def _generate_batch_size_id(batch_size):
+    """Generate test ID component for batch_size."""
+    return f"batch_{batch_size}"
 
 
 def _supports_strategy_shard_spec(model_loader_cls) -> bool:
@@ -453,7 +453,7 @@ def _supports_strategy_shard_spec(model_loader_cls) -> bool:
         ),
     ],
 )
-@pytest.mark.parametrize("batch_per_device", [1, 2], ids=_generate_batch_size_id)
+@pytest.mark.parametrize("batch_size", [1, 2], ids=_generate_batch_size_id)
 @pytest.mark.parametrize(
     "sequence_length",
     [None, 128, 1024, 2048, 4096, 8192],
@@ -467,7 +467,7 @@ def _supports_strategy_shard_spec(model_loader_cls) -> bool:
 def test_llms_torch(
     test_entry_and_phase,
     sequence_length,
-    batch_per_device,
+    batch_size,
     sharding_config,
     mesh_shape,
     run_mode,
@@ -487,8 +487,7 @@ def test_llms_torch(
         # Decode tests don't parametrize on sequence length (default is seq_len = 1).
         if sequence_length is not None:
             pytest.skip("Decode tests do not support sequence_length parameterization")
-        # Decode tests for now run only batch_per_device = 1.
-        if batch_per_device != 1:
+        if batch_size != 1:
             pytest.skip("Decode tests currently only support batch_size=1")
         # Decode uses only the backward-compatible default sharding configs.
         if sharding_config.shard_strategy is not None:
@@ -496,13 +495,12 @@ def test_llms_torch(
         request.node.add_marker(pytest.mark.llm_decode)
 
     if run_phase == RunPhase.LLM_PREFILL:
-        # Batch parameterization is per-device.
-        # Convert to global batch only when inputs are data-sharded (dp).
+        # NOTE: batch_size in test_llms_torch is interpreted as per-device batch size.
         mesh_data_dim = mesh_shape[0] if mesh_shape else 1
         if sharding_config.shard_inputs:
-            batch_size = batch_per_device * mesh_data_dim
+            effective_batch_size = batch_size * mesh_data_dim
         else:
-            batch_size = batch_per_device
+            effective_batch_size = batch_size
 
         # Sequence length should be specified for prefill tests.
         if sequence_length is None:
@@ -527,10 +525,9 @@ def test_llms_torch(
             )
         request.node.add_marker(pytest.mark.llm_prefill)
     else:
-        # Decode and default phase semantics are unchanged (batch already global).
-        batch_size = batch_per_device
+        effective_batch_size = batch_size
 
-    test_metadata.batch_size = batch_size
+    test_metadata.batch_size = effective_batch_size
     test_metadata.seq_len = sequence_length
 
     # Propagate sharding configuration into test_metadata for downstream consumers
