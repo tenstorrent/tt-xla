@@ -40,7 +40,15 @@ FRAMEWORKS = ("torch", "jax", "torch_llm")
 
 # Parallelism values for test ID cross-product
 PARALLELISMS_STANDARD = ("single_device", "data_parallel", "tensor_parallel")
-PARALLELISMS_LLM = ("single_device", "tensor_parallel")
+PARALLELISMS_LLM = (
+    "single_device",
+    "tensor_parallel",
+    "megatron_mesh_1x8-no_dp-tensor_parallel",
+    "fsdp_mesh_2x4-no_dp-tensor_parallel",
+    "fsdp_mesh_2x4-dp-tensor_parallel",
+    "megatron_mesh_2x4-no_dp-tensor_parallel",
+    "megatron_mesh_2x4-dp-tensor_parallel",
+)
 
 # Run modes
 RUN_MODES_STANDARD = ("inference", "training")

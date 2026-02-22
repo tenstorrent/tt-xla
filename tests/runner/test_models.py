@@ -487,7 +487,7 @@ def test_llms_torch(
         # Decode tests don't parametrize on sequence length (default is seq_len = 1).
         if sequence_length is not None:
             pytest.skip("Decode tests do not support sequence_length parameterization")
-        # Decode tests for now run only batch_size = 1.
+        # Decode tests for now run only batch_per_device = 1.
         if batch_per_device != 1:
             pytest.skip("Decode tests currently only support batch_size=1")
         # Decode uses only the backward-compatible default sharding configs.
@@ -525,15 +525,6 @@ def test_llms_torch(
             pytest.skip(
                 "Prefill TP for strategy-aware loaders uses explicit sharding configs"
             )
-        # Combined TP + input sharding: batch_size must cover the DP axis so each
-        # device processes different data (no replication).
-        if sharding_config.shard_inputs and mesh_shape:
-            dp_size = mesh_shape[0]
-            if batch_size < dp_size:
-                pytest.skip(
-                    f"Input sharding requires batch_size >= dp axis size ({dp_size}), "
-                    f"got batch_size={batch_size}"
-                )
         request.node.add_marker(pytest.mark.llm_prefill)
     else:
         # Decode and default phase semantics are unchanged (batch already global).
