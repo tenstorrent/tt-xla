@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Torch FileCheck tests for validating generated MLIR patterns."""
 
+import multiprocessing
+import subprocess
+import sys
 from typing import Any, Dict, Sequence
 
 import pytest
@@ -137,13 +140,20 @@ def test_builder_build_ttir_module():
 
 
 # Run test_op_graph_filecheck[op-False] before running this test so that the mlir files are generated.
-@pytest.mark.parametrize("target,mlir_file_path", [("ttir", "output_artifact/test_op_graph_filecheck_op_False_ttir.mlir"), ("ttnn", "output_artifact/test_op_graph_filecheck_op_False_ttnn.mlir")    ])
+@pytest.mark.parametrize(
+    "target,mlir_file_path",
+    [
+        ("ttir", "output_artifact/test_op_graph_filecheck_op_False_ttir.mlir"),
+        ("ttnn", "output_artifact/test_op_graph_filecheck_op_False_ttnn.mlir"),
+    ],
+)
 def test_serialize_and_builder_integration(target, mlir_file_path):
     if target == "ttnn":
         pytest.skip("TTNN target is not supported yet for this op test")
 
     import os
 
+    import _ttmlir_runtime as tt_runtime
     import torch_xla.core.xla_model as xm
     from builder.base.builder_apis import (
         compile_ttir_module_to_flatbuffer,
@@ -151,11 +161,8 @@ def test_serialize_and_builder_integration(target, mlir_file_path):
         split_mlir_file,
     )
     from builder.base.builder_runtime import execute_fb
-    import _ttmlir_runtime as tt_runtime
 
-    assert os.path.exists(
-        mlir_file_path
-    )
+    assert os.path.exists(mlir_file_path)
 
     with open(mlir_file_path, "r") as f:
         mlir_ir_string = f.read()
@@ -173,13 +180,112 @@ def test_serialize_and_builder_integration(target, mlir_file_path):
 
     for split_module, split_builder in builder_module_list:
         print("-------------- Running test for split module: --------------")
-        
+
         print(split_module)
-        compiled_bin, input_output_goldens, intermediate_goldens = compile_ttir_module_to_flatbuffer(
-            split_module,
-            split_builder,
+        compiled_bin, input_output_goldens, intermediate_goldens = (
+            compile_ttir_module_to_flatbuffer(
+                split_module,
+                split_builder,
+            )
         )
 
-        execute_fb(compiled_bin, input_output_goldens, intermediate_goldens, device=device)
+        execute_fb(
+            compiled_bin, input_output_goldens, intermediate_goldens, device=device
+        )
 
     tt_runtime.runtime.close_mesh_device(device)
+
+
+def _execute_fb_worker(mlir_file_path: str, result_queue):
+    """Load MLIR, open a fresh device, run execute_fb, and close the device.
+
+    Runs in a spawned subprocess so no PJRT device state is inherited from the
+    parent process.  Any exception is put onto result_queue so the parent can
+    re-raise it; None is put on success.
+    """
+    try:
+        import _ttmlir_runtime as tt_runtime
+        from builder.base.builder_apis import (
+            compile_ttir_module_to_flatbuffer,
+            load_mlir_file,
+            split_mlir_file,
+        )
+        from builder.base.builder_runtime import execute_fb
+
+        with open(mlir_file_path, "r") as f:
+            mlir_ir_string = f.read()
+
+        module, builder = load_mlir_file(mlir_ir_string, target="ttir")
+        builder_module_list = split_mlir_file(module, builder)
+
+        tt_runtime.runtime.set_current_device_runtime(
+            tt_runtime.runtime.DeviceRuntime.TTNN
+        )
+        mesh_options = tt_runtime.runtime.MeshDeviceOptions()
+        mesh_options.dispatch_core_type = tt_runtime.runtime.DispatchCoreType.ETH
+        mesh_options.mesh_shape = (1, 1)
+        device = tt_runtime.runtime.open_mesh_device(mesh_options)
+
+        try:
+            for split_module, split_builder in builder_module_list:
+                print("-------------- Running test for split module: --------------")
+                print(split_module)
+                compiled_bin, input_output_goldens, intermediate_goldens = (
+                    compile_ttir_module_to_flatbuffer(split_module, split_builder)
+                )
+                execute_fb(
+                    compiled_bin,
+                    input_output_goldens,
+                    intermediate_goldens,
+                    device=device,
+                )
+        finally:
+            tt_runtime.runtime.close_mesh_device(device)
+
+        result_queue.put(None)
+    except Exception as e:
+        result_queue.put(e)
+
+
+def test_op_graph_filecheck_then_execute_fb():
+    """Run test_op_graph_filecheck[op-False] in a subprocess to generate MLIR
+    artifacts, then execute the resulting flatbuffer in a second subprocess.
+
+    Two separate processes are required because test_op_graph_filecheck opens a
+    mesh device via the PJRT plugin and execute_fb needs to open its own device
+    via tt_runtime directly.  Running them in the same process causes two
+    concurrent open_mesh_device calls on the same hardware.
+    """
+    mlir_file_path = "output_artifact/test_op_graph_filecheck_op_False_ttir.mlir"
+
+    # Step 1: run test_op_graph_filecheck[op-False] in a subprocess.
+    # The @pytest.mark.filecheck marker on that test triggers serialization
+    # automatically, writing the MLIR artifacts to output_artifact/.  The
+    # device opened by the PJRT plugin is released when this subprocess exits.
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/torch/test_torch_filecheck.py::test_op_graph_filecheck[op-False]",
+            "-v",
+        ],
+        check=False,
+    )
+    assert (
+        proc.returncode == 0
+    ), f"test_op_graph_filecheck[op-False] failed with exit code {proc.returncode}"
+
+    # Step 2: run execute_fb in a spawned process.  spawn is required (not
+    # fork) so the child starts with a clean Python interpreter and carries
+    # no PJRT state from this process.
+    ctx = multiprocessing.get_context("spawn")
+    result_queue = ctx.Queue()
+    p = ctx.Process(target=_execute_fb_worker, args=(mlir_file_path, result_queue))
+    p.start()
+    p.join()
+
+    assert p.exitcode == 0, f"execute_fb subprocess exited with code {p.exitcode}"
+    worker_result = result_queue.get_nowait()
+    if worker_result is not None:
+        raise worker_result
