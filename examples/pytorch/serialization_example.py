@@ -10,7 +10,10 @@ import torch
 import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
-from tt_torch import parse_compiled_artifacts_from_cache_to_disk
+from tt_torch import (
+    parse_compiled_artifacts_from_cache_to_disk,
+    save_system_descriptor_to_disk,
+)
 
 
 class SimpleModel(nn.Module):
@@ -31,6 +34,7 @@ def run_serialization_example():
     output.to("cpu")
 
     parse_compiled_artifacts_from_cache_to_disk(cache_dir, "output/model")
+    save_system_descriptor_to_disk("output/model")
 
     return cache_dir
 
@@ -52,6 +56,7 @@ def test_serialization_example():
         Path("output/model.ttnn"),
         Path("output/model_ttnn.mlir"),
         Path("output/model_ttir.mlir"),
+        Path("output/model_system_desc.ttsys"),
     ]
 
     try:

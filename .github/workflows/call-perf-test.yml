@@ -268,12 +268,17 @@ jobs:
       if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
       shell: bash
       run: |
-        mlir_sha=$(grep -oP 'set\(TT_MLIR_VERSION "\K[^"]+' third_party/CMakeLists.txt)
-        echo "Found TT_MLIR_VERSION: $mlir_sha"
+        mlir_sha=$(python .github/scripts/get_description_field_from_wheel.py "pjrt-plugin-tt" "tt-mlir-commit")
+        echo "Found tt-mlir-commit: $mlir_sha"
 
         RUN_ID=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
           "https://api.github.com/repos/tenstorrent/tt-mlir/actions/workflows/on-push.yml/runs?head_sha=${mlir_sha}&per_page=1" \
           | jq -r '.workflow_runs[0].id')
+
+        if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
+          echo "The tt-mlir commit doesn't contain a ttrt wheel artifact. Run an artifact building workflow on the commit (e.g. 'On PR')."
+          exit 1
+        fi
 
         echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
         echo "mlir_sha=$mlir_sha" >> $GITHUB_OUTPUT

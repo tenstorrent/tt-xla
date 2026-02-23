@@ -54,7 +54,7 @@ test_config:
     reason: "Node arity mismatch; expected 339, but got 338"
   llama/causal_lm/pytorch-3.2_1B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    markers: [notimeout]
+    markers: [large, notimeout]
   llama/causal_lm/pytorch-3.2_1B_Instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]

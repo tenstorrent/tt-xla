@@ -1238,6 +1238,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.input_batch,
                 self.max_num_reqs,
                 self.device,
+                vocab_size=self.vocab_size,
             )
             if grammar_output is not None:
                 (
@@ -1725,6 +1726,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.max_num_reqs,
                 self.device,
                 generate_params_if_all_greedy,
+                vocab_size=self.vocab_size,
             )
             sampling_metadata.all_greedy = all_greedy
             with self.maybe_select_dummy_loras(
@@ -2014,7 +2016,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Sample with xla-friendly function. This function is to be traced
         separately from `forward` for lighter compilation overhead.
         """
-        if sampling_metadata.all_greedy:
+        if sampling_metadata.all_greedy and sampling_metadata.no_penalties:
             out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
