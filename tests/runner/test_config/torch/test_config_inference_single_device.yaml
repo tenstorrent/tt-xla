@@ -1931,29 +1931,34 @@ test_config:
         status: EXCLUDE_MODEL # This model is run as tensor_parallel already.
 
   d_fine/pytorch-Nano-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine nano hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "d_fine nano hangs forever, removing all of them."
+    # bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   d_fine/pytorch-Small-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine small hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "d_fine small hangs forever, removing all of them."
+    # bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   d_fine/pytorch-Medium-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine medium hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "d_fine medium hangs forever, removing all of them."
+    # bringup_status: FAILED_RUNTIME
 
   d_fine/pytorch-Large-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine large hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "d_fine large hangs forever, removing all of them."
+    # bringup_status: FAILED_RUNTIME
 
   d_fine/pytorch-Xlarge-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine xlarge hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "d_fine xlarge hangs forever, removing all of them."
+    # bringup_status: FAILED_RUNTIME
 
   hrnet/pytorch-v2_W48_Osmr-single_device-inference:
     required_pcc: 0.985  # https://github.com/tenstorrent/tt-xla/issues/1491
