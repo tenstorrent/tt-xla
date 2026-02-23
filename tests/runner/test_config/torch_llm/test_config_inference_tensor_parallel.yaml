@@ -107,225 +107,275 @@ test_config:
 
   # --- Megatron, mesh 1x8, no DP ---
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.94 # Is 0.941
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.95 # Is 0.950
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_2-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.86 # Is 0.863
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.81 # Is 0.818
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_2-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.81 # Is 0.817
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.74 # Is 0.747
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_2-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
+    supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
 
   # --- FSDP, mesh 2x4, no DP ---
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.92 # Is 0.928
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.92 # Is 0.928
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.92 # Is 0.924
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.87 # Is 0.875
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.92 # Is 0.920
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_2-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.75 # Is 0.758
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.81 # Is 0.818
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_2-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.80 # Is 0.802
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_2-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
 
   # --- FSDP, mesh 2x4, DP (batch must be >= data dim 2) ---
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.92 # Is 0.928
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-fsdp-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.93 # Is 0.933
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.87 # Is 0.876
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-fsdp-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.89 # Is 0.896
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.75 # Is 0.758
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_2-fsdp-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.77 # Is 0.779
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.80 # Is 0.801
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_2-fsdp-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_2-fsdp-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
 
   # --- Megatron, mesh 2x4, no DP ---
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.93 # Is 0.938
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.96 # Is 0.965
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_2-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_2-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_2-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
 
   # --- Megatron, mesh 2x4, DP (batch must be >= data dim 2) ---
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_2-megatron-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.93 # Is 0.938
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_2-megatron-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.96 # Is 0.965
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.86 # Is 0.861
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_2-megatron-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.87 # Is 0.879
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     required_pcc: 0.81 # Is 0.817
     status: EXPECTED_PASSING
     assert_pcc: false
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_2-megatron-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_2-megatron-dp-tensor_parallel-mesh_2x4-inference:
+    supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
