@@ -65,6 +65,8 @@ def pytest_configure(config: pytest.Config):
         "no_auto_properties: disable auto user_properties injection at collection",
     )
 
+    _patch_absl_handler_close()
+
 
 def pytest_collection_modifyitems(items):
     """
@@ -690,3 +692,36 @@ def captured_output_fixture(request):
         tee.start()
         yield tee
         tee.stop()
+
+
+def _patch_absl_handler_close():
+    """Prevent absl logging handler from closing pytest's capture streams.
+
+    This issue was exposed during migration from Python 3.11 to 3.12, where
+    there was a difference in the way logging handlers are cleaned up.
+    When ray is imported (via easydel), it results in an import chain that
+    eventually calls _clearExistingHandlers in Python's logging/config.py,
+    which now closes the pytest's capture stream that has already replaced
+    sys.stderr (happens very early). This patch prevents absl from closing
+    handlers it doesn't own.
+
+    This issue doesn't happen if pytest is run with the -s flag.
+    """
+    try:
+        from absl.logging import PythonHandler as _AbslPythonHandler
+
+        _orig_absl_close = _AbslPythonHandler.close
+
+        def _safe_absl_close(self):
+            """Prevent absl from closing streams it doesn't own."""
+            self.acquire()
+            try:
+                # PythonHandler always logs to stderr.
+                self.stream = sys.stderr
+            finally:
+                self.release()
+            _orig_absl_close(self)
+
+        _AbslPythonHandler.close = _safe_absl_close
+    except ImportError:
+        pass
