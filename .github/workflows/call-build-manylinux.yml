@@ -36,21 +36,6 @@ jobs:
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==3.3.0
 
-      - name: Build vllm plugin wheel
-        env:
-          CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
-          CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
-          CIBW_BEFORE_ALL: "ls -la /usr/bin/c* || true"
-          CIBW_SKIP: "*-musllinux_*"
-        shell: bash
-        run: python -m cibuildwheel --output-dir "${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist" --config-file "${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/pyproject.toml" ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin
-
-      - name: Upload the vllm plugin wheel
-        uses: actions/upload-artifact@v4
-        with:
-            name: vllm-tt-whl-manylinux
-            path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl
-
       - name: Build tt-xla wheel
         env:
           CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
