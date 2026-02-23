@@ -43,6 +43,7 @@ class RunPhase(Enum):
     def __str__(self) -> str:
         return self.value
 
+
 def find_dumped_ir_files(artifacts_dir: str) -> List[str]:
     """
     Find dumped SHLO IR files in a given directory.
