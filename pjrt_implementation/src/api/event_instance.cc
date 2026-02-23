@@ -34,7 +34,7 @@ EventInstance::EventInstance()
       m_indestructible(false) {}
 
 EventInstance::~EventInstance() {
-  if (!isReady() && (m_awaiters_count || !m_on_ready_callbacks.empty())) {
+  if (!isReady()) {
     LOG_F(ERROR, "Destroying the event before it is marked ready!");
     std::terminate();
   }
