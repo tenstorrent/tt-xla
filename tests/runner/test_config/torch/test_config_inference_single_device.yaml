@@ -1625,7 +1625,7 @@ test_config:
 
   vadv2/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
+    reason: "TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_method view(...): got RuntimeError(\"shape '[1, 6, 1, 1, 4, 4]' is invalid for input of size 16\") - https://github.com/tenstorrent/tt-xla/issues/1923"
 
   huggyllama/pytorch-Llama_7B-single_device-inference:
     status: EXPECTED_PASSING
@@ -1997,7 +1997,7 @@ test_config:
 
   bevformer/pytorch-Tiny-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    reason: "Out of Memory: Not enough space to allocate 176160768 B DRAM buffer across 12 banks, where each bank needs to store 14680064 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   bevformer/pytorch-Small-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2045,7 +2045,7 @@ test_config:
 
   ssr/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 62179328 B L1 buffer across 64 banks, where each bank needs to store 971552 B, but bank size is only 1364704 B - https://github.com/tenstorrent/tt-xla/issues/1923"
+    reason: "TorchRuntimeError: shape '[1, 6, 1, 1, 4, 4]' is invalid for input of size 16 - https://github.com/tenstorrent/tt-xla/issues/1923"
 
   bge_m3/pytorch-Base-single_device-inference:
     status: EXCLUDE_MODEL  # This model has a hand written test, don't run via test_models.py
@@ -2080,35 +2080,35 @@ test_config:
 
   maptr/pytorch-Tiny_R50_24e_Av2-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - Statically allocated circular buffers clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/2817"
 
   maptr/pytorch-Tiny_R50_24e_Bevformer-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - Statically allocated circular buffers clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/2817"
 
   maptr/pytorch-Tiny_R50_24e_Bevformer_T4-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - Statically allocated circular buffers clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/2817"
 
   maptr/pytorch-Tiny_R50_24e-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - Statically allocated circular buffers clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/2817"
 
   maptr/pytorch-Tiny_R50_110e-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - Statically allocated circular buffers clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/2817"
 
   maptr/pytorch-Tiny_R50_24e_T4-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - Statically allocated circular buffers clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/2817"
 
   maptr/pytorch-Nano_R18_110e-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - Statically allocated circular buffers clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/2817"
 
   maptr/pytorch-Tiny_R50_24e_Bevpool-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 95029248 B L1 buffer across 64 banks, where each bank needs to store 1484832 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1588"
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - Statically allocated circular buffers clash with L1 buffers on core range - https://github.com/tenstorrent/tt-xla/issues/2817"
 
   maptr/pytorch-Tiny_Fusion_24e-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
