@@ -4,9 +4,8 @@
 
 import pytest
 import torch
-import torch_xla
-import torch_xla.runtime as xr
 from diffusers.models.autoencoders.autoencoder_kl_cogvideox import CogVideoXCausalConv3d
+from infra import Framework, run_graph_test_with_random_inputs
 from utils import Category
 
 
@@ -48,28 +47,11 @@ def test_mochi_causal_conv3d():
     - pad_mode="replicate" (causal padding for temporal dimension)
 
     Input shape matches Mochi decoder: [B, C, T, H, W] = [1, 768, 4, 60, 106]
-
-    Note: We skip comparison with CPU since CPU doesn't support bfloat16 and
-    we need bfloat16 for conv3d op on TT device.
     """
+    model = MochiCausalConv3dWrapper(in_channels=768, out_channels=768, kernel_size=3)
 
-    xr.set_device_type("TT")
-    device = torch_xla.device()
-
-    model = MochiCausalConv3dWrapper(
-        in_channels=768, out_channels=768, kernel_size=3
-    ).to(device=device, dtype=torch.bfloat16)
-
-    model = torch.compile(model, backend="tt")
-
-    input_tensor = torch.randn(1, 768, 4, 60, 106, dtype=torch.bfloat16, device=device)
-
-    with torch.no_grad():
-        output = model(input_tensor)
-        assert output.shape == (
-            1,
-            768,
-            4,
-            60,
-            106,
-        ), f"Output shape mismatch, expected (1, 768, 4, 60, 106) but got {output.shape}"
+    run_graph_test_with_random_inputs(
+        model,
+        [(1, 768, 4, 60, 106)],
+        framework=Framework.TORCH,
+    )
