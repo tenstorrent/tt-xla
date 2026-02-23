@@ -122,11 +122,9 @@ public:
   }
 
   // Computes the fabric config for the given mesh shape using the stored system
-  // descriptor.
+  // descriptor. In distributed mode, falls back to FABRIC_1D.
   tt::runtime::MeshFabricConfig
-  computeFabricConfig(const std::vector<uint32_t> &meshShape) const {
-    return tt::runtime::computeMeshFabricConfig(m_system_descriptor, meshShape);
-  }
+  computeFabricConfig(const std::vector<uint32_t> &meshShape);
 
   // Returns parent mesh.
   std::optional<tt::runtime::Device> &parentMesh() { return m_parent_mesh; };

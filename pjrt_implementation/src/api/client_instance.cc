@@ -310,7 +310,6 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
-
   m_system_descriptor = tt::runtime::getCurrentSystemDesc();
 
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
@@ -430,6 +429,23 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   return tt_pjrt_status::kSuccess;
 }
 
+tt::runtime::MeshFabricConfig
+ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
+  // Distributed uses FABRIC_1D for now.
+  if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
+      std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
+    uint32_t num_devices = 1;
+    for (auto dim : mesh_shape) {
+      num_devices *= dim;
+    }
+    tt::runtime::FabricConfig global =
+        num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
+                        : tt::runtime::FabricConfig::DISABLED;
+    return tt::runtime::MeshFabricConfig{global, {}};
+  }
+  return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
+}
+
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
     const std::vector<uint32_t> &target_mesh_shape) {
 
@@ -442,8 +458,7 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
       tt::runtime::getMeshShape(*m_parent_mesh);
 
   tt::runtime::MeshFabricConfig target_fabric_config =
-      tt::runtime::computeMeshFabricConfig(m_system_descriptor,
-                                           target_mesh_shape);
+      computeFabricConfig(target_mesh_shape);
 
   bool should_reuse =
       (parent_mesh_shape == target_mesh_shape) && m_fabric_config.has_value() &&
@@ -497,10 +512,7 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   // NOTE: it looks like metal context is being reinitialized each time we
   // open/close the device, so we need to set the fabric config each time
   // (even if we always set it to the same value).
-
-  tt::runtime::MeshFabricConfig fabric_config =
-      tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
-
+  tt::runtime::MeshFabricConfig fabric_config = computeFabricConfig(mesh_shape);
   DLOG_F(LOG_DEBUG,
          "ClientInstance::openMeshDevice - setting fabric config: %s",
          tt::runtime::flatbuffer::EnumNameFabricConfig(
