@@ -31,6 +31,7 @@ from tests.runner.test_config.constants import (
     ALLOWED_FIELDS,
     FRAMEWORKS,
     LLM_BATCH_SIZES,
+    LLM_MESH_SHAPES,
     LLM_PHASES,
     LLM_SEQUENCE_LENGTHS,
     PARALLELISMS_LLM,
@@ -436,24 +437,27 @@ class TestConfigValidator:
                 for run_mode in RUN_MODES_STANDARD:
                     ids.add(f"{base}-{parallelism}-{run_mode}")
 
-        # test_llms_torch: {base}-{phase}-seq_{X}-batch_{Y}-{parallelism}-{run_mode}
+        # test_llms_torch:
+        # {base}-{phase}-seq_{X}-batch_{Y}-{parallelism}-{mesh_shape}-{run_mode}
         # Decode: only seq_1-batch_1 (test_models.py:436-441)
         # Prefill: seq_{128..8192} x batch_{1,2} (test_models.py:444-448)
         for rel_path, variant, phase in llm_models:
             base = f"{rel_path}-{variant}" if variant else rel_path
             for parallelism in PARALLELISMS_LLM:
-                for run_mode in RUN_MODES_LLM:
-                    if phase == "llm_decode":
-                        ids.add(
-                            f"{base}-{phase}-seq_1-batch_1" f"-{parallelism}-{run_mode}"
-                        )
-                    else:
-                        for seq in LLM_SEQUENCE_LENGTHS:
-                            for batch in LLM_BATCH_SIZES:
-                                ids.add(
-                                    f"{base}-{phase}-seq_{seq}-batch_{batch}"
-                                    f"-{parallelism}-{run_mode}"
-                                )
+                for mesh_shape in LLM_MESH_SHAPES:
+                    for run_mode in RUN_MODES_LLM:
+                        if phase == "llm_decode":
+                            ids.add(
+                                f"{base}-{phase}-seq_1-batch_1"
+                                f"-{parallelism}-{mesh_shape}-{run_mode}"
+                            )
+                        else:
+                            for seq in LLM_SEQUENCE_LENGTHS:
+                                for batch in LLM_BATCH_SIZES:
+                                    ids.add(
+                                        f"{base}-{phase}-seq_{seq}-batch_{batch}"
+                                        f"-{parallelism}-{mesh_shape}-{run_mode}"
+                                    )
 
         return ids
 
