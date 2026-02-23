@@ -385,6 +385,13 @@ def _generate_batch_size_id(batch_size):
     return f"batch_{batch_size}"
 
 
+def _generate_mesh_shape_id(mesh_shape):
+    """Generate test ID component for mesh shape."""
+    if mesh_shape is None:
+        return "mesh_default"
+    return f"mesh_{mesh_shape[0]}x{mesh_shape[1]}"
+
+
 def _supports_strategy_shard_spec(model_loader_cls) -> bool:
     """Return True if loader.load_shard_spec supports strategy/batch_axis kwargs."""
     if not hasattr(model_loader_cls, "load_shard_spec"):
@@ -397,6 +404,30 @@ def _supports_strategy_shard_spec(model_loader_cls) -> bool:
     return "strategy" in params and "batch_axis" in params
 
 
+def _validate_llm_combo(sharding_config, mesh_shape):
+    """Return skip reason for invalid sharding/mesh combinations."""
+    strategy = sharding_config.shard_strategy
+    shard_inputs = sharding_config.shard_inputs
+
+    if strategy is None:
+        if mesh_shape is not None:
+            return "Default single/tensor parallel config uses mesh_default only"
+        return None
+
+    if mesh_shape is None:
+        return "Explicit sharding strategy requires mesh_shape"
+
+    if mesh_shape == (1, 8):
+        if strategy != "megatron" or shard_inputs:
+            return "Redundant on mesh_1x8: keep only megatron no-DP"
+        return None
+
+    if mesh_shape != (2, 4):
+        return "Unsupported mesh_shape for explicit sharding strategy"
+
+    return None
+
+
 @pytest.mark.model_test
 @pytest.mark.no_auto_properties
 @pytest.mark.llm
@@ -407,48 +438,41 @@ def _supports_strategy_shard_spec(model_loader_cls) -> bool:
     ],
 )
 @pytest.mark.parametrize(
-    "sharding_config,mesh_shape",
+    "mesh_shape",
+    [None, (1, 8), (2, 4)],
+    ids=_generate_mesh_shape_id,
+)
+@pytest.mark.parametrize(
+    "sharding_config",
     [
         pytest.param(
             ShardingConfigs.SINGLE_DEVICE,
-            None,
             id="single_device",
             marks=pytest.mark.single_device,
         ),
         pytest.param(
             ShardingConfigs.TENSOR_PARALLEL,
-            None,
             id="tensor_parallel",
             marks=pytest.mark.tensor_parallel,
         ),
         pytest.param(
             ShardingConfigs.MEGATRON,
-            (2, 4),
-            id="megatron_mesh_2x4-no_dp-tensor_parallel",
+            id="megatron-no_dp-tensor_parallel",
             marks=pytest.mark.tensor_parallel,
         ),
         pytest.param(
             ShardingConfigs.FSDP,
-            (2, 4),
-            id="fsdp_mesh_2x4-no_dp-tensor_parallel",
+            id="fsdp-no_dp-tensor_parallel",
             marks=pytest.mark.tensor_parallel,
         ),
         pytest.param(
             ShardingConfigs.FSDP_DP,
-            (2, 4),
-            id="fsdp_mesh_2x4-dp-tensor_parallel",
-            marks=pytest.mark.tensor_parallel,
-        ),
-        pytest.param(
-            ShardingConfigs.MEGATRON,
-            (1, 8),
-            id="megatron_mesh_1x8-no_dp-tensor_parallel",
+            id="fsdp-dp-tensor_parallel",
             marks=pytest.mark.tensor_parallel,
         ),
         pytest.param(
             ShardingConfigs.MEGATRON_DP,
-            (2, 4),
-            id="megatron_mesh_2x4-dp-tensor_parallel",
+            id="megatron-dp-tensor_parallel",
             marks=pytest.mark.tensor_parallel,
         ),
     ],
@@ -482,6 +506,10 @@ def test_llms_torch(
     _, model_loader_cls = test_entry.variant_info
     supports_strategy_shard_spec = _supports_strategy_shard_spec(model_loader_cls)
     parallelism = sharding_config.parallelism
+
+    invalid_combo_reason = _validate_llm_combo(sharding_config, mesh_shape)
+    if invalid_combo_reason is not None:
+        pytest.skip(invalid_combo_reason)
 
     if run_phase == RunPhase.LLM_DECODE:
         # Decode tests don't parametrize on sequence length (default is seq_len = 1).
