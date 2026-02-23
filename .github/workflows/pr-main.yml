@@ -87,7 +87,6 @@ jobs:
     uses: ./.github/workflows/manual-benchmark.yml
     secrets: inherit
     with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
       runs-on-filter: n150
       sh-runner: false
       skip-device-perf: false
@@ -100,7 +99,6 @@ jobs:
     uses: ./.github/workflows/manual-benchmark.yml
     secrets: inherit
     with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
       runs-on-filter: n300-llmbox
       sh-runner: false
       skip-device-perf: false
