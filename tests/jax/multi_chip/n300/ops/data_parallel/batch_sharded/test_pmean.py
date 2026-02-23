@@ -66,15 +66,3 @@ def test_pmean(
         use_shardy,
         sharding_mode,
     )
-
-    if request.config.getoption("--serialize", default=False):
-        serialize_jax_multichip_op_with_random_inputs(
-            fwd,
-            [x_shape],
-            test_name=request.node.name,
-            mesh_shape=mesh_shape,
-            axis_names=axis_names,
-            in_specs=in_specs,
-            out_specs=out_specs,
-            sharding_mode=sharding_mode,
-        )
