@@ -55,3 +55,33 @@ def test_mochi_causal_conv3d():
         [(1, 768, 4, 60, 106)],
         framework=Framework.TORCH,
     )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+@pytest.mark.parametrize(
+    "in_channels,out_channels",
+    [
+        pytest.param(12, 512, id="in_not_div32"),
+        pytest.param(512, 12, id="out_not_div32"),
+        pytest.param(12, 34, id="neither_div32"),
+    ],
+)
+def test_mochi_causal_conv3d_non_aligned_channels(in_channels, out_channels):
+    """
+    Test CogVideoXCausalConv3d with channels not divisible by 32.
+
+    TT-Metal conv3d requires channel alignment to 32. These cases test
+    that padding/alignment is handled correctly when in_channels,
+    out_channels, or both are not multiples of 32.
+    """
+    model = MochiCausalConv3dWrapper(
+        in_channels=in_channels, out_channels=out_channels, kernel_size=3
+    )
+
+    run_graph_test_with_random_inputs(
+        model,
+        [(1, in_channels, 4, 60, 106)],
+        framework=Framework.TORCH,
+    )
