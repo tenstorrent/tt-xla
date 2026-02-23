@@ -225,7 +225,8 @@ test_config:
     status: EXPECTED_PASSING
 
   densenet/pytorch-121_Xray-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
+    # status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
 
   distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad-single_device-inference:
     status: EXPECTED_PASSING
@@ -1527,8 +1528,9 @@ test_config:
     status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
 
   oft/pytorch-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
 
   mistral/pixtral/pytorch-single_device-inference:
     assert_pcc: false
@@ -2315,9 +2317,10 @@ test_config:
     reason: "error: 'ttir.arange' op Invalid range: start=0, end=0, step=1 - https://github.com/tenstorrent/tt-xla/issues/3380"
 
   retinanet/pytorch-ResNet50_Backbone_with_FPN_V2-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=6)] grow to 22732608 B which is beyond max L1 size of 1499136 B"
-    bringup_status: FAILED_RUNTIME
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=6)] grow to 22732608 B which is beyond max L1 size of 1499136 B"
+    # bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   ssd300_vgg16/pytorch-Default-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
