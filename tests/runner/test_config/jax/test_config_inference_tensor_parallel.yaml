@@ -115,6 +115,7 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false
     reason: "Severe PCC comparison failed: pcc=-0.004 < 0.99 required"
+    markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-7B-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
