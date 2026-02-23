@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 import inspect
+import os
 import shutil
 import socket
 import subprocess
@@ -423,8 +423,8 @@ def _supports_strategy_shard_spec(model_loader_cls) -> bool:
         ),
         pytest.param(
             ShardingConfigs.MEGATRON,
-            (1, 8),
-            id="megatron_mesh_1x8-no_dp-tensor_parallel",
+            (2, 4),
+            id="megatron_mesh_2x4-no_dp-tensor_parallel",
             marks=pytest.mark.tensor_parallel,
         ),
         pytest.param(
@@ -441,8 +441,8 @@ def _supports_strategy_shard_spec(model_loader_cls) -> bool:
         ),
         pytest.param(
             ShardingConfigs.MEGATRON,
-            (2, 4),
-            id="megatron_mesh_2x4-no_dp-tensor_parallel",
+            (1, 8),
+            id="megatron_mesh_1x8-no_dp-tensor_parallel",
             marks=pytest.mark.tensor_parallel,
         ),
         pytest.param(
