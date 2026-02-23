@@ -32,14 +32,6 @@ from utils import failed_fe_compilation, failed_runtime
     "sharding_mode",
     [
         pytest.param(
-            ShardingMode.INPUTS_AND_MODULE,
-            marks=pytest.mark.skip(
-                reason=failed_runtime(
-                    "Hangs https://github.com/tenstorrent/tt-xla/issues/3407"
-                )
-            ),
-        ),
-        pytest.param(
             ShardingMode.MODULE,
             marks=pytest.mark.xfail(
                 reason=failed_fe_compilation(
