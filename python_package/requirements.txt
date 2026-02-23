@@ -10,6 +10,6 @@ torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgit8e
 networkx==3.6.1
 graphviz==0.21
 seaborn==0.13.2
-pyyaml==6.0.1
+pyyaml==6.0.3
 click==8.3.1
 pandas==3.0.0
