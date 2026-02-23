@@ -194,13 +194,15 @@ class XLASupportedSamplingMetadata:
             no_bad_words = True
 
         # Early return to avoid unnecessary cpu to tpu copy.
-        # Must NOT skip when penalties are active: greedy decoding with
-        # repetition/frequency/presence penalties still needs the full penalty
-        # path (prompt_token_mask, output_token_counts, etc.).
+        # Must NOT skip when any logit-modifying feature is active: penalties,
+        # logit_bias, and bad_words all require the full sampler path with a
+        # valid temperature tensor.
         if (
             input_batch.all_greedy is True
             and generate_params_if_all_greedy is False
             and input_batch.no_penalties
+            and no_logit_bias
+            and no_bad_words
         ):
             return cls(
                 all_greedy=True,
