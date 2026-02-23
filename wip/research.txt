@@ -1,0 +1,145 @@
+================================================================================
+WHERE TO MOVE record_model_test_properties FOR pytest --forked
+================================================================================
+
+CURRENT LOCATION (BROKEN with --forked):
+───────────────────────────────────────────────────────────────────────────────
+File: tests/runner/test_models.py
+Function: _run_model_test_impl (line 54)
+
+    def _run_model_test_impl(...):
+        try:
+            # Test code runs here
+            comparison_result = tester.test()
+            ...
+        except Exception as e:
+            ...
+            raise
+        finally:
+            # ❌ THIS RUNS IN CHILD PROCESS
+            # ❌ DOES NOT RUN when child process is killed (segfault/SIGTERM/os._exit)
+            record_model_test_properties(...)  # <-- LINE 191
+
+
+NEW LOCATION (WORKS with --forked):
+───────────────────────────────────────────────────────────────────────────────
+File: tests/runner/conftest.py
+Function: NEW hook to add
+
+    @pytest.hookimpl(hookwrapper=True, trylast=True)
+    def pytest_runtest_makereport(item, call):
+        """
+        ✅ THIS RUNS IN PARENT PROCESS
+        ✅ ALWAYS RUNS even when child process is killed
+        """
+        outcome = yield
+        report = outcome.get_result()
+
+        if report.when == "call":  # or if crashed
+            # Get metadata stored on item before test ran
+            test_metadata = getattr(item, "_test_metadata_for_report", None)
+            model_info = getattr(item, "_model_info_for_report", None)
+            ...
+
+            # Record properties to report.user_properties
+            record_model_test_properties_to_report(
+                report=report,  # Add properties to THIS object
+                ...
+            )
+
+
+REQUIRED CHANGES:
+───────────────────────────────────────────────────────────────────────────────
+
+1. In tests/runner/test_models.py::_run_model_test_impl:
+
+   BEFORE try block (line ~73):
+   ┌────────────────────────────────────────────────────────────────┐
+   │ # Store metadata on item for parent process hooks             │
+   │ request.node._test_metadata_for_report = test_metadata         │
+   │ request.node._model_info_for_report = model_info               │
+   │ request.node._run_mode_for_report = run_mode                   │
+   │ request.node._parallelism_for_report = parallelism             │
+   │ request.node._comparison_results_for_report = []               │
+   └────────────────────────────────────────────────────────────────┘
+
+   REMOVE from finally block (line 191):
+   ┌────────────────────────────────────────────────────────────────┐
+   │ finally:                                                        │
+   │     # DELETE THIS CALL - move to hook instead                  │
+   │     # record_model_test_properties(...)                        │
+   │     pass                                                        │
+   └────────────────────────────────────────────────────────────────┘
+
+2. In tests/runner/conftest.py:
+
+   ADD new hook (at end of file):
+   ┌────────────────────────────────────────────────────────────────┐
+   │ @pytest.hookimpl(hookwrapper=True, trylast=True)               │
+   │ def pytest_runtest_makereport(item, call):                     │
+   │     outcome = yield                                             │
+   │     report = outcome.get_result()                               │
+   │                                                                 │
+   │     if report.when == "call":                                   │
+   │         # Get stored metadata                                   │
+   │         test_metadata = getattr(item, "_test_metadata_for...")  │
+   │         # Add properties to report.user_properties              │
+   │         record_model_test_properties_to_report(report, ...)     │
+   └────────────────────────────────────────────────────────────────┘
+
+3. In tests/runner/test_utils.py:
+
+   ADD new function (or modify existing):
+   ┌────────────────────────────────────────────────────────────────┐
+   │ def record_model_test_properties_to_report(report, ...):       │
+   │     # Add properties to report.user_properties instead of      │
+   │     # calling record_property fixture                           │
+   │     report.user_properties.append(("model_name", ...))          │
+   │     report.user_properties.append(("test_passed", ...))         │
+   │     ...                                                         │
+   └────────────────────────────────────────────────────────────────┘
+
+
+WHY THIS WORKS:
+───────────────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────┐
+│  pytest --forked Process Model      │
+├─────────────────────────────────────┤
+│                                     │
+│  PARENT PROCESS (survives)          │
+│  ├─ pytest hooks run here           │
+│  │  ├─ pytest_runtest_makereport ✅ │  <-- ADD record_properties HERE
+│  │  └─ pytest_runtest_logreport  ✅ │
+│  │                                  │
+│  └─ fork() ──────────────────┐      │
+│                              ↓      │
+│  CHILD PROCESS (can be killed)     │
+│  ├─ test setup                      │
+│  ├─ test execution                  │
+│  │   └─ try/finally blocks ❌       │  <-- REMOVE record_properties FROM HERE
+│  └─ [CRASH: segfault/SIGTERM]      │
+│      └─ finally block NOT RUN ❌    │
+│                                     │
+└─────────────────────────────────────┘
+
+The parent process survives the child crash and can record properties!
+
+
+FILES TO MODIFY:
+───────────────────────────────────────────────────────────────────────────────
+1. tests/runner/test_models.py    (modify _run_model_test_impl)
+2. tests/runner/conftest.py        (add pytest_runtest_makereport hook)
+3. tests/runner/test_utils.py      (add record_model_test_properties_to_report)
+
+
+VERIFICATION:
+───────────────────────────────────────────────────────────────────────────────
+After changes, test with:
+
+    pytest test_forked_abort_repro.py::test_simulated_abort \\
+      --forked --junit-xml=test.xml
+
+    grep "property" test.xml  # Should see properties even though test crashed!
+
+================================================================================
