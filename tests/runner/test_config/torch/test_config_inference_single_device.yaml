@@ -2442,25 +2442,25 @@ test_config:
   arnold/pytorch-Health_Gathering_Ff-single_device-inference:
     status: EXPECTED_PASSING
 
-  # petr/pytorch-Vovnet_Gridmask_P4_800x320-single_device-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "TT_FATAL: All dimensions must be the same size except for the dimension along which the concat is taking place (ConcatOperation) - https://github.com/tenstorrent/tt-xla/issues/TBD"
-  #   bringup_status: FAILED_RUNTIME
+  petr/pytorch-Vovnet_Gridmask_P4_800x320-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "TT_FATAL: All dimensions must be the same size except for the dimension along which the concatenation is taking place (ConcatOperation) - https://github.com/tenstorrent/tt-xla/issues/TBD"
+    bringup_status: FAILED_RUNTIME
 
-  # petr/pytorch-Vovnet_Gridmask_P4_1600x640-single_device-inference:
-  #   status: NOT_SUPPORTED_SKIP
-  #   reason: "TT_FATAL: All dimensions must be the same size except for the dimension along which the concat is taking place (ConcatOperation) - https://github.com/tenstorrent/tt-xla/issues/TBD"
-  #   bringup_status: FAILED_RUNTIME
+  petr/pytorch-Vovnet_Gridmask_P4_1600x640-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    reason: "TT_FATAL: All dimensions must be the same size except for the dimension along which the concatenation is taking place (ConcatOperation) - https://github.com/tenstorrent/tt-xla/issues/TBD"
+    bringup_status: FAILED_RUNTIME
 
-  # petr/pytorch-R50dcn_Gridmask_C5-single_device-inference:
-  #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "IndexError: list index out of range at img_metas[img_id][\"img_shape\"][cam_id] (pts_bbox_head forward) - https://github.com/tenstorrent/tt-xla/issues/TBD"
-  #   bringup_status: FAILED_RUNTIME
+  petr/pytorch-R50dcn_Gridmask_C5-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TT_FATAL: Can't convert shape rank (shape.cpp) - https://github.com/tenstorrent/tt-xla/issues/TBD"
+    bringup_status: FAILED_RUNTIME
 
-  # petr/pytorch-R50dcn_Gridmask_P4-single_device-inference:
-  #   status: KNOWN_FAILURE_XFAIL
-  #   reason: "IndexError: list index out of range at img_metas[img_id][\"img_shape\"][cam_id] (pts_bbox_head forward) - https://github.com/tenstorrent/tt-xla/issues/TBD"
-  #   bringup_status: FAILED_RUNTIME
+  petr/pytorch-R50dcn_Gridmask_P4-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TT_FATAL: Out of Memory - Not enough space to allocate DRAM buffer across banks (bank_manager) - https://github.com/tenstorrent/tt-xla/issues/TBD"
+    bringup_status: FAILED_RUNTIME
 
   efficientdet/pytorch-D0-single_device-inference:
     status: EXPECTED_PASSING
