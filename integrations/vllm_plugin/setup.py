@@ -27,7 +27,7 @@ class BdistWheel(bdist_wheel):
     def finalize_options(self):
         if self.code_coverage is None:
             self.code_coverage = False
-
+        self.plat_name = "any"
         bdist_wheel.finalize_options(self)
         self.root_is_pure = False
 
