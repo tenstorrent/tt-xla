@@ -276,18 +276,18 @@ def test_gather_logprobs(device, vocab_size):
 
 
 @pytest.mark.push
-def test_seed_limitation_documented():
-    """Document that per-request seed has no effect on TT hardware (XLA limitation).
+def test_seed_metadata_generators_always_empty():
+    """Assert that XLASupportedSamplingMetadata._generators is always empty.
 
-    On TT devices, XLA traces a static computation graph and torch.Generator
-    objects cannot be captured in that trace.  The _generators dict in
-    XLASupportedSamplingMetadata is always empty, so the seeding loop in
-    random_sample() never executes — SamplingParams(seed=N) silently has no
-    effect.
+    torch.Generator objects cannot be captured in a static XLA trace, so
+    generators are consumed by from_input_batch() to build q_samples (a
+    pre-generated exponential tensor) rather than being stored in the metadata.
+    The _generators field on the metadata is therefore always an empty dict —
+    generators never reach the compiled sampler graph.
 
-    This test will catch any future regression if generators accidentally
-    starts being populated (which would signal an upstream XLA change that
-    warrants re-evaluation of the xfail on test_seed).
+    This catches regressions where generators accidentally start being stored
+    in metadata, which would signal that some code path is trying to use them
+    inside the compiled graph (which would silently fail on TT hardware).
 
     See https://github.com/tenstorrent/tt-xla/issues/3365
     """

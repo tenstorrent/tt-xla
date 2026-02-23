@@ -38,6 +38,14 @@ class XLASupportedSamplingMetadata:
     # when gathering logprobs, regardless of the values specified in the batch.
     logprobs: bool = False
 
+    # Per-request seed support via CPU-side exponential pre-sampling.
+    # no_generators=True means q is generated on-device (fast path, common case).
+    # no_generators=False means q_samples was pre-built on CPU from per-request
+    # generators and transferred to device before the compiled graph runs.
+    # See XLASupportedSamplingMetadata._generators for the full design note.
+    no_generators: bool = True
+    q_samples: torch.Tensor | None = None
+
     # Penalty support. no_penalties=True skips the penalty path entirely.
     no_penalties: bool = True
     output_token_counts: torch.Tensor | None = None
@@ -57,7 +65,12 @@ class XLASupportedSamplingMetadata:
     allowed_token_ids_mask = None
     bad_words_token_ids = None
 
-    # Generator not supported by xla
+    # Generator objects cannot be captured in a static XLA trace, so they are
+    # consumed in from_input_batch() to build q_samples (a pre-generated
+    # exponential tensor) rather than being passed into the compiled graph.
+    # The proper long-term fix is a per-row seeded random op in tt-mlir so
+    # that seeds can be passed as a tensor and applied on-device.
+    # See https://github.com/tenstorrent/tt-xla/issues/3365
     _generators: dict[int, torch.Generator] = field(default_factory=lambda: dict())
 
     @property
@@ -143,12 +156,7 @@ class XLASupportedSamplingMetadata:
                 "logprobs is not yet supported in the TT sampler. "
                 "https://github.com/tenstorrent/tt-xla/issues/3366"
             )
-        if input_batch.generators:
-            raise NotImplementedError(
-                "seed is not yet supported in the TT sampler. "
-                "Per-request generators are not available on TT devices. "
-                "https://github.com/tenstorrent/tt-xla/issues/3365"
-            )
+        has_generators = bool(input_batch.generators)
         if any(
             input_batch.logit_bias[i] is not None for i in range(input_batch.num_reqs)
         ):
@@ -162,14 +170,30 @@ class XLASupportedSamplingMetadata:
                 "https://github.com/tenstorrent/tt-xla/issues/3363"
             )
 
+        # Build per-request exponential samples on CPU when any request has a
+        # seed.  Generator objects cannot be captured in a static XLA trace, so
+        # we materialise q here and pass it as a regular tensor input to the
+        # compiled graph.  Unseeded rows are filled with global-RNG exponential
+        # values; seeded rows are overwritten using each request's generator.
+        # This adds a [padded_num_reqs × vocab_size] float32 host→device
+        # transfer per decode step when seeds are present.
+        q_samples = None
+        if has_generators and vocab_size is not None:
+            q_cpu = torch.empty(padded_num_reqs, vocab_size, dtype=torch.float32)
+            q_cpu.exponential_()
+            for req_idx, generator in input_batch.generators.items():
+                if req_idx < padded_num_reqs:
+                    q_cpu[req_idx].exponential_(generator=generator)
+            q_samples = q_cpu.to(xla_device)
+
         # Early return to avoid unnecessary cpu to tpu copy.
-        # Must NOT skip when penalties are active: greedy decoding with
-        # repetition/frequency/presence penalties still needs the full penalty
-        # path (prompt_token_mask, output_token_counts, etc.).
+        # Must NOT skip when any logit-modifying feature or per-request seeding
+        # is active, as all require the full sampler path.
         if (
             input_batch.all_greedy is True
             and generate_params_if_all_greedy is False
             and input_batch.no_penalties
+            and not has_generators
         ):
             return cls(all_greedy=True, logprobs=needs_logprobs)
 
@@ -237,6 +261,8 @@ class XLASupportedSamplingMetadata:
             top_k=input_batch.top_k_cpu_tensor[:padded_num_reqs].to(xla_device),
             min_p=input_batch.min_p_cpu_tensor[:padded_num_reqs].to(xla_device),
             logprobs=needs_logprobs,
+            no_generators=not has_generators,
+            q_samples=q_samples,
             no_penalties=not has_penalties,
             output_token_counts=output_token_counts,
             prompt_token_mask=prompt_token_mask_t,

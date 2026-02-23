@@ -1734,6 +1734,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ):
                 self.sample_from_logits_func(dummy_logits, sampling_metadata)
 
+        # Also precompile the seeded path (no_generators=False, q_samples provided).
+        # This avoids a slow first-request compilation for users with SamplingParams(seed=N).
+        seeded_metadata = XLASupportedSamplingMetadata.from_input_batch(
+            self.input_batch,
+            self.max_num_reqs,
+            self.device,
+            generate_params_if_all_greedy=True,
+            vocab_size=self.vocab_size,
+        )
+        seeded_metadata.all_greedy = False
+        seeded_metadata.no_generators = False
+        seeded_metadata.q_samples = torch.zeros(
+            self.max_num_reqs, self.vocab_size, dtype=torch.float32
+        ).to(self.device)
+        with self.maybe_select_dummy_loras(
+            self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
+        ):
+            self.sample_from_logits_func(dummy_logits, seeded_metadata)
+
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
@@ -2016,7 +2035,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Sample with xla-friendly function. This function is to be traced
         separately from `forward` for lighter compilation overhead.
         """
-        if sampling_metadata.all_greedy and sampling_metadata.no_penalties:
+        if (
+            sampling_metadata.all_greedy
+            and sampling_metadata.no_penalties
+            and sampling_metadata.no_generators
+        ):
             out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
