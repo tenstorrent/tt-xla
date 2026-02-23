@@ -13,6 +13,7 @@ import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
+from transformers import DynamicCache
 
 from tests.utils import failed_ttmlir_compilation
 
@@ -22,6 +23,7 @@ from .modeling_deepseek import (
     DeepseekV3DecoderLayer,
     DeepseekV3ForCausalLM,
 )
+from .original_modeling_deepseek import DeepseekV3Attention as OrigDeepseekV3Attention
 from .utils import MLACache
 
 
@@ -291,3 +293,118 @@ def test_kimi_k2_layer():
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
+
+
+@pytest.mark.nightly
+def test_kimi_k2_mla_cache():
+    """
+    CPU-only test validating the MLACache used in modeling_deepseek.py against the original
+    DynamicCache used in original_modeling_deepseek.py for DeepseekV3Attention.
+    """
+
+    config = DeepseekV3Config(
+        hidden_size=64,
+        num_attention_heads=4,
+        q_lora_rank=32,
+        kv_lora_rank=16,
+        qk_rope_head_dim=16,
+        v_head_dim=8,
+        qk_nope_head_dim=8,
+        num_hidden_layers=1,
+        max_position_embeddings=64,
+        rope_scaling=None,
+        attention_bias=False,
+        attention_dropout=0.0,
+    )
+
+    BATCH_SIZE = 2
+    PREFILL_LEN = 8
+    LAYER_IDX = 0
+    MAX_CACHE_LEN = PREFILL_LEN + 1
+
+    mla_attn = DeepseekV3Attention(config, layer_idx=LAYER_IDX)
+    mla_attn.eval()
+    orig_attn = OrigDeepseekV3Attention(config, layer_idx=LAYER_IDX)
+    orig_attn.load_state_dict(mla_attn.state_dict())
+    orig_attn.eval()
+
+    torch.manual_seed(0)
+
+    # Prefill
+    mla_cache = MLACache(config, max_cache_len=MAX_CACHE_LEN)
+    orig_cache = DynamicCache()
+
+    prefill_hidden = torch.randn(BATCH_SIZE, PREFILL_LEN, config.hidden_size)
+    prefill_position_ids = torch.arange(PREFILL_LEN).unsqueeze(0).expand(BATCH_SIZE, -1)
+
+    mla_prefill_mask = torch.zeros(BATCH_SIZE, 1, PREFILL_LEN, MAX_CACHE_LEN)
+    orig_prefill_mask = torch.zeros(BATCH_SIZE, 1, PREFILL_LEN, PREFILL_LEN)
+
+    with torch.no_grad():
+        mla_attn(
+            prefill_hidden,
+            mla_prefill_mask,
+            prefill_position_ids,
+            past_key_value=mla_cache,
+            use_cache=True,
+            cache_position=torch.arange(PREFILL_LEN),
+        )
+        orig_attn(
+            prefill_hidden,
+            orig_prefill_mask,
+            prefill_position_ids,
+            past_key_value=orig_cache,
+            use_cache=True,
+        )
+
+    # Decode
+    decode_hidden = torch.randn(BATCH_SIZE, 1, config.hidden_size)
+    decode_position_ids = torch.full((BATCH_SIZE, 1), PREFILL_LEN, dtype=torch.long)
+    decode_mask = torch.zeros(BATCH_SIZE, 1, 1, MAX_CACHE_LEN)
+
+    with torch.no_grad():
+        mla_attn(
+            decode_hidden,
+            decode_mask,
+            decode_position_ids,
+            past_key_value=mla_cache,
+            use_cache=True,
+            cache_position=torch.tensor([PREFILL_LEN]),
+        )
+        orig_attn(
+            decode_hidden,
+            decode_mask,
+            decode_position_ids,
+            past_key_value=orig_cache,
+            use_cache=True,
+        )
+
+    total_len = PREFILL_LEN + 1
+
+    orig_key = orig_cache.layers[LAYER_IDX].keys
+    orig_val = orig_cache.layers[LAYER_IDX].values
+
+    compressed_kv = mla_cache.layers[LAYER_IDX].compressed_kv[:, 0, :total_len, :]
+    mla_k_pe = mla_cache.layers[LAYER_IDX].k_pe[:, :, :total_len, :]
+
+    with torch.no_grad():
+        kv = (
+            mla_attn.kv_b_proj(mla_attn.kv_a_layernorm(compressed_kv))
+            .view(
+                -1,
+                total_len,
+                config.num_attention_heads,
+                config.qk_nope_head_dim + config.v_head_dim,
+            )
+            .transpose(1, 2)
+        )
+
+    mla_k_nope, mla_val = torch.split(
+        kv, [config.qk_nope_head_dim, config.v_head_dim], dim=-1
+    )
+    mla_key = torch.cat(
+        [mla_k_nope, mla_k_pe.expand(-1, config.num_attention_heads, -1, -1)], dim=-1
+    )
+
+    torch.testing.assert_close(mla_key, orig_key)
+    torch.testing.assert_close(mla_val, orig_val)
