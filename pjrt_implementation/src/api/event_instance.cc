@@ -34,14 +34,15 @@ EventInstance::EventInstance()
       m_indestructible(false), m_awaiters_count(0) {}
 
 EventInstance::~EventInstance() {
-  if (!isReady()) {
-    LOG_F(ERROR, "Destroying the event before it is marked ready!");
-    std::terminate();
-  }
+  std::lock_guard<std::mutex> ready_lock(m_ready_mutex);
 
-  if (m_awaiters_count) {
+  if (m_awaiters_count || !m_on_ready_callbacks.empty()) {
+    // There are consumers of this event that are still waiting for it to be
+    // ready. This case is not handled properly, so crash the process here.
     LOG_F(ERROR,
-          "Destroying the event while there are still awaiters waiting on it!");
+          "Destroying the event while there are still consumers waiting on it! "
+          "m_awaiters_count: %zu, m_on_ready_callbacks.size(): %zu",
+          m_awaiters_count.load(), m_on_ready_callbacks.size());
     std::terminate();
   }
 }

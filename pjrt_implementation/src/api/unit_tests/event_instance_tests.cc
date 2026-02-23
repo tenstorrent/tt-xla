@@ -261,9 +261,8 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Test_Await_Callbacks_Combination) {
       thread.join();
     }
   };
-  ASSERT_DEATH(
-      test(),
-      ".*Destroying the event while there are still awaiters waiting on it!*");
+  ASSERT_DEATH(test(), ".*Destroying the event while there are still consumers "
+                       "waiting on it!.*");
 }
 
 } // namespace tt::pjrt::tests
