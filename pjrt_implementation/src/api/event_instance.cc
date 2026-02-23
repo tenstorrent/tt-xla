@@ -31,10 +31,10 @@ std::unique_ptr<EventInstance> EventInstance::createInstance() {
 
 EventInstance::EventInstance()
     : m_ready(false), m_status(tt_pjrt_status::kUnknown),
-      m_indestructible(false) {}
+      m_indestructible(false), m_awaiters_count(0) {}
 
 EventInstance::~EventInstance() {
-  if (!isReady() && (m_awaiters_count || !m_on_ready_callbacks.empty())) {
+  if (!isReady()) {
     LOG_F(ERROR, "Destroying the event before it is marked ready!");
     std::terminate();
   }
@@ -102,15 +102,17 @@ void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
   // thread which is marking the event as ready. Or in this thread, if the
   // event is already ready.
 
-  std::unique_lock<std::mutex> ready_lock(m_ready_mutex);
-  if (m_ready) {
-    ready_lock.unlock();
-    // The event is already ready, so execute the callback immediately on the
-    // calling thread.
-    callback_function(getErrorFromStatus(), user_arg);
-  } else {
-    m_on_ready_callbacks.push_back({callback_function, user_arg});
+  {
+    std::lock_guard<std::mutex> ready_lock(m_ready_mutex);
+    if (!m_ready) {
+      m_on_ready_callbacks.push_back({callback_function, user_arg});
+      return;
+    }
   }
+
+  // The event is already ready, so execute the callback immediately on the
+  // calling thread.
+  callback_function(getErrorFromStatus(), user_arg);
 }
 
 void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
