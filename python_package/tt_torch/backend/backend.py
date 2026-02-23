@@ -13,6 +13,7 @@ from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 from torch_xla.distributed.spmd import ShardingType
+from torch.fx.passes.tools_common import legalize_graph
 from ttxla_tools.logging import logger
 
 from .decompositions import populate_decompositions
@@ -197,6 +198,12 @@ class XLAExecutor:
             # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
             program = torch.export.export(self.module, tuple(args), strict=False)
+
+            # torch.export may leave erased "zombie" nodes in the graph's linked
+            # list with inconsistent prev/next pointers.  legalize_graph rebuilds
+            # the graph via the normal node iterator (which skips erased nodes),
+            # producing a clean linked list before the downstream partitioner runs.
+            legalize_graph(program.graph_module)
 
             # Collect the params and constants from the exported program.
             self.params_and_consts = self._build_params_and_consts(program)
