@@ -260,7 +260,19 @@ def test_gather_logprobs(device, vocab_size):
 
     assert (lp <= 0).all(), "Log-probabilities must be <= 0"
     assert (ids >= 0).all() and (ids < vocab_size).all(), "Token IDs out of vocab range"
-    assert (ranks >= 0).all(), "Token ranks must be non-negative"
+    assert (ranks >= 1).all(), "Token ranks must be >= 1 (rank is 1-based)"
+
+    # Sampled token ID must appear at column 0 of the returned indices
+    for i in range(batch_size):
+        assert ids[i, 0].item() == token_ids_cpu[i].item(), (
+            f"row {i}: sampled token {token_ids_cpu[i].item()} must be at index 0, "
+            f"got {ids[i, 0].item()}"
+        )
+
+    # Top-k log-probs (columns 1..) must be sorted descending
+    topk_lp = lp[:, 1:]
+    diffs = topk_lp[:, :-1] - topk_lp[:, 1:]
+    assert (diffs >= -1e-4).all(), "Top-k log-probs must be sorted descending"
 
 
 @pytest.mark.push
