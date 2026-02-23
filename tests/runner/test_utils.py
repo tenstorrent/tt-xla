@@ -173,7 +173,9 @@ class ModelTestConfig:
         # Sharding configuration for TP prefill tests (set from parametrization, not YAML)
         self.sharding_strategy = None  # "fsdp" or "megatron"
         self.mesh_shape = None  # e.g. (1, 8), (2, 4)
-        self.shard_inputs = False  # whether to shard inputs across the batch/data mesh axis
+        self.shard_inputs = (
+            False  # whether to shard inputs across the batch/data mesh axis
+        )
 
         # Arguments to skip_full_eval_test() for skipping tests
         self.reason = self._resolve("reason", default=None)
