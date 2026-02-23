@@ -22,7 +22,7 @@ if [ -d $TTMLIR_VENV_DIR/bin ]; then
 else
   [ -z "$PIP" ] && { command -v uv &> /dev/null && PIP="uv pip" || PIP="pip"; } # Uv/pip backward compatibility
   echo "Creating virtual environment in $TTMLIR_VENV_DIR"
-  python3.11 -m venv $TTMLIR_VENV_DIR
+  python3.12 -m venv $TTMLIR_VENV_DIR
   source $TTMLIR_VENV_DIR/bin/activate
   $PIP install --upgrade pip
   # Requirements for third party projects are installed during their build in `CMakeLists.txt`
