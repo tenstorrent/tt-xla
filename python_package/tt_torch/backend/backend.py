@@ -289,8 +289,12 @@ def _build_boxed_executor(
 def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
     """
     Rewrite call_module nodes targeting AdaptiveAvgPool1d/2d with output_size=1/(1,1)
-    to use torch.mean instead. This avoids issues with AOTAutograd tracing
-    where as_strided_ inside adaptive pooling fails on XLA tensors.
+    to use torch.mean instead.
+
+    This works around an XLA + FunctionalTensorMode incompatibility where inplace_view
+    ops (aten.as_strided_ inside adaptive pooling) are re-executed under no_dispatch()
+    for metadata fixup, causing dispatch to XLA's kernel on wrapper subclass tensors
+    that XLA can't handle. See docs/aot_autograd_xla_inplace_view_bug.md for details.
     """
     graph = gm.graph
     modified = False
@@ -312,11 +316,8 @@ def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.Graph
                         modified = True
             elif isinstance(target_module, torch.nn.AdaptiveAvgPool2d):
                 output_size = target_module.output_size
-                # Check if this is global average pooling (output_size is 1 or (1, 1))
                 if output_size == 1 or output_size == (1, 1) or output_size == [1, 1]:
-                    # Replace with mean over spatial dimensions
                     with graph.inserting_after(node):
-                        # node.args[0] is the input tensor
                         mean_node = graph.call_function(
                             torch.mean,
                             args=(node.args[0],),
@@ -333,13 +334,13 @@ def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.Graph
 
 
 @register_backend(name="tt")
-@fake_tensor_unsupported
 def tt_backend(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None = None,
 ):
-    # Rewrite AdaptiveAvgPool2d(1) to mean before AOTAutograd tracing
+    # Rewrite AdaptiveAvgPool1d/2d(1) to torch.mean before AOTAutograd tracing.
+    # See docs/aot_autograd_xla_inplace_view_bug.md for why this is needed.
     gm = rewrite_adaptive_avgpool_to_mean(gm)
 
     fw_compiler = partial(_build_boxed_executor, options=options)
