@@ -214,3 +214,75 @@ def test_penalties(device, vocab_size):
 
     assert actual.shape == (1, 1)
     assert_valid_tokens(actual, vocab_size, context="with penalties")
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_logit_bias(device, vocab_size):
+    """logit_bias compiles, runs, and steers token selection on TT at production vocab sizes.
+
+    Uses temperature=0 (greedy) so the result is deterministic: with bias=-100
+    on the first 10 token IDs, the sampled token must be >= 10.
+    """
+    torch.manual_seed(0)
+    logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+
+    # Strongly suppress tokens 0-9 so they cannot win greedy argmax.
+    logit_bias = torch.zeros(1, vocab_size, dtype=torch.float32)
+    logit_bias[0, :10] = -100.0
+
+    metadata = XLASupportedSamplingMetadata(
+        temperature=torch.zeros(1, device=device),
+        top_k=None,
+        top_p=None,
+        min_p=None,
+        all_greedy=False,
+        no_logit_bias=False,
+        logit_bias_tensor=logit_bias.to(device),
+    )
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    actual = compiled_fn(logits_cpu.to(device), metadata).cpu()
+
+    assert actual.shape == (1, 1)
+    assert_valid_tokens(actual, vocab_size, context="logit_bias")
+    assert (
+        actual.item() >= 10
+    ), f"tokens 0-9 have bias=-100 and must not be selected, got {actual.item()}"
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_bad_words(device, vocab_size):
+    """bad_words (-inf mask) compiles, runs, and excludes banned tokens on TT at production vocab sizes.
+
+    Uses temperature=0 (greedy) so the result is deterministic: with -inf on
+    the first 10 token IDs, the sampled token must be >= 10.
+    """
+    torch.manual_seed(0)
+    logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+
+    # Ban tokens 0-9 with -inf.
+    bad_words_mask = torch.zeros(1, vocab_size, dtype=torch.float32)
+    bad_words_mask[0, :10] = float("-inf")
+
+    metadata = XLASupportedSamplingMetadata(
+        temperature=torch.zeros(1, device=device),
+        top_k=None,
+        top_p=None,
+        min_p=None,
+        all_greedy=False,
+        no_bad_words=False,
+        bad_words_mask=bad_words_mask.to(device),
+    )
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    actual = compiled_fn(logits_cpu.to(device), metadata).cpu()
+
+    assert actual.shape == (1, 1)
+    assert_valid_tokens(actual, vocab_size, context="bad_words")
+    assert (
+        actual.item() >= 10
+    ), f"tokens 0-9 are banned with -inf and must not be selected, got {actual.item()}"
