@@ -406,5 +406,5 @@ def test_kimi_k2_mla_cache():
         [mla_k_nope, mla_k_pe.expand(-1, config.num_attention_heads, -1, -1)], dim=-1
     )
 
-    torch.testing.assert_close(mla_key, orig_key)
-    torch.testing.assert_close(mla_val, orig_val)
+    assert torch.equal(mla_key, orig_key)
+    assert torch.equal(mla_val, orig_val)
