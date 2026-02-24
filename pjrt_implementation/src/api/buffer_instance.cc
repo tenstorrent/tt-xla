@@ -167,7 +167,8 @@ void BufferInstance::copyFromHost(
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
   std::uint32_t element_size =
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
-  std::vector<std::uint32_t> shape = calculateShape(dims, num_dims, m_data_type);
+  std::vector<std::uint32_t> shape =
+      calculateShape(dims, num_dims, m_data_type);
   std::vector<std::uint32_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
