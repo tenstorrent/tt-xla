@@ -1206,11 +1206,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         combined_selected_tokens: list[torch.Tensor] = []
         combined_logprobs: list[LogprobsLists] = []
 
-        # NOTE: setup current batch's metadata for kv connector.
-        # Currently, only verified with NixlConnector
-        with set_forward_context(None, self.vllm_config):
-            self.maybe_setup_kv_connector(scheduler_output)
-
         while start_index < self.input_batch.num_reqs:
             (
                 attn_metadata,
@@ -1223,10 +1218,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             torch_xla.sync(wait=False)
             # Run the decoder
-            with set_forward_context(
-                attn_metadata,
-                self.vllm_config,
-                num_tokens=scheduler_output.total_num_scheduled_tokens,
+            with (
+                set_forward_context(
+                    attn_metadata,
+                    self.vllm_config,
+                    num_tokens=scheduler_output.total_num_scheduled_tokens,
+                ),
+                self.maybe_get_kv_connector_output(
+                    scheduler_output
+                ) as kv_connector_output,
             ):
                 hidden_states = self.model(
                     input_ids=input_ids,
@@ -1282,15 +1282,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 combined_logprobs.append(logprobs.tolists())
 
             start_index = end_index
-
-        # NOTE: current kv load and save get h2d/d2h copies involved.
-        # Those copies are blocking. Once they become async., kv_save
-        # should be called right after each single forward pass,
-        # instead of the forwards of the entire input batch.
-        self.maybe_wait_for_kv_save()
-        finished_sending, finished_recving = self.get_finished_kv_transfers(
-            scheduler_output
-        )
 
         selected_token_ids = torch.cat(combined_selected_tokens, dim=0)
         if tpu_sampling_metadata.logprobs:
@@ -1378,15 +1369,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     valid_sampled_token_ids[i]
                 )
                 req_state.output_token_ids.extend(valid_sampled_token_ids[i])
-
-        kv_connector_output = (
-            None
-            if (finished_sending is None and finished_recving is None)
-            else KVConnectorOutput(
-                finished_sending=finished_sending,
-                finished_recving=finished_recving,
-            )
-        )
 
         model_runner_output = ModelRunnerOutput(
             req_ids=req_ids,
@@ -1510,9 +1492,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             layer_name: attn_metadata for layer_name in layer_names
         }
 
-        with self.maybe_select_dummy_loras(
-            self.lora_config, np.array([num_tokens], dtype=np.int32)
-        ), set_forward_context(per_layer_attn_metadata, self.vllm_config, 0):
+        with (
+            self.maybe_select_dummy_loras(
+                self.lora_config, np.array([num_tokens], dtype=np.int32)
+            ),
+            set_forward_context(per_layer_attn_metadata, self.vllm_config, 0),
+        ):
             out = self.model(
                 input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
             )
