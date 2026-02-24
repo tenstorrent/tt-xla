@@ -14,14 +14,14 @@ from torch.library import impl
 
 # from torch_xla._internal.jax_workarounds import requires_jax
 from torch_xla.experimental.custom_kernel import XLA_LIB
-from vllm.attention.backends.abstract import (
+from vllm.config import VllmConfig
+from vllm.utils.math_utils import cdiv, next_power_of_2
+from vllm.v1.attention.backend import (
     AttentionBackend,
     AttentionImpl,
     AttentionLayer,
     AttentionType,
 )
-from vllm.config import VllmConfig
-from vllm.utils.math_utils import cdiv, next_power_of_2
 
 from .logger import tt_init_logger
 
@@ -82,7 +82,7 @@ class TTAttentionMetadataBuilder:
 class TTAttentionBackend(AttentionBackend):
     @staticmethod
     def get_name() -> str:
-        return "TT"
+        return "CUSTOM"
 
     @staticmethod
     def get_impl_cls() -> type["TTAttentionBackendImpl"]:
