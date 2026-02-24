@@ -1561,12 +1561,13 @@ test_config:
 
   phi3/phi_3_5_vision/pytorch-Instruct-single_device-inference:
     arch_overrides:
-      p150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Test times out https://github.com/tenstorrent/tt-xla/issues/3213"
+      # p150:
+      #   status: NOT_SUPPORTED_SKIP
+      #   reason: "Test times out https://github.com/tenstorrent/tt-xla/issues/3213"
       n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Running the test CRASHED with signal 9 https://github.com/tenstorrent/tt-xla/issues/2254"
+        # status: NOT_SUPPORTED_SKIP
+        # reason: "Running the test CRASHED with signal 9 https://github.com/tenstorrent/tt-xla/issues/2254"
+        status: EXPECTED_PASSING
 
   phi3/causal_lm/pytorch-Mini_128K_Instruct-single_device-inference:
     status: EXPECTED_PASSING
