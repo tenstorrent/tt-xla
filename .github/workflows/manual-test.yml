@@ -73,7 +73,7 @@ jobs:
       docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
 
   test:
-    if: success() && !cancelled() && inputs.preset != 'tt_forge_models'
+    if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
     needs: [ build-image, build-ttxla, build-manylinux-ttxla ]
     secrets: inherit
