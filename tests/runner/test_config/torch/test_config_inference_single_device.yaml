@@ -2444,22 +2444,22 @@ test_config:
 
   petr/pytorch-Vovnet_Gridmask_P4_800x320-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of Memory: Not enough space to allocate 57952512 B L1 buffer across 72 banks, where each bank needs to store 804896 B, but bank size is only 1331936 B"
+    reason: "All dimensions must be the same size except for the dimension along which the concat is taking place - https://github.com/tenstorrent/tt-xla/issues/3440"
     bringup_status: FAILED_RUNTIME
 
   petr/pytorch-Vovnet_Gridmask_P4_1600x640-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
+    reason: "All dimensions must be the same size except for the dimension along which the concat is taking place - https://github.com/tenstorrent/tt-xla/issues/3440"
     bringup_status: FAILED_RUNTIME
 
   petr/pytorch-R50dcn_Gridmask_C5-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
+    reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/3379"
     bringup_status: FAILED_RUNTIME
 
   petr/pytorch-R50dcn_Gridmask_P4-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 138461184 B L1 buffer across 72 banks, where each bank needs to store 1923072 B, but bank size is only 1331936 B"
+    reason: "Out of Memory: Not enough space to allocate 4429185024 B DRAM buffer across 12 banks (bank_manager.cpp:434) - https://github.com/tenstorrent/tt-xla/issues/3183"
     bringup_status: FAILED_RUNTIME
 
   efficientdet/pytorch-D0-single_device-inference:
