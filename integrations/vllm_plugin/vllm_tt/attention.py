@@ -200,6 +200,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         logits_soft_cap: Optional[float] = None,
         attn_type: str = AttentionType.DECODER,
         kv_sharing_target_layer_name: Optional[int] = None,
+        sinks: torch.Tensor = None,
     ) -> None:
         self.num_heads = num_heads
         self.head_size = head_size
@@ -228,6 +229,13 @@ class TTAttentionBackendImpl(AttentionImpl):
         if kv_cache_dtype != "auto":
             self.kv_cache_quantized_dtype = TPU_STR_DTYPE_TO_TORCH_DTYPE.get(
                 kv_cache_dtype.lower().strip()
+            )
+
+        self.sinks = sinks
+        if self.sinks is not None:
+            assert self.sinks.shape[0] == num_heads, (
+                "Sinks must have the same number of heads as the number of "
+                "heads in the layer"
             )
 
     # @torch.compiler.disable
@@ -275,6 +283,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         #                    or single-pass attention for pooling models)
         # - is_prefill=False: Paged decode attention (generative models only)
         if inputs.is_prefill:
+            assert self.sinks is None, "Attention sink is unsupported in SDPA prefill"
             output = self._compute_full_attention(inputs, attn_metadata)
         else:
             output = self._compute_decode_attention(inputs, kv_cache, attn_metadata)
@@ -531,6 +540,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             cur_pos_tensor=attn_metadata.cache_position,
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
+            attention_sink=self.sinks,
         )
         # out: [query_num_tokens, users, num_heads, head_size]
         out = out.transpose(0, 1)  # [users, query_num_tokens, num_heads, head_size]
