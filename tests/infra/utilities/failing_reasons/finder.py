@@ -48,6 +48,9 @@ class FailingReasonsFinder:
     @classmethod
     def find_reason_by_ex_data(cls, ex: ExceptionData) -> Optional["ExceptionReason"]:
         reasons = list(cls.find_reasons_by_ex_data(ex))
+        from loguru import logger
+
+        logger.info(f"Failing reasons: {reasons}")
         if not reasons:
             # If no failing reason is found, classify as UNCLASSIFIED
             return ExceptionReason(failing_reasons=FailingReasons.UNCLASSIFIED)
