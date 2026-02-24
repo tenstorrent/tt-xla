@@ -239,7 +239,7 @@ class BdistWheel(bdist_wheel):
 
     def get_tag(self):
         python, abi, plat = bdist_wheel.get_tag(self)
-        # Force specific Python 3.11 ABI format for the wheel
+        # Force specific Python 3.12 ABI format for the wheel
         python, abi = "cp312", "cp312"
         # Ensure platform-specific tag for x86_64 architecture
         # This prevents 'any' platform and enables auditwheel to properly repair

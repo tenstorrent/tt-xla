@@ -28,8 +28,8 @@ class BdistWheel(bdist_wheel):
         if self.code_coverage is None:
             self.code_coverage = False
         # Match vllm's platform specificity
-        bdist_wheel.finalize_options(self)
         self.root_is_pure = False
+        bdist_wheel.finalize_options(self)
 
     def get_tag(self):
         python, abi, plat = bdist_wheel.get_tag(self)
