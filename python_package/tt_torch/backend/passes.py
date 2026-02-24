@@ -335,13 +335,11 @@ def _validate_demangling(gm, flat_name_to_original_fqn):
                 mismatched.append((clean, mangled, idx))
 
     if unresolved:
-        # Logging an error to see if it ever happens in CI
-        logger.error(
+        logger.debug(
             f"Failed to demangle {len(unresolved)} argument name(s): {unresolved}"
         )
     if mismatched:
-        # Logging an error to see if it ever happens in CI
-        logger.error(
+        logger.debug(
             f"Demangled names inconsistent with mangled structure for "
             f"{len(mismatched)} argument(s): "
             + ", ".join(
