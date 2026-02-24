@@ -54,11 +54,6 @@ def test_deepseek_modified_transformer_single_layer():
         output.to("cpu")
 
 
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.constant'"
-    )
-)
 def test_deepseek_complex_rotary_emb():
     xr.set_device_type("TT")
 
@@ -77,21 +72,20 @@ def test_deepseek_complex_rotary_emb():
             y = torch.cat([y[..., 0::2], y[..., 1::2]], dim=-1)
         return y.to(dtype)
 
-    compiled_apply_rotary_emb = torch.compile(apply_rotary_emb, backend="tt")
-
     batch_size = 2
     seq_len = 16
     dim = 64
     n_heads = 4
     head_dim = dim // n_heads
 
-    x = torch.randn(
-        batch_size, seq_len, n_heads, head_dim, device="xla", dtype=torch.bfloat16
-    )
-    freqs_cis = torch.randn(seq_len, head_dim // 2, device="xla", dtype=torch.complex64)
+    x = torch.randn(batch_size, seq_len, n_heads, head_dim, dtype=torch.bfloat16)
+    freqs_cis = torch.randn(seq_len, head_dim // 2, dtype=torch.complex64)
 
-    y = compiled_apply_rotary_emb(x, freqs_cis, interleaved=True)
-    assert y.shape == x.shape
+    run_graph_test(
+        apply_rotary_emb,
+        [x, freqs_cis],
+        framework=Framework.TORCH,
+    )
 
 
 @pytest.mark.llmbox
