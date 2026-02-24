@@ -92,11 +92,33 @@ class Sampler(nn.Module):
 
         return logits
 
+    def apply_bad_words(
+        self,
+        logits: torch.Tensor,
+        bad_words_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        return logits + bad_words_mask
+
+    def apply_logit_bias(
+        self,
+        logits: torch.Tensor,
+        logit_bias_tensor: torch.Tensor,
+    ) -> torch.Tensor:
+        return logits + logit_bias_tensor
+
     def sample(
         self,
         logits: torch.Tensor,
         sampling_metadata: XLASupportedSamplingMetadata,
     ) -> torch.Tensor:
+        # Apply bad_words mask first (sets banned tokens to -inf).
+        if not sampling_metadata.no_bad_words:
+            logits = self.apply_bad_words(logits, sampling_metadata.bad_words_mask)
+
+        # Apply logit_bias before computing greedy argmax.
+        if not sampling_metadata.no_logit_bias:
+            logits = self.apply_logit_bias(logits, sampling_metadata.logit_bias_tensor)
+
         assert sampling_metadata.temperature is not None
 
         # Apply penalties before temperature so both greedy and random paths
