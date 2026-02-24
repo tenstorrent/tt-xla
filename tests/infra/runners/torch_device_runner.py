@@ -15,7 +15,7 @@ from torch.utils._pytree import tree_map
 from .device_runner import DeviceRunner
 
 
-def to_device(x, device, depth=5):
+def to_device(x, device, depth=5, moved=None):
     """
     Recursively move data structures and objects to the specified device.
 
@@ -25,41 +25,64 @@ def to_device(x, device, depth=5):
     - Custom objects with attributes (recursively processes all fields)
     - None values and other primitives (returned unchanged)
     - Class types (returned unchanged as metadata)
+    - Aliasing preservation: if the same object appears multiple times,
+      it will be moved once and the same moved object will be reused
 
     Args:
         x: The data structure or object to move to device
         device: The target device (e.g., 'cuda', 'cpu', torch.device)
         depth: Maximum recursion depth (default: 5). When depth reaches 0,
                recursion stops and objects are returned as-is.
+        moved: Dict mapping id(original_object) -> moved_object to preserve aliasing.
+               Should not be provided by callers (used internally for recursion).
 
     Returns:
         The same structure with all compatible elements moved to the device
     """
+    if moved is None:
+        moved = {}
+
+    # If the object has moved and this is an alias, return the original moved object
+    obj_id = id(x)
+    if obj_id in moved:
+        return moved[obj_id]
+
     # Stop recursion when maximum depth is reached
     if depth <= 0:
         # Still try to move tensors/models at the final depth level
         if hasattr(x, "to"):
-            return x.to(device)
+            result = x.to(device)
+            moved[obj_id] = result
+            return result
         return x
 
     if x is None:
         return x
     elif isinstance(x, list):
-        return [to_device(item, device, depth - 1) for item in x]
+        result = [to_device(item, device, depth - 1, moved) for item in x]
+        moved[obj_id] = result
+        return result
     elif isinstance(x, tuple):
-        return tuple(to_device(item, device, depth - 1) for item in x)
+        result = tuple(to_device(item, device, depth - 1, moved) for item in x)
+        moved[obj_id] = result
+        return result
     elif isinstance(x, dict):
-        return {k: to_device(v, device, depth - 1) for k, v in x.items()}
+        result = {k: to_device(v, device, depth - 1, moved) for k, v in x.items()}
+        moved[obj_id] = result
+        return result
     elif hasattr(x, "to"):
         if isinstance(x, type):
             return x
-        return x.to(device)
+        result = x.to(device)
+        moved[obj_id] = result
+        return result
     # Handle objects with attributes by recursively processing all fields.
     # This is done in-place.
     elif hasattr(x, "__dict__"):
         for attr_name in x.__dict__:
             attr_value = getattr(x, attr_name)
-            setattr(x, attr_name, to_device(attr_value, device, depth - 1))
+            setattr(x, attr_name, to_device(attr_value, device, depth - 1, moved))
+        moved[obj_id] = x
         return x
     else:
         return x
