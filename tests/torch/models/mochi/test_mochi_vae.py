@@ -56,5 +56,8 @@ def inference_tester(request) -> MochiVAETester:
 
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.xfail(
+    reason="Bisected to tt-forge-models commit 9f82ebf: [mochi] updated dataformat for testing (#494). Awaiting proper fix from @vkovinicTT."
+)
 def test_torch_mochi_vae_decoder_inference(inference_tester: MochiVAETester):
     inference_tester.test()
