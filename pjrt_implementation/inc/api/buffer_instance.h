@@ -184,7 +184,8 @@ private:
 
   // Calculates required tensor shape.
   static std::vector<std::uint32_t> calculateShape(const std::int64_t *dims,
-                                                   size_t num_dims);
+                                                   size_t num_dims,
+                                                   PJRT_Buffer_Type data_type);
 
   // Calculates required tensor strides.
   static std::vector<std::uint32_t>
