@@ -30,7 +30,6 @@ from tests.runner.test_utils import (
     RunPhase,
     create_benchmark_result,
     find_dumped_ir_files,
-    fix_venv_isolation,
     get_input_shape_info,
     get_xla_device_arch,
     record_model_test_properties,
@@ -77,9 +76,6 @@ def _run_model_test_impl(
     This function contains the shared logic for both JAX and Torch tests.
     It's extracted to avoid duplication between test_all_models_jax/torch.
     """
-    # Fix venv isolation issue: ensure venv packages take precedence over system packages
-    fix_venv_isolation()
-
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
 
@@ -169,10 +165,15 @@ def _run_model_test_impl(
                 Evaluator._assert_on_results(comparison_result)
 
         except Exception as e:
-            captured = captured_output_fixture.readouterr()
+            try:
+                captured = captured_output_fixture.readouterr()
+                stdout, stderr = captured.out, captured.err
+            except ValueError:
+                # Handle case where file descriptors are already closed
+                stdout, stderr = None, None
             # Record runtime failure info so it can be reflected in report properties
             update_test_metadata_for_exception(
-                test_metadata, e, stdout=captured.out, stderr=captured.err
+                test_metadata, e, stdout=stdout, stderr=stderr
             )
             raise
         finally:

@@ -311,7 +311,7 @@ jobs:
       shell: bash
       run: |
         echo "Installing ttrt in separate venv"
-        python3.11 -m venv ttrt-venv
+        python3.12 -m venv ttrt-venv
         source ttrt-venv/bin/activate
         apt-get install -y -qq --no-install-recommends libtbb12 libcapstone4
         pip install ttrt-whl-tracy/ttrt*.whl --upgrade

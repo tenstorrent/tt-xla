@@ -332,6 +332,49 @@ def _create_uniform_patch_config():
     ]
 
 
+def _create_absl_handler_close_patch_config():
+    """Create a MonkeyPatchConfig for patching absl's PythonHandler.close.
+
+    This issue was exposed during migration from Python 3.11 to 3.12, where
+    there was a difference in the way logging handlers are cleaned up.
+    When ray is imported (via easydel), it results in an import chain that
+    eventually calls _clearExistingHandlers in Python's logging/config.py,
+    which now closes the pytest's capture stream that has already replaced
+    sys.stderr (happens very early). This patch prevents absl from closing
+    handlers it doesn't own.
+
+    This issue doesn't happen if pytest is run with the -s flag.
+
+    Returns:
+        list[MonkeyPatchConfig]: List containing absl patch config, or empty list if absl not available.
+    """
+    try:
+        from absl.logging import PythonHandler as _AbslPythonHandler
+    except ImportError:
+        return []
+
+    def patch_close(config: MonkeyPatchConfig):
+        def _safe_close(self):
+            """Prevent absl from closing streams it doesn't own."""
+            self.acquire()
+            try:
+                # PythonHandler always logs to stderr.
+                self.stream = sys.stderr
+            finally:
+                self.release()
+            config.backup(self)
+
+        return _safe_close
+
+    return [
+        MonkeyPatchConfig(
+            target_module=_AbslPythonHandler,
+            target_function="close",
+            replacement_factory=patch_close,
+        )
+    ]
+
+
 def _get_monkeypatches():
     """
     Get the list of monkey patches for the Tenstorrent JAX plugin.
@@ -350,6 +393,9 @@ def _get_monkeypatches():
 
     # Add uniform patch
     patches.extend(_create_uniform_patch_config())
+
+    # Add absl patch
+    patches.extend(_create_absl_handler_close_patch_config())
 
     return patches
 

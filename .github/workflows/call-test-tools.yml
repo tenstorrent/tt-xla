@@ -74,7 +74,7 @@ jobs:
           ls -la wheels
 
           echo "=== Creating clean Python environment ==="
-          python3.11 -m venv tracy_test_env
+          python3.12 -m venv tracy_test_env
           source tracy_test_env/bin/activate
 
           echo "=== Installing wheel ==="

@@ -36,6 +36,22 @@ test_config:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
 
+  mamba/causal_lm/jax-mamba-370m-hf-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  mamba/causal_lm/jax-mamba-790m-hf-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  mamba/causal_lm/jax-mamba-2.8b-hf-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  mamba/causal_lm/jax-mamba-1.4b-hf-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
   phi1/causal_lm/jax-Phi_1-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
