@@ -136,14 +136,23 @@ def test_builder_build_ttir_module():
     assert "tensor<32x32xf32>" in asm
 
 
-# Run test_op_graph_filecheck[op-False] before running this test so that the mlir files are generated.
-@pytest.mark.parametrize("target,mlir_file_path", [("ttir", "output_artifact/test_op_graph_filecheck_op_False_ttir.mlir"), ("ttnn", "output_artifact/test_op_graph_filecheck_op_False_ttnn.mlir")    ])
+try:
+    from tests.torch.mlir_files_generated import MLIR_FILES
+except ImportError:
+    raise ImportError(
+        "MLIR_FILES not found. Run scripts/gen_mlir_files_list.py <test_name> first "
+        "to generate tests/torch/mlir_files_generated.py."
+    )
+
+
+@pytest.mark.parametrize("target,mlir_file_path", MLIR_FILES)
 def test_serialize_and_builder_integration(target, mlir_file_path):
-    if target == "ttnn":
-        pytest.skip("TTNN target is not supported yet for this op test")
+    # if target == "ttnn":
+    #     pytest.skip("TTNN target is not supported yet for this op test")
 
     import os
 
+    import _ttmlir_runtime as tt_runtime
     import torch_xla.core.xla_model as xm
     from builder.base.builder_apis import (
         compile_ttir_module_to_flatbuffer,
@@ -151,11 +160,8 @@ def test_serialize_and_builder_integration(target, mlir_file_path):
         split_mlir_file,
     )
     from builder.base.builder_runtime import execute_fb
-    import _ttmlir_runtime as tt_runtime
 
-    assert os.path.exists(
-        mlir_file_path
-    )
+    assert os.path.exists(mlir_file_path)
 
     with open(mlir_file_path, "r") as f:
         mlir_ir_string = f.read()
@@ -173,13 +179,17 @@ def test_serialize_and_builder_integration(target, mlir_file_path):
 
     for split_module, split_builder in builder_module_list:
         print("-------------- Running test for split module: --------------")
-        
+
         print(split_module)
-        compiled_bin, input_output_goldens, intermediate_goldens = compile_ttir_module_to_flatbuffer(
-            split_module,
-            split_builder,
+        compiled_bin, input_output_goldens, intermediate_goldens = (
+            compile_ttir_module_to_flatbuffer(
+                split_module,
+                split_builder,
+            )
         )
 
-        execute_fb(compiled_bin, input_output_goldens, intermediate_goldens, device=device)
+        execute_fb(
+            compiled_bin, input_output_goldens, intermediate_goldens, device=device
+        )
 
     tt_runtime.runtime.close_mesh_device(device)
