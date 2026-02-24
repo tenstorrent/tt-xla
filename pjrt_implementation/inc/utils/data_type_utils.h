@@ -32,6 +32,12 @@ convertPJRTToRuntimeDataType(PJRT_Buffer_Type pjrt_data_type);
 // Returns the PJRT_Buffer_Type enum corresponding to the given MLIR type.
 PJRT_Buffer_Type convertMLIRToPJRTDataType(mlir::Type type);
 
+// Returns true if the given PJRT buffer type is a complex type (C64 or C128).
+// Complex tensors are stored internally as float tensors with a trailing
+// dimension of 2 (interleaved real/imag), since the runtime has no complex
+// type support.
+bool isComplexPJRTType(PJRT_Buffer_Type type);
+
 } // namespace tt::pjrt::data_type_utils
 
 #endif // TT_XLA_PJRT_IMPLEMENTATION_INC_UTILS_DATA_TYPE_UTILS_H_
