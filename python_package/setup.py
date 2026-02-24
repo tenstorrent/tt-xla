@@ -200,7 +200,7 @@ class BdistWheel(bdist_wheel):
 
     - Marks the wheel as non-pure (`root_is_pure = False`) to ensure proper installation
       of native binaries.
-    - Overrides the tag to be Python 3.11-specific (`cp311-cp311`) while preserving
+    - Overrides the tag to be Python 3.12-specific (`cp312-cp312`) while preserving
       platform specificity.
     """
 
@@ -238,8 +238,8 @@ class BdistWheel(bdist_wheel):
 
     def get_tag(self):
         python, abi, plat = bdist_wheel.get_tag(self)
-        # Force specific Python 3.11 ABI format for the wheel
-        python, abi = "cp311", "cp311"
+        # Force specific Python 3.12 ABI format for the wheel
+        python, abi = "cp312", "cp312"
         return python, abi, plat
 
 
@@ -447,7 +447,7 @@ setup(
     long_description=config.long_description,
     name="pjrt-plugin-tt",
     packages=find_packages(),
-    python_requires=">=3.11, <3.12",
+    python_requires=">=3.12, <3.13",
     url="https://github.com/tenstorrent/tt-xla",
     version=config.version,
     # Needs to reference embedded shared libraries (i.e. .so file), so not zip safe.
