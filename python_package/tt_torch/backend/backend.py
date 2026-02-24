@@ -175,6 +175,14 @@ class XLAExecutor:
             )
 
         full_args = self.params_and_consts + args
+
+        replicated_op_sharding = torch_xla._XLAC.OpSharding(
+            [], [], [], torch_xla.distributed.spmd.ShardingType.REPLICATED
+        )
+        for arg in full_args:
+            if isinstance(arg, torch.Tensor) and torch_xla._XLAC._get_xla_sharding_spec(arg) == "":
+                torch_xla._XLAC._xla_mark_sharding(arg, replicated_op_sharding)
+
         return self.compiled_graph(*full_args)
 
     def __call__(self, *args):
