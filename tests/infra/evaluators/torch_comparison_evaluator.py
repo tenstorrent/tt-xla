@@ -125,6 +125,8 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
 
             return torch.tensor(float("nan")) if denom == 0 else (vx @ vy) / denom
 
+        print(f"device_output: {device_output}")
+        print(f"golden_output: {golden_output}")
         leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
         filtered_pccs = [pcc for pcc in flat_pccs if pcc is not None]
