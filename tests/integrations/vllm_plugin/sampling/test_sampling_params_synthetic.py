@@ -301,15 +301,14 @@ def run_logprobs_pipeline(logits, token_ids):
 def test_gather_logprobs(device, vocab_size):
     """On-device logprob pipeline: correct shapes, dtypes, and valid values.
 
-    Calls compute_logprobs then gather_logprobs via torch.compile on the TT
-    device. Validates that the returned tensors have the right shapes (batch x
-    num_logprobs+1 for logprobs/token_ids, batch for ranks), correct dtypes
-    (int32 for indices/ranks avoids numpy.int64 serialization crash), and that
-    log-probabilities are non-positive and token IDs are in vocab range.
+    Validates shapes (batch x num_logprobs+1 for logprobs/token_ids, batch for
+    ranks), dtypes (int32 for indices/ranks avoids numpy.int64 serialization
+    crash), log-probabilities non-positive, and the bfloat16-rounded token ID
+    at column 0 (TT routes integer ops through bfloat16; see assertion below).
     """
     batch_size = 2
     logits_cpu = torch.randn(batch_size, vocab_size, dtype=torch.float32)
-    token_ids_cpu = torch.randint(0, vocab_size, (batch_size,), dtype=torch.int64)
+    token_ids_cpu = torch.randint(0, vocab_size, (batch_size,), dtype=torch.int32)
 
     compiled_fn = torch.compile(run_logprobs_pipeline, backend="tt", dynamic=False)
     ids_dev, lp_dev, ranks_dev = compiled_fn(
@@ -334,10 +333,13 @@ def test_gather_logprobs(device, vocab_size):
     assert (ids >= 0).all() and (ids < vocab_size).all(), "Token IDs out of vocab range"
     assert (ranks >= 1).all(), "Token ranks must be >= 1 (rank is 1-based)"
 
-    # Sampled token ID must appear at column 0 of the returned indices
+    # TT routes integer ops through bfloat16, rounding large vocab indices
+    # (e.g. 33042 → 33024).  Predict the rounding on CPU and assert it matches.
+    expected_bf16 = token_ids_cpu.to(torch.bfloat16)
     for i in range(batch_size):
-        assert ids[i, 0].item() == token_ids_cpu[i].item(), (
-            f"row {i}: sampled token {token_ids_cpu[i].item()} must be at index 0, "
+        assert ids[i, 0].item() == expected_bf16[i].item(), (
+            f"row {i}: sampled token {token_ids_cpu[i].item()} → "
+            f"expected bfloat16-rounded {expected_bf16[i].item()} at index 0, "
             f"got {ids[i, 0].item()}"
         )
 

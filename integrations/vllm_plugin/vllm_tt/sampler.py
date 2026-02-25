@@ -11,6 +11,15 @@ from .metadata import XLASupportedSamplingMetadata
 _SAMPLING_EPS = 1e-5
 
 
+def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
+    """Count tokens per row whose logprob >= threshold.
+
+    Returns int64 (natural sum dtype).  Callers that need int32 — e.g.
+    gather_logprobs for the LogprobsTensors convention — must cast after.
+    """
+    return (logprobs >= threshold).sum(-1)
+
+
 class Sampler(nn.Module):
     def __init__(self):
         # TODO(houseroad): Add support for logprobs_mode (a future extension
@@ -202,19 +211,19 @@ class Sampler(nn.Module):
         topk_logprobs, topk_indices = torch.topk(logprobs, num_logprobs, dim=-1)
 
         # Get with the logprob of the prompt or sampled token.
-        token_ids = token_ids.unsqueeze(-1)
+        # Cast to int32: TT does not support int64 as a gather index (returns
+        # NaN).  The on-device cast routes through bfloat16 — a known TT hw
+        # limitation — so large vocab indices are rounded (e.g. 33042→33024).
+        token_ids = token_ids.to(torch.int32).unsqueeze(-1)
         token_logprobs = logprobs.gather(-1, token_ids)
 
-        # Compute the ranks of the actual token.
         # Cast to int32 to match LogprobsTensors.empty_cpu() convention.
-        token_ranks = (logprobs >= token_logprobs).sum(-1).to(torch.int32)
+        token_ranks = count_tokens_ge(logprobs, token_logprobs).to(torch.int32)
 
         # Concatenate together with the topk.
-        indices = torch.cat((token_ids, topk_indices), dim=1)
+        # Cast topk_indices to int32 to match token_ids dtype for cat.
+        indices = torch.cat((token_ids, topk_indices.to(torch.int32)), dim=1)
         logprobs = torch.cat((token_logprobs, topk_logprobs), dim=1)
-
-        # Use int32 to reduce the tensor size.
-        indices = indices.to(torch.int32)
 
         return LogprobsTensors(indices, logprobs, token_ranks)
 
