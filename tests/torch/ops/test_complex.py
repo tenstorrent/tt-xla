@@ -4,7 +4,7 @@
 
 import pytest
 import torch
-from infra import Framework, run_op_test
+from infra import Framework, run_op_test_with_random_inputs
 from utils import Category
 
 
@@ -20,15 +20,17 @@ from utils import Category
     [(32, 32), (64, 64)],
     ids=lambda val: f"{val}",
 )
-def test_complex(shape: tuple):
+def test_complex(shape: tuple, request):
     class Complex(torch.nn.Module):
         def forward(self, real: torch.Tensor, imag: torch.Tensor) -> torch.Tensor:
             return torch.view_as_complex(torch.stack([real, imag], dim=-1))
 
-    real = torch.randn(shape, dtype=torch.float32)
-    imag = torch.randn(shape, dtype=torch.float32)
-
-    run_op_test(Complex(), [real, imag], framework=Framework.TORCH)
+    run_op_test_with_random_inputs(
+        Complex(),
+        input_shapes=[shape, shape],
+        framework=Framework.TORCH,
+        request=request,
+    )
 
 
 @pytest.mark.push
@@ -43,16 +45,18 @@ def test_complex(shape: tuple):
     [(32, 32), (64, 64)],
     ids=lambda val: f"{val}",
 )
-def test_view_as_real(shape: tuple):
+def test_view_as_real(shape: tuple, request):
     class ViewAsReal(torch.nn.Module):
         def forward(self, real: torch.Tensor, imag: torch.Tensor) -> torch.Tensor:
             z = torch.view_as_complex(torch.stack([real, imag], dim=-1))
             return torch.view_as_real(z)
 
-    real = torch.randn(shape, dtype=torch.float32)
-    imag = torch.randn(shape, dtype=torch.float32)
-
-    run_op_test(ViewAsReal(), [real, imag], framework=Framework.TORCH)
+    run_op_test_with_random_inputs(
+        ViewAsReal(),
+        input_shapes=[shape, shape],
+        framework=Framework.TORCH,
+        request=request,
+    )
 
 
 @pytest.mark.push
@@ -67,16 +71,18 @@ def test_view_as_real(shape: tuple):
     [(32, 32), (64, 64)],
     ids=lambda val: f"{val}",
 )
-def test_real(shape: tuple):
+def test_real(shape: tuple, request):
     class Real(torch.nn.Module):
         def forward(self, real: torch.Tensor, imag: torch.Tensor) -> torch.Tensor:
             z = torch.view_as_complex(torch.stack([real, imag], dim=-1))
             return torch.real(z)
 
-    real = torch.randn(shape, dtype=torch.float32)
-    imag = torch.randn(shape, dtype=torch.float32)
-
-    run_op_test(Real(), [real, imag], framework=Framework.TORCH)
+    run_op_test_with_random_inputs(
+        Real(),
+        input_shapes=[shape, shape],
+        framework=Framework.TORCH,
+        request=request,
+    )
 
 
 @pytest.mark.push
@@ -91,16 +97,18 @@ def test_real(shape: tuple):
     [(32, 32), (64, 64)],
     ids=lambda val: f"{val}",
 )
-def test_imag(shape: tuple):
+def test_imag(shape: tuple, request):
     class Imag(torch.nn.Module):
         def forward(self, real: torch.Tensor, imag: torch.Tensor) -> torch.Tensor:
             z = torch.view_as_complex(torch.stack([real, imag], dim=-1))
             return torch.imag(z)
 
-    real = torch.randn(shape, dtype=torch.float32)
-    imag = torch.randn(shape, dtype=torch.float32)
-
-    run_op_test(Imag(), [real, imag], framework=Framework.TORCH)
+    run_op_test_with_random_inputs(
+        Imag(),
+        input_shapes=[shape, shape],
+        framework=Framework.TORCH,
+        request=request,
+    )
 
 
 @pytest.mark.push
@@ -115,7 +123,7 @@ def test_imag(shape: tuple):
     [(32, 32), (64, 64)],
     ids=lambda val: f"{val}",
 )
-def test_complex_real_imag_combined(shape: tuple):
+def test_complex_real_imag_combined(shape: tuple, request):
     """Constructs a complex tensor, extracts real and imaginary parts, then
     reconstructs it via view_as_complex to verify round-trip correctness."""
 
@@ -126,7 +134,9 @@ def test_complex_real_imag_combined(shape: tuple):
             i = torch.imag(z)
             return torch.view_as_complex(torch.stack([r, i], dim=-1))
 
-    real = torch.randn(shape, dtype=torch.float32)
-    imag = torch.randn(shape, dtype=torch.float32)
-
-    run_op_test(ComplexRealImagCombined(), [real, imag], framework=Framework.TORCH)
+    run_op_test_with_random_inputs(
+        ComplexRealImagCombined(),
+        input_shapes=[shape, shape],
+        framework=Framework.TORCH,
+        request=request,
+    )
