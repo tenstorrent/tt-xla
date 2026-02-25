@@ -1294,19 +1294,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         selected_token_ids = torch.cat(combined_selected_tokens, dim=0)
         if tpu_sampling_metadata.logprobs:
-
-            def concat_lists(input_lists):
-                result = []
-                for input_list in input_lists:
-                    result.extend(input_list)
-                return result
-
             logprobs_lists = LogprobsLists(
-                logprob_token_ids=concat_lists(
+                logprob_token_ids=np.concatenate(
                     [lp.logprob_token_ids for lp in combined_logprobs]
                 ),
-                logprobs=concat_lists([lp.logprobs for lp in combined_logprobs]),
-                sampled_token_ranks=concat_lists(
+                logprobs=np.concatenate([lp.logprobs for lp in combined_logprobs]),
+                sampled_token_ranks=np.concatenate(
                     [lp.sampled_token_ranks for lp in combined_logprobs]
                 ),
             )
