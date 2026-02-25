@@ -13,7 +13,12 @@ _SAMPLING_EPS = 1e-5
 
 class Sampler(nn.Module):
     def __init__(self):
-        # TODO(houseroad): Add support for logprobs_mode.
+        # TODO(houseroad): Add support for logprobs_mode (a future extension
+        # for configuring which logprobs are returned).  Basic logprob support
+        # is already working: when logprobs are requested, model_runner.py
+        # calls gather_logprobs() after forward() and passes LogprobsLists
+        # directly to the engine.  logprobs_tensors is intentionally None in
+        # forward() — see the comment there.
         super().__init__()
 
     def forward(
@@ -32,6 +37,11 @@ class Sampler(nn.Module):
             # [num_requests, 1], where each row represents one generated
             # token per request.
             sampled_token_ids=sampled.unsqueeze(-1),
+            # Logprobs do not flow through SamplerOutput.  When logprobs are
+            # requested, model_runner.py calls gather_logprobs() after
+            # forward() and assembles LogprobsLists directly — bypassing this
+            # field entirely.  Setting logprobs_tensors=None here is
+            # intentional.
             logprobs_tensors=None,
         )
         return sampler_output
