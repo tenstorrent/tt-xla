@@ -8,18 +8,27 @@ if(TTXLA_ENABLE_EWHEEL_INSTALL)
       USES_TERMINAL
   )
 
-  add_dependencies(install-ttxla-python-packages TTPJRTTTDylib)
+  add_dependencies(install-ttxla-python-packages TTPJRTTTDylib bundle-ttnn bundle-tracy)
 endif()
 
 # Create symlinks to the original tracy and ttnn modules from tt-metal.
 # These symlinks allow our wrapper modules to import and delegate to the original code.
+# Check if required directories exist before creating symlinks
+if(NOT EXISTS "${TTMLIR_SOURCE_DIR}/install/tt-metal/tools/tracy")
+  message(FATAL_ERROR "tracy directory not found at: ${TTMLIR_SOURCE_DIR}/install/tt-metal/tools/tracy")
+endif()
+
 add_custom_target(bundle-tracy ALL
-  COMMAND ${CMAKE_COMMAND} -E create_symlink ${TTMLIR_LIB_DIR}/tt-metal/tools/tracy ${CMAKE_CURRENT_SOURCE_DIR}/tracy/_original
+  COMMAND ${CMAKE_COMMAND} -E create_symlink ${TTMLIR_SOURCE_DIR}/install/tt-metal/tools/tracy ${CMAKE_CURRENT_SOURCE_DIR}/tracy/_original
   DEPENDS tt-mlir
 )
 
+if(NOT EXISTS "${TTMLIR_SOURCE_DIR}/install/tt-metal/ttnn/ttnn")
+  message(FATAL_ERROR "ttnn directory not found at: ${TTMLIR_SOURCE_DIR}/install/tt-metal/ttnn/ttnn")
+endif()
+
 add_custom_target(bundle-ttnn ALL
-  COMMAND ${CMAKE_COMMAND} -E create_symlink ${TTMLIR_LIB_DIR}/tt-metal/ttnn/ttnn ${CMAKE_CURRENT_SOURCE_DIR}/ttnn/_original
+  COMMAND ${CMAKE_COMMAND} -E create_symlink ${TTMLIR_SOURCE_DIR}/install/tt-metal/ttnn/ttnn ${CMAKE_CURRENT_SOURCE_DIR}/ttnn/_original
   DEPENDS tt-mlir
 )
 
