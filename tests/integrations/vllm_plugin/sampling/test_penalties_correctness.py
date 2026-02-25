@@ -14,6 +14,9 @@ import pytest
 import torch
 from vllm_tt.sampler import Sampler
 
+# Tests do not need silicon runner, but CI only runs on silicon runners.
+pytestmark = pytest.mark.single_device
+
 
 def apply_penalties_reference(
     logits,
