@@ -328,7 +328,7 @@ jobs:
         TT_MLIR_TP_URL="https://raw.githubusercontent.com/tenstorrent/tt-mlir/${TT_MLIR_VERSION}/third_party/CMakeLists.txt"
         echo "Downloading ${TT_MLIR_TP_URL}"
         curl -fL "${TT_MLIR_TP_URL}" -o "${mlir_temp}"
-        TT_METAL_VERSION=$(grep 'set(TT_METAL_VERSION' third_party/CMakeLists.txt | sed 's/.*"\(.*\)".*/\1/')
+        TT_METAL_VERSION=$(grep 'set(TT_METAL_VERSION' "${mlir_temp}" | sed 's/.*"\(.*\)".*/\1/')
         echo "TT_METAL_VERSION=${TT_METAL_VERSION}"
 
         mkdir -p tt-triage
