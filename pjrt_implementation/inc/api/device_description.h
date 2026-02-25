@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_DESCRIPTION_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_DESCRIPTION_H_
+
 // c++ standard library includes
 #include <string>
 
@@ -16,9 +19,6 @@
 
 // tt-mlir includes
 #include "ttmlir/Target/Common/types_generated.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_DESCRIPTION_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_DESCRIPTION_H_
 
 namespace tt::pjrt {
 
@@ -62,6 +62,9 @@ public:
   // Sets process index from which this device is addressable.
   void setProcessIndex(int process_index) { m_process_index = process_index; }
 
+  // Returns device attributes
+  const std::vector<PJRT_NamedValue> &getAttributes() { return m_attributes; }
+
 private:
   // Global ID of this device unique between all devices.
   int m_device_id;
@@ -76,6 +79,14 @@ private:
   // Device description string suitable for reading by the end users, should be
   // reasonably terse.
   std::string m_user_string;
+
+  // Storage for device attributes
+  std::vector<PJRT_NamedValue> m_attributes;
+
+  // Names of attributes
+  // This is to enure the attribute name persists for the lifetime of the
+  // DeviceDescription
+  std::string m_arch_attr_name = "device_arch"; // (eg. "Wormhole_b0")
 };
 
 namespace internal {

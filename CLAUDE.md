@@ -84,7 +84,7 @@ clang-format -i src/**/*.cpp
 - `TTXLA_ENV_ACTIVATED`: Must be set (checked by CMake)
 
 ### Optional Environment Variables
-- `LOGGER_LEVEL`: Set to `DEBUG` or `VERBOSE` for detailed logging
+- `TTXLA_LOGGER_LEVEL`: Set to `DEBUG` or `VERBOSE` for detailed logging
 - `TTMLIR_ENABLE_PERF_TRACE`: Enable performance tracing in tt-mlir
 
 ### Testing Device Connectivity
@@ -122,7 +122,7 @@ Use `@pytest.mark.record_test_properties()` to tag tests with:
 ## Dependencies
 
 ### System Requirements
-- Ubuntu 22.04, Python 3.11, Clang 17, GCC 11, Ninja, CMake 4.0.3
+- Ubuntu 22.04, Python 3.12, Clang 17, GCC 11, Ninja, CMake 4.0.3
 - OpenMPI, protobuf-compiler, ccache, libnuma-dev, libhwloc-dev, libboost-all-dev
 
 ### Python Requirements

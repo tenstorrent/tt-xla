@@ -80,12 +80,12 @@ Choose your framework and run the example:
 
 **PyTorch:**
 ```bash
-python examples/pytorch/codegen/custom_module.py
+python examples/pytorch/codegen/python/custom_module.py
 ```
 
 **JAX:**
 ```bash
-python examples/jax/codegen/custom_module.py
+python examples/jax/codegen/python/custom_module.py
 ```
 
 #### What Happens During Code Generation
@@ -93,13 +93,20 @@ python examples/jax/codegen/custom_module.py
 Both examples configure TT-XLA with these options:
 
 ```python
-options = {
-    # Code generation options
-    "backend": "codegen_py",
-    # Export path
-    "export_path": "model",
-}
+codegen_py(
+    forward, graphdef, state, x, export_path="model"
+)
 ```
+
+where `forward` is the model’s forward function that TT-XLA will compile and lower to TT-NN ops. In the JAX example, it is defined as:
+
+```python
+def forward(graphdef, state, x):
+    model = nnx.merge(graphdef, state)
+    return model(x)
+```
+
+and `graphdef`/`state` come from `nnx.split(model)`, while `x` is a representative input used to trace/compile the computation.
 
 The process will:
 1. ✅ Compile your model through the TT-XLA pipeline
@@ -122,36 +129,29 @@ You should see:
 ### Step 5: Generate the optimized code
 We can specify different optimization options in order to produce the more performant code. For example, we can supply following set of options to produce the optimized code.
 ```python
-options = {
-    # Code generation options
-    "backend": "codegen_py",
-
-    # Optimizer options
-    "enable_optimizer": True,
-    "enable_memory_layout_analysis": True,
-    "enable_l1_interleaved": False,
-
-    # Export path
-    "export_path": "model",
+# Any compile options you could specify when executing the model normally can also be used with codegen.
+extra_options = {
+    "optimization_level": 0,  # Levels 0, 1, and 2 are supported
 }
+
+codegen_py(
+    forward, graphdef, state, x, export_path="model", compiler_options=extra_options
+)
 ```
 
-Link to other optimizer options to be added here. [\[#1849\] TT-XLA Optimizer Docs](https://github.com/tenstorrent/tt-xla/issues/1849)
+Link to other optimizer options to be added here: [TT-XLA Optimizer Docs](./performance.md)
 
 ### Step 6: Exporting model input and parameter tensors
 
 By default, model input and parameter tensors are exported to `export_path/tensors/`.
 
-If you don't need to dump these tensors, set the compile option `"export_tensor": False`. The generated code will use `ttnn.ones` for input and parameter tensors instead.
+If you don't need to dump these tensors, set the `codegen_py` parameter `export_tensors=False`. The generated code will use `ttnn.ones` for input and parameter tensors instead.
 
 ```python
-options = {
-    # Code generation options
-    "backend": "codegen_py",
-    # Export path
-    "export_path": "model",
-    "export_tensors": False
-}
+codegen_py(
+    forward, graphdef, state, x, export_path="model", export_tensors=False
+)
+
 ```
 
 ### Step 7: Execute the Generated Code
@@ -204,10 +204,14 @@ Try modifying operations in `main.py`:
 Want C++ instead of Python? Change the backend:
 
 ```python
-options = {
-    "backend": "codegen_cpp",  # Generate C++ code
-    "export_path": "model_cpp",
+# Any compile options you could specify when executing the model normally can also be used with codegen.
+extra_options = {
+    # "optimization_level": 0,  # Levels 0, 1, and 2 are supported
 }
+
+codegen_cpp(
+    forward, graphdef, state, x, export_path="model", compiler_options=extra_options
+)
 ```
 
 The generated C++ code is **fully standalone** and can be integrated into existing C++ projects.
@@ -219,8 +223,8 @@ The generated C++ code is **fully standalone** and can be integrated into existi
 ### Learn More
 
 - **[Code Generation Guide](./getting_started_codegen.md)** - Complete reference for all options and use cases
-- **[PyTorch Example Source](../../examples/pytorch/codegen/custom_module.py)** - Full example code
-- **[JAX Example Source](../../examples/jax/codegen/custom_module.py)** - Full example code
+- **[PyTorch Example Source](../../examples/pytorch/codegen/python/custom_module.py)** - Full example code
+- **[JAX Example Source](../../examples/jax/codegen/python/custom_module.py)** - Full example code
 
 ---
 

@@ -99,7 +99,7 @@ TEST(DeviceDescriptionUnitTests, API_PJRT_DeviceDescription_ProcessIndex) {
 }
 
 // Tests PJRT API for getting device attributes.
-// Currently no attributes are set, so this should return 0 attributes.
+// Currently there's one attribute: "device_arch" (e.g. "Wormhole_b0")
 TEST(DeviceDescriptionUnitTests, API_PJRT_DeviceDescription_Attributes) {
   DeviceDescription description(TT_DEVICE_HOST, TT_ARCH_WH);
 
@@ -109,8 +109,17 @@ TEST(DeviceDescriptionUnitTests, API_PJRT_DeviceDescription_Attributes) {
 
   PJRT_Error *result = internal::onDeviceDescriptionAttributes(&args);
   ASSERT_EQ(result, nullptr);
-  EXPECT_EQ(args.num_attributes, 0);
-  EXPECT_EQ(args.attributes, nullptr);
+
+  EXPECT_EQ(args.num_attributes, 1);
+  EXPECT_NE(args.attributes, nullptr);
+
+  // Ensure the attribute is "device_arch" (e.g. "Wormhole_b0")
+  const PJRT_NamedValue &attr = args.attributes[0];
+  EXPECT_EQ(attr.type, PJRT_NamedValue_kString);
+  EXPECT_EQ(std::string(attr.name, attr.name_size), "device_arch");
+  // Ensure the value is non-empty.
+  EXPECT_GT(attr.value_size, 0);
+  EXPECT_NE(attr.string_value, nullptr);
 }
 
 // Tests PJRT API for getting the device kind.

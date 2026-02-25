@@ -50,7 +50,7 @@ bool CompileOptionsParser::parseCompileOptionsProto(
       compile_options_size);
 
   if (!unknown_fields.MergeFromCodedStream(&cis)) {
-    DLOG_F(ERROR, "Failed to parse compile options protobuf data");
+    LOG_F(ERROR, "Failed to parse compile options protobuf data");
     return false;
   }
 
@@ -209,8 +209,8 @@ tt_pjrt_status CompileOptionsParser::extractCustomProtobufFields(
 
     google::protobuf::UnknownFieldSet map_entry_fields;
     if (!map_entry_fields.MergeFromCodedStream(&cis)) {
-      DLOG_F(ERROR, "Failed to parse the map entry fields from the custom "
-                    "compile options protobuf data");
+      LOG_F(ERROR, "Failed to parse the map entry fields from the custom "
+                   "compile options protobuf data");
       return tt_pjrt_status::kInternal;
     }
 
@@ -237,8 +237,8 @@ tt_pjrt_status CompileOptionsParser::extractCustomProtobufFields(
 
         google::protobuf::UnknownFieldSet value_fields;
         if (!value_fields.MergeFromCodedStream(&override_stream)) {
-          DLOG_F(ERROR, "Failed to parse the map entry field value from the "
-                        "custom compile options protobuf data");
+          LOG_F(ERROR, "Failed to parse the map entry field value from the "
+                       "custom compile options protobuf data");
           return tt_pjrt_status::kInternal;
         }
 
@@ -280,8 +280,8 @@ tt_pjrt_status CompileOptionsParser::extractCustomProtobufFields(
           break;
         }
         default: {
-          DLOG_F(ERROR, "Unknown field number in OptionOverrideProto: %d",
-                 value_field.number());
+          LOG_F(ERROR, "Unknown field number in OptionOverrideProto: %d",
+                value_field.number());
           return tt_pjrt_status::kInternal;
         }
         }
@@ -293,6 +293,29 @@ tt_pjrt_status CompileOptionsParser::extractCustomProtobufFields(
     }
   }
 
+  return tt_pjrt_status::kSuccess;
+}
+
+tt_pjrt_status CompileOptionsParser::parseMathFidelity(
+    const std::string &math_fidelity_str,
+    mlir::tt::ttnn::OptionalMathFidelity &out_math_fidelity) {
+  if (math_fidelity_str == "lofi") {
+    out_math_fidelity = mlir::tt::ttnn::OptionalMathFidelity::LoFi;
+  } else if (math_fidelity_str == "hifi2") {
+    out_math_fidelity = mlir::tt::ttnn::OptionalMathFidelity::HiFi2;
+  } else if (math_fidelity_str == "hifi3") {
+    out_math_fidelity = mlir::tt::ttnn::OptionalMathFidelity::HiFi3;
+  } else if (math_fidelity_str == "hifi4") {
+    out_math_fidelity = mlir::tt::ttnn::OptionalMathFidelity::HiFi4;
+  } else if (math_fidelity_str == "ttnn_default") {
+    out_math_fidelity = mlir::tt::ttnn::OptionalMathFidelity::Undefined;
+  } else {
+    LOG_F(ERROR,
+          "Invalid math_fidelity value: %s. "
+          "Valid values are: lofi, hifi2, hifi3, hifi4, and ttnn_default.",
+          math_fidelity_str.c_str());
+    return tt_pjrt_status::kInvalidArgument;
+  }
   return tt_pjrt_status::kSuccess;
 }
 

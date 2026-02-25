@@ -200,7 +200,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Find failed tests
         id: success-failed
@@ -364,6 +364,7 @@ jobs:
 
       - name: Bisect
         shell: bash
+        id: bisect
         run: |
           rm -rf .bisect-run
           mkdir -p .bisect-run
@@ -395,9 +396,15 @@ jobs:
             # Check if bisect is complete
             echo "$out"
             first_line="$(printf '%s\n' "$out" | head -n1)"
+            bad_commit=""
+            title=""
+            repo=""
             case "$first_line" in
               *"is the first bad commit"*)
                 echo "FOUND IT: $first_line"
+                repo="tt-xla"
+                bad_commit=$(echo "$first_line" | grep -oP '[0-9a-f]{40}' | head -n1)
+                title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
                 found=true
                 break
                 ;;
@@ -415,9 +422,6 @@ jobs:
           done
 
           # Get the bad commit info
-          repo="tt-xla"
-          bad_commit=$(git rev-parse HEAD)
-          title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
           git bisect reset
 
           # detect uplift commits
@@ -478,7 +482,7 @@ jobs:
                       echo "FOUND IT: $first_line"
                       # Get the bad commit info
                       repo="tt-mlir"
-                      bad_commit=$(git rev-parse HEAD)
+                      bad_commit=$(echo "$first_line" | grep -oP '[0-9a-f]{40}' | head -n1)
                       title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
                       git bisect reset
                       found=true
@@ -503,20 +507,28 @@ jobs:
             fi
           fi
 
-          echo "${repo}_${bad_commit}" > .bisect-run/bisect-result.txt
-          echo "Title: $title" >> .bisect-run/bisect-result.txt
-          if [ "$found" = true ]; then
-            echo "found" >> .bisect-run/bisect-result.txt
+          if [ -n "$bad_commit" ]; then
+            echo "${repo}_${bad_commit}" > .bisect-run/bisect-result.txt
+            echo "Title: $title" >> .bisect-run/bisect-result.txt
+            if [ "$found" = true ]; then
+              echo "found" >> .bisect-run/bisect-result.txt
+            else
+              echo "inconclusive" >> .bisect-run/bisect-result.txt
+            fi
+            echo "Tests:" >> .bisect-run/bisect-result.txt
+            cat .tests_to_run >> .bisect-run/bisect-result.txt
+            echo "Bisect result:"
+            cat .bisect-run/bisect-result.txt
+            echo "found=true" >> $GITHUB_OUTPUT
           else
-            echo "inconclusive" >> .bisect-run/bisect-result.txt
+            echo "Bisect result:"
+            echo "No conclusive bad commit identified."
+            echo "found=false" >> $GITHUB_OUTPUT
           fi
-          echo "Tests:" >> .bisect-run/bisect-result.txt
-          cat .tests_to_run >> .bisect-run/bisect-result.txt
-          echo "Bisect result:"
-          cat .bisect-run/bisect-result.txt
 
       - name: Upload bisect result
         uses: actions/upload-artifact@v5
+        if: ${{ steps.bisect.outputs.found == 'true' }}
         with:
           name: bisect-result-${{ matrix.build.run_no }}-${{ matrix.build.runs-on }}
           path: .bisect-run/bisect-result.txt

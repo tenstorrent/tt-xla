@@ -22,15 +22,15 @@ Before setup can happen, you must configure your hardware. You can skip this sec
 
 TT-XLA has the following system dependencies:
 * Ubuntu 22.04
-* Python 3.11
-* python3.11-venv
+* Python 3.12
+* python3.12-venv
 * Clang 17
 * GCC 12
 * Ninja
 * CMake 4.0.3
 
 ### Installing Python
-If your system already has Python installed, make sure it is Python 3.11:
+If your system already has Python installed, make sure it is Python 3.12:
 
 ```bash
 python3 --version
@@ -39,7 +39,7 @@ python3 --version
 If not, install Python:
 
 ```bash
-sudo apt install python3.11
+sudo apt install python3.12
 ```
 
 ### Installing CMake 4.0.3
@@ -120,7 +120,7 @@ Before compiling TT-XLA, the TT-MLIR toolchain needs to be built:
 - Follow the TT-MLIR [build instructions](https://docs.tenstorrent.com/tt-mlir/getting-started.html#setting-up-the-environment-manually) to set up the environment and build the toolchain.
 
 ### Building TT-XLA
-Before running these commands to build TT-XLA, please ensure that the environment variable `TTMLIR_TOOLCHAIN_DIR` is set to point to the TT-MLIR toolchain directory created above as part of the TT-MLIR environment setup (for example `export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/`). You can also set `export LOGGER_LEVEL=DEBUG` in order to enable debug logs, or `export LOGGER_LEVEL=VERBOSE` to enable even more verbose logs like printing intermediate IR in compiler passes. To build TT-XLA do the following:
+Before running these commands to build TT-XLA, please ensure that the environment variable `TTMLIR_TOOLCHAIN_DIR` is set to point to the TT-MLIR toolchain directory created above as part of the TT-MLIR environment setup (for example `export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain/`). You can also set `export TTXLA_LOGGER_LEVEL=DEBUG` in order to enable debug logs, or `export TTXLA_LOGGER_LEVEL=VERBOSE` to enable even more verbose logs like printing intermediate IR in compiler passes. To build TT-XLA do the following:
 
 1. Make sure you are not in the TT-MLIR build directory, and you are in the location where you want TT-XLA to install.
 

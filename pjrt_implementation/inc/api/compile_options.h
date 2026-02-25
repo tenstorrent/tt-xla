@@ -45,6 +45,19 @@ struct CompileOptions {
   // Enables experimental BFP8 weight conversion in MLIR.
   bool experimental_enable_weight_bfp8_conversion = false;
 
+  // Override math fidelity for all ttnn operations exposing compute kernel
+  // config. Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".
+  // "ttnn_default" - means that we don't override math_fidelity in comiler,
+  // and let ttnn choose math_fidelity for each operation based on its own
+  // logic. If math_fidelity not set (nullopt), the default behavior from MLIR
+  // is used. Currently, MLIR default is HiFi4 for all operations.
+  std::optional<std::string> math_fidelity = std::nullopt;
+
+  // Override fp32 destination accumulation for all ttnn operations exposing
+  // compute kernel config. If not set (nullopt), the default behavior from
+  // MLIR is used. Currently, MLIR default is true for all operations.
+  std::optional<bool> fp32_dest_acc_en = std::nullopt;
+
   // Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
   // TODO(sdjordjevicTT): This is a temporary option and will be removed once
   // the underlying issue https://github.com/tenstorrent/tt-mlir/issues/4628 is
@@ -77,6 +90,13 @@ struct CompileOptions {
   // https://github.com/tenstorrent/tt-mlir/issues/3888
   bool enable_const_eval = true;
 
+  // Enables hoisting const-eval subgraphs to CPU module.
+  //
+  // When enabled, const-eval operations are hoisted to be executed on the CPU
+  // instead of being executed on the device. CPU execution uses 32-bit
+  // precision for all operations, which can improve accuracy for some models.
+  bool enable_const_eval_on_cpu = false;
+
   // Enables transpose + matmul and transpose + linear ops fusion.
   // This controls fusing of transpose + matmul and transpose + linear ops.
   // When disabled, transpose is kept as a separate op which can be constevaled,
@@ -87,6 +107,11 @@ struct CompileOptions {
   // Enable collection of TTNN performance metrics during execution.
   bool ttnn_perf_metrics_enabled = false;
 
+  // Enables "try to recover structure" option for TTNN IR. Tries to match the
+  // structure of the original graph. This generates a more readable solution,
+  // useful when generating code.
+  bool codegen_try_recover_structure = false;
+
   // Output file path for TTNN performance metrics.
   // If empty, metrics will be saved to the "perf_metrics" directory with a
   // default name.
@@ -96,6 +121,10 @@ struct CompileOptions {
   // This includes: codegen solutions, graph inputs and intermediate IRs.
   // Setting this will enable IR dumping.
   std::optional<std::string> export_path = std::nullopt;
+
+  // Model name/identifier for exported file names (e.g., blk_phi1_bs32_a7f3).
+  // The graph number (g0, g1, etc.) is automatically appended.
+  std::string export_model_name = "";
 
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);

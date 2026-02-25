@@ -8,32 +8,249 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
-  alexnet/image_classification/jax-custom_1x2-tensor_parallel-full-inference:
+  alexnet/image_classification/jax-Custom_1x2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  alexnet/image_classification/jax-custom_1x4-tensor_parallel-full-inference:
+  alexnet/image_classification/jax-Custom_1x4-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Hangs in runtime - https://github.com/tenstorrent/tt-xla/issues/2440"
 
-  alexnet/image_classification/jax-custom_1x8-tensor_parallel-full-inference:
+  alexnet/image_classification/jax-Custom_1x8-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Hangs in runtime - https://github.com/tenstorrent/tt-xla/issues/2440"
 
-  mnist/image_classification/jax-mlp_custom_1x2-tensor_parallel-full-inference:
+  falcon/jax-3_1B_Base-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=0.066 < 0.99 required"
+
+  falcon/jax-3_3B_Base-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/jax-0.5B-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.011 < 0.99 required"
+
+  qwen_2_5/causal_lm/jax-0.5B_Instruct-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.036 < 0.99 required"
+
+  qwen_2_5/causal_lm/jax-1.5B-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 34359738368 B DRAM buffer across 12 banks, where each bank needs to store 2863312896 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+    markers: [large]
+
+  qwen_2_5/causal_lm/jax-1.5B_Instruct-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.019 < 0.99 required"
+    markers: [large]
+
+  qwen_2_5/causal_lm/jax-3B-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.0005 < 0.99 required"
+    markers: [large]
+
+  qwen_2_5/causal_lm/jax-3B_Instruct-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.001 < 0.99 required"
+    markers: [large]
+
+  qwen_2_5/causal_lm/jax-7B-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5/causal_lm/jax-7B_Instruct-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/causal_lm/jax-0.5B-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=0.0073 < 0.99 required"
+
+  qwen_2_5_coder/causal_lm/jax-1.5B-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.054 < 0.99 required"
+
+  qwen_2_5_coder/causal_lm/jax-1.5B_Instruct-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.025 < 0.99 required"
+
+  qwen_2_5_coder/causal_lm/jax-3B-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=0.012 < 0.99 required"
+    markers: [large]
+
+  qwen_2_5_coder/causal_lm/jax-3B_Instruct-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.004 < 0.99 required"
+    markers: [large]
+
+  qwen_2_5_coder/causal_lm/jax-7B-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_coder/causal_lm/jax-7B_Instruct-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
+    bringup_status: FAILED_RUNTIME
+
+  qwen_3/causal_lm/jax-0_6B-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.018 < 0.99 required"
+
+  qwen_3/causal_lm/jax-1_7B-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=0.004 < 0.99 required. n300 OOM"
+
+  qwen_3/causal_lm/jax-4B-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=0.0005 < 0.99 required. n300 OOM"
+
+  mnist/image_classification/jax-Mlp_Custom_1x2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  mnist/image_classification/jax-mlp_custom_1x4-tensor_parallel-full-inference:
+  mnist/image_classification/jax-Mlp_Custom_1x4-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
 
-  mnist/image_classification/jax-mlp_custom_1x8-tensor_parallel-full-inference:
+  mnist/image_classification/jax-Mlp_Custom_1x8-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
+
+  gpt2/causal_lm/jax-Base-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "'stablehlo.gather' op slice size out of bounds - https://github.com/tenstorrent/tt-mlir/issues/6653"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    markers: [nightly]
+
+  gpt2/causal_lm/jax-Large-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "'stablehlo.gather' op slice size out of bounds - https://github.com/tenstorrent/tt-mlir/issues/6653"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+
+  gpt2/causal_lm/jax-Medium-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "'stablehlo.gather' op slice size out of bounds - https://github.com/tenstorrent/tt-mlir/issues/6653"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+
+  gpt2/causal_lm/jax-Xl-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "'stablehlo.gather' op slice size out of bounds - https://github.com/tenstorrent/tt-mlir/issues/6653"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+
+  llama/causal_lm/jax-1B_Tiny-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  llama/causal_lm/jax-3B_v2-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=0.144 < 0.99 required"
+
+  mamba/causal_lm/jax-mamba-370m-hf-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: expects input feature dimension (1536) to be a multiple of feature_group_count. Got feature_group_count = 3072. - https://github.com/tenstorrent/tt-xla/issues/3429"
+
+  mamba/causal_lm/jax-mamba-790m-hf-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: expects input feature dimension (1536) to be a multiple of feature_group_count. Got feature_group_count = 3072. - https://github.com/tenstorrent/tt-xla/issues/3429"
+
+  mamba/causal_lm/jax-mamba-2.8b-hf-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: expects input feature dimension (1536) to be a multiple of feature_group_count. Got feature_group_count = 3072. - https://github.com/tenstorrent/tt-xla/issues/3429"
+
+  mamba/causal_lm/jax-mamba-1.4b-hf-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: expects input feature dimension (1536) to be a multiple of feature_group_count. Got feature_group_count = 3072. - https://github.com/tenstorrent/tt-xla/issues/3429"
+
+  phi1/causal_lm/jax-Phi_1-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.01 < 0.99 required"
+
+  phi1_5/causal_lm/jax-Phi_1_5-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=0.006 < 0.99 required"
+
+  phi2/causal_lm/jax-Phi_2-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.012 < 0.99 required"
+
+  phi2/causal_lm/jax-Phi_2_Pytdml-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "Severe PCC comparison failed: pcc=-0.012 < 0.99 required"
+
+  phi3/causal_lm/jax-Phi_3_Mini_128K_Instruct-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 34359738368 B DRAM buffer across 12 banks, where each bank needs to store 2863312896 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
+  phi3/causal_lm/jax-Phi_3_Mini_4K_Instruct-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Not enough space to allocate 39845888 B DRAM buffer across 12 banks, where each bank needs to store 3321856 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME

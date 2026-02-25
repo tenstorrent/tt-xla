@@ -35,6 +35,10 @@ class SetupConfig:
         `-- __init__.py                     # imports and sets up pjrt_plugin_tt for XLA
     torch_plugin_tt                     # Thin PyTorch/XLA wrapper
         `-- __init__.py                     # imports and sets up pjrt_plugin_tt for PyTorch/XLA
+    tracy/                              # Wrapped Tracy profiler - this is a thin wrapper arount `tracy` module from tt-metal
+        `-- _original/                       # Wrapped tracy code from tt-metal
+    ttnn/                               # Wrapped TTNN module - this is a thin wrapper around `ttnn` module from tt-metal
+        `-- _original/                       # Wrapped ttnn code from tt-metal
     ```
     """
 
@@ -71,7 +75,11 @@ class SetupConfig:
         requirements_path = THIS_DIR / "requirements.txt"
 
         with requirements_path.open() as f:
-            reqs = f.read().splitlines()
+            reqs = [
+                line
+                for line in f.read().splitlines()
+                if not line.strip().startswith("--extra-index-url")
+            ]
 
         return reqs
 
@@ -192,7 +200,7 @@ class BdistWheel(bdist_wheel):
 
     - Marks the wheel as non-pure (`root_is_pure = False`) to ensure proper installation
       of native binaries.
-    - Overrides the tag to be Python 3.11-specific (`cp311-cp311`) while preserving
+    - Overrides the tag to be Python 3.12-specific (`cp312-cp312`) while preserving
       platform specificity.
     """
 
@@ -230,8 +238,8 @@ class BdistWheel(bdist_wheel):
 
     def get_tag(self):
         python, abi, plat = bdist_wheel.get_tag(self)
-        # Force specific Python 3.11 ABI format for the wheel
-        python, abi = "cp311", "cp311"
+        # Force specific Python 3.12 ABI format for the wheel
+        python, abi = "cp312", "cp312"
         return python, abi, plat
 
 
@@ -261,6 +269,13 @@ class CMakeBuildPy(build_py):
         # Install project to the shared device package directory.
         print("Building project...")
         self.build_cmake_project()
+
+        # Refresh package list to include any packages that are discoverable after the build.
+        # E.g. `tracy` will show up only after the first cmake build is completed, since
+        # it is pulled in as an external project.
+        discovered_packages = find_packages()
+        self.distribution.packages = discovered_packages
+        self.packages = discovered_packages
 
         # Continue with the rest of the Python build.
         super().run()
@@ -292,9 +307,13 @@ class CMakeBuildPy(build_py):
 
         print(f"CMake arguments: {cmake_args}")
 
+        # Set environment variables to create a more portable build.
+        os.environ["TRACY_NO_ISA_EXTENSIONS"] = "1"
+        os.environ["TRACY_NO_INVARIANT_CHECK"] = "1"
+
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
         subprocess.check_call(["cmake", *cmake_args], cwd=REPO_DIR)
-        subprocess.check_call(["cmake", *build_command], cwd=REPO_DIR)
+        subprocess.check_call(["cmake", *build_command], cwd=REPO_DIR, env=os.environ)
         subprocess.check_call(["cmake", *install_command], cwd=REPO_DIR)
 
         self._prune_install_tree(install_dir)
@@ -302,7 +321,9 @@ class CMakeBuildPy(build_py):
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
             return
-
+        # Broken symlinks introduced in tt-umd -> tt-metal -> tt-mlir uplift
+        # issue: https://github.com/tenstorrent/tt-umd/issues/1864
+        _remove_broken_symlinks(install_dir)
         _remove_static_archives(install_dir)
 
         if config.build_type == "release":
@@ -330,6 +351,15 @@ def _remove_static_archives(root: Path) -> None:
         if rel.parts and rel.parts[0] == "lib":
             print(f"Removing static archive: {rel}")
             archive.unlink()
+
+
+def _remove_broken_symlinks(root: Path) -> None:
+    """Remove broken symlinks that would cause wheel packaging to fail."""
+    for path in root.rglob("*"):
+        if path.is_symlink() and not path.exists():
+            rel = path.relative_to(root)
+            print(f"Removing broken symlink: {rel}")
+            path.unlink()
 
 
 def _strip_shared_objects(root: Path) -> None:
@@ -398,6 +428,11 @@ setup(
         "jax_plugins": ["pjrt_plugin_tt = jax_plugin_tt"],
         # Entry point used by torch xla to register the plugin automatically.
         "torch_xla.plugins": ["tt = torch_plugin_tt:TTPlugin"],
+        # Console scripts
+        "console_scripts": [
+            "tt-forge-install = ttxla_tools.install_sfpi:main",
+            "tracy = tracy.__main__:main",
+        ],
     },
     ext_modules=[
         Extension(
@@ -412,7 +447,7 @@ setup(
     long_description=config.long_description,
     name="pjrt-plugin-tt",
     packages=find_packages(),
-    python_requires=">=3.11, <3.12",
+    python_requires=">=3.12, <3.13",
     url="https://github.com/tenstorrent/tt-xla",
     version=config.version,
     # Needs to reference embedded shared libraries (i.e. .so file), so not zip safe.

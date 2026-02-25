@@ -11,10 +11,17 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <memory>
+#include <optional>
 #include <stdexcept>
 #include <thread>
 
+// tracy includes
+#include "tracy/Tracy.hpp"
+
 // PJRT C API includes
+#include "api/loaded_executable_instance.h"
+#include "tt/runtime/types.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
@@ -23,6 +30,7 @@
 #include "ttmlir/Target/Common/types_generated.h"
 
 // tt-xla includes
+#include "api/client_instance.h"
 #include "api/device_instance.h"
 #include "api/error_instance.h"
 #include "api/memory_instance.h"
@@ -50,23 +58,19 @@ std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
 }
 
 std::unique_ptr<BufferInstance> BufferInstance::createOutputBufferInstance(
-    const tt::runtime::Tensor &device_tensor,
     std::vector<std::uint32_t> &&dimensions, DeviceInstance *device,
     MemoryInstance *memory, PJRT_Buffer_Type data_type, uint32_t device_id) {
   struct make_unique_enabler : public BufferInstance {
     make_unique_enabler(std::vector<std::uint32_t> &&dimensions,
                         DeviceInstance *device, MemoryInstance *memory,
                         PJRT_Buffer_Type data_type,
-                        const std::optional<tt::runtime::Tensor> &host_tensor,
-                        const std::optional<tt::runtime::Tensor> &device_tensor,
                         std::optional<uint32_t> device_id)
         : BufferInstance(std::move(dimensions), device, memory, data_type,
-                         host_tensor, device_tensor, device_id) {}
+                         device_id) {}
   };
 
   return std::make_unique<make_unique_enabler>(std::move(dimensions), device,
-                                               memory, data_type, std::nullopt,
-                                               device_tensor, device_id);
+                                               memory, data_type, device_id);
 }
 
 BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
@@ -74,33 +78,19 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
                                DeviceInstance *device, MemoryInstance *memory)
     : m_uid(nextUID()), m_data_type(data_type),
       m_dimensions(dims, dims + num_dims), m_device(device),
-      m_device_id(std::nullopt), m_memory(memory),
-      m_host_runtime_tensor(std::nullopt), m_data_ready(false),
+      m_device_id(std::nullopt), m_memory(memory), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false), m_prepared_runtime_tensor(std::nullopt) {}
+      m_data_deleted(false) {}
 
-BufferInstance::BufferInstance(
-    const std::vector<std::uint32_t> &dimensions, DeviceInstance *device,
-    MemoryInstance *memory, PJRT_Buffer_Type data_type,
-    const std::optional<tt::runtime::Tensor> &host_tensor,
-    const std::optional<tt::runtime::Tensor> &device_tensor,
-    std::optional<uint32_t> device_id)
+BufferInstance::BufferInstance(const std::vector<std::uint32_t> &dimensions,
+                               DeviceInstance *device, MemoryInstance *memory,
+                               PJRT_Buffer_Type data_type,
+                               std::optional<uint32_t> device_id)
     : m_uid(nextUID()), m_data_type(data_type),
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
-      m_device_id(device_id), m_memory(memory),
-      m_host_runtime_tensor(host_tensor), m_data_ready(false),
+      m_device_id(device_id), m_memory(memory), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false), m_prepared_runtime_tensor(device_tensor) {
-  // We want to be in control when buffers are deallocated, which happens during
-  // buffer destruction or on delete/destroy API calls.
-  if (m_host_runtime_tensor.has_value()) {
-    tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
-  }
-
-  if (m_prepared_runtime_tensor.has_value()) {
-    tt::runtime::setTensorRetain(*m_prepared_runtime_tensor, /*retain=*/true);
-  }
-}
+      m_data_deleted(false) {}
 
 BufferInstance::~BufferInstance() { deleteData(); }
 
@@ -122,14 +112,13 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Memory = internal::onBufferMemory;
 }
 
-size_t
-BufferInstance::getConvertedRuntimeTensorSize(const tt::runtime::Tensor &tensor,
-                                              PJRT_Buffer_Type data_type) {
-  std::uint32_t tensor_volume = tt::runtime::getTensorVolume(tensor);
-  std::uint32_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
-      data_type_utils::convertPJRTToRuntimeDataType(data_type));
-  std::uint32_t runtime_tensor_size = tensor_volume * dtype_element_size;
-  return static_cast<size_t>(runtime_tensor_size);
+size_t BufferInstance::tensorSize() {
+  size_t tensor_volume = tt::runtime::getTensorVolume(runtimeTensor());
+
+  size_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
+      data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
+
+  return tensor_volume * dtype_element_size;
 }
 
 std::string BufferInstance::toShapeStr() const {
@@ -151,18 +140,7 @@ void BufferInstance::deleteData() {
     return;
   }
 
-  // Wait if there is a copy to host in progress.
-  std::unique_lock<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
-  if (m_copy_to_host_thread) {
-    m_copy_to_host_thread->join();
-    m_copy_to_host_thread.reset();
-  }
-  copy_lock.unlock();
-
-  // Just reset the tensors, deallocation happens automatically when
-  // reference count drops to zero.
-  m_host_runtime_tensor = std::nullopt;
-  m_prepared_runtime_tensor = std::nullopt;
+  joinCopyThread();
 
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
@@ -174,6 +152,7 @@ void BufferInstance::deleteData() {
   }
 }
 
+// Constructing buffer instance for the first time.
 void BufferInstance::copyFromHost(
     const void *host_buffer, PJRT_Buffer_Type data_type,
     const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides,
@@ -181,6 +160,8 @@ void BufferInstance::copyFromHost(
     EventInstance **out_done_with_host_buffer_event) {
 
   assert(data_type == m_data_type && "m_data_type and data_type do not match");
+
+  m_pjrt_tensor.reset();
 
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
@@ -192,6 +173,8 @@ void BufferInstance::copyFromHost(
 
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
+
+  tt::runtime::Tensor runtime_tensor;
 
   // In distributed runtime, we always create owned host tensor because we
   // cannot alias the host buffer.
@@ -213,7 +196,7 @@ void BufferInstance::copyFromHost(
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
 
-    m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
+    runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
 
     // Memory is copied, we don't need host buffer anymore.
@@ -228,7 +211,7 @@ void BufferInstance::copyFromHost(
     // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
     // so we have to const cast here.
     // https://github.com/tenstorrent/tt-metal/issues/20622
-    m_host_runtime_tensor = tt::runtime::createBorrowedHostTensor(
+    runtime_tensor = tt::runtime::createBorrowedHostTensor(
         const_cast<void *>(host_buffer), shape, strides, element_size,
         runtime_data_type);
 
@@ -242,9 +225,7 @@ void BufferInstance::copyFromHost(
     m_done_with_host_buffer_event->setIndestructible();
   }
 
-  // We want to be in control when input buffers are deallocated, which happens
-  // during buffer destruction or on delete/destroy API calls.
-  tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
+  PjrtTensor::from_runtime_tensor({this}, runtime_tensor);
 
   markAsDataReady();
 
@@ -253,8 +234,10 @@ void BufferInstance::copyFromHost(
   *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
 }
 
-void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
+void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
+  assert(src_buffer->getPjrtTensor() && "Source buffer has no data.");
+
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
           src_buffer->m_data_type);
@@ -266,38 +249,13 @@ void BufferInstance::copyFromBuffer(const BufferInstance *src_buffer) {
   std::vector<std::uint32_t> strides = calculateStrides(
       src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
 
-  // This function is expected to be used for device-to-device buffer
-  // initialization of a new buffer instance, so destination buffer must not
-  // have data yet, or it will be overwritten.
-  assert((!m_host_runtime_tensor.has_value() &&
-          !m_prepared_runtime_tensor.has_value()) &&
-         "Destination buffer already has data");
-
-  tt::runtime::Tensor source_host_runtime_tensor;
-
-  if (src_buffer->m_prepared_runtime_tensor != std::nullopt) {
-    DLOG_F(WARNING,
-           "BufferInstance::copyFromBuffer: Device-Device transfer is "
-           "inefficient due to PJRT device modeling limitations. This will "
-           "actually copy src to host, and fill dst host tensor, because at "
-           "this callsite we do not know what dst device is.");
-    std::vector<tt::runtime::Tensor> host_runtime_tensors = tt::runtime::toHost(
-        src_buffer->m_prepared_runtime_tensor.value(), /*untilize=*/true);
-
-    assert(host_runtime_tensors.size() == 1 &&
-           "Expected single host tensor when copying from device buffer");
-
-    source_host_runtime_tensor = host_runtime_tensors[0];
-  } else if (src_buffer->m_host_runtime_tensor != std::nullopt) {
-    source_host_runtime_tensor = *src_buffer->m_host_runtime_tensor;
-  } else {
-    assert(false && "Source buffer has no data to copy from");
-  }
-
-  m_host_runtime_tensor = tt::runtime::createOwnedHostTensor(
+  tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
       /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
-  tt::runtime::memcpy(*m_host_runtime_tensor, source_host_runtime_tensor);
-  tt::runtime::setTensorRetain(*m_host_runtime_tensor, /*retain=*/true);
+
+  src_buffer->getPjrtTensor()->move_to_host();
+  tt::runtime::memcpy(runtime_tensor, src_buffer->runtimeTensor());
+
+  PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
 
   markAsDataReady();
 }
@@ -346,103 +304,43 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
 tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
+  ZoneScoped;
+  assert(m_pjrt_tensor && "Copy from buffer without an associated tensor.");
 
-  assert((m_prepared_runtime_tensor.has_value() ||
-          m_host_runtime_tensor.has_value()) &&
-         "Trying to copy from buffer instance without an associated device or "
-         "host tensor.");
+  auto rt_data_type =
+      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
 
-  // Preferentially retrieve from live on device tensor if it exists.
-  // In some cases an Input BufferInstance may be returned to host
-  // without an execution taking place, in which case we use the host runtime
-  // tensor.
-  bool is_tensor_on_host = !m_prepared_runtime_tensor.has_value();
-  tt::runtime::Tensor runtime_tensor_to_retrieve =
-      m_prepared_runtime_tensor.value_or(*m_host_runtime_tensor);
-
-  // Wait if there is a copy already in progress.
-  // Needs to be locked for each BufferInstance since multiple framework
-  // threads can concurrently call copyToHost on the same BufferInstance,
-  // and it is UB for multiple threads to join the same thread.
-  std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
-  if (m_copy_to_host_thread) {
-    m_copy_to_host_thread->join();
-    m_copy_to_host_thread.reset();
-  }
+  // TODO(acolic): Copying in a separate thread is left to match previous
+  // behavior. Check whether it is needed: it does not make much sense to
+  // create new thread for each shard, because tensors are moved once from
+  // device when onHost is called on a first shard; on the other hand, there is
+  // no sense to create new thread for memcpy because framework would wait on a
+  // copy anyway, right? Also, creating std::thread for memcpy might be overhead
+  // with performance loss. We must measure.
+  // Also, std::thread (as all objects from std::) has a value semantic, so it
+  // does not make any sense to create std::thread as a unique_ptr.
+  joinCopyThread();
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
-  // Start copying in a separate thread.
-  m_copy_to_host_thread = std::make_unique<std::thread>(
-      [](void *host_buffer, tt::runtime::Tensor runtime_tensor,
-         EventInstance *event, PJRT_Buffer_Type data_type,
-         size_t host_buffer_size, std::optional<uint32_t> device_id,
-         bool already_on_host, uint64_t buffer_uid) {
-        // Acquire static lock to serialize all copy-to-host operations across
-        // all BufferInstances since any metal dispatch in this async thread
-        // will cause ND segfaults as metal is not thread safe. This lock is
-        // released once it falls out of scope.
-        std::lock_guard<std::mutex> copy_to_host_internal_lock(
-            s_copy_to_host_internal_mutex);
+  m_copy_to_host_thread = std::make_unique<std::thread>([=, e = event.get()] {
+    try {
+      ZoneScopedN("CopyToHostThread");
+      const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
 
-        tt_pjrt_status copy_status = tt_pjrt_status::kSuccess;
+      m_pjrt_tensor->move_to_host();
 
-        try {
-          std::vector<tt::runtime::Tensor> host_runtime_tensors;
-          if (!already_on_host) {
-            // The tensor transferred to host has its device lifetime managed by
-            // the BufferInstance owner And is no longer deallocated when
-            // transferred back to host.
-            host_runtime_tensors =
-                tt::runtime::toHost(runtime_tensor, /*untilize=*/true);
-          } else {
-            host_runtime_tensors.push_back(runtime_tensor);
-          }
-          DLOG_F(LOG_DEBUG,
-                 "Returning tensor to host with host_runtime_tensors ct = %ld "
-                 "from device %d with buffer UID %zu",
-                 host_runtime_tensors.size(),
-                 device_id.has_value() ? device_id.value() : 0, buffer_uid);
+      assert(tensorSize() <= host_buffer_size && "Host buffer is too small.");
+      tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
+                          rt_data_type);
 
-          // If device_id is not set, we are returning a replicated input
-          // buffer instance to host (eg. cache position for update). This means
-          // we can pull back the first, or any, runtime tensor shard since it's
-          // replicated
-          uint32_t shard_index = device_id.value_or(0);
+      e->markAsReady(tt_pjrt_status::kSuccess);
 
-          tt::runtime::Tensor host_shard_runtime_tensor =
-              host_runtime_tensors[shard_index];
-
-          // Making sure that the host buffer size is greater than or equal to
-          // the runtime tensor size.
-          size_t runtime_tensor_size =
-              BufferInstance::getConvertedRuntimeTensorSize(
-                  host_shard_runtime_tensor, data_type);
-          if (runtime_tensor_size > host_buffer_size) {
-            DLOG_F(ERROR,
-                   "Tried to copy device buffer to the host buffer with "
-                   "smaller size "
-                   "than required (device buffer size: %zu, host buffer size: "
-                   "%zu)",
-                   runtime_tensor_size, host_buffer_size);
-            event->markAsReady(tt_pjrt_status::kFailedPrecondition);
-            return;
-          }
-
-          tt::runtime::memcpy(
-              host_buffer, host_shard_runtime_tensor,
-              tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
-                  data_type));
-
-        } catch (const std::runtime_error &error) {
-          DLOG_F(ERROR, "Copy to host buffer failed with error: %s",
-                 error.what());
-          copy_status = tt_pjrt_status::kInternal;
-        }
-        event->markAsReady(copy_status);
-      },
-      host_buffer, runtime_tensor_to_retrieve, event.get(), m_data_type,
-      host_buffer_size, m_device_id, is_tensor_on_host, m_uid);
+    } catch (const std::exception &error) {
+      LOG_F(ERROR, "Copy to host buffer failed with error: %s", error.what());
+      e->markAsReady(tt_pjrt_status::kInternal);
+    }
+  });
 
   // responsible for calling `PJRT_Event_Destroy` on the event.
   *out_copy_done_event = event.release();
@@ -461,13 +359,15 @@ void BufferInstance::markAsDataReady() {
   }
 }
 
+// We do not copy to device memory. We are just coping buffer from provided pjrt
+// buffer and pretend that we have copied buffer instance to device.
 tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
                                                   MemoryInstance *dst_memory,
                                                   BufferInstance **dst_buffer) {
   // PJRT API specification requires returning error in case of copying to same
   // device/memory space.
   if (getMemory() == dst_memory || getDevice() == dst_device) {
-    DLOG_F(ERROR, "Cannot copy buffer to the same memory or device");
+    LOG_F(ERROR, "Cannot copy buffer to the same memory or device");
     return tt_pjrt_status::kInvalidArgument;
   }
 
@@ -485,7 +385,7 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
 
 tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
   if (m_data_ready_event) {
-    DLOG_F(ERROR, "Buffer marked as data ready multiple times");
+    LOG_F(ERROR, "Buffer marked as data ready multiple times");
     return tt_pjrt_status::kInternal;
   }
 
@@ -508,6 +408,7 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
 namespace internal {
 
 PJRT_Error *onBufferDestroy(PJRT_Buffer_Destroy_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Destroy");
 
   delete BufferInstance::unwrap(args->buffer);
@@ -516,6 +417,7 @@ PJRT_Error *onBufferDestroy(PJRT_Buffer_Destroy_Args *args) {
 }
 
 PJRT_Error *onBufferElementType(PJRT_Buffer_ElementType_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ElementType");
 
   args->type = BufferInstance::unwrap(args->buffer)->getDataType();
@@ -524,6 +426,7 @@ PJRT_Error *onBufferElementType(PJRT_Buffer_ElementType_Args *args) {
 }
 
 PJRT_Error *onBufferDimensions(PJRT_Buffer_Dimensions_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Dimensions");
 
   BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
@@ -535,6 +438,7 @@ PJRT_Error *onBufferDimensions(PJRT_Buffer_Dimensions_Args *args) {
 
 PJRT_Error *
 onBufferUnpaddedDimensions(PJRT_Buffer_UnpaddedDimensions_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_UnpaddedDimensions");
 
   BufferInstance *buffer = BufferInstance::unwrap(args->buffer);
@@ -547,6 +451,7 @@ onBufferUnpaddedDimensions(PJRT_Buffer_UnpaddedDimensions_Args *args) {
 
 PJRT_Error *onBufferDynamicDimensionIndices(
     PJRT_Buffer_DynamicDimensionIndices_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_DynamicDimensionIndices");
 
   // We don't support dynamic dimensions yet.
@@ -557,6 +462,7 @@ PJRT_Error *onBufferDynamicDimensionIndices(
 }
 
 PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ToHostBuffer");
 
   // TODO(mrakita): The caller can specify an optional `host_layout` arg to
@@ -570,26 +476,13 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
-    // For output buffers, use the prepared tensor; for input buffers, use host
-    // tensor. Prepared tensor will always have a >= size than host tensor
-    // since it rounds up to tile size and gives physical tensor volume.
-    // There may not be an associated host runtime tensor with all
-    // buffer instances, eg. if it represents an output that never returned to
-    // host.
-    if (buffer->getPreparedTensor().has_value()) {
-      DLOG_F(WARNING,
-             "Calculating required host buffer size from device tensor when "
-             "args->dst is nullptr to query the required size. This will give "
-             "an overestimated tile-aligned physical tensor size instead of a "
-             "logical size. TODO @jameszianxu");
-      args->dst_size = BufferInstance::getConvertedRuntimeTensorSize(
-          buffer->getPreparedTensor().value(), buffer->getDataType());
-    } else {
-      assert(buffer->getHostRuntimeTensor().has_value() &&
-             "Neither host nor device tensor initialized");
-      args->dst_size = BufferInstance::getConvertedRuntimeTensorSize(
-          buffer->getHostRuntimeTensor().value(), buffer->getDataType());
-    }
+    ZoneScopedN("QueryHostBufferSize");
+    DLOG_F(LOG_DEBUG,
+           "Calculating required host buffer size from device tensor when "
+           "args->dst is nullptr to query the required size. This will give "
+           "an overestimated tile-aligned physical tensor size instead of a "
+           "logical size. TODO @jameszianxu");
+    args->dst_size = buffer->tensorSize();
     return nullptr;
   }
 
@@ -601,6 +494,7 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 }
 
 PJRT_Error *onBufferDelete(PJRT_Buffer_Delete_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Delete");
 
   BufferInstance::unwrap(args->buffer)->deleteData();
@@ -609,6 +503,7 @@ PJRT_Error *onBufferDelete(PJRT_Buffer_Delete_Args *args) {
 }
 
 PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsDeleted");
 
   args->is_deleted = BufferInstance::unwrap(args->buffer)->isDataDeleted();
@@ -616,7 +511,10 @@ PJRT_Error *onBufferIsDeleted(PJRT_Buffer_IsDeleted_Args *args) {
   return nullptr;
 }
 
+// We do not copy to device memory. We are just coping buffer from provided pjrt
+// buffer and pretend that we have copied buffer instance to device.
 PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToDevice");
 
   BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
@@ -631,6 +529,7 @@ PJRT_Error *onBufferCopyToDevice(PJRT_Buffer_CopyToDevice_Args *args) {
 }
 
 PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_CopyToMemory");
 
   BufferInstance *src_buffer = BufferInstance::unwrap(args->buffer);
@@ -640,7 +539,7 @@ PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
   // Copying into to host memory is undefined, since it's not clear
   // when we should use it, since PJRT_Buffer_ToHostBuffer is used for this.
   if (dst_memory->isHostMemory()) {
-    DLOG_F(ERROR, "Copying buffer to host memory is not supported");
+    LOG_F(ERROR, "Copying buffer to host memory is not supported");
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
@@ -652,6 +551,7 @@ PJRT_Error *onBufferCopyToMemory(PJRT_Buffer_CopyToMemory_Args *args) {
 }
 
 PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_IsOnCpu");
 
   // Currently all our inputs are transferred to device where computation runs.
@@ -661,6 +561,7 @@ PJRT_Error *onBufferIsOnCpu(PJRT_Buffer_IsOnCpu_Args *args) {
 }
 
 PJRT_Error *onBufferDevice(PJRT_Buffer_Device_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Device");
 
   args->device = *BufferInstance::unwrap(args->buffer)->getDevice();
@@ -669,6 +570,7 @@ PJRT_Error *onBufferDevice(PJRT_Buffer_Device_Args *args) {
 }
 
 PJRT_Error *onBufferMemory(PJRT_Buffer_Memory_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_Memory");
 
   args->memory = *BufferInstance::unwrap(args->buffer)->getMemory();
@@ -677,6 +579,7 @@ PJRT_Error *onBufferMemory(PJRT_Buffer_Memory_Args *args) {
 }
 
 PJRT_Error *onBufferReadyEvent(PJRT_Buffer_ReadyEvent_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "BufferInstance::PJRT_Buffer_ReadyEvent");
 
   BufferInstance *buffer = BufferInstance::unwrap(args->buffer);

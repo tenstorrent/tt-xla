@@ -14,6 +14,9 @@
 #include <cstring>
 #include <string>
 
+// tracy includes
+#include "tracy/Tracy.hpp"
+
 // tt-xla includes
 #include "api/client_instance.h"
 #include "api/error_instance.h"
@@ -57,6 +60,7 @@ void ExecutableInstance::bindApi(PJRT_Api *api) {
 namespace internal {
 
 PJRT_Error *onExecutableDestroy(PJRT_Executable_Destroy_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Destroy");
 
   delete ExecutableInstance::unwrap(args->executable);
@@ -65,6 +69,7 @@ PJRT_Error *onExecutableDestroy(PJRT_Executable_Destroy_Args *args) {
 }
 
 PJRT_Error *onExecutableName(PJRT_Executable_Name_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Name");
 
   ExecutableInstance *executable_instance =
@@ -79,6 +84,7 @@ PJRT_Error *onExecutableName(PJRT_Executable_Name_Args *args) {
 }
 
 PJRT_Error *onExecutableNumReplicas(PJRT_Executable_NumReplicas_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumReplicas");
 
   ExecutableInstance *executable_instance =
@@ -92,6 +98,7 @@ PJRT_Error *onExecutableNumReplicas(PJRT_Executable_NumReplicas_Args *args) {
 
 PJRT_Error *
 onExecutableNumPartitions(PJRT_Executable_NumPartitions_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumPartitions");
 
   ExecutableInstance *executable_instance =
@@ -105,6 +112,7 @@ onExecutableNumPartitions(PJRT_Executable_NumPartitions_Args *args) {
 
 PJRT_Error *
 onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_OptimizedProgram");
 
   ExecutableInstance *executable_instance =
@@ -114,29 +122,35 @@ onExecutableOptimizedProgram(PJRT_Executable_OptimizedProgram_Args *args) {
   program->format = module_builder::c_mlir_format_name.data();
   program->format_size = module_builder::c_mlir_format_name.size();
 
-  const std::string &original_mlir_code =
-      executable_instance->getExecutableImage()->getOriginalMlirCode();
-  size_t code_size = original_mlir_code.size();
+  // Use optimized MLIR code cleaned for XLA ingestion
+  // If no shardy output shardings are specified, this is the same as the
+  // original MLIR code. Otherwise, it is the optimized MLIR code cleaned for
+  // XLA ingestion.
+  const std::string &optimized_mlir_code =
+      executable_instance->getExecutableImage()->getOptimizedMlirCode();
+
+  size_t code_size = optimized_mlir_code.size();
 
   if (program->code == nullptr) {
     program->code_size = code_size;
   } else {
     if (program->code_size < code_size) {
-      DLOG_F(ERROR,
-             "Not enough space allocated for optimized program: expected %zu "
-             "bytes, allocated %zu bytes",
-             code_size, program->code_size);
+      LOG_F(ERROR,
+            "Not enough space allocated for optimized program: expected %zu "
+            "bytes, allocated %zu bytes",
+            code_size, program->code_size);
       return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                   .release();
     }
 
-    std::memcpy(program->code, original_mlir_code.data(), code_size);
+    std::memcpy(program->code, optimized_mlir_code.data(), code_size);
   }
 
   return nullptr;
 }
 
 PJRT_Error *onExecutableNumOutputs(PJRT_Executable_NumOutputs_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_NumOutputs");
 
   ExecutableInstance *executable_instance =
@@ -150,6 +164,7 @@ PJRT_Error *onExecutableNumOutputs(PJRT_Executable_NumOutputs_Args *args) {
 
 PJRT_Error *onExecutableSizeOfGeneratedCodeInBytes(
     PJRT_Executable_SizeOfGeneratedCodeInBytes_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG,
          "ExecutableInstance::PJRT_Executable_SizeOfGeneratedCodeInBytes");
 
@@ -163,6 +178,7 @@ PJRT_Error *onExecutableSizeOfGeneratedCodeInBytes(
 }
 
 PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Fingerprint");
 
   const ExecutableInstance *executable_instance =
@@ -179,6 +195,7 @@ PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args) {
 
 PJRT_Error *
 onExecutableOutputElementTypes(PJRT_Executable_OutputElementTypes_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_OutputElementTypes");
 
   ExecutableInstance *executable_instance =
@@ -194,6 +211,7 @@ onExecutableOutputElementTypes(PJRT_Executable_OutputElementTypes_Args *args) {
 
 PJRT_Error *
 onExecutableOutputDimensions(PJRT_Executable_OutputDimensions_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_OutputDimensions");
 
   ExecutableInstance *executable_instance =
@@ -215,6 +233,7 @@ onExecutableOutputDimensions(PJRT_Executable_OutputDimensions_Args *args) {
 
 PJRT_Error *
 onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableImage::PJRT_Executable_OutputMemoryKinds");
 
   ExecutableInstance *executable_instance =
@@ -231,6 +250,7 @@ onExecutableOutputMemoryKinds(PJRT_Executable_OutputMemoryKinds_Args *args) {
 };
 
 PJRT_Error *onExecutableSerialize(PJRT_Executable_Serialize_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ExecutableInstance::PJRT_Executable_Serialize");
 
   const ExecutableInstance *executable_instance =

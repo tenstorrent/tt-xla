@@ -4,23 +4,22 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Sequence
+from typing import Callable, Sequence
 
 import jax
-from infra.comparators import ComparisonConfig
 from infra.connectors import JaxDeviceConnector
+from infra.evaluators import ComparisonConfig
 from infra.runners import JaxDeviceRunner
 from infra.utilities import (
     Framework,
     ShardingMode,
     Tensor,
+    compile_jax_multichip_workload,
     enable_shardy,
     random_tensor,
     sanitize_test_name,
 )
 from infra.workloads import JaxMultichipWorkload, Workload
-from jax.experimental.shard_map import shard_map
-from jax.sharding import NamedSharding
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
@@ -69,7 +68,11 @@ class JaxMultichipOpTester(BaseTester):
         self._device_mesh: jax.sharding.Mesh = None
         self._cpu_mesh: jax.sharding.Mesh = None
 
-        super().__init__(comparison_config, Framework.JAX)
+        super().__init__(
+            evaluator_type="comparison",
+            comparison_config=comparison_config,
+            framework=Framework.JAX,
+        )
         self._initialize_meshes()
 
     def _initialize_meshes(self) -> None:
@@ -83,6 +86,7 @@ class JaxMultichipOpTester(BaseTester):
         sharding_mode: ShardingMode,
         minval: float = 0.0,
         maxval: float = 1.0,
+        request=None,
     ) -> None:
         """
         Tests an input executable with random inputs in range [`minval`, `maxval`) by
@@ -109,15 +113,27 @@ class JaxMultichipOpTester(BaseTester):
             out_spec=self._out_spec,
             sharding_mode=sharding_mode,
         )
-        self.test(device_workload, cpu_workload)
+        self.test(device_workload, cpu_workload, request=request)
 
     def test(
-        self, device_workload: JaxMultichipWorkload, cpu_workload: JaxMultichipWorkload
+        self,
+        device_workload: JaxMultichipWorkload,
+        cpu_workload: JaxMultichipWorkload,
+        request=None,
     ) -> None:
         """
         Runs test by running `workload` on TT device and 'cpu_workload' on the CPU and
         comparing the results.
         """
+        if request:
+            if request.config.getoption(
+                "--serialize", False
+            ) or request.node.get_closest_marker("filecheck"):
+                # Serialization requires mesh context for jax models with sharding operations, which is not currently handled.
+                assert (
+                    False
+                ), "Serialization/filecheck not supported through JAX multichip op/graph testers yet."
+
         with self._device_mesh:
             self._compile_for_tt_device(device_workload)
             device_res = self._run_on_multichip_device(device_workload)
@@ -126,46 +142,18 @@ class JaxMultichipOpTester(BaseTester):
             self._compile_for_cpu(cpu_workload)
             cpu_res = self._run_on_multichip_device(cpu_workload)
 
-        self._comparator.compare(device_res, cpu_res)
+        self._evaluator.evaluate(device_res, cpu_res)
 
-    # @override
     def _compile_for_cpu(self, workload: Workload) -> None:
+        """Compile JAX multichip workload for CPU."""
         assert isinstance(workload, JaxMultichipWorkload)
+        compile_jax_multichip_workload(workload, compiler_options={})
 
-        # Compile options are not used for CPU compilation since they are TT backend specific.
-        self._compile(workload, compiler_options={})
-
-    # @override
     def _compile_for_tt_device(self, workload: Workload) -> None:
+        """Compile JAX multichip workload for TT device."""
         assert isinstance(workload, JaxMultichipWorkload)
-
-        compiler_options = self._compiler_config.to_jax_compiler_options()
-        self._compile(workload, compiler_options)
-
-    # @override
-    def _compile(self, workload: Workload, compiler_options: Dict[str, str]) -> None:
-        """
-        Sets up `workload.executable` for just-in-time compile and execution.
-        `workload.device_mesh` defines for which device (TT or CPU) it will be compiled.
-        """
-        assert isinstance(workload, JaxMultichipWorkload)
-
-        module_sharded_executable = (
-            shard_map(
-                workload.executable,
-                mesh=workload.device_mesh,
-                in_specs=workload.in_specs,
-                out_specs=workload.out_spec,
-            )
-            if workload.sharding_mode.requires_shard_map
-            else workload.executable
-        )
-        output_sharding = NamedSharding(workload.device_mesh, workload.out_spec)
-        workload.compiled_executable = jax.jit(
-            module_sharded_executable,
-            out_shardings=output_sharding,
-            static_argnames=workload.static_argnames,
-            compiler_options=compiler_options,
+        compile_jax_multichip_workload(
+            workload, self._compiler_config.to_jax_compiler_options()
         )
 
     # --- Convenience wrappers ---
@@ -228,6 +216,7 @@ def run_jax_multichip_op_test_with_random_inputs(
     maxval: float = 1.0,
     comparison_config: ComparisonConfig = ComparisonConfig(),
     compiler_config: CompilerConfig = None,
+    request=None,
 ) -> None:
     """
     Tests an input executable with random inputs in range [`minval`, `maxval`) by
@@ -245,7 +234,7 @@ def run_jax_multichip_op_test_with_random_inputs(
             compiler_config,
         )
         tester.test_with_random_inputs(
-            executable, input_shapes, sharding_mode, minval, maxval
+            executable, input_shapes, sharding_mode, minval, maxval, request=request
         )
 
 

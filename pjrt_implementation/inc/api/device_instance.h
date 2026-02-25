@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_INSTANCE_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_INSTANCE_H_
+
 // c++ standard library includes
 #include <memory>
 
@@ -16,9 +19,6 @@
 
 // tt-xla includes
 #include "api/device_description.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_INSTANCE_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_DEVICE_INSTANCE_H_
 
 namespace tt::pjrt {
 
@@ -87,7 +87,7 @@ private:
   DeviceInstance(int global_device_id, bool is_addressable, int local_device_id,
                  tt::target::Arch arch)
       : m_description(global_device_id, arch), m_is_addressable(is_addressable),
-        m_local_device_id(local_device_id) {}
+        m_local_device_id(local_device_id), m_default_memory(nullptr) {}
 
   // Device description.
   DeviceDescription m_description;

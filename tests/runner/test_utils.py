@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
+import glob
 import importlib.util
 import inspect
 import json
@@ -12,53 +13,55 @@ import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, List, Optional
 
 import numpy as np
 import pytest
 import torch
+import torch_xla
+import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
 from infra.utilities.torch_multichip_utils import get_mesh
 from torch_xla.distributed.spmd import Mesh
 
-from tests.infra.comparators import comparison_config
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 
 BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
-def fix_venv_isolation():
-    """
-    Fix venv isolation issue: ensure venv packages take precedence over system packages.
+# Optional hint that selects a non-default execution/input-loading phase.
+# Today this is only used to distinguish LLM prefill vs decode; in the future it may
+# be extended to other model families (e.g., vision) if they need phase-specific inputs.
+class RunPhase(Enum):
+    DEFAULT = "default"
+    LLM_PREFILL = "llm_prefill"
+    LLM_DECODE = "llm_decode"
 
-    This function adjusts the Python path to prioritize virtual environment packages
-    over system packages, preventing package conflicts and ensuring proper isolation
-    during test execution.
-    """
-    venv_site = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),
-        "..",
-        "venv",
-        "lib",
-        "python3.11",
-        "site-packages",
-    )
-    if os.path.exists(venv_site) and venv_site not in sys.path:
-        sys.path.insert(0, os.path.abspath(venv_site))
+    def __str__(self) -> str:
+        return self.value
 
-    # Remove system packages from path to ensure proper isolation
-    sys.path = [
-        p
-        for p in sys.path
-        if "/usr/local/lib/python3.11/dist-packages" not in p
-        or p == "/usr/local/lib/python3.11/dist-packages"
-    ]
-    # Re-add at the end as fallback
-    if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
-        sys.path.append("/usr/local/lib/python3.11/dist-packages")
+
+def find_dumped_ir_files(artifacts_dir: str) -> List[str]:
+    """
+    Find dumped SHLO IR files in a given directory.
+
+    This function searches for StableHLO compiler IR files that were dumped
+    during model test execution with the --dump-irs flag.
+
+    Args:
+        artifacts_dir: Directory where collected IRs are stored.
+    """
+
+    pattern = os.path.join(artifacts_dir, "irs", "shlo_compiler*.mlir")
+
+    matches = glob.glob(pattern)
+    if not matches:
+        raise FileNotFoundError(f"No file matching {pattern} with dumped IR found")
+
+    return matches
 
 
 class ModelTestStatus(Enum):
@@ -95,12 +98,16 @@ class ModelTestConfig:
 
         # Misc arguments used in test
         self.batch_size = self._resolve("batch_size", default=None)
+        self.seq_len = self._resolve("seq_len", default=None)
 
         # Arguments to skip_full_eval_test() for skipping tests
         self.reason = self._resolve("reason", default=None)
         self.bringup_status = self._resolve("bringup_status", default=None)
 
         self.failing_reason = self._resolve("failing_reason", default=None)
+        self.failing_reason_summary = self._resolve(
+            "failing_reason_summary", default=None
+        )
 
         # Optional list of pytest markers to apply (e.g. ["push", "nightly"]) - normalized to list[str]
         self.markers = self._normalize_markers(self._resolve("markers", default=[]))
@@ -218,7 +225,7 @@ def update_test_metadata_for_exception(
         message = repr(exc)
 
     # Find failing reason by raised exception
-    failing_reason = FailingReasonsFinder.find_reason_by_exception(
+    exception_reason = FailingReasonsFinder.find_reason_by_exception(
         exc, stdout=stdout, stderr=stderr
     )
 
@@ -246,7 +253,8 @@ def update_test_metadata_for_exception(
     runtime_reason = detailed_error if detailed_error else message
 
     setattr(test_metadata, "runtime_reason", runtime_reason)
-    setattr(test_metadata, "failing_reason", failing_reason)
+    setattr(test_metadata, "failing_reason", exception_reason.failing_reasons)
+    setattr(test_metadata, "failing_reason_summary", exception_reason.summary)
 
 
 # This is needed for combination of pytest-forked and using ruamel.yaml
@@ -321,6 +329,96 @@ def _derive_guidance_from_status(test_metadata_status, bringup_status) -> list[s
     return guidance
 
 
+def _get_first_failing_or_last_result(comparison_results: list):
+    """
+    Get the first failing result, or last result if all passed.
+
+    Args:
+        comparison_results: List of ComparisonResult objects
+
+    Returns:
+        The selected ComparisonResult, or None if list is empty/None
+    """
+    if not comparison_results:
+        return None
+
+    for result in comparison_results:
+        if result is not None and not result.passed:
+            return result
+
+    return comparison_results[-1]
+
+
+def _get_comparison_metrics(
+    comparison_results: list,
+) -> tuple[float | None, float | None, bool | None, str | None]:
+    """
+    Get comparison metrics from a list of comparison results.
+
+    Uses the first failed result, or the last result if all passed.
+
+    Args:
+        comparison_results: List of ComparisonResult objects
+
+    Returns:
+        Tuple of (pcc, atol, comparison_passed, comparison_error_message)
+    """
+    result = _get_first_failing_or_last_result(comparison_results)
+    if result is None:
+        return None, None, None, None
+
+    return (
+        result.pcc,
+        result.atol,
+        result.passed,
+        result.error_message,
+    )
+
+
+def _process_comparison_results(
+    comparison_results: list,
+    comparison_config,
+) -> tuple[BringupStatus, str]:
+    """
+    Process a list of comparison results and determine overall status.
+
+    Args:
+        comparison_results: List of ComparisonResult objects to process
+        comparison_config: The comparison configuration used
+
+    Returns:
+        Tuple of (bringup_status, reason_string)
+        - bringup_status: BringupStatus based on comparison outcomes
+        - reason_string: Combined reason string for all failures
+    """
+    if not comparison_results or comparison_config is None:
+        return None, ""
+
+    reason_parts = []
+    required_pcc = comparison_config.pcc.required_pcc
+    pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"
+
+    for i, result in enumerate(comparison_results, start=1):
+        if result is None:
+            continue
+
+        pcc = result.pcc
+        if pcc is None:
+            continue
+
+        if np.isnan(pcc) or pcc < required_pcc:
+            reason_parts.append(
+                f"[{i}/{len(comparison_results)}]: PCC check {pcc_check_str}. "
+                f"Calculated: pcc={pcc}. Required: pcc={required_pcc}."
+            )
+
+    if not reason_parts:
+        return BringupStatus.PASSED, ""
+
+    combined_reason = "Test marked w/ INCORRECT_RESULT. " + " | ".join(reason_parts)
+    return BringupStatus.INCORRECT_RESULT, combined_reason
+
+
 def _derive_guidance_from_pcc(comparison_result, comparison_config) -> list[str]:
     """
     Derive guidance tags from PCC metrics and thresholds.
@@ -385,9 +483,11 @@ def record_model_test_properties(
     test_metadata,
     run_mode: RunMode,
     parallelism: Parallelism,
+    run_phase: RunPhase = RunPhase.DEFAULT,
     test_passed: bool = False,
-    comparison_result=None,
+    comparison_results: list = None,
     comparison_config=None,
+    model_size: int = None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -405,6 +505,7 @@ def record_model_test_properties(
     reason = ""
     arch = getattr(test_metadata, "arch", None)
     failing_reason = getattr(test_metadata, "failing_reason", None)
+    failing_reason_summary = getattr(test_metadata, "failing_reason_summary", None)
     config_bringup_status = getattr(test_metadata, "bringup_status", None)
 
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
@@ -424,14 +525,13 @@ def record_model_test_properties(
         bringup_status = config_bringup_status
         reason = getattr(test_metadata, "reason", "")
 
-    elif comparison_result is not None:
-        pcc = comparison_result.pcc
-        required_pcc = comparison_config.pcc.required_pcc
-        if np.isnan(pcc) or pcc < required_pcc:
-            bringup_status = BringupStatus.INCORRECT_RESULT
-            required_pcc = comparison_config.pcc.required_pcc
-            pcc_check_str = "enabled" if comparison_config.pcc.enabled else "disabled"
-            reason = f"Test marked w/ INCORRECT_RESULT. PCC check {pcc_check_str}. Calculated: pcc={pcc}. Required: pcc={required_pcc}."
+    elif comparison_results is not None and len(comparison_results) > 0:
+        processed_status, processed_reason = _process_comparison_results(
+            comparison_results, comparison_config
+        )
+        if processed_status == BringupStatus.INCORRECT_RESULT:
+            bringup_status = processed_status
+            reason = processed_reason
             if not comparison_config.pcc.enabled:
                 failing_reason = FailingReasons.find_by_description(
                     "Test marked w/ INCORRECT_RESULT. PCC check disabled."
@@ -452,7 +552,7 @@ def record_model_test_properties(
         static_reason = getattr(test_metadata, "reason", None)
         runtime_reason = getattr(test_metadata, "runtime_reason", None)
 
-        if comparison_result is None:
+        if comparison_results is None or len(comparison_results) == 0:
             bringup_status = parse_last_bringup_stage()
             if bringup_status is None:
                 bringup_status = BringupStatus.UNKNOWN
@@ -468,6 +568,7 @@ def record_model_test_properties(
         "model_name": str(model_info.name),
         "model_info": model_info.to_report_dict(),
         "run_mode": str(run_mode),
+        "run_phase": str(run_phase),
         "bringup_status": str(bringup_status),
         "model_test_status": str(test_metadata.status),
         "failing_reason": (
@@ -475,17 +576,25 @@ def record_model_test_properties(
                 "name": failing_reason.name,
                 "description": failing_reason.value.description,
                 "component": failing_reason.value.component_checker_description,
+                "summary": failing_reason_summary,
             }
             if failing_reason
             else {
                 "name": None,
                 "description": None,
                 "component": None,
+                "summary": None,
             }
         ),
         "parallelism": str(parallelism),
         "arch": arch,
+        "seq_len": getattr(test_metadata, "seq_len", None),
+        "batch_size": getattr(test_metadata, "batch_size", None),
     }
+
+    # Add model size (in billions of parameters) to tags if available
+    if model_size is not None:
+        tags["model_size_billions"] = model_size / 1e9
 
     # Add execution_pass if available
     execution_pass = getattr(test_metadata, "execution_pass", None)
@@ -493,13 +602,16 @@ def record_model_test_properties(
         tags["execution_pass"] = str(execution_pass)
 
     # Add comparison result metrics if available
-    if comparison_result is not None:
+    if comparison_results is not None and len(comparison_results) > 0:
+        pcc, atol, comparison_passed, comparison_error_message = (
+            _get_comparison_metrics(comparison_results)
+        )
         tags.update(
             {
-                "pcc": comparison_result.pcc,
-                "atol": comparison_result.atol,
-                "comparison_passed": comparison_result.passed,
-                "comparison_error_message": comparison_result.error_message,
+                "pcc": pcc,
+                "atol": atol,
+                "comparison_passed": comparison_passed,
+                "comparison_error_message": comparison_error_message,
             }
         )
     if comparison_config is not None:
@@ -513,7 +625,8 @@ def record_model_test_properties(
         )
 
     # Derive guidance tags based on PCC metrics and thresholds (always include; may be empty).
-    guidance_pcc = _derive_guidance_from_pcc(comparison_result, comparison_config)
+    representative_result = _get_first_failing_or_last_result(comparison_results)
+    guidance_pcc = _derive_guidance_from_pcc(representative_result, comparison_config)
     # Derive guidance tags based on test status and bringup status.
     guidance_status = _derive_guidance_from_status(test_metadata.status, bringup_status)
     # Combine all guidance tags.
@@ -537,12 +650,93 @@ def record_model_test_properties(
         pytest.xfail(reason)
 
 
+def get_xla_device_arch():
+    """
+    Get the XLA device architecture (wormhole, blackhole, etc.)
+
+    Returns:
+        str: Architecture name ('wormhole' or 'blackhole'), or empty string if not found
+    """
+    all_attributes = xr.global_runtime_device_attributes()
+    device_attributes = all_attributes[0]
+
+    arch_name = device_attributes["device_arch"].lower()
+
+    for arch in ["wormhole", "blackhole"]:
+        if arch in arch_name:
+            return arch
+    return ""
+
+
+def get_input_shape_info(inputs) -> tuple[int, int, tuple]:
+    """Extract batch_size, sequence_length, and input_size from input activations.
+
+    This function uses heuristics to determine shape information:
+    - If inputs is a Mapping (dict), it tries to get 'input_ids' if present,
+      otherwise uses the first value found (generally the primary input).
+    - If inputs is a Sequence (list/tuple), it uses the first element.
+    - It assumes the extracted item is a torch.Tensor.
+
+    Returns:
+        (batch_size, sequence_length, input_size)
+        For LLMs: input_size is (sequence_length,)
+        For image models: input_size is shape[1:] (e.g., (3, 224, 224))
+                         sequence_length will be -1 (not applicable)
+
+        Returns default (1, -1, (-1,)) if inputs are None, empty, or don't match expected formats.
+    """
+    if inputs is None:
+        return 1, -1, (-1,)
+
+    # Get the first tensor to extract shape
+    tensor = None
+    if isinstance(inputs, torch.Tensor):
+        tensor = inputs
+    elif isinstance(inputs, collections.abc.Mapping):
+        # Get 'input_ids' if present
+        if "input_ids" in inputs:
+            tensor = inputs["input_ids"]
+        elif len(inputs) > 0:
+            # Fallback: Get first value from the mapping
+            tensor = next(iter(inputs.values()))
+    elif isinstance(inputs, collections.abc.Sequence) and not isinstance(inputs, str):
+        if len(inputs) > 0:
+            tensor = inputs[0]
+
+    # Validate we got a tensor with a shape
+    if (
+        tensor is None
+        or not isinstance(tensor, torch.Tensor)
+        or not hasattr(tensor, "shape")
+    ):
+        return 1, -1, (-1,)
+
+    shape = tensor.shape
+    batch_size = shape[0] if len(shape) > 0 else 1
+
+    if len(shape) >= 2:
+        if len(shape) >= 4:
+            # Image case [batch, channels, height, width]
+            sequence_length = -1  # Not applicable for images
+            input_size = tuple(shape[1:])  # (channels, height, width)
+        else:
+            # 2D or 3D: LLM case [batch, seq_len] or [batch, seq_len, hidden_dim]
+            sequence_length = shape[1]
+            input_size = (sequence_length,)
+    else:
+        # other formats
+        sequence_length = -1
+        input_size = (-1,)
+
+    return batch_size, sequence_length, input_size
+
+
 def create_measurement(
     step_name: str,
     measurement_name: str,
-    step_warm_up_num_iterations: int = 1,
-    iteration: int = 1,
-    value: float = 0.0,
+    value: float = -1.0,
+    step_warm_up_num_iterations: int = -1,
+    iteration: int = -1,
     target: float = -1.0,
 ) -> dict[str, Any]:
     """Create a single perf measurement dictionary."""
@@ -564,7 +758,19 @@ def create_benchmark_result(
     model_type: str = "generic",
     training: bool = False,
     model_info: str = "",
+    model_rawname: str = "",
+    model_group: str = "",
+    parallelism: str = "",
+    device_arch: str = "",
+    run_mode: str = "",
     device_name: str = "",
+    batch_size: int = 1,
+    input_size: tuple = (1, 1),
+    num_layers: int = 0,
+    total_time: float = -1,
+    total_samples: int = 0,
+    input_sequence_length: Optional[int] = -1,
+    data_format: str = "bfloat16",
 ) -> dict[str, Any]:
     """
     Create a benchmark result dictionary and write it to a JSON file.
@@ -575,54 +781,71 @@ def create_benchmark_result(
         report_perf_<model_name>_<perf_id>.json
     """
 
-    # Extract e2e stats from the passed measurements list
     metric_list = []
 
+    # Extract e2e stats from the passed measurements list
+    # First add standard measurements
+    metric_list.append(
+        create_measurement("e2e_perf", "total_samples", total_samples),
+    )
+    metric_list.append(
+        create_measurement("e2e_perf", "total_time", total_time),
+    )
+
+    # extract e2e perf stats and add measurements
     if measurements and len(measurements) > 0:
-        # extract e2e perf stats and create measurements using them
         perf_stats = measurements[0]
-        warmup_iters = perf_stats["warmup_iters"]
-        perf_iters = perf_stats["perf_iters"]
-        metric_list.append(
-            create_measurement(
-                "e2e_perf",
-                "total_time",
-                warmup_iters,
-                perf_iters,
-                perf_stats["total_time"],
-            )
-        )
+        warmup_iters_count = perf_stats["warmup_iters_count"]
+        perf_iters_count = perf_stats["perf_iters_count"]
         metric_list.append(
             create_measurement(
                 "e2e_perf",
                 "avg_time",
-                warmup_iters,
-                perf_iters,
                 perf_stats["avg_time"],
+                warmup_iters_count,
             )
         )
+        for iteration, perf_time in enumerate(perf_stats["perf_times"], start=1):
+            metric_list.append(
+                create_measurement(
+                    "e2e_perf",
+                    f"perf_time_{iteration}",
+                    perf_time,
+                    warmup_iters_count,
+                    iteration,
+                )
+            )
 
     config = {
-        "model_size": "small",
         "model_info": model_info,
+        "model_group": model_group,
+        "parallelism": parallelism,
+        "run_mode": run_mode,
+    }
+
+    device_info = {
+        "device_name": device_name,
+        "device_arch": device_arch,
     }
 
     benchmark_results = {
         "model": full_model_name,
         "model_type": model_type,
-        "run_type": f"{'_'.join(full_model_name.split())}_{device_name}",
+        "run_type": f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}",
         "config": config,
         "measurements": metric_list,
-        "device_info": {
-            "device_name": device_name,
-        },
+        "device_info": device_info,
+        "num_layers": num_layers,
+        "batch_size": batch_size,
+        "precision": data_format,
+        "input_sequence_length": input_sequence_length,
         "training": training,
         "project": "tt-xla",
     }
 
     # Add metadata required for collect_data parser
     benchmark_results["project"] = "tt-xla"
-    benchmark_results["model_rawname"] = full_model_name
+    benchmark_results["model_rawname"] = model_rawname
 
     # print benchmark results to console if there are measurements
     if len(benchmark_results["measurements"]) > 0:

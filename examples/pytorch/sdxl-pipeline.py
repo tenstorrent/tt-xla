@@ -1,14 +1,18 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import argparse
 import time
 from enum import Enum
+from pathlib import Path
+from typing import Optional
 
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from diffusers import AutoencoderKL, EulerDiscreteScheduler, UNet2DConditionModel
+from jaxtyping import Float
 from PIL import Image
 from transformers import CLIPTextModel, CLIPTextModelWithProjection
 
@@ -22,7 +26,9 @@ class SDXLConfig:
     available_devices = ["cpu", "cuda"]
     available_dims = [512, 1024]
 
-    def __init__(self, width=1024, height=1024, device="cpu"):
+    def __init__(
+        self, width=1024, height=1024, device="cpu", vae_on_tt=False, clip_on_tt=False
+    ):
         assert width == height, "Currently we only support square images"
         assert (
             width in SDXLConfig.available_dims
@@ -40,6 +46,8 @@ class SDXLConfig:
             device in SDXLConfig.available_devices
         ), f"Invalid device: {device}. Available devices: {SDXLConfig.available_devices}"
         self.device = device
+        self.vae_on_tt = vae_on_tt
+        self.clip_on_tt = clip_on_tt
 
 
 class SDXLPipeline:
@@ -56,11 +64,22 @@ class SDXLPipeline:
         self.height = config.height
         self.latents_width = config.latents_width
         self.latents_height = config.latents_height
+        self.vae_on_tt = config.vae_on_tt
+        self.clip_on_tt = config.clip_on_tt
 
-    def setup(self):
+    def setup(self, warmup=False):
         self.load_models()
         self.load_scheduler()
         self.load_tokenizers()
+        if warmup:
+            self.generate(
+                prompt="a photo of a cat",  # generic prompt
+                negative_prompt="a photo of a dog",
+                do_cfg=True,
+                cfg_scale=7.5,
+                num_inference_steps=5,  # warmup only needs a few steps
+                seed=42,
+            )
 
     def load_models(self):
         # Hotshotco doesn't have native fp16 weights, so we just download bigger model and cast ourselves
@@ -73,6 +92,9 @@ class SDXLPipeline:
             device_map=self.device,
             trust_remote_code=True,
         )
+        if self.vae_on_tt:
+            self.vae.compile(backend="tt")
+            self.vae = self.vae.to(xm.xla_device())
 
         self.unet = UNet2DConditionModel.from_pretrained(
             self.model_id,
@@ -103,6 +125,12 @@ class SDXLPipeline:
             trust_remote_code=True,
         )
 
+        if self.clip_on_tt:
+            self.text_encoder.compile(backend="tt")
+            self.text_encoder = self.text_encoder.to(xm.xla_device())
+            self.text_encoder_2.compile(backend="tt")
+            self.text_encoder_2 = self.text_encoder_2.to(xm.xla_device())
+
     def load_scheduler(self):
         self.scheduler = EulerDiscreteScheduler.from_pretrained(
             self.model_id, subfolder="scheduler"
@@ -125,19 +153,19 @@ class SDXLPipeline:
     def generate(
         self,
         prompt: str,
-        uncond_prompt: str,
+        negative_prompt: str = "",
         do_cfg: bool = True,
         cfg_scale: float = 7.5,
         num_inference_steps: int = 50,
-        seed: int = None,
-    ):
+        seed: Optional[int] = None,
+    ) -> Float[torch.Tensor, "B 3 H W"]:
         """
         Generate an image from a prompt using the SDXL model.
         Only supports text2image generation for now.
 
         Args:
             prompt: The prompt to generate an image from.
-            uncond_prompt: Negative prompt (for example tell the model not to generate a "car")
+            negative_prompt: Negative prompt (for example tell the model "image of a car" to not generate a car)
             do_cfg: Whether to use classifier-free guidance.
             cfg_scale: How much to follow the prompt - higher means more follow the prompt.
             num_inference_steps: How many steps to run the model for.
@@ -145,6 +173,13 @@ class SDXLPipeline:
         """
 
         batch_size = 1 if isinstance(prompt, str) else len(prompt)
+
+        tt_cast = lambda x: (
+            x.to(dtype=torch.bfloat16).to(device=xm.xla_device())
+            if x.device == torch.device("cpu")
+            else x.to(dtype=torch.bfloat16)
+        )
+        cpu_cast = lambda x: x.to("cpu").to(dtype=torch.float16)
 
         with torch.no_grad():
             generator = torch.Generator(device="cpu")
@@ -154,6 +189,8 @@ class SDXLPipeline:
                 generator.seed()
 
             if do_cfg:
+
+                negative_prompt = negative_prompt or ""
                 encoder_hidden_states = []
                 pooled_text_embeds = None
                 for i, (curr_tokenizer, curr_text_encoder) in enumerate(
@@ -167,7 +204,7 @@ class SDXLPipeline:
                     ).input_ids  # (B, T)
 
                     uncond_tokens = curr_tokenizer.batch_encode_plus(
-                        [uncond_prompt], padding="max_length", max_length=77
+                        [negative_prompt], padding="max_length", max_length=77
                     ).input_ids  # (B, T)
 
                     cond_tokens = torch.tensor(cond_tokens, dtype=torch.long).to(
@@ -176,6 +213,10 @@ class SDXLPipeline:
                     uncond_tokens = torch.tensor(uncond_tokens, dtype=torch.long).to(
                         device=self.device
                     )
+
+                    if self.clip_on_tt:
+                        cond_tokens = cond_tokens.to(device=xm.xla_device())
+                        uncond_tokens = uncond_tokens.to(device=xm.xla_device())
 
                     cond_output = curr_text_encoder(
                         cond_tokens, output_hidden_states=True
@@ -194,9 +235,18 @@ class SDXLPipeline:
                     if curr_text_encoder == self.text_encoder_2:
                         pooled_cond_text_embeds = cond_output.text_embeds  # (B, D)
                         pooled_uncond_text_embeds = uncond_output.text_embeds  # (B, D)
+                        if self.clip_on_tt:
+                            pooled_cond_text_embeds = cpu_cast(pooled_cond_text_embeds)
+                            pooled_uncond_text_embeds = cpu_cast(
+                                pooled_uncond_text_embeds
+                            )
                         pooled_text_embeds = torch.cat(
                             [pooled_uncond_text_embeds, pooled_cond_text_embeds], dim=0
                         )  # (2B, D)
+
+                    if self.clip_on_tt:
+                        cond_hidden_state = cpu_cast(cond_hidden_state)
+                        uncond_hidden_state = cpu_cast(uncond_hidden_state)
 
                     curr_hidden_state = torch.cat(
                         [uncond_hidden_state, cond_hidden_state], dim=0
@@ -228,13 +278,6 @@ class SDXLPipeline:
             )
 
             time_ids = time_ids.repeat(2, 1)  # (2B, 6)
-
-            tt_cast = lambda x: (
-                x.to(dtype=torch.bfloat16).to(device=xm.xla_device())
-                if x.device == torch.device("cpu")
-                else x.to(dtype=torch.bfloat16)
-            )
-            cpu_cast = lambda x: x.to("cpu").to(dtype=torch.float16)
 
             start_time = time.time()
             for i, timestep in enumerate(self.scheduler.timesteps):
@@ -284,9 +327,13 @@ class SDXLPipeline:
             print(f"Decoding from latent space")
             latents = latents / self.vae.config.scaling_factor
             latents = latents.to(dtype=torch.float32)
+            if self.vae_on_tt:
+                latents = latents.to(device=xm.xla_device())
             images = self.vae.decode(
                 latents
             ).sample  # (B, 4, Latent_Height, Latent_Width) -> (B, 3, Image_Height, Image_Width)
+            if self.vae_on_tt:
+                images = cpu_cast(images)
             end_time = time.time()
             print(f"VAE decode time taken: {end_time - start_time} seconds")
             return images
@@ -307,53 +354,133 @@ def save_image(image: torch.Tensor, filepath: str = "output.png"):
     image_pil.save(filepath)
 
 
-if __name__ == "__main__":
-    import argparse
+def prompt_to_filename(prompt: str) -> str:
+    """Convert prompt to filename: lowercase, underscores for spaces."""
+    filename = prompt.lower().replace(" ", "_")
+    filename = "".join(c if c.isalnum() or c == "_" else "_" for c in filename)
+    return filename + ".png"
 
+
+def run_sdxl_pipeline(output_path: str = "output.png", num_inference_steps: int = 5):
+    """Run SDXL pipeline and save output image."""
+    torch_xla.set_custom_compile_options({"optimization_level": 1})
+
+    config = SDXLConfig(width=512, height=512, device="cpu")
+    pipeline = SDXLPipeline(config=config)
+    pipeline.setup(warmup=False)
+
+    img = pipeline.generate(
+        prompt="a photo of a cat",
+        negative_prompt="",
+        do_cfg=True,
+        cfg_scale=7.5,
+        num_inference_steps=num_inference_steps,
+        seed=42,
+    )
+
+    save_image(img, output_path)
+    return output_path
+
+
+def test_sdxl_pipeline():
+    """Test SDXL pipeline generates valid output image."""
+    xr.set_device_type("TT")
+
+    output_path = "test_sdxl_output.png"
+    output_file = Path(output_path)
+    if output_file.exists():
+        output_file.unlink()
+
+    try:
+        run_sdxl_pipeline(output_path=output_path, num_inference_steps=1)
+
+        assert output_file.exists(), f"Output image {output_path} was not created"
+
+        with Image.open(output_path) as img:
+            width, height = img.size
+            assert width == 512, f"Expected width 512, got {width}"
+            assert height == 512, f"Expected height 512, got {height}"
+
+        print(f"Output image created with resolution {width}x{height}")
+
+    finally:
+        if output_file.exists():
+            output_file.unlink()
+            print(f"Cleaned up {output_path}")
+
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", type=str, default="a photo of a cat")
-    parser.add_argument("--uncond_prompt", type=str, default="a photo of a dog")
+    parser.add_argument("--negative_prompt", type=str, default="")
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        default=False,
+        help="Generate images by inputting prompts interactively",
+    )
+    parser.add_argument("--resolution", type=int, default=512, choices=[512, 1024])
     parser.add_argument("--optimization_level", type=int, default=1)
     parser.add_argument("--do_cfg", type=bool, default=True)
     parser.add_argument("--cfg_scale", type=float, default=7.5)
     parser.add_argument("--num_inference_steps", type=int, default=50)
+    parser.add_argument(
+        "--vae_on_tt", action="store_true", help="Run VAE on TT device if set"
+    )
+    parser.add_argument(
+        "--clip_on_tt", action="store_true", help="Run CLIP on TT device if set"
+    )
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--output_path", type=str, default="output.png")
     args = parser.parse_args()
 
     xr.set_device_type("TT")
 
+    assert args.vae_on_tt == False, "VAE on TT is not supported for now"
+
     torch_xla.set_custom_compile_options(
         {"optimization_level": args.optimization_level}
     )
-    # only 512x512 is supported for now
-    config = SDXLConfig(width=512, height=512, device="cpu")
+    if args.resolution == 1024:
+        print(
+            "Note: 1024x1024 resolution currently only works on p100 and p150 TT devices."
+        )
+
+    config = SDXLConfig(
+        width=args.resolution,
+        height=args.resolution,
+        device="cpu",
+        vae_on_tt=args.vae_on_tt,
+        clip_on_tt=args.clip_on_tt,
+    )
     pipeline = SDXLPipeline(config=config)
-    pipeline.setup()
+    pipeline.setup(warmup=True)
 
-    start_time = time.time()
-    # inference pass for warmup
-    pipeline.generate(
-        prompt="a photo of a cat",
-        uncond_prompt="a photo of a dog",
-        do_cfg=True,
-        cfg_scale=7.5,
-        num_inference_steps=50,
-        seed=42,
-    )
-    end_time = time.time()
-    print(f"Cold inference time taken: {end_time - start_time} seconds")
+    while True:
+        if args.interactive:
+            user_input = input("\nEnter prompt (or 'q' to quit): ")
+            if user_input.lower() == "q":
+                print("Exiting interactive mode.")
+                break
+            prompt = user_input
+            output_path = prompt_to_filename(prompt)
+        else:
+            prompt = args.prompt
+            output_path = args.output_path
 
-    start_time = time.time()
-    img = pipeline.generate(
-        prompt=args.prompt,
-        uncond_prompt=args.uncond_prompt,
-        do_cfg=True,
-        cfg_scale=args.cfg_scale,
-        num_inference_steps=args.num_inference_steps,
-        seed=args.seed,
-    )
+        start_time = time.time()
+        img = pipeline.generate(
+            prompt=prompt,
+            negative_prompt=args.negative_prompt,
+            do_cfg=True,
+            cfg_scale=args.cfg_scale,
+            num_inference_steps=args.num_inference_steps,
+            seed=args.seed,
+        )
+        end_time = time.time()
+        print(f"Inference time taken: {end_time - start_time} seconds")
+        save_image(img, output_path)
+        print(f"Image saved to: {output_path}")
 
-    end_time = time.time()
-    print(f"Warm inference time taken: {end_time - start_time} seconds")
-    save_image(img, args.output_path)
+        if not args.interactive:
+            break

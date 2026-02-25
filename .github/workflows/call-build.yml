@@ -27,6 +27,9 @@ on:
         wheel_release_vllm_tt_artifact_name:
             description: 'Name of the vllm-tt plugin wheel artifact'
             value: ${{ jobs.check-existing-artifact.outputs.wheel_release_vllm_tt_artifact_name }}
+        alchemist_artifact_name:
+            description: 'Name of the alchemist library artifact'
+            value: ${{ jobs.check-existing-artifact.outputs.alchemist_artifact_name }}
         artifacts_run_id:
             description: 'Run ID of the artifacts'
             value: ${{ jobs.check-existing-artifact.outputs.artifacts_run_id || github.run_id }}
@@ -39,6 +42,7 @@ jobs:
       artifacts_run_id: ${{ steps.check-artifact.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ steps.generate-name.outputs.wheel_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ steps.generate-name.outputs.wheel_release_vllm_tt_artifact_name }}
+      alchemist_artifact_name: ${{ steps.generate-name.outputs.alchemist_artifact_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -63,8 +67,10 @@ jobs:
           fi
           wheel_artifact_name="xla-whl-${build_name}${artifact_suffix}"
           wheel_release_vllm_tt_artifact_name="vllm-tt-whl-${build_name}${artifact_suffix}"
+          alchemist_artifact_name="alchemist-lib-${build_name}${artifact_suffix}"
           echo "wheel_artifact_name=${wheel_artifact_name}" >> "$GITHUB_OUTPUT"
           echo "wheel_release_vllm_tt_artifact_name=${wheel_release_vllm_tt_artifact_name}" >> "$GITHUB_OUTPUT"
+          echo "alchemist_artifact_name=${alchemist_artifact_name}" >> "$GITHUB_OUTPUT"
           echo "Generated artifact name: $wheel_artifact_name"
 
       - name: Check if artifact exists
@@ -148,7 +154,7 @@ jobs:
         run: |
             source venv/activate
             #Inspect the wheel build type on wheel file without installing the wheel
-            pip install wheel-inspect
+            uv pip install wheel-inspect
             wheel_summary=$(wheel2json ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl | jq -r '.dist_info.metadata.summary')
             match=$(echo "$wheel_summary" | grep -oP "build-type=${{ inputs.build_type }}" || true)
             echo "Wheel summary: $wheel_summary"
@@ -163,6 +169,16 @@ jobs:
         with:
             name: ${{ needs.check-existing-artifact.outputs.wheel_artifact_name }}
             path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
+
+      - name: Upload alchemist library and templates
+        if: inputs.build_type == 'release'
+        id: upload-alchemist
+        uses: actions/upload-artifact@v4
+        with:
+            name: ${{ needs.check-existing-artifact.outputs.alchemist_artifact_name }}
+            path: |
+              ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/lib/libtt-alchemist-lib.so
+              ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/tools/tt-alchemist/templates
 
       - name: Build vllm plugin wheel
         if: inputs.build_type == 'release'

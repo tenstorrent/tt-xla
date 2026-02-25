@@ -25,6 +25,11 @@ CompileOptions CompileOptions::parse(
       internal::parseBoolOption(compile_options,
                                 "experimental_enable_weight_bfp8_conversion")
           .value_or(options.experimental_enable_weight_bfp8_conversion);
+  options.math_fidelity =
+      internal::parseStringOption(compile_options, "math_fidelity");
+
+  options.fp32_dest_acc_en =
+      internal::parseBoolOption(compile_options, "fp32_dest_acc_en");
   options.experimental_enable_fusing_conv2d_with_multiply_pattern =
       internal::parseBoolOption(
           compile_options,
@@ -43,10 +48,17 @@ CompileOptions CompileOptions::parse(
   options.enable_const_eval =
       internal::parseBoolOption(compile_options, "enable_const_eval")
           .value_or(true);
+  options.enable_const_eval_on_cpu =
+      internal::parseBoolOption(compile_options, "enable_const_eval_on_cpu")
+          .value_or(false);
   options.experimental_enable_permute_matmul_fusion =
       internal::parseBoolOption(compile_options,
                                 "experimental_enable_permute_matmul_fusion")
           .value_or(options.experimental_enable_permute_matmul_fusion);
+  options.codegen_try_recover_structure =
+      internal::parseBoolOption(compile_options,
+                                "codegen_try_recover_structure")
+          .value_or(options.codegen_try_recover_structure);
   options.ttnn_perf_metrics_enabled =
       internal::parseBoolOption(compile_options, "ttnn_perf_metrics_enabled")
           .value_or(false);
@@ -56,6 +68,9 @@ CompileOptions CompileOptions::parse(
           .value_or("");
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
+  options.export_model_name =
+      internal::parseStringOption(compile_options, "export_model_name")
+          .value_or("");
 
   if (!options.export_path.has_value() &&
       options.backend != BackendRuntime::TTNNFlatbuffer) {

@@ -8,6 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_EXECUTABLE_IMAGE_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_EXECUTABLE_IMAGE_H_
+
 // c++ standard library includes
 #include <cstddef>
 #include <memory>
@@ -21,9 +24,6 @@
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
-
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_EXECUTABLE_IMAGE_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_EXECUTABLE_IMAGE_H_
 
 // tt-xla includes
 #include "api/compile_options.h"
@@ -125,6 +125,11 @@ public:
   // Returns the fingerprint for this executable.
   const std::string &getFingerprint() const { return m_fingerprint; }
 
+  // Returns optimized MLIR code cleaned for XLA ingestion.
+  const std::string &getOptimizedMlirCode() const {
+    return m_optimized_mlir_code;
+  }
+
   // Creates a LoadedExecutableInstance from this executable image.
   virtual std::unique_ptr<class LoadedExecutableInstance> toExecutableInstance(
       std::vector<class DeviceInstance *> &&addressable_devices,
@@ -148,7 +153,7 @@ protected:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
-      CompileOptions &&compile_options);
+      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
   virtual std::string generateFingerprint() const;
@@ -166,6 +171,10 @@ private:
 
   // TTNN MLIR code produced by the compiler, stored for debugging purposes.
   std::string m_ttnn_mlir;
+
+  // Optimized MLIR code cleaned for XLA ingestion, stored for debugging
+  // purposes.
+  std::string m_optimized_mlir_code;
 
   // A name that identifies the executable.
   std::string m_executable_name;
@@ -258,7 +267,7 @@ public:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> output_memory_kinds,
       std::vector<size_t> output_memory_kinds_sizes,
-      CompileOptions &&compile_options);
+      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
 
   // Returns flatbuffer binary produced by the compiler.
   const tt::runtime::Binary &getFlatbufferBinary() const {
@@ -289,7 +298,7 @@ private:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
-      CompileOptions &&compile_options);
+      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
   std::string generateFingerprint() const final;
@@ -319,7 +328,7 @@ public:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> output_memory_kinds,
       std::vector<size_t> output_memory_kinds_sizes,
-      CompileOptions &&compile_options);
+      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
 
   // Creates a LoadedExecutableInstance from this executable image.
   std::unique_ptr<class LoadedExecutableInstance> toExecutableInstance(
@@ -344,7 +353,7 @@ private:
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
-      CompileOptions &&compile_options);
+      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
 
   // Generates the fingerprint for this executable based on compilation inputs.
   std::string generateFingerprint() const final;

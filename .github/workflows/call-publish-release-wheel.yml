@@ -1,0 +1,110 @@
+name: Publish the wheel to pypi (call)
+
+on:
+  workflow_call:
+    inputs:
+      wheel_release_artifact_run_id:
+        description: 'Run id of the release wheel'
+        type: string
+        required: true
+      wheel_release_artifact_name:
+        description: 'Artifact name of the wheel'
+        type: string
+        required: true
+      wheel_release_vllm_tt_artifact_name:
+        description: 'Artifact name of the vllm wheel'
+        type: string
+        required: true
+      is_nightly_release:
+        description: 'Is the wheel a nightly release'
+        type: boolean
+        required: true
+      should_overwrite_release:
+        description: 'Should we overwrite an existing pypi wheel'
+        type: boolean
+        required: false
+        default: false
+    outputs:
+      release_tag:
+        description: 'Release tag'
+        value: ${{ jobs.publish-wheel.outputs.release-tag }}
+
+jobs:
+  publish-wheel:
+    name: Publish wheels to pypi
+    runs-on: ubuntu-latest
+    outputs:
+      release-tag: ${{ steps.set-tag.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set tag
+        shell: bash
+        id: set-tag
+        run: |
+          source .version
+          tag="$VERSION"
+
+          if [[ "${{ inputs.is_nightly_release }}" == "true" ]]; then
+            nightly_release_suffix="dev$(date -u +'%Y%m%d%H%M%S')"
+            tag="$VERSION.$nightly_release_suffix"
+          fi
+
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Download wheels
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -f wheel/*.whl
+
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_artifact_name }}"
+          gh run download ${{ inputs.wheel_release_artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheel \
+            --name ${{ inputs.wheel_release_artifact_name }}
+
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.wheel_release_artifact_run_id }} name ${{ inputs.wheel_release_vllm_tt_artifact_name }}"
+          gh run download ${{ inputs.wheel_release_artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheel \
+            --name ${{ inputs.wheel_release_vllm_tt_artifact_name }}
+
+          echo "Downloaded wheels"
+          ls -l wheel
+
+      - name: Rename wheels
+        shell: bash
+        run: |
+          tag="${{ steps.set-tag.outputs.tag}}"
+
+          .github/scripts/modify_wheel_version.sh wheel/pjrt_plugin_tt*.whl $tag
+          .github/scripts/modify_wheel_version.sh wheel/vllm_tt*.whl $tag
+
+      - name: Publish wheels to PyPI
+        shell: bash
+        run: |
+          shopt -s nullglob
+          pip install s3pypi
+
+          echo "Uploading wheels to the pypi bucket"
+          for wheel_file in wheel/*.whl; do
+            if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
+              s3pypi upload "$wheel_file" --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
+            else
+              s3pypi upload "$wheel_file" --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
+            fi
+          done

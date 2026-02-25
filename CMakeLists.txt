@@ -43,14 +43,22 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
-option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" OFF)
-option(TTMLIR_BUILD_TYPE "Build type for tt-mlir" Release)
+option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" ON)
+option(TTMLIR_ENABLE_BINDINGS_PYTHON "Enable Python bindings in tt-mlir" OFF)
 option(TTXLA_ENABLE_EXPLORER "Enable Explorer feature in tt-mlir" OFF)
-option(TTXLA_ENABLE_PJRT_TESTS "Enable PJRT tests" ON)
+option(TTXLA_ENABLE_PJRT_TESTS "Enable PJRT tests" OFF)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(TTXLA_ENABLE_PJRT_TESTS ON)
+endif()
+
+set(TTMLIR_BUILD_TYPE "Release" CACHE STRING "Build type for tt-mlir")
+set_property(CACHE TTMLIR_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 
 if(TTXLA_ENABLE_EXPLORER)
-    set(TTMLIR_ENABLE_PERF_TRACE ON)
+    set(TTMLIR_ENABLE_BINDINGS_PYTHON ON)
 endif()
+
+option(TTXLA_TRACY_ZONES "Enable PJRT tracy zones" OFF)
 
 # ----- coverage_config -----
 
@@ -86,6 +94,7 @@ endif()
 add_subdirectory(pjrt_implementation/src)
 add_subdirectory(third_party)
 add_subdirectory(docs)
+add_subdirectory(python_package)
 
 if(TTXLA_ENABLE_PJRT_TESTS)
     add_subdirectory(tests/pjrt)

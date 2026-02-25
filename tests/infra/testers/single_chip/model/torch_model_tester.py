@@ -10,12 +10,16 @@ from typing import Any, Dict, Mapping, Sequence, Set, Tuple
 import torch
 import torch_xla
 import torch_xla.runtime as xr
-from infra.comparators import ComparisonConfig
-from infra.utilities import Framework
+from infra.evaluators import ComparisonConfig
+from infra.utilities import (
+    Framework,
+    compile_torch_workload_for_cpu,
+    compile_torch_workload_for_tt_device,
+)
 from infra.workloads import TorchWorkload, Workload
-from loguru import logger
+from ttxla_tools.logging import logger
 
-from tests.infra.comparators.comparator import ComparisonResult
+from tests.infra.evaluators import ComparisonResult
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.config import Parallelism
 
@@ -60,6 +64,9 @@ class TorchModelTester(ModelTester):
     _get_forward_method_args(self) -> Sequence[Any] # Optional, has default behaviour.
     _get_forward_method_kwargs(self) -> Mapping[str, Any] # Optional, has default behaviour.
     ```
+
+    Attributes:
+        _model_size: Stores the model size in number of parameters
     """
 
     def __init__(
@@ -73,6 +80,7 @@ class TorchModelTester(ModelTester):
 
         self._input_activations: Dict | Sequence[Any] = None
         self._parallelism = parallelism
+        self._model_size = None
 
         super().__init__(
             comparison_config,
@@ -92,6 +100,7 @@ class TorchModelTester(ModelTester):
     def _configure_model(self) -> None:
         self._device_runner.set_training_mode(self._run_mode == RunMode.TRAINING)
         super()._configure_model()
+        self._calculate_model_size()
 
     # @override
     def _configure_model_for_inference(self) -> None:
@@ -102,6 +111,15 @@ class TorchModelTester(ModelTester):
     def _configure_model_for_training(self) -> None:
         assert isinstance(self._model, torch.nn.Module)
         self._model.train()
+
+    def _calculate_model_size(self) -> None:
+        """Calculate and store the total number of parameters in the model."""
+        if isinstance(self._model, torch.nn.Module):
+            self._model_size = sum(p.numel() for p in self._model.parameters())
+            logger.debug(f"Model size: {self._model_size / 1e9}B")
+        else:
+            logger.debug("Model is not a torch.nn.Module, skipping size calculation")
+            self._model_size = None
 
     # @override
     def _cache_model_inputs(self) -> None:
@@ -149,19 +167,10 @@ class TorchModelTester(ModelTester):
             return {**self._input_activations}
         return {}
 
-    # @override
     def _compile_for_cpu(self, workload: Workload) -> None:
-        """Compiles `workload` for CPU."""
-        self._compile(workload)
+        """Compile Torch workload for CPU."""
+        compile_torch_workload_for_cpu(workload)
 
-    def _compile(self, workload: Workload) -> None:
-        """JIT-compiles model's forward pass into optimized kernels.
-
-        Compiles for inductor backend by default.
-        """
-        self._compile_for_backend(workload, backend="inductor")
-
-    # @override
     def _run_on_cpu(self, compiled_workload: Workload) -> torch.Tensor:
         """Runs workload on CPU with jax accelerator masked.
 
@@ -171,16 +180,9 @@ class TorchModelTester(ModelTester):
         with _mask_jax_accelerator():
             return super()._run_on_cpu(compiled_workload)
 
-    # @override
-    def _compile_for_tt_device(self, workload: Workload) -> None:
-        """Compiles `workload` for TT device."""
-        self._compile_for_backend(workload, backend="tt")
-
-    def _compile_for_backend(self, workload: Workload, backend: str) -> None:
-        """JIT-compiles model into optimized kernels."""
-        assert workload.is_torch and workload.model is not None
-
-        workload.compiled_executable = torch.compile(workload.model, backend=backend)
+    def _compile_for_tt_device(self, workload: Workload, options=None) -> None:
+        """Compile Torch workload for TT device."""
+        compile_torch_workload_for_tt_device(workload=workload, torch_options=options)
 
     def _unpack_forward_output(self, output: Any) -> torch.Tensor:
         """
@@ -211,9 +213,12 @@ class TorchModelTester(ModelTester):
         return existing_grads, none_grads
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
+        # Initialize XLA computation client to properly set up autograd engine device queues
+        # before any backward passes. See: https://github.com/pytorch/xla/issues/4174
+        torch_xla._XLAC._init_computation_client()
+
         # Run forward on CPU
-        # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
-        # self._compile_for_cpu(self._workload)
+        self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
         cpu_res = self._unpack_forward_output(cpu_res)
 
@@ -233,8 +238,8 @@ class TorchModelTester(ModelTester):
         self._workload.model.zero_grad()
 
         # Run forward on TT
-        # TODO: Needs further investigation https://github.com/tenstorrent/tt-xla/issues/1391
-        # self._compile_for_tt_device(self._workload)
+        compile_options = {"tt_experimental_compile": False}
+        self._compile_for_tt_device(self._workload, compile_options)
         tt_res = self._run_on_tt_device(self._workload)
         tt_res = self._unpack_forward_output(tt_res)
 

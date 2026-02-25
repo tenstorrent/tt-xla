@@ -11,7 +11,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 
-from tests.torch.models.mnist.cnn.dropout.model_implementation import (
+from third_party.tt_forge_models.mnist.image_classification.pytorch.loader import (
     MNISTCNNDropoutModel,
 )
 
@@ -19,11 +19,8 @@ from tests.torch.models.mnist.cnn.dropout.model_implementation import (
 # --------------------------------
 # Test run
 # --------------------------------
-def mnist_with_compiler_options():
-    """Test the compiler configuration options with MNIST model."""
-
-    print("Testing compiler configuration options with MNIST CNN model...\n")
-
+def run_mnist_with_compiler_options():
+    """Run MNIST model with compiler options on TT device."""
     device = xm.xla_device()
 
     options = {
@@ -34,10 +31,12 @@ def mnist_with_compiler_options():
     torch_xla.set_custom_compile_options(options)
 
     # Create model
+    torch.manual_seed(42)
     model = MNISTCNNDropoutModel().to(dtype=torch.bfloat16)
     model = model.eval()
 
     # Create test input
+    torch.manual_seed(42)
     input_tensor = torch.ones((4, 1, 28, 28), dtype=torch.bfloat16)
 
     # Move to device
@@ -48,15 +47,52 @@ def mnist_with_compiler_options():
     model.compile(backend="tt")
 
     # Run inference
-    print("Running inference with compiler options...")
     with torch.no_grad():
         output = model(input_device)
 
-    print(f"Success! Output shape: {output.shape}")
+    return output
+
+
+def run_mnist_cpu():
+    """Run MNIST model on CPU for comparison."""
+    # Create model with same seed
+    torch.manual_seed(42)
+    model = MNISTCNNDropoutModel().to(dtype=torch.bfloat16)
+    model = model.eval()
+
+    # Create test input with same seed
+    torch.manual_seed(42)
+    input_tensor = torch.ones((4, 1, 28, 28), dtype=torch.bfloat16)
+
+    # Run inference on CPU
+    with torch.no_grad():
+        output = model(input_tensor)
+
+    return output
+
+
+def test_compiler_options():
+    """Test MNIST with compiler options TT output against CPU reference."""
+    xr.set_device_type("TT")
+
+    tt_output = run_mnist_with_compiler_options()
+    cpu_output = run_mnist_cpu()
+
+    tt_output_cpu = tt_output.cpu()
+
+    tt_flat = tt_output_cpu.flatten().float()
+    cpu_flat = cpu_output.flatten().float()
+    pcc = torch.corrcoef(torch.stack([tt_flat, cpu_flat]))[0, 1].item()
+
+    print(f"PCC: {pcc}")
+    print(f"Max diff: {(tt_output_cpu - cpu_output).abs().max()}")
+
+    assert pcc > 0.99, f"PCC too low: {pcc}, expected > 0.99"
 
 
 if __name__ == "__main__":
     # Set device to TT
     xr.set_device_type("TT")
 
-    mnist_with_compiler_options()
+    output = run_mnist_with_compiler_options()
+    print(f"Success! Output shape: {output.shape}")

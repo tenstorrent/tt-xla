@@ -13,7 +13,11 @@
 // c++ standard library includes
 #include <cstddef>
 #include <filesystem>
+#include <map>
 #include <optional>
+
+// tracy includes
+#include "tracy/Tracy.hpp"
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
@@ -27,6 +31,7 @@
 #include "api/executable_image.h"
 #include "api/memory_instance.h"
 #include "api/module_builder/module_builder.h"
+#include "api/tensor_pool.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
 
@@ -36,16 +41,21 @@ static std::string getRankBindingPath(const std::string &metal_home) {
   static std::unordered_map<std::string, std::string> rank_binding_paths = {
       {"2x4_multiprocess",
        "tests/tt_metal/distributed/config/2x4_multiprocess_rank_bindings.yaml"},
+      {"dual_bh_quietbox",
+       "tests/scale_out/4x_bh_quietbox/rank_bindings/2x4.yaml"},
+      {"dual_galaxy",
+       "tests/tt_metal/distributed/config/dual_galaxy_rank_bindings.yaml"},
+      {"quad_galaxy",
+       "tests/tt_metal/distributed/config/quad_galaxy_rank_bindings.yaml"},
   };
 
   const char *rank_binding = std::getenv("TT_DISTRIBUTED_RANK_BINDING");
   if (!rank_binding) {
-    DLOG_F(ERROR,
-           "TT_DISTRIBUTED_RANK_BINDING environment variable is not set");
+    LOG_F(ERROR, "TT_DISTRIBUTED_RANK_BINDING environment variable is not set");
     return "";
   }
   if (rank_binding_paths.find(rank_binding) == rank_binding_paths.end()) {
-    DLOG_F(ERROR, "Invalid rank binding: %s", rank_binding);
+    LOG_F(ERROR, "Invalid rank binding: %s", rank_binding);
     return "";
   }
 
@@ -53,8 +63,8 @@ static std::string getRankBindingPath(const std::string &metal_home) {
       std::filesystem::path(metal_home) / rank_binding_paths.at(rank_binding);
 
   if (std::filesystem::exists(rank_binding_path) == false) {
-    DLOG_F(ERROR, "Rank binding file does not exist at path: %s",
-           rank_binding_path.c_str());
+    LOG_F(ERROR, "Rank binding file does not exist at path: %s",
+          rank_binding_path.c_str());
     return "";
   }
 
@@ -65,13 +75,13 @@ static std::string getDistributedWorkerPath() {
   const char *distributed_worker_path =
       std::getenv("TT_DISTRIBUTED_WORKER_PATH");
   if (!distributed_worker_path) {
-    DLOG_F(ERROR, "TT_DISTRIBUTED_WORKER_PATH environment variable is not set");
+    LOG_F(ERROR, "TT_DISTRIBUTED_WORKER_PATH environment variable is not set");
     return "";
   }
 
   if (std::filesystem::exists(distributed_worker_path) == false) {
-    DLOG_F(ERROR, "Distributed worker file does not exist at path: %s",
-           distributed_worker_path);
+    LOG_F(ERROR, "Distributed worker file does not exist at path: %s",
+          distributed_worker_path);
     return "";
   }
 
@@ -79,12 +89,56 @@ static std::string getDistributedWorkerPath() {
 }
 
 static tt_pjrt_status launchDistributedRuntime() {
+  DLOG_F(LOG_DEBUG, "ClientInstance::launchDistributedRuntime");
+
   const char *metal_home = std::getenv("TT_METAL_RUNTIME_ROOT");
+  // Hostname of the controller node
+  const char *controller_host_name =
+      std::getenv("TT_DISTRIBUTED_CONTROLLER_HOST_NAME");
+  // Comma separated list of hostnames
+  const char *hosts_list = std::getenv("TT_DISTRIBUTED_HOSTS_LIST");
+  // Path to the shell script used by MPI to execute commands on remote hosts
+  // eg. tests/torch/multi_host/experimental/remote_docker.sh
+  const char *plm_rsh_agent = std::getenv("TT_DISTRIBUTED_PLM_RSH_AGENT");
+  // Network interface name for MPI (eg. cnx1, enp10s0f1np1)
+  const char *btl_tcp_if_include =
+      std::getenv("TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE");
+
   if (!metal_home) {
-    DLOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
+    LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
     return tt_pjrt_status::kInternal;
   }
+
+  // On a single node setup (eg. split llmbox), these environment variables are
+  // not set.
+  if (!controller_host_name) {
+    DLOG_F(
+        WARNING,
+        "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set");
+  }
+  if (!hosts_list) {
+    DLOG_F(WARNING,
+           "TT_DISTRIBUTED_HOSTS_LIST environment variable is not set");
+  }
+
   tt::runtime::setMetalHome(metal_home);
+
+  std::vector<std::string> hosts_list_vec;
+  if (hosts_list) {
+    std::string host;
+    std::istringstream tokenStream(hosts_list);
+    while (std::getline(tokenStream, host, ',')) {
+      hosts_list_vec.push_back(host);
+    }
+  }
+
+  std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
+  if (btl_tcp_if_include) {
+    mca_options["btl_tcp_if_include"] = btl_tcp_if_include;
+  }
+  if (plm_rsh_agent) {
+    mca_options["plm_rsh_agent"] = plm_rsh_agent;
+  }
 
   std::string rank_binding_path = getRankBindingPath(metal_home);
   if (rank_binding_path.empty()) {
@@ -101,7 +155,17 @@ static tt_pjrt_status launchDistributedRuntime() {
   distributed_options.workerPath = distributed_worker_path;
   distributed_options.multiProcessArgs =
       tt::runtime::MultiProcessArgs::create(rank_binding_path)
-          .withAllowRunAsRoot(true);
+          .withAllowRunAsRoot(true)
+          .withMcaOptions(mca_options);
+
+  if (controller_host_name) {
+    distributed_options.multiProcessArgs->withControllerHostname(
+        controller_host_name);
+  }
+
+  if (!hosts_list_vec.empty()) {
+    distributed_options.multiProcessArgs->withHosts(hosts_list_vec);
+  }
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
   tt::runtime::launchDistributedRuntime(distributed_options);
@@ -130,7 +194,7 @@ static tt_pjrt_status setMemoryLogLevel() {
   } else if (memory_log_level_str == "any" || memory_log_level_str == "all") {
     log_level = tt::runtime::MemoryLogLevel::ANY;
   } else {
-    DLOG_F(ERROR, "Invalid memory logging level: %s", memory_log_level_env);
+    LOG_F(ERROR, "Invalid memory logging level: %s", memory_log_level_env);
     return tt_pjrt_status::kInternal;
   }
 
@@ -192,6 +256,7 @@ ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
   closeMeshDevice();
   std::remove(m_cached_system_descriptor_path.data());
+  loguru::flush();
 }
 
 PJRT_Error *ClientInstance::initialize() {
@@ -250,9 +315,9 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
   if (std::filesystem::exists(m_cached_system_descriptor_path) == false) {
-    DLOG_F(ERROR,
-           "Failed to store the system descriptor to the disk using path: %s",
-           m_cached_system_descriptor_path.c_str());
+    LOG_F(ERROR,
+          "Failed to store the system descriptor to the disk using path: %s",
+          m_cached_system_descriptor_path.c_str());
     return tt_pjrt_status::kInternal;
   }
 
@@ -283,7 +348,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
   }
 
   if (m_addressable_devices_raw.empty()) {
-    DLOG_F(ERROR, "Found no addressable devices in the system");
+    LOG_F(ERROR, "Found no addressable devices in the system");
     return tt_pjrt_status::kInternal;
   }
 
@@ -344,7 +409,7 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
           device_id < static_cast<int64_t>(m_addressable_devices_raw.size())) {
         addressable_devices.push_back(m_addressable_devices_raw[device_id]);
       } else {
-        DLOG_F(ERROR, "Invalid device ID %ld in DeviceAssignment", device_id);
+        LOG_F(ERROR, "Invalid device ID %ld in DeviceAssignment", device_id);
         return tt_pjrt_status::kInvalidArgument;
       }
     }
@@ -390,6 +455,12 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
          utils::to_string(parent_mesh_shape).c_str(),
          utils::to_string(target_mesh_shape).c_str());
 
+  // Move tensors to host before closing the mesh. This ensures buffers don't
+  // hold references to deallocated tensors after mesh close, which could cause
+  // assertion failures in prepareInputTensor when buffers are reused as inputs
+  // to subsequent graphs.
+  TensorPool::move_tensors_to_host();
+
   // NOTE: Due to some issues hit when testing, instead of using the reshape
   // mesh API, we are closing and re-opening the device with the wanted mesh
   // shape. This should be revisited in the future (#1436).
@@ -409,6 +480,7 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
 void ClientInstance::closeMeshDevice() {
   closeOptimizerSubmesh();
   closeParentMesh();
+  loguru::flush();
 }
 
 tt::runtime::Device
@@ -504,6 +576,7 @@ tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
 namespace internal {
 
 PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Create");
 
   // We currently don't utilize any of the PJRT Client create options.
@@ -515,7 +588,7 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
   PJRT_Error *error = GlobalClientInstanceSingleton::initClient();
 
   if (error) {
-    DLOG_F(ERROR, "Failed to initialize PJRT client instance");
+    LOG_F(ERROR, "Failed to initialize PJRT client instance");
     return error;
   }
 
@@ -528,6 +601,7 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
 }
 
 PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Destroy");
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
@@ -539,6 +613,7 @@ PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
 }
 
 PJRT_Error *onClientPlatformName(PJRT_Client_PlatformName_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformName");
 
   ClientInstance *client = ClientInstance::unwrap(args->client);
@@ -550,6 +625,7 @@ PJRT_Error *onClientPlatformName(PJRT_Client_PlatformName_Args *args) {
 }
 
 PJRT_Error *onClientProcessIndex(PJRT_Client_ProcessIndex_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_ProcessIndex");
 
   args->process_index = ClientInstance::unwrap(args->client)->getProcessIndex();
@@ -558,6 +634,7 @@ PJRT_Error *onClientProcessIndex(PJRT_Client_ProcessIndex_Args *args) {
 }
 
 PJRT_Error *onClientPlatformVersion(PJRT_Client_PlatformVersion_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_PlatformVersion");
 
   ClientInstance *client = ClientInstance::unwrap(args->client);
@@ -569,6 +646,7 @@ PJRT_Error *onClientPlatformVersion(PJRT_Client_PlatformVersion_Args *args) {
 }
 
 PJRT_Error *onClientDevices(PJRT_Client_Devices_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Devices");
 
   const std::vector<DeviceInstance *> &devices_raw =
@@ -582,6 +660,7 @@ PJRT_Error *onClientDevices(PJRT_Client_Devices_Args *args) {
 
 PJRT_Error *
 onClientAddressableDevices(PJRT_Client_AddressableDevices_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableDevices");
 
   const std::vector<DeviceInstance *> &addressable_devices_raw =
@@ -595,6 +674,7 @@ onClientAddressableDevices(PJRT_Client_AddressableDevices_Args *args) {
 }
 
 PJRT_Error *onClientLookupDevice(PJRT_Client_LookupDevice_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_LookupDevice");
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
@@ -605,13 +685,14 @@ PJRT_Error *onClientLookupDevice(PJRT_Client_LookupDevice_Args *args) {
     }
   }
 
-  DLOG_F(ERROR, "Client device lookup failed for device with ID: %d", args->id);
+  LOG_F(ERROR, "Client device lookup failed for device with ID: %d", args->id);
 
   return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument).release();
 }
 
 PJRT_Error *onClientLookupAddressableDevice(
     PJRT_Client_LookupAddressableDevice_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_LookupAddressableDevice");
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
@@ -623,15 +704,16 @@ PJRT_Error *onClientLookupAddressableDevice(
     }
   }
 
-  DLOG_F(ERROR,
-         "Client addressable device lookup failed for device with local ID: %d",
-         args->local_hardware_id);
+  LOG_F(ERROR,
+        "Client addressable device lookup failed for device with local ID: %d",
+        args->local_hardware_id);
 
   return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument).release();
 }
 
 PJRT_Error *
 onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_AddressableMemories");
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
@@ -645,6 +727,7 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
 }
 
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
 
   // Parse compile options and extract both custom options and replica device
@@ -662,10 +745,10 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   std::string_view program_format(args->program->format,
                                   args->program->format_size);
   if (program_format != module_builder::c_mlir_format_name) {
-    DLOG_F(ERROR,
-           "Program code format \"%s\" is not supported, only MLIR format is "
-           "currently supported",
-           args->program->format);
+    LOG_F(ERROR,
+          "Program code format \"%s\" is not supported, only MLIR format is "
+          "currently supported",
+          args->program->format);
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
@@ -681,6 +764,7 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
 
 PJRT_Error *onClientDefaultDeviceAssignment(
     PJRT_Client_DefaultDeviceAssignment_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_DefaultDeviceAssignment");
 
   // TODO(mrakita): Revisit this implementation.
@@ -691,19 +775,22 @@ PJRT_Error *onClientDefaultDeviceAssignment(
   return nullptr;
 }
 
+// Constructing buffer instance for the first time.
 PJRT_Error *
 onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
+  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
 
   if (args->device_layout &&
       args->device_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
-    DLOG_F(ERROR,
-           "Copying from host is supported only with strided memory layout");
+    LOG_F(ERROR,
+          "Copying from host is supported only with strided memory layout");
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
   if (args->num_byte_strides != 0 && args->num_byte_strides != args->num_dims) {
-    DLOG_F(ERROR, "Invalid `num_byte_strides` argument");
+    LOG_F(ERROR, "Invalid `num_byte_strides` argument");
     return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                 .release();
   }
@@ -715,8 +802,8 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   // otherwise we copy data to `memory`."
   if (memory_instance) {
     if (device_instance && device_instance != memory_instance->getDevice()) {
-      DLOG_F(ERROR, "Device set in `device` arg is different from the memory "
-                    "space device set in `memory` arg");
+      LOG_F(ERROR, "Device set in `device` arg is different from the memory "
+                   "space device set in `memory` arg");
       return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                   .release();
     }
@@ -726,18 +813,18 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   }
 
   if (!memory_instance) {
-    DLOG_F(ERROR, "Memory space is not set either in `memory` arg nor in "
-                  "device from `device` arg");
+    LOG_F(ERROR, "Memory space is not set either in `memory` arg nor in "
+                 "device from `device` arg");
     return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                 .release();
   }
   if (memory_instance->isHostMemory()) {
-    DLOG_F(ERROR, "We only support creating buffers on device memory");
+    LOG_F(ERROR, "We only support creating buffers on device memory");
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
   if (!device_instance) {
-    DLOG_F(ERROR, "Device is not set either in `device` arg nor in device from "
-                  "`memory` arg");
+    LOG_F(ERROR, "Device is not set either in `device` arg nor in device from "
+                 "`memory` arg");
     return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                 .release();
   }

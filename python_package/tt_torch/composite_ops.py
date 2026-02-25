@@ -178,6 +178,9 @@ def replace_layer_norm_module(
         new_node = gm.graph.call_function(
             composite_layer_norm, args=(input_tensor,), kwargs=kwargs
         )
+        # Copy metadata from original node to preserve stack_trace and nn_module_stack
+        # This ensures layer_norm maintains proper source location in MLIR output
+        new_node.meta = node.meta.copy()
 
     node.replace_all_uses_with(new_node)
     gm.graph.erase_node(node)
@@ -192,6 +195,7 @@ replacements = {
     # function replacements
     torch.nn.functional.gelu: composite_gelu,
     torch.rms_norm: composite_rms_norm,
+    torch.nn.functional.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,

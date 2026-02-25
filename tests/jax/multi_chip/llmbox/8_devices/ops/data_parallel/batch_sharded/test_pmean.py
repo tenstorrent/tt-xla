@@ -33,11 +33,16 @@ from utils import failed_fe_compilation
     "sharding_mode",
     [
         ShardingMode.INPUTS_AND_MODULE,
-        ShardingMode.MODULE,
+        pytest.param(
+            ShardingMode.MODULE,
+            marks=pytest.mark.xfail(
+                reason=failed_fe_compilation(
+                    "jax.lax.pmean not outputting the correct values "
+                    "https://github.com/tenstorrent/tt-mlir/issues/3645"
+                )
+            ),
+        ),
     ],
-)
-@pytest.mark.xfail(
-    reason="jax.lax.pmean not outputting the correct values https://github.com/tenstorrent/tt-mlir/issues/3645"
 )
 def test_pmean(
     use_shardy: bool,

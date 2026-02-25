@@ -15,7 +15,8 @@ from vllm.config import VllmConfig
 from vllm.distributed.kv_events import KVEventBatch
 from vllm.logger import logger
 from vllm.multimodal import MULTIMODAL_REGISTRY, MultiModalRegistry
-from vllm.utils import cdiv
+from vllm.utils.math_utils import cdiv
+from vllm.v1.core.kv_cache_manager import KVCacheBlocks
 from vllm.v1.core.sched.output import NewRequestData, SchedulerOutput
 from vllm.v1.core.sched.scheduler import Scheduler
 from vllm.v1.engine import EngineCoreEventType, EngineCoreOutputs
@@ -34,6 +35,7 @@ class AscendScheduler(Scheduler):
         vllm_config: VllmConfig,
         kv_cache_config: KVCacheConfig,
         structured_output_manager: StructuredOutputManager,
+        block_size: int,
         mm_registry: MultiModalRegistry = MULTIMODAL_REGISTRY,
         include_finished_set: bool = False,
         log_stats: bool = False,
@@ -42,6 +44,7 @@ class AscendScheduler(Scheduler):
             vllm_config,
             kv_cache_config,
             structured_output_manager,
+            block_size,
             mm_registry,
             include_finished_set,
             log_stats,
@@ -74,7 +77,7 @@ class AscendScheduler(Scheduler):
         # uses structured decoding.
         structured_output_request_ids: dict[str, int] = {}
 
-        req_to_new_block_ids: dict[str, tuple[list[int], ...]] = {}
+        req_to_new_block_ids: dict[str, KVCacheBlocks] = {}
         num_scheduled_tokens: dict[str, int] = {}
         token_budget = self.max_num_scheduled_tokens
         # Spec decode-related.
@@ -92,7 +95,6 @@ class AscendScheduler(Scheduler):
 
         # Schedule prefill requests first (unless decode is forced).
         req_index = 0
-        prefill_scheduled = 0
         while self.waiting and token_budget > 0 and self._forced_mode != 0:
             if len(self.running) == self.max_num_running_reqs:
                 break
@@ -260,9 +262,7 @@ class AscendScheduler(Scheduler):
 
             if self.lora_config and request.lora_request:
                 scheduled_loras.add(request.lora_request.lora_int_id)
-            req_to_new_block_ids[request.request_id] = (
-                self.kv_cache_manager.get_block_ids(request.request_id)
-            )
+            req_to_new_block_ids[request.request_id] = new_computed_blocks + new_blocks
             # Update request info.
             num_scheduled_tokens[request.request_id] = num_new_tokens
             token_budget -= num_new_tokens
@@ -271,10 +271,6 @@ class AscendScheduler(Scheduler):
             # Count the number of prefix cached tokens.
             if request.num_cached_tokens < 0:
                 request.num_cached_tokens = num_computed_tokens
-            # TODO(sshon): Handle prefill scheduling for multi user at same request.
-            prefill_scheduled += 1
-            if prefill_scheduled >= 1:
-                break
 
         # Put back any skipped requests at the head of the waiting queue
         if skipped_waiting_requests:
@@ -365,7 +361,7 @@ class AscendScheduler(Scheduler):
                 if request.use_structured_output:
                     structured_output_request_ids[request.request_id] = req_index
                 self.scheduled_req_ids.add(request.request_id)
-                req_to_new_block_ids[request.request_id] = new_blocks.get_block_ids()
+                req_to_new_block_ids[request.request_id] = new_blocks
                 num_scheduled_tokens[request.request_id] = num_new_tokens
                 token_budget -= num_new_tokens
                 req_index += 1
@@ -406,20 +402,15 @@ class AscendScheduler(Scheduler):
             any_request = self.running[0]
             num_common_prefix_blocks = (
                 self.kv_cache_manager.get_num_common_prefix_blocks(
-                    any_request, len(self.running)
+                    any_request.request_id
                 )
             )
 
-        # Generate grammar bitmask for structured output requests
-        grammar_bitmask = self.structured_output_manager.grammar_bitmask(
-            self.requests,
-            structured_output_request_ids,
-            scheduled_spec_decode_tokens,
-        )
-
         # Construct the scheduler output.
         new_reqs_data = [
-            NewRequestData.from_request(req, req_to_new_block_ids[req.request_id])
+            NewRequestData.from_request(
+                req, req_to_new_block_ids[req.request_id].get_block_ids()
+            )
             for req in scheduled_new_reqs
         ]
 
@@ -440,15 +431,22 @@ class AscendScheduler(Scheduler):
             scheduled_spec_decode_tokens=scheduled_spec_decode_tokens,
             scheduled_encoder_inputs={},
             num_common_prefix_blocks=num_common_prefix_blocks,
+            preempted_req_ids=set(),
             # finished_req_ids is an existing state in the scheduler,
             # instead of being newly scheduled in this step.
             # It contains the request IDs that are finished in between
             # the previous and the current steps.
             finished_req_ids=self.finished_req_ids,  # type: ignore
-            free_encoder_input_ids=self.encoder_cache_manager.get_freed_ids(),
-            structured_output_request_ids=structured_output_request_ids,
-            grammar_bitmask=grammar_bitmask,
+            free_encoder_mm_hashes=self.encoder_cache_manager.get_freed_mm_hashes(),
         )
+
+        # Generate grammar bitmask after creating scheduler output
+        grammar_output = self.get_grammar_bitmask(scheduler_output)
+        if grammar_output is not None:
+            scheduler_output.structured_output_request_ids = (
+                grammar_output.structured_output_request_ids
+            )
+            scheduler_output.grammar_bitmask = grammar_output.grammar_bitmask
 
         # NOTE(Kuntai): this function is designed for multiple purposes:
         # 1. Plan the KV cache store
@@ -504,8 +502,8 @@ class AscendScheduler(Scheduler):
 
     def _get_prompt_limit(self, request: Request) -> int:
         prompt_limit = min(
-            self.scheduler_config.max_model_len,
-            self.scheduler_config.max_num_batched_tokens,
+            self.max_model_len,
+            self.max_num_scheduled_tokens,
         )
 
         # Model is fine tuned with long context. Return the fine tuned max_len.

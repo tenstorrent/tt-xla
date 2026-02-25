@@ -9,7 +9,7 @@ from infra import (
     make_partition_spec,
     run_jax_multichip_graph_test_with_random_inputs,
 )
-from utils import failed_fe_compilation
+from utils import failed_fe_compilation, failed_runtime
 
 
 @pytest.mark.nightly
@@ -31,12 +31,24 @@ from utils import failed_fe_compilation
 @pytest.mark.parametrize(
     "sharding_mode",
     [
-        ShardingMode.INPUTS_AND_MODULE,
-        ShardingMode.MODULE,
+        pytest.param(
+            ShardingMode.INPUTS_AND_MODULE,
+            marks=pytest.mark.skip(
+                reason=failed_runtime(
+                    "Hangs https://github.com/tenstorrent/tt-xla/issues/3407"
+                )
+            ),
+        ),
+        pytest.param(
+            ShardingMode.MODULE,
+            marks=pytest.mark.xfail(
+                reason=failed_fe_compilation(
+                    "jax.lax.pmean not outputting the correct values"
+                    "https://github.com/tenstorrent/tt-mlir/issues/3645"
+                )
+            ),
+        ),
     ],
-)
-@pytest.mark.xfail(
-    reason="jax.lax.pmean not outputting the correct values https://github.com/tenstorrent/tt-mlir/issues/3645"
 )
 def test_pmean(
     use_shardy: bool,

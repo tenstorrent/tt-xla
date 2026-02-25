@@ -1,0 +1,127 @@
+name: Test tool packages
+
+on:
+  workflow_call:
+    inputs:
+      docker_image:
+        description: 'Docker image to use for the test'
+        required: true
+        type: string
+      wheel_artifact_name:
+        description: 'Name of the wheel artifact to download'
+        required: true
+        type: string
+      artifacts_run_id:
+        description: 'Run ID where the artifacts are stored'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+  actions: read
+
+jobs:
+  test-tools:
+    runs-on: n300
+    name: "Test tool packages"
+    container:
+      image: ${{ inputs.docker_image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+
+    env:
+      TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          sparse-checkout: |
+            examples/pytorch
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        env:
+          JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+        run: |
+          echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+          echo "tracy-artifacts-dir=$(pwd)/.tracy_artifacts" >> "$GITHUB_OUTPUT"
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.wheel_artifact_name }}
+          path: wheels
+          run-id: ${{ inputs.artifacts_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Install wheel in clean environment
+        shell: bash
+        run: |
+          echo "Downloaded wheel files:"
+          ls -la wheels
+
+          echo "=== Creating clean Python environment ==="
+          python3.12 -m venv tracy_test_env
+          source tracy_test_env/bin/activate
+
+          echo "=== Installing wheel ==="
+          pip install --upgrade pip
+          pip install wheels/*.whl
+
+      - name: Test ttnn package
+        shell: bash
+        run: |
+          source tracy_test_env/bin/activate
+
+          echo "=== Testing ttnn package ==="
+          python << 'EOF'
+          import ttnn
+          print('✓ ttnn imported successfully')
+
+          # Test core modules
+          assert hasattr(ttnn, 'CONFIG'), 'CONFIG not found'
+          print('✓ CONFIG found')
+
+          import ttnn.operations
+          print('✓ Operations module accessible')
+
+          import ttnn.device
+          print('✓ Device module accessible')
+
+          # Test C++ extension
+          import ttnn._ttnn
+          print('✓ C++ extension loaded')
+
+          # Test tracy-ttnn integration
+          import tracy
+          print('✓ Tracy still works')
+
+          print('\n=== All ttnn tests passed! ===')
+          EOF
+
+      - name: Run tracy on MNIST example
+        shell: bash
+        run: |
+          source tracy_test_env/bin/activate
+          tracy --sync-host-device -r -p -v examples/pytorch/mnist.py
+
+      - name: Upload tracy artifacts
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: tracy-artifacts-${{ github.run_id }}
+          path: ${{ steps.strings.outputs.tracy-artifacts-dir }}
+          include-hidden-files: true

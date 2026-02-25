@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-import shutil
 from pathlib import Path
 
 import numpy as np
@@ -12,22 +11,15 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_op_test
-from infra.comparators.torch_comparator import TorchComparator
-from infra.connectors.torch_device_connector import TorchDeviceConnector
+from infra.evaluators import TorchComparisonEvaluator
 from infra.workloads import TorchWorkload
 from torch_xla.distributed.spmd import Mesh
-from tt_torch.serialization import parse_compiled_artifacts_from_cache_to_disk
 from tt_torch.sharding import sharding_constraint_hook
+from ttxla_tools.serialization import save_system_descriptor_to_disk
 
-from tests.infra import RunMode, TorchModelTester
-from tests.infra.comparators.comparison_config import AtolConfig, ComparisonConfig
-from tests.infra.connectors.torch_device_connector import TorchDeviceConnector
+from tests.infra import ComparisonConfig
+from tests.infra.evaluators.evaluation_config import AtolConfig, ComparisonConfig
 from tests.infra.testers.single_chip.op.op_tester import OpTester
-from tests.infra.utilities import sanitize_test_name
-from tests.infra.utilities.filecheck_utils import (
-    run_filecheck,
-    validate_filecheck_results,
-)
 
 # TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/1137
 # We would like to use the OpTester/GraphTester infra instead of manually
@@ -57,12 +49,12 @@ def test_simple_mm_eager(bias):
 
     output = model(input_x).to("cpu")
 
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(required_atol=0.02),
         )
     )
-    comparator.compare(output, golden)
+    comparator.evaluate(output, golden)
 
 
 @pytest.mark.push
@@ -106,12 +98,12 @@ def test_conv2d_eager(
 
     output = model(input_x).to("cpu")
 
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.02),
         )
     )
-    comparator.compare(output, golden)
+    comparator.evaluate(output, golden)
 
 
 eltwise_unary_ops = [
@@ -229,12 +221,12 @@ def test_eltwise_unary_eager(op):
     output = model(input_x).to("cpu")
 
     # Not verifying data as many are wrong. Simply testing compile and execute
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.01),
         )
     )
-    comparator.compare(output, golden)
+    comparator.evaluate(output, golden)
 
 
 eltwise_binary_ops = [
@@ -328,12 +320,12 @@ def test_eltwise_binary_eager(op):
     output = model(input_x, input_y).to("cpu")
 
     # Not verifying data as many are wrong. Simply testing compile and execute
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.02),
         )
     )
-    comparator.compare(output, golden)
+    comparator.evaluate(output, golden)
 
 
 @pytest.mark.single_device
@@ -364,13 +356,13 @@ def test_fully_replicated_graph(spmd_mode):
     input_x = input_x.to(device)
     input_y = input_y.to(device)
     output = model(input_x, input_y).to("cpu")
-    comparator = TorchComparator(
+    comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.02),
         )
     )
 
-    comparator.compare(output, golden)
+    comparator.evaluate(output, golden)
 
 
 @pytest.mark.nightly
@@ -420,12 +412,8 @@ def test_spmd_sharding(axis_names, input_shape, sharding_mode):
 @pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.llmbox
+@pytest.mark.filecheck(["sharding_constraints.ttir.mlir"])
 def test_spmd_sharding_constraints(request):
-    # Clear cache directory before test to avoid multiple files from previous runs
-    cache_dir = Path(TorchDeviceConnector.get_cache_dir())
-    if cache_dir.exists():
-        shutil.rmtree(cache_dir)
-    cache_dir.mkdir(parents=True, exist_ok=True)
 
     class EmbeddingModel(torch.nn.Module):
         def __init__(self):
@@ -460,18 +448,23 @@ def test_spmd_sharding_constraints(request):
         mesh=mesh,
         shard_spec_fn=shard_spec_function,
     )
-    tester.test(workload)
+    tester.test(workload, request=request)
 
-    # Parse IR from cache after test
-    pattern_files = ["sharding_constraints.ttir.mlir"]
-    clean_name = sanitize_test_name(request.node.name)
-    output_prefix = f"output_artifact/{clean_name}"
-    parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
 
-    # Run FileCheck
-    filecheck_results = run_filecheck(
-        test_node_name=request.node.name,
-        irs_filepath="output_artifact",
-        pattern_files=pattern_files,
-    )
-    validate_filecheck_results(filecheck_results)
+@pytest.mark.push
+@pytest.mark.single_device
+def test_save_system_descriptor_to_disk(tmp_path):
+    device = xm.xla_device()
+
+    x = torch.randn(2, 2, device=device)
+    y = x + 1
+    xm.mark_step()
+
+    output_prefix = str(tmp_path / "test_system_desc")
+    save_system_descriptor_to_disk(output_prefix, as_json=False)
+
+    system_desc_path = Path(f"{output_prefix}_system_desc.ttsys")
+    assert (
+        system_desc_path.exists()
+    ), f"System descriptor binary file not created at {system_desc_path}"
+    assert system_desc_path.stat().st_size > 0, "System descriptor binary file is empty"

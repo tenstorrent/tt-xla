@@ -59,9 +59,9 @@ invoke_noexcept(Fn &&fn, Args &&...args) noexcept {
           std::invoke(std::forward<Fn>(fn), std::forward<Args>(args)...)};
     }
   } catch (const std::exception &ex) {
-    DLOG_F(ERROR, "Exception:\n{%s}\n", ex.what());
+    LOG_F(ERROR, "Exception:\n{%s}\n", ex.what());
   } catch (...) {
-    DLOG_F(ERROR, "Unknown exception.");
+    LOG_F(ERROR, "Unknown exception.");
   }
 
   return std::nullopt;

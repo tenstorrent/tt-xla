@@ -4,6 +4,29 @@
 import torch
 from torch.export.graph_signature import InputKind, OutputKind
 from tt_torch import composite_ops
+from tt_torch.fusion_providers import FusionProvider
+from ttxla_tools.logging import logger
+
+
+def run_fusion_passes(gm: torch.fx.GraphModule) -> None:
+    """
+    Run all registered fusion passes on a GraphModule.
+
+    Args:
+        gm: The GraphModule to transform
+    """
+    total_replacements = 0
+
+    for provider_cls in FusionProvider.get_registered_providers():
+        provider = provider_cls()
+        num_replaced = provider.replace_pattern(gm)
+        if num_replaced > 0:
+            logger.debug(f"[Fusion] {provider.name}: {num_replaced} match(es)")
+            total_replacements += num_replaced
+
+    if total_replacements > 0:
+        gm.graph.lint()
+        gm.recompile()
 
 
 def handle_composite_ops(gm: torch.fx.GraphModule) -> None:

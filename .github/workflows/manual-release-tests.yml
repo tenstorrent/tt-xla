@@ -1,0 +1,40 @@
+name: Manual release tests
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  id-token: write
+  packages: write
+  checks: write
+  contents: write
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+
+  build-ttxla:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla"
+    secrets: inherit
+    needs: build-image
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  build-release-docker:
+    uses: ./.github/workflows/call-build-release-docker.yml
+    needs: [ build-ttxla ]
+    secrets: inherit
+    with:
+      wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
+
+  release-tests:
+    uses: ./.github/workflows/call-release-tests.yml
+    needs: [ build-release-docker ]
+    secrets: inherit
+    with:
+      release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}

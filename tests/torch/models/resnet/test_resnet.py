@@ -86,30 +86,21 @@ def training_tester() -> ResnetTester:
             "bfp8",
             0,
             marks=pytest.mark.xfail(
-                reason="ttnn.maximum not supported for bfp8. This op should be fused to ReLU. Tracking mlir issue: https://github.com/tenstorrent/tt-mlir/issues/5329 "
+                reason="ttnn.batch_norm not supported for bfp8 https://github.com/tenstorrent/tt-xla/issues/3163"
             ),
         ),
         pytest.param(
             "bfloat16",
             1,
-            marks=pytest.mark.xfail(
-                reason="PCC comparison < 0.99 (observed ~0.982-0.984)"
-            ),
         ),
         pytest.param(
             "bfloat16",
             0,
-            marks=pytest.mark.xfail(
-                reason="PCC comparison < 0.99 (observed ~0.982-0.984)"
-            ),
         ),
         pytest.param("float32", 1),
         pytest.param(
             "float32",
             0,
-            marks=pytest.mark.xfail(
-                reason="PCC comparison < 0.99 (observed ~0.9875). Small, mentioned here anyways: https://github.com/tenstorrent/tt-xla/issues/1673"
-            ),
         ),
     ],
     ids=[
@@ -134,13 +125,7 @@ def test_torch_resnet_inference(format: str, optimization_level: int):
     model_name=MODEL_NAME,
     model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=nan. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/1384"
-    )
+    bringup_status=BringupStatus.PASSED,
 )
 def test_torch_resnet_inference_trace(trace_tester: ResnetTester):
     trace_tester.test()

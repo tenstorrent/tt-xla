@@ -3,19 +3,51 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 
-from tests.torch.models.mnist.cnn.dropout.model_implementation import (
-    MNISTCNNDropoutModel,
-)
+
+class MNISTCNNDropoutModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.conv1 = nn.Conv2d(1, 32, 3, 1)
+        self.conv2 = nn.Conv2d(32, 64, 3, 1)
+        self.dropout1 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(0.5)
+        self.fc1 = nn.Linear(9216, 128)
+        self.fc2 = nn.Linear(128, 10)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = F.relu(x)
+
+        x = self.conv2(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, 2)
+
+        x = self.dropout1(x)
+
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+
+        x = self.dropout2(x)
+        x = self.fc2(x)
+
+        output = F.log_softmax(x, dim=1)
+        return output
 
 
 # --------------------------------
 # Test run
 # --------------------------------
-def mnist():
+def run_mnist():
+    """Run MNIST model on TT device."""
     # Instantiate model.
+    torch.manual_seed(42)
     model: torch.nn.Module = MNISTCNNDropoutModel().to(dtype=torch.bfloat16)
 
     # Put it in inference mode and compile it.
@@ -36,7 +68,45 @@ def mnist():
     with torch.no_grad():
         output = model(input)
 
-    print(output)
+    return output
+
+
+def run_mnist_cpu():
+    """Run MNIST model on CPU for comparison."""
+    # Instantiate model with same seed.
+    torch.manual_seed(42)
+    model: torch.nn.Module = MNISTCNNDropoutModel().to(dtype=torch.bfloat16)
+
+    # Put it in inference mode.
+    model = model.eval()
+
+    # Generate inputs.
+    input = torch.ones((4, 1, 28, 28), dtype=torch.bfloat16)
+
+    # Run model on CPU.
+    with torch.no_grad():
+        output = model(input)
+
+    return output
+
+
+def test_mnist():
+    """Test MNIST TT output against CPU reference."""
+    xr.set_device_type("TT")
+
+    tt_output = run_mnist()
+    cpu_output = run_mnist_cpu()
+
+    tt_output_cpu = tt_output.cpu()
+
+    tt_flat = tt_output_cpu.flatten().float()
+    cpu_flat = cpu_output.flatten().float()
+    pcc = torch.corrcoef(torch.stack([tt_flat, cpu_flat]))[0, 1].item()
+
+    print(f"PCC: {pcc}")
+    print(f"Max diff: {(tt_output_cpu - cpu_output).abs().max()}")
+
+    assert pcc > 0.99, f"PCC too low: {pcc}, expected > 0.99"
 
 
 # --------------------------------
@@ -46,4 +116,5 @@ if __name__ == "__main__":
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
 
-    mnist()
+    output = run_mnist()
+    print(output)

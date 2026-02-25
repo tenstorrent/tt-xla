@@ -12,12 +12,16 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
-from infra.comparators.comparison_config import ComparisonConfig, PccConfig
+from infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 from transformers.cache_utils import StaticCache
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.models.gemma.modeling_gemma import GemmaAttention
+from transformers.models.gpt_oss.modeling_gpt_oss import (
+    ALL_ATTENTION_FUNCTIONS,
+    eager_attention_forward,
+)
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
     LlamaAttention,
@@ -40,6 +44,12 @@ from third_party.tt_forge_models.gemma.pytorch.loader import (
 )
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelVariant as GemmaModelVariant,
+)
+from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+    ModelLoader as GPTOSSModelLoader,
+)
+from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+    ModelVariant as GPTOSSModelVariant,
 )
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
@@ -71,46 +81,48 @@ MODEL_LOADER_MAP = {
     "qwen2_5": Qwen2_5ModelLoader,
     "gemma": GemmaModelLoader,
     "mistral": MistralModelLoader,
+    "gpt_oss": GPTOSSModelLoader,
 }
 
 AVAILABLE_VARIANT_MAP = {
     "llama": [
-        "llama_3_8b",
-        "llama_3_1_8b",
-        "llama_3_1_70b",
-        "llama_3_2_1b",
-        "llama_3_2_3b",
-        "llama_3_3_70b_instruct",
-        "huggyllama_7b",
-        "TinyLlama_v1.1",
+        "3.0_8B",
+        "3.1_8B",
+        "3.1_70B",
+        "3.2_1B",
+        "3.2_3B",
+        "3.3_70B_Instruct",
+        "Huggyllama_7B",
+        "Tinyllama_v1.1",
     ],
-    "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b", "32b", "30b_a3b"],
-    "bge_m3": ["base"],
-    "bert": ["bert-base-uncased"],
+    "qwen3": ["0_6B", "1_7B", "4B", "8B", "14B", "32B", "30B_A3b"],
+    "bge_m3": ["Base"],
+    "bert": ["Base_Uncased"],
     "qwen2_5": [
-        "0_5b",
-        "1_5b",
-        "3b",
-        "7b",
-        "14b",
-        "32b_instruct",
-        "72b_instruct",
-        "math_7b",
+        "0.5B",
+        "1.5B",
+        "3B",
+        "7B",
+        "14B",
+        "32B_Instruct",
+        "72B_Instruct",
+        "Math_7B",
     ],
     "gemma": [
-        "google/gemma-1.1-2b-it",
-        "google/gemma-1.1-7b-it",
-        "google/gemma-2b",
-        "google/gemma-2-2b-it",
-        "google/gemma-2-9b-it",
-        "google/gemma-2-27b-it",
+        "1.1_2B_IT",
+        "1.1_7B_IT",
+        "2B",
+        "2_2B_IT",
+        "2_9B_IT",
+        "2_27B_IT",
     ],
     "mistral": [
-        "7b",
-        "7b_instruct_v03",
-        "ministral_3b_instruct",
-        "ministral_8b_instruct",
+        "7B",
+        "7B_INSTRUCT_v03",
+        "Ministral_3B_Instruct",
+        "Ministral_8B_Instruct",
     ],
+    "gpt_oss": ["20B", "120B"],
 }
 
 
@@ -149,6 +161,7 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, arch):
 
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -228,6 +241,7 @@ def test_llama_attention_decode(variant, variant_config, arch):
 
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -290,9 +304,17 @@ def test_llama_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
     run_graph_test(
         attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        [
+            hidden_states,
+            position_embeddings,
+            attention_mask,
+            past_key_states,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -350,6 +372,7 @@ def test_llama_create_heads(variant, variant_config, seq_len):
 
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -403,7 +426,7 @@ def test_llama_attention(variant, variant_config, seq_len, arch):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, attn_weights = attention_interface(
+        attn_output, _ = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -412,10 +435,11 @@ def test_llama_attention(variant, variant_config, seq_len, arch):
             dropout=dropout,
             scaling=scaling,
         )
-        return attn_output, attn_weights
+        return attn_output
 
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -492,14 +516,19 @@ def test_llama_attention(variant, variant_config, seq_len, arch):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_prefill(seq_len, variant, variant_config, arch):
-    if not arch == "llmbox" and (str(variant) == "32b" or str(variant) == "30b_a3b"):
+    if not arch == "llmbox" and (str(variant) == "32B" or str(variant) == "30B_A3b"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
 
     loader = Qwen3ModelLoader(variant=variant)
     config = loader.load_config()
-    attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
+    config._attn_implementation = "sdpa"
+    if variant == Qwen3ModelVariant.QWEN_3_30B_A3B:
+        model = loader.load_model(dtype_override=torch.bfloat16)
+        attention = model.model.layers[0].self_attn
+    else:
+        attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
@@ -580,6 +609,7 @@ def test_qwen3_attention_prefill_push(seq_len, variant, arch):
 
     loader = Qwen3ModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     hidden_states = torch.randn(
@@ -609,10 +639,13 @@ def test_qwen3_attention_prefill_push(seq_len, variant, arch):
         mesh = None
         get_shard_spec = None
 
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
+
     run_graph_test(
         attention,
         [hidden_states, position_embeddings, attention_mask, past_key_states],
         framework=Framework.TORCH,
+        comparison_config=comparison_config,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
@@ -626,14 +659,16 @@ def test_qwen3_attention_prefill_push(seq_len, variant, arch):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention_decode(variant, variant_config, arch):
-    if not arch == "llmbox" and (str(variant) == "32b" or str(variant) == "30b_a3b"):
+    if not arch == "llmbox" and (str(variant) == "32B" or str(variant) == "30B_A3b"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
 
     loader = Qwen3ModelLoader(variant=variant)
+    model = loader.load_model(dtype_override=torch.bfloat16)
     config = loader.load_config()
-    attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
+    config._attn_implementation = "sdpa"
+    attention = model.model.layers[0].self_attn
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
@@ -702,9 +737,17 @@ def test_qwen3_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
     run_graph_test(
         attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        [
+            hidden_states,
+            position_embeddings,
+            attention_mask,
+            past_key_states,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -720,7 +763,7 @@ def test_qwen3_attention_decode(variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_concat_heads(variant, variant_config, seq_len):
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
+    if str(variant) == "32B" or str(variant) == "30B_A3b":
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -752,7 +795,7 @@ def test_qwen3_concat_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_create_heads(variant, variant_config, seq_len):
-    if str(variant) == "32b" or str(variant) == "30b_a3b":
+    if str(variant) == "32B" or str(variant) == "30B_A3b":
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -767,6 +810,7 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
 
     loader = Qwen3ModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -802,7 +846,7 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_attention(variant, variant_config, seq_len, arch):
-    if not arch == "llmbox" and (str(variant) == "32b" or str(variant) == "30b_a3b"):
+    if not arch == "llmbox" and (str(variant) == "32B" or str(variant) == "30B_A3b"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -823,7 +867,7 @@ def test_qwen3_attention(variant, variant_config, seq_len, arch):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, attn_weights = attention_interface(
+        attn_output, _ = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -833,11 +877,16 @@ def test_qwen3_attention(variant, variant_config, seq_len, arch):
             scaling=scaling,
             sliding_window=getattr(attention_module, "sliding_window", None),
         )
-        return attn_output, attn_weights
+        return attn_output
 
     loader = Qwen3ModelLoader(variant=variant)
     config = loader.load_config()
-    attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
+    config._attn_implementation = "sdpa"
+    if variant == Qwen3ModelVariant.QWEN_3_30B_A3B:
+        model = loader.load_model(dtype_override=torch.bfloat16)
+        attention = model.model.layers[0].self_attn
+    else:
+        attention = Qwen3Attention(config, layer_idx=0).to(torch.bfloat16)
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
@@ -926,6 +975,7 @@ def test_bge_m3_attention_prefill(seq_len, variant, variant_config):
 
     loader = BgeModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = XLMRobertaSelfAttention(config).to(torch.float32)
 
     batch_size = 1
@@ -1007,6 +1057,7 @@ def test_bge_m3_create_heads(seq_len, variant, variant_config):
 
     loader = BgeModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = XLMRobertaSelfAttention(config).to(torch.float32)
 
     batch_size = 1
@@ -1048,6 +1099,7 @@ def test_bert_create_heads(variant, variant_config, seq_len):
 
     loader = BertModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = BertSelfAttention(config).to(torch.bfloat16)
 
     batch_size = 1
@@ -1085,7 +1137,7 @@ def test_bert_create_heads(variant, variant_config, seq_len):
 )
 def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, arch):
     if not arch == "llmbox" and (
-        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+        str(variant) == "72B_Instruct" or str(variant) == "32B_Instruct"
     ):
         pytest.skip("Variant doesn't fit on a single device")
 
@@ -1093,6 +1145,7 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, arch):
 
     loader = Qwen2_5ModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
@@ -1179,6 +1232,7 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, arch):
 
     loader = Qwen2_5ModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
@@ -1264,7 +1318,7 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, arch):
 )
 def test_qwen2_5_attention_decode(variant, variant_config, arch):
     if not arch == "llmbox" and (
-        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+        str(variant) == "72B_Instruct" or str(variant) == "32B_Instruct"
     ):
         pytest.skip("Variant doesn't fit on a single device")
 
@@ -1272,6 +1326,7 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
 
     loader = Qwen2_5ModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
@@ -1345,9 +1400,17 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
     run_graph_test(
         attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        [
+            hidden_states,
+            position_embeddings,
+            attention_mask,
+            past_key_states,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -1364,7 +1427,7 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
 )
 def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
     if not arch == "llmbox" and (
-        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+        str(variant) == "72B_Instruct" or str(variant) == "32B_Instruct"
     ):
         pytest.skip("Variant doesn't fit on a single device")
 
@@ -1385,7 +1448,7 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, attn_weights = attention_interface(
+        attn_output, _ = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -1395,10 +1458,11 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
             scaling=scaling,
             sliding_window=getattr(attention_module, "sliding_window", None),
         )
-        return attn_output, attn_weights
+        return attn_output
 
     loader = Qwen2_5ModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = Qwen2Attention(config, layer_idx=0).to(torch.bfloat16)
 
     # Determine batch size and mesh configuration based on attention heads
@@ -1507,13 +1571,14 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_attention_prefill(seq_len, variant, variant_config, arch):
-    if not arch == "llmbox" and (str(variant) == "google/gemma-2-27b-it"):
+    if not arch == "llmbox" and (str(variant) == "2_27B_IT"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
 
     loader = GemmaModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -1600,6 +1665,7 @@ def test_gemma_attention_prefill_push(seq_len, variant, arch):
 
     loader = GemmaModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     hidden_states = torch.randn(
@@ -1649,13 +1715,14 @@ def test_gemma_attention_prefill_push(seq_len, variant, arch):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_attention_decode(variant, variant_config, arch):
-    if not arch == "llmbox" and (str(variant) == "google/gemma-2-27b-it"):
+    if not arch == "llmbox" and (str(variant) == "2_27B_IT"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
 
     loader = GemmaModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -1727,9 +1794,17 @@ def test_gemma_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
     run_graph_test(
         attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        [
+            hidden_states,
+            position_embeddings,
+            attention_mask,
+            past_key_states,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -1745,7 +1820,7 @@ def test_gemma_attention_decode(variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_attention(variant, variant_config, seq_len, arch):
-    if not arch == "llmbox" and (str(variant) == "google/gemma-2-27b-it"):
+    if not arch == "llmbox" and (str(variant) == "2_27B_IT"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -1765,7 +1840,7 @@ def test_gemma_attention(variant, variant_config, seq_len, arch):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, attn_weights = attention_interface(
+        attn_output, _ = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -1774,10 +1849,11 @@ def test_gemma_attention(variant, variant_config, seq_len, arch):
             dropout=dropout,
             scaling=scaling,
         )
-        return attn_output, attn_weights
+        return attn_output
 
     loader = GemmaModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = GemmaAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -1869,6 +1945,7 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, arch):
 
     loader = MistralModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -1922,6 +1999,7 @@ def test_mistral_attention_prefill_push(seq_len, variant, arch):
 
     loader = MistralModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     hidden_states = torch.randn(
@@ -1973,6 +2051,7 @@ def test_mistral_attention_decode(variant, variant_config, arch):
 
     loader = MistralModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -1996,6 +2075,8 @@ def test_mistral_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (1, num_devices)
@@ -2016,7 +2097,13 @@ def test_mistral_attention_decode(variant, variant_config, arch):
 
     run_graph_test(
         attention,
-        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        [
+            hidden_states,
+            position_embeddings,
+            attention_mask,
+            past_key_states,
+            cache_positions,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
@@ -2050,7 +2137,7 @@ def test_mistral_attention(variant, variant_config, seq_len, arch):
                 attention_module.config._attn_implementation
             ]
 
-        attn_output, attn_weights = attention_interface(
+        attn_output, _ = attention_interface(
             attention_module,
             query_states,
             key_states,
@@ -2060,10 +2147,11 @@ def test_mistral_attention(variant, variant_config, seq_len, arch):
             scaling=scaling,
             sliding_window=getattr(attention_module, "sliding_window", None),
         )
-        return attn_output, attn_weights
+        return attn_output
 
     loader = MistralModelLoader(variant=variant)
     config = loader.load_config()
+    config._attn_implementation = "sdpa"
     attention = MistralAttention(config, layer_idx=0).to(torch.bfloat16)
 
     batch_size = 1
@@ -2232,3 +2320,107 @@ def test_eager_batched_attention():
     )
 
     output = model(hidden_states).to("cpu")
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("gpt_oss").items(),
+    ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
+)
+@parametrize_arch(["single_device", "llmbox"])
+def test_gpt_oss_attention(variant, variant_config, arch):
+    xr.set_device_type("TT")
+
+    def sdpa(
+        attention_module,
+        query_states,
+        key_states,
+        value_states,
+        attention_mask,
+        dropout,
+        scaling,
+    ):
+        attention_interface: Callable = eager_attention_forward
+        if attention_module.config._attn_implementation != "eager":
+            attention_interface = ALL_ATTENTION_FUNCTIONS[
+                attention_module.config._attn_implementation
+            ]
+
+        attn_output, attn_weights = attention_interface(
+            attention_module,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout=dropout,
+            scaling=scaling,
+        )
+        return attn_output
+
+    loader = GPTOSSModelLoader(variant=variant, num_layers=1)
+    model = loader.load_model()
+    config = loader.load_config()
+    inputs = loader.load_inputs()
+
+    batch_size = inputs["input_ids"].shape[0]
+    seq_len = inputs["input_ids"].shape[1]
+
+    num_heads = config.num_attention_heads
+    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
+    head_dim = config.head_dim
+
+    attention = model.model.layers[0].self_attn
+
+    dropout = 0.0
+    scaling = attention.scaling
+
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+        mesh_shape = (1, num_devices)
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(sdpa, args, kwargs):
+            # Attention is the first argument to sdpa.
+            attention = args[0]
+            shard_specs = {}
+            shard_specs[attention.q_proj.weight] = ("model", None)
+            shard_specs[attention.k_proj.weight] = ("model", None)
+            shard_specs[attention.v_proj.weight] = ("model", None)
+            shard_specs[attention.o_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    query_states = torch.randn(
+        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    key_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    value_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
+
+    run_graph_test(
+        sdpa,
+        [
+            attention,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout,
+            scaling,
+        ],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )

@@ -13,6 +13,28 @@ import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
 
 
+class MNISTLinear(nn.Module):
+    """Simple linear MNIST model for inference testing."""
+
+    def __init__(
+        self,
+        input_size: int = 784,
+        hidden_size: int = 512,
+        num_classes: int = 10,
+        bias: bool = True,
+    ):
+        super().__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size, bias=bias)
+        self.fc2 = nn.Linear(hidden_size, hidden_size, bias=bias)
+        self.fc3 = nn.Linear(hidden_size, num_classes, bias=bias)
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        x = self.fc3(x)
+        return torch.log_softmax(x, dim=1)
+
+
 def apply_tensor_parallel_sharding_mnist_linear(
     model: nn.Module, mesh, *, move_to_device: bool = True, strict_bias: bool = False
 ):

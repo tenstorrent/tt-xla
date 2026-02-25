@@ -7,7 +7,6 @@ import ctypes
 import gc
 import io
 import os
-import select
 import shutil
 import sys
 import threading
@@ -202,7 +201,7 @@ def pytest_addoption(parser):
         "--log-pid",
         action="store_true",
         default=False,
-        help="Append process PID to log file names specified in TT_XLA_LOGGER_FILE, TT_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE environment variables if set, to facilitate multiprocess debug logging.",
+        help="Append process PID to log file names specified in TTXLA_LOGGER_FILE, TT_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE environment variables if set, to facilitate multiprocess debug logging.",
     )
     parser.addoption(
         "--disable-perf-measurement",
@@ -221,6 +220,12 @@ def pytest_addoption(parser):
         action="store",
         default=None,
         help="Perf ID for perf benchmark reports.",
+    )
+    parser.addoption(
+        "--dump-irs",
+        action="store_true",
+        default=False,
+        help="Enable IR dumping during model tests",
     )
 
 
@@ -282,7 +287,7 @@ def newline_logger():
 @pytest.fixture(autouse=True)
 def setup_pid_logging(request):
     """
-    A pytest fixture that monkeypatches TT_XLA_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE, and TT_LOGGER_FILE environment
+    A pytest fixture that monkeypatches TTXLA_LOGGER_FILE, TTMLIR_RUNTIME_LOGGER_FILE, and TT_LOGGER_FILE environment
     variables to include the process PID before the file extension when --log-pid
     is passed to pytest.
 
@@ -297,7 +302,7 @@ def setup_pid_logging(request):
         return
 
     # Store original values for restoration
-    original_tt_xla_logger_file = os.environ.get("TT_XLA_LOGGER_FILE")
+    original_TTXLA_LOGGER_FILE = os.environ.get("TTXLA_LOGGER_FILE")
     original_tt_logger_file = os.environ.get("TT_LOGGER_FILE")
     original_ttmlir_runtime_logger_file = os.environ.get("TTMLIR_RUNTIME_LOGGER_FILE")
 
@@ -319,9 +324,9 @@ def setup_pid_logging(request):
         return str(path.parent / new_name)
 
     # Modify environment variables if they exist
-    if original_tt_xla_logger_file:
-        os.environ["TT_XLA_LOGGER_FILE"] = add_pid_to_filename(
-            original_tt_xla_logger_file
+    if original_TTXLA_LOGGER_FILE:
+        os.environ["TTXLA_LOGGER_FILE"] = add_pid_to_filename(
+            original_TTXLA_LOGGER_FILE
         )
 
     if original_tt_logger_file:
@@ -336,8 +341,8 @@ def setup_pid_logging(request):
         yield
     finally:
         # Restore original values
-        if original_tt_xla_logger_file:
-            os.environ["TT_XLA_LOGGER_FILE"] = original_tt_xla_logger_file
+        if original_TTXLA_LOGGER_FILE:
+            os.environ["TTXLA_LOGGER_FILE"] = original_TTXLA_LOGGER_FILE
 
         if original_tt_logger_file:
             os.environ["TT_LOGGER_FILE"] = original_tt_logger_file
@@ -482,7 +487,13 @@ def clear_torchxla_computation_cache():
     This helps avoid consteval-associated DRAM leaks as described in https://github.com/tenstorrent/tt-xla/issues/1940
     """
     yield
-    xr.clear_computation_cache()
+    try:
+        xr.clear_computation_cache()
+    except Exception as e:
+        logger.warning(f"Failed to clear TorchXLA computation cache: {e}")
+        logger.warning(
+            "This is expected if the test throws an exception, https://github.com/tenstorrent/tt-xla/issues/2814"
+        )
 
 
 class TeeCaptureResult:
@@ -491,6 +502,110 @@ class TeeCaptureResult:
     def __init__(self, out: str, err: str):
         self.out = out
         self.err = err
+
+
+class _StreamTee:
+    """
+    Tee capture for a single stream (stdout or stderr).
+
+    Redirects a file descriptor to a memory-backed file (memfd). A background
+    thread reads from the memfd and forwards to both a capture buffer and the
+    original terminal.
+
+    Architecture::
+
+        Process -> stdout -> memfd -> Reader Thread -> Buffer + Terminal
+
+    Attributes:
+        _CHUNK_SIZE: Maximum bytes to read per iteration (class constant).
+        _original_fd: File descriptor of the stream being captured.
+        _saved_fd: Duplicated fd pointing to the original terminal for forwarding.
+        _memfd: Memory-backed file descriptor that receives redirected writes.
+        _read_fd: Separate fd for reading memfd with independent file position.
+        _buffer: StringIO buffer accumulating captured output.
+        _thread: Background thread running the reader loop.
+        _read_pos: Current byte position in the memfd for reading.
+        _final_size: Termination signal for reader thread. None means keep looping,
+            a numeric value N means exit after reading N bytes.
+    """
+
+    _CHUNK_SIZE = 65536
+
+    def __init__(self, stream):
+        self._original_fd = stream.fileno()
+        self._saved_fd = None
+        self._memfd = None
+        self._read_fd = None
+        self._buffer = io.StringIO()
+        self._thread = None
+        self._read_pos = 0
+        self._final_size = None
+
+    def start(self):
+        """Redirect stream to memfd and start reader thread."""
+        self._saved_fd = os.dup(self._original_fd)
+        self._memfd = os.memfd_create(f"tee_capture_{self._original_fd}")
+        self._read_fd = os.open(f"/proc/self/fd/{self._memfd}", os.O_RDONLY)
+        self._thread = threading.Thread(target=self._reader_loop, daemon=True)
+        self._thread.start()
+        os.dup2(self._memfd, self._original_fd)
+
+    def _reader_loop(self):
+        """Read from memfd, write to buffer and terminal."""
+        while True:
+            try:
+                file_size = os.fstat(self._memfd).st_size
+                if file_size > self._read_pos:
+                    data = os.pread(
+                        self._read_fd, file_size - self._read_pos, self._read_pos
+                    )
+                    if data:
+                        self._read_pos += len(data)
+                        self._buffer.write(data.decode("utf-8", errors="replace"))
+                        with contextlib.suppress(BlockingIOError, OSError):
+                            os.write(self._saved_fd, data)
+
+                if self._final_size is not None and self._read_pos >= self._final_size:
+                    return
+            except OSError:
+                return
+
+    def stop(self):
+        """Restore stream and wait for reader to finish."""
+        if self._saved_fd is not None:
+            with contextlib.suppress(OSError):
+                os.dup2(self._saved_fd, self._original_fd)
+
+        if self._memfd is not None:
+            self._final_size = os.fstat(self._memfd).st_size
+
+        if self._thread:
+            self._thread.join(timeout=5.0)
+
+        if self._memfd is not None and self._read_fd is not None:
+            try:
+                file_size = os.fstat(self._memfd).st_size
+                if file_size > self._read_pos:
+                    data = os.pread(
+                        self._read_fd, file_size - self._read_pos, self._read_pos
+                    )
+                    if data:
+                        self._buffer.write(data.decode("utf-8", errors="replace"))
+                        with contextlib.suppress(OSError):
+                            os.write(self._saved_fd, data)
+            except OSError:
+                pass
+
+        # Cleanup
+        for fd in (self._memfd, self._read_fd, self._saved_fd):
+            if fd is not None:
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+        self._memfd = self._read_fd = self._saved_fd = None
+
+    def getvalue(self):
+        """Return captured output."""
+        return self._buffer.getvalue()
 
 
 class TeeCapture:
@@ -503,60 +618,14 @@ class TeeCapture:
     """
 
     def __init__(self):
-        self._stderr_buffer = io.StringIO()
-        self._stdout_buffer = io.StringIO()
-        self._fds = {}
-        self._threads = []
-        self._stop_event = threading.Event()
+        self._stdout_tee = _StreamTee(sys.stdout)
+        self._stderr_tee = _StreamTee(sys.stderr)
         self._started = False
-
-    def _safe_close(self, fd):
-        if fd is not None:
-            with contextlib.suppress(OSError):
-                os.close(fd)
-
-    def _tee_reader(self, read_fd, saved_fd, buffer):
-        while not self._stop_event.is_set():
-            try:
-                ready, _, _ = select.select([read_fd], [], [], 0.1)
-                if not ready:
-                    continue
-                data = os.read(read_fd, 4096)
-                if not data:
-                    return
-                os.write(saved_fd, data)
-                with contextlib.suppress(Exception):
-                    buffer.write(data.decode("utf-8", errors="replace"))
-            except OSError:
-                return
 
     def start(self):
         try:
-            # Save original fds and create pipes
-            for name, stream, buffer in [
-                ("stderr", sys.stderr, self._stderr_buffer),
-                ("stdout", sys.stdout, self._stdout_buffer),
-            ]:
-                original_fd = stream.fileno()
-                saved_fd = os.dup(original_fd)
-                read_fd, write_fd = os.pipe()
-                os.dup2(write_fd, original_fd)
-
-                self._fds[name] = {
-                    "original": original_fd,
-                    "saved": saved_fd,
-                    "read": read_fd,
-                    "write": write_fd,
-                }
-
-                thread = threading.Thread(
-                    target=self._tee_reader,
-                    args=(read_fd, saved_fd, buffer),
-                    daemon=True,
-                )
-                thread.start()
-                self._threads.append(thread)
-
+            self._stdout_tee.start()
+            self._stderr_tee.start()
             self._started = True
         except OSError:
             self._started = False
@@ -564,52 +633,16 @@ class TeeCapture:
     def stop(self):
         if not self._started:
             return
-
-        with contextlib.suppress(OSError):
-            sys.stderr.flush()
         with contextlib.suppress(OSError):
             sys.stdout.flush()
-
-        self._stop_event.set()
-
-        # Restore original fds and close pipe write ends
-        for fds in self._fds.values():
-            with contextlib.suppress(OSError):
-                os.dup2(fds["saved"], fds["original"])
-            self._safe_close(fds["write"])
-
-        for thread in self._threads:
-            thread.join(timeout=1.0)
-
-        # Drain remaining data from pipes
-        for name, fds in self._fds.items():
-            buffer = self._stderr_buffer if name == "stderr" else self._stdout_buffer
-            self._drain_pipe(fds["read"], fds["saved"], buffer)
-
-        # Close all remaining fds
-        for fds in self._fds.values():
-            self._safe_close(fds["read"])
-            self._safe_close(fds["saved"])
-
-    def _drain_pipe(self, read_fd, saved_fd, buffer):
-        while True:
-            try:
-                ready, _, _ = select.select([read_fd], [], [], 0)
-                if not ready:
-                    return
-                data = os.read(read_fd, 4096)
-                if not data:
-                    return
-                with contextlib.suppress(OSError):
-                    os.write(saved_fd, data)
-                with contextlib.suppress(Exception):
-                    buffer.write(data.decode("utf-8", errors="replace"))
-            except (OSError, ValueError):
-                return
+        with contextlib.suppress(OSError):
+            sys.stderr.flush()
+        self._stdout_tee.stop()
+        self._stderr_tee.stop()
 
     def readouterr(self):
         return TeeCaptureResult(
-            self._stdout_buffer.getvalue(), self._stderr_buffer.getvalue()
+            self._stdout_tee.getvalue(), self._stderr_tee.getvalue()
         )
 
 

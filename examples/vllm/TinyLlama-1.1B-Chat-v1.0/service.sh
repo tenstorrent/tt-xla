@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-LOGGER_LEVEL=DEBUG vllm serve TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+TTXLA_LOGGER_LEVEL=DEBUG vllm serve TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
     --max-model-len 2048 \
     --max-num-batched-tokens 2048 \
     --max-num-seqs 1 \

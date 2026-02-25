@@ -269,6 +269,52 @@ def matmul(
         return NotImplemented
 
 
+def dot(input: torch.Tensor, tensor: torch.Tensor):
+    # Decompose dot product into matmul for 1D tensors.
+    if len(input.shape) == 1 and len(tensor.shape) == 1:
+        return torch.matmul(input, tensor)
+    else:
+        return NotImplemented
+
+
+def boolean_bitwise_and(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+    if input.dtype == torch.bool and other.dtype == torch.bool:
+        return torch.logical_and(input, other)
+    return NotImplemented
+
+
+def boolean_bitwise_or(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+    if input.dtype == torch.bool and other.dtype == torch.bool:
+        return torch.logical_or(input, other)
+    return NotImplemented
+
+
+def copy_default(
+    dst: torch.Tensor, src: torch.Tensor, non_blocking: bool = False
+) -> torch.Tensor:
+    """
+    Decomposition for aten.copy.default that correctly handles the broadcast semantics.
+
+    The copy operation copies values from src into dst and returns a tensor with dst's shape.
+    When src is a scalar (0-d tensor) and dst has a larger shape, src should be broadcast.
+
+    This decomposition is needed because functional tensors + XLA can have incorrect behavior
+    with the native copy.default, returning the source shape instead of the destination shape.
+
+    The decomposition uses _to_copy for device/dtype conversion (traces correctly) and
+    expand for broadcasting.
+    """
+    # Use _to_copy for device and dtype conversion - this traces correctly during decomposition
+    # Unlike .to(), _to_copy is a proper aten op that will be in the graph
+
+    src_converted = torch.ops.aten._to_copy.default(
+        src, dtype=dst.dtype, device=dst.device
+    )
+    # Expand to dst's shape (handles scalar -> tensor broadcast)
+    # Then clone to ensure contiguous memory
+    return src_converted.expand(dst.shape).clone()
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
@@ -289,7 +335,6 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
         aten._adaptive_avg_pool2d,
         aten.full,
         aten._log_softmax,
-        aten._to_copy,
         aten.lift_fresh_copy.default,
         aten._unsafe_index.Tensor,
         aten.slice_scatter,
@@ -299,7 +344,9 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
+        aten.copy.default: copy_default,
         aten.matmul.default: matmul,
+        aten.dot.default: dot,
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls against constant tensors.
         # They are necessary as the default aten decompositions
@@ -327,15 +374,23 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
         torch.ops.prims.squeeze.default: squeeze,
+        torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
+        torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
     }
 
 
 def populate_decompositions() -> DecompositionTable:
     decompositions = torch._decomp.core_aten_decompositions()
+
     # Pytorch folds batch dimensions of bmms https://github.com/pytorch/pytorch/blob/a5436a5e8e4ee42d1debf52c2786c7ae0043a434/aten/src/ATen/native/LinearAlgebra.cpp#L1999.
     # This breaks how shard specs prapagate through them, and introduces an all_gather in head parallel attention layers.
-    # We add a custom decoposition of mm -> einsum. For this reason, remove einsum decomposition.
+    # We add a custom decomposition of mm -> einsum. For this reason, remove einsum decomposition.
     decompositions.pop(torch.ops.aten.einsum.default)
+
+    # Dot product gets lowered to stablehlo.multiply, returning eltwise product
+    # of two tensors: https://github.com/tenstorrent/tt-xla/issues/2672
+    # A custom decomposition dot->matmul is added later (ref dot fn).
+    decompositions.pop(torch.ops.aten.dot.default)
 
     decompositions.update(get_decompositions(_get_default_decomposition_ops()))
     decompositions.update(_get_custom_decompositions())

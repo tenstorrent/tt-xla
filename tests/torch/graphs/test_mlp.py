@@ -10,6 +10,7 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
+from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers.models.falcon.modeling_falcon import FalconMLP
 from transformers.models.gemma.modeling_gemma import GemmaMLP
@@ -30,6 +31,12 @@ from third_party.tt_forge_models.gemma.pytorch.loader import (
 )
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelVariant as GemmaModelVariant,
+)
+from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+    ModelLoader as GPTOSSModelLoader,
+)
+from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+    ModelVariant as GPTOSSModelVariant,
 )
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelLoader as LlamaModelLoader,
@@ -60,52 +67,54 @@ MODEL_LOADER_MAP = {
     "gemma": GemmaModelLoader,
     "mistral": MistralModelLoader,
     "falcon": FalconModelLoader,
+    "gpt_oss": GPTOSSModelLoader,
 }
 
 AVAILABLE_VARIANT_MAP = {
     "llama": [
-        "llama_3_8b",
-        "llama_3_1_8b",
-        "llama_3_1_70b",
-        "llama_3_2_1b",
-        "llama_3_2_3b",
-        "llama_3_3_70b_instruct",
-        "huggyllama_7b",
-        "TinyLlama_v1.1",
+        "3.0_8B",
+        "3.1_8B",
+        "3.1_70B",
+        "3.2_1B",
+        "3.2_3B",
+        "3.3_70B_Instruct",
+        "Huggyllama_7B",
+        "Tinyllama_v1.1",
     ],
-    "qwen3": ["0_6b", "1_7b", "4b", "8b", "14b", "32b"],
+    "qwen3": ["0_6B", "1_7B", "4B", "8B", "14B", "32B"],
     "qwen2_5": [
-        "0_5b",
-        "1_5b",
-        "3b",
-        "7b",
-        "14b",
-        "32b_instruct",
-        "72b_instruct",
-        "math_7b",
+        "0.5B",
+        "1.5B",
+        "3B",
+        "7B",
+        "14B",
+        "32B_Instruct",
+        "72B_Instruct",
+        "Math_7B",
     ],
     "gemma": [
-        "google/gemma-1.1-2b-it",
-        "google/gemma-1.1-7b-it",
-        "google/gemma-2b",
-        "google/gemma-2-2b-it",
-        "google/gemma-2-9b-it",
-        "google/gemma-2-27b-it",
+        "1.1_2B_IT",
+        "1.1_7B_IT",
+        "2B",
+        "2_2B_IT",
+        "2_9B_IT",
+        "2_27B_IT",
     ],
     "mistral": [
-        "7b",
-        "7b_instruct_v03",
-        "ministral_3b_instruct",
-        "ministral_8b_instruct",
+        "7B",
+        "7B_INSTRUCT_v03",
+        "Ministral_3B_Instruct",
+        "Ministral_8B_Instruct",
     ],
     "falcon": [
-        "tiiuae/Falcon3-1B-Base",
-        "tiiuae/Falcon3-3B-Base",
-        "tiiuae/Falcon3-7B-Base",
-        "tiiuae/Falcon3-10B-Base",
-        "tiiuae/Falcon3-Mamba-7B-Base",
-        "tiiuae/falcon-7b-instruct",
+        "3_1B_Base",
+        "3_3B_Base",
+        "3_7B_Base",
+        "3_10B_Base",
+        "3_Mamba_7B_Base",
+        "7B_Instruct",
     ],
+    "gpt_oss": ["20B", "120B"],
 }
 
 
@@ -137,7 +146,7 @@ def get_available_variants(model_name):
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
 def test_qwen3_mlp(seq_len, variant, variant_config, arch):
-    if not arch == "llmbox" and str(variant) == "32b":
+    if not arch == "llmbox" and str(variant) == "32B":
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -251,7 +260,7 @@ def test_llama_mlp(seq_len, variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
 def test_gemma_mlp(seq_len, variant, variant_config, arch):
-    if not arch == "llmbox" and (str(variant) == "google/gemma-2-27b-it"):
+    if not arch == "llmbox" and (str(variant) == "2_27B_IT"):
         pytest.skip("Variant doesn't fit on a single device")
 
     xr.set_device_type("TT")
@@ -356,7 +365,7 @@ def test_mistral_mlp(seq_len, variant, variant_config, arch):
 )
 def test_qwen2_5_mlp(seq_len, variant, variant_config, arch):
     if not arch == "llmbox" and (
-        str(variant) == "72b_instruct" or str(variant) == "32b_instruct"
+        str(variant) == "72B_Instruct" or str(variant) == "32B_Instruct"
     ):
         pytest.skip("Variant doesn't fit on a single device")
 
@@ -450,6 +459,70 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
         mlp,
         [hidden_states],
         framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""GPT-OSS MLP test"""
+
+
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("gpt_oss").items(),
+    ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
+)
+def test_gpt_oss_mlp(variant, variant_config, arch):
+    xr.set_device_type("TT")
+
+    loader = GPTOSSModelLoader(variant=variant, num_layers=1)
+    model = loader.load_model()
+    config = loader.load_config()
+    inputs = loader.load_inputs()
+
+    batch_size = inputs["input_ids"].shape[0]  # 1
+    seq_len = inputs["input_ids"].shape[1]  # 128 with padding
+
+    mlp = model.model.layers[0].mlp
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+
+    if arch == "llmbox":
+        comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (1, num_devices)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(mlp, args, kwargs):
+            shard_specs = {}
+
+            # Router weights (not sharded).
+            shard_specs[mlp.router.weight] = (None, None)
+            shard_specs[mlp.router.bias] = (None,)
+
+            # Shard experts across devices.
+            shard_specs[mlp.experts.gate_up_proj] = ("model", None, None)
+            shard_specs[mlp.experts.gate_up_proj_bias] = ("model", None)
+            shard_specs[mlp.experts.down_proj] = ("model", None, None)
+            shard_specs[mlp.experts.down_proj_bias] = ("model", None)
+
+            return shard_specs
+
+    else:
+        comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )

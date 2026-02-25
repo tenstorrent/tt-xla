@@ -8,8 +8,8 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
 from flax import linen, nnx
-from infra.comparators import ComparisonConfig, ComparisonResult
 from infra.connectors import DeviceConnectorFactory, JaxDeviceConnector
+from infra.evaluators import ComparisonConfig, ComparisonResult
 from infra.runners import JaxDeviceRunner
 from infra.testers.single_chip.model import JaxModelTester, RunMode
 from infra.utilities import Framework, PyTree, ShardingMode, Tensor
@@ -36,6 +36,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         comparison_config: ComparisonConfig = ComparisonConfig(),
         run_mode: RunMode = RunMode.INFERENCE,
         compiler_config: CompilerConfig = None,
+        parallelism: Optional[int] = None,
         num_devices: Optional[int] = None,
         axis_name: str = "X",
     ) -> None:
@@ -83,6 +84,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         self._input_activations: Dict | Sequence[Any] = None
         self._input_parameters_partition_specs: PyTree = None
         self._input_parameters: PyTree = None
+        self._parallelism = parallelism
 
         super().__init__(comparison_config, run_mode, compiler_config)
 
@@ -124,11 +126,20 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         )
 
     # @override
-    def _test_inference(self) -> Tuple[ComparisonResult, ...]:
+    def _test_inference(self, request=None) -> Tuple[ComparisonResult, ...]:
         """
         Tests the model by running inference on multichip TT device and on CPU and comparing the
         results.
         """
+        if request:
+            if request.config.getoption(
+                "--serialize", False
+            ) or request.node.get_closest_marker("filecheck"):
+                # Serialization requires mesh context for jax models with sharding operations, which is not currently handled.
+                assert (
+                    False
+                ), "Serialization/filecheck not supported through JAX multichip model tester yet."
+
         self._compile_for_cpu(self.cpu_multichip_workload)
         cpu_res = self._run_on_cpu()
 
@@ -156,7 +167,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         """
         assert isinstance(workload, JaxMultichipWorkload)
 
-        if not isinstance(workload.executable, nnx.Module):
+        if not isinstance(workload.model, nnx.Module):
             module_sharded_executable = shard_map(
                 workload.executable,
                 mesh=workload.device_mesh,
@@ -197,6 +208,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
             model=self._model,
             args=self._workload.args,
             kwargs=self._workload.kwargs,
+            static_argnames=self._workload.static_argnames,
             device_mesh=mesh,
             in_specs=in_specs,
             out_spec=out_spec,
@@ -213,7 +225,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         if isinstance(self._model, (linen.Module, nnx.Module)):
             return (
                 self._input_parameters_partition_specs,
-                self._input_activations_partition_specs,
+                *self._input_activations_partition_specs,
             )
 
         return ()
@@ -243,10 +255,10 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
     # @override
     def _cache_model_inputs(self) -> None:
         """Caches model inputs."""
+        self._input_activations = self._get_input_activations()
         self._input_activations_partition_specs = (
             self._get_input_activations_partition_spec()
         )
-        self._input_activations = self._get_input_activations()
         self._input_parameters_partition_specs = (
             self._get_input_parameters_partition_spec()
         )
@@ -294,7 +306,9 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         """Returns partition specs for the input activations."""
         if self._model_loader is not None:
             return self._model_loader.get_input_activations_partition_spec(
-                self._cpu_mesh, axis_name=self.main_axis_name
+                self._cpu_mesh,
+                axis_name=self.main_axis_name,
+                parallelism=self._parallelism,
             )
         else:
             raise NotImplementedError(
@@ -309,6 +323,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
                 cpu_mesh=self._cpu_mesh,
                 input_activations_partition_specs=self._input_activations_partition_specs,
                 inputs=self._input_activations,
+                parallelism=self._parallelism,
             )
         else:
             raise NotImplementedError(
@@ -333,6 +348,11 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
+        if isinstance(self._model, nnx.Module):
+            return {
+                "params": self._input_parameters,
+                **self._input_activations,
+            }
         return {}
 
     # @override

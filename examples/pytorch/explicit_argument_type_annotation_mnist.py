@@ -7,7 +7,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 import tt_torch
 
-from tests.torch.models.mnist.cnn.dropout.model_implementation import (
+from third_party.tt_forge_models.mnist.image_classification.pytorch.loader import (
     MNISTCNNDropoutModel,
 )
 
@@ -15,8 +15,10 @@ from tests.torch.models.mnist.cnn.dropout.model_implementation import (
 # --------------------------------
 # Test run
 # --------------------------------
-def mnist_with_consteval():
+def run_mnist_with_consteval():
+    """Run MNIST model with consteval on TT device."""
     # Instantiate model.
+    torch.manual_seed(42)
     model: torch.nn.Module = MNISTCNNDropoutModel().to(dtype=torch.bfloat16)
 
     # Put it in inference mode.
@@ -40,7 +42,45 @@ def mnist_with_consteval():
     with torch.no_grad():
         output = model(input)
 
-    print(output)
+    return output
+
+
+def run_mnist_cpu():
+    """Run MNIST model on CPU for comparison."""
+    # Instantiate model with same seed.
+    torch.manual_seed(42)
+    model: torch.nn.Module = MNISTCNNDropoutModel().to(dtype=torch.bfloat16)
+
+    # Put it in inference mode.
+    model = model.eval()
+
+    # Generate inputs.
+    input = torch.ones((4, 1, 28, 28), dtype=torch.bfloat16)
+
+    # Run model on CPU.
+    with torch.no_grad():
+        output = model(input)
+
+    return output
+
+
+def test_explicit_argument_type_annotation():
+    """Test MNIST with consteval TT output against CPU reference."""
+    xr.set_device_type("TT")
+
+    tt_output = run_mnist_with_consteval()
+    cpu_output = run_mnist_cpu()
+
+    tt_output_cpu = tt_output.cpu()
+
+    tt_flat = tt_output_cpu.flatten().float()
+    cpu_flat = cpu_output.flatten().float()
+    pcc = torch.corrcoef(torch.stack([tt_flat, cpu_flat]))[0, 1].item()
+
+    print(f"PCC: {pcc}")
+    print(f"Max diff: {(tt_output_cpu - cpu_output).abs().max()}")
+
+    assert pcc > 0.99, f"PCC too low: {pcc}, expected > 0.99"
 
 
 # --------------------------------
@@ -50,4 +90,5 @@ if __name__ == "__main__":
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
 
-    mnist_with_consteval()
+    output = run_mnist_with_consteval()
+    print(output)

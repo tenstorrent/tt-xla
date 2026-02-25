@@ -5,11 +5,13 @@ import os
 from typing import Tuple
 
 import torch
+import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
+from ttxla_tools.logging import logger
 
 from .decompositions import populate_decompositions
 from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
@@ -19,6 +21,7 @@ from .passes import (
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
+    run_fusion_passes,
 )
 
 
@@ -31,9 +34,18 @@ def torch_pass_pipeline(
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
 
+    # Run fusion passes to detect and fuse multi-op patterns
+    # This runs before composite_ops to allow fused patterns to be wrapped as composites
+    enable_fusion_passes = options is None or options.get(
+        "tt_enable_torch_fx_fusion_pass", True
+    )
+    if enable_fusion_passes:
+        run_fusion_passes(gm)
+
     # This is a temporary option to disable / enable composite ops
     # that will be removed once composite ops are more stable.
     # default to True if options are not given or if tt_enable_composite_ops is not present
+
     enable_composite_ops = options is None or options.get(
         "tt_enable_composite_ops", True
     )
@@ -42,13 +54,12 @@ def torch_pass_pipeline(
 
     decompositions = populate_decompositions()
 
-    # We use `export_for_training` here as we plan to use this flow to compile training graphs.
-    # In addition to that, the functionality in `export_for_training` will become the default
-    # functionality in torch.export in a future PyTorch release:
-    # https://docs.pytorch.org/docs/stable/export.html#export-for-training-and-inference
-    program = torch.export.export_for_training(
-        gm, tuple(example_inputs), strict=False
-    ).run_decompositions(decompositions)
+    program = torch.export.export(
+        gm,
+        tuple(example_inputs),
+        strict=False,
+    )
+    program = program.run_decompositions(decompositions)
 
     compiled_graph = program.module()
     compiled_graph = insert_argument_type_markers(
@@ -83,7 +94,7 @@ class XLAExecutor:
         module: torch.fx.GraphModule,
         signature: torch.export.ExportGraphSignature,
         node_info: list[str],
-        experimental_compile_enabled: bool,
+        legacy_compile_enabled: bool,
     ):
         self.module = module
         self.signature = signature
@@ -100,9 +111,9 @@ class XLAExecutor:
             self.devices.add(tensor.device.type)
         self.devices = list(self.devices)
 
-        # Whether to enable experimental compile flow.
+        # Whether to enable the legacy compile flow.
         # The following group of fields will only be used if the experimental flow is enabled.
-        self.experimental_compile_enabled = experimental_compile_enabled
+        self.legacy_compile_enabled = legacy_compile_enabled
         self.params_and_consts = None
         self.compiled_graph = None
 
@@ -110,21 +121,39 @@ class XLAExecutor:
     def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
         sig = ep.graph_signature
 
-        # Export keeps a state dict for lifted params/buffers.
+        # Export keeps a state dict for lifted params/buffers and a const dict for lifted constants.
         state = ep.state_dict
+        constants = ep.constants
 
         # Map from placeholder name -> tensor.
         total_args = tuple()
         encountered_user_input = False
         for spec in sig.input_specs:
+            # Kinds: CUSTOM_OBJ and TOKEN haven't been tested.
+            # USER_INPUT will not exist in state_dict, it is passed in from the outside.
             if spec.kind == InputKind.USER_INPUT:
                 encountered_user_input = True
                 continue
+
             assert (
                 not encountered_user_input
             ), "We expect user inputs to be last in the list of inputs."
-            assert spec.target is not None
-            total_args += (state[spec.target],)
+
+            assert spec.target is not None, f"Spec target is None for spec {spec}"
+            if spec.kind == InputKind.CONSTANT_TENSOR:
+                arg = constants[spec.target]
+            else:
+                arg = state[spec.target]  # Handles: PARAMETER, BUFFER
+            if arg.device.type != "xla":
+                if spec.kind != InputKind.CONSTANT_TENSOR:
+                    logger.warning(
+                        f"Found an argument on non-XLA device which was not a lifted constant: {spec.target}. "
+                        "Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA."
+                    )
+                arg = arg.to(
+                    torch.device("xla")
+                )  # Maybe it makes sense to modify the ep to avoid multiple moves of constants?
+            total_args += (arg,)
 
         return total_args
 
@@ -132,9 +161,7 @@ class XLAExecutor:
         if self.compiled_graph is None:
             # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
-            program = torch.export.export_for_training(
-                self.module, tuple(args), strict=False
-            )
+            program = torch.export.export(self.module, tuple(args), strict=False)
 
             # Collect the params and constants from the exported program.
             self.params_and_consts = self._build_params_and_consts(program)
@@ -151,7 +178,7 @@ class XLAExecutor:
         return self.compiled_graph(*full_args)
 
     def __call__(self, *args):
-        if self.experimental_compile_enabled:
+        if not self.legacy_compile_enabled:
             return self._call_experimental_compile(*args)
 
         if self.inject_metadata:
@@ -183,12 +210,18 @@ class XLAExecutor:
 
 
 @register_backend(name="tt")
-def xla_backend(gm, example_inputs, options=None):
+def xla_backend(gm, example_inputs, options={}):
     """TT backend for torch.compile."""
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
-    experimental_compile_enabled = (
-        options.get("tt_experimental_compile", False) if options else False
-    )
-    return XLAExecutor(module, graph_signature, node_info, experimental_compile_enabled)
+    legacy_compile_enabled = False
+    if "tt_experimental_compile" in options:
+        logger.warning(
+            'Warning: Experimental compile is now the default. As such, the "tt_experimental_compile" flag is deprecated.'
+            'Honoring the flag, but please use "tt_legacy_compile" flag or no flag in the future.'
+        )
+        legacy_compile_enabled = not bool(options["tt_experimental_compile"])
+    if "tt_legacy_compile" in options:
+        legacy_compile_enabled = bool(options["tt_legacy_compile"])
+    return XLAExecutor(module, graph_signature, node_info, legacy_compile_enabled)

@@ -1,0 +1,146 @@
+name: TT-forge release (call)
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: "Release tag"
+        type: string
+        required: true
+      should_overwrite_release:
+        description: 'Should we overwrite an existing pypi wheel'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+  packages: write
+  checks: write
+
+jobs:
+  publish-forge:
+    runs-on: builder
+    steps:
+      - name: Fix workspace permissions issue
+        run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Build wheel from template
+        shell: bash
+        run: |
+          export VERSION_TAG=${{ inputs.release_tag }}
+          pip install wheel
+          python ./.github/scripts/forge-wheel-setup.py bdist_wheel --dist-dir ./
+
+      - name: Publish wheels to PyPI
+        shell: bash
+        run: |
+          pip install s3pypi
+
+          echo "Uploading wheel to the pypi bucket"
+          if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
+            s3pypi upload tt_forge*.whl --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
+          else
+            s3pypi upload tt_forge*.whl --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
+          fi
+
+      - name: Build & push Docker image
+        shell: bash
+        id: build-docker
+        run: |
+          set -eo pipefail
+
+          project="tt-forge"
+          commit_tag="${{ github.sha }}"
+          version_tag="${{ inputs.release_tag }}"
+          latest_tag="latest"
+          if [[ "$version_tag" == *dev* ]]; then
+            latest_tag="nightly-latest"
+          fi
+
+          .github/build-release-docker-image.sh $project $commit_tag | tee docker.log
+          docker_image=$(tail -n 1 docker.log)
+          docker_image_base=$(tail -n 2 docker.log | head -n 1)
+
+          echo "Pushing tags for $docker_image_base"
+          docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$version_tag"
+          docker push "$docker_image_base:$version_tag"
+
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            docker tag "$docker_image_base:$commit_tag" "$docker_image_base:$latest_tag"
+            docker push "$docker_image_base:$latest_tag"
+          fi
+
+          echo "docker_image_base=$docker_image_base" >> $GITHUB_OUTPUT
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          repository: tenstorrent/tt-forge
+          path: tt-forge
+          token: ${{ secrets.TT_FORGE_RELEASER }}
+
+      - name: Create and push tag if missing
+        shell: bash
+        run: |
+          set -o pipefail
+          cd tt-forge
+
+          tag="${{ inputs.release_tag }}"
+
+          git fetch origin main
+          commit="$(git rev-parse origin/main)"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --tags origin "refs/tags/$tag" | grep -q "$tag"; then
+            echo "Remote tag $tag already exists"
+          elif git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists"
+          else
+            git tag -a "$tag" -m "Release $tag" "$commit"
+            git push origin "refs/tags/$tag"
+          fi
+
+      - name: Publish github release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          generate_release_notes: true
+          token: ${{ secrets.TT_FORGE_RELEASER }}
+          repository: tenstorrent/tt-forge
+          draft: false
+          prerelease: false
+          body: |
+            Install via pypi
+            pip install tt-forge==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+
+            Pull docker image
+            docker pull ${{ steps.build-docker.outputs.docker_image_base }}:${{ inputs.release_tag }}

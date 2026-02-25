@@ -8,13 +8,17 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_CLIENT_INSTANCE_H_
+#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_CLIENT_INSTANCE_H_
+
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // c++ standard library includes
 #include <cstdlib>
 #include <memory>
-#include <optional>
+#include <mutex>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 // tt-xla includes
@@ -23,10 +27,9 @@
 #include "api/memory_instance.h"
 #include "utils/status.h"
 
-#ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_CLIENT_INSTANCE_H_
-#define TT_XLA_PJRT_IMPLEMENTATION_INC_API_CLIENT_INSTANCE_H_
-
 namespace tt::pjrt {
+
+class BufferInstance;
 
 namespace module_builder {
 class ModuleBuilder;
@@ -202,6 +205,13 @@ private:
 
   // We don't have a versioning system for our software stack yet.
   const std::string m_platform_version = "0.0.0";
+
+  // Set of all tracked buffers. Used to materialize all buffers before mesh
+  // reshape to prevent data loss.
+  std::unordered_set<BufferInstance *> m_tracked_buffers;
+
+  // Mutex protecting m_tracked_buffers.
+  mutable std::mutex m_tracked_buffers_mutex;
 };
 
 namespace internal {

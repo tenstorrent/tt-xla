@@ -7,7 +7,7 @@
 from enum import Enum
 from typing import Optional
 
-from .utils import ExceptionCheck, FailingReason, M
+from .utils import ME, ExceptionCheck, FailingReason, M
 
 
 class ComponentChecker(Enum):
@@ -112,7 +112,9 @@ class ComponentChecker(Enum):
                         M.last_line(
                             M.contains("infra/runners/torch_device_runner.py:")
                         ),
-                        M.last_line(M.contains("infra/comparators/comparator.py:")),
+                        M.last_line(M.contains("infra/evaluators/evaluator.py:")),
+                        # match anywhere in longrepr to avoid relying solely on last line
+                        M.contains("infra/evaluators/evaluator.py:"),
                         M.last_line(
                             M.contains(
                                 "infra/testers/single_chip/model/torch_model_tester.py"
@@ -214,6 +216,38 @@ class FailingReasons(Enum):
                     M.contains("Cannot use chat template functions"),
                     M.contains("tokenizer.chat_template is not set"),
                     M.contains("no template argument was passed"),
+                ],
+            ),
+        ],
+    )
+
+    # Missing attribute 'xla_args' on fused ops or related objects
+    MISSING_XLA_ARGS_ATTRIBUTE = FailingReason(
+        description="AttributeError: object has no attribute 'xla_args'",
+        checks=[
+            ExceptionCheck(
+                class_name="AttributeError",
+                message=[
+                    M.contains("no attribute 'xla_args'"),
+                ],
+            ),
+        ],
+    )
+
+    # Torch split_with_sizes shape mismatch on dimension
+    SPLIT_WITH_SIZES_MISMATCH = FailingReason(
+        description="RuntimeError: split_with_sizes expects split_sizes to sum exactly to <size>",
+        checks=[
+            ExceptionCheck(
+                class_name="RuntimeError",
+                message=[
+                    M.contains(
+                        "split_with_sizes expects split_sizes to sum exactly to"
+                    ),
+                    M.contains("but got split_sizes="),
+                ],
+                error_log=[
+                    M.last_line(M.contains("torch/_tensor.py:")),
                 ],
             ),
         ],
@@ -374,7 +408,10 @@ class FailingReasons(Enum):
                 class_name="AssertionError",
                 component=ComponentChecker.XLA.value,
                 message=[
-                    M.starts_with("Comparison result 0 failed"),
+                    M.any(
+                        M.starts_with("Comparison result 0 failed"),
+                        M.starts_with("Evaluation result 0 failed"),
+                    ),
                     M.contains("PCC comparison failed"),
                     M.contains("Calculated: pcc="),
                     M.neg(M.contains("Calculated: pcc=nan (invalid value)")),
@@ -383,7 +420,9 @@ class FailingReasons(Enum):
                     ),  # Some test doesn't have pcc but compares allclose as well
                 ],
                 error_log=[
-                    M.last_line(M.contains("infra/comparators/comparator.py:")),
+                    M.any(
+                        M.last_line(M.contains("infra/evaluators/evaluator.py:")),
+                    ),
                 ],
             ),
         ],
@@ -470,13 +509,21 @@ class FailingReasons(Enum):
                 class_name="ValueError",
                 component=ComponentChecker.XLA.value,
                 message=[
-                    M.equals("Error code: 13"),
+                    M.contains("Error code: 13"),
                 ],
                 error_log=[
-                    M.contains(
-                        ">           torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)"
+                    M.any(
+                        M.contains(
+                            ">           torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)"
+                        ),
+                        M.contains("_xla_sync_multi("),
+                        M.contains("torch_xla._XLAC._xla_sync_multi"),
                     ),
-                    M.last_line(M.contains("tt_torch/backend/backend.py:")),
+                    # Allow either backend callsite or torch_xla surface frame to be last
+                    M.any(
+                        M.last_line(M.contains("tt_torch/backend/backend.py:")),
+                        M.last_line(M.contains("torch_xla/torch_xla.py:")),
+                    ),
                 ],
             ),
         ],
@@ -558,6 +605,11 @@ class FailingReasons(Enum):
                         ),
                     ),
                 ],
+                summary=[
+                    ME.regex(
+                        "(TT_THROW: Statically allocated circular buffers on core range)"
+                    ),
+                ],
             ),
             # Circular buffers exceed L1 size
             ExceptionCheck(
@@ -565,11 +617,21 @@ class FailingReasons(Enum):
                     M.contains("circular buffers"),
                     M.contains("beyond max L1 size"),
                 ],
+                summary=[
+                    ME.regex(
+                        "(TT_THROW: Statically allocated circular buffers on core range)"
+                    ),
+                ],
             ),
             ExceptionCheck(
                 stdout=[
                     M.contains("circular buffers"),
                     M.contains("beyond max L1 size"),
+                ],
+                summary=[
+                    ME.regex(
+                        "(TT_THROW: Statically allocated circular buffers on core range)"
+                    ),
                 ],
             ),
             # Out of Memory: Not enough space to allocate
@@ -577,10 +639,20 @@ class FailingReasons(Enum):
                 stdout=[
                     M.contains("Out of Memory: Not enough space to allocate"),
                 ],
+                summary=[
+                    ME.regex(
+                        "(TT_THROW: Statically allocated circular buffers on core range)"
+                    ),
+                ],
             ),
             ExceptionCheck(
                 stderr=[
                     M.contains("Out of Memory: Not enough space to allocate"),
+                ],
+                summary=[
+                    ME.regex(
+                        "(TT_THROW: Statically allocated circular buffers on core range)"
+                    ),
                 ],
             ),
             # Fallback: classify OOM when message is a StatusOr INTERNAL:13 error
@@ -588,6 +660,15 @@ class FailingReasons(Enum):
                 message=[
                     M.contains("Bad StatusOr access"),
                     M.contains("Error code: 13"),
+                ],
+                summary=[
+                    ME.regex("(Bad StatusOr access: INTERNAL: Error code: 13)"),
+                    # ME.regex(
+                    #     "(# Only run the actual model test if not marked for skip)"
+                    # ),
+                    # ME.regex(
+                    #     "(# function in finally block will always be called and handles the pytest.skip.)"
+                    # ),
                 ],
             ),
         ],

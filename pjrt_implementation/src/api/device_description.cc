@@ -13,10 +13,27 @@
 // c++ standard library includes
 #include <sstream>
 
+// tracy includes
+#include "tracy/Tracy.hpp"
+
 // tt-xla includes
 #include "utils/logging.h"
 
 namespace tt::pjrt {
+
+// Helper to create attributes.
+PJRT_NamedValue createStringAttribute(const std::string &name,
+                                      const std::string &value) {
+  PJRT_NamedValue attr;
+  attr.struct_size = PJRT_NamedValue_STRUCT_SIZE;
+  attr.extension_start = nullptr;
+  attr.name = name.c_str();
+  attr.name_size = name.size();
+  attr.type = PJRT_NamedValue_kString;
+  attr.string_value = value.c_str();
+  attr.value_size = value.size();
+  return attr;
+}
 
 DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch)
     : m_device_id(device_id), m_process_index(0),
@@ -24,6 +41,11 @@ DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch)
   std::stringstream ss;
   ss << "TTDevice(id=" << m_device_id << ", arch=" << m_device_kind << ")";
   m_user_string = ss.str();
+
+  // Create attributes list
+  m_attributes.push_back(createStringAttribute(
+      m_arch_attr_name,
+      m_device_kind)); // device arch attribute (e.g. "wormhole_b0")
 }
 
 void DeviceDescription::bindApi(PJRT_Api *api) {
@@ -41,6 +63,7 @@ void DeviceDescription::bindApi(PJRT_Api *api) {
 namespace internal {
 
 PJRT_Error *onDeviceDescriptionId(PJRT_DeviceDescription_Id_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Id");
 
   args->id = DeviceDescription::unwrap(args->device_description)->getDeviceId();
@@ -50,6 +73,7 @@ PJRT_Error *onDeviceDescriptionId(PJRT_DeviceDescription_Id_Args *args) {
 
 PJRT_Error *onDeviceDescriptionProcessIndex(
     PJRT_DeviceDescription_ProcessIndex_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ProcessIndex");
 
   args->process_index =
@@ -60,16 +84,20 @@ PJRT_Error *onDeviceDescriptionProcessIndex(
 
 PJRT_Error *
 onDeviceDescriptionAttributes(PJRT_DeviceDescription_Attributes_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Attributes");
 
-  // We don't set any device attributes currently.
-  args->num_attributes = 0;
-  args->attributes = nullptr;
+  const auto &attributes =
+      DeviceDescription::unwrap(args->device_description)->getAttributes();
+
+  args->num_attributes = attributes.size();
+  args->attributes = attributes.data();
 
   return nullptr;
 }
 
 PJRT_Error *onDeviceDescriptionKind(PJRT_DeviceDescription_Kind_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Kind");
 
   const std::string &device_kind =
@@ -83,6 +111,7 @@ PJRT_Error *onDeviceDescriptionKind(PJRT_DeviceDescription_Kind_Args *args) {
 
 PJRT_Error *
 onDeviceDescriptionDebugString(PJRT_DeviceDescription_DebugString_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_DebugString");
 
   const std::string &debug_str =
@@ -96,6 +125,7 @@ onDeviceDescriptionDebugString(PJRT_DeviceDescription_DebugString_Args *args) {
 
 PJRT_Error *
 onDeviceDescriptionToString(PJRT_DeviceDescription_ToString_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ToString");
 
   const std::string &description_str =

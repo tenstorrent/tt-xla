@@ -66,6 +66,16 @@ def _(tensor: torch.Tensor, argument_type: str, name: str = None) -> torch.Tenso
     return tensor.clone()
 
 
+@mark_argument_attributes.register_autograd
+def _(ctx, grad_output):
+    """
+    Autograd implementation for mark_argument_attributes.
+    This op is just metadata annotation, so gradients pass through unchanged.
+    Returns gradients for: (tensor, argument_type, name)
+    """
+    return grad_output, None, None
+
+
 @torch.library.custom_op(
     "tt::sharding_constraint", mutates_args=[], device_types=["cpu", "xla"]
 )
@@ -90,12 +100,6 @@ def sharding_constraint(tensor: torch.Tensor, sdy_sharding: str) -> torch.Tensor
         "xla.sdy.sharding": sdy_sharding,
     }
 
-    # Handle shape requirements (same workaround as mark_argument_attributes)
-    original_shape = list(tensor.shape)
-    if len(tensor.shape) < 3:
-        extra_dims = [1] * (3 - len(original_shape))
-        tensor = tensor.reshape((*extra_dims, *original_shape))
-
     result = stablehlo_custom_call.stablehlo_custom_call(
         [tensor],
         "tt.sharding_constraint",  # tt-mlir converts this to sdy.sharding_constraint
@@ -103,9 +107,6 @@ def sharding_constraint(tensor: torch.Tensor, sdy_sharding: str) -> torch.Tensor
         [tensor.dtype],
         frontend_attributes=frontend_attributes,
     )
-
-    if len(original_shape) < 3:
-        result = result.reshape(original_shape)
 
     return result
 
@@ -117,6 +118,16 @@ def _(tensor: torch.Tensor, sdy_sharding: str) -> torch.Tensor:
     This must be implemented in order for dynamo to trace the function.
     """
     return tensor.clone()
+
+
+@sharding_constraint.register_autograd
+def _(ctx, grad_output):
+    """
+    Autograd implementation for sharding_constraint.
+    This op only applies sharding metadata, so gradients pass through unchanged.
+    Returns gradients for: (tensor, sdy_sharding)
+    """
+    return grad_output, None
 
 
 @torch.library.custom_op(

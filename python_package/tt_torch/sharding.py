@@ -26,6 +26,8 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec) -> str:
     Uses generic placeholders (mesh_idx_0, mesh_idx_1) that tt-mlir will
     replace with actual axis names from the mesh definition.
 
+    Mesh axes with size 1 are treated as replicated (empty set).
+
     Example:
         partition_spec = ("batch", None, None)
         mesh.axis_names = ("batch", "model")
@@ -39,11 +41,17 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec) -> str:
             # Map axis name to mesh index placeholder (e.g., "batch" -> "mesh_idx_0")
             try:
                 axis_idx = mesh.axis_names.index(axis)
-                dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis_idx}"}}')
+                if mesh.mesh_shape[axis_idx] > 1:
+                    dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis_idx}"}}')
+                else:
+                    dim_shardings.append("{}")
             except ValueError:
                 dim_shardings.append("{}")
         elif isinstance(axis, int):
-            dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
+            if mesh.mesh_shape[axis] > 1:
+                dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
+            else:
+                dim_shardings.append("{}")
         else:
             dim_shardings.append("{}")
 
@@ -98,3 +106,47 @@ def sharding_constraint_hook(module, mesh, partition_spec):
         return torch.ops.tt.sharding_constraint(output, sdy_sharding)
 
     return hook
+
+
+def sharding_constraint_tensor(input, mesh, partition_spec):
+    """
+    Apply a sharding constraint to a tensor.
+
+    This is the recommended way to apply sharding constraints to a tensor
+    in a torch.compile-compatible manner.
+
+    Args:
+        input: The tensor to which the sharding constraint should be applied
+        mesh: The mesh object describing device topology
+        partition_spec: A tuple specifying how each dimension should be sharded.
+            Use axis names (e.g., "batch", "model") or None for replicated dimensions.
+
+    Returns:
+        torch.Tensor: The tensor with the sharding constraint applied
+
+    Raises:
+        TypeError: If input is not a torch.Tensor
+        ValueError: If mesh or partition_spec is invalid
+
+    Example:
+        Apply sharding constraint directly to a tensor to reshard it.
+        >>> from tt_torch import sharding_constraint_tensor
+        >>> mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+        >>> updated_tensor = sharding_constraint_tensor(input_tensor, mesh, (None, None, None))
+    """
+    if not isinstance(input, torch.Tensor):
+        raise TypeError(f"Expected torch.Tensor, got {type(input).__name__}")
+
+    if mesh is None:
+        raise ValueError("mesh cannot be None")
+
+    if partition_spec is None:
+        raise ValueError("partition_spec cannot be None")
+
+    if not hasattr(mesh, "axis_names"):
+        raise ValueError("mesh must have 'axis_names' attribute")
+
+    # Convert to sdy.sharding string at hook creation time
+    sdy_sharding = _partition_spec_to_sdy_sharding(mesh, partition_spec)
+
+    return torch.ops.tt.sharding_constraint(input, sdy_sharding)

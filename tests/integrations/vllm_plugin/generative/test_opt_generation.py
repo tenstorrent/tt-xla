@@ -26,11 +26,11 @@ def test_opt_generation():
     llm = vllm.LLM(**llm_args)
 
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
-    # output = llm.embed(prompts)
     print(f"prompt: {prompts[0]}, output: {output_text}")
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 def test_opt_generation_multibatch():
     prompts = [
         "Hello, my name is",
