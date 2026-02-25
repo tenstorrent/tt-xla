@@ -75,6 +75,9 @@ def test_tensor_parallel_generation_llmbox_small(
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
+@pytest.mark.skip(
+    reason="Skipping due to bug in tt-metal SPDA op. Issue: https://github.com/tenstorrent/tt-xla/issues/3465"
+)
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_enable_weight_bfp8_conversion"],
     [
