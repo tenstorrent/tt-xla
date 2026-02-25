@@ -107,6 +107,11 @@ public:
   // tensor_volume * expected_host_data_type_element_size
   size_t tensorSize();
 
+  // Returns the logical (untiled) size of the tensor in bytes, computed from
+  // the buffer's dimensions and data type. Unlike tensorSize(), this does not
+  // include tile padding.
+  size_t logicalTensorSize() const;
+
   // Returns a string representation of the buffer's shape in the format
   // [d1,d2,d3,...].
   std::string toShapeStr() const;
