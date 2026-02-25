@@ -13,14 +13,17 @@ endif()
 
 # Create symlinks to the original tracy and ttnn modules from tt-metal.
 # These symlinks allow our wrapper modules to import and delegate to the original code.
-# Check if required directories exist before creating symlinks
 add_custom_target(bundle-tracy ALL
-  COMMAND ${CMAKE_COMMAND} -E create_symlink ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/tt-metal/tools/tracy ${CMAKE_CURRENT_SOURCE_DIR}/tracy/_original
+  COMMAND ${CMAKE_COMMAND} -E echo "Checking if tracy source exists: ${TTMLIR_INSTALL_DIR}/tt-metal/tools/tracy"
+  COMMAND test -e ${TTMLIR_INSTALL_DIR}/tt-metal/tools/tracy || (echo "Warning: tracy source directory not found at ${TTMLIR_INSTALL_DIR}/tt-metal/tools/tracy" && exit 1)
+  COMMAND ${CMAKE_COMMAND} -E create_symlink ${TTMLIR_INSTALL_DIR}/tt-metal/tools/tracy ${CMAKE_CURRENT_SOURCE_DIR}/tracy/_original
   DEPENDS tt-mlir
 )
 
 add_custom_target(bundle-ttnn ALL
-  COMMAND ${CMAKE_COMMAND} -E create_symlink ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/tt-metal/ttnn/ttnn ${CMAKE_CURRENT_SOURCE_DIR}/ttnn/_original
+  COMMAND ${CMAKE_COMMAND} -E echo "Checking if ttnn source exists: ${TTMLIR_INSTALL_DIR}/tt-metal/ttnn/ttnn"
+  COMMAND test -e ${TTMLIR_INSTALL_DIR}/tt-metal/ttnn/ttnn || (echo "Warning: ttnn source directory not found at ${TTMLIR_INSTALL_DIR}/tt-metal/ttnn/ttnn" && exit 1)
+  COMMAND ${CMAKE_COMMAND} -E create_symlink ${TTMLIR_INSTALL_DIR}/tt-metal/ttnn/ttnn ${CMAKE_CURRENT_SOURCE_DIR}/ttnn/_original
   DEPENDS tt-mlir
 )
 
