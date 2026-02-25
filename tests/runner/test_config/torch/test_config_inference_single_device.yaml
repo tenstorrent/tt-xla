@@ -165,6 +165,10 @@ test_config:
   alexnet/pytorch-alexnetb-single_device-full-inference:
     status: EXPECTED_PASSING
 
+  arcee/text_generation/pytorch-arcee_Spark-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: " torch._dynamo.exc.BackendCompilerFailed: backend='tt' raised: RuntimeErrors: NYI: querying is_contiguous inside of vmap for memory_format other than torch.contiguous_format"
+
   attention_denseunet/pytorch-base-single_device-full-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "TT_FATAL: Output size cannot fit input with offset during TT compile/runtime – tracked in issue https://github.com/tenstorrent/tt-xla/issues/2293"
@@ -1470,9 +1474,7 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
-  bi_lstm_crf/pytorch-default-single_device-full-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
+
 
   flux/pytorch-schnell-single_device-full-inference:
     arch_overrides:
@@ -2528,3 +2530,7 @@ test_config:
   wan/pytorch-wan2.2-ti2v-5b-single_device-full-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Wan2.2 model requires a lot of memeory and takes a lot of time to load hence skipping it for now."
+
+  smolvla/vision_language_action/pytorch-smolvla_base-single_device-full-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "TT backend: failed to legalize 'stablehlo.scatter' in SmolVLM embeddings (ttir.scatter limitation). CPU passes. https://github.com/tenstorrent/tt-xla/issues/2391"
