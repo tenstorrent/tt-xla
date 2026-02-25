@@ -8,9 +8,11 @@ import torch
 import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
+import torch_xla.runtime as xr
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
+from torch_xla.distributed.spmd import ShardingType
 from ttxla_tools.logging import logger
 
 from .decompositions import populate_decompositions
@@ -173,6 +175,18 @@ class XLAExecutor:
             self.compiled_graph = bridge.extract_compiled_graph(
                 program.graph_module, self.params_and_consts + args
             )
+
+        # if xr.is_spmd():
+        #     all_args = self.params_and_consts + args
+        #     xla_tensors = [
+        #         a for a in all_args
+        #         if isinstance(a, torch.Tensor) and a.device.type == "xla"
+        #     ]
+        #     sharding_specs = torch_xla._XLAC._get_xla_sharding_specs(xla_tensors)
+        #     replicated = torch_xla._XLAC.OpSharding([], [], [], ShardingType.REPLICATED)
+        #     for tensor, spec in zip(xla_tensors, sharding_specs):
+        #         if not spec:
+        #             torch_xla._XLAC._xla_mark_sharding(tensor, replicated)
 
         full_args = self.params_and_consts + args
         return self.compiled_graph(*full_args)

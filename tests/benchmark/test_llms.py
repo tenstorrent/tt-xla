@@ -847,6 +847,7 @@ def test_llama_3_1_70b_tp(output_file, num_layers, request):
         num_layers=num_layers,
         request=request,
         required_pcc=-1.0,
+        input_sequence_length=28,
     )  # https://github.com/tenstorrent/tt-xla/issues/2976
 
 
