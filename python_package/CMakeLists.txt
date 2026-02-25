@@ -11,9 +11,6 @@ if(TTXLA_ENABLE_EWHEEL_INSTALL)
   add_dependencies(install-ttxla-python-packages TTPJRTTTDylib)
 endif()
 
-add_dependencies(bundle-tracy tt-mlir)
-add_dependencies(bundle-ttnn tt-mlir)
-
 # Create symlinks to the original tracy and ttnn modules from tt-metal.
 # These symlinks allow our wrapper modules to import and delegate to the original code.
 add_custom_target(bundle-tracy ALL
@@ -25,6 +22,9 @@ add_custom_target(bundle-ttnn ALL
   COMMAND ${CMAKE_COMMAND} -E create_symlink ${TTMLIR_LIB_DIR}/tt-metal/ttnn/ttnn ${CMAKE_CURRENT_SOURCE_DIR}/ttnn/_original
   DEPENDS tt-mlir
 )
+
+add_dependencies(bundle-tracy tt-mlir)
+add_dependencies(bundle-ttnn tt-mlir)
 
 # Fix RPATH of _ttnn.so to find shared libraries in pjrt_plugin_tt/lib at runtime (wheel installation).
 find_program(PATCHELF patchelf REQUIRED)
