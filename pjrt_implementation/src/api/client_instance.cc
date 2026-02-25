@@ -158,6 +158,7 @@ static tt_pjrt_status launchDistributedRuntime() {
           .withAllowRunAsRoot(true)
           .withMcaOptions(mca_options);
 
+
   if (controller_host_name) {
     distributed_options.multiProcessArgs->withControllerHostname(
         controller_host_name);
@@ -165,6 +166,10 @@ static tt_pjrt_status launchDistributedRuntime() {
 
   if (!hosts_list_vec.empty()) {
     distributed_options.multiProcessArgs->withHosts(hosts_list_vec);
+  }
+
+  if (btl_tcp_if_include) {
+    distributed_options.multiProcessArgs->withTcpInterface(btl_tcp_if_include);
   }
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
