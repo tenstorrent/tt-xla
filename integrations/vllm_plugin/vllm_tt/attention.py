@@ -176,9 +176,9 @@ class TTMetadata:
 
     def __init__(
         self,
-        cache_position: torch.Tensor = None,
-        attn_mask: torch.Tensor = None,
-        page_table: torch.Tensor = None,
+        cache_position: torch.Tensor | None = None,
+        attn_mask: torch.Tensor | None = None,
+        page_table: torch.Tensor | None = None,
         is_causal: bool = True,
     ):
         self.cache_position = cache_position
@@ -200,7 +200,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         logits_soft_cap: Optional[float] = None,
         attn_type: str = AttentionType.DECODER,
         kv_sharing_target_layer_name: Optional[int] = None,
-        sinks: torch.Tensor = None,
+        sinks: torch.Tensor | None = None,
     ) -> None:
         self.num_heads = num_heads
         self.head_size = head_size
@@ -247,9 +247,9 @@ class TTAttentionBackendImpl(AttentionImpl):
         value: torch.Tensor,
         kv_cache: torch.Tensor,
         attn_metadata: TTMetadata,
-        output: Optional[torch.Tensor] = None,
-        output_scale: Optional[torch.Tensor] = None,
-        output_block_scale: Optional[torch.Tensor] = None,
+        output: torch.Tensor | None = None,
+        output_scale: torch.Tensor | None = None,
+        output_block_scale: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Forward pass with TT attention.
 
