@@ -11,6 +11,8 @@ if(TTXLA_ENABLE_EWHEEL_INSTALL)
   add_dependencies(install-ttxla-python-packages TTPJRTTTDylib bundle-ttnn bundle-tracy)
 endif()
 
+set(TTMLIR_INSTALL_DIR "${PROJECT_SOURCE_DIR}/tt-mlir/src/tt-mlir/install")
+
 # Create symlinks to the original tracy and ttnn modules from tt-metal.
 # These symlinks allow our wrapper modules to import and delegate to the original code.
 add_custom_target(bundle-tracy ALL

@@ -31,10 +31,8 @@ else()
     add_subdirectory(pjrt_c_api)
 
     # ----- tt-mlir -----
-
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
-    set(TTMLIR_INSTALL_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
     set(WITH_METAL_RUNTIME_ROOT_SET "")
     if(NOT DEFINED ENV{TT_METAL_RUNTIME_ROOT})
         set(WITH_METAL_RUNTIME_ROOT_SET "TT_METAL_RUNTIME_ROOT=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
