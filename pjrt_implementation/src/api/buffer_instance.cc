@@ -476,13 +476,7 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
-    ZoneScopedN("QueryHostBufferSize");
-    DLOG_F(LOG_DEBUG,
-           "Calculating required host buffer size from device tensor when "
-           "args->dst is nullptr to query the required size. This will give "
-           "an overestimated tile-aligned physical tensor size instead of a "
-           "logical size. TODO @jameszianxu");
-    args->dst_size = buffer->tensorSize();
+    throw std::runtime_error("dst is nullptr");
     return nullptr;
   }
 
