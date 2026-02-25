@@ -763,3 +763,42 @@ def test_output_sharding_simple_propagation():
     assert input_e_shard_spec == output_e_shard_spec
     assert input_f_shard_spec == output_f_shard_spec
     assert input_g_shard_spec == output_g_shard_spec
+
+def test_simple_distributed_addition():
+    """
+    Verifies basic distributed tensor addition across multiple hosts.
+    Creates two sharded tensors, adds them, and validates correctness.
+    """
+    class DistributedAdd(torch.nn.Module):
+        def forward(self, a, b):
+            return a + b
+
+    xr.set_device_type("TT")
+    setup_spmd()
+    device = torch_xla.device()
+
+    # Use mesh_shape from fixture (topology-aware)
+    mesh = create_device_mesh((8,8))
+
+    # Create test tensors
+    a_cpu = torch.ones(32, 32, dtype=torch.float32)
+    b_cpu = torch.arange(1024, dtype=torch.float32).reshape(32, 32)
+    expected_output = a_cpu + b_cpu
+
+    # Move to device and shard
+    a = a_cpu.to(device)
+    b = b_cpu.to(device)
+    xs.mark_sharding(a, mesh, (None, "model"))
+    xs.mark_sharding(b, mesh, (None, "model"))
+
+    # Compile and execute
+    compiled_model = torch.compile(DistributedAdd(), backend="tt")
+    compiled_model = compiled_model.to(device)
+    output = compiled_model(a, b)
+
+    # Validate correctness
+    comparison_config = ComparisonConfig(
+        pcc=PccConfig(required_pcc=0.9999), assert_on_failure=True
+    )
+    comparator = TorchComparisonEvaluator(comparison_config)
+    comparator.evaluate(output.cpu(), expected_output)
