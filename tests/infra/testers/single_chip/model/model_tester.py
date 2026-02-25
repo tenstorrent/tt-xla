@@ -17,8 +17,8 @@ from infra.workloads import Workload
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from ...base_tester import BaseTester
-
-
+from ttxla_tools.logging import logger
+import torch
 class RunMode(Enum):
     INFERENCE = "inference"
     TRAINING = "training"
@@ -160,9 +160,11 @@ class ModelTester(BaseTester, ABC):
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
+        logger.info("cpu compile starts")
         self._compile_for_cpu(self._workload)
+        logger.info("cpu compile done")
         cpu_res = self._run_on_cpu(self._workload)
-
+        logger.info("cpu run done and tt compile starts")
         self._compile_for_tt_device(self._workload)
 
         if not self._disable_perf_measurement:
@@ -170,7 +172,6 @@ class ModelTester(BaseTester, ABC):
             list.append(self._perf_measurements, e2e_perf_stats)
 
         tt_res = self._run_on_tt_device(self._workload)
-
         if request:
             self.handle_filecheck_and_serialization(request, self._workload)
 
@@ -209,7 +210,7 @@ class ModelTester(BaseTester, ABC):
         """Runs workload on CPU."""
         return self._device_runner.run_on_cpu(compiled_workload)
 
-    def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
+def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on TT device."""
         return self._device_runner.run_on_tt_device(compiled_workload)
 

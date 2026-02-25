@@ -8,7 +8,7 @@ import subprocess
 import sys
 import warnings
 from typing import List, Optional
-
+from ttxla_tools.logging import logger
 import pytest
 import torch
 from infra import RunMode
@@ -76,6 +76,7 @@ def _run_model_test_impl(
     This function contains the shared logic for both JAX and Torch tests.
     It's extracted to avoid duplication between test_all_models_jax/torch.
     """
+    logger.info(f" _run_model_test_impl starts")
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
 
@@ -84,6 +85,7 @@ def _run_model_test_impl(
 
         # Get the model loader and model info from desired model, variant.
         loader = ModelLoader(variant=variant)
+        logger.info(f" loader loaded")
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
@@ -108,6 +110,7 @@ def _run_model_test_impl(
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
                 # Framework-specific tester creation
                 if framework == Framework.TORCH:
+                    logger.info(f" DynamicTorchModelTester starts")
                     tester = DynamicTorchModelTester(
                         run_mode,
                         run_phase=run_phase,
@@ -285,6 +288,7 @@ def test_all_models_torch(
     clear_torchxla_computation_cache,
 ):
     """PyTorch model test - delegates to shared implementation."""
+    logger.info(f"test starts")
     _run_model_test_impl(
         test_entry=test_entry,
         run_mode=run_mode,

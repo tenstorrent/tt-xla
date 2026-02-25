@@ -17,7 +17,7 @@ from infra.utilities.torch_multichip_utils import get_mesh
 from tests.runner.test_utils import RunPhase
 from tests.runner.utils import TorchDynamicLoader
 from third_party.tt_forge_models.config import Parallelism
-
+from ttxla_tools.logging import logger
 
 class DynamicTorchModelTester(TorchModelTester):
     """Torch model tester that uses a dynamic loader for model and input loading.
@@ -47,6 +47,7 @@ class DynamicTorchModelTester(TorchModelTester):
             run_phase: Optional run phase (DEFAULT, LLM_DECODE, LLM_PREFILL)
             test_metadata: Optional ModelTestConfig with seq_len/batch_size for prefill
         """
+        logger.info(f" DynamicTorchModelTester init starts")
         # Create TorchDynamicLoader instance
         self.dynamic_loader = TorchDynamicLoader(loader)
         # Store parallelism for reporting/consumers

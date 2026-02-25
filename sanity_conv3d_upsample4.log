@@ -1,0 +1,34 @@
+2026-02-25 11:27:38.178 | INFO     | pjrt_plugin_tt:setup_tt_pjrt_plugin_dir:42 - Using PJRT plugin directory: /proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/python_package/pjrt_plugin_tt
+2026-02-25 11:27:38.179 | INFO     | pjrt_plugin_tt:setup_tt_metal_home:103 - Using TT-Metal from the source tree: /proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+2026-02-25 11:27:38.179 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, anyio-4.12.1, split-0.11.0, forked-1.6.0
+============================================================
+Mode 1: Conv3d EAGER (no torch.compile)
+============================================================
+DONE in 0.707s  |  shape: torch.Size([1, 96, 16, 128, 128])
+
+============================================================
+Mode 2: Conv3d torch.compile(backend='inductor')
+============================================================
+DONE in 1.670s  |  shape: torch.Size([1, 96, 16, 128, 128])
+
+============================================================
+Mode 3: Conv3d via test runner infra
+       (compile_torch_workload_for_cpu + DeviceRunner + _mask_jax_accelerator)
+============================================================
+  compile_torch_workload_for_cpu ...
+  compile done in 0.001s (lazy)
+  run_on_cpu (with _mask_jax_accelerator) ...
+  DONE in 0.728s  |  shape: torch.Size([1, 96, 16, 128, 128])
+
+============================================================
+ALL 3 MODES PASSED - Conv3d is NOT the issue.
+The hang only occurs in the full pytest test runner environment.
+============================================================
+collected 0 items
+
+============================ no tests ran in 12.59s ============================

@@ -1,0 +1,63 @@
+2026-02-25 11:20:19.514 | INFO     | pjrt_plugin_tt:setup_tt_pjrt_plugin_dir:42 - Using PJRT plugin directory: /proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/python_package/pjrt_plugin_tt
+2026-02-25 11:20:19.518 | INFO     | pjrt_plugin_tt:setup_tt_metal_home:103 - Using TT-Metal from the source tree: /proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+2026-02-25 11:20:19.518 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+2026-02-25 11:20:30.484 | WARNING  | tests.runner.utils.dynamic_loader:discover_loader_paths:447 - Workaround to exclude model: suryaocr from discovery. Issue #1166
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+2026-02-25 11:20:55.446 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:259 - Cannot import path: /proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/third_party/tt_forge_models/yolov12/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-02-25 11:20:55.676 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:259 - Cannot import path: /proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/third_party/tt_forge_models/yolov11/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-02-25 11:20:56.084 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:259 - Cannot import path: /proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/third_party/tt_forge_models/yolov5/pytorch/loader.py: No module named 'pkg_resources'
+2026-02-25 11:21:00.105 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:259 - Cannot import path: /proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/third_party/tt_forge_models/yolov10/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-02-25 11:21:01.217 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:259 - Cannot import path: /proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/third_party/tt_forge_models/yolov8/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla/third_party/tt_forge_models/tools/utils.py)
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /proj_sw/user_dev/akannan_new/25_feb_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, anyio-4.12.1, split-0.11.0, forked-1.6.0
+collected 8093 items / 8091 deselected / 2 selected
+
+tests/runner/test_models.py 2026-02-25 11:21:03.325 | INFO     | test_models:test_all_models_torch:291 - test starts
+2026-02-25 11:21:03.325 | INFO     | test_models:_run_model_test_impl:79 -  _run_model_test_impl starts
+Running tests/runner/test_models.py::test_all_models_torch[dense_unet_3d/pytorch-Base-single_device-inference] - pytorch_Dense UNet 3D_Base_cv_object_det_github
+2026-02-25 11:21:03.325 | INFO     | test_models:_run_model_test_impl:88 -  loader loaded
+2026-02-25 11:21:03.325 | INFO     | test_models:_run_model_test_impl:113 -  DynamicTorchModelTester starts
+2026-02-25 11:21:03.325 | INFO     | tests.runner.testers.torch.dynamic_torch_model_tester:__init__:50 -  DynamicTorchModelTester init starts
+2026-02-25 11:21:03.686 | INFO     | infra.testers.single_chip.model.model_tester:_test_inference:163 - cpu compile starts
+2026-02-25 11:21:03.768 | INFO     | infra.testers.single_chip.model.model_tester:_test_inference:165 - cpu compile done
+2026-02-25 11:21:03.977 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:forward:227 - forward: conv1 start
+2026-02-25 11:21:29.369 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_227:229 - forward: bn1 start
+2026-02-25 11:21:32.183 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_229:231 - forward: relu start
+2026-02-25 11:21:32.243 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_231:233 - forward: maxpool start
+2026-02-25 11:21:32.332 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_233:235 - forward: dense1 start
+2026-02-25 11:21:43.805 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_235:237 - forward: transition+dense2 start
+2026-02-25 11:21:52.080 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_237:239 - forward: transition+dense3 start
+2026-02-25 11:21:56.939 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_239:241 - forward: transition+dense4 start
+2026-02-25 11:21:59.218 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_241:243 - forward: upsample1 start
+2026-02-25 11:21:59.354 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:forward:71 - UpsamplingBlock: upsample(x) start
+2026-02-25 11:22:01.300 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_71:73 - UpsamplingBlock: upsample(residual) start
+2026-02-25 11:22:01.496 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_73:75 - UpsamplingBlock: cat start
+2026-02-25 11:22:01.890 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_75:77 - UpsamplingBlock: conv3d start
+2026-02-25 11:22:03.228 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_77:79 - UpsamplingBlock: batchnorm start
+2026-02-25 11:22:03.712 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_79:81 - UpsamplingBlock: relu start
+2026-02-25 11:22:04.067 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_81:83 - UpsamplingBlock: done
+2026-02-25 11:22:04.099 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_244:245 - forward: upsample2 start
+2026-02-25 11:22:04.134 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:forward:71 - UpsamplingBlock: upsample(x) start
+2026-02-25 11:22:05.342 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_71:73 - UpsamplingBlock: upsample(residual) start
+2026-02-25 11:22:06.572 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_73:75 - UpsamplingBlock: cat start
+2026-02-25 11:22:06.948 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_75:77 - UpsamplingBlock: conv3d start
+2026-02-25 11:22:50.520 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_77:79 - UpsamplingBlock: batchnorm start
+2026-02-25 11:22:51.011 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_79:81 - UpsamplingBlock: relu start
+2026-02-25 11:22:51.429 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_81:83 - UpsamplingBlock: done
+2026-02-25 11:22:51.457 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_246:247 - forward: upsample3 start
+2026-02-25 11:22:51.875 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:forward:71 - UpsamplingBlock: upsample(x) start
+2026-02-25 11:22:53.166 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_71:73 - UpsamplingBlock: upsample(residual) start
+2026-02-25 11:22:54.436 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_73:75 - UpsamplingBlock: cat start
+2026-02-25 11:22:54.862 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_75:77 - UpsamplingBlock: conv3d start
+2026-02-25 11:23:40.035 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_77:79 - UpsamplingBlock: batchnorm start
+2026-02-25 11:23:40.573 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_79:81 - UpsamplingBlock: relu start
+2026-02-25 11:23:40.927 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_81:83 - UpsamplingBlock: done
+2026-02-25 11:23:40.948 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_248:249 - forward: upsample4 start
+2026-02-25 11:23:40.973 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:forward:71 - UpsamplingBlock: upsample(x) start
+2026-02-25 11:23:42.341 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_71:73 - UpsamplingBlock: upsample(residual) start
+2026-02-25 11:23:43.508 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_73:75 - UpsamplingBlock: cat start
+2026-02-25 11:23:43.927 | INFO     | tt_forge_models.dense_unet_3d.pytorch.src.model:torch_dynamo_resume_in_forward_at_75:77 - UpsamplingBlock: conv3d start
