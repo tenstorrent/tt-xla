@@ -1,20 +1,2 @@
 {
-  "ttnn.deallocate": 33,
-  "ttnn.to_layout": 1,
-  "ttir.update_cache": 16,
-  "ttnn.constant": 32,
-  "ttnn.get_device": 33,
-  "ttnn.reshape": 32,
-  "stablehlo.scatter": 32,
-  "stablehlo.convert": 32,
-  "stablehlo.composite": 32,
-  "stablehlo.dot_general": 32,
-  "stablehlo.broadcast_in_dim": 32,
-  "stablehlo.compare": 32,
-  "stablehlo.reduce": 32,
-  "stablehlo.not": 32,
-  "stablehlo.gather": 32,
-  "ttir.fill_cache": 16,
-  "ttir.gelu": 4,
-  "ttnn.full": 1
 }
