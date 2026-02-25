@@ -2400,19 +2400,12 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
 
   llama/llama_3_2_vision/pytorch-3.2_11B_Vision-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
 
   llama/llama_3_2_vision/pytorch-3.2_11B_Vision_Instruct-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor while an async operation is in flight: UNKNOWN_SCALAR[]')"
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
 
   arnold/pytorch-Deathmatch_Shotgun_Rnn-single_device-inference:
     status: EXPECTED_PASSING
