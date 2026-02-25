@@ -12,12 +12,22 @@ _SAMPLING_EPS = 1e-5
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
-    """Count tokens per row whose logprob >= threshold.
+    """Count tokens per row whose logprob >= threshold, minimum 1.
+
+    Returns a 1-based rank: rank 1 means only the token itself satisfies >=.
+
+    Workaround for https://github.com/tenstorrent/tt-xla/issues/3464:
+    TTNNWorkaroundsPass casts integer reduction operands to bfloat16;
+    the fused sum(-1).clamp(min=1) path returns -1 instead of 1 on TT.
+    torch.maximum with an explicit ones tensor gives the correct result.
 
     Returns int64 (natural sum dtype).  Callers that need int32 — e.g.
     gather_logprobs for the LogprobsTensors convention — must cast after.
     """
-    return (logprobs >= threshold).sum(-1)
+    counts = (logprobs >= threshold).sum(-1)
+    # TODO(#3464): replace with counts.clamp(min=1) once TTNNWorkaroundsPass
+    # no longer casts integer reduction operands to bfloat16.
+    return torch.maximum(counts, torch.ones_like(counts))
 
 
 class Sampler(nn.Module):
@@ -219,10 +229,28 @@ class Sampler(nn.Module):
 
         # Cast to int32 to match LogprobsTensors.empty_cpu() convention.
         token_ranks = count_tokens_ge(logprobs, token_logprobs).to(torch.int32)
+        if (token_ranks == 0).any():
+            for b in range(token_ranks.shape[0]):
+                if token_ranks[b].item() == 0:
+                    tid = token_ids[b, 0].item()
+                    gathered_val = token_logprobs[b, 0].item()
+                    direct_val = logprobs[b, tid].item()
+                    max_lp = logprobs[b].max().item()
+                    print(
+                        f"[rank=0 debug] batch={b} token_id={tid} "
+                        f"gathered={gathered_val:.10f} direct={direct_val:.10f} "
+                        f"diff={gathered_val - direct_val:.2e} max_lp={max_lp:.10f}",
+                        flush=True,
+                    )
 
         # Concatenate together with the topk.
         # Cast topk_indices to int32 to match token_ids dtype for cat.
-        indices = torch.cat((token_ids, topk_indices.to(torch.int32)), dim=1)
+        # TODO(#3463): replace with the direct on-device cat once TTNNWorkaroundsPass
+        # no longer casts integer concat operands to bfloat16 for tile-layout padding.
+        # indices = torch.cat((token_ids, topk_indices.to(torch.int32)), dim=1)
+        indices = torch.cat(
+            (token_ids.cpu(), topk_indices.cpu().to(torch.int32)), dim=1
+        ).to(token_ids.device)
         logprobs = torch.cat((token_logprobs, topk_logprobs), dim=1)
 
         return LogprobsTensors(indices, logprobs, token_ranks)
