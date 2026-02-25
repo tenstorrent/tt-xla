@@ -12,15 +12,22 @@ _SAMPLING_EPS = 1e-5
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
-    """Count tokens per row whose logprob >= threshold.
+    """Count tokens per row whose logprob >= threshold, minimum 1.
 
-    Module-level so tests can call it directly without a Sampler instance
-    (see test_gather_logprobs_rank_clamp_guards_precision_artifact).
+    Returns a 1-based rank: rank 1 means only the token itself satisfies >=.
+
+    Workaround for https://github.com/tenstorrent/tt-xla/issues/3464:
+    TTNNWorkaroundsPass casts integer reduction operands to bfloat16;
+    the fused sum(-1).clamp(min=1) path returns -1 instead of 1 on TT.
+    torch.maximum with an explicit ones tensor gives the correct result.
 
     Returns int64 (natural sum dtype).  Callers that need int32 — e.g.
     gather_logprobs for the LogprobsTensors convention — must cast after.
     """
-    return (logprobs >= threshold).sum(-1)
+    counts = (logprobs >= threshold).sum(-1)
+    # TODO(#3464): replace with counts.clamp(min=1) once TTNNWorkaroundsPass
+    # no longer casts integer reduction operands to bfloat16.
+    return torch.maximum(counts, torch.ones_like(counts))
 
 
 class Sampler(nn.Module):
@@ -224,7 +231,12 @@ class Sampler(nn.Module):
 
         # Concatenate together with the topk.
         # Cast topk_indices to int32 to match token_ids dtype for cat.
-        indices = torch.cat((token_ids, topk_indices.to(torch.int32)), dim=1)
+        # TODO(#3463): replace with the direct on-device cat once TTNNWorkaroundsPass
+        # no longer casts integer concat operands to bfloat16 for tile-layout padding.
+        # indices = torch.cat((token_ids, topk_indices.to(torch.int32)), dim=1)
+        indices = torch.cat(
+            (token_ids.cpu(), topk_indices.cpu().to(torch.int32)), dim=1
+        ).to(token_ids.device)
         logprobs = torch.cat((token_logprobs, topk_logprobs), dim=1)
 
         return LogprobsTensors(indices, logprobs, token_ranks)
