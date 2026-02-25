@@ -2126,9 +2126,10 @@ test_config:
     reason: "Failed to legalize operation 'ttir.gather': ' - https://github.com/tenstorrent/tt-xla/issues/318"
 
   mplug_owl2/pytorch-Llama2_7B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
+    # bringup_status: FAILED_RUNTIME
 
   openvla/pytorch-7B-single_device-inference:
     status: EXPECTED_PASSING
