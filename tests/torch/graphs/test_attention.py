@@ -18,10 +18,7 @@ from torch_xla.distributed.spmd import Mesh
 from transformers.cache_utils import StaticCache
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.models.gemma.modeling_gemma import GemmaAttention
-from transformers.models.gpt_oss.modeling_gpt_oss import (
-    ALL_ATTENTION_FUNCTIONS,
-    eager_attention_forward,
-)
+from transformers.models.gpt_oss.modeling_gpt_oss import GptOssAttention
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
     LlamaAttention,
@@ -2322,68 +2319,28 @@ def test_eager_batched_attention():
     output = model(hidden_states).to("cpu")
 
 
-@pytest.mark.nightly
+@pytest.mark.push
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
 @parametrize_arch(["single_device", "llmbox"])
-def test_gpt_oss_attention(variant, variant_config, arch):
+def test_gpt_oss_attention_prefill(variant, variant_config, arch):
     xr.set_device_type("TT")
 
-    def sdpa(
-        attention_module,
-        query_states,
-        key_states,
-        value_states,
-        attention_mask,
-        dropout,
-        scaling,
-    ):
-        attention_interface: Callable = eager_attention_forward
-        if attention_module.config._attn_implementation != "eager":
-            attention_interface = ALL_ATTENTION_FUNCTIONS[
-                attention_module.config._attn_implementation
-            ]
-
-        attn_output, attn_weights = attention_interface(
-            attention_module,
-            query_states,
-            key_states,
-            value_states,
-            attention_mask,
-            dropout=dropout,
-            scaling=scaling,
-        )
-        return attn_output
-
-    loader = GPTOSSModelLoader(variant=variant, num_layers=1)
-    model = loader.load_model()
+    loader = GPTOSSModelLoader(variant=variant)
     config = loader.load_config()
-    inputs = loader.load_inputs()
-
-    batch_size = inputs["input_ids"].shape[0]
-    seq_len = inputs["input_ids"].shape[1]
-
-    num_heads = config.num_attention_heads
-    num_key_value_heads = getattr(config, "num_key_value_heads", num_heads)
-    head_dim = config.head_dim
-
-    attention = model.model.layers[0].self_attn
-
-    dropout = 0.0
-    scaling = attention.scaling
+    config._attn_implementation = "sdpa"
+    attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
-        mesh_shape = (1, num_devices)
+        mesh_shape = (2, num_devices // 2)
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
-        def get_shard_spec(sdpa, args, kwargs):
-            # Attention is the first argument to sdpa.
-            attention = args[0]
+        def get_shard_spec(attention, args, kwargs):
             shard_specs = {}
             shard_specs[attention.q_proj.weight] = ("model", None)
             shard_specs[attention.k_proj.weight] = ("model", None)
@@ -2395,32 +2352,22 @@ def test_gpt_oss_attention(variant, variant_config, arch):
         mesh = None
         get_shard_spec = None
 
-    query_states = torch.randn(
-        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
+    seq_len = 1024
+    batch_size = 1
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    key_states = torch.randn(
-        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
-    value_states = torch.randn(
-        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
-    )
+
+    cos_sin = torch.rand(batch_size, seq_len, 32, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
     attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
-    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
+    past_key_states = None
 
     run_graph_test(
-        sdpa,
-        [
-            attention,
-            query_states,
-            key_states,
-            value_states,
-            attention_mask,
-            dropout,
-            scaling,
-        ],
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
         framework=Framework.TORCH,
-        comparison_config=comparison_config,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
