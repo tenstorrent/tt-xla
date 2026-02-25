@@ -766,10 +766,11 @@ std::vector<int64_t> ModuleBuilder::collectResultPresharded(
       !module.get()->getAttrOfType<mlir::IntegerAttr>("mhlo.num_replicas");
 
   for (mlir::func::FuncOp &func_op : publicFuncOps) {
-    for (unsigned i = 0; i < func_op.getNumResults(); ++i) {
-      if (is_torch_xla) {
-        result_presharded.push_back(1);
-      } else {
+    if (is_torch_xla) {
+      result_presharded.insert(result_presharded.end(), func_op.getNumResults(),
+                               1);
+    } else {
+      for (unsigned i = 0; i < func_op.getNumResults(); ++i) {
         bool has_sharding =
             func_op.getResultAttr(i, mlir::sdy::kShardingAttr) != nullptr ||
             func_op.getResultAttr(i, mlir::tt::gspmd_utils::kXlaShardingAttr) !=
