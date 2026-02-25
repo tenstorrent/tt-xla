@@ -1899,9 +1899,10 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   llava/pytorch-1.5_7B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Running the test CRASHED with signal 9 - uses too much memory need higher memory host."
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "Running the test CRASHED with signal 9 - uses too much memory need higher memory host."
+    # bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-72B_Instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
