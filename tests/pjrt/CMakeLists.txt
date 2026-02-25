@@ -57,16 +57,12 @@ if(UTILS_UNIT_TESTS_DIR)
     )
 endif()
 
-# Find MPI (required by libtt_metal.so)
-find_package(MPI REQUIRED)
-
 # Link with gtest and TT's PJRT libraries.
 target_link_libraries(TTPJRTTests
     PRIVATE
         GTest::gtest
         GTest::gtest_main
         GTest::gmock
-        MPI::MPI_CXX
     PUBLIC
         TTPJRTApi
         TTPJRTUtils
