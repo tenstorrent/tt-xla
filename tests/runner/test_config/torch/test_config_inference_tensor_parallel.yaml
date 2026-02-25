@@ -37,6 +37,11 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3490
 
+  gpt_oss/pytorch-120B-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3490
+
   falcon/pytorch-7B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
@@ -151,10 +156,10 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   llama/causal_lm/pytorch-3.1_70B-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on galaxy"
-    bringup_status: FAILED_RUNTIME
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+    markers: [nightly] # Not red model, but high priority.
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2976
 
   llama/causal_lm/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
