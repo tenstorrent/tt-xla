@@ -176,9 +176,9 @@ class TTMetadata:
 
     def __init__(
         self,
-        cache_position: torch.Tensor = None,
-        attn_mask: torch.Tensor = None,
-        page_table: torch.Tensor = None,
+        cache_position: torch.Tensor | None = None,
+        attn_mask: torch.Tensor | None = None,
+        page_table: torch.Tensor | None = None,
         is_causal: bool = True,
     ):
         self.cache_position = cache_position
@@ -200,6 +200,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         logits_soft_cap: Optional[float] = None,
         attn_type: str = AttentionType.DECODER,
         kv_sharing_target_layer_name: Optional[int] = None,
+        sinks: torch.Tensor | None = None,
     ) -> None:
         self.num_heads = num_heads
         self.head_size = head_size
@@ -230,6 +231,13 @@ class TTAttentionBackendImpl(AttentionImpl):
                 kv_cache_dtype.lower().strip()
             )
 
+        self.sinks = sinks
+        if self.sinks is not None:
+            assert self.sinks.shape[0] == num_heads, (
+                "Sinks must have the same number of heads as the number of "
+                "heads in the layer"
+            )
+
     # @torch.compiler.disable
     def forward(
         self,
@@ -239,9 +247,9 @@ class TTAttentionBackendImpl(AttentionImpl):
         value: torch.Tensor,
         kv_cache: torch.Tensor,
         attn_metadata: TTMetadata,
-        output: Optional[torch.Tensor] = None,
-        output_scale: Optional[torch.Tensor] = None,
-        output_block_scale: Optional[torch.Tensor] = None,
+        output: torch.Tensor | None = None,
+        output_scale: torch.Tensor | None = None,
+        output_block_scale: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Forward pass with TT attention.
 
@@ -275,6 +283,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         #                    or single-pass attention for pooling models)
         # - is_prefill=False: Paged decode attention (generative models only)
         if inputs.is_prefill:
+            assert self.sinks is None, "Attention sink is unsupported in SDPA prefill"
             output = self._compute_full_attention(inputs, attn_metadata)
         else:
             output = self._compute_decode_attention(inputs, kv_cache, attn_metadata)
@@ -531,6 +540,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             cur_pos_tensor=attn_metadata.cache_position,
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
+            attention_sink=self.sinks,
         )
         # out: [query_num_tokens, users, num_heads, head_size]
         out = out.transpose(0, 1)  # [users, query_num_tokens, num_heads, head_size]
