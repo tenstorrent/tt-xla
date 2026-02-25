@@ -162,8 +162,7 @@ test_config:
     status: EXPECTED_PASSING
 
   attention_denseunet/pytorch-Base-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "TT_FATAL: Output size cannot fit input with offset during TT compile/runtime – tracked in issue https://github.com/tenstorrent/tt-xla/issues/2293"
+    status: EXPECTED_PASSING
 
   mnist/image_classification/pytorch-Cnn_Dropout-single_device-inference:
     status: EXPECTED_PASSING
@@ -751,10 +750,8 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Conv-single_device-inference:
-    required_pcc: 0.98
-    status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: FAILED_RUNTIME
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   t5/pytorch-Small-single_device-inference:
     status: EXPECTED_PASSING
@@ -768,11 +765,8 @@ test_config:
     required_pcc: 0.98
 
   perceiverio_vision/pytorch-Vision_Perceiver_Fourier-single_device-inference:
-    required_pcc: 0.98
-    assert_pcc: false  # FIXME - PCC drop to 0.96 on Aug6 due to tt-mlir/tt-xla uplift (passed locally before it)
-    status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: FAILED_RUNTIME
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   # yolov8/pytorch-yolov8x-single_device-inference:
   #   status: EXPECTED_PASSING
@@ -791,10 +785,8 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99"
 
   perceiverio_vision/pytorch-Vision_Perceiver_Learned-single_device-inference:
-    assert_pcc: false  # PCC observed: 0.9516052236372167 (below 0.99 threshold)
-    status: NOT_SUPPORTED_SKIP  # Hang exposed by Sept3 tt-mlir uplift (change: Model softmax with numericStable = true)
-    reason: "Hang / Runs forever - https://github.com/tenstorrent/tt-xla/issues/1289"
-    bringup_status: FAILED_RUNTIME
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   opt/qa/pytorch-1.3b-single_device-inference:
     assert_pcc: false
@@ -1270,7 +1262,7 @@ test_config:
 
   deepseek/deepseek_ocr/pytorch-Ocr-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: a Tensor with 3145728 elements cannot be converted to Scalar - https://github.com/tenstorrent/tt-xla/issues/1772"
+    reason: "Out of Memory: Not enough space to allocate 4786749440 B DRAM buffer across 12 banks, where each bank needs to store 398897152 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3412"
 
   deepseek/pytorch-single_device-inference:
     status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
@@ -2127,9 +2119,7 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
 
   sam/pytorch-Vit_Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
+    status: EXPECTED_PASSING
 
   vilt/masked_lm/pytorch-Mlm-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2240,8 +2230,7 @@ test_config:
         status: EXPECTED_PASSING
 
   sam/pytorch-Vit_Large-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
+    status: EXPECTED_PASSING
 
   deepseek/qwen/pytorch-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2265,9 +2254,7 @@ test_config:
     reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3258)"
 
   sam/pytorch-Vit_Huge-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
+    status: EXPECTED_PASSING
 
   mobilenetv1/pytorch-Mobilenet_v1_1.0_224-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2414

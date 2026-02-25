@@ -8,6 +8,7 @@ permissions:
   id-token: write
   packages: write
   checks: write
+  contents: write
 
 jobs:
   build-image:
