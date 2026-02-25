@@ -1,0 +1,14 @@
+{
+  "sdy.manual_computation": 38,
+  "ttir.fill_cache": 19,
+  "ttir.mesh_shard": 38,
+  "ttir.all_reduce": 38,
+  "ttir.update_cache": 19,
+  "ttnn.get_device": 38,
+  "ttnn.reshape": 38,
+  "ttnn.deallocate": 38,
+  "ttnn.constant": 38,
+  "ttir.all_gather": 26,
+  "ttir.mesh_partition": 2,
+  "ttir.sort": 2
+}
