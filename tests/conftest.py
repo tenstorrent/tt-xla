@@ -14,7 +14,6 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-import infra.utilities.transformers_compat  # noqa: F401  # Patch removed transformers APIs early
 import psutil
 import pytest
 import torch
