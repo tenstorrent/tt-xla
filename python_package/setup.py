@@ -311,7 +311,7 @@ class CMakeBuildPy(build_py):
             "-B",
             "build",
             "-DTTXLA_ENABLE_EWHEEL_INSTALL=OFF",
-            "-DTTXLA_ENABLE_TOOLS=OFF",
+            "-DTTXLA_ENABLE_TOOLS=OFF" + enable_explorer,
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
@@ -376,7 +376,6 @@ class CMakeBuildPy(build_py):
         _remove_bloat_dir(install_dir / "lib" / "pkgconfig")
         _remove_bloat_dir(install_dir / "lib64" / "cmake")
         _remove_bloat_dir(install_dir / "lib64" / "pkgconfig")
-        _remove_bloat_dir(install_dir / "bin")
         _remove_bloat_dir(install_dir / "include")
         _remove_bloat_dir(install_dir / "tt-metal" / "tests")
         if config.build_type == "release":

@@ -35,6 +35,11 @@ class BdistWheel(bdist_wheel):
         python, abi, plat = bdist_wheel.get_tag(self)
         # Force specific Python 3.12 ABI format for the wheel
         python, abi = "cp312", "cp312"
+        # Ensure we don't use 'any' platform tag for non-pure wheels
+        if plat == "any":
+            import sysconfig
+
+            plat = sysconfig.get_platform().replace("-", "_").replace(".", "_")
         return python, abi, plat
 
 
