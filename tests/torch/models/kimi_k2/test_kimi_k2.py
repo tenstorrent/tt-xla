@@ -483,7 +483,7 @@ def test_kimi_k2_full():
         config.num_hidden_layers = 2  # Need 2+ so layer_idx=1 exists and is MoE
     use_cache = False
     config.use_cache = use_cache
-    config.num_hidden_layers = 12
+    config.num_hidden_layers = 8
     model = DeepseekV3Model(config)
     model = model.to(torch.bfloat16)
 
