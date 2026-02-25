@@ -6,9 +6,6 @@ SHELL ["/bin/bash", "-c"]
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install requirements.txt as global Python 3.11 packages
-COPY python_package/requirements.txt /tmp/requirements.txt
-COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
@@ -20,8 +17,6 @@ SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install requirements.txt as global Python 3.11 packages
-COPY python_package/requirements.txt /tmp/requirements.txt
-COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/requirements.txt /tmp/requirements-dev.txt /tmp/script.sh
@@ -37,8 +32,6 @@ RUN dnf remove -y epel-release openmpi openmpi-devel || true
 
 # Install build requirements
 RUN dnf install --refresh -y \
-#     git-lfs \
-#     patchelf \
     protobuf-compiler \
     protobuf-devel \
     flex
