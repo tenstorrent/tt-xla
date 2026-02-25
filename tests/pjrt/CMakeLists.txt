@@ -10,9 +10,6 @@
 include(FetchContent)
 
 if(TTXLA_ENABLE_PJRT_TESTS)
-    message(STATUS "======== gtest ========")
-    message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
-    message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
     # TODO(acicovic): Investigate why this is needed here and in /third_party/.
     if(CMAKE_C_COMPILER MATCHES "clang")
         set(CMAKE_C_COMPILER "/usr/bin/clang-17" CACHE STRING "" FORCE)
@@ -60,12 +57,16 @@ if(UTILS_UNIT_TESTS_DIR)
     )
 endif()
 
+# Find MPI (required by libtt_metal.so)
+find_package(MPI REQUIRED)
+
 # Link with gtest and TT's PJRT libraries.
 target_link_libraries(TTPJRTTests
     PRIVATE
         GTest::gtest
         GTest::gtest_main
         GTest::gmock
+        MPI::MPI_CXX
     PUBLIC
         TTPJRTApi
         TTPJRTUtils

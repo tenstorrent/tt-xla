@@ -7,9 +7,9 @@ if(TTXLA_ENABLE_EWHEEL_INSTALL)
       COMMENT "Running editable installation..."
       USES_TERMINAL
   )
-
-  add_dependencies(install-ttxla-python-packages TTPJRTTTDylib bundle-tracy bundle-ttnn)
 endif()
+
+add_dependencies(install-ttxla-python-packages TTPJRTTTDylib bundle-tracy bundle-ttnn)
 
 # Create symlinks to the original tracy and ttnn modules from tt-metal.
 # These symlinks allow our wrapper modules to import and delegate to the original code.

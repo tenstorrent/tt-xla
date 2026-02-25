@@ -37,7 +37,7 @@ on:
         required: false
         type: string
       manylinux_build:
-        description: 'Whether to build manylinux wheel'
+        description: 'Build and use manylinux wheel'
         required: false
         type: boolean
         default: false
