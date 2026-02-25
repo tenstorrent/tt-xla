@@ -893,12 +893,9 @@ test_config:
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
 
   qwen_2_5_vl/pytorch-7B_Instruct-single_device-inference:
+    supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
 
   llama/sequence_classification/pytorch-3.2_1B-single_device-inference:
     status: EXPECTED_PASSING
@@ -1487,24 +1484,14 @@ test_config:
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
 
   flux/pytorch-Schnell-single_device-inference:
-    arch_overrides:
-      p150:
-        assert_pcc: false
-        status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9095736145973206. Required: pcc=0.99"
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip" # (flux.1-schnell is 12B param model)
-        bringup_status: FAILED_RUNTIME
+    supported_archs: ["p150"]
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9354927640542214. Required: pcc=0.99"
 
   flux/pytorch-Dev-single_device-inference:
-    arch_overrides:
-      p150:
-        status: EXPECTED_PASSING
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip" # (flux.1-dev is 12B param model)
-        bringup_status: FAILED_RUNTIME
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
 
   gliner/pytorch-Multi_v2.1-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -1523,13 +1510,8 @@ test_config:
     reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
 
   mistral/pixtral/pytorch-single_device-inference:
-    assert_pcc: false
+    supported_archs: ["p150"]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip" # (mistral-community/pixtral-12b is 12B param model)
-        bringup_status: FAILED_RUNTIME
 
   phi4/causal_lm/pytorch-Phi_4-single_device-inference:
     supported_archs: ["p150"] # Run as tensor_parallel for wormhole (14B param model).
@@ -1899,9 +1881,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   llava/pytorch-1.5_7B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Running the test CRASHED with signal 9 - uses too much memory need higher memory host."
-    bringup_status: FAILED_RUNTIME
+    supported_archs: ["p150"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: Shardy propagation only supports ranked tensors with a static shape. type: 'tensor<?x3xi32, #stablehlo.bounds<2441216, ?>>'"
 
   qwen_2_5/causal_lm/pytorch-72B_Instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -2126,55 +2108,37 @@ test_config:
     reason: "Failed to legalize operation 'ttir.gather': ' - https://github.com/tenstorrent/tt-xla/issues/318"
 
   mplug_owl2/pytorch-Llama2_7B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "running the test CRASHED with signal 9 - uses too much memory need higher memory host"
-    bringup_status: FAILED_RUNTIME
+    supported_archs: ["p150"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: mat1 and mat2 must have the same dtype, but got BFloat16 and Float"
 
   openvla/pytorch-7B-single_device-inference:
+    supported_archs: ["p150"]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
 
   openvla/pytorch-v01_7B-single_device-inference:
+    supported_archs: ["p150"]
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
 
   openvla/pytorch-7B_Finetuned_Libero_10-single_device-inference:
+    supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9786099859108067. Required: pcc=0.99."
 
   openvla/pytorch-7B_Finetuned_Libero_Goal-single_device-inference:
+    supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9812249250743588. Required: pcc=0.99."
 
   openvla/pytorch-7B_Finetuned_Libero_Object-single_device-inference:
+    supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9850487147806307. Required: pcc=0.99."
 
   openvla/pytorch-7B_Finetuned_Libero_Spatial-single_device-inference:
+    supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B"
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9793780977131366. Required: pcc=0.99."
 
   transfuser/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2400,19 +2364,14 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 157286400 B DRAM buffer across 12 banks, where each bank needs to store 13107200 B, but bank size is only 1073741792 B"
 
   llama/llama_3_2_vision/pytorch-3.2_11B_Vision-single_device-inference:
+    supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9894489311324763. Required: pcc=0.99."
 
   llama/llama_3_2_vision/pytorch-3.2_11B_Vision_Instruct-single_device-inference:
+    supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor while an async operation is in flight: UNKNOWN_SCALAR[]')"
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9876568894625046. Required: pcc=0.99."
 
   arnold/pytorch-Deathmatch_Shotgun_Rnn-single_device-inference:
     status: EXPECTED_PASSING
@@ -2487,44 +2446,29 @@ test_config:
     reason: "RuntimeError: torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_module L__self___maxpool1(*(FakeTensor(..., device='xla:0', size=(1, 96, 16, 128, 128), dtype=torch.bfloat16),), https://github.com/tenstorrent/tt-xla/issues/2567"
 
   openvla_oft/pytorch-Finetuned_Libero_10-single_device-inference:
+    supported_archs: ["p150"]
     status: EXPECTED_PASSING
-    required_pcc: 0.96
-    arch_overrides:
-      n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "Out of Memory: Not enough space to allocate 90177536 B DRAM buffer across 12 banks, where each bank needs to store 7516160 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/2328"
+    required_pcc: 0.98
 
   openvla_oft/pytorch-Finetuned_Libero_Spatial-single_device-inference:
+    supported_archs: ["p150"]
     status: EXPECTED_PASSING
     required_pcc: 0.98
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
 
   openvla_oft/pytorch-Finetuned_Libero_Goal-single_device-inference:
+    supported_archs: ["p150"]
     status: EXPECTED_PASSING
     required_pcc: 0.98
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
 
   openvla_oft/pytorch-Finetuned_Libero_Object-single_device-inference:
+    supported_archs: ["p150"]
     status: EXPECTED_PASSING
     required_pcc: 0.98
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
 
   openvla_oft/pytorch-openvla_oft_finetuned_libero_spatial_object_goal_10-single_device-inference:
+    supported_archs: ["p150"]
     status: EXPECTED_PASSING
-    required_pcc: 0.97
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Multi chip is required"
+    required_pcc: 0.98
 
   mistral/pytorch-Nemo_INSTRUCT_2407-single_device-inference:
     supported_archs: ["p150"] # 12B param model
