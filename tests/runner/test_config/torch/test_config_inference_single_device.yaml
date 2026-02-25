@@ -2693,3 +2693,7 @@ test_config:
   olm_ocr/image_text_generation/pytorch-olmOCR-2-7B-1025-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 681836544 B DRAM buffer across 12 banks, where each bank needs to store 56819712 B, but bank size is 1071821792 B (allocated: 972700384 B, free: 99121408 B, largest free block: 55576928 B) - https://github.com/tenstorrent/tt-xla/issues/3388"
+
+  arcee/text_generation/pytorch-arcee_Spark-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: " torch._dynamo.exc.BackendCompilerFailed: backend='tt' raised: RuntimeErrors: NYI: querying is_contiguous inside of vmap for memory_format other than torch.contiguous_format"
