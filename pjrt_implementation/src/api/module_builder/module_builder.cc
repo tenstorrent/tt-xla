@@ -283,9 +283,11 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  status =
-      runCompilerStableHLOPipeline(mlir_module, compile_options.export_path,
-                                   compile_options.export_model_name);
+  std::vector<int64_t> result_presharded = collectResultPresharded(mlir_module);
+
+  status = runCompilerStableHLOPipeline(mlir_module, result_presharded,
+                                        compile_options.export_path,
+                                        compile_options.export_model_name);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -749,13 +751,46 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
   return llvm::LogicalResult::success();
 }
 
+std::vector<int64_t> ModuleBuilder::collectResultPresharded(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+
+  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
+
+  std::vector<int64_t> result_presharded;
+
+  // Detect torch-xla with a heuristic mentioned in collectNumDevicesToUtilize.
+  // torch-xla never sets mhlo.num_partitions or mhlo.num_replicas on the
+  // module, whereas JAX always sets at least one.
+  bool is_torch_xla =
+      !module.get()->getAttrOfType<mlir::IntegerAttr>("mhlo.num_partitions") &&
+      !module.get()->getAttrOfType<mlir::IntegerAttr>("mhlo.num_replicas");
+
+  for (mlir::func::FuncOp &func_op : publicFuncOps) {
+    for (unsigned i = 0; i < func_op.getNumResults(); ++i) {
+      if (is_torch_xla) {
+        result_presharded.push_back(1);
+      } else {
+        bool has_sharding =
+            func_op.getResultAttr(i, mlir::sdy::kShardingAttr) != nullptr ||
+            func_op.getResultAttr(i, mlir::tt::gspmd_utils::kXlaShardingAttr) !=
+                nullptr;
+        result_presharded.push_back(has_sharding ? 1 : 0);
+      }
+    }
+  }
+
+  return result_presharded;
+}
+
 tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    const std::vector<int64_t> &result_presharded,
     const std::optional<std::string> &export_path,
     const std::string &model_name) {
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
+  stablehlo_pipeline_options.resultPresharded = result_presharded;
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
 
